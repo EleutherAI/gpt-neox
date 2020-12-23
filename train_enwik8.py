@@ -13,8 +13,8 @@ import torch.distributed as dist
 import deepspeed
 
 from tqdm.auto import tqdm, trange
-from gpt_neox.arguments import get_argument_parser
 from gpt_neox.utils import GPUMonitor
+import argparse
 # constants
 
 NUM_BATCHES = int(1e5)
@@ -58,7 +58,7 @@ def prepare_optimizer_parameters(model):
     return optimizer_grouped_parameters
 
 def get_args():
-    parser = get_argument_parser()
+    parser = argparse.ArgumentParser(description='GPTNeox Deepspeed Training Script')
     # Include DeepSpeed configuration arguments
     parser = deepspeed.add_config_arguments(parser)
     args = parser.parse_args()

@@ -11,21 +11,37 @@ from torch.nn import functional as F
 from torch.utils.data import DataLoader, Dataset
 import torch.distributed as dist
 import deepspeed
-
+import json
 from tqdm.auto import tqdm, trange
-from gpt_neox.arguments import get_argument_parser
-from gpt_neox.utils import GPUMonitor
-import argparse
+from gpt_neox.utils import GPUMonitor, DictArgs
+
 # constants
 
-NUM_BATCHES = int(1e5)
-BATCH_SIZE = 4
-GRADIENT_ACCUMULATE_EVERY = 4
-LEARNING_RATE = 1e-4
-VALIDATE_EVERY  = 100
-GENERATE_EVERY  = 500
-GENERATE_LENGTH = 512
-SEQ_LEN = 1024
+BaseConfig = {
+    'model': {
+        'num_batches': int(1e5),
+        'batch_size': 4,
+        'gradient_accumulate_every': 4,
+        'learning_rate': 1e-4,
+        'validate_every': 100,
+        'generate_every': 500,
+        'generate_length': 512,
+        'seq_len': 1024,
+        'num_tokens': 256,
+        'dim': 512,
+        'depth': 6,
+        'heads': 8,
+        'dim_head': 64,
+    },
+    'ds': {
+        'local_rank': -1,
+        'output_dir': './model',
+        'deepspeed_config': './configs/base_deepspeed.json',
+        'deepspeed': True,
+        'save_interval': 100,
+    }
+}
+
 
 # helpers
 
@@ -58,57 +74,6 @@ def prepare_optimizer_parameters(model):
     }]
     return optimizer_grouped_parameters
 
-class DictArgs(dict):
-    def __init__(self, config):
-        for k,v in config.items():
-            self[k] = v
-
-    def __getattr__(self, name):
-        if name in self:
-            return self[name]
-        else:
-            raise AttributeError("No such attribute: " + name)
-
-    def __setattr__(self, name, value):
-        self[name] = value
-
-    def __delattr__(self, name):
-        if name in self:
-            del self[name]
-        else:
-            raise AttributeError("No such attribute: " + name)
-
-def get_args():
-    parser = argparse.ArgumentParser(description='Deepspeed Training for gpt_neox.')
-    parser.add_argument('--local_rank', type=int, default=-1,
-                    help='local rank passed from distributed launcher')
-    parser.add_argument(
-        "--output_dir",
-        default='/content/model',
-        type=str,
-        help="The output directory where the model checkpoints will be written."
-    )
-    parser.add_argument(
-        "--deepspeed_config",
-        default=str(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json')),
-        type=str,
-        help="The output directory where the model checkpoints will be written."
-    ),
-    parser.add_argument('--deepspeed',
-                        default=True,
-                        action='store_true',
-                        help="Whether to finetune only")
-
-
-    #parser = get_argument_parser()
-    # Include DeepSpeed configuration arguments
-    #parser = deepspeed.add_config_arguments(parser)
-    
-    args = parser.parse_args()
-    #args.config_file = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json')
-    #args.deepspeed_config = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json')
-    print(args)
-    return args
 
 class TextSamplerDataset(Dataset):
     def __init__(self, data, seq_len):
@@ -124,48 +89,56 @@ class TextSamplerDataset(Dataset):
     def __len__(self):
         return self.data.size(0) // self.seq_len
 
-
-def train_model():
-
-    # instantiate GPT-like decoder model
-    model = GPTNeoX(
-        num_tokens = 256,
-        dim = 512,
-        seq_len = SEQ_LEN,
-        depth = 6,
-        heads = 8,
-        dim_head = 64
-    )
-    model = AutoregressiveWrapper(model)
-    #model.cuda()
-    # prepare enwik8 data
+def load_wiki_dataset():
     with gzip.open('./data/enwik8.gz') as file:
         X = np.fromstring(file.read(int(95e6)), dtype=np.uint8)
         trX, vaX = np.split(X, [int(90e6)])
         data_train, data_val = torch.from_numpy(trX), torch.from_numpy(vaX)
+        return data_train, data_val
 
 
-    train_dataset = TextSamplerDataset(data_train, SEQ_LEN)
-    val_dataset   = TextSamplerDataset(data_val, SEQ_LEN)
-    train_loader  = cycle(DataLoader(train_dataset, batch_size = BATCH_SIZE))
-    val_loader    = cycle(DataLoader(val_dataset, batch_size = BATCH_SIZE))
+def update_ds_config(model_config, deepspeed_config):
+    dsc = json.load(open(deepspeed_config['deepspeed_config'], 'r'))
+    dsc['train_batch_size'] = model_config['batch_size']
+    dsc['gradient_accumulation_steps'] = model_config['gradient_accumulate_every']
+    dsc['optimizer']['params']['lr'] = model_config['learning_rate']
+    json.dump(dsc, open(deepspeed_config['deepspeed_config'], 'w'))
+
+
+def train_model(model_config=None, deepspeed_config=None):
+    config = BaseConfig
+    _mc = config['model']
+    if model_config:
+        _mc.update(model_config)
+    _dsc = config['ds']
+    if deepspeed_config:
+        _dsc.update(deepspeed_config)
+    update_ds_config(_mc, _dsc)
+    os.makedirs(_dsc['output_dir'], exist_ok=True)
+    # instantiate GPT-like decoder model
+    model = GPTNeoX(
+        num_tokens = _mc['num_tokens'],
+        dim = _mc['dim'],
+        seq_len = _mc['seq_len'],
+        depth = _mc['depth'],
+        heads = _mc['heads'],
+        dim_head = _mc['dim_head']
+    )
+    model = AutoregressiveWrapper(model)
+
+    data_train, data_val = load_wiki_dataset()
+
+    train_dataset = TextSamplerDataset(data_train, _mc['seq_len'])
+    val_dataset   = TextSamplerDataset(data_val, _mc['seq_len'])
+    train_loader  = cycle(DataLoader(train_dataset, batch_size = _mc['batch_size']))
+    val_loader    = cycle(DataLoader(val_dataset, batch_size = _mc['batch_size']))
 
     # optimizer
-
-    optim = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    optim = torch.optim.Adam(model.parameters(), lr=_mc['learning_rate'])
 
     # training
-
     model_params = prepare_optimizer_parameters(model)
-    train_config = {
-        'local_rank': -1,
-        'output_dir': '/content/model',
-        'deepspeed_config': str(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json')),
-        'deepspeed': True
-    }
-    train_args = DictArgs(train_config)
-    #train_args = get_args()
-    #print(train_args)
+    train_args = DictArgs(_dsc)
 
     # ds loader
     model_engine, optim, _, _ = deepspeed.initialize(args=train_args,
@@ -173,11 +146,11 @@ def train_model():
                                                         optimizer=optim,
                                                         model_parameters=model_params)
 
-    pbar = trange(NUM_BATCHES, mininterval=10., desc='Training Model', dynamic_ncols=True)
+    pbar = trange(_mc['num_batches'], mininterval=10., desc='Training Model', dynamic_ncols=True)
     monitor = GPUMonitor()
     for i in pbar:
         model.train()
-        for __ in range(GRADIENT_ACCUMULATE_EVERY):
+        for __ in range(_mc['gradient_accumulate_every']):
             loss = model_engine(next(train_loader))
             model_engine.backward(loss)
 
@@ -188,21 +161,25 @@ def train_model():
         optim.step()
         optim.zero_grad()
 
-        if i % VALIDATE_EVERY == 0:
+        if i % _mc['validate_every'] == 0:
             model.eval()
             with torch.no_grad():
                 loss = model_engine(next(val_loader))
                 pbar.write(f'Validation Loss: {loss.item()}')
 
-        if i % GENERATE_EVERY == 0:
+        if i % _mc['generate_every'] == 0:
             model.eval()
             inp = random.choice(val_dataset)[:-1]
             prime = decode_tokens(inp)
             pbar.write(f"{prime} \n\n {'*' * 100}")
 
-            sample = model.generate(inp, GENERATE_LENGTH)
+            sample = model.generate(inp, _mc['generate_length'])
             output_str = decode_tokens(sample)
             pbar.write(output_str)
+        
+        if (i+1) % train_args.save_interval == 0:
+            model_engine.save_checkpoint(train_args.output_dir, i, client_sd = optim)
+
 
 if __name__ == '__main__':
     train_model()
