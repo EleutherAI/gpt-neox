@@ -1,3 +1,4 @@
 einops>=0.3
 torch>=1.6
 tqdm
+deepspeed

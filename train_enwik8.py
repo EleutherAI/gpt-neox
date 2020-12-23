@@ -1,5 +1,6 @@
 from gpt_neox import GPTNeoX, AutoregressiveWrapper
 
+import os
 import random
 import tqdm
 import gzip
@@ -8,6 +9,9 @@ import torch
 import torch.optim as optim
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, Dataset
+import deepspeed
+
+from gpt_neox.arguments import get_argument_parser
 
 # constants
 
@@ -33,6 +37,32 @@ def decode_token(token):
 def decode_tokens(tokens):
     return ''.join(list(map(decode_token, tokens)))
 
+def prepare_optimizer_parameters(model):
+    param_optimizer = list(model.named_parameters())
+    param_optimizer = [n for n in param_optimizer if 'pooler' not in n[0]]
+    no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
+    weight_decay = 0.01
+    optimizer_grouped_parameters = [{
+        'params':
+        [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
+        'weight_decay':
+        weight_decay
+    }, {
+        'params':
+        [p for n, p in param_optimizer if any(nd in n for nd in no_decay)],
+        'weight_decay':
+        0.0
+    }]
+    return optimizer_grouped_parameters
+
+def get_args():
+    parser = get_argument_parser()
+    # Include DeepSpeed configuration arguments
+    parser = deepspeed.add_config_arguments(parser)
+    args = parser.parse_args()
+    args.config_file = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json')
+    return args
+
 # instantiate GPT-like decoder model
 
 model = GPTNeoX(
@@ -45,7 +75,9 @@ model = GPTNeoX(
 )
 
 model = AutoregressiveWrapper(model)
-model.cuda()
+
+
+#model.cuda()
 
 # prepare enwik8 data
 
@@ -79,13 +111,24 @@ optim = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 # training
 
+model_params = prepare_optimizer_parameters(model)
+train_args = get_args()
+
+# ds loader
+model, optim, _, _ = deepspeed.initialize(args=train_args,
+                                                    model=model,
+                                                    optimizer=optim,
+                                                    model_parameters=model_params)
+
+
 for i in tqdm.tqdm(range(NUM_BATCHES), mininterval=10., desc='training'):
     model.train()
 
     for __ in range(GRADIENT_ACCUMULATE_EVERY):
         loss = model(next(train_loader))
-        loss.backward()
-
+        model.backward(loss)
+        #loss.backward()
+    model.step()
     print(f'training loss: {loss.item()}')
 
     torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
