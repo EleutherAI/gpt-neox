@@ -148,7 +148,7 @@ def train_model(model_config=None, deepspeed_config=None):
 
     pbar = trange(_mc['num_batches'], mininterval=10., desc='Training Model', dynamic_ncols=True)
     monitor = GPUMonitor()
-    for i in pbar:
+    for step in pbar:
         model.train()
         for __ in range(_mc['gradient_accumulate_every']):
             loss = model_engine(next(train_loader))
@@ -161,16 +161,17 @@ def train_model(model_config=None, deepspeed_config=None):
         optim.step()
         optim.zero_grad()
 
-        if i % _mc['validate_every'] == 0:
+        if step % _mc['validate_every'] == 0:
             model.eval()
             with torch.no_grad():
                 loss = model_engine(next(val_loader))
                 pbar.write(f'Validation Loss: {loss.item()}')
 
-        if i % _mc['generate_every'] == 0:
+        if step % _mc['generate_every'] == 0:
             model.eval()
             inp = random.choice(val_dataset)[:-1]
             prime = decode_tokens(inp)
+            pbar.write(f'{"----" * 50}')
             pbar.write(f"Prime Inputs: {prime}")
             pbar.write(f'{"----" * 50}')
 
@@ -179,9 +180,9 @@ def train_model(model_config=None, deepspeed_config=None):
             pbar.write(f"Decoded Outputs: {output_str}")
             pbar.write(f'{"----" * 50}')
         
-        if (i+1) % train_args.save_interval == 0:
-            pbar.write(f'Saving Checkpoint at {i+1}')
-            model_engine.save_checkpoint(train_args.output_dir, i)
+        if (step+1) % train_args.save_interval == 0:
+            pbar.write(f'Saving Checkpoint at {step+1} to {train_args.output_dir}')
+            model_engine.save_checkpoint(train_args.output_dir, step)
 
 
 if __name__ == '__main__':
