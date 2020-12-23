@@ -3,3 +3,4 @@ torch>=1.6
 tqdm
 deepspeed
 mpi4py
+gputil

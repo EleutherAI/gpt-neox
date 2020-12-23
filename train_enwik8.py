@@ -9,10 +9,12 @@ import torch
 import torch.optim as optim
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, Dataset
+import torch.distributed as dist
 import deepspeed
 
+from tqdm.auto import tqdm, trange
 from gpt_neox.arguments import get_argument_parser
-
+from gpt_neox.utils import GPUMonitor
 # constants
 
 NUM_BATCHES = int(1e5)
@@ -60,7 +62,6 @@ def get_args():
     # Include DeepSpeed configuration arguments
     parser = deepspeed.add_config_arguments(parser)
     args = parser.parse_args()
-    args.config_file = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json')
     return args
 
 # instantiate GPT-like decoder model
@@ -121,32 +122,34 @@ model_engine, optim, _, _ = deepspeed.initialize(args=train_args,
                                                     model_parameters=model_params)
 
 
-for i in tqdm.tqdm(range(NUM_BATCHES), mininterval=10., desc='training'):
-    model.train()
+def train_model():
+    pbar = trange(NUM_BATCHES, mininterval=10., desc='Training Model', dynamic_ncols=True)
+    monitor = GPUMonitor()
+    for i in pbar:
+        model.train()
+        for __ in range(GRADIENT_ACCUMULATE_EVERY):
+            loss = model_engine(next(train_loader))
+            model_engine.backward(loss)
 
-    for __ in range(GRADIENT_ACCUMULATE_EVERY):
-        loss = model_engine(next(train_loader))
-        model_engine.backward(loss)
-        #loss.backward()
-    model_engine.step()
-    print(f'training loss: {loss.item()}')
+        model_engine.step()
+        pbar.set_description(f'Training Loss: {loss.item()}')
+        pbar.update()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
+        optim.step()
+        optim.zero_grad()
 
-    torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
-    optim.step()
-    optim.zero_grad()
+        if i % VALIDATE_EVERY == 0:
+            model.eval()
+            with torch.no_grad():
+                loss = model_engine(next(val_loader))
+                pbar.write(f'Validation Loss: {loss.item()}')
 
-    if i % VALIDATE_EVERY == 0:
-        model.eval()
-        with torch.no_grad():
-            loss = model_engine(next(val_loader))
-            print(f'validation loss: {loss.item()}')
+        if i % GENERATE_EVERY == 0:
+            model.eval()
+            inp = random.choice(val_dataset)[:-1]
+            prime = decode_tokens(inp)
+            pbar.write(f'%s \n\n %s', (prime, '*' * 100))
 
-    if i % GENERATE_EVERY == 0:
-        model.eval()
-        inp = random.choice(val_dataset)[:-1]
-        prime = decode_tokens(inp)
-        print(f'%s \n\n %s', (prime, '*' * 100))
-
-        sample = model.generate(inp, GENERATE_LENGTH)
-        output_str = decode_tokens(sample)
-        print(output_str)
+            sample = model.generate(inp, GENERATE_LENGTH)
+            output_str = decode_tokens(sample)
+            pbar.write(output_str)

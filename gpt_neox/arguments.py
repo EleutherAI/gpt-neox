@@ -16,6 +16,13 @@ def get_argument_parser():
         "--cf",
         help="pointer to the configuration file of the experiment",
         type=str,
+        default=os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json'),
+        required=True)
+    parser.add_argument(
+        "--deepspeed_config",
+        help="pointer to the configuration file of the experiment",
+        type=str,
+        default=os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json'),
         required=True)
     parser.add_argument(
         "--output_dir",
