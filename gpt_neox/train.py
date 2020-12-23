@@ -115,16 +115,18 @@ optim = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 # training
 
 model_params = prepare_optimizer_parameters(model)
-train_args = get_args()
 
-# ds loader
-model_engine, optim, _, _ = deepspeed.initialize(args=train_args,
-                                                    model=model,
-                                                    optimizer=optim,
-                                                    model_parameters=model_params)
 
 
 def train_model():
+    train_args = get_args()
+
+    # ds loader
+    model_engine, optim, _, _ = deepspeed.initialize(args=train_args,
+                                                        model=model,
+                                                        optimizer=optim,
+                                                        model_parameters=model_params)
+
     pbar = trange(NUM_BATCHES, mininterval=10., desc='Training Model', dynamic_ncols=True)
     monitor = GPUMonitor()
     for i in pbar:
