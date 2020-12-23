@@ -60,7 +60,7 @@ def prepare_optimizer_parameters(model):
 def get_args():
     parser = get_argument_parser()
     # Include DeepSpeed configuration arguments
-    parser = deepspeed.add_config_arguments(parser)
+    #parser = deepspeed.add_config_arguments(parser)
     
     args = parser.parse_args()
     args.config_file = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json')
