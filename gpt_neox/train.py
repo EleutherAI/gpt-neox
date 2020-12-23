@@ -58,6 +58,26 @@ def prepare_optimizer_parameters(model):
     }]
     return optimizer_grouped_parameters
 
+class DictArgs(dict):
+    def __init__(self, config):
+        for k,v in config.items():
+            self[k] = v
+
+    def __getattr__(self, name):
+        if name in self:
+            return self[name]
+        else:
+            raise AttributeError("No such attribute: " + name)
+
+    def __setattr__(self, name, value):
+        self[name] = value
+
+    def __delattr__(self, name):
+        if name in self:
+            del self[name]
+        else:
+            raise AttributeError("No such attribute: " + name)
+
 def get_args():
     parser = argparse.ArgumentParser(description='Deepspeed Training for gpt_neox.')
     parser.add_argument('--local_rank', type=int, default=-1,
@@ -137,8 +157,14 @@ def train_model():
     # training
 
     model_params = prepare_optimizer_parameters(model)
-
-    train_args = get_args()
+    train_config = {
+        'local_rank': -1,
+        'output_dir': '/content/model',
+        'deepspeed_config': str(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json')),
+        'deepspeed': True
+    }
+    train_args = DictArgs(train_config)
+    #train_args = get_args()
     #print(train_args)
 
     # ds loader
@@ -177,3 +203,6 @@ def train_model():
             sample = model.generate(inp, GENERATE_LENGTH)
             output_str = decode_tokens(sample)
             pbar.write(output_str)
+
+if __name__ == '__main__':
+    train_model()
