@@ -68,29 +68,6 @@ def get_args():
     print(args)
     return args
 
-# instantiate GPT-like decoder model
-
-model = GPTNeoX(
-    num_tokens = 256,
-    dim = 512,
-    seq_len = SEQ_LEN,
-    depth = 6,
-    heads = 8,
-    dim_head = 64
-)
-
-model = AutoregressiveWrapper(model)
-
-
-#model.cuda()
-
-# prepare enwik8 data
-
-with gzip.open('./data/enwik8.gz') as file:
-    X = np.fromstring(file.read(int(95e6)), dtype=np.uint8)
-    trX, vaX = np.split(X, [int(90e6)])
-    data_train, data_val = torch.from_numpy(trX), torch.from_numpy(vaX)
-
 class TextSamplerDataset(Dataset):
     def __init__(self, data, seq_len):
         super().__init__()
@@ -105,23 +82,42 @@ class TextSamplerDataset(Dataset):
     def __len__(self):
         return self.data.size(0) // self.seq_len
 
-train_dataset = TextSamplerDataset(data_train, SEQ_LEN)
-val_dataset   = TextSamplerDataset(data_val, SEQ_LEN)
-train_loader  = cycle(DataLoader(train_dataset, batch_size = BATCH_SIZE))
-val_loader    = cycle(DataLoader(val_dataset, batch_size = BATCH_SIZE))
-
-# optimizer
-
-optim = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
-
-# training
-
-model_params = prepare_optimizer_parameters(model)
-
-
 
 def train_model():
+
+    # instantiate GPT-like decoder model
+    model = GPTNeoX(
+        num_tokens = 256,
+        dim = 512,
+        seq_len = SEQ_LEN,
+        depth = 6,
+        heads = 8,
+        dim_head = 64
+    )
+    model = AutoregressiveWrapper(model)
+    #model.cuda()
+    # prepare enwik8 data
+    with gzip.open('./data/enwik8.gz') as file:
+        X = np.fromstring(file.read(int(95e6)), dtype=np.uint8)
+        trX, vaX = np.split(X, [int(90e6)])
+        data_train, data_val = torch.from_numpy(trX), torch.from_numpy(vaX)
+
+
+    train_dataset = TextSamplerDataset(data_train, SEQ_LEN)
+    val_dataset   = TextSamplerDataset(data_val, SEQ_LEN)
+    train_loader  = cycle(DataLoader(train_dataset, batch_size = BATCH_SIZE))
+    val_loader    = cycle(DataLoader(val_dataset, batch_size = BATCH_SIZE))
+
+    # optimizer
+
+    optim = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+
+    # training
+
+    model_params = prepare_optimizer_parameters(model)
+
     train_args = get_args()
+    print(train_args)
 
     # ds loader
     model_engine, optim, _, _ = deepspeed.initialize(args=train_args,
