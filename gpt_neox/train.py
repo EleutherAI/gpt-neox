@@ -198,7 +198,7 @@ def train_model():
             model.eval()
             inp = random.choice(val_dataset)[:-1]
             prime = decode_tokens(inp)
-            pbar.write(f'%s \n\n %s', (prime, '*' * 100))
+            pbar.write(f"{prime} \n\n {'*' * 100}")
 
             sample = model.generate(inp, GENERATE_LENGTH)
             output_str = decode_tokens(sample)
