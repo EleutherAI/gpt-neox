@@ -17,7 +17,7 @@ from gpt_neox.utils import GPUMonitor, DictArgs
 
 # constants
 
-
+# colab notebook https://colab.research.google.com/drive/1aEQY9MPFd0k7kebDtS33gOiuuqYveaiA?usp=sharing
 
 BaseConfig = {
     'model': {
