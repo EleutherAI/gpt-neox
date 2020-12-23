@@ -179,7 +179,7 @@ def train_model(model_config=None, deepspeed_config=None):
         
         if (i+1) % train_args.save_interval == 0:
             pbar.write(f'Saving Checkpoint at {i}')
-            model_engine.save_checkpoint(train_args.output_dir, i, client_sd = optim)
+            model_engine.save_checkpoint(train_args.output_dir, i, client_state = optim.params)
 
 
 if __name__ == '__main__':
