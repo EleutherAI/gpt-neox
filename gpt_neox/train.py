@@ -63,6 +63,7 @@ def get_args():
     parser = deepspeed.add_config_arguments(parser)
     
     args = parser.parse_args()
+    args.config_file = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json')
     args.deepspeed_config = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json')
     return args
 
