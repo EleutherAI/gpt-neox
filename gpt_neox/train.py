@@ -171,15 +171,17 @@ def train_model(model_config=None, deepspeed_config=None):
             model.eval()
             inp = random.choice(val_dataset)[:-1]
             prime = decode_tokens(inp)
-            pbar.write(f"{prime} \n\n {'*' * 100}")
+            pbar.write(f"Prime Inputs: {prime}")
+            pbar.write(f'{"----" * 50}')
 
             sample = model.generate(inp, _mc['generate_length'])
             output_str = decode_tokens(sample)
-            pbar.write(output_str)
+            pbar.write(f"Decoded Outputs: {output_str}")
+            pbar.write(f'{"----" * 50}')
         
         if (i+1) % train_args.save_interval == 0:
-            pbar.write(f'Saving Checkpoint at {i}')
-            model_engine.save_checkpoint(train_args.output_dir, i, client_state = optim.params)
+            pbar.write(f'Saving Checkpoint at {i+1}')
+            model_engine.save_checkpoint(train_args.output_dir, i)
 
 
 if __name__ == '__main__':
