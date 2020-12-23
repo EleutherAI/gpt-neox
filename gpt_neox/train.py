@@ -104,7 +104,7 @@ def update_ds_config(model_config, deepspeed_config):
     dsc['train_batch_size'] = model_config['batch_size']
     dsc['gradient_accumulation_steps'] = model_config['gradient_accumulate_every']
     dsc['optimizer']['params']['lr'] = model_config['learning_rate']
-    json.dump(dsc, open(deepspeed_config['deepspeed_config'], 'w'))
+    json.dump(dsc, open(deepspeed_config['deepspeed_config'], 'w'), indent=2)
 
 
 def train_model(model_config=None, deepspeed_config=None):
