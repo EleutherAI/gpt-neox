@@ -116,8 +116,13 @@ def train_model():
 
     model_params = prepare_optimizer_parameters(model)
 
-    train_args = get_args()
-    print(train_args)
+    #train_args = get_args()
+    #print(train_args)
+    train_args = {
+        'local_rank': -1,
+        'deepspeed_config': os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json'),
+        'deepspeed': True
+    }
 
     # ds loader
     model_engine, optim, _, _ = deepspeed.initialize(args=train_args,

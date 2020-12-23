@@ -34,6 +34,6 @@ class GPUMonitor(Thread):
         self.total_gpus = 0
         if gpus:
             for gpu in gpus:
-                _gpubarformat = f'GPU [{gpu.id}] {gpu.name} ' + '{desc}: {bar} {percentage:.02f}% Utilization'
+                _gpubarformat = f'GPU [{gpu.id}] {gpu.name}: ' + '{desc} {bar} {percentage:.02f}% Utilization'
                 self.gbars[gpu.id] = tqdm(range(100), colour='blue', bar_format=_gpubarformat, position=self.total_gpus, dynamic_ncols=True, leave=True, file=sys.stdout)
                 self.total_gpus += 1

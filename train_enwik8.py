@@ -132,7 +132,7 @@ for i in pbar:
         model_engine.backward(loss)
 
     model_engine.step()
-    pbar.set_description(f'Training Loss: {loss.item()}')
+    pbar.set_description(f'Training Loss: {loss.item():.4f}')
     pbar.update()
     torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
     optim.step()
