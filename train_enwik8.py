@@ -115,7 +115,7 @@ model_params = prepare_optimizer_parameters(model)
 train_args = get_args()
 
 # ds loader
-model, optim, _, _ = deepspeed.initialize(args=train_args,
+model_engine, optim, _, _ = deepspeed.initialize(args=train_args,
                                                     model=model,
                                                     optimizer=optim,
                                                     model_parameters=model_params)
@@ -125,10 +125,10 @@ for i in tqdm.tqdm(range(NUM_BATCHES), mininterval=10., desc='training'):
     model.train()
 
     for __ in range(GRADIENT_ACCUMULATE_EVERY):
-        loss = model(next(train_loader))
-        model.backward(loss)
+        loss = model_engine(next(train_loader))
+        model_engine.backward(loss)
         #loss.backward()
-    model.step()
+    model_engine.step()
     print(f'training loss: {loss.item()}')
 
     torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
@@ -138,7 +138,7 @@ for i in tqdm.tqdm(range(NUM_BATCHES), mininterval=10., desc='training'):
     if i % VALIDATE_EVERY == 0:
         model.eval()
         with torch.no_grad():
-            loss = model(next(val_loader))
+            loss = model_engine(next(val_loader))
             print(f'validation loss: {loss.item()}')
 
     if i % GENERATE_EVERY == 0:
