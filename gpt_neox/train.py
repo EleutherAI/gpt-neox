@@ -58,13 +58,42 @@ def prepare_optimizer_parameters(model):
     return optimizer_grouped_parameters
 
 def get_args():
-    parser = get_argument_parser()
+    parser = argparse.ArgumentParser(description='Deepspeed Training for gpt_neox.')
+    parser.add_argument('--local_rank', type=int, default=-1,
+                    help='local rank passed from distributed launcher')
+    parser.add_argument(
+        "--config-file",
+        help="pointer to the configuration file of the experiment",
+        type=str,
+        default=os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json'),
+        required=True)
+    parser.add_argument(
+        "--output_dir",
+        default='/content/model',
+        type=str,
+        required=True,
+        help="The output directory where the model checkpoints will be written."
+    )
+    parser.add_argument(
+        "--deepspeed_config",
+        default=os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json'),
+        type=str,
+        required=True,
+        help="The output directory where the model checkpoints will be written."
+    ),
+    parser.add_argument('--deepspeed',
+                        default=True,
+                        action='store_true',
+                        help="Whether to finetune only")
+
+
+    #parser = get_argument_parser()
     # Include DeepSpeed configuration arguments
-    parser = deepspeed.add_config_arguments(parser)
+    #parser = deepspeed.add_config_arguments(parser)
     
     args = parser.parse_args()
-    args.config_file = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json')
-    args.deepspeed_config = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json')
+    #args.config_file = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json')
+    #args.deepspeed_config = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json')
     print(args)
     return args
 
@@ -116,13 +145,8 @@ def train_model():
 
     model_params = prepare_optimizer_parameters(model)
 
-    #train_args = get_args()
+    train_args = get_args()
     #print(train_args)
-    train_args = {
-        'local_rank': -1,
-        'deepspeed_config': os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json'),
-        'deepspeed': True
-    }
 
     # ds loader
     model_engine, optim, _, _ = deepspeed.initialize(args=train_args,
