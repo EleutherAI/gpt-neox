@@ -19,14 +19,8 @@ def get_argument_parser():
         default=os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json'),
         required=True)
     parser.add_argument(
-        "--deepspeed_config",
-        help="pointer to the configuration file of the experiment",
-        type=str,
-        default=os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json'),
-        required=True)
-    parser.add_argument(
         "--output_dir",
-        default=None,
+        default='/content/model',
         type=str,
         required=True,
         help="The output directory where the model checkpoints will be written."
