@@ -182,7 +182,7 @@ def train_model(model_config=None, deepspeed_config=None):
         
         if (step+1) % train_args.save_interval == 0:
             pbar.write(f'Saving Checkpoint at {step+1} to {train_args.output_dir}')
-            model_engine.save_checkpoint(train_args.output_dir, step)
+            model_engine.save_checkpoint(train_args.output_dir)
 
 
 if __name__ == '__main__':
