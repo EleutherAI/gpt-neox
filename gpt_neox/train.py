@@ -63,12 +63,6 @@ def get_args():
     parser.add_argument('--local_rank', type=int, default=-1,
                     help='local rank passed from distributed launcher')
     parser.add_argument(
-        "--config-file",
-        help="pointer to the configuration file of the experiment",
-        type=str,
-        default=os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json'),
-        )
-    parser.add_argument(
         "--output_dir",
         default='/content/model',
         type=str,
@@ -76,7 +70,7 @@ def get_args():
     )
     parser.add_argument(
         "--deepspeed_config",
-        default=os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json'),
+        default=str(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configs/base_deepspeed.json')),
         type=str,
         help="The output directory where the model checkpoints will be written."
     ),
