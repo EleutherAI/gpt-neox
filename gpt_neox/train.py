@@ -20,7 +20,7 @@ from gpt_neox.utils import GPUMonitor, DictArgs
 BaseConfig = {
     'model': {
         'num_batches': int(1e5),
-        'batch_size': 4,
+        'batch_size': 8,
         'gradient_accumulate_every': 4,
         'learning_rate': 1e-4,
         'validate_every': 100,
