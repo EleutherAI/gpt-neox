@@ -10,5 +10,9 @@
     "fp16": {
       "enabled": true
     },
-    "zero_optimization": true
+    "zero_optimization": {
+      "stage": 2,
+      "contiguous_gradients" : true,
+      "cpu_offload": true
+      }
 }
