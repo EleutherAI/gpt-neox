@@ -1,3 +1,6 @@
 einops>=0.3
 torch>=1.6
-tqdm
+tqdm>=4.50.0
+deepspeed
+mpi4py
+gputil

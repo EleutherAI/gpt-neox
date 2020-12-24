@@ -1,5 +1,6 @@
 from gpt_neox import GPTNeoX, AutoregressiveWrapper
 
+import os
 import random
 import tqdm
 import gzip
@@ -8,7 +9,12 @@ import torch
 import torch.optim as optim
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, Dataset
+import torch.distributed as dist
+import deepspeed
 
+from tqdm.auto import tqdm, trange
+from gpt_neox.utils import GPUMonitor
+import argparse
 # constants
 
 NUM_BATCHES = int(1e5)
@@ -33,6 +39,31 @@ def decode_token(token):
 def decode_tokens(tokens):
     return ''.join(list(map(decode_token, tokens)))
 
+def prepare_optimizer_parameters(model):
+    param_optimizer = list(model.named_parameters())
+    param_optimizer = [n for n in param_optimizer if 'pooler' not in n[0]]
+    no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
+    weight_decay = 0.01
+    optimizer_grouped_parameters = [{
+        'params':
+        [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
+        'weight_decay':
+        weight_decay
+    }, {
+        'params':
+        [p for n, p in param_optimizer if any(nd in n for nd in no_decay)],
+        'weight_decay':
+        0.0
+    }]
+    return optimizer_grouped_parameters
+
+def get_args():
+    parser = argparse.ArgumentParser(description='GPTNeox Deepspeed Training Script')
+    # Include DeepSpeed configuration arguments
+    parser = deepspeed.add_config_arguments(parser)
+    args = parser.parse_args()
+    return args
+
 # instantiate GPT-like decoder model
 
 model = GPTNeoX(
@@ -45,7 +76,9 @@ model = GPTNeoX(
 )
 
 model = AutoregressiveWrapper(model)
-model.cuda()
+
+
+#model.cuda()
 
 # prepare enwik8 data
 
@@ -79,15 +112,28 @@ optim = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 # training
 
-for i in tqdm.tqdm(range(NUM_BATCHES), mininterval=10., desc='training'):
+model_params = prepare_optimizer_parameters(model)
+train_args = get_args()
+
+# ds loader
+model_engine, optim, _, _ = deepspeed.initialize(args=train_args,
+                                                    model=model,
+                                                    optimizer=optim,
+                                                    model_parameters=model_params)
+
+
+
+pbar = trange(NUM_BATCHES, mininterval=10., desc='Training Model', dynamic_ncols=True)
+monitor = GPUMonitor()
+for i in pbar:
     model.train()
-
     for __ in range(GRADIENT_ACCUMULATE_EVERY):
-        loss = model(next(train_loader))
-        loss.backward()
+        loss = model_engine(next(train_loader))
+        model_engine.backward(loss)
 
-    print(f'training loss: {loss.item()}')
-
+    model_engine.step()
+    pbar.set_description(f'Training Loss: {loss.item():.4f}')
+    pbar.update()
     torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
     optim.step()
     optim.zero_grad()
@@ -95,15 +141,14 @@ for i in tqdm.tqdm(range(NUM_BATCHES), mininterval=10., desc='training'):
     if i % VALIDATE_EVERY == 0:
         model.eval()
         with torch.no_grad():
-            loss = model(next(val_loader))
-            print(f'validation loss: {loss.item()}')
+            loss = model_engine(next(val_loader))
+            pbar.write(f'Validation Loss: {loss.item()}')
 
     if i % GENERATE_EVERY == 0:
         model.eval()
         inp = random.choice(val_dataset)[:-1]
         prime = decode_tokens(inp)
-        print(f'%s \n\n %s', (prime, '*' * 100))
-
+        pbar.write(f"{prime} \n\n {'*' * 100}")
         sample = model.generate(inp, GENERATE_LENGTH)
         output_str = decode_tokens(sample)
-        print(output_str)
+        pbar.write(output_str)
