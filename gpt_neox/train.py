@@ -21,7 +21,7 @@ from gpt_neox.utils import GPUMonitor, DictArgs
 
 BaseConfig = {
     'model': {
-        'num_batches': int(1e5),
+        'num_epochs': 10,
         'batch_size': 8,
         'gradient_accumulate_every': 4,
         'learning_rate': 1e-4,
@@ -131,8 +131,8 @@ def train_model(model_config=None, deepspeed_config=None):
     data_train, data_val = load_wiki_dataset()
 
     train_dataset = TextSamplerDataset(data_train, _mc['seq_len'])
+
     val_dataset   = TextSamplerDataset(data_val, _mc['seq_len'])
-    train_loader  = cycle(DataLoader(train_dataset, batch_size = _mc['batch_size']))
     val_loader    = cycle(DataLoader(val_dataset, batch_size = _mc['batch_size']))
 
     # optimizer
@@ -143,48 +143,49 @@ def train_model(model_config=None, deepspeed_config=None):
     train_args = DictArgs(_dsc)
 
     # ds loader
-    model_engine, optim, _, _ = deepspeed.initialize(args=train_args,
+    model_engine, optim, trainloader, _ = deepspeed.initialize(args=train_args,
                                                         model=model,
                                                         optimizer=optim,
-                                                        model_parameters=model_params)
+                                                        model_parameters=model_params,
+                                                        training_data=train_dataset)
 
-    pbar = trange(_mc['num_batches'], mininterval=10., desc='Training Model', dynamic_ncols=True)
+    pbar = trange(_mc['num_epochs'], mininterval=10., desc='Training Model', dynamic_ncols=True)
     monitor = GPUMonitor()
     for step in pbar:
-        model.train()
-        for __ in range(_mc['gradient_accumulate_every']):
-            loss = model_engine(next(train_loader))
+        for i, data in enumerate(trainloader):
+            is_main = model_engine.local_rank == 0
+            model_engine.train()
+            data = data.to(model_engine.local_rank)
+
+            loss = model_engine(data)
+
             model_engine.backward(loss)
+            model_engine.step()
+            pbar.set_description(f'Training Loss: {loss.item()}')
+            pbar.update()
 
-        model_engine.step()
-        pbar.set_description(f'Training Loss: {loss.item()}')
-        pbar.update()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
-        optim.step()
-        optim.zero_grad()
+            if is_main and step % _mc['validate_every'] == 0:
+                model.eval()
+                with torch.no_grad():
+                    loss = model_engine(next(val_loader))
+                    pbar.write(f'Validation Loss: {loss.item()}')
 
-        if step % _mc['validate_every'] == 0:
-            model.eval()
-            with torch.no_grad():
-                loss = model_engine(next(val_loader))
-                pbar.write(f'Validation Loss: {loss.item()}')
+            if is_main and step % _mc['generate_every'] == 0:
+                model.eval()
+                inp = random.choice(val_dataset)[:-1]
+                prime = decode_tokens(inp)
+                pbar.write(f'{"----" * 50}')
+                pbar.write(f"Prime Inputs: {prime}")
+                pbar.write(f'{"----" * 50}')
 
-        if step % _mc['generate_every'] == 0:
-            model.eval()
-            inp = random.choice(val_dataset)[:-1]
-            prime = decode_tokens(inp)
-            pbar.write(f'{"----" * 50}')
-            pbar.write(f"Prime Inputs: {prime}")
-            pbar.write(f'{"----" * 50}')
+                sample = model.generate(inp, _mc['generate_length'])
+                output_str = decode_tokens(sample)
+                pbar.write(f"Decoded Outputs: {output_str}")
+                pbar.write(f'{"----" * 50}')
 
-            sample = model.generate(inp, _mc['generate_length'])
-            output_str = decode_tokens(sample)
-            pbar.write(f"Decoded Outputs: {output_str}")
-            pbar.write(f'{"----" * 50}')
-        
-        if step % train_args.save_interval == 0 and step > 0:
-            pbar.write(f'Saving Checkpoint at {step} to {train_args.output_dir}')
-            model_engine.save_checkpoint(train_args.output_dir)
+            if is_main and step % train_args.save_interval == 0 and step > 0:
+                pbar.write(f'Saving Checkpoint at {step} to {train_args.output_dir}')
+                model_engine.save_checkpoint(train_args.output_dir)
 
 
 if __name__ == '__main__':

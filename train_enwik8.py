@@ -20,7 +20,7 @@ def get_args():
 
 
 # constants
-NUM_BATCHES = int(1e5)
+NUM_EPOCHS = 10
 BATCH_SIZE = 4
 GRADIENT_ACCUMULATE_EVERY = 4
 LEARNING_RATE = 1e-4
@@ -45,7 +45,6 @@ model = AutoregressiveWrapper(model)
 data_train, data_val = prepare_enwik8_data()
 train_dataset = TextSamplerDataset(data_train, SEQ_LEN)
 val_dataset = TextSamplerDataset(data_val, SEQ_LEN)
-train_loader = cycle(DataLoader(train_dataset, batch_size=BATCH_SIZE))
 val_loader = cycle(DataLoader(val_dataset, batch_size=BATCH_SIZE))
 
 # optimizer
@@ -56,37 +55,38 @@ model_params = prepare_optimizer_parameters(model)
 train_args = get_args()
 
 # deepspeed loader
-model_engine, optim, _, _ = deepspeed.initialize(args=train_args,
+model_engine, optim, train_loader, _ = deepspeed.initialize(args=train_args,
                                                  model=model,
                                                  optimizer=optim,
-                                                 model_parameters=model_params)
+                                                 model_parameters=model_params,
+                                                 training_data=train_dataset)
 
-pbar = trange(NUM_BATCHES, mininterval=10., desc='Training Model', dynamic_ncols=True)
+pbar = trange(NUM_EPOCHS, mininterval=10., desc='Training Model', dynamic_ncols=True)
 monitor = GPUMonitor()
 for i in pbar:
-    model.train()
-    for __ in range(GRADIENT_ACCUMULATE_EVERY):
-        loss = model_engine(next(train_loader))
+    for i, data in enumerate(train_loader):
+        model_engine.train()
+        is_main = model_engine.local_rank == 0
+        data = data.to(model_engine.local_rank)
+
+        loss = model_engine(data)
         model_engine.backward(loss)
+        model_engine.step()
 
-    model_engine.step()
-    pbar.set_description(f'Training Loss: {loss.item():.4f}')
-    pbar.update()
-    torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
-    optim.step()
-    optim.zero_grad()
+        pbar.set_description(f'Training Loss: {loss.item():.4f}')
+        pbar.update()
 
-    if i % VALIDATE_EVERY == 0:
-        model.eval()
-        with torch.no_grad():
-            loss = model_engine(next(val_loader))
-            pbar.write(f'Validation Loss: {loss.item()}')
+        if is_main and i % VALIDATE_EVERY == 0:
+            model.eval()
+            with torch.no_grad():
+                loss = model_engine(next(val_loader))
+                pbar.write(f'Validation Loss: {loss.item()}')
 
-    if i % GENERATE_EVERY == 0:
-        model.eval()
-        inp = random.choice(val_dataset)[:-1]
-        prime = decode_tokens(inp)
-        pbar.write(f"{prime} \n\n {'*' * 100}")
-        sample = model.generate(inp, GENERATE_LENGTH)
-        output_str = decode_tokens(sample)
-        pbar.write(output_str)
+        if is_main and i % GENERATE_EVERY == 0:
+            model.eval()
+            inp = random.choice(val_dataset)[:-1]
+            prime = decode_tokens(inp)
+            pbar.write(f"{prime} \n\n {'*' * 100}")
+            sample = model.generate(inp, GENERATE_LENGTH)
+            output_str = decode_tokens(sample)
+            pbar.write(output_str)
