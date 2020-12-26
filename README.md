@@ -7,12 +7,6 @@ An implementation of model parallel GPT-3-like models on GPUs, based on the Deep
 $ pip install -r requirements.txt
 ```
 
-Test locally
-
-```bash
-$ python train_enwik8.py
-```
-
 Test deepspeed locally
 
 ```bash
