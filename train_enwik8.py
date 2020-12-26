@@ -14,6 +14,16 @@ import argparse
 def get_args():
     parser = argparse.ArgumentParser(description='GPTNeox Deepspeed Training Script')
     # Include DeepSpeed configuration arguments
+    parser.add_argument('--with_cuda', default=False, action='store_true',
+                        help='use CPU in case there\'s no GPU support')
+    parser.add_argument('--use_ema', default=False, action='store_true',
+                        help='whether use exponential moving average')
+    parser.add_argument('-b', '--batch_size', default=32, type=int,
+                        help='mini-batch size (default: 32)')
+    parser.add_argument('-e', '--epochs', default=30, type=int,
+                        help='number of total epochs (default: 30)')
+    parser.add_argument('--local_rank', type=int, default=-1,
+                       help='local rank passed from distributed launcher')
     parser = deepspeed.add_config_arguments(parser)
     args = parser.parse_args()
     return args
@@ -26,8 +36,8 @@ GRADIENT_ACCUMULATE_EVERY = 4
 LEARNING_RATE = 1e-4
 VALIDATE_EVERY = 100
 GENERATE_EVERY = 500
-GENERATE_LENGTH = 512
-SEQ_LEN = 1024
+GENERATE_LENGTH = 256
+SEQ_LEN = 256
 
 # instantiate GPT-like decoder model
 model = GPTNeoX(
@@ -40,6 +50,7 @@ model = GPTNeoX(
 )
 
 model = AutoregressiveWrapper(model)
+model.cuda()
 
 # prepare enwik8 data
 data_train, data_val = prepare_enwik8_data()
@@ -79,7 +90,8 @@ for i in pbar:
         if is_main and i % VALIDATE_EVERY == 0:
             model.eval()
             with torch.no_grad():
-                loss = model_engine(next(val_loader))
+                val_data = next(val_loader).cuda()
+                loss = model(val_data)
                 pbar.write(f'Validation Loss: {loss.item()}')
 
         if is_main and i % GENERATE_EVERY == 0:
@@ -87,6 +99,6 @@ for i in pbar:
             inp = random.choice(val_dataset)[:-1]
             prime = decode_tokens(inp)
             pbar.write(f"{prime} \n\n {'*' * 100}")
-            sample = model.generate(inp, GENERATE_LENGTH)
+            sample = model.generate(inp.cuda(), GENERATE_LENGTH)
             output_str = decode_tokens(sample)
             pbar.write(output_str)
