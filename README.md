@@ -12,3 +12,11 @@ Test locally
 ```bash
 $ python train_enwik8.py
 ```
+
+Test deepspeed locally
+
+```bash
+$ deepspeed train_enwik8.py \
+	--deepspeed \
+	--deepspeed_config ./configs/base_deepspeed.json
+```
