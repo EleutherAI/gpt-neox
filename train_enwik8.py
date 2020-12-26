@@ -1,15 +1,23 @@
-from gpt_neox import GPTNeoX, AutoregressiveWrapper
+from gpt_neox import (GPTNeoX, AutoregressiveWrapper, TextSamplerDataset,
+                      cycle, prepare_optimizer_parameters, decode_tokens, prepare_enwik8_data)
 
 import random
-import gzip
-import numpy as np
 import torch
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 import deepspeed
 
 from tqdm.auto import trange
 from gpt_neox.utils import GPUMonitor
 import argparse
+
+
+def get_args():
+    parser = argparse.ArgumentParser(description='GPTNeox Deepspeed Training Script')
+    # Include DeepSpeed configuration arguments
+    parser = deepspeed.add_config_arguments(parser)
+    args = parser.parse_args()
+    return args
+
 
 # constants
 NUM_BATCHES = int(1e5)
@@ -21,52 +29,7 @@ GENERATE_EVERY = 500
 GENERATE_LENGTH = 512
 SEQ_LEN = 1024
 
-
-# helpers
-
-def cycle(loader):
-    while True:
-        for data in loader:
-            yield data
-
-
-def decode_token(token):
-    return str(chr(max(32, token)))
-
-
-def decode_tokens(tokens):
-    return ''.join(list(map(decode_token, tokens)))
-
-
-def prepare_optimizer_parameters(model):
-    param_optimizer = list(model.named_parameters())
-    param_optimizer = [n for n in param_optimizer if 'pooler' not in n[0]]
-    no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
-    weight_decay = 0.01
-    optimizer_grouped_parameters = [{
-        'params':
-            [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
-        'weight_decay':
-            weight_decay
-    }, {
-        'params':
-            [p for n, p in param_optimizer if any(nd in n for nd in no_decay)],
-        'weight_decay':
-            0.0
-    }]
-    return optimizer_grouped_parameters
-
-
-def get_args():
-    parser = argparse.ArgumentParser(description='GPTNeox Deepspeed Training Script')
-    # Include DeepSpeed configuration arguments
-    parser = deepspeed.add_config_arguments(parser)
-    args = parser.parse_args()
-    return args
-
-
 # instantiate GPT-like decoder model
-
 model = GPTNeoX(
     num_tokens=256,
     dim=512,
@@ -79,43 +42,20 @@ model = GPTNeoX(
 model = AutoregressiveWrapper(model)
 
 # prepare enwik8 data
-
-with gzip.open('./data/enwik8.gz') as file:
-    X = np.fromstring(file.read(int(95e6)), dtype=np.uint8)
-    trX, vaX = np.split(X, [int(90e6)])
-    data_train, data_val = torch.from_numpy(trX), torch.from_numpy(vaX)
-
-
-class TextSamplerDataset(Dataset):
-    def __init__(self, data, seq_len):
-        super().__init__()
-        self.data = data
-        self.seq_len = seq_len
-
-    def __getitem__(self, index):
-        rand_start = torch.randint(0, self.data.size(0) - self.seq_len - 1, (1,))
-        full_seq = self.data[rand_start: rand_start + self.seq_len + 1].long()
-        return full_seq.cuda()
-
-    def __len__(self):
-        return self.data.size(0) // self.seq_len
-
-
+data_train, data_val = prepare_enwik8_data()
 train_dataset = TextSamplerDataset(data_train, SEQ_LEN)
 val_dataset = TextSamplerDataset(data_val, SEQ_LEN)
 train_loader = cycle(DataLoader(train_dataset, batch_size=BATCH_SIZE))
 val_loader = cycle(DataLoader(val_dataset, batch_size=BATCH_SIZE))
 
 # optimizer
-
 optim = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 # training
-
 model_params = prepare_optimizer_parameters(model)
 train_args = get_args()
 
-# ds loader
+# deepspeed loader
 model_engine, optim, _, _ = deepspeed.initialize(args=train_args,
                                                  model=model,
                                                  optimizer=optim,
