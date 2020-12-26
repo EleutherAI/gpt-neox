@@ -5,7 +5,6 @@ import torch
 from torch.utils.data import DataLoader
 import deepspeed
 from tqdm.auto import trange
-from gpt_neox.utils import GPUMonitor
 import argparse
 import json
 from collections import defaultdict
@@ -65,7 +64,6 @@ model_engine, optim, train_loader, _ = deepspeed.initialize(args=train_args,
                                                      training_data=train_dataset)
 
 pbar = trange(params["NUM_EPOCHS"], mininterval=10., desc='Training Model', dynamic_ncols=True)
-monitor = GPUMonitor()
 for _ in pbar:
     for i, data in enumerate(train_loader):
         model_engine.train()
