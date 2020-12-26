@@ -13,6 +13,7 @@ import torch
 
 def prepare_enwik8_data():
     if not os.path.isfile('./data/enwik8.gz'):
+        os.system('mkdir -p ./data')
         os.system('wget http://eaidata.bmk.sh/data/enwik8.gz -O ./data/enwik8.gz')
 
     with gzip.open('./data/enwik8.gz') as file:
