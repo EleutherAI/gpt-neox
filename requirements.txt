@@ -3,6 +3,5 @@ torch>=1.6
 tqdm>=4.50.0
 deepspeed
 mpi4py
-gputil
 transformers
 tensorflow==1.15.2
