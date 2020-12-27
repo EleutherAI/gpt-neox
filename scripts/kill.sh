@@ -1,1 +1,1 @@
-pkill "python -u train*"
+pkill -f "python -u train*"

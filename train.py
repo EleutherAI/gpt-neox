@@ -48,7 +48,6 @@ model = GPTNeoX(
 )
 
 model = AutoregressiveWrapper(model)
-model.cuda()
 
 # prepare data
 dset_params = params["dataset"]
@@ -62,7 +61,8 @@ eval_dataset = GPT2Dataset(glob_pattern=params["dataset"]["eval_path"],
                            train=False,
                            **dset_params)
 
-val_loader = DataLoader(eval_dataset, batch_size=params["batch_size"])
+val_loader = DataLoader(eval_dataset, batch_size=params["eval_batch_size"])
+val_loader = iter(val_loader)
 
 # optimizer
 optim = torch.optim.Adam(model.parameters(), lr=params["learning_rate"])
@@ -77,7 +77,7 @@ model_engine, optim, train_loader, _ = deepspeed.initialize(args=train_args,
                                                             model_parameters=ds_model_params,
                                                      training_data=train_dataset)
 
-pbar = trange(params.get("num_epochs", 1), mininterval=10., desc='Training Model', dynamic_ncols=True)
+pbar = trange(params.get("train_steps", 1), mininterval=10., desc='Training Model', dynamic_ncols=True)
 for _ in pbar:
     for i, data in enumerate(train_loader):
         if i > params["train_steps"]:
@@ -93,19 +93,21 @@ for _ in pbar:
         pbar.set_description(f'Training Loss: {loss.item():.4f}')
         pbar.update()
 
-        if is_main and i % params["validate_every"] == 0:
-            model.eval()
-            with torch.no_grad():
-                val_data = next(val_loader).cuda()
-                loss = model(val_data)
-                pbar.write(f'Validation Loss: {loss.item()}')
+        if params.get("validate_every") is not None:
+            if is_main and i % params["validate_every"] == 0:
+                model_engine.eval()
+                with torch.no_grad():
+                    val_data = next(val_loader).cuda()
+                    loss = model_engine(val_data)
+                    pbar.write(f'Validation Loss: {loss.item()}')
 
-        if is_main and i % params["generate_every"] == 0:
-            model.eval()
-            val_data = next(val_loader).cuda()
-            inp = random.choice(val_data)[:-1]
-            prime = tokenizer.decode(inp)
-            pbar.write(f"{prime} \n\n {'*' * 100}")
-            sample = model.generate(inp.cuda(), params["generate_length"])
-            output_str = tokenizer.decode(sample)
-            pbar.write(output_str)
+        if params.get("generate_every") is not None:
+            if is_main and i % params["generate_every"] == 0:
+                model.eval()
+                val_data = next(val_loader).cuda()
+                inp = random.choice(val_data)[:-1]
+                prime = tokenizer.decode(inp)
+                pbar.write(f"{prime} \n\n {'*' * 100}")
+                sample = model.generate(inp.cuda(), params["generate_length"])
+                output_str = tokenizer.decode(sample)
+                pbar.write(output_str)

@@ -42,7 +42,6 @@ model = GPTNeoX(
 )
 
 model = AutoregressiveWrapper(model)
-model.cuda()
 
 # prepare enwik8 data
 data_train, data_val = prepare_enwik8_data()

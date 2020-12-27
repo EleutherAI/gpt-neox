@@ -1,18 +1,23 @@
 from transformers import GPT2TokenizerFast, GPT2Tokenizer
-import collections
 from itertools import islice
 import re
+from collections import OrderedDict
 
 
-def consume(iterator, n):
-    "Advance the iterator n-steps ahead. If n is none, consume entirely."
-    # Use functions that consume iterators at C speed.
-    if n is None:
-        # feed the entire iterator into a zero-length deque
-        collections.deque(iterator, maxlen=0)
-    else:
-        # advance to the empty slice starting at position n
-        next(islice(iterator, n, n), None)
+class FixedSizeOrderedDict(OrderedDict):
+    def __init__(self, *args, max=0, **kwargs):
+        self._max = max
+        super().__init__(*args, **kwargs)
+
+    def __setitem__(self, key, value):
+        OrderedDict.__setitem__(self, key, value)
+        if self._max > 0:
+            if len(self) > self._max:
+                self.popitem(False)
+
+
+def skip(iterator, n):
+    return islice(iterator, n, None)
 
 
 def natural_sort(l):

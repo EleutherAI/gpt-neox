@@ -7,8 +7,8 @@
   },
 
   "dataset": {
-    "train_path": "path/to/tfrecords/train/*.tfrecords",
-    "eval_path": "path/to/tfrecords/eval/*.tfrecords",
+    "train_path": "/root/data/owt2/train/*.tfrecords",
+    "eval_path": "/root/data/owt2/eval/*.tfrecords",
     "seed" : 1,
     "shuffle_input_filenames": true,
     "pretokenized": true,
@@ -21,11 +21,12 @@
 
   "train_steps": 572300,
   "batch_size": 256,
+  "eval_batch_size": 32,
   "learning_rate": 0.0006,
   "validate_every": 100,
   "generate_every": 500,
   "generate_length": 256,
-  "seq_len": 2048,
+  "seq_len": 1024,
   "hidden_dim": 768,
   "n_layers": 12,
   "n_heads": 12,
