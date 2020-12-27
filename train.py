@@ -13,7 +13,7 @@ from collections import defaultdict
 def get_args():
     parser = argparse.ArgumentParser(description='GPTNeox Deepspeed Training Script')
     # Include DeepSpeed configuration arguments
-    parser.add_argument('--model', type=str, default="base_model")
+    parser.add_argument('--model', type=str, default="gpt3_small")
     parser.add_argument('--local_rank', type=int, default=-1,
                         help='local rank passed from distributed launcher')
     parser = deepspeed.add_config_arguments(parser)

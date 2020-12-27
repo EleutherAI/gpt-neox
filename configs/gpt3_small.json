@@ -13,7 +13,7 @@
     "shuffle_input_filenames": true,
     "pretokenized": true,
     "filetype": "tfrecords",
-    "mode": "chunks"
+    "mode": "chunks",
     "save_progress_every": 10000,
     "checkpoint_path": "gpt3_small_ckpt.txt",
     "resume_from_checkpoint": true
