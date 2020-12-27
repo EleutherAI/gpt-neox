@@ -6,7 +6,7 @@ from einops import rearrange
 
 # constants
 
-MASK_VALUE = -1e-7
+MASK_VALUE = -1e7
 
 # helpers
 
@@ -102,10 +102,10 @@ class Attention(nn.Module):
         if self.causal:
             i, j = q.shape[-2], k.shape[-2]
             bool_mask = torch.ones(i, j, device=device).triu_(j - i + 1).bool()
-            mask = torch.zeros(b, i, j, device = device)
+            mask = torch.zeros(i, j, device=device).to(q)
             mask.masked_fill_(bool_mask, MASK_VALUE)
 
-        out = self.attn_fn(q, k, v, key_padding_mask=mask)
+        out = self.attn_fn(q, k, v, attn_mask=mask)
         out = rearrange(out, 'b h n d -> b n (h d)')
         return self.to_out(out)
 
