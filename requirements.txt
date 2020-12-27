@@ -4,3 +4,4 @@ tqdm>=4.50.0
 deepspeed
 mpi4py
 gputil
+tensorflow==1.15.2
