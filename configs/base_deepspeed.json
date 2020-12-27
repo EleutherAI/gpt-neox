@@ -1,6 +1,11 @@
 {
     "train_batch_size": 8,
     "gradient_accumulation_steps": 1,
+    "tensorboard": {
+      "enabled": true,
+      "output_path": "./logs",
+      "job_name": "gptneox"
+    },
     "optimizer": {
       "type": "Adam",
       "params": {
