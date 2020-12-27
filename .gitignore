@@ -1,5 +1,6 @@
 ## Data
 data/
+logs/
 
 ## Python
 __pycache__/
