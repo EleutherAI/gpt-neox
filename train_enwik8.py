@@ -33,25 +33,24 @@ params = get_params(train_args.model)
 
 # instantiate GPT-like decoder model
 model = GPTNeoX(
-    num_tokens=params["VOCAB_SIZE"],
-    dim=params["HIDDEN_DIM"],
-    seq_len=params["SEQ_LEN"],
-    depth=params["N_LAYERS"],
-    heads=params["N_HEADS"],
-    dim_head=params["DIM_HEAD"]
+    num_tokens=params["vocab_size"],
+    dim=params["hidden_dim"],
+    seq_len=params["seq_len"],
+    depth=params["n_layers"],
+    heads=params["n_heads"],
+    dim_head=params["dim_head"]
 )
 
 model = AutoregressiveWrapper(model)
-model.cuda()
 
 # prepare enwik8 data
 data_train, data_val = prepare_enwik8_data()
-train_dataset = TextSamplerDataset(data_train, params["SEQ_LEN"])
-val_dataset = TextSamplerDataset(data_val, params["SEQ_LEN"])
-val_loader = cycle(DataLoader(val_dataset, batch_size=params["BATCH_SIZE"]))
+train_dataset = TextSamplerDataset(data_train, params["seq_len"])
+val_dataset = TextSamplerDataset(data_val, params["seq_len"])
+val_loader = cycle(DataLoader(val_dataset, batch_size=params["batch_size"]))
 
 # optimizer
-optim = torch.optim.Adam(model.parameters(), lr=params["LEARNING_RATE"])
+optim = torch.optim.Adam(model.parameters(), lr=params["learning_rate"])
 
 # training
 ds_model_params = prepare_optimizer_parameters(model)
@@ -63,7 +62,7 @@ model_engine, optim, train_loader, _ = deepspeed.initialize(args=train_args,
                                                             model_parameters=ds_model_params,
                                                      training_data=train_dataset)
 
-pbar = trange(params["NUM_EPOCHS"], mininterval=10., desc='Training Model', dynamic_ncols=True)
+pbar = trange(params["num_epochs"], mininterval=10., desc='Training Model', dynamic_ncols=True)
 for _ in pbar:
     for i, data in enumerate(train_loader):
         model_engine.train()
@@ -77,18 +76,18 @@ for _ in pbar:
         pbar.set_description(f'Training Loss: {loss.item():.4f}')
         pbar.update()
 
-        if is_main and i % params["VALIDATE_EVERY"] == 0:
+        if is_main and i % params["validate_every"] == 0:
             model.eval()
             with torch.no_grad():
                 val_data = next(val_loader).cuda()
                 loss = model(val_data)
                 pbar.write(f'Validation Loss: {loss.item()}')
 
-        if is_main and i % params["GENERATE_EVERY"] == 0:
+        if is_main and i % params["generate_every"] == 0:
             model.eval()
             inp = random.choice(val_dataset)[:-1]
             prime = decode_tokens(inp)
             pbar.write(f"{prime} \n\n {'*' * 100}")
-            sample = model.generate(inp.cuda(), params["GENERATE_LENGTH"])
+            sample = model.generate(inp.cuda(), params["generate_length"])
             output_str = decode_tokens(sample)
             pbar.write(output_str)
