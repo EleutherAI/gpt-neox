@@ -21,10 +21,10 @@ def cast_tuple(val, depth):
 # classes
 
 class PreNorm(nn.Module):
-    def __init__(self, dim, fn):
+    def __init__(self, dim, norm_class, fn):
         super().__init__()
         self.fn = fn
-        self.norm = nn.LayerNorm(dim)
+        self.norm = norm_class(dim)
 
     def forward(self, x, **kwargs):
         x = self.norm(x)
@@ -111,8 +111,14 @@ class Attention(nn.Module):
 
 
 class GPTNeoX(nn.Module):
-    def __init__(self, *, num_tokens, dim, seq_len, depth, heads=8, dim_head=64, attn_dropout=0., ff_dropout=0., sparse_attn=False):
+    def __init__(self, *, num_tokens, dim, seq_len, depth, heads=8, dim_head=64, attn_dropout=0., ff_dropout=0., sparse_attn=False, use_fused_layernorm=False):
         super().__init__()
+        if not use_fused_layernorm:
+            norm_class = nn.LayerNorm
+        else:
+            from apex.normalization import FusedLayerNorm
+            norm_class = FusedLayerNorm
+
         self.seq_len = seq_len
 
         self.token_emb = nn.Embedding(num_tokens, dim)
@@ -126,11 +132,11 @@ class GPTNeoX(nn.Module):
 
         for _, layer_sparse_attn in zip(range(depth), layers_sparse_attn):
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, Attention(dim=dim, heads=heads, seq_len=seq_len, dim_head=dim_head, dropout=attn_dropout, sparse_attn=layer_sparse_attn)),
-                PreNorm(dim, FeedForward(dim=dim, dropout=ff_dropout)),
+                PreNorm(dim, norm_class, Attention(dim=dim, heads=heads, dim_head=dim_head, dropout=attn_dropout, sparse_attn=layer_sparse_attn)),
+                PreNorm(dim, norm_class, FeedForward(dim=dim, dropout=ff_dropout)),
             ]))
 
-        self.norm = nn.LayerNorm(dim)
+        self.norm = norm_class(dim)
         self.to_logits = lambda t: t @ self.token_emb.weight.t()
 
     def forward(self, x, mask=None):
