@@ -132,7 +132,7 @@ class GPTNeoX(nn.Module):
 
         for _, layer_sparse_attn in zip(range(depth), layers_sparse_attn):
             self.layers.append(nn.ModuleList([
-                PreNorm(dim, norm_class, Attention(dim=dim, heads=heads, dim_head=dim_head, dropout=attn_dropout, sparse_attn=layer_sparse_attn)),
+                PreNorm(dim, norm_class, Attention(dim=dim, heads=heads, seq_len=seq_len, dim_head=dim_head, dropout=attn_dropout, sparse_attn=layer_sparse_attn)),
                 PreNorm(dim, norm_class, FeedForward(dim=dim, dropout=ff_dropout)),
             ]))
 
