@@ -23,7 +23,7 @@
   "batch_size": 256,
   "eval_batch_size": 32,
   "learning_rate": 0.0006,
-  "validate_every": 100,
+  "validate_every": 10000000,
   "generate_every": 500,
   "generate_length": 256,
   "seq_len": 1024,
