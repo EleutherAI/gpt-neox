@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import random
 from collections import defaultdict
 
@@ -8,7 +9,7 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import trange
 
-from gpt_neox import (GPTNeoX, AutoregressiveWrapper, GPT2Dataset,
+from gpt_neox import (GPTNeoX, AutoregressiveWrapper, GPT2Dataset, extract_tarfile,
                       prepare_optimizer_parameters, get_tokenizer, download_dataset, get_all_files)
 
 
@@ -55,9 +56,10 @@ model = AutoregressiveWrapper(model)
 dset_params = params["dataset"]
 assert dset_params is not None
 
-download_dataset(dataset=params["name"], dataset_dir=params["dir"])
-files = get_all_files(filetype=params["filetype"], files_dir=params["dir"])
-# TODO: SPLIT?
+data_path = download_dataset(dataset=dset_params["name"], dataset_dir=dset_params["dir"])
+data_dir = os.path.dirname(data_path)
+extract_tarfile(tarfile_path=data_path, extract_dir=data_dir)
+files = get_all_files(filetype=dset_params["filetype"], files_dir=data_dir)
 
 train_dataset = GPT2Dataset(files=files,
                             seq_len=params["seq_len"],

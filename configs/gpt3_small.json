@@ -5,8 +5,8 @@
     "add_padding_token": false
   },
   "dataset": {
-    "name": "OWT2",
-    "dir": "/root/data",
+    "name": "owt2",
+    "dir": "./data",
     "seed": 1,
     "shuffle_input_filenames": true,
     "pretokenized": true,
