@@ -26,8 +26,8 @@ def get_all_files(filetype, files_dir):
 
 
 def extract_tarfile(tarfile_path, extract_dir=None):
-    dataset_tar = tarfile.open(tarfile_path)
-    os.makedirs(extract_dir, exist_ok=False)
+    dataset_tar = tarfile.open(tarfile_path, "r:gz")
+    os.makedirs(extract_dir, exist_ok=True)
     dataset_tar.extractall(extract_dir)
     dataset_tar.close()
 
