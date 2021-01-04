@@ -108,7 +108,7 @@ class Attention(nn.Module):
 
 
 class GPTNeoX(nn.Module):
-    def __init__(self, *, num_tokens, dim, seq_len, depth, heads=8, dim_head=64, attn_dropout=0., ff_dropout=0., sparse_attn=False, use_fused_layernorm=False):
+    def __init__(self, *, num_tokens, dim, seq_len, depth, heads=8, dim_head=64, attn_dropout=0., ff_dropout=0., sparse_attn=False, use_fused_layernorm=False, tie_classifier_weights=False):
         super().__init__()
         if not use_fused_layernorm:
             norm_class = nn.LayerNorm
@@ -134,7 +134,11 @@ class GPTNeoX(nn.Module):
             ]))
 
         self.norm = norm_class(dim)
-        self.to_logits = lambda t: t @ self.token_emb.weight.t()
+
+        if tie_classifier_weights:
+            self.to_logits = lambda t: t @ self.token_emb.weight.t()
+        else:
+            self.to_logits = nn.Linear(dim, num_tokens)
 
     def forward(self, x, mask=None):
         n, device = x.shape[1], x.device
