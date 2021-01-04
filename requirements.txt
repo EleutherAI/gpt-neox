@@ -4,3 +4,5 @@ tqdm>=4.50.0
 deepspeed
 transformers
 tensorflow==1.15.2
+ftfy
+lm_dataformat
