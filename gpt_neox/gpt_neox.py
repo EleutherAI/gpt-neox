@@ -99,7 +99,7 @@ class Attention(nn.Module):
             i, j = q.shape[-2], k.shape[-2]
             bool_mask = torch.ones(i, j, device=device).triu_(j - i + 1).bool()
             mask = torch.zeros(i, j, device=device).to(q)
-            mask_value = -torch.finfo(q.dtype).max
+            mask_value = -(torch.finfo(q.dtype).max / 2)
             mask.masked_fill_(bool_mask, mask_value)
 
         out = self.attn_fn(q, k, v, attn_mask=mask)
