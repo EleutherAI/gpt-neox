@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 from torch import nn, einsum
 from functools import partial
 
@@ -29,12 +30,17 @@ class PreNorm(nn.Module):
 
 # feedforward
 
+class GEGLU(nn.Module):
+    def forward(self, x):
+        x, gate = x.chunk(2, dim = -1)
+        return F.gelu(gate) * x
+
 class FeedForward(nn.Module):
     def __init__(self, dim, mult=4, dropout=0.):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(dim, dim * mult),
-            nn.GELU(),
+            nn.Linear(dim, dim * mult * 2),
+            GEGLU(),
             nn.Dropout(dropout),
             nn.Linear(dim * mult, dim)
         )
