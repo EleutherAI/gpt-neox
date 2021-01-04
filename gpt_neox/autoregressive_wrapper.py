@@ -86,5 +86,8 @@ class AutoregressiveWrapper(nn.Module):
             kwargs.update(mask = mask)
 
         out = self.net(xi, **kwargs)
-        loss = F.cross_entropy(out.transpose(1, 2), xo, ignore_index = self.ignore_index)
+
+        losses = F.cross_entropy(out.transpose(1, 2), xo, reduction='none', ignore_index = self.ignore_index)
+        loss = losses.mean()
+        
         return loss
