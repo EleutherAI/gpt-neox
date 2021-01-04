@@ -1,13 +1,15 @@
-from gpt_neox import (GPTNeoX, AutoregressiveWrapper, TextSamplerDataset,
-                      cycle, prepare_optimizer_parameters, decode_tokens, prepare_enwik8_data)
-import random
-import torch
-from torch.utils.data import DataLoader
-import deepspeed
-from tqdm.auto import trange
 import argparse
 import json
+import random
 from collections import defaultdict
+
+import deepspeed
+import torch
+from torch.utils.data import DataLoader
+from tqdm.auto import trange
+
+from gpt_neox import (GPTNeoX, AutoregressiveWrapper, TextSamplerDataset, download_dataset,
+                      cycle, prepare_optimizer_parameters, decode_tokens, prepare_enwik8_data)
 
 
 def get_args():
@@ -44,7 +46,8 @@ model = GPTNeoX(
 model = AutoregressiveWrapper(model)
 
 # prepare enwik8 data
-data_train, data_val = prepare_enwik8_data()
+data_path = download_dataset(dataset="enwiki8")
+data_train, data_val = prepare_enwik8_data(data_path=data_path)
 train_dataset = TextSamplerDataset(data_train, params["seq_len"])
 val_dataset = TextSamplerDataset(data_val, params["seq_len"])
 val_loader = cycle(DataLoader(val_dataset, batch_size=params["batch_size"]))
@@ -60,7 +63,7 @@ model_engine, optim, train_loader, _ = deepspeed.initialize(args=train_args,
                                                             model=model,
                                                             optimizer=optim,
                                                             model_parameters=ds_model_params,
-                                                     training_data=train_dataset)
+                                                            training_data=train_dataset)
 
 pbar = trange(params["num_epochs"], mininterval=10., desc='Training Model', dynamic_ncols=True)
 for _ in pbar:
