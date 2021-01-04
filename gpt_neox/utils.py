@@ -1,11 +1,11 @@
-import os
-import numpy as np
 import gzip
+import os
+
+import numpy as np
 import torch
 
 
 # helpers
-
 def prepare_enwik8_data():
     if not os.path.isfile('./data/enwik8.gz'):
         os.system('mkdir -p ./data')
@@ -16,6 +16,16 @@ def prepare_enwik8_data():
         trX, vaX = np.split(X, [int(90e6)])
         data_train, data_val = torch.from_numpy(trX), torch.from_numpy(vaX)
     return data_train, data_val
+
+
+def get_all_files(filetype, files_dir):
+    files = []
+    for (dir_path, _, filenames) in os.walk(files_dir):
+        for filename in filenames:
+            if filename.endswith(".{}".format(filetype)):
+                file_path = os.path.join(dir_path, filename)
+                files.append(file_path)
+    return files
 
 
 def cycle(loader):
@@ -49,6 +59,7 @@ def prepare_optimizer_parameters(model):
             0.0
     }]
     return optimizer_grouped_parameters
+
 
 class DictArgs(dict):
     def __init__(self, config):

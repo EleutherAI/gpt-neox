@@ -1,13 +1,15 @@
-from gpt_neox import (GPTNeoX, AutoregressiveWrapper, GPT2Dataset,
-                        prepare_optimizer_parameters, get_tokenizer)
-import random
-import torch
-from torch.utils.data import DataLoader
-import deepspeed
-from tqdm.auto import trange
 import argparse
 import json
+import random
 from collections import defaultdict
+
+import deepspeed
+import torch
+from torch.utils.data import DataLoader
+from tqdm.auto import trange
+
+from gpt_neox import (GPTNeoX, AutoregressiveWrapper, GPT2Dataset,
+                      prepare_optimizer_parameters, get_tokenizer, download_dataset, get_all_files)
 
 
 def get_args():
@@ -52,11 +54,16 @@ model = AutoregressiveWrapper(model)
 # prepare data
 dset_params = params["dataset"]
 assert dset_params is not None
-train_dataset = GPT2Dataset(glob_pattern=params["dataset"]["train_path"],
-                            seq_len = params["seq_len"],
+
+download_dataset(dataset=params["name"], dataset_dir=params["dir"])
+files = get_all_files(filetype=params["filetype"], files_dir=params["dir"])
+# TODO: SPLIT?
+
+train_dataset = GPT2Dataset(files=files,
+                            seq_len=params["seq_len"],
                             train=True,
                             **dset_params)
-eval_dataset = GPT2Dataset(glob_pattern=params["dataset"]["eval_path"],
+eval_dataset = GPT2Dataset(files=files,
                            seq_len=params["seq_len"],
                            train=False,
                            **dset_params)
@@ -75,7 +82,7 @@ model_engine, optim, train_loader, _ = deepspeed.initialize(args=train_args,
                                                             model=model,
                                                             optimizer=optim,
                                                             model_parameters=ds_model_params,
-                                                     training_data=train_dataset)
+                                                            training_data=train_dataset)
 
 pbar = trange(params.get("train_steps", 1), mininterval=10., desc='Training Model', dynamic_ncols=True)
 for _ in pbar:

@@ -1,15 +1,13 @@
 {
-
   "tokenizer": {
-      "type": "hf_gpt2tokenizerfast",
-      "from_pretrained": true,
-      "add_padding_token": false
+    "type": "hf_gpt2tokenizerfast",
+    "from_pretrained": true,
+    "add_padding_token": false
   },
-
   "dataset": {
-    "train_path": "/root/data/owt2/train/*.tfrecords",
-    "eval_path": "/root/data/owt2/eval/*.tfrecords",
-    "seed" : 1,
+    "name": "OWT2",
+    "dir": "/root/data",
+    "seed": 1,
     "shuffle_input_filenames": true,
     "pretokenized": true,
     "filetype": "tfrecords",
@@ -18,7 +16,6 @@
     "checkpoint_path": "gpt3_small_ckpt.txt",
     "resume_from_checkpoint": true
   },
-
   "train_steps": 572300,
   "batch_size": 256,
   "eval_batch_size": 32,
