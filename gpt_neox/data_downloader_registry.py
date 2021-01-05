@@ -104,7 +104,7 @@ class OWT2(DataDownloader):
 
 class Enwik8(DataDownloader):
     name = "owt2"
-    filetype = "tar.gz"
+    filetype = "gz"
     url = "http://eaidata.bmk.sh/data/enwik8.gz"
 
     def extract(self):

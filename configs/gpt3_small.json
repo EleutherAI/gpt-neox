@@ -15,8 +15,6 @@
     "mode": "chunks"
   },
   "train_steps": 572300,
-  "batch_size": 256,
-  "eval_batch_size": 32,
   "learning_rate": 0.0006,
   "generate_every": 500,
   "generate_length": 256,
