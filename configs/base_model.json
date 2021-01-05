@@ -1,4 +1,5 @@
 {
+  "data_path": "./data/enwik8.tar.gz",
   "num_epochs": 10,
   "vocab_size": 256,
   "batch_size": 4,

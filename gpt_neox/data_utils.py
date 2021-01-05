@@ -39,3 +39,10 @@ def get_tokenizer(tokenizer_type=None, from_pretrained=True, add_padding_token=F
         return tok
     else:
         raise NotImplementedError('TODO: add custom tokenizers')
+
+def read_enwik8_data(data_path):
+    with gzip.open(data_path) as file:
+        X = np.fromstring(file.read(int(95e6)), dtype=np.uint8)
+        trX, vaX = np.split(X, [int(90e6)])
+        data_train, data_val = torch.from_numpy(trX), torch.from_numpy(vaX)
+    return data_train, data_val

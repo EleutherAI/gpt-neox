@@ -6,15 +6,13 @@
   },
   "dataset": {
     "name": "owt2",
-    "dir": "./data",
+    "train_path": "./data/train/*",
+    "eval_path": "./data/eval/*",
     "seed": 1,
     "shuffle_input_filenames": true,
     "pretokenized": true,
     "filetype": "tfrecords",
-    "mode": "chunks",
-    "save_progress_every": 10000,
-    "checkpoint_path": "gpt3_small_ckpt.txt",
-    "resume_from_checkpoint": true
+    "mode": "chunks"
   },
   "train_steps": 572300,
   "batch_size": 256,
