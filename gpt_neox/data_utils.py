@@ -2,7 +2,9 @@ from transformers import GPT2TokenizerFast, GPT2Tokenizer
 from itertools import islice
 import re
 from collections import OrderedDict
-
+import gzip
+import numpy as np
+import torch
 
 class FixedSizeOrderedDict(OrderedDict):
     def __init__(self, *args, max=0, **kwargs):

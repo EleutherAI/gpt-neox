@@ -4,19 +4,20 @@ from abc import ABC, abstractmethod
 from glob import glob
 import shutil
 import random
- 
+
 """
 This registry is for automatically downloading and extracting datasets.
 
-To register a class you need to inherit the DataDownloader class and provide name, filetype and url attributes, and (optionally) 
-provide download / extract / exists functions to check if the data exists, and, if it doesn't, download and extract the data 
-and move it to the correct directory.
+To register a class you need to inherit the DataDownloader class and provide name, filetype and url attributes, and 
+(optionally) provide download / extract / exists functions to check if the data exists, and, if it doesn't, download and 
+extract the data and move it to the correct directory.
 
-When done, add it to the DATA_DOWNLOADERS dict. The function process_data runs the pre-processing for the selected dataset.
+When done, add it to the DATA_DOWNLOADERS dict. The function process_data runs the pre-processing for the selected 
+dataset.
 """
 
-class DataDownloader(ABC):
 
+class DataDownloader(ABC):
     """Dataset registry class to automatically download / extract datasets"""
 
     @property
@@ -35,7 +36,7 @@ class DataDownloader(ABC):
     def filetype(self):
         """filetype of dataset"""
         pass
-    
+
     @property
     @abstractmethod
     def url(self):
@@ -60,16 +61,16 @@ class DataDownloader(ABC):
 
     def download(self):
         """downloads dataset"""
-        os.makedirs(self.base_dir, exist_ok = True)
+        os.makedirs(self.base_dir, exist_ok=True)
         os.system(f"wget {self.url} -O {os.path.join(self.base_dir, os.path.basename(self.url))}")
-    
+
     def prepare(self):
         if not self.exists():
             self.download()
             self.extract()
 
-class OWT2(DataDownloader):
 
+class OWT2(DataDownloader):
     name = "owt2"
     filetype = "tfrecords"
     url = "http://eaidata.bmk.sh/data/owt2_new.tar.gz"
@@ -89,7 +90,7 @@ class OWT2(DataDownloader):
         n_eval_tfrecords = total_tfrecords // 10
         # owt2 doesn't have an official train/test split, so sample at random from tfrecords
         random.seed(self.seed)
-        random.shuffle(all_files) 
+        random.shuffle(all_files)
         eval_set = all_files[:n_eval_tfrecords]
         train_set = all_files[n_eval_tfrecords:]
         for f in train_set:
@@ -100,8 +101,8 @@ class OWT2(DataDownloader):
         for d in dirs_to_remove:
             shutil.rmtree(d)
 
-class Enwik8(DataDownloader):
 
+class Enwik8(DataDownloader):
     name = "owt2"
     filetype = "tar.gz"
     url = "http://eaidata.bmk.sh/data/enwik8.gz"
@@ -117,6 +118,7 @@ DATA_DOWNLOADERS = {
     "owt2": OWT2,
     "enwik8": Enwik8
 }
+
 
 def prepare_data(dataset_name):
     DownloaderClass = DATA_DOWNLOADERS.get(dataset_name, None)

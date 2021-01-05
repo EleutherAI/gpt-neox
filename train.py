@@ -1,9 +1,4 @@
-import argparse
-import json
-import os
 import random
-from collections import defaultdict
-
 import deepspeed
 import torch
 from torch.utils.data import DataLoader
@@ -13,12 +8,9 @@ import torch.distributed as distributed
 from gpt_neox import (GPTNeoX, AutoregressiveWrapper, GPT2Dataset, extract_tarfile,
                       prepare_optimizer_parameters, get_tokenizer, is_main, prepare_data)
 
-from gpt_neox.utils import prepare_enwik8_data, get_args, get_params
-
-
+from gpt_neox.utils import get_args, get_params
 
 train_args = get_args()
-print("RANK: ", train_args.local_rank)
 params = get_params(train_args.model)
 
 # tokenizer
@@ -43,13 +35,13 @@ model = AutoregressiveWrapper(model)
 dset_params = params["dataset"]
 assert dset_params is not None
 
-torch.distributed.barrier() # barrier will force processes to stop until *all* processes have reached the barrier
+torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
 if is_main(train_args):
     prepare_data(dset_params["name"])
-    torch.distributed.barrier() # barrier will force processes to stop until *all* processes have reached the barrier
+    torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
 else:
-    torch.distributed.barrier() 
-    
+    torch.distributed.barrier()
+
 train_dataset = GPT2Dataset(glob_pattern=dset_params["train_path"],
                             seq_len=params["seq_len"],
                             train=True,

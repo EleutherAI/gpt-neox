@@ -1,8 +1,5 @@
-import gzip
 import os
 import tarfile
-import numpy as np
-import torch
 import argparse
 import deepspeed
 import json
@@ -27,11 +24,13 @@ def get_params(model):
         params = json.load(f)
     return defaultdict(lambda: None, params)
 
+
 def is_main(args):
     """
     returns True if process is being run on the main GPU
     """
     return args.local_rank in [0, -1]
+
 
 def get_all_files(filetype, files_dir):
     files = []
