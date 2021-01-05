@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from tqdm.auto import trange
 
 from gpt_neox import (GPTNeoX, AutoregressiveWrapper, TextSamplerDataset, download_dataset,
-                      cycle, prepare_optimizer_parameters, decode_tokens, prepare_enwik8_data, is_main)
+                      cycle, prepare_optimizer_parameters, decode_tokens, read_enwik8_data, is_main)
 
 
 def get_args():
@@ -46,7 +46,7 @@ model = GPTNeoX(
 model = AutoregressiveWrapper(model)
 
 # prepare enwik8 data
-data_train, data_val = prepare_enwik8_data(params["data_path"])
+data_train, data_val = read_enwik8_data(params["data_path"])
 train_dataset = TextSamplerDataset(data_train, params["seq_len"])
 val_dataset = TextSamplerDataset(data_val, params["seq_len"])
 val_loader = cycle(DataLoader(val_dataset, batch_size=params["batch_size"]))
