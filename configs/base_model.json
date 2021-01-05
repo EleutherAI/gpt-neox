@@ -1,7 +1,7 @@
 {
   "dataset": {
     "name": "enwik8",
-    "path": "./data/enwik8.tar.gz"
+    "path": "./data/enwik8.gz"
   },
   "num_epochs": 10,
   "vocab_size": 256,
