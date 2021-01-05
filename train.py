@@ -35,6 +35,7 @@ model = AutoregressiveWrapper(model)
 dset_params = params["dataset"]
 assert dset_params is not None
 
+deepspeed.init_distributed(dist_backend='nccl')
 torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
 if is_main(train_args):
     prepare_data(dset_params["name"])
@@ -56,7 +57,11 @@ val_loader = DataLoader(eval_dataset, batch_size=params["eval_batch_size"])
 val_loader = iter(val_loader)
 
 # optimizer
-optim = torch.optim.Adam(model.parameters(), lr=params["learning_rate"])
+if train_args.local_rank == -1: # non-deepspeed
+    optim = torch.optim.Adam(model.parameters(), lr=params["learning_rate"])
+else:
+    optim = None # deepspeed will prepare the optimizer for us
+
 
 # training
 ds_model_params = prepare_optimizer_parameters(model)
@@ -68,6 +73,7 @@ model_engine, optim, train_loader, _ = deepspeed.initialize(args=train_args,
                                                             model_parameters=ds_model_params,
                                                             training_data=train_dataset)
 
+print("OPTIMIZER:", optim)
 pbar = trange(params.get("train_steps", 1), mininterval=10., desc='Training Model', dynamic_ncols=True)
 for _ in pbar:
     for i, data in enumerate(train_loader):

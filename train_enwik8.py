@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from tqdm.auto import trange
 
 from gpt_neox import (GPTNeoX, AutoregressiveWrapper, TextSamplerDataset, download_dataset,
-                      cycle, prepare_optimizer_parameters, decode_tokens, read_enwik8_data, is_main)
+                      cycle, prepare_optimizer_parameters, decode_tokens, read_enwik8_data, is_main, prepare_data)
 
 
 def get_args():
@@ -44,9 +44,17 @@ model = GPTNeoX(
 )
 
 model = AutoregressiveWrapper(model)
+dset_params = params["dataset"]
+deepspeed.init_distributed(dist_backend='nccl')
+torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
+if is_main(train_args):
+    prepare_data(dset_params["name"])
+    torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
+else:
+    torch.distributed.barrier()
 
 # prepare enwik8 data
-data_train, data_val = read_enwik8_data(params["data_path"])
+data_train, data_val = read_enwik8_data(dset_params["data_path"])
 train_dataset = TextSamplerDataset(data_train, params["seq_len"])
 val_dataset = TextSamplerDataset(data_val, params["seq_len"])
 val_loader = cycle(DataLoader(val_dataset, batch_size=params["batch_size"]))
