@@ -1,6 +1,6 @@
 {
-    "train_batch_size": 8,
-    "gradient_accumulation_steps": 1,
+    "train_batch_size": 512,
+    "train_micro_batch_size_per_gpu": 8,
     "gradient_clipping": 1.0,
     "tensorboard": {
       "enabled": true,
