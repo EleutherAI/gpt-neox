@@ -7,6 +7,9 @@ import tensorflow as tf
 import re
 import logging
 from itertools import cycle
+import os
+import subprocess
+import simdjson as json
 
 class GPT2Dataset(Dataset):
 
@@ -130,3 +133,71 @@ class TextSamplerDataset(Dataset):
 
     def __len__(self):
         return self.data.size(0) // self.seq_len
+
+
+class DynamicDataset(Dataset):
+    def __init__(self, input_files, tokenizer, max_seq_len, target_field='text', seed=1, shuffle_files=True, **kwargs):
+        super().__init__()
+        self.files = []
+        self.setup_files(input_files)
+        if shuffle_files:
+            random.seed(seed)
+            random.shuffle(self.files)
+        self.create_pipeline()
+        self.tokenizer = tokenizer
+        self.max_seq_len = max_seq_len
+        self.target_field = target_field
+        self.parser = json.Parser()
+        self.idx = 0
+
+    def setup_files(self, input_files):
+        if isinstance(input_files, str):
+            if input_files.endswith('*'):
+                self.files = glob.glob(input_files)
+            elif os.path.isdir(input_files):
+                self.files = glob.glob(os.path.join(input_files, '*'))
+        elif isinstance(input_files, list):
+            for file_path in input_files:
+                if os.path.isfile(file_path) and os.path.exists(file_path):
+                    self.files.append(file_path)
+                elif file_path.endswith('*'):
+                    self.files.extend(glob.glob(file_path))
+                elif os.path.isdir(file_path):
+                    self.files.extend(glob.glob(os.path.join(file_path, '*')))
+        
+        self.total_files = len(self.files)
+        self.file_idx, self.total_lines = {}, 0
+        for file_path in self.files:
+            total_lines = self.total_lines_in_file(file_path)
+            self.file_idx[file_path] = total_lines
+            self.total_lines += total_lines
+        logging.info(f'Total Files: {self.total_files}. Total Lines: {self.total_lines}')
+    
+    def create_pipeline(self):
+        self.pipeline = tf.data.TextLineDataset(self.files, num_parallel_reads=tf.data.experimental.AUTOTUNE).as_numpy_iterator()
+
+    def parse_json(self, line):
+        try:
+            return self.parser.parse(line).as_dict()
+        except ValueError:
+            return line
+
+    @classmethod
+    def total_lines_in_file(cls, file_path):
+        return int(subprocess.check_output(['wc', '-l', file_path]).split()[0])
+    
+    def tokenize_example(self, ex):
+        self.idx += 1
+        return self.tokenizer(ex[self.target_field], max_length=self.max_seq_len, truncation=True, return_tensors='pt')['input_ids']
+
+    def __getitem__(self, idx):
+        try:
+            ex = next(self.pipeline)
+        except StopIteration:
+            del self.pipeline
+            self.create_pipeline()
+            ex = next(self.pipeline)
+        return self.tokenize_example(self.parse_json(ex))
+
+    def __len__(self):
+        return self.total_lines
