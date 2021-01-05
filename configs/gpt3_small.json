@@ -6,8 +6,8 @@
   },
   "dataset": {
     "name": "owt2",
-    "train_path": "./data/train/*",
-    "eval_path": "./data/eval/*",
+    "train_path": "./data/owt2/train/*",
+    "eval_path": "./data/owt2/eval/*",
     "seed": 1,
     "shuffle_input_filenames": true,
     "pretokenized": true,

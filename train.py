@@ -73,7 +73,7 @@ model_engine, optim, train_loader, _ = deepspeed.initialize(args=train_args,
                                                             model_parameters=ds_model_params,
                                                             training_data=train_dataset)
 
-print("OPTIMIZER:", optim)
+print("OPTIMIZER: ", optim)
 pbar = trange(params.get("train_steps", 1), mininterval=10., desc='Training Model', dynamic_ncols=True)
 for _ in pbar:
     for i, data in enumerate(train_loader):
