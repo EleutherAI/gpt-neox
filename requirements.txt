@@ -3,6 +3,6 @@ torch>=1.6
 tqdm>=4.50.0
 deepspeed
 transformers
-tensorflow==1.15.2
+tensorflow==2.4.0
 ftfy
 lm_dataformat
