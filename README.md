@@ -48,3 +48,6 @@ model = GPTNeoX(
     sparse_attn = (True, False) * 6, # interleaved
 )
 ```
+
+## Resources
+If you have trouble getting the model to run, consider consulting [this guide](https://gist.github.com/kevinwatkins/232b88bfecbeca8d48d612a3e9cf65e4) to installing in a GCE virtual machine.
