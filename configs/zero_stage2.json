@@ -1,0 +1,35 @@
+{
+    "train_batch_size": 512,
+    "train_micro_batch_size_per_gpu": 8,
+    "gradient_clipping": 1.0,
+    "tensorboard": {
+      "enabled": true,
+      "output_path": "./logs",
+      "job_name": "gptneox"
+    },
+    "optimizer": {
+      "type": "Adam",
+      "params": {
+        "lr": 0.00015
+      }
+    },
+    "scheduler": {
+      "type": "WarmupLR",
+      "params": {
+        "warmup_min_lr": 0,
+        "warmup_max_lr": 0.00015,
+        "warmup_num_steps": 5000
+      }
+    },
+    "fp16": {
+      "enabled": true
+    },
+    "zero_optimization": {
+      "stage": 2,
+      "contiguous_gradients" : true,
+        "overlap_comm": true,
+        "reduce_scatter": true,  
+        "reduce_bucket_size": 50000000,
+        "allgather_bucket_size": 500000000
+    }
+}
