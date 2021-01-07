@@ -27,9 +27,9 @@
     "zero_optimization": {
       "stage": 2,
       "contiguous_gradients" : true,
-        "overlap_comm": true,
-        "reduce_scatter": true,  
-        "reduce_bucket_size": 50000000,
-        "allgather_bucket_size": 500000000
+      "overlap_comm": true,
+      "reduce_scatter": true,  
+      "reduce_bucket_size": 50000000,
+      "allgather_bucket_size": 500000000
     }
 }
