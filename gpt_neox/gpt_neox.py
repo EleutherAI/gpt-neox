@@ -160,19 +160,19 @@ class GPTNeoX(nn.Module):
 
 		x = self.norm(x)
 		return self.to_logits(x)
-  
+
 class TransformerBlock(nn.Module):
 	def __init__(self, dim, seq_len, heads, dim_head, attn_dropout, 
 			ff_dropout, sparse_attn, norm_class):
 		super().__init__()
 		self.attn_layer = PreNorm(dim, norm_class, Attention(dim=dim, heads=heads,seq_len=seq_len, dim_head=dim_head, dropout=attn_dropout, sparse_attn=sparse_attn))
 		self.ff_layer = PreNorm(dim, norm_class, FeedForward(dim=dim, dropout=ff_dropout))
-	
+
 	def forward(self, x):
 		x = self.attn_layer(x) + x
 		x = self.ff_layer(x) + x
 		return x
-	
+
 class EmbedBlock(nn.Module):
 	def __init__(self, num_tokens, dim, eq_len):
 		super().__init__()
@@ -181,13 +181,13 @@ class EmbedBlock(nn.Module):
 		
 		self.token_emb.weight.data.normal_(0, 0.02)
 		self.pos_emb.weight.data.normal_(0, 0.02)
-	
+
 	def forward(self, x):
 		n, device = x.shape[1], x.device
 		x = self.token_emb(x)
 		x = self.pos_emb(torch.arange(n, device=device)) + x
 		return x
-	
+
 class GPTNeoX_Pipe(PipelineModule):
 	def __init__(self, *, num_tokens, dim, seq_len, depth, loss_fn, heads = 8, 
 		dim_head = 64, attn_dropout = 0., ff_dropout = 0., sparse_attn = False, 
@@ -198,7 +198,6 @@ class GPTNeoX_Pipe(PipelineModule):
 		else:
 			from apex.normalization import FusedLayerNorm
 			norm_class = FusedLayerNorm
-	
 		self.seq_len = seq_len
 		layers_sparse_attn = cast_tuple(sparse_attn, depth)
 
@@ -222,6 +221,5 @@ class GPTNeoX_Pipe(PipelineModule):
 			LayerSpec(nn.Linear, dim, num_tokens),
 			lambda x: x.transpose(1, 2)
 			]
-	
+
 		super().__init__(layers=spec, loss_fn=loss_fn, **kwargs)
-	
