@@ -85,7 +85,7 @@ for _ in pbar:
             break
         model_engine.train()
         is_main = model_engine.local_rank == 0
-        data = data.to(model_engine.local_rank)
+        data = data.to(model_engine.local_rank)[:,:1024]
 
         loss = model_engine(data)
         model_engine.backward(loss)
