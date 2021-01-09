@@ -29,7 +29,7 @@ def natural_sort(l):
 
 
 def get_tokenizer(tokenizer_type=None, from_pretrained=True, add_padding_token=False):
-    if tokenizer_type.lower() == "hf_gp2tokenizer" and from_pretrained:
+    if tokenizer_type is None or (tokenizer_type.lower() == "hf_gpt2tokenizerfast" and from_pretrained):
         tok = GPT2Tokenizer.from_pretrained('gpt2')
         if add_padding_token:
             tok.add_special_tokens({'pad_token': '<|padding|>'})
@@ -41,7 +41,7 @@ def get_tokenizer(tokenizer_type=None, from_pretrained=True, add_padding_token=F
         return tok
     else:
         raise NotImplementedError('TODO: add custom tokenizers')
-        
+
 def read_enwik8_data(data_path):
     with gzip.open(data_path) as file:
         X = np.fromstring(file.read(int(95e6)), dtype=np.uint8)
