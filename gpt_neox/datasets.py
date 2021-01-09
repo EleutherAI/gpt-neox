@@ -29,7 +29,7 @@ class HubAdapter(torch.utils.data.Dataset):
     
     def __getitem__(self, index):
         x = self.ds.__getitem__(index)
-        return [x['text']]
+        return x['text'][:1024]
 
 
 def get_hub_dataset():

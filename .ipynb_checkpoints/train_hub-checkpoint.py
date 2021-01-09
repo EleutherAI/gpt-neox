@@ -22,6 +22,7 @@ tokenizer = get_tokenizer(tokenizer_type=params["tokenizer"].get("type", None),
 vocab_size = len(tokenizer) if params["vocab_size"] is None else params["vocab_size"]
 
 # instantiate GPT-like decoder model
+params["seq_len"] = 1024
 model = GPTNeoX(
     num_tokens=vocab_size,
     dim=params["hidden_dim"],
@@ -85,7 +86,8 @@ for _ in pbar:
             break
         model_engine.train()
         is_main = model_engine.local_rank == 0
-        data = torch.stack([d.to(model_engine.local_rank) for d in data])[:,:1024]
+#         data = torch.stack([d.to(model_engine.local_rank) for d in data])[:,:1024]
+        data = data.to(model_engine.local_rank)
 
         loss = model_engine(data)
         model_engine.backward(loss)
