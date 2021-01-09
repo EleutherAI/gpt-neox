@@ -33,9 +33,9 @@ class HubAdapter(torch.utils.data.Dataset):
 
 
 def get_hub_dataset():
-#     ds = hub.Dataset("s3://crang/pile/hub/000").to_pytorch()
-    ds = hub.Dataset("interneuron/pile_train0").to_pytorch()
-#     ds = hub.Dataset("/workspace/project/elip").to_pytorch()
+    schema = hub.schema.SchemaDict({'text': hub.schema.Tensor(shape=(None,), dtype='int64', max_shape=(2049,))})
+    ds = hub.Dataset("snsi/pile_train0", schema=schema, shape=(100000,)).to_pytorch()
+#     ds = hub.Dataset("interneuron/pile_train0", shape=(None,)).to_pytorch()
     return HubAdapter(ds)
 
 class GPT2Dataset(Dataset):
