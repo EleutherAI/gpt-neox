@@ -6,7 +6,7 @@ from tqdm.auto import trange
 import torch.distributed as distributed
 
 from gpt_neox import (GPTNeoX, AutoregressiveWrapper, GPT2Dataset, extract_tarfile,
-                      prepare_optimizer_parameters, get_tokenizer, is_main, prepare_data)
+                      prepare_optimizer_parameters, get_tokenizer, is_main)
 
 from gpt_neox.utils import get_args, get_params
 from gpt_neox.datasets import get_hub_dataset
@@ -39,11 +39,11 @@ assert dset_params is not None
 
 deepspeed.init_distributed(dist_backend='nccl')
 torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
-if is_main(train_args):
-    prepare_data(dset_params["name"])
-    torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
-else:
-    torch.distributed.barrier()
+# if is_main(train_args):
+#     prepare_data(dset_params["name"])
+#     torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
+# else:
+#     torch.distributed.barrier()
     
 train_dataset = get_hub_dataset()
 

@@ -1,0 +1,26 @@
+{
+  "tokenizer": {
+    "type": "hf_gpt2tokenizerfast",
+    "from_pretrained": true,
+    "add_padding_token": false
+  },
+  "dataset": {
+    "name": "owt2",
+    "train_path": "./data/owt2/train/*",
+    "eval_path": "./data/owt2/eval/*",
+    "seed": 1,
+    "shuffle_input_filenames": true,
+    "pretokenized": true,
+    "filetype": "tfrecords",
+    "mode": "chunks"
+  },
+  "train_steps": 572300,
+  "learning_rate": 0.0006,
+  "generate_every": 500,
+  "generate_length": 256,
+  "seq_len": 1024,
+  "hidden_dim": 768,
+  "n_layers": 12,
+  "n_heads": 12,
+  "dim_head": 64
+}
