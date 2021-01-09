@@ -34,7 +34,7 @@ class HubAdapter(torch.utils.data.Dataset):
 
 def get_hub_dataset():
     schema = hub.schema.SchemaDict({'text': hub.schema.Tensor(shape=(None,), dtype='int64', max_shape=(2049,))})
-    ds = hub.Dataset("snsi/pile_train0", schema=schema, shape=(100000,)).to_pytorch()
+    ds = hub.Dataset("snsi/pile_dev", schema=schema, shape=(100000,)).to_pytorch()
 #     ds = hub.Dataset("interneuron/pile_train0", shape=(None,)).to_pytorch()
     return HubAdapter(ds)
 
