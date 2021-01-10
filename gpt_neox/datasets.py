@@ -7,6 +7,60 @@ import tensorflow as tf
 import re
 import logging
 from itertools import cycle
+import simdjson as json
+import linecache
+import numpy as np
+
+"""
+Dataset that gets sequences from a set of sharded jsonl files
+"""
+class JsonShardedDataset(Dataset):
+
+    def __init__(self, shards_filename:str, tokenizer, seq_length:int,
+                 initial_seed:int):
+        # Input parameters.
+        self.shards_filename = shards_filename
+        self.seq_length = seq_length
+        self.initial_seed = initial_seed
+
+        #TODO: Check if using linecache actually helps
+        self.shard_summary = json.loads(linecache.getline(self.shards_filename,1))
+
+        self.data_length = self.shard_summary['total_shards']
+        self.tokenizer = tokenizer
+
+    def __len__(self):
+        return self.data_length
+    
+    def tokenize(self,data):
+        return self.tokenizer(data, max_length=self.seq_length, return_tensors='pt',\
+            padding='max_length', truncation=True)['input_ids']
+
+    def __getitem__(self, idx):
+        try:
+            shard = json.loads(linecache.getline(self.shards_filename,idx+2))
+
+            start_index = shard['start_index']
+            shard_line = shard['line']
+            end_index = shard['end_index']
+            filename = shard['file_name']
+            
+            #load the actual line
+            line = linecache.getline(filename,shard_line)
+            line = json.loads(line)
+            line = line['text']
+            line = line.split(" ")
+            
+            data = line[start_index:end_index]
+            data =  " ".join(data)
+            
+            tokenized = self.tokenize(data)
+
+            return tokenized
+        except:
+            return None
+
+
 
 class GPT2Dataset(Dataset):
 
