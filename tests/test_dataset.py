@@ -14,6 +14,7 @@ from timeit import default_timer as timer
 from gpt_neox.datasets import JsonShardedDataset
 from gpt_neox.data_utils import shardify,  get_tokenizer, get_dir_size, remove_dir_files
 import matplotlib.pyplot as plt
+import linecache
 
 import os
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
@@ -21,13 +22,14 @@ os.environ["TOKENIZERS_PARALLELISM"] = "true"
 #helper for ignoring data we couldn't load
 def ignore_exceptions_collate(batch):
     batch = list(filter(lambda x: x is not None, batch))
+    
     return default_collate(batch)
 
 # Data parallel arguments.
 batch_size=100
-total_shards_to_load=1000
-chunksizes=[10,100,1000]
-num_workers = 32
+total_shards_to_load=10000
+chunksizes=[10,100,1000,10000]
+num_workers = 16
 initial_seed = 7
 seq_length = 2048
 data_path = ["/ml_data/the-pile/components/enron_emails/enron_emails.jsonl"]
@@ -36,15 +38,15 @@ shard_meta_file_name = f"sharding.jsonl"
 
 
 
-for pre_tokenize in [False,True]:
+for pre_tokenize in [True]:
     load_time,shard_time,shard_sizes = [],[],[]
     for chunksize in chunksizes:
         start = timer()
         if pre_tokenize:
             tokenizer = get_tokenizer()
-            shardify(data_path,shard_meta_file_name,seq_length,chunksize,output_dir,tokenizer=tokenizer)
+            shardify(data_path,shard_meta_file_name,seq_length,chunksize,output_dir,tokenizer=tokenizer,num_workers=num_workers)
         else:
-            shardify(data_path,shard_meta_file_name,seq_length,chunksize,output_dir,tokenizer=None)
+            shardify(data_path,shard_meta_file_name,seq_length,chunksize,output_dir,tokenizer=None,num_workers=num_workers)
         dir_size = get_dir_size(output_dir)
         shard_sizes.append(dir_size)
         end = timer()
@@ -56,17 +58,23 @@ for pre_tokenize in [False,True]:
             tokenizer = get_tokenizer()
             dataset = JsonShardedDataset(output_dir+"/"+shard_meta_file_name,tokenizer,seq_length,initial_seed)
         dataloader = DataLoader(dataset, batch_size=batch_size,
-                            shuffle=True, num_workers=num_workers,collate_fn=ignore_exceptions_collate)
+                            num_workers=1,collate_fn=ignore_exceptions_collate)
         start = timer()
         #actually load all the entries as we would during training/testing
-        for i in range(total_shards_to_load // batch_size):
-            line = next(iter(dataloader))
-            assert line is not None
+        iterator = iter(dataloader)
+        for _ in range(total_shards_to_load // batch_size):
+            line = next(iterator)
+            print(line)
+            del line
+            #print(line)
+            
         end = timer()
         elapsed = 1000*(end-start)
         load_time.append(elapsed)
 
-        remove_dir_files(output_dir)
+        #remove_dir_files(output_dir)
+        linecache.clearcache()
+
 
     if pre_tokenize:
         print("===pre-tokenizing===")
@@ -86,5 +94,5 @@ for pre_tokenize in [False,True]:
         plt.title("Pre-tokenized")
     else:
         plt.title("On-fly tokenize")
+
     plt.show()
-    plt.close()

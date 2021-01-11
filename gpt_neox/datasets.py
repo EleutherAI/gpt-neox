@@ -36,41 +36,54 @@ class JsonShardedDataset(Dataset):
         return self.data_length
     
     def tokenize(self,data):
-        if self.tokenizer:
-            return self.tokenizer(data, max_length=self.seq_length, return_tensors='pt',\
+        return self.tokenizer(data, max_length=self.seq_length, return_tensors='pt',\
                 padding='max_length', truncation=True)['input_ids']
-        else:
-            return None
 
     def __getitem__(self, idx):
         try:
             shard = json.loads(linecache.getline(self.shards_filename,idx+2))
-            file_idx,shard_line,start_index,end_index = shard
-            filename = self.shard_summary['file_names'][file_idx]   
-            
+        except:
+            print("Could not load: ", self.shards_filename, idx+2)
+            return None
+        try:
+            file_idx,shard_line = shard
+            filename = self.shard_summary['file_names'][file_idx-1]   
+        except:
+            print("Could not get the right file name", self.shard_summary['file_names'], file_idx-1)
+            return None
+        try:
             #if we've already tokenized the input, all we have to do is pad it 
             if not self.tokenizer:
                 line = linecache.getline(filename,shard_line)
-                line = list(line)
+                line = list(json.loads(line))
 
-                line = line[start_index:end_index]
+                if len(line) == 0:
+                    print("No words")
+                    raise Exception("An example has no words in it.")
+
                 if len(line) < self.seq_length:
-                    line.append([PAD_TOKEN for _ in range(self.seq_length-len(line))])
-
-                line = torch.FloatTensor(line)
+                    line.extend([PAD_TOKEN for _ in range(self.seq_length-len(line))])
+                line = torch.IntTensor(line)
+         
                 return line, line[1:]
             #otherwise, we have to tokenize on the fly
             else:
-                line = linecache.getline(filename,shard_line)
-                line = json.loads(line)
-                line = line['text']
-                line = line.split(" ")
-                
-                data = line[start_index:end_index]
-                data =  " ".join(data)
+                loaded_line = linecache.getline(filename,shard_line)
+  
+                line = list(json.loads(loaded_line))
+                if len(line) == 0:
+                    raise Exception("An example has no words in it.")
+                data =  " ".join(line)
+          
                 tokenized = self.tokenize(data)
-                return tokenized, tokenized[1:]
+
+                if len(tokenized) == 0:
+                    raise Exception("A tokenized example has no words in it.")
+                
+                return tokenized[0], tokenized[0,1:]
         except:
+            print("Error: filename: ",filename,", shard line: ",shard_line)
+           
             return None
 
 
