@@ -20,7 +20,8 @@ To decompress enron emails:
 cd the-pile/components/enron_emails
 zstd -d enron_emails.jsonl.zst
 ```
-5. Run test_dataset.py
+5. Edit the file locations in test_dataset.py to make sure that they point to your correct data paths
+6. Run test_dataset.py
 ```
 cd gpt_neox/tests
 python test_dataset.py

@@ -11,6 +11,8 @@ import simdjson as json
 import linecache
 import numpy as np
 
+PAD_TOKEN=50257
+
 """
 Dataset that gets sequences from a set of sharded jsonl files
 """
@@ -25,6 +27,7 @@ class JsonShardedDataset(Dataset):
 
         #TODO: Check if using linecache actually helps
         self.shard_summary = json.loads(linecache.getline(self.shards_filename,1))
+        self.total_files = len(self.shard_summary['file_names'])
 
         self.data_length = self.shard_summary['total_shards']
         self.tokenizer = tokenizer
@@ -33,30 +36,40 @@ class JsonShardedDataset(Dataset):
         return self.data_length
     
     def tokenize(self,data):
-        return self.tokenizer(data, max_length=self.seq_length, return_tensors='pt',\
-            padding='max_length', truncation=True)['input_ids']
+        if self.tokenizer:
+            return self.tokenizer(data, max_length=self.seq_length, return_tensors='pt',\
+                padding='max_length', truncation=True)['input_ids']
+        else:
+            return None
 
     def __getitem__(self, idx):
         try:
             shard = json.loads(linecache.getline(self.shards_filename,idx+2))
+            file_idx,shard_line,start_index,end_index = shard
+            filename = self.shard_summary['file_names'][file_idx]   
+            
+            #if we've already tokenized the input, all we have to do is pad it 
+            if not self.tokenizer:
+                line = linecache.getline(filename,shard_line)
+                line = list(line)
 
-            start_index = shard['start_index']
-            shard_line = shard['line']
-            end_index = shard['end_index']
-            filename = shard['file_name']
-            
-            #load the actual line
-            line = linecache.getline(filename,shard_line)
-            line = json.loads(line)
-            line = line['text']
-            line = line.split(" ")
-            
-            data = line[start_index:end_index]
-            data =  " ".join(data)
-            
-            tokenized = self.tokenize(data)
+                line = line[start_index:end_index]
+                if len(line) < self.seq_length:
+                    line.append([PAD_TOKEN for _ in range(self.seq_length-len(line))])
 
-            return tokenized
+                line = torch.FloatTensor(line)
+                return line, line[1:]
+            #otherwise, we have to tokenize on the fly
+            else:
+                line = linecache.getline(filename,shard_line)
+                line = json.loads(line)
+                line = line['text']
+                line = line.split(" ")
+                
+                data = line[start_index:end_index]
+                data =  " ".join(data)
+                tokenized = self.tokenize(data)
+                return tokenized, tokenized[1:]
         except:
             return None
 
