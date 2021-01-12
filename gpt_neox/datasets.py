@@ -159,6 +159,9 @@ class DynamicDataset(Dataset):
         self.tokenizer = tokenizer
         self.max_seq_len = max_seq_len
         self.target_field = target_field
+        self.token_cache = []
+        self.sep_token = tokenizer.eos_token_id
+        self.pad_token = tokenizer.pad_token_id
         self.parser = json.Parser()
         self.debug = debug
 
@@ -212,7 +215,33 @@ class DynamicDataset(Dataset):
         return int(subprocess.check_output(['wc', '-l', file_path]).split()[0])
     
     def tokenize_example(self, ex):
-        return self.tokenizer(ex, max_length=self.max_seq_len, padding='max_length', truncation=True, return_tensors='pt')['input_ids']
+        if self.token_cache:
+            if len(self.token_cache) > self.max_seq_len:
+                out = self.token_cache[0:self.max_seq_len]
+                tokenized = self.tokenizer(ex)
+                self.token_cache = self.token_cache[0:self.max_seq_len].extend(tokenized['input_ids'].append(self.sep_token))
+                
+            else:
+                out = self.token_cache[:]
+                self.token_cache = []
+                tokenized = self.tokenizer(ex, max_length=(self.max_seq_len - len(out)), truncation=True, return_overflowing_tokens=True)
+                out.extend(tokenized['input_ids'])
+                if len(out) < self.max_seq_len:
+                    _to_pad = self.max_seq_len - len(out)
+                    out.extend([self.pad_token for i in range(_to_pad)])
+                if tokenized['overflowing_tokens']:
+                    self.token_cache = tokenized['overflowing_tokens'].append(self.sep_token)    
+
+        else:
+            tokenized = self.tokenizer(ex, max_length=self.max_seq_len, truncation=True, return_overflowing_tokens=True)
+            out = tokenized['input_ids']
+            if len(out) < self.max_seq_len:
+                _to_pad = self.max_seq_len - len(out)
+                out.extend([self.pad_token for i in range(_to_pad)])
+            if tokenized['overflowing_tokens']:
+                self.token_cache = tokenized['overflowing_tokens'].append(self.sep_token)
+        
+        return torch.tensor(out, dtype=torch.long)
 
     def __getitem__(self, idx):
         if self.debug:
