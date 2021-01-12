@@ -5,9 +5,9 @@
     "add_padding_token": false
   },
   "dataset": {
-    "name": "owt2",
-    "train_path": "./data/owt2/train/*",
-    "eval_path": "./data/owt2/eval/*",
+    "name": "enron_tfr",
+    "train_path": "./data/enron_tfr/train/*",
+    "eval_path": "./data/enron_tfr/eval/*",
     "seed": 1,
     "shuffle_input_filenames": true,
     "pretokenized": true,
