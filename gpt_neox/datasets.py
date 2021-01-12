@@ -13,8 +13,9 @@ import simdjson as json
 import hub
 
 class HubAdapter(torch.utils.data.Dataset):
-    def __init__(self, ods):
+    def __init__(self, ods, pipeline=False):
         self.ds = ods
+        self.pipeline = pipeline
 
     @classmethod
     def __instancecheck__(cls, instance):
@@ -29,10 +30,13 @@ class HubAdapter(torch.utils.data.Dataset):
     
     def __getitem__(self, index):
         x = self.ds.__getitem__(index)
-        return x['text'][:1024]
+        if self.pipeline:
+            return x['text'][:2048], x['text'][1:2049]
+        else:
+            return x['text']#[:1024]
 
 
-def get_hub_dataset():
+def get_hub_dataset(pipeline=False):
     schema = hub.schema.SchemaDict({'text': hub.schema.Tensor(shape=(None,), dtype='int64', max_shape=(2049,))})
     ds = hub.Dataset("snsi/pile_dev", schema=schema, shape=(100000,)).to_pytorch()
 #     ds = hub.Dataset("interneuron/pile_train0", shape=(None,)).to_pytorch()
