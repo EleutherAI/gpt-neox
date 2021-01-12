@@ -42,13 +42,14 @@ def read_enwik8_data(data_path):
         data_train, data_val = torch.from_numpy(trX), torch.from_numpy(vaX)
     return data_train, data_val
 
+
 def get_tokenizer(tokenizer_type=None, from_pretrained=True, add_padding_token=True):
     if tokenizer_type is None or (tokenizer_type.lower() == "hf_gpt2tokenizerfast" and from_pretrained):
         tok = GPT2TokenizerFast.from_pretrained('gpt2')
         if add_padding_token:
             tok.add_special_tokens({'pad_token': '<|padding|>'})
         return tok
-    elif tokenizer_type.lower() == "hf_gp2tokenizer" and from_pretrained:
+    elif (tokenizer_type.lower() == "hf_gpt2tokenizer" and from_pretrained):
         tok = GPT2Tokenizer.from_pretrained('gpt2')
         if add_padding_token:
             tok.add_special_tokens({'pad_token': '<|padding|>'})
