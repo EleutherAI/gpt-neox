@@ -182,11 +182,11 @@ class DynamicDataset(Dataset):
         for x, file_path in enumerate(self.files):
             total_lines = self.total_lines_in_file(file_path)
             self.file_idx[x] = {
-                'start': self.total_lines, 'stop': (self.total_lines + total_lines - 1), 
-                'file': file_path, 'reader': LineSeekableFile(tf.io.gfile.GFile(file_path, 'r'))
+                'start': self.total_lines, 'stop': (self.total_lines + total_lines), 
+                'file': file_path, 'reader': LineSeekableFile(tf.io.gfile.GFile(file_path, 'rb'))
                 }
             if self.debug:
-                logging.debug(f'File IDX Start: {self.total_lines} - File IDX End: {self.total_lines + total_lines - 1}')
+                logging.debug(f'File IDX Start: {self.total_lines} - File IDX End: {self.total_lines + total_lines}')
             self.total_lines += total_lines
         if self.debug:
             logging.debug(f'Total Files: {self.total_files}. Total Lines: {self.total_lines}')
@@ -201,8 +201,10 @@ class DynamicDataset(Dataset):
 
     def parse_json(self, line):
         try:
-            return self.parser.parse(line).as_dict()
+            return self.parser.parse(line).as_dict()[self.target_field]
         except ValueError:
+            return line
+        except TypeError:
             return line
 
     @classmethod
@@ -210,13 +212,13 @@ class DynamicDataset(Dataset):
         return int(subprocess.check_output(['wc', '-l', file_path]).split()[0])
     
     def tokenize_example(self, ex):
-        return self.tokenizer(ex[self.target_field], max_length=self.max_seq_len, padding='max_length', truncation=True, return_tensors='pt')['input_ids']
+        return self.tokenizer(ex, max_length=self.max_seq_len, padding='max_length', truncation=True, return_tensors='pt')['input_ids']
 
     def __getitem__(self, idx):
         if self.debug:
             logging.debug(f'Getting IDX: {idx}')
         ex = self.get_file_line(idx)
-        return self.tokenize_example(self.parse_json(ex))
+        return self.tokenize_example(self.parse_json(ex.strip()))
 
     def __len__(self):
         return self.total_lines
