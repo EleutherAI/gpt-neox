@@ -10,6 +10,7 @@ from itertools import cycle
 import simdjson as json
 import linecache
 import numpy as np
+from timeit import default_timer as timer
 
 """
 Dataset that gets sequences from a set of sharded jsonl files
@@ -55,15 +56,14 @@ class JsonShardedDataset(Dataset):
             if not self.use_tokenizer:
                 line = linecache.getline(filename,shard_line)
                 line = list(json.loads(line))
-
                 if len(line) == 0:
                     print("No words")
                     raise Exception("An example has no words in it.")
-
+      
                 if len(line) < self.seq_length:
-                    line.extend([self.tokenizer.pad_token for _ in range(self.seq_length-len(line))])
+                    line.extend([self.tokenizer.pad_token_id for _ in range(self.seq_length-len(line))])
+  
                 line = torch.IntTensor(line)
-         
                 return line, line[1:]
             #otherwise, we have to tokenize on the fly
             else:
