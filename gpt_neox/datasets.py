@@ -229,7 +229,7 @@ class DynamicDataset(Dataset):
                 if len(out) < self.max_seq_len:
                     _to_pad = self.max_seq_len - len(out)
                     out.extend([self.pad_token for i in range(_to_pad)])
-                if tokenized['overflowing_tokens']:
+                if tokenized.get('overflowing_tokens', None):
                     self.token_cache = tokenized['overflowing_tokens'].append(self.sep_token)    
 
         else:
@@ -238,7 +238,7 @@ class DynamicDataset(Dataset):
             if len(out) < self.max_seq_len:
                 _to_pad = self.max_seq_len - len(out)
                 out.extend([self.pad_token for i in range(_to_pad)])
-            if tokenized['overflowing_tokens']:
+            if tokenized.get('overflowing_tokens', None):
                 self.token_cache = tokenized['overflowing_tokens'].append(self.sep_token)
         
         return torch.tensor(out, dtype=torch.long)
