@@ -28,7 +28,7 @@ def ignore_exceptions_collate(batch):
 # Data parallel arguments.
 batch_size=100
 total_shards_to_load=10000
-chunksizes=[100,1000,10000,100000]
+chunksizes=[1000]
 num_workers = 16
 initial_seed = 7
 seq_length = 2048
@@ -38,12 +38,12 @@ shard_meta_file_name = f"sharding.jsonl"
 
 
 
-for pre_tokenize in [False]:
+for pre_tokenize in [True]:
     load_time,shard_time,shard_sizes = [],[],[]
     for chunksize in chunksizes:
         start = timer()
+        tokenizer = get_tokenizer()
         if pre_tokenize:
-            tokenizer = get_tokenizer()
             shardify(data_path,shard_meta_file_name,seq_length,chunksize,output_dir,tokenizer=tokenizer,num_workers=num_workers)
         else:
             shardify(data_path,shard_meta_file_name,seq_length,chunksize,output_dir,tokenizer=None,num_workers=num_workers)
@@ -52,13 +52,14 @@ for pre_tokenize in [False]:
         end = timer()
         elapsed = 1000*(end-start)
         shard_time.append(elapsed)
+
         if pre_tokenize:
             dataset = JsonShardedDataset(output_dir+"/"+shard_meta_file_name,tokenizer,seq_length,initial_seed,False)
         else:
             tokenizer = get_tokenizer()
             dataset = JsonShardedDataset(output_dir+"/"+shard_meta_file_name,tokenizer,seq_length,initial_seed,True)
         dataloader = DataLoader(dataset, batch_size=batch_size,
-                            num_workers=4,collate_fn=ignore_exceptions_collate)
+                            num_workers=1,collate_fn=ignore_exceptions_collate)
         start = timer()
         #actually load all the entries as we would during training/testing
         iterator = iter(dataloader)
