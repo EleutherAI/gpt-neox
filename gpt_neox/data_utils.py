@@ -10,6 +10,7 @@ import linecache
 import jsonlines
 import math
 from multiprocessing import Process,Pool
+import pathlib
 from functools import partial
 
 
@@ -64,11 +65,11 @@ def file_lines(fname):
     return total_lines + 1
 
 """
-Optionally shards data files into a certain size (determined as a multiple of number of entries),
-then creates another "metadata" file that stores a single entry for every entry in the dataset,
+Shards data files into a certain size,
+then creates another "metadata" file that stores a single entry for every entry in the dataset
 so we can easily index into data for training
 
-shards file is .jsonl with structure:
+metadata file is .jsonl with structure:
 {seq_length:INT,total_lines:INT,total_shards:INT}\n
 One line for each index
 {file_name,line}
@@ -81,6 +82,7 @@ def shardify(data_paths:list,output_path:str, seq_length:int=2048, chunksize:int
     total_shards,total_lines = 0, 0
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
+    #splitting workers per path intead of giving each worker a different path
     for path_idx,path in enumerate(data_paths):
         total_lines = file_lines(path)
         num_lines = total_lines//num_workers
@@ -104,21 +106,22 @@ def shardify(data_paths:list,output_path:str, seq_length:int=2048, chunksize:int
     summary_dict['total_lines'] = total_lines
     summary_dict['total_shards'] = total_shards
 
+    #finish by writing the summary dict and all the individual indexes
     with jsonlines.open(output_dir+"/"+output_path, mode='w') as writer:
         writer.write(summary_dict)
         for shard in shards:
             writer.write(shard)
 
+#Runs on a single worker to chunk and optionally tokenize a jsonl file
 def shardify_process(worker_id,path,num_lines,chunksize,output_dir,tokenizer,seq_length):
+    path_shards,single_file_chunk,single_file_chunk_line = 0,1,0
     start_line = worker_id*num_lines
     end_line = (worker_id+1)*num_lines
 
-    ext_index = path.find(".")
-    last_slash = path.rfind('/')
-    path_shards,single_file_chunk,single_file_chunk_line = 0,1,0
-        
-    dataset_name = path[last_slash+1:ext_index]
-    extension = path[ext_index:]
+    p = pathlib.Path(path)
+    path_folder = p.parents[0]  
+    dataset_name = p.stem
+    extension = p.suffix
 
     file_names = []
     shards = []
@@ -129,9 +132,7 @@ def shardify_process(worker_id,path,num_lines,chunksize,output_dir,tokenizer,seq
     with jsonlines.open(path) as reader:
         total_parsed = 0
         for line_idx,line_loaded in enumerate(reader):
-    
-            #if total_parsed > 1000:
-            #    break 
+            #only have the worker process the lines of the jsonl that it has been assigned to
             if line_idx<start_line or line_idx>end_line:
                 continue
             
@@ -162,10 +163,11 @@ def shardify_process(worker_id,path,num_lines,chunksize,output_dir,tokenizer,seq
             line_shards=math.floor(total_words / seq_length) + 1 
  
             path_shards += line_shards
+
             for i in range(line_shards):
                 #each shard contains 
                 # 1.what file we save it to (index to file_names array in summary)
-                # 2.what line of the file we're using
+                # 2.what line of the file it maps to
                 new_shard = [single_file_chunk,single_file_chunk_line+1]
 
                 start = i*seq_length
@@ -179,20 +181,16 @@ def shardify_process(worker_id,path,num_lines,chunksize,output_dir,tokenizer,seq
                     shards.append(new_shard)
                     single_file_chunk_line += 1
 
-            #we've reached the end of this chunk, so need to reset everything for the next chunk
-            if single_file_chunk_line >= chunksize:
-                
-                chunk_path=output_dir+"/"+dataset_name+"_"+str(worker_id)+"_"+str(single_file_chunk)+extension
-                
-                single_file_chunk_line = 0
-                single_file_chunk += 1
+                #we've reached the end of this chunk, so need to reset everything for the next chunk
+                if single_file_chunk_line == chunksize:
+                    chunk_path=output_dir+"/"+dataset_name+"_"+str(worker_id)+"_"+str(single_file_chunk)+extension
+                    single_file_chunk_line = 0
+                    single_file_chunk += 1
                 
 
     #line_idx ends up being the number of lines processed
     #path shards is the total number of entries 
     #shards is a list of identifying info for each index consisting of
-
-    #single file chunk 
     return line_idx,path_shards,shards,file_names
 
 def get_dir_size(folder):

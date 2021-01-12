@@ -11,15 +11,13 @@ import simdjson as json
 import linecache
 import numpy as np
 
-PAD_TOKEN=50257
-
 """
 Dataset that gets sequences from a set of sharded jsonl files
 """
 class JsonShardedDataset(Dataset):
 
     def __init__(self, shards_filename:str, tokenizer, seq_length:int,
-                 initial_seed:int):
+                 initial_seed:int,use_tokenizer:bool=False):
         # Input parameters.
         self.shards_filename = shards_filename
         self.seq_length = seq_length
@@ -31,6 +29,7 @@ class JsonShardedDataset(Dataset):
 
         self.data_length = self.shard_summary['total_shards']
         self.tokenizer = tokenizer
+        self.use_tokenizer = use_tokenizer
 
     def __len__(self):
         return self.data_length
@@ -53,7 +52,7 @@ class JsonShardedDataset(Dataset):
             return None
         try:
             #if we've already tokenized the input, all we have to do is pad it 
-            if not self.tokenizer:
+            if not self.use_tokenizer:
                 line = linecache.getline(filename,shard_line)
                 line = list(json.loads(line))
 
@@ -62,17 +61,17 @@ class JsonShardedDataset(Dataset):
                     raise Exception("An example has no words in it.")
 
                 if len(line) < self.seq_length:
-                    line.extend([PAD_TOKEN for _ in range(self.seq_length-len(line))])
+                    line.extend([self.tokenizer.pad_token for _ in range(self.seq_length-len(line))])
                 line = torch.IntTensor(line)
          
                 return line, line[1:]
             #otherwise, we have to tokenize on the fly
             else:
                 loaded_line = linecache.getline(filename,shard_line)
-  
                 line = list(json.loads(loaded_line))
                 if len(line) == 0:
                     raise Exception("An example has no words in it.")
+
                 data =  " ".join(line)
           
                 tokenized = self.tokenize(data)
@@ -82,8 +81,7 @@ class JsonShardedDataset(Dataset):
                 
                 return tokenized[0], tokenized[0,1:]
         except:
-            print("Error: filename: ",filename,", shard line: ",shard_line)
-           
+            print("Error: filename: ",filename,", shard line: ",shard_line)     
             return None
 
 
