@@ -28,7 +28,7 @@ def natural_sort(l):
     return sorted(l, key=alphanum_key)
 
 
-def get_tokenizer(tokenizer_type=None, from_pretrained=True, add_padding_token=False):
+def get_tokenizer(tokenizer_type=None, from_pretrained=True, add_padding_token=True):
     if tokenizer_type is None or (tokenizer_type.lower() == "hf_gpt2tokenizerfast" and from_pretrained):
         tok = GPT2TokenizerFast.from_pretrained('gpt2')
         if add_padding_token:
