@@ -10,6 +10,8 @@ from gpt_neox import (GPTNeoX, AutoregressiveWrapper, GPT2Dataset, extract_tarfi
 
 from gpt_neox.utils import get_args, get_params
 
+import GPUtil
+
 train_args = get_args()
 params = get_params(train_args.model)
 
@@ -26,11 +28,11 @@ model = GPTNeoX(
     seq_len=params["seq_len"],
     depth=params["n_layers"],
     heads=params["n_heads"],
-    dim_head=params["dim_head"]
+    dim_head=params["dim_head"],
+    gradient_checkpointing=params.get("gradient_checkpointing", True)
 )
 
 model = AutoregressiveWrapper(model)
-
 # prepare data
 dset_params = params["dataset"]
 assert dset_params is not None
@@ -67,13 +69,14 @@ else:
 ds_model_params = prepare_optimizer_parameters(model)
 
 # deepspeed loader
-model_engine, optim, train_loader, _ = deepspeed.initialize(args=train_args,
+model_engine, optim, _, _ = deepspeed.initialize(args=train_args,
                                                             model=model,
                                                             optimizer=optim,
                                                             model_parameters=ds_model_params,
-                                                            training_data=train_dataset)
+                                                            training_data=None)
 
-print("OPTIMIZER: ", optim)
+train_loader = model_engine.deepspeed_io(train_dataset, pin_memory=False)
+
 pbar = trange(params.get("train_steps", 1), mininterval=10., desc='Training Model', dynamic_ncols=True)
 for _ in pbar:
     for i, data in enumerate(train_loader):
