@@ -116,7 +116,8 @@ class Attention(nn.Module):
 
 
 class GPTNeoX(nn.Module):
-    def __init__(self, *, num_tokens, dim, seq_len, depth, heads=8, dim_head=64, attn_dropout=0., ff_dropout=0., sparse_attn=False, use_fused_layernorm=False, tie_classifier_weights=False):
+    def __init__(self, *, num_tokens, dim, seq_len, depth, heads=8, dim_head=64, attn_dropout=0., ff_dropout=0., 
+                sparse_attn=False, use_fused_layernorm=False, tie_classifier_weights=False, gradient_checkpointing=True):
         super().__init__()
         if not use_fused_layernorm:
             norm_class = nn.LayerNorm
@@ -140,6 +141,7 @@ class GPTNeoX(nn.Module):
                 PreNorm(dim, norm_class, Attention(dim=dim, heads=heads, seq_len=seq_len, dim_head=dim_head, dropout=attn_dropout, sparse_attn=layer_sparse_attn)),
                 PreNorm(dim, norm_class, FeedForward(dim=dim, dropout=ff_dropout)),
             ]))
+        self.depth = depth
 
         self.norm = norm_class(dim)
 
@@ -147,6 +149,8 @@ class GPTNeoX(nn.Module):
             self.to_logits = lambda t: t @ self.token_emb.weight.t()
         else:
             self.to_logits = nn.Linear(dim, num_tokens)
+        
+        self.gradient_checkpointing = gradient_checkpointing
 
     def forward(self, x, mask=None):
         n, device = x.shape[1], x.device
@@ -154,9 +158,20 @@ class GPTNeoX(nn.Module):
         x = self.token_emb(x)
         x = self.pos_emb(torch.arange(n, device=device)) + x
 
-        for (attn, ff) in self.layers:
-            x = attn(x) + x
-            x = ff(x) + x
+        def _layer(attn, ff):
+            def fn(x):
+                x = attn(x) + x
+                return ff(x) + x
+            return fn
+
+        if self.gradient_checkpointing:
+            for (attn, ff) in self.layers:
+                layer_fn = _layer(attn, ff)
+                x = torch.utils.checkpoint.checkpoint(layer_fn, (x))
+        else:
+            for (attn, ff) in self.layers:
+                layer_fn = _layer(attn, ff)
+                x = layer_fn(x)
 
         x = self.norm(x)
         return self.to_logits(x)
