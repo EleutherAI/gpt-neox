@@ -52,34 +52,31 @@ class JsonShardedDataset(Dataset):
             print("Could not get the right file name", self.shard_summary['file_names'], file_idx-1)
             return None
         try:
-            #if we've already tokenized the input, all we have to do is pad it 
-            if not self.use_tokenizer:
-                line = linecache.getline(filename,shard_line)
+            #if we've already tokenized the input, all we have to do is grab nearby lines until we reach our seq length max
+            loaded = []
+            load_line = shard_line
+            while len(loaded) < self.seq_length:
+                line = linecache.getline(filename,load_line)
                 line = list(json.loads(line))
                 if len(line) == 0:
                     print("No words")
-                    raise Exception("An example has no words in it.")
-      
-                if len(line) < self.seq_length:
-                    line.extend([self.tokenizer.pad_token_id for _ in range(self.seq_length-len(line))])
-  
-                line = torch.IntTensor(line)
-                return line, line[1:]
-            #otherwise, we have to tokenize on the fly
-            else:
-                loaded_line = linecache.getline(filename,shard_line)
-                line = list(json.loads(loaded_line))
-                if len(line) == 0:
-                    raise Exception("An example has no words in it.")
+                    break
+                loaded.extend(line)
+                load_line+=1
+        
+            if self.use_tokenizer:
+                data = " ".join(loaded)
+                loaded = self.tokenize(data)[0]
 
-                data =  " ".join(line)
-          
-                tokenized = self.tokenize(data)
+            loaded = loaded[:self.seq_length]
+            if len(loaded) < self.seq_length:
+                print("Line is shorter than seq length!")
+                loaded.extend([self.tokenizer.pad_token_id for _ in range(self.seq_length-len(loaded))])
+            if not self.use_tokenizer:
+                loaded = torch.IntTensor(loaded)
 
-                if len(tokenized) == 0:
-                    raise Exception("A tokenized example has no words in it.")
-                
-                return tokenized[0], tokenized[0,1:]
+            return loaded, loaded[1:]
+            
         except:
             print("Error: filename: ",filename,", shard line: ",shard_line)     
             return None

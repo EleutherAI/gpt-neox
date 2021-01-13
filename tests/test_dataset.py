@@ -43,10 +43,10 @@ for pre_tokenize in [True]:
     for chunksize in chunksizes:
         start = timer()
         tokenizer = get_tokenizer()
-        if pre_tokenize:
-            shardify(data_path,shard_meta_file_name,seq_length,chunksize,output_dir,tokenizer=tokenizer,num_workers=num_workers)
-        else:
-            shardify(data_path,shard_meta_file_name,seq_length,chunksize,output_dir,tokenizer=None,num_workers=num_workers)
+        #if pre_tokenize:
+        #    shardify(data_path,shard_meta_file_name,seq_length,chunksize,output_dir,tokenizer=tokenizer,num_workers=num_workers)
+        #else:
+        #    shardify(data_path,shard_meta_file_name,seq_length,chunksize,output_dir,tokenizer=None,num_workers=num_workers)
         dir_size = get_dir_size(output_dir)
         shard_sizes.append(dir_size)
         end = timer()
