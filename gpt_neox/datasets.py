@@ -118,17 +118,22 @@ class GPT2Dataset(Dataset):
 
 
 class TextSamplerDataset(Dataset):
-    def __init__(self, data, seq_len):
+    def __init__(self, data, seq_len, mode="normal"):
         super().__init__()
         self.data = data
         self.seq_len = seq_len
+        assert mode in ["normal", "with_labels"]
+        self.mode = mode
 
     def __getitem__(self, index):
         rand_start = torch.randint(0, self.data.size(0) - self.seq_len - 1, (1,))
-        #full_seq = self.data[rand_start: rand_start + self.seq_len + 1].long()
-        x_seq = self.data[rand_start: rand_start + self.seq_len].long()
-        y_seq = self.data[rand_start+1: rand_start + self.seq_len + 1].long()
-        return x_seq, y_seq
+        if self.mode == "normal":
+            full_seq = self.data[rand_start: rand_start + self.seq_len + 1].long()
+            return full_seq
+        else:
+            x_seq = self.data[rand_start: rand_start + self.seq_len].long()
+            y_seq = self.data[rand_start+1: rand_start + self.seq_len + 1].long()
+            return x_seq, y_seq
 
     def __len__(self):
         return self.data.size(0) // self.seq_len

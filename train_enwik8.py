@@ -85,7 +85,7 @@ for _ in pbar:
         pbar.set_description(f'Training Loss: {loss.item():.4f}')
         pbar.update()
 
-        if is_main(train_args) and i % params["validate_every"] == 0:
+        '''if is_main(train_args) and i % params["validate_every"] == 0:
             model.eval()
             with torch.no_grad():
                 val_data = next(val_loader).cuda()
@@ -99,4 +99,4 @@ for _ in pbar:
             pbar.write(f"{prime} \n\n {'*' * 100}")
             sample = model.generate(inp.cuda(), params["generate_length"])
             output_str = decode_tokens(sample)
-            pbar.write(output_str)
+            pbar.write(output_str)'''

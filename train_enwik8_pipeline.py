@@ -79,8 +79,8 @@ else:
     torch.distributed.barrier()
 
 data_train, data_val = read_enwik8_data(dset_params["path"])
-train_dataset = TextSamplerDataset(data_train, params["seq_len"])
-val_dataset = TextSamplerDataset(data_val, params["seq_len"])
+train_dataset = TextSamplerDataset(data_train, params["seq_len"], mode="with_labels")
+val_dataset = TextSamplerDataset(data_val, params["seq_len"], mode="with_labels")
 val_loader = cycle(DataLoader(val_dataset, batch_size=params["batch_size"]))
 
 # optimizer
