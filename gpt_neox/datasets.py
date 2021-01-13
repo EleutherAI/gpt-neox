@@ -11,6 +11,10 @@ import os
 import subprocess
 import simdjson as json
 
+# will get tons of warnings.
+logging.getLogger("transformers.tokenization_utils_base").setLevel(logging.ERROR)
+os.environ["TOKENIZERS_PARALLELISM"] = "true"
+
 class GPT2Dataset(Dataset):
 
     def __init__(self, glob_pattern, seq_len, seed=1, shuffle_input_filenames=True, pretokenized=True,
@@ -152,6 +156,7 @@ class DynamicDataset(Dataset):
     def __init__(self, input_files, tokenizer, max_seq_len, target_field='text', seed=1, shuffle_files=True, debug=False, **kwargs):
         super().__init__()
         self.files = []
+        self.debug = debug
         self.setup_files(input_files)
         if shuffle_files:
             random.seed(seed)
@@ -160,10 +165,12 @@ class DynamicDataset(Dataset):
         self.max_seq_len = max_seq_len
         self.target_field = target_field
         self.token_cache = []
+        self.text_chunks = ''
         self.sep_token = tokenizer.eos_token_id
+        self.sep_word = tokenizer.eos_token
         self.pad_token = tokenizer.pad_token_id
         self.parser = json.Parser()
-        self.debug = debug
+        
 
     def setup_files(self, input_files):
         if isinstance(input_files, str):
@@ -208,46 +215,66 @@ class DynamicDataset(Dataset):
         except ValueError:
             return line
         except TypeError:
-            return line
+            return line            
 
     @classmethod
     def total_lines_in_file(cls, file_path):
         return int(subprocess.check_output(['wc', '-l', file_path]).split()[0])
     
     def tokenize_example(self, ex):
+        tokenized = self.tokenizer(ex)['input_ids']
         if self.token_cache:
             if len(self.token_cache) > self.max_seq_len:
                 out = self.token_cache[0:self.max_seq_len]
-                tokenized = self.tokenizer(ex)
-                self.token_cache = self.token_cache[0:self.max_seq_len].extend(tokenized['input_ids'].append(self.sep_token))
+                self.token_cache = self.token_cache[0:self.max_seq_len].extend(tokenized.append(self.sep_token))
                 
             else:
                 out = self.token_cache[:]
-                self.token_cache = []
-                tokenized = self.tokenizer(ex, max_length=(self.max_seq_len - len(out)), truncation=True, return_overflowing_tokens=True)
-                out.extend(tokenized['input_ids'])
-                if len(out) < self.max_seq_len:
-                    _to_pad = self.max_seq_len - len(out)
-                    out.extend([self.pad_token for i in range(_to_pad)])
-                if tokenized.get('overflowing_tokens', None):
-                    self.token_cache = tokenized['overflowing_tokens'].append(self.sep_token)    
-
+                _to_slice = self.max_seq_len - len(out)
+                out.extend(tokenized[:_to_slice])
+                self.token_cache = tokenized[_to_slice:].append(self.sep_token) if tokenized[_to_slice:] else []
+                
         else:
-            tokenized = self.tokenizer(ex, max_length=self.max_seq_len, truncation=True, return_overflowing_tokens=True)
-            out = tokenized['input_ids']
-            if len(out) < self.max_seq_len:
-                _to_pad = self.max_seq_len - len(out)
-                out.extend([self.pad_token for i in range(_to_pad)])
-            if tokenized.get('overflowing_tokens', None):
-                self.token_cache = tokenized['overflowing_tokens'].append(self.sep_token)
+            out = tokenized[:self.max_seq_len]
+            self.token_cache = tokenized[self.max_seq_len:].append(self.sep_token) if tokenized[self.max_seq_len:] else []
+        
+        if len(out) < self.max_seq_len:
+            _to_pad = self.max_seq_len - len(out)
+            out.extend([self.pad_token for i in range(_to_pad)])
         
         return torch.tensor(out, dtype=torch.long)
 
+    def _get_example(self, idx):
+        idx = idx if idx <= self.total_lines else random.randint(0, self.total_lines)
+        ex = self.get_file_line(idx)
+        if not ex:
+            while True:
+                new_idx = random.randint(0, self.total_lines)
+                if self.debug:
+                    logging.debug(f'Bad IDX: {idx} - New Random IDX: {new_idx}')
+                ex = self.get_file_line(new_idx)
+                if ex:
+                    break
+        return self.parse_json(ex).strip()
+
+    def _seq_len(self, ex):
+        return len(ex.split()) > self.max_seq_len
+    
     def __getitem__(self, idx):
         if self.debug:
             logging.debug(f'Getting IDX: {idx}')
-        ex = self.get_file_line(idx)
-        return self.tokenize_example(self.parse_json(ex.strip()))
+        ex = self._get_example(idx)
+        if self._seq_len(ex):
+            return self.tokenize_example(ex)
+        else:
+            while True:
+                self.text_chunks = self.text_chunks + (ex + ' ' + self.sep_word)
+                if self._seq_len(self.text_chunks):
+                    out = self.tokenize_example(self.text_chunks)
+                    self.text_chunks = ''
+                    break
+                ex = self._get_example(idx+1)
+            return out
 
     def __len__(self):
         return self.total_lines
