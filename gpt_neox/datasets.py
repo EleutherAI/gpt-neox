@@ -3,7 +3,7 @@ from torch.utils.data import Dataset
 from .data_utils import get_tokenizer, natural_sort, skip, FixedSizeOrderedDict
 import random
 import glob
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 import re
 import logging
 from itertools import cycle
@@ -71,19 +71,17 @@ class GPT2Dataset(Dataset):
             lens.append(n_documents)
         self.lens = lens
         self._len = sum(self.lens)
-    
-    def _parse_function(self, example_proto):
-        features = {
-            "text": tf.io.VarLenFeature(tf.int64)
-        }
-        parsed_features = tf.io.parse_single_example(example_proto, features)
-        return tf.sparse.to_dense(parsed_features["text"], parsed_features["text"].dense_shape[0])
+
+    def _parse_single_example(self, example):
+        data = tf.train.Example.FromString(example)
+        data = torch.tensor(list(data.features.feature["text"].int64_list.value), dtype=torch.long)
+        if self.mode == "chunks":
+            assert data.size(0) == self.seq_len + 1
+        return data
 
     def _process_tfrecord(self, tfrecords_file, resume_idx=None):
-        dataset = tf.data.TFRecordDataset([tfrecords_file])
-        dataset = dataset.map(self._parse_function, num_parallel_calls=1)
-        for example in dataset.as_numpy_iterator():
-            yield torch.tensor(example, dtype=torch.long)
+        for idx, example in enumerate(tf.io.tf_record_iterator(tfrecords_file)):
+            yield self._parse_single_example(example)
 
     def _maybe_process_tfrecord(self, file_idx):
         if self.processed_files.get(file_idx) is None:
