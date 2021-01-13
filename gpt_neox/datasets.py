@@ -3,7 +3,7 @@ from torch.utils.data import Dataset
 from .data_utils import get_tokenizer, natural_sort, skip, FixedSizeOrderedDict
 import random
 import glob
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 import re
 import logging
 from itertools import cycle
@@ -28,7 +28,7 @@ class GPT2Dataset(Dataset):
         if self.filetype not in implemented_filetypes:
             raise NotImplementedError
 
-        self.processed_files = FixedSizeOrderedDict(max=2)  # storage for lazily loading data
+        self.processed_files = FixedSizeOrderedDict(max=1)  # storage for lazily loading data
 
         # parses the length of the files, either by encoding in the filenames or by iterating over them
         self._get_lens()

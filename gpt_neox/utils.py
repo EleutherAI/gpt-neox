@@ -1,18 +1,35 @@
-import gzip
 import os
 import tarfile
-
-import numpy as np
-import torch
+import argparse
+import deepspeed
+import json
+from collections import defaultdict
 
 
 # helpers
-def prepare_enwik8_data(data_path):
-    with gzip.open(data_path) as file:
-        X = np.fromstring(file.read(int(95e6)), dtype=np.uint8)
-        trX, vaX = np.split(X, [int(90e6)])
-        data_train, data_val = torch.from_numpy(trX), torch.from_numpy(vaX)
-    return data_train, data_val
+def get_args():
+    parser = argparse.ArgumentParser(description='GPTNeox Deepspeed Training Script')
+    # Include DeepSpeed configuration arguments
+    parser.add_argument('--model', type=str, default="gpt3_small")
+    parser.add_argument('--local_rank', type=int, default=-1,
+                        help='local rank passed from distributed launcher')
+    parser = deepspeed.add_config_arguments(parser)
+    args = parser.parse_args()
+    return args
+
+
+def get_params(model):
+    model_path = model if model.endswith(".json") else f"./configs/{model}.json"
+    with open(model_path) as f:
+        params = json.load(f)
+    return defaultdict(lambda: None, params)
+
+
+def is_main(args):
+    """
+    returns True if process is being run on the main GPU
+    """
+    return args.local_rank in [0, -1]
 
 
 def get_all_files(filetype, files_dir):

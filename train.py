@@ -1,35 +1,14 @@
-import argparse
-import json
-import os
 import random
-from collections import defaultdict
-
 import deepspeed
 import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import trange
+import torch.distributed as distributed
 
 from gpt_neox import (GPTNeoX, AutoregressiveWrapper, GPT2Dataset, extract_tarfile,
-                      prepare_optimizer_parameters, get_tokenizer, download_dataset, get_all_files)
+                      prepare_optimizer_parameters, get_tokenizer, is_main, prepare_data)
 
-
-def get_args():
-    parser = argparse.ArgumentParser(description='GPTNeox Deepspeed Training Script')
-    # Include DeepSpeed configuration arguments
-    parser.add_argument('--model', type=str, default="gpt3_small")
-    parser.add_argument('--local_rank', type=int, default=-1,
-                        help='local rank passed from distributed launcher')
-    parser = deepspeed.add_config_arguments(parser)
-    args = parser.parse_args()
-    return args
-
-
-def get_params(model):
-    model_path = model if model.endswith(".json") else f"./configs/{model}.json"
-    with open(model_path) as f:
-        params = json.load(f)
-    return defaultdict(lambda: None, params)
-
+from gpt_neox.utils import get_args, get_params
 
 train_args = get_args()
 params = get_params(train_args.model)
@@ -56,16 +35,20 @@ model = AutoregressiveWrapper(model)
 dset_params = params["dataset"]
 assert dset_params is not None
 
-data_path = download_dataset(dataset=dset_params["name"], dataset_dir=dset_params["dir"])
-data_dir = os.path.dirname(data_path)
-extract_tarfile(tarfile_path=data_path, extract_dir=data_dir)
-files = get_all_files(filetype=dset_params["filetype"], files_dir=data_dir)
+deepspeed.init_distributed(dist_backend='nccl')
+torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
+if is_main(train_args):
+    prepare_data(dset_params["name"])
+    torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
+else:
+    torch.distributed.barrier()
 
-train_dataset = GPT2Dataset(files=files,
+train_dataset = GPT2Dataset(glob_pattern=dset_params["train_path"],
                             seq_len=params["seq_len"],
                             train=True,
                             **dset_params)
-eval_dataset = GPT2Dataset(files=files,
+
+eval_dataset = GPT2Dataset(glob_pattern=dset_params["eval_path"],
                            seq_len=params["seq_len"],
                            train=False,
                            **dset_params)
@@ -74,7 +57,11 @@ val_loader = DataLoader(eval_dataset, batch_size=params["eval_batch_size"])
 val_loader = iter(val_loader)
 
 # optimizer
-optim = torch.optim.Adam(model.parameters(), lr=params["learning_rate"])
+if train_args.local_rank == -1: # non-deepspeed
+    optim = torch.optim.Adam(model.parameters(), lr=params["learning_rate"])
+else:
+    optim = None # deepspeed will prepare the optimizer for us
+
 
 # training
 ds_model_params = prepare_optimizer_parameters(model)
@@ -86,6 +73,7 @@ model_engine, optim, train_loader, _ = deepspeed.initialize(args=train_args,
                                                             model_parameters=ds_model_params,
                                                             training_data=train_dataset)
 
+print("OPTIMIZER: ", optim)
 pbar = trange(params.get("train_steps", 1), mininterval=10., desc='Training Model', dynamic_ncols=True)
 for _ in pbar:
     for i, data in enumerate(train_loader):

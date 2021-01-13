@@ -8,8 +8,8 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import trange
 
-from gpt_neox import (GPTNeoX, AutoregressiveWrapper, TextSamplerDataset, download_dataset,
-                      cycle, prepare_optimizer_parameters, decode_tokens, prepare_enwik8_data)
+from gpt_neox import (GPTNeoX, AutoregressiveWrapper, TextSamplerDataset,
+                      cycle, prepare_optimizer_parameters, decode_tokens, read_enwik8_data, is_main, prepare_data)
 
 
 def get_args():
@@ -44,10 +44,17 @@ model = GPTNeoX(
 )
 
 model = AutoregressiveWrapper(model)
+dset_params = params["dataset"]
+deepspeed.init_distributed(dist_backend='nccl')
+torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
+if is_main(train_args):
+    prepare_data(dset_params["name"])
+    torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
+else:
+    torch.distributed.barrier()
 
 # prepare enwik8 data
-data_path = download_dataset(dataset="enwiki8")
-data_train, data_val = prepare_enwik8_data(data_path=data_path)
+data_train, data_val = read_enwik8_data(dset_params["path"])
 train_dataset = TextSamplerDataset(data_train, params["seq_len"])
 val_dataset = TextSamplerDataset(data_val, params["seq_len"])
 val_loader = cycle(DataLoader(val_dataset, batch_size=params["batch_size"]))
@@ -69,7 +76,6 @@ pbar = trange(params["num_epochs"], mininterval=10., desc='Training Model', dyna
 for _ in pbar:
     for i, data in enumerate(train_loader):
         model_engine.train()
-        is_main = model_engine.local_rank == 0
         data = data.to(model_engine.local_rank)
 
         loss = model_engine(data)
@@ -79,14 +85,14 @@ for _ in pbar:
         pbar.set_description(f'Training Loss: {loss.item():.4f}')
         pbar.update()
 
-        if is_main and i % params["validate_every"] == 0:
+        if is_main(train_args) and i % params["validate_every"] == 0:
             model.eval()
             with torch.no_grad():
                 val_data = next(val_loader).cuda()
                 loss = model(val_data)
                 pbar.write(f'Validation Loss: {loss.item()}')
 
-        if is_main and i % params["generate_every"] == 0:
+        if is_main(train_args) and i % params["generate_every"] == 0:
             model.eval()
             inp = random.choice(val_dataset)[:-1]
             prime = decode_tokens(inp)

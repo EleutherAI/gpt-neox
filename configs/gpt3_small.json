@@ -5,22 +5,18 @@
     "add_padding_token": false
   },
   "dataset": {
-    "name": "owt2",
-    "dir": "./data",
+    "name": "enron_tfr",
+    "train_path": "./data/enron_tfr/tokenized/*.tfrecords",
+    "eval_path": "./data/enron_tfr/tokenized/*.tfrecords",
     "seed": 1,
     "shuffle_input_filenames": true,
     "pretokenized": true,
     "filetype": "tfrecords",
-    "mode": "chunks",
-    "save_progress_every": 10000,
-    "checkpoint_path": "gpt3_small_ckpt.txt",
-    "resume_from_checkpoint": true
+    "mode": "chunks"
   },
   "train_steps": 572300,
-  "batch_size": 256,
   "eval_batch_size": 32,
   "learning_rate": 0.0006,
-  "generate_every": 500,
   "generate_length": 256,
   "seq_len": 1024,
   "hidden_dim": 768,
