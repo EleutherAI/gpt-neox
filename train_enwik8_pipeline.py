@@ -2,17 +2,20 @@ import argparse
 import json
 import random
 from collections import defaultdict
-
+import os
 import deepspeed
 import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import trange
 
-from gpt_neox import (GPTNeoX, AutoregressiveWrapper, TextSamplerDataset, download_dataset,
-                      cycle, prepare_optimizer_parameters, decode_tokens, prepare_enwik8_data,
+from gpt_neox import (GPTNeoX, AutoregressiveWrapper, TextSamplerDataset,
+                      cycle, prepare_optimizer_parameters, decode_tokens, prepare_data,
                       GPTNeoX_Pipe)
-
+from gpt_neox.utils import is_main
+from gpt_neox.data_utils import read_enwik8_data
 import gpt_neox
+
+WORLD_SIZE = os.getenv('WORLD_SIZE')
 
 def get_args():
     parser = argparse.ArgumentParser(description='GPTNeox Deepspeed Training Script')
@@ -54,7 +57,6 @@ def loss_function(x, y):
     loss = losses.mean()
     return loss
         
-
 model = gpt_neox.GPTNeoX_Pipe(
     num_tokens=params["vocab_size"],
     dim=params["hidden_dim"],
@@ -63,17 +65,23 @@ model = gpt_neox.GPTNeoX_Pipe(
     heads=params["n_heads"],
     dim_head=params["dim_head"],
     loss_fn = loss_function,#torch.nn.CrossEntropyLoss(),
-    num_stages = 2
+    num_stages = params.get("pipeline_num_stages", 2)
 )
 
 # prepare enwik8 data
-data_path = download_dataset(dataset="enwiki8")
-data_train, data_val = prepare_enwik8_data(data_path=data_path)
-train_dataset = TextSamplerDataset(data_train, params["seq_len"])
-#train_dataset = deepspeed.utils.RepeatingLoader(train_dataset)
-val_dataset = TextSamplerDataset(data_val, params["seq_len"])
-val_loader = cycle(DataLoader(val_dataset, batch_size=params["batch_size"]))
+dset_params = params["dataset"]
+deepspeed.init_distributed(dist_backend='nccl')
+torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
+if is_main(train_args):
+    prepare_data(dset_params["name"])
+    torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
+else:
+    torch.distributed.barrier()
 
+data_train, data_val = read_enwik8_data(dset_params["path"])
+train_dataset = TextSamplerDataset(data_train, params["seq_len"], mode="with_labels")
+val_dataset = TextSamplerDataset(data_val, params["seq_len"], mode="with_labels")
+val_loader = cycle(DataLoader(val_dataset, batch_size=params["batch_size"]))
 
 # optimizer
 optim = torch.optim.Adam(model.parameters(), lr=params["learning_rate"])
