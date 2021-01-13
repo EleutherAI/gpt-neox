@@ -27,6 +27,6 @@
     "zero_optimization": {
       "stage": 2,
       "contiguous_gradients" : true,
-      "cpu_offload": false,
+      "cpu_offload": false
     }
 }
