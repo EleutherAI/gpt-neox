@@ -72,7 +72,7 @@ class TestShardingAndLoading(unittest.TestCase):
         loaded, expected = loading_pass(tokenizer,True)
         end = timer()
         self.assertEqual(loaded,expected)
-        print(f"Total shards to load {batch_size} examples: {1000*(end-start)} ms")
+        print(f"Total time to load {total_shards_to_load} examples: {1000*(end-start)} ms")
     
     def test_not_pretokenized_zloading(self):
         print("=== Not pretokenized sharding+loading pass===")
@@ -82,7 +82,7 @@ class TestShardingAndLoading(unittest.TestCase):
         loaded, expected = loading_pass(tokenizer,False)
         end = timer()
         self.assertEqual(loaded,expected)
-        print(f"Total shards to load {batch_size} examples: {1000*(end-start)} ms")
+        print(f"Total time to load {total_shards_to_load} examples: {1000*(end-start)} ms")
 
 if __name__ == '__main__':
     unittest.main()
