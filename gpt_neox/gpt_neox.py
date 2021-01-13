@@ -233,6 +233,7 @@ class GPTNeoX_Pipe(PipelineModule):
         sparse_attn = False, 
         use_fused_layernorm = False, 
         tie_classifier_weights = False,
+        num_stages = 2,
         **kwargs
     ):
         if not use_fused_layernorm:
@@ -271,8 +272,9 @@ class GPTNeoX_Pipe(PipelineModule):
             LayerSpec(nn.Linear, dim, num_tokens),
             lambda x: x.transpose(1, 2)
         ]
-
-        super().__init__(layers=spec, loss_fn=loss_fn, **kwargs)
+        print(spec)
+        assert len(spec) % num_stages == 0, f"for optimal performance, depth + 4 ({len(spec)}) should be divisible by the number of pipeline stages ({num_stages})"
+        super().__init__(layers=spec, loss_fn=loss_fn, num_stages=num_stages, **kwargs)
 
         
         
