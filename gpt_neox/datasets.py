@@ -46,60 +46,47 @@ class JsonShardedDataset(Dataset):
 
     #one constraint is that this idx has to start at an <|endoftext> symbol
     def __getitem__(self, idx):
-        print("=====")
-        print(idx)
         #get example that starts closest to the idx specified
         ex_idx = idx*self.seq_length
         
         closest_sentence_idx = np.searchsorted(self.inner_indexes,
                                       ex_idx, side='right')-1
 
-        #print(ex_idx)
-        #print(max(self.indexes))
-        #print(max(self.inner_indexes))
-        #print(closest_sentence_idx)
-        #print(self.inner_indexes[closest_sentence_idx])
-
-
         that_file_idx = np.searchsorted(self.indexes,
                                       self.inner_indexes[closest_sentence_idx], side='right')-1
                         
                 
         in_file_sentence_idx = self.inner_indexes[closest_sentence_idx]-self.indexes[that_file_idx]
-        #print(in_file_sentence_idx)
-        
-        print(that_file_idx)
         filename = self.all_files[that_file_idx]
-        print(filename)
         
         try:
+            line = linecache.getline(filename,1)
+            line = list(json.loads(line))
+
+            line = line[in_file_sentence_idx:in_file_sentence_idx+self.seq_length]
+
+            #go to next chunk to get rest of it if we couldn't get a full seq from here
+            if len(line) < self.seq_length and that_file_idx+1 < len(self.all_files):
+                filename = self.all_files[that_file_idx+1]
+                next_line = linecache.getline(filename,1)
+                next_line = list(json.loads(next_line))[0:self.seq_length-len(line)]
+                line.extend(next_line)
+            if len(line) == 0:
+                print("No words ", in_file_sentence_idx,ex_idx, that_file_idx,closest_sentence_idx)
+                raise Exception("An example has no words in it.")
+
             #if we've already tokenized the input, all we have to do is get it
             if not self.use_tokenizer:
-                line = linecache.getline(filename,1)
-                line = list(json.loads(line))
-               
-                line = line[in_file_sentence_idx:in_file_sentence_idx+self.seq_length]
-                if len(line) == 0:
-                    print("No words ", in_file_sentence_idx,ex_idx, that_file_idx,closest_sentence_idx)
-                    
-                    raise Exception("An example has no words in it.")
-      
+                #if for some rare reason we didn't get full seq length, just pad it
                 if len(line) < self.seq_length:
-                    print("HAVE TO PAD")
+                    print("HAVE TO PAD", len(line))
                     line.extend([self.tokenizer.pad_token_id for _ in range(self.seq_length-len(line))])
   
                 line = torch.IntTensor(line)
                 return line, line[1:]
             #otherwise, we have to tokenize on the fly
             else:
-                loaded_line = linecache.getline(filename,1)
-                line = list(json.loads(loaded_line))[in_file_sentence_idx:in_file_sentence_idx+self.seq_length]
-                #print(line[:10])
-                if len(line) == 0:
-                    raise Exception("An example has no words in it.")
-
                 data =  " ".join(line)
-          
                 tokenized = self.tokenize(data)
 
                 if len(tokenized) == 0:

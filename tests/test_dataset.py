@@ -31,7 +31,7 @@ total_shards_to_load=1000
 num_workers = 16
 initial_seed = 7
 seq_length = 2048
-max_items_per_file = 1000000
+max_items_per_file = 10000
 data_path = ["/ml_data/the-pile/components/enron_emails/enron_emails.jsonl"]
 output_dir = "/ml_data/test_output"
 shard_meta_file_name = f"sharding.jsonl"
@@ -49,7 +49,7 @@ for pre_tokenize in [False]:
             shardify(data_path,shard_meta_file_name,max_items_per_file,output_dir,tokenizer=tokenizer,num_workers=num_workers)
         else:
             shardify(data_path,shard_meta_file_name,max_items_per_file,output_dir,tokenizer=None,num_workers=num_workers)
-        exit(0)
+        
         dir_size = get_dir_size(output_dir)
         shard_sizes.append(dir_size)
         end = timer()
@@ -68,9 +68,8 @@ for pre_tokenize in [False]:
         iterator = iter(dataloader)
         for _ in range(total_shards_to_load // batch_size):
             line = next(iterator)
-            print(line)
-            del line
             #print(line)
+            del line
                 
         end = timer()
         elapsed = 1000*(end-start)
@@ -80,13 +79,12 @@ for pre_tokenize in [False]:
         linecache.clearcache()
 
 
-    if pre_tokenize:
-        print("===pre-tokenizing===")
-    else:
-        print("===not pre-tokenizing===")
-    print("Average sharding time: ",sum(shard_time)/len(shard_time), " ms")
-    print("Average shard dir size: ",sum(shard_sizes)/len(shard_sizes), " bytes")
-    print(f"Average loading time for {total_shards_to_load} seqs: ",sum(load_time)/len(load_time), " ms")
+if pre_tokenize:
+     print("===pre-tokenizing===")
+else:
+    print("===not pre-tokenizing===")
+print("Average sharding time: ",sum(shard_time)/len(shard_time), " ms")
+print("Average shard dir size: ",sum(shard_sizes)/len(shard_sizes), " bytes")
+print(f"Average loading time for {total_shards_to_load} seqs: ",sum(load_time)/len(load_time), " ms")
 
-
-    plt.show()
+plt.show()

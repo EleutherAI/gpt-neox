@@ -78,6 +78,13 @@ def shardify(data_paths:list,output_path:str, max_items_per_file:int=10000, outp
         os.mkdir(output_dir)
     #splitting workers per path intead of giving each worker a different path
     last_max = 0
+    max_chunk = 0
+    #this keeps track of how many items there are in each file
+    items_per_file=[]
+    #this keeps track of where each sentence starts in relation to the total item index
+    inner_indexes = []
+    #this keeps track of which file chunk the inner index refers to
+    inner_chunk_starts = []
     for path in data_paths:
         total_lines = file_lines(path)
         num_lines = total_lines//num_workers
@@ -86,36 +93,32 @@ def shardify(data_paths:list,output_path:str, max_items_per_file:int=10000, outp
         s_process = partial(shardify_process,path=path,num_lines=num_lines,output_dir=output_dir,\
             tokenizer=tokenizer,max_items_per_file=max_items_per_file)
         returns = pool.map(s_process, range(num_workers))
-
-        #this keeps track of how many items there are in each file
-        items_per_file=[]
-        #this keeps track of where each sentence starts in relation to the total item index
-        inner_indexes = []
-
-        inner_chunk_starts = []
-
-        for file_names,worker_items,worker_indexes,worker_chunk_starts,worker_total_per,worker_total in returns:
+        for file_names,worker_items,worker_indexes,worker_chunk_starts,worker_total in returns:
             
             summary_dict['file_names'].extend(file_names)
-        
-            curr_items = worker_items[:-1]
-            for i in range(len(curr_items)-1):
-                curr_items[i+1]+=curr_items[i]
-            curr_items = [item + last_max for item in curr_items]
 
-            last_max = curr_items[-1]+worker_items[-1]
-            items_per_file.extend(curr_items)
+            #add all current ones up
+            for i in range(len(worker_items)-1):
+                worker_items[i+1]+=worker_items[i]
+
+            worker_items = [item + last_max for item in worker_items]
+            #this last item is only used to know where the next sequence should start since this is the "end" of the current one
+            last_max = worker_items[-1]
+            items_per_file.extend(worker_items[:-1])
             inner_indexes.extend(worker_indexes)
+
+            worker_chunk_starts = [chunk + max_chunk for chunk in worker_chunk_starts]
+            
+            #have to add 1 because we know implicitly that chunk 0 refers to next chunk
+            max_chunk = max(worker_chunk_starts)+1
             inner_chunk_starts.extend(worker_chunk_starts)
             total_items += worker_total
+    
 
-        for i in range(len(inner_indexes)):
-            inner_indexes[i]+=items_per_file[inner_chunk_starts[i]]
+    for i in range(len(inner_indexes)):
+        inner_indexes[i]+=items_per_file[inner_chunk_starts[i]]
 
     #print(items_per_file)
-    print(len(items_per_file))
-    print(len(inner_indexes))
-    print('====')
     print(max(items_per_file))
     print(max(inner_indexes))
 
@@ -132,7 +135,7 @@ def shardify(data_paths:list,output_path:str, max_items_per_file:int=10000, outp
 
 #Runs on a single worker to chunk and optionally tokenize a jsonl file
 def shardify_process(worker_id,path,num_lines,output_dir,tokenizer,max_items_per_file):
-    single_file_chunk = 0
+    
     start_line = worker_id*num_lines
     end_line = (worker_id+1)*num_lines
 
@@ -142,25 +145,19 @@ def shardify_process(worker_id,path,num_lines,output_dir,tokenizer,max_items_per
 
     file_names = []
 
-    chunk_path=output_dir+"/"+dataset_name+"_"+str(worker_id)+"_"+str(0)+extension
-    chunk_writer = jsonlines.Writer(open(chunk_path,"w"))
-    file_names.append(chunk_path)
-
-    items_in_file = 0
     text_to_write = []
+    single_file_chunk = 0
     items_per_file = [0]
-    inner_indexes = [0]
+    inner_indexes = []
     inner_chunk_starts = []
-    worker_total_per=[]
     total_written =0
+
+    current_indices,current_chunk_starts=[],[]
 
     with jsonlines.open(path) as reader:
     
         for line_idx,line_loaded in enumerate(reader):
             #only have the worker process the lines of the jsonl that it has been assigned to
-         
-            #if line_idx > 2000:
-            #    break
             if line_idx<start_line or line_idx>end_line:
                 continue
             
@@ -174,46 +171,51 @@ def shardify_process(worker_id,path,num_lines,output_dir,tokenizer,max_items_per
                 all_items = tokenizer(text,return_tensors='pt')['input_ids']
                 all_items = all_items.numpy().tolist()[0]
                 all_items = list(map(lambda x:int(x), all_items))
-                total_items = len(all_items)
                 
             else:
                 all_items = text.split(" ")
-                total_items = len(all_items)
 
-            items_in_file += total_items
-            inner_index = items_in_file
-            inner_indexes.append(inner_index)
-            inner_chunk_starts.append(single_file_chunk)
+            #this inner index corresponds to index where this specific sentence begins
+            inner_index = len(text_to_write)
+            current_indices.append(inner_index)
+            #this inner chunk start tells us which chunk this sentence will be written to
+            current_chunk_starts.append(single_file_chunk)
             text_to_write.extend(all_items)
 
-            #once we've filled the buffer, write cit down to the current file, then switch to a new file
-            if items_in_file >= max_items_per_file:
-            
-                chunk_writer.write(text_to_write)
-                chunk_writer.close()
-                single_file_chunk += 1
+            #once we've filled the buffer, write it down to the current file, then switch to a new file
+            if len(text_to_write) >= max_items_per_file:
                 chunk_path=output_dir+"/"+dataset_name+"_"+str(worker_id)+"_"+str(single_file_chunk)+extension
                 chunk_writer = jsonlines.Writer(open(chunk_path,"w"))
-
                 file_names.append(chunk_path)
-                items_per_file.append(items_in_file)
 
-                total_written += items_in_file
-                worker_total_per.append(total_written)
-                items_in_file = 0
+                inner_indexes.extend(current_indices)
+                inner_chunk_starts.extend(current_chunk_starts)
+                current_indices,current_chunk_starts=[],[]
+                chunk_writer.write(text_to_write)
+                
+                single_file_chunk += 1
+
+                items_per_file.append(len(text_to_write))
+                total_written += len(text_to_write)
+              
                 text_to_write = []
                 
 
         #handle the case when we haven't written a full amount, but there are still items left over
         if len(text_to_write) > 0:
-            chunk_writer.write(text_to_write)
+            chunk_path=output_dir+"/"+dataset_name+"_"+str(worker_id)+"_"+str(single_file_chunk)+extension
+            chunk_writer = jsonlines.Writer(open(chunk_path,"w"))
             file_names.append(chunk_path)
-            items_per_file.append(items_in_file)
-            total_written += items_in_file
+            chunk_writer.write(text_to_write)
+
+            inner_indexes.extend(current_indices)
+            inner_chunk_starts.extend(current_chunk_starts)
+        
+            items_per_file.append(len(text_to_write))
+            total_written +=len(text_to_write)
         chunk_writer.close()
-    
-    inner_indexes = inner_indexes[:-1]
-    return file_names,items_per_file, inner_indexes,inner_chunk_starts,worker_total_per,total_written
+
+    return file_names,items_per_file, inner_indexes,inner_chunk_starts,total_written
 
 def get_dir_size(folder):
     files = os.listdir(folder)
