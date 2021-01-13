@@ -28,6 +28,5 @@
       "stage": 2,
       "contiguous_gradients" : false,
       "cpu_offload": false,
-      "reduce_bucket_size": 500000000
     }
 }
