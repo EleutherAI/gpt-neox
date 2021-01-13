@@ -10,9 +10,12 @@ import linecache
 import jsonlines
 import math
 from multiprocessing import Process,Pool
+from torch.utils.data.dataloader import default_collate
 import pathlib
 from functools import partial
-
+import logging
+#this is here to suppress warnings about us passing in sequences that are longer than default
+logging.getLogger("transformers").setLevel(logging.ERROR)
 
 class FixedSizeOrderedDict(OrderedDict):
     def __init__(self, *args, max=0, **kwargs):
@@ -118,13 +121,6 @@ def shardify(data_paths:list,output_path:str, max_items_per_file:int=10000, outp
     for i in range(len(inner_indexes)):
         inner_indexes[i]+=items_per_file[inner_chunk_starts[i]]
 
-    #print(items_per_file)
-    print(max(items_per_file))
-    print(max(inner_indexes))
-
-    print(strictly_increasing(items_per_file))
-    print(strictly_increasing(inner_indexes))
-
     summary_dict['indexes'] = items_per_file
     summary_dict['inner_indexes'] = inner_indexes
     summary_dict['total_items'] = total_items
@@ -132,6 +128,8 @@ def shardify(data_paths:list,output_path:str, max_items_per_file:int=10000, outp
     #finish by writing the summary dict
     with jsonlines.open(output_dir+"/"+output_path, mode='w') as writer:
         writer.write(summary_dict)
+    
+    return summary_dict
 
 #Runs on a single worker to chunk and optionally tokenize a jsonl file
 def shardify_process(worker_id,path,num_lines,output_dir,tokenizer,max_items_per_file):
@@ -153,7 +151,8 @@ def shardify_process(worker_id,path,num_lines,output_dir,tokenizer,max_items_per
     total_written =0
 
     current_indices,current_chunk_starts=[],[]
-
+    chunk_writer = None
+    chunk_file = None
     with jsonlines.open(path) as reader:
     
         for line_idx,line_loaded in enumerate(reader):
@@ -165,6 +164,7 @@ def shardify_process(worker_id,path,num_lines,output_dir,tokenizer,max_items_per
             if len(text) == 0:
                 continue
 
+            #This is here to make sure we know that sentences are different
             text ="<|endoftext|> "+ text
 
             if tokenizer:
@@ -184,8 +184,12 @@ def shardify_process(worker_id,path,num_lines,output_dir,tokenizer,max_items_per
 
             #once we've filled the buffer, write it down to the current file, then switch to a new file
             if len(text_to_write) >= max_items_per_file:
+                if chunk_writer:
+                    chunk_file.close()
+                    chunk_writer.close()
                 chunk_path=output_dir+"/"+dataset_name+"_"+str(worker_id)+"_"+str(single_file_chunk)+extension
-                chunk_writer = jsonlines.Writer(open(chunk_path,"w"))
+                chunk_file = open(chunk_path,"w")
+                chunk_writer = jsonlines.Writer(chunk_file)
                 file_names.append(chunk_path)
 
                 inner_indexes.extend(current_indices)
@@ -203,8 +207,12 @@ def shardify_process(worker_id,path,num_lines,output_dir,tokenizer,max_items_per
 
         #handle the case when we haven't written a full amount, but there are still items left over
         if len(text_to_write) > 0:
+            if chunk_writer:
+                chunk_file.close()
+                chunk_writer.close()
             chunk_path=output_dir+"/"+dataset_name+"_"+str(worker_id)+"_"+str(single_file_chunk)+extension
-            chunk_writer = jsonlines.Writer(open(chunk_path,"w"))
+            chunk_file = open(chunk_path,"w")
+            chunk_writer = jsonlines.Writer(chunk_file)
             file_names.append(chunk_path)
             chunk_writer.write(text_to_write)
 
@@ -213,7 +221,9 @@ def shardify_process(worker_id,path,num_lines,output_dir,tokenizer,max_items_per
         
             items_per_file.append(len(text_to_write))
             total_written +=len(text_to_write)
-        chunk_writer.close()
+        if chunk_writer:
+            chunk_file.close()
+            chunk_writer.close()
 
     return file_names,items_per_file, inner_indexes,inner_chunk_starts,total_written
 
@@ -228,3 +238,9 @@ def remove_dir_files(fdir):
 
 def strictly_increasing(L):
     return all(x<y for x, y in zip(L, L[1:]))
+
+#helper for ignoring data we couldn't load
+def ignore_exceptions_collate(batch):
+    batch = list(filter(lambda x: x is not None, batch))
+    
+    return default_collate(batch)
