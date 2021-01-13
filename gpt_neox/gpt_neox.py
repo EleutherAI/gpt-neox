@@ -274,7 +274,7 @@ class GPTNeoX_Pipe(PipelineModule):
         ]
         print(spec)
         assert len(spec) % num_stages == 0, f"for optimal performance, depth + 4 ({len(spec)}) should be divisible by the number of pipeline stages ({num_stages})"
-        super().__init__(layers=spec, loss_fn=loss_fn, activation_checkpoint_interval=1, num_stages=num_stages, **kwargs)
+        super().__init__(layers=spec, loss_fn=loss_fn, activation_checkpoint_interval=0, num_stages=num_stages, **kwargs)
 
         
         
