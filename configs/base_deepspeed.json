@@ -25,7 +25,7 @@
       "enabled": true
     },
     "zero_optimization": {
-      "stage": 2,
+      "stage": 1,
       "contiguous_gradients" : true,
       "cpu_offload": false,
       "reduce_bucket_size": 500000000
