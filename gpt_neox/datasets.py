@@ -26,49 +26,75 @@ class JsonShardedDataset(Dataset):
 
         #TODO: Check if using linecache actually helps
         self.shard_summary = json.loads(linecache.getline(self.shards_filename,1))
-        self.total_files = len(self.shard_summary['file_names'])
+        self.all_files = self.shard_summary['file_names']
+     
+        self.total_files = len(self.all_files)
+        self.indexes = self.shard_summary['indexes']
+        self.inner_indexes = self.shard_summary['inner_indexes']
+        self.data_length = self.shard_summary['total_items']
 
-        self.data_length = self.shard_summary['total_shards']
         self.tokenizer = tokenizer
         self.use_tokenizer = use_tokenizer
 
     def __len__(self):
-        return self.data_length
+        
+        return self.data_length // self.seq_length
     
     def tokenize(self,data):
         return self.tokenizer(data, max_length=self.seq_length, return_tensors='pt',\
                 padding='max_length', truncation=True)['input_ids']
 
+    #one constraint is that this idx has to start at an <|endoftext> symbol
     def __getitem__(self, idx):
+        print("=====")
+        print(idx)
+        #get example that starts closest to the idx specified
+        ex_idx = idx*self.seq_length
+        
+        closest_sentence_idx = np.searchsorted(self.inner_indexes,
+                                      ex_idx, side='right')-1
+
+        #print(ex_idx)
+        #print(max(self.indexes))
+        #print(max(self.inner_indexes))
+        #print(closest_sentence_idx)
+        #print(self.inner_indexes[closest_sentence_idx])
+
+
+        that_file_idx = np.searchsorted(self.indexes,
+                                      self.inner_indexes[closest_sentence_idx], side='right')-1
+                        
+                
+        in_file_sentence_idx = self.inner_indexes[closest_sentence_idx]-self.indexes[that_file_idx]
+        #print(in_file_sentence_idx)
+        
+        print(that_file_idx)
+        filename = self.all_files[that_file_idx]
+        print(filename)
+        
         try:
-            shard = json.loads(linecache.getline(self.shards_filename,idx+2))
-        except:
-            print("Could not load: ", self.shards_filename, idx+2)
-            return None
-        try:
-            file_idx,shard_line = shard
-            filename = self.shard_summary['file_names'][file_idx-1]   
-        except:
-            print("Could not get the right file name", self.shard_summary['file_names'], file_idx-1)
-            return None
-        try:
-            #if we've already tokenized the input, all we have to do is pad it 
+            #if we've already tokenized the input, all we have to do is get it
             if not self.use_tokenizer:
-                line = linecache.getline(filename,shard_line)
+                line = linecache.getline(filename,1)
                 line = list(json.loads(line))
+               
+                line = line[in_file_sentence_idx:in_file_sentence_idx+self.seq_length]
                 if len(line) == 0:
-                    print("No words")
+                    print("No words ", in_file_sentence_idx,ex_idx, that_file_idx,closest_sentence_idx)
+                    
                     raise Exception("An example has no words in it.")
       
                 if len(line) < self.seq_length:
+                    print("HAVE TO PAD")
                     line.extend([self.tokenizer.pad_token_id for _ in range(self.seq_length-len(line))])
   
                 line = torch.IntTensor(line)
                 return line, line[1:]
             #otherwise, we have to tokenize on the fly
             else:
-                loaded_line = linecache.getline(filename,shard_line)
-                line = list(json.loads(loaded_line))
+                loaded_line = linecache.getline(filename,1)
+                line = list(json.loads(loaded_line))[in_file_sentence_idx:in_file_sentence_idx+self.seq_length]
+                #print(line[:10])
                 if len(line) == 0:
                     raise Exception("An example has no words in it.")
 
@@ -81,7 +107,7 @@ class JsonShardedDataset(Dataset):
                 
                 return tokenized[0], tokenized[0,1:]
         except:
-            print("Error: filename: ",filename,", shard line: ",shard_line)     
+            print("Error: filename: ",filename,", in_file_sentence_idx: ",in_file_sentence_idx)     
             return None
 
 

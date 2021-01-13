@@ -69,130 +69,151 @@ def file_lines(fname):
 Shards data files into a certain size,
 then creates another "metadata" file that stores a single entry for every entry in the dataset
 so we can easily index into data for training
-
-metadata file is .jsonl with structure:
-{seq_length:INT,total_lines:INT,total_shards:INT}\n
-One line for each index
-{file_name,line}
-...
 """
-def shardify(data_paths:list,output_path:str, seq_length:int=2048, chunksize:int=None, output_dir:str="",tokenizer=None,num_workers=32):
-    summary_dict = {'seq_length':seq_length,'file_names':[]}
+def shardify(data_paths:list,output_path:str, max_items_per_file:int=10000, output_dir:str="",tokenizer=None,num_workers=32):
+    summary_dict = {'max_items_per_file':max_items_per_file,'file_names':[]}
     
-    shards = []
-    total_shards,total_lines = 0, 0
+    total_items = 0
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
     #splitting workers per path intead of giving each worker a different path
-    for path_idx,path in enumerate(data_paths):
+    last_max = 0
+    for path in data_paths:
         total_lines = file_lines(path)
         num_lines = total_lines//num_workers
 
         pool = Pool(processes = num_workers)
-        s_process = partial(shardify_process,path=path,num_lines=num_lines,chunksize=chunksize,output_dir=output_dir,\
-            tokenizer=tokenizer,seq_length=seq_length)
+        s_process = partial(shardify_process,path=path,num_lines=num_lines,output_dir=output_dir,\
+            tokenizer=tokenizer,max_items_per_file=max_items_per_file)
         returns = pool.map(s_process, range(num_workers))
 
-        for line_idx,path_shards,worker_shards,file_names in returns:
-            total_lines += line_idx
-            total_shards += path_shards
+        #this keeps track of how many items there are in each file
+        items_per_file=[]
+        #this keeps track of where each sentence starts in relation to the total item index
+        inner_indexes = []
+
+        inner_chunk_starts = []
+
+        for file_names,worker_items,worker_indexes,worker_chunk_starts,worker_total_per,worker_total in returns:
             
-            max_ws = len(summary_dict['file_names'])
-            for ws in worker_shards:
-                ws[0]+=max_ws
-
-            shards.extend(worker_shards)
             summary_dict['file_names'].extend(file_names)
-                
-    summary_dict['total_lines'] = total_lines
-    summary_dict['total_shards'] = total_shards
+        
+            curr_items = worker_items[:-1]
+            for i in range(len(curr_items)-1):
+                curr_items[i+1]+=curr_items[i]
+            curr_items = [item + last_max for item in curr_items]
 
-    #finish by writing the summary dict and all the individual indexes
+            last_max = curr_items[-1]+worker_items[-1]
+            items_per_file.extend(curr_items)
+            inner_indexes.extend(worker_indexes)
+            inner_chunk_starts.extend(worker_chunk_starts)
+            total_items += worker_total
+
+        for i in range(len(inner_indexes)):
+            inner_indexes[i]+=items_per_file[inner_chunk_starts[i]]
+
+    #print(items_per_file)
+    print(len(items_per_file))
+    print(len(inner_indexes))
+    print('====')
+    print(max(items_per_file))
+    print(max(inner_indexes))
+
+    print(strictly_increasing(items_per_file))
+    print(strictly_increasing(inner_indexes))
+
+    summary_dict['indexes'] = items_per_file
+    summary_dict['inner_indexes'] = inner_indexes
+    summary_dict['total_items'] = total_items
+
+    #finish by writing the summary dict
     with jsonlines.open(output_dir+"/"+output_path, mode='w') as writer:
         writer.write(summary_dict)
-        for shard in shards:
-            writer.write(shard)
 
 #Runs on a single worker to chunk and optionally tokenize a jsonl file
-def shardify_process(worker_id,path,num_lines,chunksize,output_dir,tokenizer,seq_length):
-    path_shards,single_file_chunk,single_file_chunk_line = 0,1,0
+def shardify_process(worker_id,path,num_lines,output_dir,tokenizer,max_items_per_file):
+    single_file_chunk = 0
     start_line = worker_id*num_lines
     end_line = (worker_id+1)*num_lines
 
-    p = pathlib.Path(path)
-    path_folder = p.parents[0]  
+    p = pathlib.Path(path) 
     dataset_name = p.stem
     extension = p.suffix
 
     file_names = []
-    shards = []
 
     chunk_path=output_dir+"/"+dataset_name+"_"+str(worker_id)+"_"+str(0)+extension
-    chunk_writer = None
+    chunk_writer = jsonlines.Writer(open(chunk_path,"w"))
+    file_names.append(chunk_path)
+
+    items_in_file = 0
+    text_to_write = []
+    items_per_file = [0]
+    inner_indexes = [0]
+    inner_chunk_starts = []
+    worker_total_per=[]
+    total_written =0
 
     with jsonlines.open(path) as reader:
-        total_parsed = 0
+    
         for line_idx,line_loaded in enumerate(reader):
             #only have the worker process the lines of the jsonl that it has been assigned to
+         
+            #if line_idx > 2000:
+            #    break
             if line_idx<start_line or line_idx>end_line:
                 continue
             
             text = line_loaded['text']
             if len(text) == 0:
                 continue
-            total_parsed += 1
 
-            if single_file_chunk_line == 0:
-                file_names.append(chunk_path)
-                if chunk_writer:
-                    chunk_writer.close()
-                chunk_writer = jsonlines.Writer(open(chunk_path,"w"))
- 
+            text ="<|endoftext|> "+ text
+
             if tokenizer:
-                all_words = tokenizer(text, max_length=seq_length, return_tensors='pt',\
-                    truncation=True)['input_ids']
-                all_words = all_words.numpy().tolist()[0]
-                all_words = list(map(lambda x:int(x), all_words))
-                
-                total_words = len(all_words)
+                all_items = tokenizer(text,return_tensors='pt')['input_ids']
+                all_items = all_items.numpy().tolist()[0]
+                all_items = list(map(lambda x:int(x), all_items))
+                total_items = len(all_items)
                 
             else:
-                all_words = text.split(" ")
-                total_words = len(all_words)
+                all_items = text.split(" ")
+                total_items = len(all_items)
 
-            #individual shards is limited by context
-            line_shards=math.floor(total_words / seq_length) + 1 
- 
-            path_shards += line_shards
+            items_in_file += total_items
+            inner_index = items_in_file
+            inner_indexes.append(inner_index)
+            inner_chunk_starts.append(single_file_chunk)
+            text_to_write.extend(all_items)
 
-            for i in range(line_shards):
-                #each shard contains 
-                # 1.what file we save it to (index to file_names array in summary)
-                # 2.what line of the file it maps to
-                new_shard = [single_file_chunk,single_file_chunk_line+1]
+            #once we've filled the buffer, write cit down to the current file, then switch to a new file
+            if items_in_file >= max_items_per_file:
+            
+                chunk_writer.write(text_to_write)
+                chunk_writer.close()
+                single_file_chunk += 1
+                chunk_path=output_dir+"/"+dataset_name+"_"+str(worker_id)+"_"+str(single_file_chunk)+extension
+                chunk_writer = jsonlines.Writer(open(chunk_path,"w"))
 
-                start = i*seq_length
-                stop = (i+1)*seq_length 
-                trunc_words = all_words[start:stop]
+                file_names.append(chunk_path)
+                items_per_file.append(items_in_file)
 
-                if len(trunc_words) == 0:
-                    continue
-                else:
-                    chunk_writer.write(trunc_words)
-                    shards.append(new_shard)
-                    single_file_chunk_line += 1
-
-                #we've reached the end of this chunk, so need to reset everything for the next chunk
-                if single_file_chunk_line == chunksize:
-                    chunk_path=output_dir+"/"+dataset_name+"_"+str(worker_id)+"_"+str(single_file_chunk)+extension
-                    single_file_chunk_line = 0
-                    single_file_chunk += 1
+                total_written += items_in_file
+                worker_total_per.append(total_written)
+                items_in_file = 0
+                text_to_write = []
                 
 
-    #line_idx ends up being the number of lines processed
-    #path shards is the total number of entries 
-    #shards is a list of identifying info for each index consisting of
-    return line_idx,path_shards,shards,file_names
+        #handle the case when we haven't written a full amount, but there are still items left over
+        if len(text_to_write) > 0:
+            chunk_writer.write(text_to_write)
+            file_names.append(chunk_path)
+            items_per_file.append(items_in_file)
+            total_written += items_in_file
+        chunk_writer.close()
+    
+    inner_indexes = inner_indexes[:-1]
+    return file_names,items_per_file, inner_indexes,inner_chunk_starts,worker_total_per,total_written
 
 def get_dir_size(folder):
     files = os.listdir(folder)
@@ -202,3 +223,6 @@ def remove_dir_files(fdir):
     filelist = os.listdir(fdir) 
     for f in filelist:
         os.remove(os.path.join(fdir, f))
+
+def strictly_increasing(L):
+    return all(x<y for x, y in zip(L, L[1:]))

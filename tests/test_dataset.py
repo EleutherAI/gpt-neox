@@ -27,26 +27,29 @@ def ignore_exceptions_collate(batch):
 
 # Data parallel arguments.
 batch_size=100
-total_shards_to_load=10000
-chunksizes=[1000]
+total_shards_to_load=1000
 num_workers = 16
 initial_seed = 7
 seq_length = 2048
+max_items_per_file = 1000000
 data_path = ["/ml_data/the-pile/components/enron_emails/enron_emails.jsonl"]
 output_dir = "/ml_data/test_output"
 shard_meta_file_name = f"sharding.jsonl"
 
+n_repeats = 1
 
-
-for pre_tokenize in [True]:
+for pre_tokenize in [False]:
     load_time,shard_time,shard_sizes = [],[],[]
-    for chunksize in chunksizes:
+
+    for i in range(n_repeats):
+    
         start = timer()
         tokenizer = get_tokenizer()
         if pre_tokenize:
-            shardify(data_path,shard_meta_file_name,seq_length,chunksize,output_dir,tokenizer=tokenizer,num_workers=num_workers)
+            shardify(data_path,shard_meta_file_name,max_items_per_file,output_dir,tokenizer=tokenizer,num_workers=num_workers)
         else:
-            shardify(data_path,shard_meta_file_name,seq_length,chunksize,output_dir,tokenizer=None,num_workers=num_workers)
+            shardify(data_path,shard_meta_file_name,max_items_per_file,output_dir,tokenizer=None,num_workers=num_workers)
+        exit(0)
         dir_size = get_dir_size(output_dir)
         shard_sizes.append(dir_size)
         end = timer()
@@ -59,7 +62,7 @@ for pre_tokenize in [True]:
             tokenizer = get_tokenizer()
             dataset = JsonShardedDataset(output_dir+"/"+shard_meta_file_name,tokenizer,seq_length,initial_seed,True)
         dataloader = DataLoader(dataset, batch_size=batch_size,
-                            num_workers=1,collate_fn=ignore_exceptions_collate)
+                                num_workers=1,shuffle=True,collate_fn=ignore_exceptions_collate)
         start = timer()
         #actually load all the entries as we would during training/testing
         iterator = iter(dataloader)
@@ -68,7 +71,7 @@ for pre_tokenize in [True]:
             print(line)
             del line
             #print(line)
-            
+                
         end = timer()
         elapsed = 1000*(end-start)
         load_time.append(elapsed)
@@ -84,16 +87,6 @@ for pre_tokenize in [True]:
     print("Average sharding time: ",sum(shard_time)/len(shard_time), " ms")
     print("Average shard dir size: ",sum(shard_sizes)/len(shard_sizes), " bytes")
     print(f"Average loading time for {total_shards_to_load} seqs: ",sum(load_time)/len(load_time), " ms")
-    
-        
-    plt.plot(chunksizes,load_time)
-    plt.xlabel("Chunksize")
-    plt.ylabel(f"Load time for {total_shards_to_load} seqs (ms)")
-    plt.xscale("log")
 
-    if pre_tokenize:
-        plt.title("Pre-tokenized")
-    else:
-        plt.title("On-fly tokenize")
 
     plt.show()
