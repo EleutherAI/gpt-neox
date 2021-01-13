@@ -115,7 +115,7 @@ class Attention(nn.Module):
 
 class GPTNeoX(nn.Module):
     def __init__(self, *, num_tokens, dim, seq_len, depth, heads=8, dim_head=64, attn_dropout=0., ff_dropout=0., 
-                sparse_attn=False, use_fused_layernorm=False, tie_classifier_weights=False, gradient_checkpointing=True, checkpoint_num_layers=1):
+                sparse_attn=False, use_fused_layernorm=False, tie_classifier_weights=False, gradient_checkpointing=True):
         super().__init__()
         if not use_fused_layernorm:
             norm_class = nn.LayerNorm
@@ -149,7 +149,6 @@ class GPTNeoX(nn.Module):
             self.to_logits = nn.Linear(dim, num_tokens)
         
         self.gradient_checkpointing = gradient_checkpointing
-        self.checkpoint_num_layers = checkpoint_num_layers
 
     def forward(self, x, mask=None):
         n, device = x.shape[1], x.device
@@ -157,35 +156,16 @@ class GPTNeoX(nn.Module):
         x = self.token_emb(x)
         x = self.pos_emb(torch.arange(n, device=device)) + x
 
-
-
         def _layer(attn, ff):
             def fn(x):
                 x = attn(x) + x
                 return ff(x) + x
             return fn
 
-        def custom(start, end):
-            """Custom forward function for gradient checkpointing
-
-            Args:
-                start (int): [start layer idx]
-                end (int): [end layer idx]
-            """
-            def custom_forward(x):
-                layers_ = self.layers[start:end]
-                for (attn, ff) in layers_:
-                    layer_fn = _layer(attn, ff)
-                    x_ = layer_fn(x)
-                return x_
-            return custom_forward
-
-
         if self.gradient_checkpointing:
-            l = 0
-            while l < self.depth:
-                x = torch.utils.checkpoint.checkpoint(custom(l, l+self.checkpoint_num_layers), (x))
-                l += self.checkpoint_num_layers
+            for (attn, ff) in self.layers:
+                layer_fn = _layer(attn, ff)
+                x = torch.utils.checkpoint.checkpoint(layer_fn, (x))
         else:
             for (attn, ff) in self.layers:
                 layer_fn = _layer(attn, ff)
