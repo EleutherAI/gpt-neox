@@ -31,7 +31,7 @@ def loss_function(x, y):
     loss = losses.mean()
     return loss
         
-model = gpt_neox.GPTNeoX_Pipe(
+model = GPTNeoX_Pipe(
     num_tokens=params["vocab_size"],
     dim=params["hidden_dim"],
     seq_len=params["seq_len"],
