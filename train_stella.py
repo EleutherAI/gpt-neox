@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 from tqdm.auto import trange
 import torch.distributed as distributed
 
-from gpt_neox import (GPTNeoX, AutoregressiveWrapper, GPT2Dataset, extract_tarfile,
+from gpt_neox import (GPTNeoX_Pipe, AutoregressiveWrapper, GPT2Dataset, extract_tarfile,
                       prepare_optimizer_parameters, get_tokenizer, is_main, prepare_data)
 
 from gpt_neox.utils import get_args, get_params
