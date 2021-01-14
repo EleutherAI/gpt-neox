@@ -49,5 +49,9 @@ model = GPTNeoX(
 )
 ```
 
+## Contribute
+
+If you want to get involved, check out our repo projects. Anything that is listed as "todo" or has not been assigned to anyone is fair game, but please leave a comment so that we know you're working on it!
+
 ## Resources
 If you have trouble getting the model to run, consider consulting [this guide](https://gist.github.com/kevinwatkins/232b88bfecbeca8d48d612a3e9cf65e4) to installing in a GCE virtual machine.
