@@ -30,11 +30,11 @@
       "cpu_offload": false
     },
     "activation_checkpointing": {
-      "partition_activations": false,
+      "partition_activations": true,
       "cpu_checkpointing": false,
-      "contiguous_memory_optimization": false,
-      "number_checkpoints": null,
-      "synchronize_checkpoint_boundary": false,
+      "contiguous_memory_optimization": true,
+      "number_checkpoints": 1,
+      "synchronize_checkpoint_boundary": true,
       "profile": false
     }
 }
