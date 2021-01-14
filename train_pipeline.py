@@ -47,13 +47,6 @@ model = AutoregressiveWrapper(model)
 ds_model_params = prepare_optimizer_parameters(model)
 optim = torch.optim.Adam(model.parameters(), lr=params["learning_rate"])
 
-# deepspeed loader
-model_engine, optim, train_loader, _ = deepspeed.initialize(args=train_args,
-                                                            model=model,
-                                                            optimizer=optim,
-                                                            model_parameters=ds_model_params,
-                                                            training_data=train_dataset)
-
 # prepare data
 dset_params = params["dataset"]
 assert dset_params is not None
@@ -78,6 +71,14 @@ eval_dataset = GPT2Dataset(glob_pattern=dset_params["eval_path"],
 
 val_loader = DataLoader(eval_dataset, batch_size=params["eval_batch_size"])
 val_loader = iter(val_loader)
+
+# deepspeed loader
+model_engine, optim, train_loader, _ = deepspeed.initialize(args=train_args,
+                                                            model=model,
+                                                            optimizer=optim,
+                                                            model_parameters=ds_model_params,
+                                                            training_data=train_dataset)
+
 
 batches_to_train = 10000
 
