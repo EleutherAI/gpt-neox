@@ -29,4 +29,12 @@
       "contiguous_gradients" : true,
       "cpu_offload": false
     }
+    "activation_checkpointing": {
+      "partition_activations": true,
+      "cpu_checkpointing": false,
+      "contiguous_memory_optimization": true,
+      "number_checkpoints": 1,
+      "synchronize_checkpoint_boundary": false,
+      "profile": false
+    }
 }
