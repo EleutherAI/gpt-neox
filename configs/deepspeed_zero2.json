@@ -33,7 +33,7 @@
       "partition_activations": true,
       "cpu_checkpointing": false,
       "contiguous_memory_optimization": true,
-      "number_checkpoints": null,
+      "number_checkpoints": null, # to turn on activation checkpointing, set this to a positive integer. Do not touch other params
       "synchronize_checkpoint_boundary": true,
       "profile": false
     }
