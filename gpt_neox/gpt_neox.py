@@ -69,7 +69,7 @@ def dense_attn(q, k, v, attn_mask = None, dropout_fn = None):
     return out
 
 class Attention(nn.Module):
-    def __init__(self, dim, heads, seq_len, causal=False, dim_head=64, dropout=0., sparse_attn=False):
+    def __init__(self, dim, heads, seq_len, causal=True, dim_head=64, dropout=0., sparse_attn=False):
         super().__init__()
         inner_dim = heads * dim_head
         self.causal = causal
