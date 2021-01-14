@@ -193,11 +193,10 @@ class TransformerBlock(nn.Module):
         self.ff_layer = PreNorm(dim, norm_class, FeedForward(dim=dim, dropout=ff_dropout))
 
     def forward(self, input):
-        print(input)
-        x, mask = input
+        x = input
         x = self.attn_layer(x) + x
         x = self.ff_layer(x) + x
-        return (x, mask)
+        return x
 
 class EmbedBlock(nn.Module):
     def __init__(
