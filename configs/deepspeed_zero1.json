@@ -28,5 +28,5 @@
       "stage": 1,
       "contiguous_gradients" : true,
       "cpu_offload": false
-    },
+    }
 }
