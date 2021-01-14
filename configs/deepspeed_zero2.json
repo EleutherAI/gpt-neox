@@ -30,10 +30,11 @@
       "cpu_offload": false
     },
     "activation_checkpointing": {
+      "comment": "to turn on activation checkpointing, set this to a positive integer. Do not touch other params.",
       "partition_activations": true,
       "cpu_checkpointing": false,
       "contiguous_memory_optimization": true,
-      "number_checkpoints": null, # to turn on activation checkpointing, set this to a positive integer. Do not touch other params
+      "number_checkpoints": null,
       "synchronize_checkpoint_boundary": true,
       "profile": false
     }
