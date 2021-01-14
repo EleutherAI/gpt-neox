@@ -79,13 +79,15 @@ eval_dataset = GPT2Dataset(glob_pattern=dset_params["eval_path"],
 val_loader = DataLoader(eval_dataset, batch_size=params["eval_batch_size"])
 val_loader = iter(val_loader)
 
+batches_to_train = 10000
 
-for step, batch in enumerate(data_loader):
-    #forward() method
-    loss = model_engine(batch)
+pbar = trange(params["num_epochs"], mininterval=10., desc='Training Model', dynamic_ncols=True)
+for _ in pbar:
+    for i in range(batches_to_train):
 
-    #runs backpropagation
-    model_engine.backward(loss)
+        is_main = model_engine.local_rank == 0
 
-    #weight update
-    model_engine.step()
+        loss = model_engine.train_batch()
+
+        pbar.set_description(f'Training Loss: {loss.item():.4f}')
+        pbar.update()
