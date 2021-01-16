@@ -21,7 +21,7 @@ max_items_per_file = 100000
 output_dir = "/ml_data/test_output"
 shard_meta_file_name = f"sharding.jsonl"
 
-dataset_names = ["enron"]
+dataset_names = ["enron_jsonl"]
 data_paths = []
 for name in dataset_names:
     file_path = prepare_data(name)
