@@ -26,7 +26,7 @@
     },
     "zero_optimization": {
       "stage": 2,
-      "contiguous_gradients" : true,
+      "contiguous_gradients" : false,
       "cpu_offload": false
     },
     "activation_checkpointing": {
