@@ -99,7 +99,7 @@ class DataDownloader(ABC):
 class EnronJsonl(DataDownloader):
     name = "enron_jsonl"
     filetype = "jsonl.zst"
-    file_name = "enron_emails.jsonl"
+    filename = "enron_emails.jsonl"
     url = "http://eaidata.bmk.sh/data/enron_emails.jsonl.zst"
     seed = 1
 
@@ -114,6 +114,7 @@ class EnronJsonl(DataDownloader):
 class EnronTFRecords(DataDownloader):
     name = "enron_tfr"
     filetype = "jsonl.zst"
+    filename="enron_email.jsonl"
     url = "http://eaidata.bmk.sh/data/enron_emails.jsonl.zst"
     seed = 1
 
@@ -132,6 +133,7 @@ class EnronTFRecords(DataDownloader):
 class OWT2(DataDownloader):
     name = "owt2"
     filetype = "tfrecords"
+    filename="owt2_new"
     url = "http://eaidata.bmk.sh/data/owt2_new.tar.gz"
     seed = 1
 
@@ -164,6 +166,7 @@ class OWT2(DataDownloader):
 class Enwik8(DataDownloader):
     name = "owt2"
     filetype = "gz"
+    filename="enwik8"
     url = "http://eaidata.bmk.sh/data/enwik8.gz"
 
     def extract(self):
