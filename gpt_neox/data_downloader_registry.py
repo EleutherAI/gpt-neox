@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from glob import glob
 import shutil
 import random
+import zstandard
 
 """
 This registry is for automatically downloading and extracting datasets.
@@ -50,7 +51,7 @@ class DataDownloader(ABC):
         """File name saved to after extracting"""
         pass
 
-    def _extract(self):
+    def _extract_tar(self):
         self.path = os.path.join(self.base_dir, self.name)
         os.makedirs(self.path, exist_ok=True)
         if self.filetype =="gz":
@@ -65,9 +66,19 @@ class DataDownloader(ABC):
         else:
             raise NotImplementedError
 
+    def _extract_zstd(self):
+        self.path = os.path.join(self.base_dir, self.name)
+        os.makedirs(self.path, exist_ok=True)
+        zstd_file_path = os.path.join(self.base_dir, os.path.basename(self.url))
+        with open(zstd_file_path, 'rb') as compressed:
+            decomp = zstandard.ZstdDecompressor()
+            output_path = zstd_file_path.replace(".zst", "")
+            with open(output_path, 'wb') as destination:
+                decomp.copy_stream(compressed, destination)
+
     def extract(self):
         """extracts dataset and moves to the correct data dir if necessary"""
-        self._extract()
+        self._extract_tar()
 
     def exists(self):
         """Checks if the dataset is present"""
@@ -85,6 +96,37 @@ class DataDownloader(ABC):
             if extract:
                 self.extract()
 
+class EnronJsonl(DataDownloader):
+    name = "enron_jsonl"
+    filetype = "jsonl.zst"
+    url = "http://eaidata.bmk.sh/data/enron_emails.jsonl.zst"
+    seed = 1
+
+    def exists(self):
+        self.path = os.path.join(self.base_dir, self.name)
+        return os.path.isfile(os.path.join(self.path, os.path.basename(self.url).replace(".zst", "")))
+
+    def extract(self):
+        self._extract_zstd()
+        shutil.move(os.path.join(self.base_dir, os.path.basename(self.url).replace(".zst", "")), os.path.join(self.base_dir, self.name))
+
+class EnronTFRecords(DataDownloader):
+    name = "enron_tfr"
+    filetype = "jsonl.zst"
+    url = "http://eaidata.bmk.sh/data/enron_emails.jsonl.zst"
+    seed = 1
+
+    def download(self):
+        """downloads dataset"""
+        os.makedirs(self.base_dir, exist_ok=True)
+        self.path = os.path.join(self.base_dir, self.name)
+        os.makedirs(self.path, exist_ok=True)
+        os.system(f"wget {self.url} -O {os.path.join(self.path, os.path.basename(self.url))}")
+
+    def extract(self):
+        os.system(f"python ./gpt_neox/create_tfrecords.py --input_dir {self.path} --files_per 2000 \
+        --name enron --output_dir {self.path}/tokenized --ftfy --chunk_size 1024 --processes 1")
+
 
 class OWT2(DataDownloader):
     name = "owt2"
@@ -93,7 +135,7 @@ class OWT2(DataDownloader):
     seed = 1
 
     def extract(self):
-        self._extract()
+        self._extract_tar()
         # the files are within nested subdirectories, and not split by train/test
         # so we need to move them to the correct directories
         all_files = glob(f"{self.path}/**/*.{self.filetype}", recursive=True)
@@ -129,19 +171,11 @@ class Enwik8(DataDownloader):
     def exists(self):
         return os.path.isfile(f"{self.base_dir}/enwik8.gz")
 
-class Enron(DataDownloader):
-    name = "enron"
-    filetype = "zst"
-    url = "http://eaidata.bmk.sh/data/enron_emails.jsonl.zst"
-    filename = "enron_emails.jsonl"
-    
-    def exists(self):
-        return os.path.isfile(os.path.join(self.base_dir,self.filename))
-
 DATA_DOWNLOADERS = {
     "owt2": OWT2,
     "enwik8": Enwik8,
-    "enron": Enron,
+    "enron_jsonl": EnronJsonl,
+    "enron_tfr": EnronTFRecords
 }
 
 def prepare_data(dataset_name):
