@@ -99,6 +99,7 @@ class DataDownloader(ABC):
 class EnronJsonl(DataDownloader):
     name = "enron_jsonl"
     filetype = "jsonl.zst"
+    file_name = "enron_emails.jsonl"
     url = "http://eaidata.bmk.sh/data/enron_emails.jsonl.zst"
     seed = 1
 
