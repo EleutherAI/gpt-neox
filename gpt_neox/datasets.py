@@ -24,7 +24,6 @@ class JsonShardedDataset(Dataset):
         self.seq_length = seq_length
         self.initial_seed = initial_seed
 
-        #TODO: Check if using linecache actually helps
         self.shard_summary = json.loads(linecache.getline(self.shards_filename,1))
         self.all_files = self.shard_summary['file_names']
      
@@ -65,7 +64,7 @@ class JsonShardedDataset(Dataset):
 
             line = line[in_file_sentence_idx:in_file_sentence_idx+self.seq_length]
 
-            #go to next chunk to get rest of it if we couldn't get a full seq from here
+            #go to next chunk to get rest of it if we couldn't get a full seq from this current document
             if len(line) < self.seq_length and that_file_idx+1 < len(self.all_files):
                 filename = self.all_files[that_file_idx+1]
                 next_line = linecache.getline(filename,1)
@@ -99,7 +98,7 @@ class JsonShardedDataset(Dataset):
 
 
 
-class GPT2Dataset(Dataset):
+class TFRecordDataset(Dataset):
 
     def __init__(self, glob_pattern, seq_len, seed=1, shuffle_input_filenames=True, pretokenized=True,
                  filetype="tfrecords", mode="chunks", train=True, tokenizer=None, **kwargs):

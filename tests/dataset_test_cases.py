@@ -6,7 +6,9 @@ from timeit import default_timer as timer
 
 
 from gpt_neox.datasets import JsonShardedDataset
-from gpt_neox.data_utils import shardify,  get_tokenizer, get_dir_size, remove_dir_files, ignore_exceptions_collate
+from gpt_neox.create_json_shards import shardify
+from gpt_neox.data_utils import  get_tokenizer, get_dir_size, remove_dir_files, ignore_exceptions_collate
+from gpt_neox.data_downloader_registry import prepare_data
 import matplotlib.pyplot as plt
 import linecache
 
@@ -16,9 +18,14 @@ num_workers = 16
 initial_seed = 7
 seq_length = 2048
 max_items_per_file = 100000
-data_path = ["/ml_data/the-pile/components/enron_emails/enron_emails.jsonl"]
 output_dir = "/ml_data/test_output"
 shard_meta_file_name = f"sharding.jsonl"
+
+dataset_names = ["enron"]
+data_paths = []
+for name in dataset_names:
+    file_path = prepare_data(name)
+    data_paths.append(file_path)
 
 def loading_pass(tokenizer,pretokenize):
     dir_size = get_dir_size(output_dir)
@@ -54,12 +61,12 @@ class TestSharding(TimedCase):
     def test_pretokenized_sharding(self):
         print("=== Pretokenized sharding===")
         tokenizer = get_tokenizer()
-        summary_dict = shardify(data_path,shard_meta_file_name,max_items_per_file,output_dir,tokenizer=tokenizer,num_workers=num_workers)
+        summary_dict = shardify(data_paths,shard_meta_file_name,max_items_per_file,output_dir,tokenizer=tokenizer,num_workers=num_workers)
         self.assertTrue(summary_dict)
 
     def test_not_pretokenized_sharding(self):
         print("=== Not pre-tokenized sharding===")
-        summary_dict=shardify(data_path,shard_meta_file_name,max_items_per_file,output_dir,tokenizer=None,num_workers=num_workers)
+        summary_dict=shardify(data_paths,shard_meta_file_name,max_items_per_file,output_dir,tokenizer=None,num_workers=num_workers)
         self.assertTrue(summary_dict)
 
 #exposes test cases for the sharding+loading process
@@ -67,7 +74,7 @@ class TestShardingAndLoading(unittest.TestCase):
     def test_pretokenized_zloading(self):
         print("=== Pretokenized sharding+loading pass===")
         tokenizer = get_tokenizer()
-        summary_dict = shardify(data_path,shard_meta_file_name,max_items_per_file,output_dir,tokenizer=tokenizer,num_workers=num_workers)
+        summary_dict = shardify(data_paths,shard_meta_file_name,max_items_per_file,output_dir,tokenizer=tokenizer,num_workers=num_workers)
         start = timer()
         loaded, expected = loading_pass(tokenizer,True)
         end = timer()
@@ -77,7 +84,7 @@ class TestShardingAndLoading(unittest.TestCase):
     def test_not_pretokenized_zloading(self):
         print("=== Not pretokenized sharding+loading pass===")
         tokenizer = get_tokenizer()
-        summary_dict = shardify(data_path,shard_meta_file_name,max_items_per_file,output_dir,tokenizer=None,num_workers=num_workers)
+        summary_dict = shardify(data_paths,shard_meta_file_name,max_items_per_file,output_dir,tokenizer=None,num_workers=num_workers)
         start = timer()
         loaded, expected = loading_pass(tokenizer,False)
         end = timer()
