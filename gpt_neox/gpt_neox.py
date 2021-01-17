@@ -192,7 +192,8 @@ class TransformerBlock(nn.Module):
         self.attn_layer = PreNorm(dim, norm_class, Attention(dim=dim, heads=heads, seq_len=seq_len, dim_head=dim_head, dropout=attn_dropout, sparse_attn=sparse_attn))
         self.ff_layer = PreNorm(dim, norm_class, FeedForward(dim=dim, dropout=ff_dropout))
 
-    def forward(self, x):
+    def forward(self, input):
+        x = input
         x = self.attn_layer(x) + x
         x = self.ff_layer(x) + x
         return x
@@ -275,6 +276,3 @@ class GPTNeoX_Pipe(PipelineModule):
         print(spec)
         assert len(spec) % num_stages == 0, f"for optimal performance, depth + 4 ({len(spec)}) should be divisible by the number of pipeline stages ({num_stages})"
         super().__init__(layers=spec, loss_fn=loss_fn, num_stages=num_stages, **kwargs)
-
-        
-        

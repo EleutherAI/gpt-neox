@@ -25,8 +25,17 @@
       "enabled": true
     },
     "zero_optimization": {
-      "stage": 1,
-      "contiguous_gradients" : true,
+      "stage": 2,
+      "contiguous_gradients" : false,
       "cpu_offload": false
+    },
+    "activation_checkpointing": {
+      "comment": "to turn on activation checkpointing, set this to a positive integer. Do not touch other params.",
+      "partition_activations": false,
+      "cpu_checkpointing": false,
+      "contiguous_memory_optimization": false,
+      "number_checkpoints": 1,
+      "synchronize_checkpoint_boundary": false,
+      "profile": false
     }
 }
