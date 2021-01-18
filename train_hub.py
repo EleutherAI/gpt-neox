@@ -40,11 +40,11 @@ assert dset_params is not None
 
 deepspeed.init_distributed(dist_backend='nccl')
 torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
-if is_main(train_args):
-    prepare_data(dset_params["name"])
-    torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
-else:
-    torch.distributed.barrier()
+# if is_main(train_args):
+#     prepare_data(dset_params["name"])
+#     torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
+# else:
+#     torch.distributed.barrier()
     
 train_dataset = get_hub_dataset()
 
