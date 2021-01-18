@@ -11,7 +11,7 @@ from tqdm.auto import trange
 from gpt_neox import (GPTNeoX, AutoregressiveWrapper, TextSamplerDataset,
                       cycle, prepare_optimizer_parameters, decode_tokens, prepare_data,
                       GPTNeoX_Pipe)
-from datasets import GPT2Dataset
+from gpt_neox.datasets import GPT2Dataset
 from gpt_neox.utils import is_main
 import gpt_neox
 
