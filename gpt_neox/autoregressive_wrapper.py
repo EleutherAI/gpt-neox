@@ -25,13 +25,13 @@ def top_k(logits, thres = 0.9):
     return probs
 
 class AutoregressiveWrapper(nn.Module):
-    def __init__(self, net, ignore_index = 0, pad_value = 0):
+    def __init__(self, net, ignore_index = 0, pad_value = 0,seq_len=2048):
         super().__init__()
         self.pad_value = pad_value
         self.ignore_index = ignore_index
 
         self.net = net
-        self.seq_len = net.seq_len
+        self.seq_len = seq_len
 
     @torch.no_grad()
     def generate(self, start_tokens, seq_len, eos_token = None, temperature = 1., filter_logits_fn = top_k, filter_thres = 0.9, **kwargs):

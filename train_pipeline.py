@@ -5,12 +5,12 @@ from torch.utils.data import DataLoader
 from tqdm.auto import trange
 import torch.distributed as distributed
 
-from gpt_neox import (GPTNeoX_Pipe, AutoregressiveWrapper, GPT2Dataset, extract_tarfile,
+from gpt_neox import (GPTNeoX_Pipe, AutoregressiveWrapper, TFRecordDataset, extract_tarfile,
                       prepare_optimizer_parameters, get_tokenizer, is_main, prepare_data)
 
 from gpt_neox.utils import get_args, get_params
 
-import GPUtil
+#import GPUtil
 
 # arguments
 train_args = get_args()
@@ -58,13 +58,13 @@ else:
     torch.distributed.barrier()
     
 # data loading
-train_dataset = GPT2Dataset(glob_pattern=dset_params["train_path"],
+train_dataset = TFRecordDataset(glob_pattern=dset_params["train_path"],
                             seq_len=params["seq_len"],
                             train=True,
                             **dset_params)
 train_loader = model_engine.deepspeed_io(train_dataset, pin_memory=params.get("pin_memory", False))
 
-eval_dataset = GPT2Dataset(glob_pattern=dset_params["eval_path"],
+eval_dataset = TFRecordDataset(glob_pattern=dset_params["eval_path"],
                            seq_len=params["seq_len"],
                            train=False,
                            **dset_params)

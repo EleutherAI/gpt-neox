@@ -5,9 +5,6 @@ from glob import glob
 import shutil
 import random
 import zstandard
-from the_pile.datasets import *
-
-
 
 """
 This registry is for automatically downloading and extracting datasets.
@@ -66,8 +63,8 @@ class DataDownloader(ABC):
         self.path = os.path.join(self.base_dir, self.name)
         os.makedirs(self.path, exist_ok=True)
         zstd_file_path = os.path.join(self.base_dir, os.path.basename(self.url))
-            os.system(f"zstd -d {zstd_file_path}")
-            os.remove(zfile_path)
+        os.system(f"zstd -d {zstd_file_path}")
+        os.remove(zfile_path)
 
     def extract(self):
         """extracts dataset and moves to the correct data dir if necessary"""
