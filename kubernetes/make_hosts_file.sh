@@ -1,1 +1,0 @@
-kubectl get pods -o wide | grep eleuther-neox | awk '{print $6 " slots=8"}'
