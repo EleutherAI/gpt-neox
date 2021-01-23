@@ -26,10 +26,12 @@
     "fp16": {
       "enabled": true
     },
+    "wall_clock_breakdown": true,
     "zero_optimization": {
       "stage": 2,
-      "contiguous_gradients" : false,
-      "cpu_offload": false
+      "contiguous_gradients" : true,
+      "cpu_offload": true,
+      "overlap_comm": true
     },
     "activation_checkpointing": {
       "comment": "to turn on activation checkpointing, set this to a positive integer. Do not touch other params.",
