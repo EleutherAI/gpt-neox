@@ -19,5 +19,6 @@ do
 done
 rm authorized_keys hosts
 rm id_rsa*
-#echo 'git remote set-url origin https://github.com/EleutherAI/gpt-neox/ && git pull' | kubectl exec --stdin --tty $MASTER_ID -- /bin/bash
+echo 'chmod 600 ~/.ssh/authorized_keys && chmod 700 ~/.ssh && chown -R root /root/.ssh' | kubectl exec --stdin --tty $MASTER_ID -- /bin/bash
+
 kubectl exec --stdin --tty $MASTER_ID -- /bin/bash
