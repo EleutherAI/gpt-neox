@@ -22,5 +22,6 @@
   "hidden_dim": 768,
   "n_layers": 12,
   "n_heads": 12,
-  "dim_head": 64
+  "dim_head": 64,
+  "train_batch_size": 256
 }
