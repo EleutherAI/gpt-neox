@@ -3,6 +3,7 @@ import torch.nn.functional as F
 from torch import nn, einsum
 from functools import partial
 
+from torch.utils.checkpoint import checkpoint
 from einops import rearrange
 
 from deepspeed.pipe import PipelineModule, LayerSpec
@@ -167,7 +168,7 @@ class GPTNeoX(nn.Module):
         if self.gradient_checkpointing:
             for (attn, ff) in self.layers:
                 layer_fn = _layer(attn, ff)
-                x = torch.utils.checkpoint.checkpoint(layer_fn, (x))
+                x = checkpoint(layer_fn, (x))
         else:
             for (attn, ff) in self.layers:
                 layer_fn = _layer(attn, ff)
