@@ -1,16 +1,21 @@
+import argparse
+import json
 import random
+from collections import defaultdict
+import os
 import deepspeed
 import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import trange
-import torch.distributed as distributed
 
-from gpt_neox import (GPTNeoX_Pipe, AutoregressiveWrapper, GPT2Dataset, extract_tarfile,
-                      prepare_optimizer_parameters, get_tokenizer, is_main, prepare_data)
+from gpt_neox import (GPTNeoX, AutoregressiveWrapper, TextSamplerDataset,
+                      cycle, prepare_optimizer_parameters, decode_tokens, prepare_data,
+                      GPTNeoX_Pipe)
+from gpt_neox.datasets import GPT2Dataset
+from gpt_neox.utils import is_main
+import gpt_neox
 
-from gpt_neox.utils import get_args, get_params
-
-import GPUtil
+WORLD_SIZE = os.getenv('WORLD_SIZE')
 
 # arguments
 train_args = get_args()
