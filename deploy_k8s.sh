@@ -8,4 +8,4 @@ export MASTER_ID=$(kubectl get pods | grep eleuther-neox | awk '{print $1}' | he
 echo $MASTER_ID
 kubectl cp $PWD/hosts $MASTER_ID:/app
 #echo 'git remote set-url origin https://github.com/EleutherAI/gpt-neox/ && git pull' | kubectl exec --stdin --tty $MASTER_ID -- /bin/bash
-echo "$@" | kubectl exec --stdin --tty $MASTER_ID -- /bin/bash
+kubectl exec --stdin --tty $MASTER_ID -- /bin/bash
