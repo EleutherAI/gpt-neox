@@ -12,7 +12,8 @@ from gpt_neox import (GPTNeoX, AutoregressiveWrapper, TextSamplerDataset,
                       cycle, prepare_optimizer_parameters, decode_tokens, prepare_data,
                       GPTNeoX_Pipe)
 from gpt_neox.datasets import GPT2Dataset
-from gpt_neox.utils import is_main
+from gpt_neox.data_utils import get_tokenizer
+from gpt_neox.utils import is_main, get_args, get_params
 import gpt_neox
 
 WORLD_SIZE = os.getenv('WORLD_SIZE')
@@ -43,7 +44,7 @@ model = GPTNeoX_Pipe(
     depth=params["n_layers"],
     heads=params["n_heads"],
     dim_head=params["dim_head"],
-    loss_fn = loss_function,#torch.nn.CrossEntropyLoss(),
+    loss_fn = loss_function,
     num_stages = params.get("pipeline_num_stages", 2)
 )
 model = AutoregressiveWrapper(model)
@@ -67,7 +68,6 @@ train_dataset = GPT2Dataset(glob_pattern=dset_params["train_path"],
                             seq_len=params["seq_len"],
                             train=True,
                             **dset_params)
-train_loader = model_engine.deepspeed_io(train_dataset, pin_memory=params.get("pin_memory", False))
 
 eval_dataset = GPT2Dataset(glob_pattern=dset_params["eval_path"],
                            seq_len=params["seq_len"],
