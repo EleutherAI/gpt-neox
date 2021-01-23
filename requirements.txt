@@ -6,3 +6,4 @@ transformers
 tensorflow==2.4.0
 ftfy
 lm_dataformat
+GPUtil
