@@ -11,8 +11,8 @@
       "type": "OneBitAdam",
       "params": {
         "lr": 2e-4,
-	    "freeze_step":2,
-	    "cuda-aware":true
+	"freeze_step":2,
+	"cuda-aware":true
       }
     },
     "scheduler": {
