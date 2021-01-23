@@ -1,5 +1,5 @@
 {
-    "train_batch_size": 256,
+    "train_batch_size": 1028,
     "gradient_accumulation_steps": 1,
     "gradient_clipping": 1.0,
     "tensorboard": {
@@ -30,6 +30,10 @@
       "stage": 2,
       "contiguous_gradients" : false,
       "cpu_offload": false
+    },
+    "logging": {
+      "steps_per_print": 100,
+      "wall_clock_breakdown": true
     },
     "activation_checkpointing": {
       "comment": "to turn on activation checkpointing, set this to a positive integer. Do not touch other params.",
