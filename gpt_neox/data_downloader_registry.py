@@ -5,6 +5,9 @@ from glob import glob
 import shutil
 import random
 import zstandard
+from the_pile.datasets import *
+
+
 
 """
 This registry is for automatically downloading and extracting datasets.
@@ -54,31 +57,24 @@ class DataDownloader(ABC):
     def _extract_tar(self):
         self.path = os.path.join(self.base_dir, self.name)
         os.makedirs(self.path, exist_ok=True)
-        if self.filetype =="gz":
-            tarfile_path = os.path.join(self.base_dir, os.path.basename(self.url))
-            with tarfile.open(tarfile_path, "r:gz") as dataset_tar:
-                print(f'Extracting files from {tarfile_path}...')
-                dataset_tar.extractall(self.path)
-        elif self.filetype == "zst":
-            zfile_path = os.path.join(self.base_dir,os.path.basename(self.url))
-            os.system(f"zstd -d {zfile_path}")
-            os.remove(zfile_path)
-        else:
-            raise NotImplementedError
+        tarfile_path = os.path.join(self.base_dir, os.path.basename(self.url))
+        with tarfile.open(tarfile_path, "r:gz") as dataset_tar:
+            print(f'Extracting files from {tarfile_path}...')
+            dataset_tar.extractall(self.path)
 
     def _extract_zstd(self):
         self.path = os.path.join(self.base_dir, self.name)
         os.makedirs(self.path, exist_ok=True)
         zstd_file_path = os.path.join(self.base_dir, os.path.basename(self.url))
-        with open(zstd_file_path, 'rb') as compressed:
-            decomp = zstandard.ZstdDecompressor()
-            output_path = zstd_file_path.replace(".zst", "")
-            with open(output_path, 'wb') as destination:
-                decomp.copy_stream(compressed, destination)
+            os.system(f"zstd -d {zstd_file_path}")
+            os.remove(zfile_path)
 
     def extract(self):
         """extracts dataset and moves to the correct data dir if necessary"""
-        self._extract_tar()
+        if self.filetype=="gz":
+            self._extract_tar()
+        else:
+            self._extract_zstd()
 
     def exists(self):
         """Checks if the dataset is present"""

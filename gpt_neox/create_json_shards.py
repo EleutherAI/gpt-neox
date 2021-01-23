@@ -17,12 +17,12 @@ Shards data files into a certain size,
 then creates another "metadata" file that stores a single entry for every entry in the dataset
 so we can easily index into data for training
 """
-def shardify(data_paths:list,output_path:str, max_items_per_file:int=10000, output_dir:str="",tokenizer=None,num_workers=32):
+def shardify(data_paths:list,output_path:str, max_items_per_file:int=10000, summary_fn="sharding.jsonl",tokenizer=None,num_workers=32):
     summary_dict = {'max_items_per_file':max_items_per_file,'file_names':[]}
     
     total_items = 0
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
+    if not os.path.exists(output_path):
+        os.mkdir(output_path)
     #splitting workers per path intead of giving each worker a different path
     last_max = 0
     max_chunk = 0
@@ -37,7 +37,7 @@ def shardify(data_paths:list,output_path:str, max_items_per_file:int=10000, outp
         num_lines = total_lines//num_workers
 
         pool = Pool(processes = num_workers)
-        s_process = partial(shardify_process,path=path,num_lines=num_lines,output_dir=output_dir,\
+        s_process = partial(shardify_process,path=path,num_lines=num_lines,output_path=output_path,\
             tokenizer=tokenizer,max_items_per_file=max_items_per_file)
         returns = pool.map(s_process, range(num_workers))
         for file_names,worker_items,worker_indexes,worker_chunk_starts,worker_total in returns:
@@ -70,13 +70,13 @@ def shardify(data_paths:list,output_path:str, max_items_per_file:int=10000, outp
     summary_dict['total_items'] = total_items
 
     #finish by writing the summary dict
-    with jsonlines.open(output_dir+"/"+output_path, mode='w') as writer:
+    with jsonlines.open(os.path.join(output_path,summary_fn), mode='w') as writer:
         writer.write(summary_dict)
     
     return summary_dict
 
 #Runs on a single worker to chunk and optionally tokenize a jsonl file
-def shardify_process(worker_id,path,num_lines,output_dir,tokenizer,max_items_per_file):
+def shardify_process(worker_id,path,num_lines,output_path,tokenizer,max_items_per_file):
     
     start_line = worker_id*num_lines
     end_line = (worker_id+1)*num_lines
@@ -131,7 +131,7 @@ def shardify_process(worker_id,path,num_lines,output_dir,tokenizer,max_items_per
                 if chunk_writer:
                     chunk_file.close()
                     chunk_writer.close()
-                chunk_path=output_dir+"/"+dataset_name+"_"+str(worker_id)+"_"+str(single_file_chunk)+extension
+                chunk_path=output_path+"/"+dataset_name+"_"+str(worker_id)+"_"+str(single_file_chunk)+extension
                 chunk_file = open(chunk_path,"w")
                 chunk_writer = jsonlines.Writer(chunk_file)
                 file_names.append(chunk_path)
@@ -154,7 +154,7 @@ def shardify_process(worker_id,path,num_lines,output_dir,tokenizer,max_items_per
             if chunk_writer:
                 chunk_file.close()
                 chunk_writer.close()
-            chunk_path=output_dir+"/"+dataset_name+"_"+str(worker_id)+"_"+str(single_file_chunk)+extension
+            chunk_path=output_path+"/"+dataset_name+"_"+str(worker_id)+"_"+str(single_file_chunk)+extension
             chunk_file = open(chunk_path,"w")
             chunk_writer = jsonlines.Writer(chunk_file)
             file_names.append(chunk_path)
