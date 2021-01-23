@@ -14,7 +14,7 @@
 	    "freeze_step":2,
 	    "cuda-aware":true
       }
-    },
+    }
     "scheduler": {
       "type": "WarmupLR",
       "params": {
