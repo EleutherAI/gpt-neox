@@ -25,6 +25,9 @@ spec:
           - name: sshd
             containerPort: 2222
             protocol: TCP
+        volumeMounts:
+          - mountPath: /dev/shm
+            name: dshm
 
         resources:
           requests:
@@ -47,5 +50,8 @@ spec:
                 operator: In
                 values:
                   - ORD1
-
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
       restartPolicy: Always
