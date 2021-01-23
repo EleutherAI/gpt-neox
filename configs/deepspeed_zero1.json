@@ -1,5 +1,5 @@
 {
-    "train_batch_size": 256,
+    "train_batch_size": 8,
     "gradient_accumulation_steps": 1,
     "gradient_clipping": 1.0,
     "tensorboard": {
@@ -28,7 +28,7 @@
     },
     "zero_optimization": {
       "stage": 1,
-      "contiguous_gradients" : false,
+      "contiguous_gradients" : true,
       "cpu_offload": false
     },
       "activation_checkpointing": {
