@@ -100,5 +100,5 @@ if __name__ == '__main__':
         loss = model.train_batch()
         pbar.set_description(f'Training Loss: {loss.item():.4f}')
         pbar.update()
-        if not i % params.get('checkpoint_save_frequency', 100) and i != 0:
-            save_ds_checkpoint(i, model, params, params.get('keep_n_latest_checkpoints', 5))
+        if not i % params.get('checkpoint_save_frequency', 1000) and i != 0:
+            save_ds_checkpoint(i, model, params, params.get('keep_n_latest_checkpoints', 5), IS_MAIN)

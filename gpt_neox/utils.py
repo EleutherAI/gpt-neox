@@ -43,11 +43,13 @@ def natural_sort(l):
     return sorted(l, key = alphanum_key)
 
 
-def save_ds_checkpoint(iteration, model, params, keep_n_latest_checkpoints=None):
+def save_ds_checkpoint(iteration, model, params, keep_n_latest_checkpoints=None, is_main=None):
     """Save a model checkpoint."""
     iteration = str(iteration)
     sd = {}
     sd['iteration'] = iteration
+    if keep_n_latest_checkpoints is not None:
+        assert is_main is not None
     # rng states.
     if params.get('save_rng', True):
         sd['random_rng_state'] = random.getstate()
@@ -65,10 +67,13 @@ def save_ds_checkpoint(iteration, model, params, keep_n_latest_checkpoints=None)
         checkpoint_dirs = natural_sort(all_checkpoints)
         checkpoint_dirs = [item for item in checkpoint_dirs if os.path.isdir(os.path.join(checkpoint_dir, item))]
         checkpoint_dirs = [str(i) for i in checkpoint_dirs]
-        to_delete = checkpoint_dirs[:len(checkpoint_dirs) - keep_n_latest_checkpoints]
+        n = len(checkpoint_dirs) - keep_n_latest_checkpoints
+        n = 0 if n < 0 else n
+        to_delete = checkpoint_dirs[:n]
         if to_delete:
-            print(f'WARNING: deleting checkpoint dirs {to_delete} in {checkpoint_dir}')
-            [shutil.rmtree(os.path.join(checkpoint_dir, item)) for item in to_delete]
+            if is_main:
+                print(f'WARNING: deleting checkpoint dirs {to_delete} in {checkpoint_dir}')
+                [shutil.rmtree(os.path.join(checkpoint_dir, item)) for item in to_delete]
     model.save_checkpoint(checkpoint_dir, iteration, client_state=sd)
 
 
