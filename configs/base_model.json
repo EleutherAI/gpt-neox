@@ -14,5 +14,6 @@
   "hidden_dim": 512,
   "n_layers": 6,
   "n_heads": 8,
-  "dim_head": 64
+  "dim_head": 64,
+  "checkpoint_dir": "./enwik8_model"
 }
