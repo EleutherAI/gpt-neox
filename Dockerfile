@@ -21,5 +21,6 @@ RUN sh ./install_deepspeed.sh
 
 COPY requirements.txt /app
 RUN pip install -r requirements.txt
+RUN git remote set-url origin https://github.com/EleutherAI/gpt-neox/
 
 COPY . /app
