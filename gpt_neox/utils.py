@@ -62,7 +62,7 @@ def save_ds_checkpoint(iteration, model, params, keep_n_latest_checkpoints=None)
         os.makedirs(checkpoint_dir, exist_ok=True)
     if keep_n_latest_checkpoints is not None:
         all_checkpoints = os.listdir(checkpoint_dir)
-        checkpoint_dirs = natural_sort(checkpoint_dir)
+        checkpoint_dirs = natural_sort(all_checkpoints)
         checkpoint_dirs = [item for item in checkpoint_dirs if os.path.isdir(os.path.join(checkpoint_dir, item))]
         checkpoint_dirs = [str(i) for i in checkpoint_dirs]
         to_delete = checkpoint_dirs[:len(checkpoint_dirs) - keep_n_latest_checkpoints]
