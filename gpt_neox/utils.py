@@ -69,7 +69,7 @@ def save_ds_checkpoint(iteration, model, params, keep_n_latest_checkpoints=None,
         checkpoint_dirs = [str(i) for i in checkpoint_dirs]
         n = len(checkpoint_dirs) - keep_n_latest_checkpoints
         n = 0 if n < 0 else n
-        to_delete = checkpoint_dirs[:n]
+        to_delete = checkpoint_dirs[:n+1]
         if to_delete:
             if is_main:
                 print(f'WARNING: deleting checkpoint dirs {to_delete} in {checkpoint_dir}')
