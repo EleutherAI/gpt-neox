@@ -22,7 +22,22 @@ def loss_function(x, y):
     losses = torch.nn.functional.cross_entropy(x, y, reduction='none')
     loss = losses.mean()
     return loss
-        
+
+def configure_checkpointing(model_engine):
+    deepspeed.checkpointing.configure(model_engine.mpu, deepspeed_config=train_args.deepspeed_config)
+    model_engine.mpu.checkpoint = deepspeed.checkpointing.checkpoint
+    model_engine.mpu.get_cuda_rng_tracker = deepspeed.checkpointing.get_cuda_rng_tracker
+    model_engine.mpu.model_parallel_cuda_manual_seed = deepspeed.checkpointing.model_parallel_cuda_manual_seed
+    assert deepspeed.checkpointing.is_configured()
+
+def prepare_dataset(dset_params, train_args):
+    torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
+    if is_main(train_args):
+        prepare_data(dset_params["name"])
+        torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
+    else:
+        torch.distributed.barrier()
+
 if __name__ == '__main__':
     # arguments
     train_args = get_args()
@@ -44,19 +59,13 @@ if __name__ == '__main__':
         heads=params["n_heads"],
         dim_head=params["dim_head"],
         loss_fn = loss_function,
-        num_stages = params.get("pipeline_num_stages", 4),
-        activation_checkpoint_interval=1
+        num_stages = params.get("pipeline_num_stages", 2),
+        activation_checkpoint_interval=params.get('activation_checkpoint_interval', 1)
     )
 
     # prepare data
     dset_params = params["dataset"]
-    assert dset_params is not None
-    torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
-    if is_main(train_args):
-        prepare_data(dset_params["name"])
-        torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
-    else:
-        torch.distributed.barrier()
+    prepare_dataset(dset_params, train_args)
 
     train_dataset = GPT2Dataset(glob_pattern=dset_params["train_path"],
                                 seq_len=params["seq_len"],
@@ -83,8 +92,10 @@ if __name__ == '__main__':
                                                                 model_parameters=ds_model_params,
                                                                 training_data=train_dataset)
 
+    configure_checkpointing(model_engine)
+
     batches_to_train = 10000
-    pbar = trange(params["num_epochs"], mininterval=10., desc='Training Model', dynamic_ncols=True)
+    pbar = trange(batches_to_train, mininterval=10., desc='Training Model', dynamic_ncols=True)
     for _ in pbar:
         for i in range(batches_to_train):
             loss = model_engine.train_batch()

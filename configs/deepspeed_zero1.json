@@ -1,7 +1,8 @@
 {
-    "train_batch_size": 8,
-    "gradient_accumulation_steps": 1,
+    "train_batch_size": 1280,
+    "gradient_accumulation_steps": 80,
     "gradient_clipping": 1.0,
+    "wall_clock_breakdown": true,
     "tensorboard": {
       "enabled": true,
       "output_path": "./logs",
@@ -32,7 +33,7 @@
       "cpu_offload": false
     },
       "activation_checkpointing": {
-      "partition_activations": false,
+      "partition_activations": true,
       "cpu_checkpointing": false,
       "contiguous_memory_optimization": false,
       "number_checkpoints": 1,

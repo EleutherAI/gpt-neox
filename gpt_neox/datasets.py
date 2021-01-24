@@ -112,8 +112,8 @@ class GPT2Dataset(Dataset):
         if self.mode == "normal":
             return output
         elif self.mode == 'with_labels':
-            x_seq = output[:self.seq_len]
-            y_seq = output[1:self.seq_len + 1]
+            x_seq = output[:-1]
+            y_seq = output[1:]
             return x_seq, y_seq
         else:
             raise ValueError(f'mode {self.mode} not recognized')
