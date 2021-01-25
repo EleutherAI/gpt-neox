@@ -1,6 +1,6 @@
 {
-    "train_batch_size": 320,
-    "gradient_accumulation_steps": 20,
+    "train_batch_size": 1280,
+    "gradient_accumulation_steps": 80,
     "gradient_clipping": 1.0,
     "wall_clock_breakdown": true,
     "tensorboard": {

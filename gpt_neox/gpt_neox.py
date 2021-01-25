@@ -1,4 +1,5 @@
 import torch
+import torch.utils.checkpoint
 import torch.nn.functional as F
 from torch import nn, einsum
 from functools import partial

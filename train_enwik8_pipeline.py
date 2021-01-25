@@ -12,6 +12,7 @@ from gpt_neox import (GPTNeoX, AutoregressiveWrapper, TextSamplerDataset,
                       cycle, prepare_optimizer_parameters, decode_tokens, prepare_data,
                       GPTNeoX_Pipe)
 from gpt_neox.utils import is_main, get_args, get_params, load_ds_checkpoint, save_ds_checkpoint
+
 from gpt_neox.data_utils import read_enwik8_data
 import gpt_neox
 
@@ -41,7 +42,9 @@ def prepare_dataset(dset_params, train_args):
 if __name__ == '__main__':
     # arguments
     train_args = get_args()
+
     IS_MAIN = is_main(train_args)
+
     params = get_params(train_args.model)
     deepspeed.init_distributed(dist_backend='nccl')
     model = gpt_neox.GPTNeoX_Pipe(
@@ -67,12 +70,14 @@ if __name__ == '__main__':
     # optimizer
     ds_model_params = prepare_optimizer_parameters(model)
     optim = torch.optim.Adam(ds_model_params, lr=params["learning_rate"])
+    
     # deepspeed loader
     model, optim, train_loader, _ = deepspeed.initialize(args=train_args,
                                                                 model=model,
                                                                 optimizer=optim,
                                                                 model_parameters=ds_model_params,
                                                                 training_data=train_dataset)
+
     configure_checkpointing(model)
     current_iteration = load_ds_checkpoint(model, params, iteration=None)
     pbar = trange(current_iteration, params.get('train_steps', 100000), mininterval=10., desc='Training Model', dynamic_ncols=True)
@@ -82,4 +87,3 @@ if __name__ == '__main__':
         pbar.update()
         if not i % params.get('checkpoint_save_frequency', 1000) and i != 0:
             save_ds_checkpoint(i, model, params, params.get('keep_n_latest_checkpoints', 5), IS_MAIN)
-

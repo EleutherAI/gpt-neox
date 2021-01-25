@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eleuther-neox
+spec:
+  strategy:
+    type: Recreate
+  replicas: 4
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: eleuther-neox
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: eleuther-neox
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: neox
+        command: ["/usr/sbin/sshd"]
+        args: ["-D"]
+        tty: true
+        image: leogao2/gpt-neox
+        ports:
+          - name: sshd
+            containerPort: 2222
+            protocol: TCP
+        volumeMounts:
+          - mountPath: /dev/shm
+            name: dshm
+
+        resources:
+          requests:
+            cpu: 30
+            memory: 40Gi
+          limits:
+            nvidia.com/gpu: 8
+
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              # Edit for different GPU
+              - key: gpu.nvidia.com/model
+                operator: In
+                values:
+                  - GeForce_RTX_2080_Ti
+              - key: failure-domain.beta.kubernetes.io/region
+                operator: In
+                values:
+                  - ORD1
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+      restartPolicy: Always
