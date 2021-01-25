@@ -1,16 +1,24 @@
+import argparse
+import json
 import random
+from collections import defaultdict
+import os
 import deepspeed
 import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import trange
-import torch.distributed as distributed
 
-from gpt_neox import (GPTNeoX_Pipe, AutoregressiveWrapper, TFRecordDataset, extract_tarfile,
+from gpt_neox import (GPTNeoX, GPTNeoX_Pipe, AutoregressiveWrapper, TextSamplerDataset,
+                      cycle, TFRecordDataset, extract_tarfile, decode_tokens,
                       prepare_optimizer_parameters, get_tokenizer, is_main, prepare_data)
 
-from gpt_neox.utils import get_args, get_params
+from gpt_neox.datasets import GPT2Dataset
+from gpt_neox.data_utils import get_tokenizer
+from gpt_neox.utils import is_main, get_args, get_params
 
-#import GPUtil
+import gpt_neox
+
+WORLD_SIZE = os.getenv('WORLD_SIZE')
 
 # arguments
 train_args = get_args()
@@ -38,7 +46,7 @@ model = GPTNeoX_Pipe(
     depth=params["n_layers"],
     heads=params["n_heads"],
     dim_head=params["dim_head"],
-    loss_fn = loss_function,#torch.nn.CrossEntropyLoss(),
+    loss_fn = loss_function,
     num_stages = params.get("pipeline_num_stages", 2)
 )
 model = AutoregressiveWrapper(model)
@@ -62,7 +70,6 @@ train_dataset = TFRecordDataset(glob_pattern=dset_params["train_path"],
                             seq_len=params["seq_len"],
                             train=True,
                             **dset_params)
-train_loader = model_engine.deepspeed_io(train_dataset, pin_memory=params.get("pin_memory", False))
 
 eval_dataset = TFRecordDataset(glob_pattern=dset_params["eval_path"],
                            seq_len=params["seq_len"],

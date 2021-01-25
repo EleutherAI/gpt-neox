@@ -11,9 +11,9 @@ from gpt_neox import (GPTNeoX, AutoregressiveWrapper, TFRecordDataset, extract_t
 from gpt_neox.utils import get_args, get_params
 
 from gpt_neox.mpu_loading import get_model
+
 import mpu
 import os
-#import GPUtil
 
 train_args = get_args()
 params = get_params(train_args.model)
