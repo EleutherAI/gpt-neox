@@ -11,7 +11,7 @@ from itertools import cycle
 class GPT2Dataset(Dataset):
 
     def __init__(self, glob_pattern, seq_len, seed=1, shuffle_input_filenames=True, pretokenized=True,
-                 filetype="tfrecords", mode="chunks", train=True, tokenizer=None, **kwargs):
+                 filetype="tfrecords", mode="normal", train=True, tokenizer=None, **kwargs):
 
         super().__init__()
         self.files = glob.glob(glob_pattern)  # glob pattern pointing to files
@@ -34,16 +34,13 @@ class GPT2Dataset(Dataset):
         self._get_lens()
 
         self.seq_len = seq_len  # set sequence length
-        self.mode = mode  # set mode ["chunks"]
-        implemented_modes = ["chunks"]
-        if self.mode not in implemented_modes:
-            raise NotImplementedError
-
+        
         self.pretokenized = pretokenized
         if not self.pretokenized:
             raise NotImplementedError  # TODO: tokenize text data on the fly
 
         self.train = train
+        self.mode = mode
 
     def _get_number_of_documents(self, filename):
         # extracts number of files from a filename formatted "<name>_<num_documents>.{filetype}."
@@ -75,8 +72,6 @@ class GPT2Dataset(Dataset):
     def _parse_single_example(self, example):
         data = tf.train.Example.FromString(example)
         data = torch.tensor(list(data.features.feature["text"].int64_list.value), dtype=torch.long)
-        if self.mode == "chunks":
-            assert data.size(0) == self.seq_len + 1
         return data
 
     def _process_tfrecord(self, tfrecords_file, resume_idx=None):
@@ -111,7 +106,17 @@ class GPT2Dataset(Dataset):
                 seek_idx)  # parses tfrecord file to a list *once* then stores in memory
         else:
             raise NotImplementedError
-        return chunk[remainder]  # get item from current chunk
+        output = chunk[remainder]
+        assert output is not None
+        assert output.size(0) == (self.seq_len + 1), f"Output shape ({output.size(0)}) != the specified sequence length + 1 ({self.seq_len + 1})"
+        if self.mode == "normal":
+            return output
+        elif self.mode == 'with_labels':
+            x_seq = output[:-1]
+            y_seq = output[1:]
+            return x_seq, y_seq
+        else:
+            raise ValueError(f'mode {self.mode} not recognized')
 
     def __len__(self):
         return self._len
@@ -130,10 +135,12 @@ class TextSamplerDataset(Dataset):
         if self.mode == "normal":
             full_seq = self.data[rand_start: rand_start + self.seq_len + 1].long()
             return full_seq
-        else:
+        elif self.mode == "with_labels":
             x_seq = self.data[rand_start: rand_start + self.seq_len].long()
             y_seq = self.data[rand_start+1: rand_start + self.seq_len + 1].long()
             return x_seq, y_seq
+        else:
+            raise ValueError(f'mode {self.mode} not recognized')
 
     def __len__(self):
         return self.data.size(0) // self.seq_len

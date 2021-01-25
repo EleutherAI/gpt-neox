@@ -11,9 +11,9 @@
     "seed": 1,
     "shuffle_input_filenames": true,
     "pretokenized": true,
-    "filetype": "tfrecords",
-    "mode": "chunks"
+    "filetype": "tfrecords"
   },
+  "num_epochs": 10,
   "train_steps": 572300,
   "eval_batch_size": 32,
   "learning_rate": 0.0006,
