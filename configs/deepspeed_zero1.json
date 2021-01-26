@@ -13,7 +13,7 @@
       "params": {
         "lr": 2e-4,
 	"freeze_step":2,
-	"cuda-aware":true
+	"cuda_aware":true
       }
     },
     "scheduler": {
