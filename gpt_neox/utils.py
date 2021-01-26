@@ -4,6 +4,11 @@ import argparse
 import deepspeed
 import json
 from collections import defaultdict
+import shutil
+import re
+import random
+import numpy as np
+import torch
 
 
 # helpers
@@ -30,6 +35,77 @@ def is_main(args):
     returns True if process is being run on the main GPU
     """
     return args.local_rank in [0, -1]
+
+
+def natural_sort(l): 
+    convert = lambda text: int(text) if text.isdigit() else text.lower() 
+    alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ] 
+    return sorted(l, key = alphanum_key)
+
+
+def save_ds_checkpoint(iteration, model, params, keep_n_latest_checkpoints=None, is_main=None):
+    """Save a model checkpoint."""
+    iteration = str(iteration)
+    sd = {}
+    sd['iteration'] = iteration
+    if keep_n_latest_checkpoints is not None:
+        assert is_main is not None
+    # rng states.
+    if params.get('save_rng', True):
+        sd['random_rng_state'] = random.getstate()
+        sd['np_rng_state'] = np.random.get_state()
+        sd['torch_rng_state'] = torch.get_rng_state()
+        sd['cuda_rng_state'] = torch.cuda.get_rng_state()
+        sd['rng_tracker_states'] = model.mpu.get_cuda_rng_tracker().get_states()
+
+    checkpoint_dir = params.get('checkpoint_dir', None)
+    assert checkpoint_dir is not None, 'add "checkpoint_dir" to your model params to enable checkpoint saving'
+    if not os.path.isdir(checkpoint_dir):
+        os.makedirs(checkpoint_dir, exist_ok=True)
+    if keep_n_latest_checkpoints is not None:
+        all_checkpoints = os.listdir(checkpoint_dir)
+        checkpoint_dirs = natural_sort(all_checkpoints)
+        checkpoint_dirs = [item for item in checkpoint_dirs if os.path.isdir(os.path.join(checkpoint_dir, item))]
+        checkpoint_dirs = [str(i) for i in checkpoint_dirs]
+        n = len(checkpoint_dirs) - keep_n_latest_checkpoints
+        n = 0 if n < 0 else n
+        to_delete = checkpoint_dirs[:n+1]
+        if to_delete:
+            if is_main:
+                print(f'WARNING: deleting checkpoint dirs {to_delete} in {checkpoint_dir}')
+                [shutil.rmtree(os.path.join(checkpoint_dir, item)) for item in to_delete]
+    model.save_checkpoint(checkpoint_dir, iteration, client_state=sd)
+
+
+def load_ds_checkpoint(model, params, iteration=None):
+    """Load a model checkpoint."""
+    if iteration is not None:
+        iteration = str(iteration)
+        
+    checkpoint_dir = params.get('checkpoint_dir', None)
+    assert checkpoint_dir is not None, 'add "checkpoint_dir" to your model params to enable checkpoint loading'
+    print(f'Loading latest checkpoint from {checkpoint_dir}')
+
+    checkpoint_name, sd = model.load_checkpoint(checkpoint_dir, iteration)
+    if checkpoint_name is None:
+        print("Unable to load checkpoint.")
+        return iteration if iteration is not None else 0
+
+    # rng states.
+    if params.get('load_rng', True):
+        try:
+            random.setstate(sd['random_rng_state'])
+            np.random.set_state(sd['np_rng_state'])
+            torch.set_rng_state(sd['torch_rng_state'])
+            torch.cuda.set_rng_state(sd['cuda_rng_state'])
+            model.mpu.get_cuda_rng_tracker().set_states(sd['rng_tracker_states'])
+        except KeyError:
+            print(f'Unable to load rngs from checkpoint {checkpoint_name}, exiting. ')
+            exit()
+    torch.distributed.barrier()
+    print(f'successfully loaded {checkpoint_name}')
+    iteration = int(os.path.basename(os.path.dirname(checkpoint_name)))
+    return iteration
 
 
 def get_all_files(filetype, files_dir):

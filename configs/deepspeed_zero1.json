@@ -34,7 +34,8 @@
     "zero_optimization": {
       "stage": 1,
       "contiguous_gradients" : true,
-      "cpu_offload": false
+      "cpu_offload": false,
+      "overlap_comm": false
     },
       "activation_checkpointing": {
       "partition_activations": true,

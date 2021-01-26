@@ -281,3 +281,6 @@ TSWLatexianTemp*
 
 # Makeindex log files
 *.lpz
+
+# saved model files
+*.pt
