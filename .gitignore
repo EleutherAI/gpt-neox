@@ -281,3 +281,5 @@ TSWLatexianTemp*
 
 # Makeindex log files
 *.lpz
+
+*.egg-info

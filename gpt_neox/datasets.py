@@ -7,8 +7,10 @@ import tensorflow.compat.v1 as tf
 import re
 import logging
 from itertools import cycle
+import numpy as np
 
-class GPT2Dataset(Dataset):
+
+class TFRecordDataset(Dataset):
 
     def __init__(self, glob_pattern, seq_len, seed=1, shuffle_input_filenames=True, pretokenized=True,
                  filetype="tfrecords", mode="normal", train=True, tokenizer=None, **kwargs):

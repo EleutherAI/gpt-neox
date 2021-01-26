@@ -44,6 +44,13 @@ class DataDownloader(ABC):
         """URL from which to download dataset"""
         pass
 
+    
+    @property
+    @abstractmethod
+    def filename(self):
+        """File name saved to after extracting"""
+        pass
+
     def _extract_tar(self):
         self.path = os.path.join(self.base_dir, self.name)
         os.makedirs(self.path, exist_ok=True)
@@ -56,15 +63,15 @@ class DataDownloader(ABC):
         self.path = os.path.join(self.base_dir, self.name)
         os.makedirs(self.path, exist_ok=True)
         zstd_file_path = os.path.join(self.base_dir, os.path.basename(self.url))
-        with open(zstd_file_path, 'rb') as compressed:
-            decomp = zstandard.ZstdDecompressor()
-            output_path = zstd_file_path.replace(".zst", "")
-            with open(output_path, 'wb') as destination:
-                decomp.copy_stream(compressed, destination)
+        os.system(f"zstd -d {zstd_file_path}")
+        os.remove(zfile_path)
 
     def extract(self):
         """extracts dataset and moves to the correct data dir if necessary"""
-        self._extract_tar()
+        if self.filetype=="gz":
+            self._extract_tar()
+        else:
+            self._extract_zstd()
 
     def exists(self):
         """Checks if the dataset is present"""
@@ -75,14 +82,17 @@ class DataDownloader(ABC):
         os.makedirs(self.base_dir, exist_ok=True)
         os.system(f"wget {self.url} -O {os.path.join(self.base_dir, os.path.basename(self.url))}")
 
-    def prepare(self):
+    def prepare(self,download=True,extract=True):
         if not self.exists():
-            self.download()
-            self.extract()
+            if download:
+                self.download()
+            if extract:
+                self.extract()
 
 class EnronJsonl(DataDownloader):
     name = "enron_jsonl"
     filetype = "jsonl.zst"
+    filename = "enron_emails.jsonl"
     url = "http://eaidata.bmk.sh/data/enron_emails.jsonl.zst"
     seed = 1
 
@@ -97,6 +107,7 @@ class EnronJsonl(DataDownloader):
 class EnronTFRecords(DataDownloader):
     name = "enron_tfr"
     filetype = "jsonl.zst"
+    filename="enron_email.jsonl"
     url = "http://eaidata.bmk.sh/data/enron_emails.jsonl.zst"
     seed = 1
 
@@ -115,6 +126,7 @@ class EnronTFRecords(DataDownloader):
 class OWT2(DataDownloader):
     name = "owt2"
     filetype = "tfrecords"
+    filename="owt2_new"
     url = "http://eaidata.bmk.sh/data/owt2_new.tar.gz"
     seed = 1
 
@@ -147,6 +159,7 @@ class OWT2(DataDownloader):
 class Enwik8(DataDownloader):
     name = "owt2"
     filetype = "gz"
+    filename="enwik8"
     url = "http://eaidata.bmk.sh/data/enwik8.gz"
 
     def extract(self):
@@ -155,14 +168,12 @@ class Enwik8(DataDownloader):
     def exists(self):
         return os.path.isfile(f"{self.base_dir}/enwik8.gz")
 
-
 DATA_DOWNLOADERS = {
     "owt2": OWT2,
     "enwik8": Enwik8,
     "enron_jsonl": EnronJsonl,
     "enron_tfr": EnronTFRecords
 }
-
 
 def prepare_data(dataset_name):
     DownloaderClass = DATA_DOWNLOADERS.get(dataset_name, None)
@@ -171,3 +182,5 @@ def prepare_data(dataset_name):
     else:
         d = DownloaderClass()
         d.prepare()
+
+    return os.path.join(d.base_dir,d.filename)

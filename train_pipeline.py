@@ -8,12 +8,14 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import trange
 
-from gpt_neox import (GPTNeoX, AutoregressiveWrapper, TextSamplerDataset,
-                      cycle, prepare_optimizer_parameters, decode_tokens, prepare_data,
-                      GPTNeoX_Pipe)
+from gpt_neox import (GPTNeoX, GPTNeoX_Pipe, AutoregressiveWrapper, TextSamplerDataset,
+                      cycle, TFRecordDataset, extract_tarfile, decode_tokens,
+                      prepare_optimizer_parameters, get_tokenizer, is_main, prepare_data)
+
 from gpt_neox.datasets import GPT2Dataset
 from gpt_neox.data_utils import get_tokenizer
 from gpt_neox.utils import is_main, get_args, get_params
+
 import gpt_neox
 
 WORLD_SIZE = os.getenv('WORLD_SIZE')
@@ -32,6 +34,7 @@ def configure_checkpointing(model_engine):
 
 def prepare_dataset(dset_params, train_args):
     torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
+
     if is_main(train_args):
         prepare_data(dset_params["name"])
         torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
@@ -78,6 +81,7 @@ if __name__ == '__main__':
                             train=False,
                             mode='with_labels',
                             **dset_params)
+
 
     val_loader = DataLoader(eval_dataset, batch_size=params["eval_batch_size"])
     val_loader = cycle(val_loader)

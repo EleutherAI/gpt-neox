@@ -1,0 +1,34 @@
+{
+    "train_batch_size": 256,
+    "gradient_accumulation_steps": 1,
+    "gradient_clipping": 1.0,
+    "tensorboard": {
+      "enabled": true,
+      "output_path": "./logs",
+      "job_name": "gptneox"
+    },
+    "optimizer": {
+      "type": "OneBitAdam",
+      "params": {
+        "lr": 2e-4,
+	"freeze_step":2,
+	"cuda-aware":true
+      }
+    },
+    "scheduler": {
+      "type": "WarmupLR",
+      "params": {
+        "warmup_min_lr": 0,
+        "warmup_max_lr": 0.00015,
+        "warmup_num_steps": 5000
+      }
+    },
+    "fp16": {
+      "enabled": true
+    },
+    "zero_optimization": {
+      "stage": 1,
+      "contiguous_gradients" : true,
+      "cpu_offload": false
+    }
+}
