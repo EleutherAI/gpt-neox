@@ -1,7 +1,8 @@
 {
-    "train_batch_size": 1028,
-    "gradient_accumulation_steps": 1,
+    "train_batch_size": 1280,
+    "gradient_accumulation_steps": 80,
     "gradient_clipping": 1.0,
+    "wall_clock_breakdown": true,
     "tensorboard": {
       "enabled": true,
       "output_path": "./logs",
@@ -26,7 +27,6 @@
     "fp16": {
       "enabled": true
     },
-    "wall_clock_breakdown": true,
     "zero_optimization": {
       "stage": 2,
       "contiguous_gradients" : true,
@@ -37,12 +37,11 @@
       "steps_per_print": 100,
       "wall_clock_breakdown": true
     },
-    "activation_checkpointing": {
-      "comment": "to turn on activation checkpointing, set this to a positive integer. Do not touch other params.",
-      "partition_activations": false,
+      "activation_checkpointing": {
+      "partition_activations": true,
       "cpu_checkpointing": false,
       "contiguous_memory_optimization": false,
-      "number_checkpoints": null,
+      "number_checkpoints": 1,
       "synchronize_checkpoint_boundary": false,
       "profile": false
     }
