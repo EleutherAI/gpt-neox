@@ -24,10 +24,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          tags: user/app:latest
-          build-args: |
-            arg1=value1
-            arg2=value2
+          tags: joshlk/gpt-neox:${GITHUB_SHA::8}
       -
         name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
