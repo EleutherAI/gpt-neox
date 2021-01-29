@@ -8,10 +8,11 @@ import torch.distributed as distributed
 from gpt_neox import (GPTNeoX, AutoregressiveWrapper, TFRecordDataset, extract_tarfile,
                       prepare_optimizer_parameters, get_tokenizer, is_main, prepare_data)
 
-from gpt_neox.utils import get_args, get_params
+from gpt_neox.utils import get_args, get_params, load_checkpoint
 
 from gpt_neox.mpu_loading import get_model, set_random_seed
 from gpt_neox.mpu_generation import generate_samples
+
 
 import mpu
 import os
@@ -44,8 +45,6 @@ model_parallel_size = min(model_parallel_size, world_size)
 mpu.initialize_model_parallel(model_parallel_size)
 set_random_seed(seed)
 
-# Optional DeepSpeed Activation Checkpointing Features
-#set_deepspeed_activation_checkpointing(args)
 
 torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
 if is_main(train_args):
@@ -56,7 +55,9 @@ else:
 
 # instantiate GPT-like decoder model
 model = get_model(vocab_size,params)
-print("SEG LENGTH: ", params['seq_len'])
+if 'load' in vars(train_args):
+    _ = load_checkpoint(model, None, None, train_args)
+
 model = AutoregressiveWrapper(model,seq_len=params['seq_len'])
 
 generate_samples(model,tokenizer,device)
