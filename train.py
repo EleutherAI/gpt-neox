@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 from tqdm.auto import trange
 import torch.distributed as distributed
 
-from gpt_neox import (GPTNeoX, AutoregressiveWrapper, GPT2Dataset, extract_tarfile,
+from gpt_neox import (GPTNeoX, AutoregressiveWrapper, TFRecordDataset, extract_tarfile,
                       prepare_optimizer_parameters, get_tokenizer, is_main, prepare_data)
 
 from gpt_neox.utils import get_args, get_params
@@ -43,12 +43,12 @@ if is_main(train_args):
 else:
     torch.distributed.barrier()
 
-train_dataset = GPT2Dataset(glob_pattern=dset_params["train_path"],
+train_dataset = TFRecordDataset(glob_pattern=dset_params["train_path"],
                             seq_len=params["seq_len"],
                             train=True,
                             **dset_params)
 
-eval_dataset = GPT2Dataset(glob_pattern=dset_params["eval_path"],
+eval_dataset = TFRecordDataset(glob_pattern=dset_params["eval_path"],
                            seq_len=params["seq_len"],
                            train=False,
                            **dset_params)
@@ -82,7 +82,7 @@ for _ in pbar:
             break
         model_engine.train()
         is_main = model_engine.local_rank == 0
-        data = data.to(model_engine.local_rank)
+        data = data.to(model_engine.local_rank
 
         loss = model_engine(data)
         model_engine.backward(loss)

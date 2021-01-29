@@ -10,12 +10,14 @@ from gpt_neox import (GPTNeoX, AutoregressiveWrapper, TFRecordDataset, extract_t
 
 from gpt_neox.utils import get_args, get_params
 
-from gpt_neox.mpu_loading import get_model
+from gpt_neox.mpu_loading import get_model, get_batch, set_random_seed
 
 import mpu
 import os
 
+torch.backends.cudnn.enabled = False
 train_args = get_args()
+seed = 7
 params = get_params(train_args.model)
 
 # tokenizer
@@ -30,7 +32,6 @@ assert dset_params is not None
 
 #initialize distributed for mpu
 deepspeed.init_distributed(dist_backend='nccl')
-
 if train_args.local_rank is not None:
     device = train_args.local_rank
     torch.cuda.set_device(device)
@@ -40,6 +41,8 @@ model_parallel_size = 1
 world_size = int(os.getenv("WORLD_SIZE", '1'))
 model_parallel_size = min(model_parallel_size, world_size)
 mpu.initialize_model_parallel(model_parallel_size)
+
+set_random_seed(seed)
 
 # Optional DeepSpeed Activation Checkpointing Features
 #set_deepspeed_activation_checkpointing(args)
@@ -97,7 +100,9 @@ for _ in pbar:
         is_main = model_engine.local_rank == 0
         data = data.to(model_engine.local_rank)
 
-        loss = model_engine(data)
+        data,attention_mask,position_ids = get_batch(context_tokens=data,eod_token=tokenizer.eos_token_id)
+
+        loss = model_engine(data,attention_mask=attention_mask,position_ids=position_ids)
         model_engine.backward(loss)
         model_engine.step()
 

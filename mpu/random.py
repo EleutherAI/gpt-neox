@@ -170,6 +170,7 @@ class CudaRNGStatesTracker:
         """Fork the cuda rng state, perform operations, and exit with
         the original state."""
         # Check if we have added the state
+
         if name not in self.states_:
             raise Exception('cuda rng state {} is not added'.format(name))
         # Store current rng state.
@@ -229,6 +230,7 @@ def model_parallel_cuda_manual_seed(seed):
     # Set the default state.
     torch.cuda.manual_seed(data_parallel_seed)
     # and model parallel state.
+
     _CUDA_RNG_STATE_TRACKER.add(_MODEL_PARALLEL_RNG_TRACKER_NAME,
                                 model_parallel_seed)
 

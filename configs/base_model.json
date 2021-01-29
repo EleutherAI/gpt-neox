@@ -5,14 +5,14 @@
   },
   "num_epochs": 10,
   "vocab_size": 256,
-  "batch_size": 4,
+  "batch_size": 1,
   "learning_rate": 1e-4,
   "validate_every": 100,
   "generate_every": 500,
   "generate_length": 256,
-  "seq_len": 256,
-  "hidden_dim": 512,
-  "n_layers": 6,
-  "n_heads": 8,
-  "dim_head": 64
+  "seq_len": 16,
+  "hidden_dim": 8,
+  "n_layers": 2,
+  "n_heads": 2,
+  "dim_head": 8
 }

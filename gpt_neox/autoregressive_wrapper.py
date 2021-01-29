@@ -34,7 +34,7 @@ class AutoregressiveWrapper(nn.Module):
         self.seq_len = seq_len
 
     @torch.no_grad()
-    def generate(self, start_tokens, seq_len, eos_token = None, temperature = 1., filter_logits_fn = top_k, filter_thres = 0.9, **kwargs):
+    def generate(self, start_tokens, seq_len, attention_mask, position_ids,eos_token = None, temperature = 1., filter_logits_fn = top_k, filter_thres = 0.9, **kwargs):
         device = start_tokens.device
         was_training = self.net.training
         num_dims = len(start_tokens.shape)
@@ -54,8 +54,14 @@ class AutoregressiveWrapper(nn.Module):
         for _ in range(seq_len):
             x = out[:, -self.seq_len:]
             mask = mask[:, -self.seq_len:]
+            position_ids = position_ids[:,-self.seq_len:]
+            attention_mask = attention_mask[:,:,-self.seq_len:,-self.seq_len:]
+            print("POSSS")
+            print(position_ids.shape)
+            print(attention_mask.shape)
 
-            logits = self.net(x, mask=mask, **kwargs)[:, -1, :]
+            logits = self.net(x, position_ids=position_ids,attention_mask=attention_mask)[:, -1, :]
+
             filtered_logits = filter_logits_fn(logits, thres = filter_thres)
             probs = F.softmax(filtered_logits / temperature, dim=-1)
             sample = torch.multinomial(probs, 1)

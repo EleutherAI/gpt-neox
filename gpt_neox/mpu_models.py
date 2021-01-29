@@ -135,7 +135,6 @@ class GPT2Model(torch.nn.Module):
         self.seq_len = max_sequence_length
 
     def forward(self, input_ids, position_ids, attention_mask):
-
         # Embeddings.
         words_embeddings = self.word_embeddings(input_ids)
         position_embeddings = self.position_embeddings(position_ids)

@@ -1,4 +1,5 @@
 {
+    "zero_allow_untested_optimizer": true,
     "train_batch_size": 1280,
     "gradient_accumulation_steps": 80,
     "gradient_clipping": 1.0,
@@ -13,7 +14,7 @@
       "params": {
         "lr": 2e-4,
 	"freeze_step":2,
-	"cuda-aware":true
+  "cuda_aware":true
       }
     },
     "scheduler": {
