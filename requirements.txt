@@ -1,8 +1,9 @@
 einops>=0.3
 torch>=1.6
 tqdm>=4.50.0
-deepspeed
-transformers
+deepspeed==0.3.10
+transformers==4.2.2
 tensorflow==2.4.0
 ftfy
 lm_dataformat
+wandb==0.10.15
