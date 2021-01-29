@@ -4,7 +4,7 @@ import time
 import os
 from gpt_neox.mpu_loading import get_batch
 
-def generate_samples(model, tokenizer, device,generate_length=2048,seq_length=2048):
+def generate_samples(model, tokenizer, device,generate_length=1024,seq_length=1025):
     
     context_count=0
     model.eval()
@@ -41,7 +41,7 @@ def generate_samples(model, tokenizer, device,generate_length=2048,seq_length=20
             
             context_tokens_tensor = torch.cuda.LongTensor(context_tokens.to(device))
             context_tokens_tensor = context_tokens_tensor.unsqueeze(0)
-            print(context_tokens_tensor.shape)
+
             context_length_tensor = torch.cuda.LongTensor([context_length])
 
             torch.distributed.broadcast(context_length_tensor, mpu.get_model_parallel_src_rank(), group=mpu.get_model_parallel_group())
@@ -52,8 +52,7 @@ def generate_samples(model, tokenizer, device,generate_length=2048,seq_length=20
             tokens,attention_mask,position_ids = get_batch(context_tokens=context_tokens_tensor,eod_token=tokenizer.eos_token_id)
 
             start_time = time.time()
-
-            sample = model.generate(tokens, generate_length,attention_mask=attention_mask,position_ids=position_ids)
+            sample = model.generate(tokens, generate_length,attention_mask=attention_mask,position_ids=position_ids)[0]
             output_str = tokenizer.decode(sample)
                 
             if mpu.get_model_parallel_rank() == 0:

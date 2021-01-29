@@ -56,9 +56,6 @@ class AutoregressiveWrapper(nn.Module):
             mask = mask[:, -self.seq_len:]
             position_ids = position_ids[:,-self.seq_len:]
             attention_mask = attention_mask[:,:,-self.seq_len:,-self.seq_len:]
-            print("POSSS")
-            print(position_ids.shape)
-            print(attention_mask.shape)
 
             logits = self.net(x, position_ids=position_ids,attention_mask=attention_mask)[:, -1, :]
 
