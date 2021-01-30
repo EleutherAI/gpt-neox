@@ -46,18 +46,14 @@ model = GPTNeoX(
     dim_head=params["dim_head"]
 )
 
-# TODO: specify enitiy once team account setup
-# TODO: CI to generate dockerfile
-if is_main(train_args):
-    wandb_settings = wandb.Settings()
-else:
-    wandb_settings = wandb.Settings(_disable_stats=True)  # only display system stats from one worker per machine
+# only display system stats from one worker per machine
+wandb_settings = wandb.Settings() if is_main(train_args) else wandb.Settings(_disable_stats=True)
+name = f'{socket.gethostname()}-{train_args.local_rank}' if train_args.group_name else None
 
-name = f'{socket.gethostname()}-{train_args.local_rank}'
 use_wandb = True
 try:
-    wandb.init(project="gpt-neox-train_enwik8.py", group=train_args.group_name, name=name, save_code=True,
-               force=False, settings=wandb_settings)
+    wandb.init(project="gpt-neox/train_enwik8.py", group=train_args.group_name, name=name, save_code=True, force=False,
+               entity=params.get('wandb', {}).get('team'), settings=wandb_settings)
 except UsageError as e:
     use_wandb = False
     print(e)
@@ -89,7 +85,7 @@ ds_model_params = prepare_optimizer_parameters(model)
 # TODO: Don't want to log gradients or parameters
 if use_wandb:
     wandb.config.update(params)
-    wandb.watch(model, log=None, log_freq=10)
+    wandb.watch(model, log_freq=10, log=params.get('wandb', {}).get('watch_model'))
 
 # deepspeed loader
 model_engine, optim, train_loader, _ = deepspeed.initialize(args=train_args,
