@@ -14,7 +14,7 @@ SUFFIX=${3:-$(whoami)}
 DEPLOYMENT_NM='neox-'"$SUFFIX"
 WD=`dirname "$BASH_SOURCE"`
 
-echo BRANCH $BRANCH. N-NODES $N_NODES. DEPLYMENT NAME $DEPLOYMENT_NM.
+echo BRANCH $BRANCH. N-NODES $N_NODES. DEPLOYMENT NAME $DEPLOYMENT_NM.
 
 # Generate ssh key pair and post start script
 ssh-keygen -t rsa -f id_rsa -N ""
