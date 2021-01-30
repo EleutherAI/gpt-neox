@@ -5,7 +5,7 @@ metadata:
 spec:
   strategy:
     type: Recreate
-  replicas: 4
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: eleuther-neox
@@ -28,13 +28,19 @@ spec:
         volumeMounts:
           - mountPath: /dev/shm
             name: dshm
-
+          - name: secret-volume
+            readOnly: true
+            mountPath: "/secrets"
         resources:
           requests:
             cpu: 30
             memory: 40Gi
           limits:
             nvidia.com/gpu: 8
+        lifecycle:
+          postStart:
+            exec:
+              command: [ "/bin/bash", "/secrets/post_start_script.sh" ]
 
       affinity:
         nodeAffinity:
@@ -54,4 +60,8 @@ spec:
         - name: dshm
           emptyDir:
             medium: Memory
+        - name: secret-volume
+          secret:
+            secretName: ----secret-name----
+            defaultMode: 0600
       restartPolicy: Always
