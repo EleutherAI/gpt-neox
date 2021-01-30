@@ -35,7 +35,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          tags: eleutherai/gpt-neox:${{ github.sha }}
+          tags: leogao2/gpt-neox:${{ github.sha }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
       -
