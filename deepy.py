@@ -2,6 +2,8 @@
 
 """
 Helper script to enable wandb with deepspeed. Drop in replacement for `deepspeed` command.
+
+i.e. `$ deepy.py --hosts ....` == `$ deepspeed --hosts ....`
 """
 
 import shortuuid
