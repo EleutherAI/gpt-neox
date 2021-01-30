@@ -8,7 +8,7 @@ RUN apt-get update && \
     pip3 install torch pipx && \
     python3 -m pipx ensurepath
 
-RUN mkdir -p ~/.ssh /app && \
+RUN mkdir -p ~/.ssh /app /job && \
     echo 'Host *' > ~/.ssh/config && \
     echo '    StrictHostKeyChecking no' >> ~/.ssh/config && \
     echo 'AuthorizedKeysFile     .ssh/authorized_keys' >> /etc/ssh/sshd_config && \
@@ -21,5 +21,6 @@ RUN sh ./install_deepspeed.sh
 
 COPY requirements.txt /app
 RUN pip install -r requirements.txt
+RUN git remote set-url origin https://github.com/EleutherAI/gpt-neox/
 
 COPY . /app

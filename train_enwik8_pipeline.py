@@ -14,7 +14,8 @@ from wandb import UsageError
 from gpt_neox import (GPTNeoX, AutoregressiveWrapper, TextSamplerDataset,
                       cycle, prepare_optimizer_parameters, decode_tokens, prepare_data,
                       GPTNeoX_Pipe)
-from gpt_neox.utils import is_main, get_args, get_params
+from gpt_neox.utils import is_main, get_args, get_params, load_ds_checkpoint, save_ds_checkpoint
+
 from gpt_neox.data_utils import read_enwik8_data
 import gpt_neox
 
@@ -44,6 +45,9 @@ def prepare_dataset(dset_params, train_args):
 if __name__ == '__main__':
     # arguments
     train_args = get_args()
+
+    IS_MAIN = is_main(train_args)
+
     params = get_params(train_args.model)
     deepspeed.init_distributed(dist_backend='nccl')
     model = gpt_neox.GPTNeoX_Pipe(
@@ -83,27 +87,28 @@ if __name__ == '__main__':
     # optimizer
     ds_model_params = prepare_optimizer_parameters(model)
     optim = torch.optim.Adam(ds_model_params, lr=params["learning_rate"])
+
     # deepspeed loader
-    model_engine, optim, train_loader, _ = deepspeed.initialize(args=train_args,
+    model, optim, train_loader, _ = deepspeed.initialize(args=train_args,
                                                                 model=model,
                                                                 optimizer=optim,
                                                                 model_parameters=ds_model_params,
                                                                 training_data=train_dataset)
-    configure_checkpointing(model_engine)
-
-    batches_to_train = 10000
 
     if use_wandb:
         wandb.config.update(params)
-        wandb.watch(model_engine, log_freq=10, log=params.get('wandb', {}).get('watch_model'))
+        wandb.watch(model, log_freq=10, log=params.get('wandb', {}).get('watch_model'))
 
-    pbar = trange(batches_to_train, mininterval=10., desc='Training Model', dynamic_ncols=True)
-    for _ in pbar:
-        for i in range(batches_to_train):
+    configure_checkpointing(model)
+    current_iteration = load_ds_checkpoint(model, params, iteration=None)
+    pbar = trange(current_iteration, params.get('train_steps', 100000), mininterval=10., desc='Training Model', dynamic_ncols=True)
+    for i in pbar:
+        loss = model.train_batch()
+        pbar.set_description(f'Training Loss: {loss.item():.4f}')
+        pbar.update()
 
-            loss = model_engine.train_batch()
-            pbar.set_description(f'Training Loss: {loss.item():.4f}')
-            pbar.update()
+        if not i % params.get('checkpoint_save_frequency', 1000) and i != 0:
+            save_ds_checkpoint(i, model, params, params.get('keep_n_latest_checkpoints', 5), IS_MAIN)
 
-            if use_wandb:
-                wandb.log({'loss': loss.item()})
+        if use_wandb:
+            wandb.log({'loss': loss.item()})
