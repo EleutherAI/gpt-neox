@@ -82,11 +82,6 @@ optim = torch.optim.Adam(model.parameters(), lr=params["learning_rate"])
 # training
 ds_model_params = prepare_optimizer_parameters(model)
 
-# TODO: Don't want to log gradients or parameters
-if use_wandb:
-    wandb.config.update(params)
-    wandb.watch(model, log_freq=10, log=params.get('wandb', {}).get('watch_model'))
-
 # deepspeed loader
 model_engine, optim, train_loader, _ = deepspeed.initialize(args=train_args,
                                                             model=model,
@@ -94,6 +89,9 @@ model_engine, optim, train_loader, _ = deepspeed.initialize(args=train_args,
                                                             model_parameters=ds_model_params,
                                                             training_data=train_dataset)
 
+if use_wandb:
+    wandb.config.update(params)
+    wandb.watch(model_engine, log_freq=10, log=params.get('wandb', {}).get('watch_model'))
 
 
 pbar = trange(params["num_epochs"], mininterval=10., desc='Training Model', dynamic_ncols=True)

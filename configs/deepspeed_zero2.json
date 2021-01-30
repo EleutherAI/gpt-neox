@@ -45,5 +45,9 @@
       "number_checkpoints": null,
       "synchronize_checkpoint_boundary": false,
       "profile": false
+    },
+    "wandb": {
+      "team": "eleutherai",
+      "watch_model": null
     }
 }

@@ -23,5 +23,9 @@
   "n_layers": 12,
   "n_heads": 12,
   "dim_head": 64,
-  "train_batch_size": 256
+  "train_batch_size": 256,
+  "wandb": {
+    "team": "eleutherai",
+    "watch_model": null
+  }
 }

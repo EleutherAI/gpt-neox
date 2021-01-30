@@ -7,6 +7,9 @@ import deepspeed
 import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import trange
+import wandb
+import socket
+from wandb import UsageError
 
 from gpt_neox import (GPTNeoX, AutoregressiveWrapper, TextSamplerDataset,
                       cycle, prepare_optimizer_parameters, decode_tokens, prepare_data,
@@ -63,6 +66,20 @@ if __name__ == '__main__':
         activation_checkpoint_interval=params.get('activation_checkpoint_interval', 1)
     )
 
+    ## Wandb
+    # only display system stats from one worker per machine
+    wandb_settings = wandb.Settings() if is_main(train_args) else wandb.Settings(_disable_stats=True)
+    name = f'{socket.gethostname()}-{train_args.local_rank}' if train_args.group_name else None
+
+    use_wandb = True
+    try:
+        wandb.init(project="neox_train_enwik8", group=train_args.group_name, name=name, save_code=True, force=False,
+                   entity=params.get('wandb', {}).get('team'), settings=wandb_settings)
+    except UsageError as e:
+        use_wandb = False
+        print(e)
+        print('Skipping wandb. Execute `wandb login` on local machine to enable.')
+
     # prepare data
     dset_params = params["dataset"]
     prepare_dataset(dset_params, train_args)
@@ -94,6 +111,10 @@ if __name__ == '__main__':
 
     configure_checkpointing(model_engine)
 
+    if use_wandb:
+        wandb.config.update(params)
+        wandb.watch(model_engine, log_freq=10, log=params.get('wandb', {}).get('watch_model'))
+
     batches_to_train = 10000
     pbar = trange(batches_to_train, mininterval=10., desc='Training Model', dynamic_ncols=True)
     for _ in pbar:
@@ -101,3 +122,6 @@ if __name__ == '__main__':
             loss = model_engine.train_batch()
             pbar.set_description(f'Training Loss: {loss.item():.4f}')
             pbar.update()
+
+            if use_wandb:
+                wandb.log({'loss': loss.item()})
