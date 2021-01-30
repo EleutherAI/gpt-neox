@@ -58,7 +58,7 @@ echo $MAIN_ID
 kubectl cp $WD/hostfile $MAIN_ID:/job
 kubectl cp $WD/id_rsa $MAIN_ID:/root/.ssh
 
-rm $WD/id_rsa* $WD/hostfile
+rm $WD/id_rsa* $WD/hostfile $WD/k8s_spec_temp.yml $WD/post_start_script.sh
 
 echo Remote shell into main $MAIN_ID
 kubectl exec --stdin --tty $MAIN_ID -- /bin/bash
