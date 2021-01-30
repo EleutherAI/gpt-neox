@@ -16,7 +16,6 @@
   "n_heads": 8,
   "dim_head": 64,
   "checkpoint_dir": "./enwik8_model",
-  "train_batch_size": 120,
   "wandb": {
     "team": "eleutherai",
     "watch_model": null
