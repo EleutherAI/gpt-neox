@@ -1,15 +1,28 @@
 #!/usr/bin/env bash
 
+#  --- USAGE ---
+# ./deploy_k8.sh [branch=main] [n_nodes=4] [name_suffix=$USER]
+
 BRANCH=${1:-main}
+N_NODES=${2:-4}
+SUFFIX=${3:-$(whoami)}
 
-echo STARTING KUBERNETES USING CODE ON BRANCH $BRANCH. LOCAL CHANGES WILL NOT BE AVAILABLE
+DEPLOYMENT_NM='eleuther-neox-'"$SUFFIX"
+WD=`dirname "$BASH_SOURCE"`
 
-kubectl delete deploy/eleuther-neox
-kubectl apply -f kubernetes/deploy_k8s.yml
+echo BRANCH $BRANCH. N-NODES $N_NODES. DEPLYMENT NAME $DEPLOYMENT_NM.
+
+# Template k8 configuration
+yq e '.metadata.name = "'"$DEPLOYMENT_NM"\" $WD/k8s_spec.yml |
+yq e '.spec.replicas = '"$N_NODES" - > $WD/k8s_spec_temp.yml
+
+
+kubectl delete deploy/$DEPLOYMENT_NM
+kubectl apply -f $WD/k8s_spec_temp.yml
 ssh-keygen -t rsa -f id_rsa -N ""
 
 echo Waiting for deploy to complete...
-kubectl wait --for=condition=available --timeout=600s deployment/eleuther-neox || { echo 'Deployment failed' ; exit 1; }
+kubectl wait --for=condition=available --timeout=600s deployment/$DEPLOYMENT_NM || { echo 'Deployment failed' ; exit 1; }
 
 echo Generate hosts file
 kubectl get pods -o wide | grep eleuther-neox | awk '{print $6 " slots=8"}' > hostfile
@@ -17,8 +30,8 @@ export MAIN_ID=$(kubectl get pods | grep eleuther-neox | awk '{print $1}' | head
 
 echo Copying ssh keys to main node:
 echo $MAIN_ID
-kubectl cp $PWD/hostfile $MAIN_ID:/job
-kubectl cp $PWD/id_rsa $MAIN_ID:/root/.ssh
+kubectl cp $WD/hostfile $MAIN_ID:/job
+kubectl cp $WD/id_rsa $MAIN_ID:/root/.ssh
 
 mv id_rsa.pub authorized_keys
 
@@ -35,7 +48,8 @@ pip install git+git://github.com/EleutherAI/DeeperSpeed@main;
 for id in $(kubectl get pods | grep eleuther-neox | awk '{print $1}')
 do
     echo Copying keys and cloning repo to $id
-    kubectl cp $PWD/authorized_keys $id:/root/.ssh/
+    kubectl cp $WD/authorized_keys $id:/root/.ssh/
+    kubectl cp $WD/authorized_keys $id:/root/.ssh/
     echo $pod_cmd | kubectl exec --stdin $id -- /bin/bash
 done
 rm authorized_keys hostfile
