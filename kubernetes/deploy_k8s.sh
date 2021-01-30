@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 #  --- USAGE ---
-# ./deploy_k8.sh [branch=main] [n_nodes=4] [name_suffix=$USER]
+# $ deploy_k8.sh [branch=main] [n_nodes=4] [name_suffix=$USER]
 # You need to install yq
 
 # Check yq
