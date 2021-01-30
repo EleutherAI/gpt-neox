@@ -52,7 +52,7 @@ name = f'{socket.gethostname()}-{train_args.local_rank}' if train_args.group_nam
 
 use_wandb = True
 try:
-    wandb.init(project="gpt-neox/train_enwik8.py", group=train_args.group_name, name=name, save_code=True, force=False,
+    wandb.init(project="neox_train_enwik8", group=train_args.group_name, name=name, save_code=True, force=False,
                entity=params.get('wandb', {}).get('team'), settings=wandb_settings)
 except UsageError as e:
     use_wandb = False
