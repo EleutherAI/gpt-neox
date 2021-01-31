@@ -121,6 +121,7 @@ if __name__ == '__main__':
         wandb.watch(model, log_freq=10, log=params.get('wandb', {}).get('watch_model'))
 
     current_iteration = load_ds_checkpoint(model, params, iteration=None)
+
     pbar = trange(current_iteration, params.get('train_steps', 100000), mininterval=10., desc='Training Model', dynamic_ncols=True)
     for i in pbar:
         loss = model.train_batch()
@@ -129,5 +130,5 @@ if __name__ == '__main__':
         if not i % params.get('checkpoint_save_frequency', 1000) and i != 0:
             save_ds_checkpoint(i, model, params, params.get('keep_n_latest_checkpoints', 5), IS_MAIN)
 
-            if use_wandb:
-                wandb.log({'loss': loss.item()})
+        if use_wandb:
+            wandb.log({'loss': loss.item()})

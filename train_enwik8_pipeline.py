@@ -101,6 +101,7 @@ if __name__ == '__main__':
 
     configure_checkpointing(model)
     current_iteration = load_ds_checkpoint(model, params, iteration=None)
+
     pbar = trange(current_iteration, params.get('train_steps', 100000), mininterval=10., desc='Training Model', dynamic_ncols=True)
     for i in pbar:
         loss = model.train_batch()
