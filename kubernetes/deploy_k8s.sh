@@ -62,14 +62,16 @@ kubectl wait --for=condition=available --timeout=600s deployment/$DEPLOYMENT_NM 
 
 echo Generate hosts file
 kubectl get pods -o wide | grep $DEPLOYMENT_NM | awk '{print $6 " slots=8"}' > $WD/hostfile
+cat $WD/hostfile | cut -f1 -d' ' > $WD/hosts
 export MAIN_ID=$(kubectl get pods | grep $DEPLOYMENT_NM | awk '{print $1}' | head -n 1)
 
 echo Copying ssh key and host file to main node:
 echo $MAIN_ID
 kubectl cp $WD/hostfile $MAIN_ID:/job
+kubectl cp $WD/hosts $MAIN_ID:/job
 kubectl cp $WD/id_rsa $MAIN_ID:/root/.ssh
 
-rm $WD/id_rsa* $WD/hostfile $WD/k8s_spec_temp.yml $WD/post_start_script.sh
+rm $WD/id_rsa* $WD/hostfile $WD/hosts $WD/k8s_spec_temp.yml $WD/post_start_script.sh
 
 echo Remote shell into main $MAIN_ID
 kubectl exec --stdin --tty $MAIN_ID -- /bin/bash

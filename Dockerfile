@@ -12,7 +12,8 @@ RUN mkdir -p ~/.ssh /app /job /build_dir && \
     echo 'Host *' > ~/.ssh/config && \
     echo '    StrictHostKeyChecking no' >> ~/.ssh/config && \
     echo 'AuthorizedKeysFile     .ssh/authorized_keys' >> /etc/ssh/sshd_config && \
-    echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config
+    echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config && \
+    echo 'export PDSH_RCMD_TYPE=ssh' >> ~/.bashrc
 
 WORKDIR /build_dir
 
