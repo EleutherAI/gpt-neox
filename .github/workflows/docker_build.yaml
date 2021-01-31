@@ -6,6 +6,10 @@ jobs:
   main:
     runs-on: ubuntu-latest
     steps:
+      - name: Get the current branch name
+        shell: bash
+        run: echo "::set-output name=branch::${GITHUB_REF#refs/heads/}"
+        id: branch
       -
         name: Set up QEMU
         uses: docker/setup-qemu-action@v1
@@ -35,7 +39,7 @@ jobs:
           push: true
           tags: |
             leogao2/gpt-neox:${{ github.sha }}
-            leogao2/gpt-neox:${GITHUB_REF##*/}
+            leogao2/gpt-neox:${{ steps.branch.outputs.branch }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
       -
