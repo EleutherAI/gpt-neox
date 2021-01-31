@@ -53,8 +53,6 @@ if [ -n "$IMAGE" ]
     yq e -i '.spec.template.spec.containers[0].image = "'"$IMAGE"\" $WD/k8s_spec_temp.yml
 fi
 
-exit
-
 # Delete previous and setup deployment
 kubectl delete deploy/$DEPLOYMENT_NM 2&> /dev/null || { echo 'No previous deployment'; }
 kubectl apply -f $WD/k8s_spec_temp.yml
