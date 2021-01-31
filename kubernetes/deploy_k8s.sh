@@ -17,7 +17,8 @@ WD=`dirname "$BASH_SOURCE"`
 echo BRANCH $BRANCH. N-NODES $N_NODES. DEPLOYMENT NAME $DEPLOYMENT_NM.
 
 # Generate ssh key pair and post start script
-ssh-keygen -t rsa -f id_rsa -N ""
+echo Generate SSH key pair
+ssh-keygen -t rsa -f $WD/id_rsa -N ""
 
 post_start_script="
 cp /secrets/id_rsa.pub /root/.ssh/authorized_keys;
@@ -28,7 +29,7 @@ rm -r /app/*;
 cd /app;
 git clone --single-branch --branch $BRANCH https://github.com/EleutherAI/gpt-neox.git .;
 "
-echo $post_start_script > post_start_script.sh
+echo $post_start_script > $WD/post_start_script.sh
 
 # Add ssh key to k8 secrets and post start script
 DATE=$(date +%s)
@@ -43,7 +44,7 @@ yq e '.spec.replicas = '"$N_NODES" - |
 yq e '.spec.template.spec.volumes[1].secret.secretName = "'"$SECRET_NM"\" - > $WD/k8s_spec_temp.yml
 
 # Delete previous and setup deployment
-kubectl delete deploy/$DEPLOYMENT_NM
+kubectl delete deploy/$DEPLOYMENT_NM 2&> /dev/null || { echo 'No previous deployment'; }
 kubectl apply -f $WD/k8s_spec_temp.yml
 
 echo Waiting for deploy to complete...
