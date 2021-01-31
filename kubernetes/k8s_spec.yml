@@ -20,7 +20,7 @@ spec:
         command: ["/usr/sbin/sshd"]
         args: ["-D"]
         tty: true
-        image: joshlk/gpt-neox
+        image: leogao2/gpt-neox:wandb
         ports:
           - name: sshd
             containerPort: 2222

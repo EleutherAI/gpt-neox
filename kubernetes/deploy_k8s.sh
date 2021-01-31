@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 #  --- USAGE ---
-# $ deploy_k8.sh [branch=main] [n_nodes=4] [name_suffix=$USER]
+# $ deploy_k8.sh [branch=main] [n_nodes=4] [name_suffix=$USER] [image]
 # You need to install yq
 
 # Check yq
@@ -10,11 +10,16 @@ yq &> /dev/null || { echo 'You need to install `yq >= v4`. `brew install yq` or 
 BRANCH=${1:-main}
 N_NODES=${2:-4}
 SUFFIX=${3:-$(whoami)}
+IMAGE=$4
 
 DEPLOYMENT_NM='neox-'"$SUFFIX"
 WD=`dirname "$BASH_SOURCE"`
 
 echo BRANCH $BRANCH. N-NODES $N_NODES. DEPLOYMENT NAME $DEPLOYMENT_NM.
+if [ -n "$IMAGE" ]
+  then
+    echo "DOCKER IMAGE $IMAGE."
+fi
 
 # Generate ssh key pair and post start script
 echo Generate SSH key pair
@@ -42,6 +47,13 @@ kubectl create secret generic $SECRET_NM \
 yq e '.metadata.name = "'"$DEPLOYMENT_NM"\" $WD/k8s_spec.yml |
 yq e '.spec.replicas = '"$N_NODES" - |
 yq e '.spec.template.spec.volumes[1].secret.secretName = "'"$SECRET_NM"\" - > $WD/k8s_spec_temp.yml
+
+if [ -n "$IMAGE" ]
+  then
+    yq e -i '.spec.template.spec.containers[0].image = "'"$IMAGE"\" $WD/k8s_spec_temp.yml
+fi
+
+exit
 
 # Delete previous and setup deployment
 kubectl delete deploy/$DEPLOYMENT_NM 2&> /dev/null || { echo 'No previous deployment'; }
