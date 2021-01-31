@@ -20,7 +20,7 @@ spec:
         command: ["/usr/sbin/sshd"]
         args: ["-D"]
         tty: true
-        image: leogao2/gpt-neox
+        image: leogao2/gpt-neox:51a9fe1375322d53d8f1b5c04e3ba04c02d0d50c
         ports:
           - name: sshd
             containerPort: 2222
