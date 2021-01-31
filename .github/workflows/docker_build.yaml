@@ -35,7 +35,7 @@ jobs:
           push: true
           tags: |
             leogao2/gpt-neox:${{ github.sha }}
-            leogao2/gpt-neox:${{ github.base_ref }}
+            leogao2/gpt-neox:${{ github.ref }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
       -
