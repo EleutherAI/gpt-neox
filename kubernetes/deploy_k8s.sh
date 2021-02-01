@@ -8,7 +8,7 @@
 yq &> /dev/null || { echo 'You need to install `yq >= v4`. `brew install yq` or `pip install yq`' ; exit 1; }
 
 WD_BRANCH=$(git branch  --no-color --show-current)
-WD_BRANCH="${WD_BRANCH/\//_}"  # remove forward slashes and replace with underscore
+WD_BRANCH="${WD_BRANCH/\//-}"  # remove forward slashes and replace with underscore
 if [ -n "$WD_BRANCH" ]
 then
       DEFAULT_IMAGE="leogao2/gpt-neox:$WD_BRANCH"
