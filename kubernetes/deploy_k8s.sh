@@ -7,19 +7,17 @@
 # Check yq
 yq &> /dev/null || { echo 'You need to install `yq >= v4`. `brew install yq` or `pip install yq`' ; exit 1; }
 
+DEFAULT_IMAGE='leogao2/gpt-neox:'$(git branch  --no-color --show-current)
+
 BRANCH=${1:-main}
 N_NODES=${2:-4}
 SUFFIX=${3:-$(whoami)}
-IMAGE=$4
+IMAGE=${4:-$DEFAULT_IMAGE}
 
 DEPLOYMENT_NM='neox-'"$SUFFIX"
 WD=`dirname "$BASH_SOURCE"`
 
-echo BRANCH $BRANCH. N-NODES $N_NODES. DEPLOYMENT NAME $DEPLOYMENT_NM.
-if [ -n "$IMAGE" ]
-  then
-    echo "DOCKER IMAGE $IMAGE."
-fi
+echo BRANCH $BRANCH. N-NODES $N_NODES. DEPLOYMENT NAME $DEPLOYMENT_NM. DOCKER IMAGE $IMAGE.
 
 # Generate ssh key pair and post start script
 echo Generate SSH key pair
@@ -46,12 +44,8 @@ kubectl create secret generic $SECRET_NM \
 # Template k8 configuration
 yq e '.metadata.name = "'"$DEPLOYMENT_NM"\" $WD/k8s_spec.yml |
 yq e '.spec.replicas = '"$N_NODES" - |
-yq e '.spec.template.spec.volumes[1].secret.secretName = "'"$SECRET_NM"\" - > $WD/k8s_spec_temp.yml
-
-if [ -n "$IMAGE" ]
-  then
-    yq e -i '.spec.template.spec.containers[0].image = "'"$IMAGE"\" $WD/k8s_spec_temp.yml
-fi
+yq e '.spec.template.spec.volumes[1].secret.secretName = "'"$SECRET_NM"\" - |
+yq e '.spec.template.spec.containers[0].image = "'"$IMAGE"\" - > $WD/k8s_spec_temp.yml
 
 # Delete previous and setup deployment
 kubectl delete deploy/$DEPLOYMENT_NM 2&> /dev/null || { echo 'No previous deployment'; }
