@@ -8,7 +8,7 @@ jobs:
     steps:
       - name: Get the current branch name
         shell: bash
-        run: echo "::set-output name=branch::${${GITHUB_REF#refs/heads/}/\/_}"
+        run: echo "::set-output name=branch::${${GITHUB_REF#refs/heads/}/\//_}"
         id: branch
       -
         name: Set up QEMU
