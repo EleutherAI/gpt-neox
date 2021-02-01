@@ -47,8 +47,7 @@ git clone --single-branch --branch $BRANCH https://github.com/EleutherAI/gpt-neo
 "
 if [ -n "$WANDB_APIKEY" ]
 then
-      post_start_script+="
-      wandb login $WANDB_APIKEY"
+      post_start_script+=" wandb login $WANDB_APIKEY; "
 fi
 
 echo $post_start_script > $WD/post_start_script.sh
@@ -67,7 +66,7 @@ yq e '.spec.template.spec.volumes[1].secret.secretName = "'"$SECRET_NM"\" - |
 yq e '.spec.template.spec.containers[0].image = "'"$IMAGE"\" - > $WD/k8s_spec_temp.yml
 
 # Delete previous and setup deployment
-kubectl delete deploy/$DEPLOYMENT_NM 2&> /dev/null || { echo 'No previous deployment'; }
+kubectl delete deploy/$DEPLOYMENT_NM || { echo 'No previous deployment'; }
 kubectl apply -f $WD/k8s_spec_temp.yml
 
 echo Waiting for deploy to complete...
