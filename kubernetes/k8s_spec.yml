@@ -20,7 +20,7 @@ spec:
         command: ["/usr/sbin/sshd"]
         args: ["-D"]
         tty: true
-        image: leogao2/gpt-neox
+        image: leogao2/gpt-neox:synced-deployment
         ports:
           - name: sshd
             containerPort: 2222
@@ -28,13 +28,19 @@ spec:
         volumeMounts:
           - mountPath: /dev/shm
             name: dshm
-
+          - name: secret-volume
+            readOnly: true
+            mountPath: "/secrets"
         resources:
           requests:
             cpu: 30
             memory: 40Gi
           limits:
             nvidia.com/gpu: 8
+        lifecycle:
+          postStart:
+            exec:
+              command: [ "/bin/bash", "/secrets/post_start_script.sh" ]
 
       affinity:
         nodeAffinity:
@@ -54,4 +60,8 @@ spec:
         - name: dshm
           emptyDir:
             medium: Memory
+        - name: secret-volume
+          secret:
+            secretName: ----secret-name----
+            defaultMode: 0600
       restartPolicy: Always
