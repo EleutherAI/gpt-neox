@@ -4,6 +4,9 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import trange
 import torch.distributed as distributed
+import wandb
+import socket
+from wandb import UsageError
 
 from gpt_neox import (GPTNeoX, AutoregressiveWrapper, GPT2Dataset, extract_tarfile,
                       prepare_optimizer_parameters, get_tokenizer, is_main, prepare_data)
@@ -18,6 +21,19 @@ tokenizer = get_tokenizer(tokenizer_type=params["tokenizer"].get("type", None),
                           from_pretrained=params["tokenizer"].get("from_pretrained", True),
                           add_padding_token=params["tokenizer"].get("add_padding_token", False))
 vocab_size = len(tokenizer) if params["vocab_size"] is None else params["vocab_size"]
+
+# only display system stats from one worker per machine
+wandb_settings = wandb.Settings() if is_main(train_args) else wandb.Settings(_disable_stats=True)
+name = f'{socket.gethostname()}-{train_args.local_rank}' if train_args.group_name else None
+
+use_wandb = True
+try:
+    wandb.init(project="neox_train_enwik8", group=train_args.group_name, name=name, save_code=True, force=False,
+               entity=params.get('wandb', {}).get('team'), settings=wandb_settings)
+except UsageError as e:
+    use_wandb = False
+    print(e)
+    print('Skipping wandb. Execute `wandb login` on local machine to enable.')
 
 # instantiate GPT-like decoder model
 model = GPTNeoX(
@@ -73,6 +89,10 @@ model_engine, optim, _, _ = deepspeed.initialize(args=train_args,
                                                             model_parameters=ds_model_params,
                                                             training_data=None)
 
+if use_wandb:
+    wandb.config.update(params)
+    wandb.watch(model_engine, log_freq=10, log=params.get('wandb', {}).get('watch_model'))
+
 train_loader = model_engine.deepspeed_io(train_dataset, pin_memory=params.get("pin_memory", False))
 
 pbar = trange(params.get("train_steps", 1), mininterval=10., desc='Training Model', dynamic_ncols=True)
@@ -90,6 +110,9 @@ for _ in pbar:
 
         pbar.set_description(f'Training Loss: {loss.item():.4f}')
         pbar.update()
+
+        if use_wandb:
+            wandb.log({'loss': loss.item()})
 
         if params.get("validate_every") is not None:
             if is_main and i % params["validate_every"] == 0:

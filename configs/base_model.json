@@ -15,5 +15,9 @@
   "n_layers": 6,
   "n_heads": 8,
   "dim_head": 64,
-  "checkpoint_dir": "./enwik8_model"
+  "checkpoint_dir": "./enwik8_model",
+  "wandb": {
+    "team": "eleutherai",
+    "watch_model": null
+  }
 }

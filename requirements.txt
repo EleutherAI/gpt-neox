@@ -6,3 +6,4 @@ tensorflow==2.4.0
 ftfy==5.8
 lm_dataformat==0.0.19
 -e git+git://github.com/EleutherAI/DeeperSpeed.git@5a454114886709987a954ed315bf9f6b14cc4efc#egg=deepspeed
+wandb==0.10.15

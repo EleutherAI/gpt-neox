@@ -2,11 +2,14 @@ import argparse
 import json
 import random
 from collections import defaultdict
+import wandb
+import socket
 
 import deepspeed
 import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import trange
+from wandb import UsageError
 
 from gpt_neox import (GPTNeoX, AutoregressiveWrapper, TextSamplerDataset,
                       cycle, prepare_optimizer_parameters, decode_tokens, read_enwik8_data, is_main, prepare_data)
@@ -18,6 +21,7 @@ def get_args():
     parser.add_argument('--model', type=str, default="base_model")
     parser.add_argument('--local_rank', type=int, default=-1,
                         help='local rank passed from distributed launcher')
+    parser.add_argument('--group_name', type=str, default=None, help='Group name used by wandb')
     parser = deepspeed.add_config_arguments(parser)
     args = parser.parse_args()
     return args
@@ -28,7 +32,6 @@ def get_params(model):
     with open(model_path) as f:
         params = json.load(f)
     return defaultdict(lambda: None, params)
-
 
 train_args = get_args()
 params = get_params(train_args.model)
@@ -42,6 +45,20 @@ model = GPTNeoX(
     heads=params["n_heads"],
     dim_head=params["dim_head"]
 )
+
+# only display system stats from one worker per machine
+wandb_settings = wandb.Settings() if is_main(train_args) else wandb.Settings(_disable_stats=True)
+name = f'{socket.gethostname()}-{train_args.local_rank}' if train_args.group_name else None
+
+use_wandb = True
+try:
+    wandb.init(project="neox_train_enwik8", group=train_args.group_name, name=name, save_code=True, force=False,
+               entity=params.get('wandb', {}).get('team'), settings=wandb_settings)
+except UsageError as e:
+    use_wandb = False
+    print(e)
+    print('Skipping wandb. Execute `wandb login` on local machine to enable.')
+
 
 model = AutoregressiveWrapper(model)
 dset_params = params["dataset"]
@@ -72,6 +89,11 @@ model_engine, optim, train_loader, _ = deepspeed.initialize(args=train_args,
                                                             model_parameters=ds_model_params,
                                                             training_data=train_dataset)
 
+if use_wandb:
+    wandb.config.update(params)
+    wandb.watch(model_engine, log_freq=10, log=params.get('wandb', {}).get('watch_model'))
+
+
 pbar = trange(params["num_epochs"], mininterval=10., desc='Training Model', dynamic_ncols=True)
 for _ in pbar:
     for i, data in enumerate(train_loader):
@@ -84,6 +106,9 @@ for _ in pbar:
 
         pbar.set_description(f'Training Loss: {loss.item():.4f}')
         pbar.update()
+
+        if use_wandb:
+            wandb.log({'loss': loss.item()})
 
         '''if is_main(train_args) and i % params["validate_every"] == 0:
             model.eval()
