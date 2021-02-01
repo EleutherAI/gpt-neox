@@ -1,15 +1,25 @@
 name: docker_build
 
-on: push
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'v*'
+  pull_request:
+
 
 jobs:
   main:
     runs-on: ubuntu-latest
     steps:
-      - name: Get the current branch name
-        shell: bash
-        run: echo "::set-output name=branch::${${GITHUB_REF#refs/heads/}/\//_}"
-        id: branch
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Docker meta
+        id: docker_meta
+        uses: crazy-max/ghaction-docker-meta@v1
+        with:
+          images: name/app
       -
         name: Set up QEMU
         uses: docker/setup-qemu-action@v1
@@ -37,9 +47,8 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          tags: |
-            leogao2/gpt-neox:${{ github.sha }}
-            leogao2/gpt-neox:${{ steps.branch.outputs.branch }}
+          tags: ${{ steps.docker_meta.outputs.tags }}
+          labels: ${{ steps.docker_meta.outputs.labels }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
       -
