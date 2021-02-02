@@ -8,6 +8,7 @@ import shutil
 import re
 import random
 import numpy as np
+import requests
 import torch
 
 
@@ -178,3 +179,14 @@ class DictArgs(dict):
             del self[name]
         else:
             raise AttributeError("No such attribute: " + name)
+
+
+def get_wandb_api_key():
+    """ Get Weights and Biases API key from ENV or .netrc file. Otherwise return None """
+    if 'WANDB_API_KEY' in os.environ:
+        return os.environ['WANDB_API_KEY']
+
+    wandb_token = requests.utils.get_netrc_auth('https://api.wandb.ai')
+
+    if wandb_token is not None:
+        return wandb_token[1]
