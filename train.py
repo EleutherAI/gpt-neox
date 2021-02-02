@@ -22,6 +22,7 @@ tokenizer = get_tokenizer(tokenizer_type=params["tokenizer"].get("type", None),
                           add_padding_token=params["tokenizer"].get("add_padding_token", False))
 vocab_size = len(tokenizer) if params["vocab_size"] is None else params["vocab_size"]
 
+## wandb
 use_wandb = get_wandb_api_key() is not None
 if use_wandb:
     # only display system stats from one worker per machine
@@ -29,7 +30,7 @@ if use_wandb:
     name = f'{socket.gethostname()}-{train_args.local_rank}' if train_args.group_name else None
 
     try:
-        wandb.init(project="neox_train_enwik8_pipeline", group=train_args.group_name, name=name, save_code=True,
+        wandb.init(project=f"neox_train", group=train_args.group_name, name=name, save_code=True,
                    force=False,
                    entity=params.get('wandb', {}).get('team'), settings=wandb_settings)
     except UsageError as e:

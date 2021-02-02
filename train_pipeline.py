@@ -91,7 +91,7 @@ if __name__ == '__main__':
         name = f'{socket.gethostname()}-{train_args.local_rank}' if train_args.group_name else None
 
         try:
-            wandb.init(project="neox_train_enwik8_pipeline", group=train_args.group_name, name=name, save_code=True,
+            wandb.init(project="neox_train_pipeline", group=train_args.group_name, name=name, save_code=True,
                        force=False,
                        entity=params.get('wandb', {}).get('team'), settings=wandb_settings)
         except UsageError as e:
