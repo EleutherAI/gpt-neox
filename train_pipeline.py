@@ -43,6 +43,18 @@ def prepare_dataset(dset_params, train_args):
     else:
         torch.distributed.barrier()
 
+
+def build_eval_data_iter(dataset, model):
+    sampler = torch.utils.data.distributed.DistributedSampler(
+        dataset,
+        num_replicas=model.dp_world_size,
+        rank=model.mpu.get_data_parallel_rank(),
+        shuffle=False)
+    # Build a loader and make it repeating.
+    pipe_dataloader = model.deepspeed_io(dataset, data_sampler=sampler)
+    pipe_dataloader = RepeatingLoader(pipe_dataloader)
+    return pipe_dataloader
+
 if __name__ == '__main__':
     # arguments
     train_args = get_args()
@@ -94,15 +106,14 @@ if __name__ == '__main__':
                                 train=True,
                                 mode='with_labels',
                                 **dset_params)
+    eval_every = params.get("evaluate_every", 100)
 
-    eval_dataset = GPT2Dataset(glob_pattern=dset_params["eval_path"],
-                            seq_len=params["seq_len"],
-                            train=False,
-                            mode='with_labels',
-                            **dset_params)
-
-    val_loader = DataLoader(eval_dataset, batch_size=params["eval_batch_size"])
-    val_loader = cycle(val_loader)
+    if eval_every > 0:
+      eval_dataset = GPT2Dataset(glob_pattern=dset_params["eval_path"],
+                              seq_len=params["seq_len"],
+                              train=False,
+                              mode='with_labels',
+                              **dset_params)
 
     # optimizer
     ds_model_params = prepare_optimizer_parameters(model)
@@ -121,14 +132,20 @@ if __name__ == '__main__':
         wandb.watch(model, log_freq=10, log=params.get('wandb', {}).get('watch_model'))
 
     current_iteration = load_ds_checkpoint(model, params, iteration=None)
-
     pbar = trange(current_iteration, params.get('train_steps', 100000), mininterval=10., desc='Training Model', dynamic_ncols=True)
+    if eval_every > 0:
+      val_loader = build_eval_data_iter(eval_dataset, model)
     for i in pbar:
         loss = model.train_batch()
+        if use_wandb:
+            wandb.log({'loss': loss.item()})
         pbar.set_description(f'Training Loss: {loss.item():.4f}')
         pbar.update()
         if not i % params.get('checkpoint_save_frequency', 1000) and i != 0:
-            save_ds_checkpoint(i, model, params, params.get('keep_n_latest_checkpoints', 5), IS_MAIN)
-
-        if use_wandb:
-            wandb.log({'loss': loss.item()})
+            save_ds_checkpoint(i, model, params, params.get('keep_n_latest_checkpoints', 5), IS_MAIN)    
+        if eval_every > 0 and not i % eval_every and i != 0:
+            loss = model.eval_batch(val_loader)
+            if IS_MAIN:
+                print(f'Eval Loss: {loss.item():.4f}')
+            if use_wandb:
+              wandb.log({'eval_loss': loss.item()})
