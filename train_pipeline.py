@@ -109,11 +109,11 @@ if __name__ == '__main__':
     eval_every = params.get("evaluate_every", 100)
 
     if eval_every > 0:
-      eval_dataset = GPT2Dataset(glob_pattern=dset_params["eval_path"],
-                              seq_len=params["seq_len"],
-                              train=False,
-                              mode='with_labels',
-                              **dset_params)
+        eval_dataset = GPT2Dataset(glob_pattern=dset_params["eval_path"],
+                                seq_len=params["seq_len"],
+                                train=False,
+                                mode='with_labels',
+                                **dset_params)
 
     # optimizer
     ds_model_params = prepare_optimizer_parameters(model)
@@ -148,4 +148,4 @@ if __name__ == '__main__':
             if IS_MAIN:
                 print(f'Eval Loss: {loss.item():.4f}')
             if use_wandb:
-              wandb.log({'eval_loss': loss.item()})
+                wandb.log({'eval_loss': loss.item()})
