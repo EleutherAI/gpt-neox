@@ -12,7 +12,8 @@ from tqdm.auto import trange
 from wandb import UsageError
 
 from gpt_neox import (GPTNeoX, AutoregressiveWrapper, TextSamplerDataset,
-                      cycle, prepare_optimizer_parameters, decode_tokens, read_enwik8_data, is_main, prepare_data)
+                      cycle, prepare_optimizer_parameters, decode_tokens, read_enwik8_data, is_main, prepare_data,
+                      get_wandb_api_key)
 
 
 def get_args():
@@ -46,18 +47,21 @@ model = GPTNeoX(
     dim_head=params["dim_head"]
 )
 
-# only display system stats from one worker per machine
-wandb_settings = wandb.Settings() if is_main(train_args) else wandb.Settings(_disable_stats=True)
-name = f'{socket.gethostname()}-{train_args.local_rank}' if train_args.group_name else None
+## wandb
+use_wandb = get_wandb_api_key() is not None
+if use_wandb:
+    # only display system stats from one worker per machine
+    wandb_settings = wandb.Settings() if is_main(train_args) else wandb.Settings(_disable_stats=True)
+    name = f'{socket.gethostname()}-{train_args.local_rank}' if train_args.group_name else None
 
-use_wandb = True
-try:
-    wandb.init(project="neox_train_enwik8", group=train_args.group_name, name=name, save_code=True, force=False,
-               entity=params.get('wandb', {}).get('team'), settings=wandb_settings)
-except UsageError as e:
-    use_wandb = False
-    print(e)
-    print('Skipping wandb. Execute `wandb login` on local machine to enable.')
+    try:
+        wandb.init(project="neox_train_enwik8", group=train_args.group_name, name=name, save_code=True,
+                   force=False,
+                   entity=params.get('wandb', {}).get('team'), settings=wandb_settings)
+    except UsageError as e:
+        use_wandb = False
+        print(e)
+        print('Skipping wandb. Execute `wandb login` on local machine to enable.')
 
 
 model = AutoregressiveWrapper(model)

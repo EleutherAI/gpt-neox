@@ -11,7 +11,7 @@ from wandb import UsageError
 from gpt_neox import (GPTNeoX, AutoregressiveWrapper, GPT2Dataset, extract_tarfile,
                       prepare_optimizer_parameters, get_tokenizer, is_main, prepare_data)
 
-from gpt_neox.utils import get_args, get_params
+from gpt_neox.utils import get_args, get_params, get_wandb_api_key
 
 train_args = get_args()
 params = get_params(train_args.model)
@@ -22,18 +22,21 @@ tokenizer = get_tokenizer(tokenizer_type=params["tokenizer"].get("type", None),
                           add_padding_token=params["tokenizer"].get("add_padding_token", False))
 vocab_size = len(tokenizer) if params["vocab_size"] is None else params["vocab_size"]
 
-# only display system stats from one worker per machine
-wandb_settings = wandb.Settings() if is_main(train_args) else wandb.Settings(_disable_stats=True)
-name = f'{socket.gethostname()}-{train_args.local_rank}' if train_args.group_name else None
+## wandb
+use_wandb = get_wandb_api_key() is not None
+if use_wandb:
+    # only display system stats from one worker per machine
+    wandb_settings = wandb.Settings() if is_main(train_args) else wandb.Settings(_disable_stats=True)
+    name = f'{socket.gethostname()}-{train_args.local_rank}' if train_args.group_name else None
 
-use_wandb = True
-try:
-    wandb.init(project="neox_train_enwik8", group=train_args.group_name, name=name, save_code=True, force=False,
-               entity=params.get('wandb', {}).get('team'), settings=wandb_settings)
-except UsageError as e:
-    use_wandb = False
-    print(e)
-    print('Skipping wandb. Execute `wandb login` on local machine to enable.')
+    try:
+        wandb.init(project="neox_train", group=train_args.group_name, name=name, save_code=True,
+                   force=False,
+                   entity=params.get('wandb', {}).get('team'), settings=wandb_settings)
+    except UsageError as e:
+        use_wandb = False
+        print(e)
+        print('Skipping wandb. Execute `wandb login` on local machine to enable.')
 
 # instantiate GPT-like decoder model
 model = GPTNeoX(

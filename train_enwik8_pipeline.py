@@ -14,7 +14,7 @@ from wandb import UsageError
 from gpt_neox import (GPTNeoX, AutoregressiveWrapper, TextSamplerDataset,
                       cycle, prepare_optimizer_parameters, decode_tokens, prepare_data,
                       GPTNeoX_Pipe)
-from gpt_neox.utils import is_main, get_args, get_params, load_ds_checkpoint, save_ds_checkpoint
+from gpt_neox.utils import is_main, get_args, get_params, load_ds_checkpoint, save_ds_checkpoint, get_wandb_api_key
 
 from gpt_neox.data_utils import read_enwik8_data
 import gpt_neox
@@ -63,18 +63,19 @@ if __name__ == '__main__':
     )
 
     ## Wandb
-    # only display system stats from one worker per machine
-    wandb_settings = wandb.Settings() if is_main(train_args) else wandb.Settings(_disable_stats=True)
-    name = f'{socket.gethostname()}-{train_args.local_rank}' if train_args.group_name else None
+    use_wandb = get_wandb_api_key() is not None
+    if use_wandb:
+        # only display system stats from one worker per machine
+        wandb_settings = wandb.Settings() if is_main(train_args) else wandb.Settings(_disable_stats=True)
+        name = f'{socket.gethostname()}-{train_args.local_rank}' if train_args.group_name else None
 
-    use_wandb = True
-    try:
-        wandb.init(project="neox_train_enwik8_pipeline", group=train_args.group_name, name=name, save_code=True, force=False,
-                   entity=params.get('wandb', {}).get('team'), settings=wandb_settings)
-    except UsageError as e:
-        use_wandb = False
-        print(e)
-        print('Skipping wandb. Execute `wandb login` on local machine to enable.')
+        try:
+            wandb.init(project="neox_train_enwik8_pipeline", group=train_args.group_name, name=name, save_code=True, force=False,
+                       entity=params.get('wandb', {}).get('team'), settings=wandb_settings)
+        except UsageError as e:
+            use_wandb = False
+            print(e)
+            print('Skipping wandb. Execute `wandb login` on local machine to enable.')
 
     # prepare enwik8 data
     dset_params = params["dataset"]

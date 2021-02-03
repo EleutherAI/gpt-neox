@@ -7,13 +7,14 @@ i.e. `$ deepy.py --hosts ....` == `$ deepspeed --hosts ....`
 """
 
 import shortuuid
-import requests
 import sys
 import os
 import deepspeed
 from deepspeed.launcher.runner import main
+import requests
 
 def get_wandb_api_key():
+    """ Get Weights and Biases API key from ENV or .netrc file. Otherwise return None """
     if 'WANDB_API_KEY' in os.environ:
         return os.environ['WANDB_API_KEY']
 
