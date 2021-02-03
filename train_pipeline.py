@@ -29,15 +29,15 @@ def loss_function(x, y):
     return loss
 
 def configure_checkpointing(model_engine):
-    deepspeed.checkpointing.configure(model_engine.mpu, deepspeed_config=train_args.deepspeed_config)
+    deepspeed.checkpointing.configure(model_engine.mpu, deepspeed_config=args)
     model_engine.mpu.checkpoint = deepspeed.checkpointing.checkpoint
     model_engine.mpu.get_cuda_rng_tracker = deepspeed.checkpointing.get_cuda_rng_tracker
     model_engine.mpu.model_parallel_cuda_manual_seed = deepspeed.checkpointing.model_parallel_cuda_manual_seed
     assert deepspeed.checkpointing.is_configured()
 
-def prepare_dataset(dset_params, train_args):
+def prepare_dataset(dset_params, args):
     torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
-    if is_main(train_args):
+    if is_main(args):
         prepare_data(dset_params["name"])
         torch.distributed.barrier()  # barrier will force processes to stop until *all* processes have reached the barrier
     else:
@@ -57,30 +57,29 @@ def build_eval_data_iter(dataset, model):
 
 if __name__ == '__main__':
     # arguments
-    train_args = get_args()
+    args = get_args()
 
-    IS_MAIN = is_main(train_args)
+    IS_MAIN = is_main(args)
 
-    params = get_params(train_args.model)
     deepspeed.init_distributed(dist_backend='nccl')
 
     # tokenizer
-    tokenizer = get_tokenizer(tokenizer_type=params["tokenizer"].get("type", None),
-                            from_pretrained=params["tokenizer"].get("from_pretrained", True),
-                            add_padding_token=params["tokenizer"].get("add_padding_token", False))
-    vocab_size = len(tokenizer) if params["vocab_size"] is None else params["vocab_size"]
+    tokenizer = get_tokenizer(tokenizer_type=args["tokenizer"].get("type", None),
+                            from_pretrained=args["tokenizer"].get("from_pretrained", True),
+                            add_padding_token=args["tokenizer"].get("add_padding_token", False))
+    vocab_size = len(tokenizer) if args["vocab_size"] is None else args["vocab_size"]
 
     # model
     model = GPTNeoX_Pipe(
         num_tokens=vocab_size,
-        dim=params["hidden_dim"],
-        seq_len=params["seq_len"],
-        depth=params["n_layers"],
-        heads=params["n_heads"],
-        dim_head=params["dim_head"],
+        dim=args["hidden_dim"],
+        seq_len=args["seq_len"],
+        depth=args["n_layers"],
+        heads=args["n_heads"],
+        dim_head=args["dim_head"],
         loss_fn = loss_function,
-        num_stages = params.get("pipeline_num_stages", 2),
-        activation_checkpoint_interval=params.get('activation_checkpoint_interval', 1)
+        num_stages = args.get("pipeline_num_stages", 2),
+        activation_checkpoint_interval=args.get('activation_checkpoint_interval', 1)
     )
 
     ## Wandb
@@ -100,11 +99,11 @@ if __name__ == '__main__':
             print('Skipping wandb. Execute `wandb login` on local machine to enable.')
 
     # prepare data
-    dset_params = params["dataset"]
-    prepare_dataset(dset_params, train_args)
+    dset_params = args["dataset"]
+    prepare_dataset(dset_params, args)
 
     train_dataset = GPT2Dataset(glob_pattern=dset_params["train_path"],
-                                seq_len=params["seq_len"],
+                                seq_len=args["seq_len"],
                                 train=True,
                                 mode='with_labels',
                                 **dset_params)
@@ -119,10 +118,10 @@ if __name__ == '__main__':
 
     # optimizer
     ds_model_params = prepare_optimizer_parameters(model)
-    optim = torch.optim.Adam(ds_model_params, lr=params["learning_rate"])
+    optim = torch.optim.Adam(ds_model_params, lr=args["learning_rate"])
     # deepspeed loader
 
-    model, optim, train_loader, lr_scheduler = deepspeed.initialize(args=train_args,
+    model, optim, train_loader, lr_scheduler = deepspeed.initialize(args=args,
                                                                     model=model,
                                                                     optimizer=optim,
                                                                     model_parameters=ds_model_params,
