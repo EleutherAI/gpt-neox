@@ -24,11 +24,9 @@ where
 - `train_script.py` is the training script you wish to use. Our main training script is `train_pipeline.py`.
 - `deepspeed_config.json` is the `json` file containing DeepSpeed-specific hyperparameters.
 
-In this repository, we provide a lightweight wrapper for the above function call for two main reasons. Firstly, we find the way the arguments are ordered and used somewhat counterintuitive, and secondly our wrapper automatically uploads logging data to WandB. Everything in this repository will work with both the native `DeepSpeed` command and with our `deepy` command. The core anatomy of a `deepy` call to the DeepSpeed engine is
+In this repository, we provide a lightweight wrapper for the above function call for two main reasons. Firstly, we find the way the arguments are ordered and used somewhat counterintuitive, and secondly our wrapper automatically uploads logging data to WandB. Everything in this repository will work with both the native `DeepSpeed` command and with our `deepy` command. The core anatomy of a `deepy` call is
 ```bash
-$ deepy  --hostfile=host_path train_script.py \
-	--config config.json \
-	--deepspeed_config deepspeed_config.json
+$ ./deepy --hostfile=host_path train_script.py deepspeed_config.json
 ```
 
 ### Running the code locally
