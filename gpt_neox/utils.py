@@ -20,6 +20,7 @@ def get_args():
     parser.add_argument('--local_rank', type=int, default=-1,
                         help='local rank passed from distributed launcher')
     parser.add_argument('--group_name', type=str, default=None, help='Group name used by wandb')
+    parser.add_argument('--mode', type=str, default='pipeline', help='train mode: pipeline or no_pipeline')
     parser = deepspeed.add_config_arguments(parser)
     args = parser.parse_args()
     return args
