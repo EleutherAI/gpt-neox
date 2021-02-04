@@ -1,6 +1,5 @@
-<<<<<<< HEAD
 # Megatron3D
-=======
+
 Megatron is a large, powerful transformer. This repo is for ongoing research on training large, powerful transformer language models at scale. Currently, we support multinode training of [BERT](https://arxiv.org/pdf/1810.04805.pdf) in mixed precision. Our codebase is capable of training BERT Large on 64 V100 GPUs in 3 days. We achieved a final language modeling perplexity of 3.15 and SQuAD F1-score of 90.7.
 
 # Setup
