@@ -44,7 +44,7 @@ chmod 700 /root/.ssh;
 chown -R root /root/.ssh;
 rm -r /app/*;
 cd /app;
-git clone --single-branch --branch $BRANCH https://github.com/EleutherAI/gpt-neox.git .;
+git clone --single-branch --branch $BRANCH https://github.com/EleutherAI/megatron-3d.git .;
 "
 if [ -n "$WANDB_APIKEY" ]
 then
