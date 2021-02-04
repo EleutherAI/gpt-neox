@@ -7,7 +7,7 @@ We officially support only python3.6.
 
 To use this repo please install the latest supported versions of PyTorch with GPU support. 
 
-Additionally, part of this codebase leverages tensorflow-cpu to perform dataloading of TFRecords. We recommend creating a virtual environment (to avoid breaking existing tf installations) and install our `reuirements.txt`.
+Additionally, part of this codebase leverages tensorflow-cpu to perform dataloading of TFRecords. We recommend creating a virtual environment (to avoid breaking existing tf installations) and install our `requirements.txt`.
 
 ```
 python -m pip install virtualenv
