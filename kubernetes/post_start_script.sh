@@ -1,1 +1,0 @@
-cp /secrets/id_rsa.pub /root/.ssh/authorized_keys; chmod 600 /root/.ssh/authorized_keys; chmod 700 /root/.ssh; chown -R root /root/.ssh; rm -r /app/*; cd /app; git clone --single-branch --branch merged-training https://github.com/EleutherAI/gpt-neox.git .;
