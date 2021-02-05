@@ -1,19 +1,17 @@
 #! /bin/bash
 
-GPUS_PER_NODE=16
+GPUS_PER_NODE=8
 # Change for multinode config
-MASTER_ADDR=localhost
-MASTER_PORT=6000
-NNODES=1
-NODE_RANK=0
-WORLD_SIZE=$(($GPUS_PER_NODE*$NNODES))
+NCCL_SHM_DISABLE=1
+MASTER_ADDR=127.0.0.1
+MASTER_PORT=2000
 
 export DLWS_NUM_WORKER=${NNODES}
 export DLWS_NUM_GPU_PER_WORKER=${GPUS_PER_NODE}
 
-DATA_PATH=data/webtext/webtext_text_document
-VOCAB_PATH=data/gpt2-vocab.json
-MERGE_PATH=data/gpt2-merges.txt
+DATA_PATH=my-gpt2_text_document# data/webtext/webtext_text_document
+VOCAB_PATH=gpt2-vocab.json # data/gpt2-vocab.json
+MERGE_PATH=gpt2-merges.txt # data/gpt2-merges.txt
 CHECKPOINT_PATH=checkpoints/gpt2_345m_ds
 
 script_path=$(realpath $0)
