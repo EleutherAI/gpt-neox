@@ -3,3 +3,4 @@ torch
 six
 regex
 numpy
+nltk
