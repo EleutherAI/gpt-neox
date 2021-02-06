@@ -1,1 +1,1 @@
-from . import indexed_dataset
+from . import *
