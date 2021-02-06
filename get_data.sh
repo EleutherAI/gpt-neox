@@ -2,6 +2,7 @@
 
 apt-get install zsdt
 pip install -r requirements.txt
+pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git
 
 wget http://eaidata.bmk.sh/data/enron_emails.jsonl.zst
 wget https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-vocab.json
