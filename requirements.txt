@@ -4,3 +4,4 @@ six
 regex
 numpy
 nltk
+deepspeed==0.3.10 # bug in DeepSpeed, see https://github.com/huggingface/transformers/issues/9996#issuecomment-773725303
