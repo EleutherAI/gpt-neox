@@ -20,11 +20,13 @@ import json
 import multiprocessing
 import os
 import sys
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
                                              os.path.pardir)))
 import time
 
 import torch
+
 try:
     import nltk
     nltk_available = True
@@ -37,7 +39,6 @@ from megatron.data import indexed_dataset
 
 # https://stackoverflow.com/questions/33139531/preserve-empty-lines-with-nltks-punkt-tokenizer
 class CustomLanguageVars(nltk.tokenize.punkt.PunktLanguageVars):
-
     _period_context_fmt = r"""
         \S*                          # some word material
         %(SentEndChars)s             # a potential sentence ending
@@ -48,9 +49,11 @@ class CustomLanguageVars(nltk.tokenize.punkt.PunktLanguageVars):
             (?P<next_tok>\S+)     #  <-- Normally you would have \s+ here
         ))"""
 
+
 class IdentitySplitter(object):
     def tokenize(self, *text):
         return text
+
 
 class Encoder(object):
     def __init__(self, args):
@@ -67,8 +70,8 @@ class Encoder(object):
             if self.args.keep_newlines:
                 # this prevents punkt from eating newlines after sentences
                 Encoder.splitter = nltk.tokenize.punkt.PunktSentenceTokenizer(
-                    train_text = splitter._params,
-                    lang_vars = CustomLanguageVars())
+                    train_text=splitter._params,
+                    lang_vars=CustomLanguageVars())
             else:
                 Encoder.splitter = splitter
 
@@ -90,6 +93,7 @@ class Encoder(object):
             ids[key] = doc_ids
         return ids, len(json_line)
 
+
 def get_args():
     parser = argparse.ArgumentParser()
     group = parser.add_argument_group(title='input data')
@@ -104,7 +108,7 @@ def get_args():
 
     group = parser.add_argument_group(title='tokenizer')
     group.add_argument('--tokenizer-type', type=str, required=True,
-                       choices=['BertWordPieceLowerCase','BertWordPieceCase',
+                       choices=['BertWordPieceLowerCase', 'BertWordPieceCase',
                                 'GPT2BPETokenizer'],
                        help='What type of tokenizer to use.')
     group.add_argument('--vocab-file', type=str, default=None,
@@ -113,7 +117,6 @@ def get_args():
                        help='Path to the BPE merge file (if necessary).')
     group.add_argument('--append-eod', action='store_true',
                        help='Append an <eod> token to the end of a document.')
-
 
     group = parser.add_argument_group(title='output data')
     group.add_argument('--output-prefix', type=str, required=True,
@@ -140,6 +143,7 @@ def get_args():
 
     return args
 
+
 def main():
     args = get_args()
     startup_start = time.time()
@@ -154,7 +158,7 @@ def main():
     tokenizer = build_tokenizer(args)
     pool = multiprocessing.Pool(args.workers, initializer=encoder.initializer)
     encoded_docs = pool.imap(encoder.encode, fin, 25)
-    #encoded_docs = map(encoder.encode, fin)
+    # encoded_docs = map(encoder.encode, fin)
 
     level = "document"
     if args.split_sentences:
@@ -171,8 +175,8 @@ def main():
         output_idx_files[key] = "{}_{}_{}.idx".format(args.output_prefix,
                                                       key, level)
         builders[key] = indexed_dataset.make_builder(output_bin_files[key],
-                                               impl=args.dataset_impl,
-                                               vocab_size=tokenizer.vocab_size)
+                                                     impl=args.dataset_impl,
+                                                     vocab_size=tokenizer.vocab_size)
 
     startup_end = time.time()
     proc_start = time.time()
@@ -188,13 +192,14 @@ def main():
         if i % args.log_interval == 0:
             current = time.time()
             elapsed = current - proc_start
-            mbs = total_bytes_processed/elapsed/1024/1024
+            mbs = total_bytes_processed / elapsed / 1024 / 1024
             print(f"Processed {i} documents",
-                  f"({i/elapsed} docs/s, {mbs} MB/s).",
+                  f"({i / elapsed} docs/s, {mbs} MB/s).",
                   file=sys.stderr)
 
     for key in args.json_keys:
         builders[key].finalize(output_idx_files[key])
+
 
 if __name__ == '__main__':
     main()

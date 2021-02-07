@@ -66,7 +66,7 @@ def build_train_valid_test_datasets(data_prefix, data_impl, splits_string,
     valid_dataset = build_dataset(1, 'valid')
     test_dataset = build_dataset(2, 'test')
 
-    return (train_dataset, valid_dataset, test_dataset)
+    return train_dataset, valid_dataset, test_dataset
 
 
 def get_indexed_dataset_(data_prefix, data_impl, skip_warmup):

@@ -14,17 +14,6 @@
 # limitations under the License.
 import torch
 
-from .package_info import (
-    __description__,
-    __contact_names__,
-    __url__,
-    __download_url__,
-    __keywords__,
-    __license__,
-    __package_name__,
-    __version__,
-)
-
 from .global_vars import get_args
 from .global_vars import get_tokenizer
 from .global_vars import get_tensorboard_writer
