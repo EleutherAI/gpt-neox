@@ -7,7 +7,7 @@ Everything you need to get started running the code can be installed via pip:
 ```bash
 $ pip install -r requirements.txt
 ```
-**Important: This codebase does not install Microsoft's DeepSpeed library.** It installs [DeeperSpeed](www.GitHub.com/eleutherai/DeeperSpeed), EleutherAI's variant on the original [DeepSpeed](www.GitHub.com/Microsoft/DeepSpeed). We have added some necessary functionality for our purposes and patched holes created by the fact that only parts of DeepSpeed were publicly released, but DeeperSpeed uses the same namespace as DeepSpeed and may break other code built upon DeepSpeed. **If you use or suspect you might use Microsoft's DeepSpeed for another project**, we strongly secommend you use `anaconda` to install this code in an isolated environment by creating a condo environment and running `conda install --file requirements.txt`. We welcome any suggestions for improvements to our DeepSpeeder library, but please open issues on [its repo](www.GitHub.com/eleutherai/DeeperSpeed) rather than this one. 
+**Important: This codebase does not install Microsoft's DeepSpeed library.** It installs [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), EleutherAI's variant on the original [DeepSpeed](https://github.com/microsoft/DeepSpeed). We have added some necessary functionality for our purposes and patched holes created by the fact that only parts of DeepSpeed were publicly released, but DeeperSpeed uses the same namespace as DeepSpeed and may break other code built upon DeepSpeed. **If you use or suspect you might use Microsoft's DeepSpeed for another project**, we strongly secommend you use `anaconda` to install this code in an isolated environment by creating a condo environment and running `conda install --file requirements.txt`. We welcome any suggestions for improvements to our DeeperSpeed library, but please open issues on [its repo](www.GitHub.com/eleutherai/DeeperSpeed) rather than this one. 
 
 EleutherAI members who wish to run models on our Kubernetes cluster will additionally need to install Kubernetes and obtain an authorization from Stella Biderman or Sid Black. Please reach out on discord in the #gpt-neo channel. You will also need to create a [WandB](https://wandb.ai/home) account and share your username so that you can be added to the organization WandB account.
 
@@ -32,7 +32,7 @@ $ ./deepy --hostfile=host_path train_script.py deepspeed_config.json
 ### Running the code locally
 This code is set up to run automatically on as many GPUs as are avaliable. If you have multiple GPUs and only wish to make use of some of them, you can find information about how to specify which GPU(s) to use in training [here](https://www.deepspeed.ai/getting-started/#resource-configuration-multi-node).
 
-The most common pitfall for local training is pipeline parallelism. Pipeline parallelism paritions the model into segments (called `PipelineModule`s in our code) that can decrese latency by running partially asynchronously.
+The most common pitfall for local training is pipeline parallelism. Pipeline parallelism partitions the model into segments (called `PipelineModule`s in our code) that can decrese latency by running partially asynchronously.
 
 ### Running the code on a server
 
