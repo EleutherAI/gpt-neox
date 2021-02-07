@@ -37,7 +37,8 @@ fi
 
 # Generate ssh key pair and post start script
 echo Generate SSH key pair
-ssh-keygen -t rsa -f $WD/id_rsa -N "" -y
+rm $WD/id_rsa*
+ssh-keygen -t rsa -f $WD/id_rsa -N "" 
 
 post_start_script="
 cp /secrets/id_rsa.pub /root/.ssh/authorized_keys;
