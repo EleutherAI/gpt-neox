@@ -56,11 +56,7 @@ if __name__ == '__main__':
     initialize_megatron(extra_args_provider=get_tasks_args)
 
     args = get_args()
-    if args.task == 'RACE':
-        from race.finetune import main
-    elif args.task in ['MNLI', 'QQP']:
-        from glue.finetune import main
-    elif args.task in ['LAMBADA', 'WIKITEXT103']:
+    if args.task in ['LAMBADA', 'WIKITEXT103']:
         from zeroshot_gpt2.evaluate import main
     else:
         raise NotImplementedError('Task {} is not implemented.'.format(
