@@ -17,7 +17,7 @@ The core anatomy of a call to the DeepSpeed engine is the following
 ```bash
 $ deepspeed --hostfile=host_path train_script.py user_args\
 	--deepspeed \
-	--deepspeed_config deepspeed_config.json
+	--deepspeed_config base_model.json.json
 ```
 where
 - `host_path` (optional) is the path to the host file containing the addresses of the machines you wish to train on.
@@ -26,7 +26,7 @@ where
 
 In this repository, we provide a lightweight wrapper for the above function call for two main reasons. Firstly, we find the way the arguments are ordered and used somewhat counterintuitive, and secondly our wrapper automatically uploads logging data to WandB. Everything in this repository will work with both the native `DeepSpeed` command and with our `deepy` command. The core anatomy of a `deepy` call is
 ```bash
-$ ./deepy --hostfile=host_path train_script.py deepspeed_config.json
+$ ./deepy --hostfile=host_path train_script.py base_model.json
 ```
 
 ### Running the code locally
