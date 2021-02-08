@@ -1,4 +1,4 @@
-from tools.corpora import repare_dataset_and_tokenizer
+from tools.corpora import prepare_dataset
 
 if __name__ == "__main__":
-    repare_dataset_and_tokenizer('enron')
+    prepare_dataset('enron')
