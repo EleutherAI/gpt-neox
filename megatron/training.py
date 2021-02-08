@@ -439,7 +439,8 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
             1, args.log_interval - total_loss_dict[skipped_iters_key])
         for key in total_loss_dict:
             if key not in [skipped_iters_key, got_nan_key]:
-                avg = total_loss_dict[key].item() / float(num_iterations)
+                v = total_loss_dict[key].item() if hasattr(total_loss_dict[key], 'item') else total_loss_dict[key]
+                avg = v / float(num_iterations)
                 log_string += ' {}: {:.6E} |'.format(key, avg)
                 total_loss_dict[key] = 0.0
         if args.fp16:
