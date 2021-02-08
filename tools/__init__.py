@@ -1,2 +1,2 @@
 
-from .corpa import *
+from corpa import *
