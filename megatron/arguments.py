@@ -262,6 +262,8 @@ def _add_training_args(parser):
     group.add_argument('--geglu', action='store_true',
                         help='Enable geglu activation function (WARNING: will increase memory usage, '
                              'adjust embd dims accordingly)')
+    group.add_argument('--no-weight-tying', action='store_true',
+                        help='Disables weight tying between embedding weights and final Linear layer')                        
     group.add_argument('--bias-dropout-fusion', action='store_true',
                        help='Enable bias and dropout fusion.')
 
