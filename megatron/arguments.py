@@ -259,6 +259,9 @@ def _add_training_args(parser):
                        'general masking and softmax.')
     group.add_argument('--bias-gelu-fusion', action='store_true',
                         help='Enable bias and gelu fusion.')
+    group.add_argument('--geglu', action='store_true',
+                        help='Enable geglu activation function (WARNING: will increase memory usage, '
+                             'adjust embd dims accordingly)')
     group.add_argument('--bias-dropout-fusion', action='store_true',
                        help='Enable bias and dropout fusion.')
 
