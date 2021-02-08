@@ -106,19 +106,8 @@ def merge_partitions(merged, partitions, partition_dim, stride):
 
 def get_model(model_type):
 
-    if model_type == 'BERT':
-        from pretrain_bert import model_provider
-    elif model_type == 'GPT2':
+    if model_type == 'GPT2':
         from pretrain_gpt2 import model_provider
-    elif model_type == 'RACE':
-        from tasks.race.finetune import model_provider
-    elif model_type == ['MNLI', 'QQP']:
-        num_classes = 2
-        if model_type == 'MNLI':
-            num_classes = 3
-        from megatron.model.classification import Classification
-        def model_provider():
-            return Classification(num_classes=num_classes, num_tokentypes=2)
     else:
         raise Exception('unrecognized model type: {}'.format(model_type))
 
