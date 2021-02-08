@@ -58,6 +58,29 @@ torch._C._jit_override_can_fuse_on_gpu(True)
 """
 
 
+class GEGLU(MegatronModule):
+
+    def __init__(self):
+        super(GEGLU, self).__init__()
+        args = get_args()
+        self.bias_gelu_fusion = args.bias_gelu_fusion
+        self.activation_func = F.gelu
+        if args.openai_gelu:
+            self.activation_func = openai_gelu
+        elif args.onnx_safe:
+            self.activation_func = erf_gelu
+
+    def forward(self, x, bias):
+        x, gate = x.chunk(2, dim=-1)
+        if self.bias_gelu_fusion:
+            intermediate_parallel = \
+                bias_gelu_impl(gate, bias)
+        else:
+            intermediate_parallel = \
+                self.activation_func(gate + bias)
+        return intermediate_parallel * x
+
+
 class ParallelMLP(MegatronModule):
     """MLP.
 
@@ -71,24 +94,31 @@ class ParallelMLP(MegatronModule):
         super(ParallelMLP, self).__init__()
         args = get_args()
 
+        if args.geglu:
+            self.activation_type = "geglu"
+            mult = 8
+            self.activation_func = GEGLU()
+        else:
+            self.activation_type = "gelu"
+            mult = 4
+            self.bias_gelu_fusion = args.bias_gelu_fusion
+            self.activation_func = F.gelu
+            if args.openai_gelu:
+                self.activation_func = openai_gelu
+            elif args.onnx_safe:
+                self.activation_func = erf_gelu
+
         # Project to 4h.
         self.dense_h_to_4h = mpu.ColumnParallelLinear(
             args.hidden_size,
-            4 * args.hidden_size,
+            mult * args.hidden_size,
             gather_output=False,
             init_method=init_method,
             skip_bias_add=True)
 
-        self.bias_gelu_fusion = args.bias_gelu_fusion
-        self.activation_func = F.gelu
-        if args.openai_gelu:
-            self.activation_func = openai_gelu
-        elif args.onnx_safe:
-            self.activation_func = erf_gelu
-
         # Project back to h.
         self.dense_4h_to_h = mpu.RowParallelLinear(
-            4 * args.hidden_size,
+            mult * args.hidden_size,
             args.hidden_size,
             input_is_parallel=True,
             init_method=output_layer_init_method,
@@ -99,12 +129,18 @@ class ParallelMLP(MegatronModule):
         # [s, b, 4hp]
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
 
-        if self.bias_gelu_fusion:
-            intermediate_parallel = \
-                bias_gelu_impl(intermediate_parallel, bias_parallel)
-        else:
+        if self.activation_type == "gelu":
+            if self.bias_gelu_fusion:
+                intermediate_parallel = \
+                    bias_gelu_impl(intermediate_parallel, bias_parallel)
+            else:
+                intermediate_parallel = \
+                    self.activation_func(intermediate_parallel + bias_parallel)
+        elif self.activation_type == "geglu":
             intermediate_parallel = \
                 self.activation_func(intermediate_parallel + bias_parallel)
+        else:
+            raise ValueError(f'Activation type {self.activation_type} not recognized')
 
         # [s, b, h]
         output, output_bias = self.dense_4h_to_h(intermediate_parallel)
