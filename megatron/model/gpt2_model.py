@@ -53,7 +53,6 @@ def CrossEntropy(output, labels):
     return loss
 
 
-
 class GPT2Model(MegatronModule):
     """GPT-2 Language model."""
 
@@ -109,14 +108,13 @@ class GPT2Model(MegatronModule):
                 loss = mpu.vocab_parallel_cross_entropy(output.float(), labels)
             return loss
 
-
     def state_dict_for_save_checkpoint(self, destination=None, prefix='',
                                        keep_vars=False):
 
         state_dict_ = {}
         state_dict_[self._language_model_key] \
             = self.language_model.state_dict_for_save_checkpoint(
-                destination, prefix, keep_vars)
+            destination, prefix, keep_vars)
         return state_dict_
 
     def load_state_dict(self, state_dict, strict=True):
@@ -127,14 +125,14 @@ class GPT2Model(MegatronModule):
         self.language_model.load_state_dict(state_dict, strict=strict)
 
 
-class GPT2ModelPipe(PipelineModule,MegatronModule):
+class GPT2ModelPipe(PipelineModule, MegatronModule):
     """GPT2Model adapted for pipeline parallelism.
 
     The largest change is flattening the GPTModel class so we can express it as a
     sequence of layers including embedding, transformer layers, and output.
     """
 
-    def __init__(self, num_tokentypes=0, parallel_output=True, add_pooler=False, topology=None):
+    def __init__(self, num_tokentypes=0, parallel_output=True, topology=None):
         args = get_args()
 
         self.parallel_output = parallel_output
@@ -142,10 +140,7 @@ class GPT2ModelPipe(PipelineModule,MegatronModule):
         self.num_tokentypes = num_tokentypes
         self.init_method = init_method_normal(args.init_method_std)
         self.output_layer_init_method = scaled_init_method_normal(args.init_method_std, args.num_layers)
-        self.add_pooler = add_pooler
-        if self.add_pooler:
-            raise NotImplementedError('Pipeline pooler not yet implemented. Forward needs pooling_sequence_index')
-        
+
         # Use torch gelu unless otherwise forced.
         gelu = F.gelu
         if args.openai_gelu:
@@ -170,7 +165,7 @@ class GPT2ModelPipe(PipelineModule,MegatronModule):
         # outputs are now (hidden_states, attention_mask)
 
         # data format change to avoid explicit tranposes : [b s h] --> [s b h]
-        self.specs.append(lambda x: (x[0].transpose(0,1).contiguous(), x[1]))
+        self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), x[1]))
 
         # Transformer layers
         for x in range(args.num_layers):
@@ -181,8 +176,7 @@ class GPT2ModelPipe(PipelineModule,MegatronModule):
                           output_layer_init_method=self.output_layer_init_method,
                           layer_number=x))
         # Undo data format change and drop mask
-        self.specs.append(lambda x: x[0].transpose(0,1).contiguous())
-
+        self.specs.append(lambda x: x[0].transpose(0, 1).contiguous())
 
         # Final layernorm after transformer layers
         self.specs.append(

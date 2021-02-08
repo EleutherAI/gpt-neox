@@ -25,6 +25,7 @@ from megatron.model.transformer import ParallelTransformer
 from megatron.model.utils import get_linear_layer
 from megatron.model.utils import init_method_normal, scaled_init_method_normal
 
+
 def parallel_lm_logits(input_, word_embeddings_weight, parallel_output,
                        bias=None):
     """LM logits using word embedding weights."""
@@ -187,11 +188,11 @@ class Embedding(MegatronModule):
             = self.word_embeddings.state_dict(destination, prefix, keep_vars)
         state_dict_[self._position_embeddings_key] \
             = self.position_embeddings.state_dict(
-                destination, prefix, keep_vars)
+            destination, prefix, keep_vars)
         if self.num_tokentypes > 0:
             state_dict_[self._tokentype_embeddings_key] \
                 = self.tokentype_embeddings.state_dict(
-                    destination, prefix, keep_vars)
+                destination, prefix, keep_vars)
 
         return state_dict_
 
@@ -240,13 +241,15 @@ class Embedding(MegatronModule):
                 print('***WARNING*** expected tokentype embeddings in the '
                       'checkpoint but could not find it', flush=True)
 
+
 class EmbeddingPipe(Embedding):
     """Extends Embedding to forward attention_mask through the pipeline."""
+
     @property
     def word_embeddings_weight(self):
         """Easy accessory for the pipeline engine to tie embeddings across stages."""
         return self.word_embeddings.weight
-    
+
     def forward(self, args):
         input_ids = args[0]
         position_ids = args[1]
@@ -255,9 +258,10 @@ class EmbeddingPipe(Embedding):
             tokentype_ids = args[3]
         else:
             tokentype_ids = None
-        
+
         embeddings = super().forward(input_ids, position_ids, tokentype_ids=tokentype_ids)
         return embeddings, attention_mask
+
 
 class TransformerLanguageModel(MegatronModule):
     """Transformer language model.
@@ -303,7 +307,7 @@ class TransformerLanguageModel(MegatronModule):
 
         # Transformer
         self.transformer = ParallelTransformer(
-            attention_mask_func, self.init_method, 
+            attention_mask_func, self.init_method,
             output_layer_init_method)
         self._transformer_key = 'transformer'
 
@@ -340,14 +344,14 @@ class TransformerLanguageModel(MegatronModule):
         state_dict_ = {}
         state_dict_[self._embedding_key] \
             = self.embedding.state_dict_for_save_checkpoint(
-                destination, prefix, keep_vars)
+            destination, prefix, keep_vars)
         state_dict_[self._transformer_key] \
             = self.transformer.state_dict_for_save_checkpoint(
-                destination, prefix, keep_vars)
+            destination, prefix, keep_vars)
         if self.add_pooler:
             state_dict_[self._pooler_key] \
                 = self.pooler.state_dict_for_save_checkpoint(
-                    destination, prefix, keep_vars)
+                destination, prefix, keep_vars)
 
         return state_dict_
 
