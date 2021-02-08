@@ -1,2 +1,2 @@
 
-from .distributed import *
+from .corpa import *
