@@ -72,12 +72,14 @@ class GEGLU(MegatronModule):
 
     def forward(self, x, bias):
         x, gate = x.chunk(2, dim=-1)
+        bias_1, bias_2 = bias.chunk(2, dim=-1)
+        x = x + bias_1
         if self.bias_gelu_fusion:
             intermediate_parallel = \
-                bias_gelu_impl(gate, bias)
+                bias_gelu_impl(gate, bias_2)
         else:
             intermediate_parallel = \
-                self.activation_func(gate + bias)
+                self.activation_func(gate + bias_2)
         return intermediate_parallel * x
 
 
@@ -118,7 +120,7 @@ class ParallelMLP(MegatronModule):
 
         # Project back to h.
         self.dense_4h_to_h = mpu.RowParallelLinear(
-            mult * args.hidden_size,
+            4 * args.hidden_size,
             args.hidden_size,
             input_is_parallel=True,
             init_method=output_layer_init_method,
@@ -138,7 +140,7 @@ class ParallelMLP(MegatronModule):
                     self.activation_func(intermediate_parallel + bias_parallel)
         elif self.activation_type == "geglu":
             intermediate_parallel = \
-                self.activation_func(intermediate_parallel + bias_parallel)
+                self.activation_func(intermediate_parallel, bias_parallel)
         else:
             raise ValueError(f'Activation type {self.activation_type} not recognized')
 
