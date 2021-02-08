@@ -103,6 +103,19 @@ class Pooler(MegatronModule):
         return pooled
 
 
+class SinusoidalPositionalEmbedding(MegatronModule):
+    def __init__(self, dim):
+        super().__init__()
+        inv_freq = 1. / (10000 ** (torch.arange(0, dim, 2).float() / dim))
+        self.register_buffer('inv_freq', inv_freq)
+
+    def forward(self, x):
+        t = torch.arange(x.shape[1], device=x.device).type_as(self.inv_freq)
+        sinusoid_inp = torch.einsum("i,j->ij", t, self.inv_freq)
+        emb = torch.cat((sinusoid_inp.sin(), sinusoid_inp.cos()), dim=-1)
+        return emb[None, :, :]
+
+
 class Embedding(MegatronModule):
     """Language model embeddings.
 
@@ -123,7 +136,8 @@ class Embedding(MegatronModule):
                  max_sequence_length,
                  embedding_dropout_prob,
                  init_method,
-                 num_tokentypes=0):
+                 num_tokentypes=0,
+                 sinusoidal_positional_embedding=False):
         super(Embedding, self).__init__()
 
         self.hidden_size = hidden_size
@@ -136,11 +150,15 @@ class Embedding(MegatronModule):
         self._word_embeddings_key = 'word_embeddings'
 
         # Position embedding (serial).
-        self.position_embeddings = torch.nn.Embedding(
-            max_sequence_length, self.hidden_size)
-        self._position_embeddings_key = 'position_embeddings'
-        # Initialize the position embeddings.
-        self.init_method(self.position_embeddings.weight)
+        self.sinusoidal_positional_embedding = sinusoidal_positional_embedding
+        if not self.sinusoidal_positional_embedding:
+            self.position_embeddings = torch.nn.Embedding(
+                max_sequence_length, self.hidden_size)
+            self._position_embeddings_key = 'position_embeddings'
+            # Initialize the position embeddings.
+            self.init_method(self.position_embeddings.weight)
+        else:
+            self.position_embeddings = SinusoidalPositionalEmbedding(self.hidden_size)
 
         # Token type embedding.
         # Add this as an optional field that can be added through
@@ -197,9 +215,10 @@ class Embedding(MegatronModule):
         state_dict_ = {}
         state_dict_[self._word_embeddings_key] \
             = self.word_embeddings.state_dict(destination, prefix, keep_vars)
-        state_dict_[self._position_embeddings_key] \
-            = self.position_embeddings.state_dict(
-            destination, prefix, keep_vars)
+        if not self.sinusoidal_positional_embedding:
+            state_dict_[self._position_embeddings_key] \
+                = self.position_embeddings.state_dict(
+                destination, prefix, keep_vars)
         if self.num_tokentypes > 0:
             state_dict_[self._tokentype_embeddings_key] \
                 = self.tokentype_embeddings.state_dict(
@@ -223,16 +242,17 @@ class Embedding(MegatronModule):
         self.word_embeddings.load_state_dict(state_dict_, strict=strict)
 
         # Position embedding.
-        if self._position_embeddings_key in state_dict:
-            state_dict_ = state_dict[self._position_embeddings_key]
-        else:
-            # for backward compatibility.
-            state_dict_ = {}
-            for key in state_dict.keys():
-                if 'position_embeddings' in key:
-                    state_dict_[key.split('position_embeddings.')[1]] \
-                        = state_dict[key]
-        self.position_embeddings.load_state_dict(state_dict_, strict=strict)
+        if not self.sinusoidal_positional_embedding:
+            if self._position_embeddings_key in state_dict:
+                state_dict_ = state_dict[self._position_embeddings_key]
+            else:
+                # for backward compatibility.
+                state_dict_ = {}
+                for key in state_dict.keys():
+                    if 'position_embeddings' in key:
+                        state_dict_[key.split('position_embeddings.')[1]] \
+                            = state_dict[key]
+            self.position_embeddings.load_state_dict(state_dict_, strict=strict)
 
         # Tokentype embedding.
         if self.num_tokentypes > 0:
@@ -313,7 +333,8 @@ class TransformerLanguageModel(MegatronModule):
                                    args.max_position_embeddings,
                                    args.hidden_dropout,
                                    self.init_method,
-                                   self.num_tokentypes)
+                                   self.num_tokentypes,
+                                   args.sinusoidal_pos_emb)
         self._embedding_key = 'embedding'
 
         # Transformer
