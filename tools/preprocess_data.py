@@ -132,10 +132,6 @@ def get_args():
     args = parser.parse_args()
     args.keep_empty = False
 
-    if args.tokenizer_type.lower().startswith('bert'):
-        if not args.split_sentences:
-            print("Bert tokenizer detected, are you sure you don't want to split sentences?")
-
     # some default/dummy values for the tokenizer
     args.rank = 0
     args.make_vocab_size_divisible_by = 128
@@ -150,7 +146,6 @@ def main():
 
     print("Opening", args.input)
     fin = open(args.input, 'r', encoding='utf-8')
-
     if nltk_available and args.split_sentences:
         nltk.download("punkt", quiet=True)
 
@@ -158,7 +153,6 @@ def main():
     tokenizer = build_tokenizer(args)
     pool = multiprocessing.Pool(args.workers, initializer=encoder.initializer)
     encoded_docs = pool.imap(encoder.encode, fin, 25)
-    # encoded_docs = map(encoder.encode, fin)
 
     level = "document"
     if args.split_sentences:
