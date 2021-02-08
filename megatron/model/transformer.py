@@ -70,10 +70,13 @@ class GEGLU(MegatronModule):
         elif args.onnx_safe:
             self.activation_func = erf_gelu
 
-    def forward(self, x, bias):
+    def forward(self, x, bias=None):
         x, gate = x.chunk(2, dim=-1)
-        bias_1, bias_2 = bias.chunk(2, dim=-1)
-        x = x + bias_1
+        if bias is not None:
+            bias_1, bias_2 = bias.chunk(2, dim=-1)
+            x = x + bias_1
+        else:
+            bias_1 = bias_2 = 0
         if self.bias_gelu_fusion:
             intermediate_parallel = \
                 bias_gelu_impl(gate, bias_2)
@@ -140,7 +143,7 @@ class ParallelMLP(MegatronModule):
                     self.activation_func(intermediate_parallel + bias_parallel)
         elif self.activation_type == "geglu":
             intermediate_parallel = \
-                self.activation_func(intermediate_parallel, bias_parallel)
+                self.activation_func(intermediate_parallel)
         else:
             raise ValueError(f'Activation type {self.activation_type} not recognized')
 
