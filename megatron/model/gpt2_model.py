@@ -168,6 +168,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                                             args.hidden_dropout,
                                             self.init_method,
                                             self.num_tokentypes,
+                                            args.sinusoidal_pos_emb,
                                             tied_weight_attr='word_embeddings_weight'))
         else:
             self.specs.append(LayerSpec(EmbeddingPipe,
@@ -176,7 +177,8 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                                 args.max_position_embeddings,
                                 args.hidden_dropout,
                                 self.init_method,
-                                self.num_tokentypes))
+                                self.num_tokentypes,
+                                args.sinusoidal_pos_emb))
 
         # outputs are now (hidden_states, attention_mask)
 
@@ -220,6 +222,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                             args.hidden_dropout,
                             self.init_method,
                             self.num_tokentypes,
+                            args.sinusoidal_pos_emb,
                             forward_fn=_logits_helper,
                             tied_weight_attr='word_embeddings_weight')
             )
