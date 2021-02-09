@@ -4,6 +4,8 @@
 # $ deploy_k8.sh [branch=main] [n_nodes=4] [name_suffix=$USER] [image]
 # You need to install yq
 
+set -x
+
 # Check yq
 yq &> /dev/null || { echo 'You need to install `yq >= v4`. `brew install yq` or `pip install yq`' ; exit 1; }
 
@@ -21,7 +23,7 @@ N_NODES=${2:-4}
 SUFFIX=${3:-$(whoami)}
 IMAGE=${4:-$DEFAULT_IMAGE}
 
-DEPLOYMENT_NM='neox-'"$SUFFIX"
+DEPLOYMENT_NM='megatron-'"$SUFFIX"
 WD=`dirname "$BASH_SOURCE"`
 
 echo BRANCH $BRANCH. N-NODES $N_NODES. DEPLOYMENT NAME $DEPLOYMENT_NM. DOCKER IMAGE $IMAGE.
@@ -35,7 +37,8 @@ fi
 
 # Generate ssh key pair and post start script
 echo Generate SSH key pair
-ssh-keygen -t rsa -f $WD/id_rsa -N ""
+rm $WD/id_rsa*
+ssh-keygen -t rsa -f $WD/id_rsa -N "" 
 
 post_start_script="
 cp /secrets/id_rsa.pub /root/.ssh/authorized_keys;
@@ -44,7 +47,9 @@ chmod 700 /root/.ssh;
 chown -R root /root/.ssh;
 rm -r /app/*;
 cd /app;
-git clone --single-branch --branch $BRANCH https://github.com/EleutherAI/megatron-3d.git .;
+git clone https://github.com/EleutherAI/megatron-3d.git .;
+cd megatron-3d;
+git checkout $BRANCH;
 "
 if [ -n "$WANDB_APIKEY" ]
 then
@@ -61,7 +66,8 @@ kubectl create secret generic $SECRET_NM \
   --from-file=post_start_script.sh=$WD/post_start_script.sh
 
 # Template k8 configuration
-yq e '.metadata.name = "'"$DEPLOYMENT_NM"\" $WD/k8s_spec.yml |
+cat $WD/k8s_spec.yml |
+yq e '.metadata.name = "'"$DEPLOYMENT_NM"\" - |
 yq e '.spec.replicas = '"$N_NODES" - |
 yq e '.spec.template.spec.volumes[1].secret.secretName = "'"$SECRET_NM"\" - |
 yq e '.spec.template.spec.containers[0].image = "'"$IMAGE"\" - > $WD/k8s_spec_temp.yml
