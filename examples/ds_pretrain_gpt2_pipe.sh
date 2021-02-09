@@ -22,7 +22,7 @@ script_dir=$(dirname $script_path)
 config_json="$script_dir/ds_config.json"
 
 # Megatron Model Parallelism
-mp_size=2
+mp_size=1
 # DeepSpeed Pipeline parallelism
 pp_size=2
 
