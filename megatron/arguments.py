@@ -268,7 +268,12 @@ def _add_training_args(parser):
                         help='Uses Sinusoidal Positional embedding applied to the inputs instead of learned')                                       
     group.add_argument('--bias-dropout-fusion', action='store_true',
                        help='Enable bias and dropout fusion.')
-
+    group.add_argument('--sparsity', type=str, default='none',
+                    choices=['none', 'all', 'interspersed'], 
+                    help='sparse attention layer configuration. \
+                        none = all regular attn, \
+                        all = all sparse attn, \
+                        interspersed = sparse on odd layers, dense on even')
     group.add_argument('--cpu-optimizer', action='store_true',
                        help='Run optimizer on CPU')
     group.add_argument('--cpu_torch_adam', action='store_true',

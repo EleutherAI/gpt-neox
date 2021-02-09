@@ -184,15 +184,21 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
 
         # data format change to avoid explicit tranposes : [b s h] --> [s b h]
         self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), x[1]))
-
         # Transformer layers
         for x in range(args.num_layers):
+            if args.sparsity == 'none':
+                sparse = False
+            elif args.sparsity == 'all':
+                sparse = True
+            elif args.sparsity == 'interspersed':
+                sparse = not x % 2 == 0
             self.specs.append(
                 LayerSpec(ParallelTransformerLayerPipe,
                           attention_mask_func=gpt2_attention_mask_func,
                           init_method=self.init_method,
                           output_layer_init_method=self.output_layer_init_method,
-                          layer_number=x))
+                          layer_number=x,
+                          sparse=sparse))
         # Undo data format change and drop mask
         self.specs.append(lambda x: x[0].transpose(0, 1).contiguous())
 
