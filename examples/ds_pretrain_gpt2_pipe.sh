@@ -12,8 +12,8 @@ export DLWS_NUM_WORKER=${NNODES}
 export DLWS_NUM_GPU_PER_WORKER=${GPUS_PER_NODE}
 
 DATA_PATH=data/enron/enron_text_document # data/webtext/webtext_text_document
-VOCAB_PATH=gpt2-vocab.json # data/gpt2-vocab.json
-MERGE_PATH=gpt2-merges.txt # data/gpt2-merges.txt
+VOCAB_PATH=data/gpt2-vocab.json # data/gpt2-vocab.json
+MERGE_PATH=data/gpt2-merges.txt # data/gpt2-merges.txt
 CHECKPOINT_PATH=checkpoints/gpt2_345m_ds
 
 script_path=$(realpath $0)
