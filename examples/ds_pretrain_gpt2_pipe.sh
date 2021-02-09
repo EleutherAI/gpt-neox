@@ -11,9 +11,9 @@ NODE_RANK=1
 export DLWS_NUM_WORKER=${NNODES}
 export DLWS_NUM_GPU_PER_WORKER=${GPUS_PER_NODE}
 
-DATA_PATH=my-gpt2_text_document # data/webtext/webtext_text_document
-VOCAB_PATH=gpt2-vocab.json # data/gpt2-vocab.json
-MERGE_PATH=gpt2-merges.txt # data/gpt2-merges.txt
+DATA_PATH=data/enron/enron_text_document # data/webtext/webtext_text_document
+VOCAB_PATH=data/gpt2-vocab.json # data/gpt2-vocab.json
+MERGE_PATH=data/gpt2-merges.txt # data/gpt2-merges.txt
 CHECKPOINT_PATH=checkpoints/gpt2_345m_ds
 
 script_path=$(realpath $0)
@@ -22,7 +22,7 @@ script_dir=$(dirname $script_path)
 config_json="$script_dir/ds_config.json"
 
 # Megatron Model Parallelism
-mp_size=2
+mp_size=1
 # DeepSpeed Pipeline parallelism
 pp_size=2
 
