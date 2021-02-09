@@ -28,7 +28,7 @@ pp_size=2
 
 NLAYERS=24
 NHIDDEN=1024
-BATCHSIZE=224
+BATCHSIZE=4
 LOGDIR="tensorboard_data/${NLAYERS}l_${NHIDDEN}h_${NNODES}n_${GPUS_PER_NODE}g_${pp_size}pp_${mp_size}mp_${BATCHSIZE}b_ds4"
 
 GAS=16
