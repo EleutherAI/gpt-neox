@@ -9,3 +9,5 @@ rm -r apex
 python prepare_data.py
 mv gpt2-vocav.json data/gpt2-vocab.json
 mv gpt2-merges.txt data/gpt2-merges.txt
+
+git checkout sparse_attn
