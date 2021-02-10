@@ -172,7 +172,6 @@ class ParallelSelfAttention(MegatronModule):
         if self.apply_query_key_layer_scaling:
             self.attention_softmax_in_fp32 = True
         self.layer_number = max(1, layer_number)
-
         # Per attention head and per partition values.
         world_size = mpu.get_model_parallel_world_size()
         self.hidden_size_per_partition = mpu.divide(args.hidden_size,
@@ -195,13 +194,6 @@ class ParallelSelfAttention(MegatronModule):
             coeff = self.layer_number
             self.norm_factor *= coeff
 
-        self.scale_mask_softmax = FusedScaleMaskSoftmax(
-            self.fp16,
-            args.scaled_upper_triang_masked_softmax_fusion,
-            args.scaled_masked_softmax_fusion,
-            self.attention_mask_func,
-            self.attention_softmax_in_fp32,
-            coeff)
         self.sparse = sparse
         if self.sparse:
             assert args.model_parallel_size <= 1, "TODO: sparsity doesn't yet work with mp size > 1"
@@ -215,10 +207,19 @@ class ParallelSelfAttention(MegatronModule):
                 sparsity_config=sparsity_config,
                 max_seq_length=args.seq_length,
                 attn_mask_mode='add')
-        # Dropout. Note that for a single iteration, this layer will generate
-        # different outputs on different number of parallel partitions but
-        # on average it should not be partition dependent.
-        self.attention_dropout = torch.nn.Dropout(args.attention_dropout)
+        else:
+            self.scale_mask_softmax = FusedScaleMaskSoftmax(
+                self.fp16,
+                args.scaled_upper_triang_masked_softmax_fusion,
+                args.scaled_masked_softmax_fusion,
+                self.attention_mask_func,
+                self.attention_softmax_in_fp32,
+                coeff)
+
+            # Dropout. Note that for a single iteration, this layer will generate
+            # different outputs on different number of parallel partitions but
+            # on average it should not be partition dependent.
+            self.attention_dropout = torch.nn.Dropout(args.attention_dropout)
 
         # Output.
         self.dense = mpu.RowParallelLinear(
