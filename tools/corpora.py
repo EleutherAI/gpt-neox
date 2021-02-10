@@ -123,7 +123,7 @@ DATA_DOWNLOADERS = {
     "enron": Enron
 }
 
-def prepare_dataset_and_tokenizer(dataset_name):
+def prepare_dataset(dataset_name):
     maybe_download_gpt2_tokenizer_data()
     DownloaderClass = DATA_DOWNLOADERS.get(dataset_name, None)
     if DownloaderClass is None:
