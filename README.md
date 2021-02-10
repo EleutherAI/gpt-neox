@@ -4,15 +4,9 @@ Using our GPT-2 model we achieve a perplexity of 10.8 on the WikiText-103 datase
 
 Our codebase is capable of efficiently training very large (several billion parameter) language models with both model and data parallelism. To demonstrate how the code scales with multiple GPUs we consider the following GPT-2 model sizes. All models use a vocabulary size of 51,200 and a sequence length of 1024.
 
-![Cases](images/cases.png)
-
 The table below details the weak scaling from 1 to 8 GPUs of our model parallelism code in both a DGX-2 and a DGX-A100. Notice that we double the batch size on the DGX-A100 but the iteration time decreases compared to the DGX-2 resulting in a **2.1x** speedup for the end-to-end application.
 
-![Model Parallel Scaling](images/scaling-mp.png)
-
 The following table details how Megatron scales using data parallelism in conjuction with model parallelism in a cluster of DGX-A100s. All of these cases use 128-way data parallelism and the scaling numbers are relative to a single A100 (Case 1B with a 1076ms iteration time).
-
-![Data Parallel Scaling](images/scaling-dp.png)
 
 <a id="contents"></a>
 # Contents
