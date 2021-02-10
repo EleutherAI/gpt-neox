@@ -2,39 +2,40 @@
 
 GPUS_PER_NODE=8
 # Change for multinode config
-NCCL_SHM_DISABLE=1
 MASTER_ADDR=127.0.0.1
 MASTER_PORT=2000
-NNODES=2
+NNODES=1
 NODE_RANK=1
 
 export DLWS_NUM_WORKER=${NNODES}
 export DLWS_NUM_GPU_PER_WORKER=${GPUS_PER_NODE}
 
-DATA_PATH=my-gpt2_text_document # data/webtext/webtext_text_document
-VOCAB_PATH=gpt2-vocab.json # data/gpt2-vocab.json
-MERGE_PATH=gpt2-merges.txt # data/gpt2-merges.txt
-CHECKPOINT_PATH=checkpoints/gpt2_345m_ds
+# DATA OPTIONS: 
+
+DATA_PATH=data/enron/enron_text_document # data/webtext/webtext_text_document
+VOCAB_PATH=data/gpt2-vocab.json
+MERGE_PATH=data/gpt2-merges.txt
+CHECKPOINT_PATH=checkpoints/gpt2_XL_ds
 
 script_path=$(realpath $0)
 script_dir=$(dirname $script_path)
-#config_json="$script_dir/ds_zero_stage_2_config.json"
-config_json="$script_dir/ds_config.json"
+#config_json="configs/deepspeed_configs/ds_zero_stage_2_config.json"
+config_json="configs/deepspeed_configs/ds_zero_stage_1_config.json"
+#config_json="configs/deepspeed_configs/ds_config.json"
 
+# Training options: 
 # Megatron Model Parallelism
-mp_size=2
+mp_size=1
 # DeepSpeed Pipeline parallelism
 pp_size=2
-
-NLAYERS=24
-NHIDDEN=1024
-BATCHSIZE=4
+# TOTAL BATCH SIZE = BATCHSIZE(pergpu) * GAS * N_GPUS
+# ensure batch size details are consistent between here and the deepspeed config
+BATCHSIZE=4 
+GAS=16
 LOGDIR="tensorboard_data/${NLAYERS}l_${NHIDDEN}h_${NNODES}n_${GPUS_PER_NODE}g_${pp_size}pp_${mp_size}mp_${BATCHSIZE}b_ds4"
 
-GAS=16
-
 #ZeRO Configs
-stage=0
+stage=1
 reduce_scatter=true
 contigious_gradients=true
 rbs=50000000
@@ -43,24 +44,35 @@ agbs=5000000000
 #Actication Checkpointing and Contigious Memory
 chkp_layers=1
 PA=true
-PA_CPU=false
+PA_CPU=true
 CC=true
 SYNCHRONIZE=true
 PROFILE=false
 
+# GPT options:
+NLAYERS=24
+NHIDDEN=2048
+NHEADS=16
+SEQLEN=1024
+LR="2.0e-4"
+MINLR="2.0e-5"
+WEIGHTDECAY=0
+DROPOUT=0
+SPARSITY='interspersed'
+TRAIN_ITERS=320000
 
 gpt_options=" \
         --model-parallel-size ${mp_size} \
         --pipe-parallel-size ${pp_size} \
         --num-layers $NLAYERS \
         --hidden-size $NHIDDEN \
-        --num-attention-heads 16 \
-        --seq-length 1024 \
+        --num-attention-heads $NHEADS \
+        --seq-length $SEQLEN \
         --max-position-embeddings 1024 \
         --batch-size $BATCHSIZE \
         --gas $GAS \
-        --train-iters 320000 \
-        --lr-decay-iters 320000 \
+        --train-iters $TRAIN_ITERS \
+        --lr-decay-iters $TRAIN_ITERS \
         --save $CHECKPOINT_PATH \
         --load $CHECKPOINT_PATH \
         --data-path $DATA_PATH \
@@ -69,10 +81,12 @@ gpt_options=" \
         --data-impl mmap \
         --split 949,50,1 \
         --distributed-backend nccl \
-        --lr 1.5e-4 \
+        --lr $LR \
         --lr-decay-style cosine \
-        --min-lr 1.0e-5 \
-        --weight-decay 1e-2 \
+        --min-lr $MINLR \
+        --weight-decay $WEIGHTDECAY \
+        --attention-dropout $DROPOUT \
+        --hidden-dropout $DROPOUT \
         --clip-grad 1.0 \
         --warmup 0.01 \
         --checkpoint-activations \
@@ -81,7 +95,8 @@ gpt_options=" \
         --eval-interval 100 \
         --eval-iters 10 \
         --fp16 \
-        --tensorboard-dir ${LOGDIR}
+        --tensorboard-dir ${LOGDIR} \
+        --sparsity $SPARSITY
 "
   
  deepspeed_options=" \
