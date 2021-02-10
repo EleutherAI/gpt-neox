@@ -199,7 +199,7 @@ def _add_regularization_args(parser):
     group = parser.add_argument_group(title='regularization')
 
     group.add_argument('--attention-dropout', type=float, default=0.1,
-                       help='Post attention dropout ptobability.')
+                       help='Post attention dropout probability.')
     group.add_argument('--hidden-dropout', type=float, default=0.1,
                        help='Dropout probability for hidden state transformer.')
     group.add_argument('--weight-decay', type=float, default=0.01,
