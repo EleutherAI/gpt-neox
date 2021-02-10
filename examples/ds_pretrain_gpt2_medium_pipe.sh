@@ -12,7 +12,7 @@ export DLWS_NUM_GPU_PER_WORKER=${GPUS_PER_NODE}
 
 # DATA OPTIONS: 
 
-DATA_PATH=data/enron/enron_text_document # data/webtext/webtext_text_document
+DATA_PATH=data/enron/enron_text_document
 VOCAB_PATH=data/gpt2-vocab.json
 MERGE_PATH=data/gpt2-merges.txt
 CHECKPOINT_PATH=checkpoints/gpt2_345m_ds
