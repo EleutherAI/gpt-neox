@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: eleuther-neox
+  name: eleuther-megatron
 spec:
   strategy:
     type: Recreate
   replicas: 4
   selector:
     matchLabels:
-      app.kubernetes.io/name: eleuther-neox
+      app.kubernetes.io/name: eleuther-megatron
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: eleuther-neox
+        app.kubernetes.io/name: eleuther-megatron
     spec:
       terminationGracePeriodSeconds: 10
       containers:
@@ -20,7 +20,7 @@ spec:
         command: ["/usr/sbin/sshd"]
         args: ["-D"]
         tty: true
-        image: leogao2/gpt-neox:synced-deployment
+        image: leogao2/megatron-3d
         ports:
           - name: sshd
             containerPort: 2222
