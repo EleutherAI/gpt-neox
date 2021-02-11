@@ -191,7 +191,7 @@ def get_optimizer(model):
 
     if args.deepspeed:
         # fp16 wrapper is not required for DeepSpeed.
-        return optimizer
+        return optimizer, param_groups
 
     # Wrap into fp16 optimizer.
     if args.fp16:

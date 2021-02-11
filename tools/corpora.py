@@ -15,9 +15,9 @@ When done, add it to the DATA_DOWNLOADERS dict. The function process_data runs t
 dataset.
 """
 
-GPT2_VOCAB_FP = "gpt2-vocab.json"
+GPT2_VOCAB_FP = "data/gpt2-vocab.json"
 GPT2_VOCAB_URL = "https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-vocab.json"
-GPT2_MERGE_FP = "gpt2-merges.txt"
+GPT2_MERGE_FP = "data/gpt2-merges.txt"
 GPT2_MERGE_URL = "https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-merges.txt"
 
 class DataDownloader(ABC):
@@ -124,6 +124,7 @@ DATA_DOWNLOADERS = {
 }
 
 def prepare_dataset(dataset_name):
+    os.makedirs('data', exist_ok=True)
     maybe_download_gpt2_tokenizer_data()
     DownloaderClass = DATA_DOWNLOADERS.get(dataset_name, None)
     if DownloaderClass is None:
