@@ -209,6 +209,10 @@ def get_optimizer(model):
 def get_learning_rate_scheduler(optimizer):
     """Build the learning rate scheduler."""
     args = get_args()
+    if args.deepspeed and args.onebitadam:
+        print_rank_0("WARNING: onebitadam requires the lr scheduler be built by deepspeed - "
+                     "Make sure one is added to your deepspeed config")
+        return None
 
     # Add linear learning rate scheduler.
     if args.lr_decay_iters is not None:
@@ -254,9 +258,6 @@ def setup_model_and_optimizer(model_provider_func):
 
         if args.pipe_parallel_size > 0:
             model.set_batch_fn(model.module._megatron_batch_fn)
-        if args.onebitadam:
-            # we need to link the optimizer to the scheduler here because reasons
-            model.lr_scheduler.optimizer = optimizer
 
     if args.load is not None:
         args.iteration = load_checkpoint(model, optimizer, lr_scheduler)
