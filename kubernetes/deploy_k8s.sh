@@ -13,9 +13,9 @@ WD_BRANCH=$(git branch  --no-color --show-current)
 WD_BRANCH="${WD_BRANCH/\//-}"  # remove forward slashes and replace with underscore
 if [ -n "$WD_BRANCH" ]
 then
-      DEFAULT_IMAGE="leogao2/gpt-neox:$WD_BRANCH"
+      DEFAULT_IMAGE="leogao2/megatron-3d:$WD_BRANCH"
 else
-      DEFAULT_IMAGE="leogao2/gpt-neox:main"
+      DEFAULT_IMAGE="leogao2/megatron-3d:main"
 fi
 
 BRANCH=${1:-main}
