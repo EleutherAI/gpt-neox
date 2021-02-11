@@ -7,3 +7,5 @@ nltk
 deepspeed==0.3.10 # bug in DeepSpeed, see https://github.com/huggingface/transformers/issues/9996#issuecomment-773725303
 autopep8
 zstandard
+cupy-cuda102
+mpi4py
