@@ -22,7 +22,17 @@
       "weight_decay": 3e-7,
       "freeze_step": 400,
       "cuda_aware": true
-    }
+    },
+
+    "scheduler": {
+      "type": "WarmupDecayLR",
+      "params": {
+          "warmup_min_lr": 0,
+          "warmup_max_lr": 0.0002,
+          "warmup_num_steps": 1000,
+          "total_num_steps": 300000
+      }
+  }
   },
   "gradient_clipping": 1.0,
   "fp16": {
