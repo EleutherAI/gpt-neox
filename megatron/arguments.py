@@ -226,6 +226,8 @@ def _add_training_args(parser):
                        help='Batch size per model instance (local batch size). '
                        'Global batch size is local batch size times data '
                        'parallel size.')
+    group.add_argument('--onebitadam', action='store_true',
+                       help='Enable one bit adam optimizer [MUST BE USING DEEPSPEED]')
     group.add_argument('--gas', type=int, default=1,
                        help='Gradient accumulation steps (pipeline parallelism only). '
                        'Global batch size is local batch size times data '
