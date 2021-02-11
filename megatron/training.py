@@ -84,7 +84,7 @@ def pretrain(train_valid_test_dataset_provider, model_provider,
     timers('train/valid/test data iterators').start()
     train_data_iterator, valid_data_iterator, test_data_iterator \
         = build_train_valid_test_data_iterators(
-            train_valid_test_dataset_provider)
+        train_valid_test_dataset_provider)
     timers('train/valid/test data iterators').stop()
 
     # Print setup timing.
@@ -177,8 +177,12 @@ def get_optimizer(model):
         optimizer = cpu_adam_optimizer(param_groups,
                                        lr=args.lr,
                                        weight_decay=args.weight_decay)
+    elif args.onebitadam:
+        assert args.deepspeed
+        optimizer = None
+        # onebitadam needs to be instantiated within the deepspeed engine to work :|
     else:
-        # Use Adam.
+        # Use Adam
         optimizer = Adam(param_groups,
                          lr=args.lr,
                          weight_decay=args.weight_decay,
@@ -199,7 +203,7 @@ def get_optimizer(model):
                                        'min_scale': args.min_scale,
                                        'delayed_shift': args.hysteresis})
 
-    return optimizer
+    return optimizer, param_groups
 
 
 def get_learning_rate_scheduler(optimizer):
@@ -233,7 +237,7 @@ def setup_model_and_optimizer(model_provider_func):
     args = get_args()
 
     model = get_model(model_provider_func)
-    optimizer = get_optimizer(model)
+    optimizer, param_groups = get_optimizer(model)
     lr_scheduler = get_learning_rate_scheduler(optimizer)
 
     if args.deepspeed:
@@ -245,10 +249,14 @@ def setup_model_and_optimizer(model_provider_func):
             args=args,
             lr_scheduler=lr_scheduler,
             mpu=mpu if args.pipe_parallel_size == 0 else None,
-            dist_init_required=False)
+            dist_init_required=False,
+            model_parameters=param_groups if optimizer is None else None)
 
         if args.pipe_parallel_size > 0:
             model.set_batch_fn(model.module._megatron_batch_fn)
+        if args.onebitadam:
+            # we need to link the optimizer to the scheduler here because reasons
+            model.lr_scheduler.optimizer = optimizer
 
     if args.load is not None:
         args.iteration = load_checkpoint(model, optimizer, lr_scheduler)
@@ -259,10 +267,6 @@ def setup_model_and_optimizer(model_provider_func):
     unwrapped_model = model
     while hasattr(unwrapped_model, 'module'):
         unwrapped_model = unwrapped_model.module
-
-    if args.iteration == 0 and hasattr(unwrapped_model, 'init_state_dict_from_bert'):
-        print("Initializing ICT from pretrained BERT model", flush=True)
-        unwrapped_model.init_state_dict_from_bert()
 
     return model, optimizer, lr_scheduler
 
@@ -349,6 +353,7 @@ def train_step(forward_step_func, data_iterator,
 
     return loss_reduced, skipped_iter
 
+
 def train_step_pipe(model, data_iterator):
     """Single training step with DeepSpeed's pipeline parallel engine. """
     args = get_args()
@@ -367,7 +372,6 @@ def train_step_pipe(model, data_iterator):
               'data loader']:
         timers(t).reset()
     return loss_dict, skipped_iter
-
 
 
 def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
@@ -403,6 +407,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
     def add_to_logging(name):
         if name in timers.timers:
             timers_to_log.append(name)
+
     add_to_logging('forward')
     add_to_logging('backward')
     add_to_logging('backward-backward')
@@ -496,18 +501,18 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
 
         # Autoresume
         if args.adlr_autoresume and \
-           (iteration % args.adlr_autoresume_interval == 0):
+                (iteration % args.adlr_autoresume_interval == 0):
             check_adlr_autoresume_termination(iteration, model, optimizer,
                                               lr_scheduler)
 
         # Checkpointing
         if args.save and args.save_interval and \
-           iteration % args.save_interval == 0:
+                iteration % args.save_interval == 0:
             save_checkpoint(iteration, model, optimizer, lr_scheduler)
 
         # Evaluation
         if args.eval_interval and iteration % args.eval_interval == 0 and \
-           args.do_valid:
+                args.do_valid:
             prefix = 'iteration {}'.format(iteration)
             evaluate_and_print_results(prefix, forward_step_func,
                                        valid_data_iterator, model,
@@ -553,7 +558,7 @@ def evaluate(forward_step_func, data_iterator, model, verbose=False):
             # Reduce across processes.
             for key in loss_dict:
                 total_loss_dict[key] = total_loss_dict.get(key, 0.) + \
-                    loss_dict[key]
+                                       loss_dict[key]
     # Move model back to the train mode.
     model.train()
 
@@ -574,7 +579,8 @@ def evaluate_and_print_results(prefix, forward_step_func,
     if args.pipe_parallel_size > 0:
         def _eval_helper(data_iter, pipe_model):
             loss = model.eval_batch(data_iter)
-            return None, {'lm loss' : loss}
+            return None, {'lm loss': loss}
+
         forward_step_func = _eval_helper
 
     total_loss_dict = evaluate(forward_step_func, data_iterator, model, verbose)
@@ -665,14 +671,14 @@ def build_train_valid_test_data_iterators(
     # Shift the start iterations.
     if train_dataloader is not None:
         train_dataloader.batch_sampler.start_iter = args.iteration % \
-            len(train_dataloader)
+                                                    len(train_dataloader)
         print_rank_0('setting training data start iteration to {}'.
                      format(train_dataloader.batch_sampler.start_iter))
     if valid_dataloader is not None:
         start_iter_val = (args.iteration // args.eval_interval) * \
-            args.eval_iters
+                         args.eval_iters
         valid_dataloader.batch_sampler.start_iter = start_iter_val % \
-            len(valid_dataloader)
+                                                    len(valid_dataloader)
         print_rank_0('setting validation data start iteration to {}'.
                      format(valid_dataloader.batch_sampler.start_iter))
 
