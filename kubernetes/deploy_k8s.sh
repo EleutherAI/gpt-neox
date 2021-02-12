@@ -50,6 +50,8 @@ cd /app;
 git clone https://github.com/EleutherAI/megatron-3d.git .;
 cd megatron-3d;
 git checkout $BRANCH;
+apt-get update -y;
+apt-get install -y libpython3-dev
 "
 if [ -n "$WANDB_APIKEY" ]
 then
