@@ -15,12 +15,13 @@ RUN mkdir -p /home/mchorse.ssh && \
 
 USER mchorse
 WORKDIR /home/mchorse
+ENV PATH="/home/mchorse/.local/bin:${PATH}"
 
 RUN python3 -m pip install --upgrade pip && \
     pip3 install pipx gpustat && \
     python3 -m pipx ensurepath && \
-    pip install torch==1.7.1 && \
-    pip install --upgrade tensorflow
+    pip3 install torch==1.7.1 && \
+    pip3 install --upgrade tensorflow
 
 COPY requirements.txt /home/mchorse
 RUN pip3 install -r requirements.txt
