@@ -23,8 +23,8 @@ RUN python3 -m pip install --upgrade pip && \
     pip install --upgrade tensorflow
 
 COPY requirements.txt /home/mchorse
-RUN pip install -r requirements.txt
-RUN pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git
+RUN pip3 install -r requirements.txt
+RUN pip3 install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git
 RUN echo 'deb http://archive.ubuntu.com/ubuntu/ focal main restricted' >> /etc/apt/sources.list && apt-get install --upgrade libpython3-dev
 RUN sudo apt-get update -y && sudo apt-get install -y libpython3-dev
 
