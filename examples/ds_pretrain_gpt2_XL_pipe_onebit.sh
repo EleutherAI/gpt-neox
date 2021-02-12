@@ -35,7 +35,7 @@ GAS=16
 LOGDIR="tensorboard_data/${NLAYERS}l_${NHIDDEN}h_${NNODES}n_${GPUS_PER_NODE}g_${pp_size}pp_${mp_size}mp_${BATCHSIZE}b_ds4"
 
 #ZeRO Configs
-stage=1
+stage=0
 reduce_scatter=true
 contigious_gradients=true
 rbs=50000000
@@ -50,7 +50,7 @@ SYNCHRONIZE=true
 PROFILE=false
 
 # GPT options:
-NLAYERS=24
+NLAYERS=12
 NHIDDEN=1024
 NHEADS=16
 SEQLEN=1024

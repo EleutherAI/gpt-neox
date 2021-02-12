@@ -3,7 +3,7 @@
   "train_micro_batch_size_per_gpu": 4,
   "steps_per_print": 10,
   "zero_optimization": {
-    "stage": 1,
+    "stage": 0,
     "allgather_partitions": true,
     "reduce_scatter": true,
     "allgather_bucket_size": 50000000,
