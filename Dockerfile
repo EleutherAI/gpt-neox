@@ -5,15 +5,16 @@ RUN apt-get update -y && \
     update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1 && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3.8 1 && \
     useradd -ms /bin/bash mchorse
-USER mchorse
-WORKDIR /home/mchorse
 
-RUN mkdir -p ~/.ssh && \
-    echo 'Host *' > ~/.ssh/config && \
-    echo '    StrictHostKeyChecking no' >> ~/.ssh/config && \
+RUN mkdir -p /home/mchorse.ssh && \
+    echo 'Host *' > /home/mchorse.ssh/config && \
+    echo '    StrictHostKeyChecking no' >> /home/mchorse.ssh/config && \
     echo 'AuthorizedKeysFile     .ssh/authorized_keys' >> /etc/ssh/sshd_config && \
     echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config && \
-    echo 'export PDSH_RCMD_TYPE=ssh' >> ~/.bashrc
+    echo 'export PDSH_RCMD_TYPE=ssh' >> /home/mchorse.bashrc
+
+USER mchorse
+WORKDIR /home/mchorse
 
 RUN python3 -m pip install --upgrade pip && \
     pip3 install pipx gpustat && \
