@@ -41,15 +41,13 @@ rm $WD/id_rsa*
 ssh-keygen -t rsa -f $WD/id_rsa -N "" 
 
 post_start_script="
-cp /secrets/id_rsa.pub /root/.ssh/authorized_keys;
-chmod 600 /root/.ssh/authorized_keys;
-chmod 700 /root/.ssh;
-chown -R root /root/.ssh;
-rm -r /app/*;
-cd /app;
-git clone https://github.com/EleutherAI/megatron-3d.git .;
+cp /secrets/id_rsa.pub /home/mchorse/.ssh/authorized_keys;
+chmod 600 /home/mchorse/.ssh/authorized_keys;
+chmod 700 /home/mchorse/.ssh;
+chown -R root /home/mchorse/.ssh;
+cd /home/mchorse;
+git clone --single-branch --branch $BRANCH https://github.com/EleutherAI/megatron-3d.git;
 cd megatron-3d;
-git checkout $BRANCH;
 apt-get update -y;
 apt-get install -y libpython3-dev
 "
