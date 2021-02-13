@@ -4,8 +4,6 @@
 # $ deploy_k8.sh [branch=main] [n_nodes=4] [name_suffix=$USER] [image]
 # You need to install yq
 
-set -x
-
 # Check yq
 yq &> /dev/null || { echo 'You need to install `yq >= v4`. `brew install yq` or `pip install yq`' ; exit 1; }
 
@@ -41,6 +39,7 @@ rm $WD/id_rsa*
 ssh-keygen -t rsa -f $WD/id_rsa -N "" 
 
 post_start_script="
+echo 'export DATA_DIR=/mnt/ssd-0/megatron-3d/data' >> /home/mchorse/.bashrc;
 cp /secrets/id_rsa.pub /home/mchorse/.ssh/authorized_keys;
 chmod 600 /home/mchorse/.ssh/authorized_keys;
 chmod 700 /home/mchorse/.ssh;
@@ -66,7 +65,7 @@ kubectl create secret generic $SECRET_NM \
   --from-file=post_start_script.sh=$WD/post_start_script.sh
 
 # Template k8 configuration
-cat $WD/k8s_spec.yml |
+cat $WD/k8s_spec_with_mnt.yml |
 yq e '.metadata.name = "'"$DEPLOYMENT_NM"\" - |
 yq e '.spec.replicas = '"$N_NODES" - |
 yq e '.spec.template.spec.volumes[1].secret.secretName = "'"$SECRET_NM"\" - |
