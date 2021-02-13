@@ -9,7 +9,7 @@ yq &> /dev/null || { echo 'You need to install `yq >= v4`. `brew install yq` or 
 
 WD_BRANCH=$(git branch  --no-color --show-current)
 WD_BRANCH="${WD_BRANCH/\//-}"  # remove forward slashes and replace with underscore
-DEFAULT_IMAGE="leogao2/megatron-3d:sha-e0abd42"
+DEFAULT_IMAGE="leogao2/megatron-3d:sha-b8f5852"
 
 BRANCH=${1:-main}
 N_NODES=${2:-4}
@@ -34,7 +34,6 @@ rm $WD/id_rsa*
 ssh-keygen -t rsa -f $WD/id_rsa -N "" 
 
 post_start_script="
-mkdir -m 0777 /tmp;
 echo 'export DATA_DIR=/mnt/ssd-0/megatron-3d/data' >> /home/mchorse/.bashrc;
 sudo cp /secrets/id_rsa.pub /home/mchorse/.ssh/authorized_keys;
 sudo chown mchorse:mchorse /home/mchorse/.ssh/authorized_keys;

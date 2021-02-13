@@ -7,7 +7,7 @@
 # Check yq
 yq &> /dev/null || { echo 'You need to install `yq >= v4`. `brew install yq` or `pip install yq`' ; exit 1; }
 
-DEFAULT_IMAGE="leogao2/megatron-3d:sha-e0abd42"
+DEFAULT_IMAGE="leogao2/megatron-3d:sha-b8f5852"
 
 BRANCH=${1:-main}
 IMAGE=${4:-$DEFAULT_IMAGE}
