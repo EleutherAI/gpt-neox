@@ -147,7 +147,7 @@ chkp_opt="${chkp_opt} \
 fi
 
 full_options="${gpt_options} ${deepspeed_options} ${chkp_opt}"
-
+#/home/mchorse/megatron-3d/deepy.py
 run_cmd="deepspeed pretrain_gpt2.py $@ ${full_options}"
 echo ${run_cmd}
 eval ${run_cmd}
