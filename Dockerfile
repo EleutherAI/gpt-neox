@@ -51,6 +51,17 @@ RUN mkdir -p /home/mchorse/.ssh && \
     echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config && \
     echo 'export PDSH_RCMD_TYPE=ssh' >> /home/mchorse/.bashrc
 
+#### Python packages
+RUN python -m pip install --upgrade pip && \
+    pip install gpustat && \
+    pip install torch==1.7.1
+
+COPY requirements.txt $STAGE_DIR/mchorse
+RUN pip install -r $STAGE_DIR/requirements.txt
+RUN pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git
+RUN echo 'deb http://archive.ubuntu.com/ubuntu/ focal main restricted' >> /etc/apt/sources.list && apt-get install --upgrade libpython3-dev
+RUN sudo apt-get update -y && sudo apt-get install -y libpython3-dev
+
 # Clear staging
 RUN rm -r $STAGE_DIR
 
@@ -58,14 +69,3 @@ RUN rm -r $STAGE_DIR
 USER mchorse
 WORKDIR /home/mchorse
 ENV PATH="/home/mchorse/.local/bin:${PATH}"
-
-#### Python packages
-RUN python -m pip install --upgrade pip && \
-    pip install gpustat && \
-    pip install torch==1.7.1
-
-COPY requirements.txt /home/mchorse
-RUN pip install -r /home/mchorse/requirements.txt
-RUN pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git
-RUN echo 'deb http://archive.ubuntu.com/ubuntu/ focal main restricted' >> /etc/apt/sources.list && apt-get install --upgrade libpython3-dev
-RUN sudo apt-get update -y && sudo apt-get install -y libpython3-dev
