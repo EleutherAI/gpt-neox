@@ -52,7 +52,7 @@ RUN mkdir -p /home/mchorse/.ssh && \
     echo 'export PDSH_RCMD_TYPE=ssh' >> /home/mchorse/.bashrc
 
 # Clear staging
-RUN rm -r $STAGE_DIR/*
+RUN rm -r $STAGE_DIR
 
 #### SWITCH TO mchorse USER
 USER mchorse
