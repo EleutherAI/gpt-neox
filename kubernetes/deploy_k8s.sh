@@ -9,7 +9,7 @@ yq &> /dev/null || { echo 'You need to install `yq >= v4`. `brew install yq` or 
 
 WD_BRANCH=$(git branch  --no-color --show-current)
 WD_BRANCH="${WD_BRANCH/\//-}"  # remove forward slashes and replace with underscore
-DEFAULT_IMAGE="leogao2/megatron-3d:sha-cf2aca3"
+DEFAULT_IMAGE="leogao2/megatron-3d:sha-e0abd42"
 
 BRANCH=${1:-main}
 N_NODES=${2:-4}
@@ -35,17 +35,13 @@ ssh-keygen -t rsa -f $WD/id_rsa -N ""
 
 post_start_script="
 echo 'export DATA_DIR=/mnt/ssd-0/megatron-3d/data' >> /home/mchorse/.bashrc;
-
 sudo chown mchorse /secrets/id_rsa.pub;
 cp /secrets/id_rsa.pub /home/mchorse/.ssh/authorized_keys;
 chmod 600 /home/mchorse/.ssh/authorized_keys;
 chmod 700 /home/mchorse/.ssh;
 chown -R mchorse /home/mchorse/.ssh;
-
 cd /home/mchorse;
 git clone --branch $BRANCH https://github.com/EleutherAI/megatron-3d.git;
-cd megatron-3d;
-
 apt-get update -y;
 apt-get install -y libpython3-dev;
 "
@@ -86,7 +82,7 @@ echo Copying ssh key and host file to main node:
 echo $MAIN_ID
 kubectl cp $WD/hostfile $MAIN_ID:/job
 kubectl cp $WD/hosts $MAIN_ID:/job
-kubectl cp $WD/id_rsa $MAIN_ID:/root/.ssh
+kubectl cp $WD/id_rsa $MAIN_ID:/home/mchorse/.ssh
 
 rm $WD/id_rsa* $WD/hostfile $WD/hosts $WD/k8s_spec_temp.yml $WD/post_start_script.sh
 

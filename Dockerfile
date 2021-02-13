@@ -14,7 +14,7 @@ RUN apt-get update -y && \
 ENV DEBIAN_FRONTEND=noninteractive
 
 #### Temporary Installation Directory
-ENV STAGE_DIR=/tmp
+ENV STAGE_DIR=/build
 RUN mkdir -p ${STAGE_DIR}
 
 #### OPENMPI
@@ -44,7 +44,7 @@ RUN useradd --create-home --uid 1000 --shell /bin/bash mchorse && \
     echo "mchorse ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
 ## SSH config
-RUN mkdir -p /home/mchorse/.ssh && \
+RUN mkdir -p /home/mchorse/.ssh /job && \
     echo 'Host *' > /home/mchorse/.ssh/config && \
     echo '    StrictHostKeyChecking no' >> /home/mchorse/.ssh/config && \
     echo 'AuthorizedKeysFile     .ssh/authorized_keys' >> /etc/ssh/sshd_config && \
@@ -68,4 +68,5 @@ RUN rm -r $STAGE_DIR
 #### SWITCH TO mchorse USER
 USER mchorse
 WORKDIR /home/mchorse
+RUN sudo chown mchorse /job
 ENV PATH="/home/mchorse/.local/bin:${PATH}"
