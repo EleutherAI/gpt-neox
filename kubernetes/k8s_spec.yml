@@ -63,5 +63,5 @@ spec:
         - name: secret-volume
           secret:
             secretName: ----secret-name----
-            defaultMode: 0600
+            defaultMode: 0777
       restartPolicy: Always
