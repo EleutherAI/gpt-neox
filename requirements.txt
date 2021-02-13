@@ -4,6 +4,7 @@ six
 regex
 numpy
 nltk
+tensorflow
 -e git+git://github.com/EleutherAI/DeeperSpeed.git@5a454114886709987a954ed315bf9f6b14cc4efc#egg=deepspeed
 autopep8
 zstandard
