@@ -56,6 +56,7 @@ RUN rm -r $STAGE_DIR
 
 #### SWITCH TO mchorse USER
 USER mchorse
+WORKDIR /home/mchorse
 ENV PATH="/home/mchorse/.local/bin:${PATH}"
 
 #### Python packages
@@ -64,7 +65,7 @@ RUN python -m pip install --upgrade pip && \
     pip install torch==1.7.1
 
 COPY requirements.txt /home/mchorse
-RUN pip install -r requirements.txt
+RUN pip install -r /home/mchorse/requirements.txt
 RUN pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git
 RUN echo 'deb http://archive.ubuntu.com/ubuntu/ focal main restricted' >> /etc/apt/sources.list && apt-get install --upgrade libpython3-dev
 RUN sudo apt-get update -y && sudo apt-get install -y libpython3-dev
