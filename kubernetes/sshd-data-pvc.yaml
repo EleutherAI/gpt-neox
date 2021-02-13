@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sshd-data-pv-claim-sid
+spec:
+  # Available storage classes at time of writing are
+  # ceph-ssd-2-replica - SSD Backed Storage with 2 Replicas
+  # ceph-hdd-2-replica - HDD Backed Storage with 2 Replicas
+  storageClassName: ceph-hdd-2-replica
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Gi

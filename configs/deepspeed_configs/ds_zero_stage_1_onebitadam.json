@@ -1,0 +1,48 @@
+{
+  "train_batch_size": 224,
+  "train_micro_batch_size_per_gpu": 4,
+  "steps_per_print": 10,
+  "zero_optimization": {
+    "stage": 0,
+    "allgather_partitions": true,
+    "reduce_scatter": true,
+    "allgather_bucket_size": 50000000,
+    "reduce_bucket_size": 50000000,
+    "overlap_comm": true
+  },
+  "optimizer": {
+    "type": "OneBitAdam",
+    "params": {
+      "lr": 0.0001,
+      "betas": [
+        0.8,
+        0.999
+      ],
+      "eps": 1e-8,
+      "weight_decay": 3e-7,
+      "freeze_step": 400,
+      "cuda_aware": false
+    },
+
+    "scheduler": {
+      "type": "WarmupDecayLR",
+      "params": {
+          "warmup_min_lr": 0,
+          "warmup_max_lr": 0.0002,
+          "warmup_num_steps": 1000,
+          "total_num_steps": 300000
+      }
+  }
+  },
+  "gradient_clipping": 1.0,
+  "fp16": {
+    "enabled": true,
+
+    "loss_scale": 0,
+    "loss_scale_window": 1000,
+    "hysteresis": 2,
+    "min_loss_scale": 1
+  },
+  "wall_clock_breakdown": true,
+  "zero_allow_untested_optimizer": true
+}
