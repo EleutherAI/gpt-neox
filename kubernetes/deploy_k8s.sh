@@ -13,9 +13,9 @@ WD_BRANCH=$(git branch  --no-color --show-current)
 WD_BRANCH="${WD_BRANCH/\//-}"  # remove forward slashes and replace with underscore
 if [ -n "$WD_BRANCH" ]
 then
-      DEFAULT_IMAGE="leogao2/megatron-3d:$WD_BRANCH"
+      DEFAULT_IMAGE="leogao2/neox:$WD_BRANCH"
 else
-      DEFAULT_IMAGE="leogao2/megatron-3d:main"
+      DEFAULT_IMAGE="leogao2/neox:main"
 fi
 
 BRANCH=${1:-main}
@@ -47,8 +47,8 @@ chmod 700 /root/.ssh;
 chown -R root /root/.ssh;
 rm -r /app/*;
 cd /app;
-git clone https://github.com/EleutherAI/megatron-3d.git .;
-cd megatron-3d;
+git clone https://github.com/EleutherAI/gpt-neox.git .;
+cd gpt-neox;
 git checkout $BRANCH;
 apt-get update -y;
 apt-get install -y libpython3-dev
