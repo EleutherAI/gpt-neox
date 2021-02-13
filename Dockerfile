@@ -68,5 +68,4 @@ RUN rm -r $STAGE_DIR
 #### SWITCH TO mchorse USER
 USER mchorse
 WORKDIR /home/mchorse
-RUN sudo chown mchorse /job
 ENV PATH="/home/mchorse/.local/bin:${PATH}"

@@ -35,15 +35,17 @@ ssh-keygen -t rsa -f $WD/id_rsa -N ""
 
 post_start_script="
 echo 'export DATA_DIR=/mnt/ssd-0/megatron-3d/data' >> /home/mchorse/.bashrc;
-sudo chown mchorse /secrets/id_rsa.pub;
-cp /secrets/id_rsa.pub /home/mchorse/.ssh/authorized_keys;
+sudo cp /secrets/id_rsa.pub /home/mchorse/.ssh/authorized_keys;
+sudo chown mchorse:mchorse /home/mchorse/.ssh/authorized_keys;
+sudo chown -R mchorse:mchorse /home/mchorse/.ssh;
 chmod 600 /home/mchorse/.ssh/authorized_keys;
 chmod 700 /home/mchorse/.ssh;
-chown -R mchorse /home/mchorse/.ssh;
 cd /home/mchorse;
 git clone --branch $BRANCH https://github.com/EleutherAI/megatron-3d.git;
 apt-get update -y;
 apt-get install -y libpython3-dev;
+sudo mkdir /job;
+sudo chown mchorse:mchorse /job;
 "
 if [ -n "$WANDB_APIKEY" ]
 then
