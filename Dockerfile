@@ -63,7 +63,7 @@ RUN echo 'deb http://archive.ubuntu.com/ubuntu/ focal main restricted' >> /etc/a
 RUN sudo apt-get update -y && sudo apt-get install -y libpython3-dev
 
 # Clear staging
-RUN rm -r $STAGE_DIR && mkdir -m 0777 /tmp
+RUN rm -r $STAGE_DIR && mkdir -p /tmp && chmod 0777 /tmp
 
 #### SWITCH TO mchorse USER
 USER mchorse
