@@ -51,6 +51,9 @@ RUN mkdir -p /home/mchorse/.ssh && \
     echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config && \
     echo 'export PDSH_RCMD_TYPE=ssh' >> /home/mchorse/.bashrc
 
+# Clear staging
+RUN rm -r $STAGE_DIR/*
+
 #### SWITCH TO mchorse USER
 USER mchorse
 ENV PATH="/home/mchorse/.local/bin:${PATH}"
