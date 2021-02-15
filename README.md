@@ -14,23 +14,7 @@ TO DO
 
 ### Datasets
 
-TO DO
-
-## Pretrained Models
-
-TO DO
-
-### Downloading Checkpoints
-
-TO DO
-
-### Inference
-
-TO DO
-
-### Fine-Tuning
-
-TO DO
+TO
 
 ## Licensing
 
