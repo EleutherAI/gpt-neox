@@ -1,4 +1,7 @@
 # coding=utf-8
+#
+# Copyright 2021 Biderman et al. This file is based on code by the authors denoted below and has been modified from its original version.
+#
 # Copyright 2018 The Open AI Team Authors and The HuggingFace Inc. team.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
