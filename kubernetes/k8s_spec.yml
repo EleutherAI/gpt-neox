@@ -34,6 +34,9 @@ spec:
           - name: data-storage
             mountPath: /mnt/ssd-0
             readOnly: true
+          - name: cluster-storage
+            mountPath: /mnt/ssd-cluster
+            readOnly: false
         resources:
           requests:
             cpu: 30
@@ -71,4 +74,8 @@ spec:
           persistentVolumeClaim:
             claimName: eleuther-ssd-0
             readOnly: true
+        - name: cluster-storage
+          persistentVolumeClaim:
+            claimName: eleuther-ssd-cluster
+            readOnly: false
       restartPolicy: Always

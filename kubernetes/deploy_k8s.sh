@@ -61,15 +61,24 @@ kubectl create secret generic $SECRET_NM \
   --from-file=id_rsa.pub=$WD/id_rsa.pub \
   --from-file=post_start_script.sh=$WD/post_start_script.sh
 
-# Template k8 configuration
+# Template k8 configuration - deployment
+MOUNT_NAME="$DEPLOYMENT_NM-ssd-cluster"
 cat $WD/k8s_spec.yml |
 yq e '.metadata.name = "'"$DEPLOYMENT_NM"\" - |
 yq e '.spec.replicas = '"$N_NODES" - |
 yq e '.spec.template.spec.volumes[1].secret.secretName = "'"$SECRET_NM"\" - |
-yq e '.spec.template.spec.containers[0].image = "'"$IMAGE"\" - > $WD/k8s_spec_temp.yml
+yq e '.spec.template.spec.containers[0].image = "'"$IMAGE"\" - |
+yq e '.spec.template.spec.volumes[3].persistentVolumeClaim.claimName = "'"$MOUNT_NAME"\" - > $WD/k8s_spec_temp.yml
+
+# Template k8 configuration - shared mount
+cat $WD/k8_spec_ssd-cluster.yml |
+yq e '.metadata.name = "'"$MOUNT_NAME"\" - > $WD/k8_spec_ssd-cluster_temp.yml
 
 # Delete previous and setup deployment
 kubectl delete deploy/$DEPLOYMENT_NM || { echo 'No previous deployment'; }
+kubectl delete persistentvolumeclaims/$MOUNT_NAME || { echo 'No previous mount'; }
+
+kubectl apply -f $WD/k8_spec_ssd-cluster_temp.yml
 kubectl apply -f $WD/k8s_spec_temp.yml
 
 echo Waiting for deploy to complete...
@@ -86,7 +95,7 @@ kubectl cp $WD/hostfile $MAIN_ID:/job
 kubectl cp $WD/hosts $MAIN_ID:/job
 kubectl cp $WD/id_rsa $MAIN_ID:/home/mchorse/.ssh
 
-rm $WD/id_rsa* $WD/hostfile $WD/hosts $WD/k8s_spec_temp.yml $WD/post_start_script.sh
+rm $WD/id_rsa* $WD/hostfile $WD/hosts $WD/k8s_spec_temp.yml $WD/k8_spec_ssd-cluster_temp.yml $WD/post_start_script.sh
 
 echo Remote shell into main $MAIN_ID
 kubectl exec --stdin --tty $MAIN_ID -- /bin/bash
