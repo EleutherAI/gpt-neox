@@ -1,4 +1,7 @@
 # coding=utf-8
+#
+# Copyright 2021 Biderman et al. This file is based on code by the authors denoted below and has been modified from its original version.
+#
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,6 +15,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# This file has been modified from its original version
+#
 
 """Pretrain utilities."""
 
