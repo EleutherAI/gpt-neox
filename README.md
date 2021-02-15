@@ -51,4 +51,4 @@ This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyri
 
 This repository is based off code written by NVIDIA that is licensed under the Apache License, Version 2.0. In accordance with the Apache License, all files that are modifications of code originally written by NIVIDIA maintain a NVIDIA copyright header. All files that do not contain such a header are original to EleutherAI. When the NVIDIA code has been modified from its original version, that fact is noted in the copyright header. All derivative works of this repository must preserve these headers under the terms of the Apache License.
 
-If you have any questions, comments, or concerns about licensing please email us at contact@eleuther.ai.
+For full terms, see the `LICENSE` file. If you have any questions, comments, or concerns about licensing please email us at contact@eleuther.ai.
