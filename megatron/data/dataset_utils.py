@@ -1,4 +1,6 @@
 # coding=utf-8
+# Copyright 2021 Biderman et al. This code is based in code by the authors denoted below and has been modified from its original version.
+#
 # Copyright 2018 The Google AI Language Team Authors, and NVIDIA.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +14,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 
 # Most of the code here has been copied from:
 #   https://github.com/google-research/albert/blob/master/create_pretraining_data.py
