@@ -34,7 +34,7 @@ rm $WD/id_rsa*
 ssh-keygen -t rsa -f $WD/id_rsa -N "" 
 
 post_start_script="
-echo 'export DATA_DIR=/mnt/ssd-0/megatron-3d/data' >> /home/mchorse/.bashrc;
+echo 'export DATA_DIR=/mnt/ssd-cluster/data' >> /home/mchorse/.bashrc;
 sudo cp /secrets/id_rsa.pub /home/mchorse/.ssh/authorized_keys;
 sudo chown mchorse:mchorse /home/mchorse/.ssh/authorized_keys;
 sudo chown -R mchorse:mchorse /home/mchorse/.ssh;
