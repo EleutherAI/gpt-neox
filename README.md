@@ -6,19 +6,21 @@ If you are looking for our TPU codebase, see [GPT-Neo](https://github.com/Eleuth
 
 ## Getting Started
 
-TO DO
-
-## Training
-
-TO DO
+Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), a custom modification to the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library. We strongly recommend using Anaconda, a virtual environment, or some other form of package isolation before installing from `requirements.txt`. Failure to do so may cause other repositories that rely on DeepSpeed to break.
 
 ### Datasets
 
-TO
+Once you've installed `requirements.txt`, the next step is obtaining and processing data. For demonstrative purposes we have hosted the Enron Emails corpus and made it avaliable for downloading. Running `python prepare_data.py` will download and process the dataset for language modeling. To use your own data, extend the `DataDownloader` class in `tools/corpa.py`and register the new class in the `DATA_DOWNLOADERS` dict. Once this is done, you can call `prepare_dataset('enron')` to process your data.
+
+TO DO: Make a table showing the datasets currently avaliable for download. List the name, size on disk (compressed), actual size, and number of tokens.
+
+### Training
+
+TO DO
 
 ## Licensing
 
-This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright 2021 Stella Biderman, Sid Black, Josh Levy-Kramer, and Shivanshu Purohit.
+This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright 2021 Stella Biderman, Sid Black, Leo Gao, Josh Levy-Kramer, and Shivanshu Purohit.
 
     GPT-NeoX is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
