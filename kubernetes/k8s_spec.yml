@@ -1,29 +1,31 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
-  name: eleuther-neox
+  name: neox
 spec:
-  strategy:
-    type: Recreate
+#  strategy:
+#    type: Recreate
   replicas: 4
+  serviceName: neox
+  podManagementPolicy: "Parallel"
   selector:
     matchLabels:
-      app.kubernetes.io/name: eleuther-neox
+      app: neox
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: eleuther-neox
+        app: neox
     spec:
       terminationGracePeriodSeconds: 10
       containers:
       - name: neox
-        command: ["/usr/sbin/sshd"]
-        args: ["-D"]
+        command: ["sudo"]
+        args: ["/usr/sbin/sshd", "-D"]
         tty: true
         image: leogao2/gpt-neox
         ports:
           - name: sshd
-            containerPort: 2222
+            containerPort: 22
             protocol: TCP
         volumeMounts:
           - mountPath: /dev/shm
@@ -31,6 +33,12 @@ spec:
           - name: secret-volume
             readOnly: true
             mountPath: "/secrets"
+          - name: data-storage
+            mountPath: /mnt/ssd-0
+            readOnly: true
+          - name: cluster-storage
+            mountPath: /mnt/ssd-cluster
+            readOnly: false
         resources:
           requests:
             cpu: 30
@@ -63,5 +71,13 @@ spec:
         - name: secret-volume
           secret:
             secretName: ----secret-name----
-            defaultMode: 0600
+            defaultMode: 0777
+        - name: data-storage
+          persistentVolumeClaim:
+            claimName: eleuther-ssd-0
+            readOnly: true
+        - name: cluster-storage
+          persistentVolumeClaim:
+            claimName: eleuther-ssd-cluster
+            readOnly: false
       restartPolicy: Always

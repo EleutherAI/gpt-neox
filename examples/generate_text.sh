@@ -1,8 +1,9 @@
 #!/bin/bash
 
+DATA_DIR="${DATA_DIR:-data}"
+VOCAB_PATH=$DATA_DIR/gpt2-vocab.json
+MERGE_PATH=$DATA_DIR/gpt2-merges.txt
 CHECKPOINT_PATH=checkpoints/gpt2_345m
-VOCAB_FILE=gpt2-vocab.json
-MERGE_FILE=gpt2-merges.txt
 
 python tools/generate_samples_gpt2.py \
        --model-parallel-size 1 \
@@ -17,8 +18,8 @@ python tools/generate_samples_gpt2.py \
        --seq-length 1024 \
        --out-seq-length 1024 \
        --temperature 1.0 \
-       --vocab-file $VOCAB_FILE \
-       --merge-file $MERGE_FILE \
+       --vocab-file $VOCAB_PATH \
+       --merge-file $MERGE_PATH \
        --genfile unconditional_samples.json \
        --num-samples 2 \
        --top_p 0.9 \
