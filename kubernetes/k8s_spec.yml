@@ -1,14 +1,14 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: eleuther-neox
+  name: neox
 spec:
   strategy:
     type: Recreate
   replicas: 4
   selector:
     matchLabels:
-      app.kubernetes.io/name: eleuther-neox
+      app.kubernetes.io/name: neox
   template:
     metadata:
       labels:
