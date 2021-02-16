@@ -1,62 +1,38 @@
 # GPT-NeoX
-An implementation of model parallel GPT-3-like models on GPUs, based on the DeepSpeed library. Designed to be able to train models in the hundreds of billions of parameters or larger. This repository is under development and may change rapidly without warning.
 
-## Requirements
+This repository records [EleutherAI](www.eleuther.ai)'s work-in-progress for training large scale GPU language models. Our current framework is based on NVIDIA's [Megatron Language Model](https://github.com/NVIDIA/Megatron-LM) and has been augmented with techniques from [DeepSpeed](https://www.deepspeed.ai) as well as some novel optimizations. 
 
-Everything you need to get started running the code can be installed via pip:
-```bash
-$ pip install -r requirements.txt
-```
-**Important: This codebase does not install Microsoft's DeepSpeed library.** It installs [DeeperSpeed](www.GitHub.com/eleutherai/DeeperSpeed), EleutherAI's variant on the original [DeepSpeed](www.GitHub.com/Microsoft/DeepSpeed). We have added some necessary functionality for our purposes and patched holes created by the fact that only parts of DeepSpeed were publicly released, but DeeperSpeed uses the same namespace as DeepSpeed and may break other code built upon DeepSpeed. **If you use or suspect you might use Microsoft's DeepSpeed for another project**, we strongly secommend you use `anaconda` to install this code in an isolated environment by creating a condo environment and running `conda install --file requirements.txt`. We welcome any suggestions for improvements to our DeepSpeeder library, but please open issues on [its repo](www.GitHub.com/eleutherai/DeeperSpeed) rather than this one. 
+If you are looking for our TPU codebase, see [GPT-Neo](https://github.com/EleutherAI/gpt-neo).
 
-EleutherAI members who wish to run models on our Kubernetes cluster will additionally need to install Kubernetes and obtain an authorization from Stella Biderman or Sid Black. Please reach out on discord in the #gpt-neo channel. You will also need to create a [WandB](https://wandb.ai/home) account and share your username so that you can be added to the organization WandB account.
+## Getting Started
 
-## Running the code
+TO DO
 
-The core anatomy of a call to the DeepSpeed engine is the following
-```bash
-$ deepspeed --hostfile=host_path train_script.py user_args\
-	--deepspeed \
-	--deepspeed_config deepspeed_config.json
-```
-where
-- `host_path` (optional) is the path to the host file containing the addresses of the machines you wish to train on.
-- `train_script.py` is the training script you wish to use. Our main training script is `train_pipeline.py`.
-- `deepspeed_config.json` is the `json` file containing DeepSpeed-specific hyperparameters.
+## Training
 
-In this repository, we provide a lightweight wrapper for the above function call for two main reasons. Firstly, we find the way the arguments are ordered and used somewhat counterintuitive, and secondly our wrapper automatically uploads logging data to WandB. Everything in this repository will work with both the native `DeepSpeed` command and with our `deepy` command. The core anatomy of a `deepy` call is
-```bash
-$ ./deepy --hostfile=host_path train_script.py deepspeed_config.json
-```
+TO DO
 
-### Running the code locally
-This code is set up to run automatically on as many GPUs as are avaliable. If you have multiple GPUs and only wish to make use of some of them, you can find information about how to specify which GPU(s) to use in training [here](https://www.deepspeed.ai/getting-started/#resource-configuration-multi-node).
+### Datasets
 
-The most common pitfall for local training is pipeline parallelism. Pipeline parallelism paritions the model into segments (called `PipelineModule`s in our code) that can decrese latency by running partially asynchronously.
+TO
 
-### Running the code on a server
+## Licensing
 
-This code is set up to run automatically on as many GPUs as are avaliable. To run across multiple machines, you need to make use of a hostfile which lists the IP address of each machine you wish to run the code on followed by the number of GPUs to use. For example, `123.45.67.890 slots=8` instructs the code to run on all eight GPUs of the machine at `123.45.67.890`. Each machine should be listed on a separate line with no end-of-line punctuation. It is officially recommended that you set up passwordless ssh, but we have had success entering the password at run-time. To have your hostfile used by GPT-NeoX automatically, store it at `~/jobs/hostfile`. Otherwise, you can provide it as an argument as shown above.
+This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright 2021 Stella Biderman, Sid Black, Josh Levy-Kramer, and Shivanshu Purohit.
 
-**EleutherAI members:** Once you have been granted access to the EleutherAI servers and have confirmed that an unused cluster is currently running, simply ssh into the cluster. If you have been granted the ability to create an destroy Kubernetes clusters, run `kubernetes/deploy_k8s.sh branch_name num_pods cluster_name` to create a cluster.
+    GPT-NeoX is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
 
-### ~/scripts/
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
 
-The directory `~/scripts/` stores various scripts for automatically starting runs with particular settings and configs that we have found useful. They can be run using `sh scripts/script_name.sh` but should not be relied upon. We do not guarentee forward compatibility of any scripts.
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-## Datasets
+This repository is based off code written by NVIDIA that is licensed under the Apache License, Version 2.0. In accordance with the Apache License, all files that are modifications of code originally written by NIVIDIA maintain a NVIDIA copyright header. All files that do not contain such a header are original to EleutherAI. When the NVIDIA code has been modified from its original version, that fact is noted in the copyright header. All derivative works of this repository must preserve these headers under the terms of the Apache License.
 
-### Tokenizers
-
-### Using our data
-
-### Using your data
-
-## Advanced Options
-
-## Contribute
-
-If you want to get involved, check out our repo projects. Anything that is listed as "todo" or has not been assigned to anyone is fair game, but please leave a comment so that we know you're working on it!
-
-## Resources
-If you have trouble getting the model to run, consider consulting [this guide](https://gist.github.com/kevinwatkins/232b88bfecbeca8d48d612a3e9cf65e4) to installing in a GCE virtual machine. You may also find the (very sparse) [DeepSpeed docs](https://www.deepspeed.ai) helpful.
+For full terms, see the `LICENSE` file. If you have any questions, comments, or concerns about licensing please email us at contact@eleuther.ai.

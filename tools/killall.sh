@@ -1,0 +1,1 @@
+pdsh -f 1024 -R ssh -w ^/job/hosts 'pkill -9 python'
