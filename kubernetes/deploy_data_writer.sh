@@ -19,7 +19,7 @@ echo DEPLOYMENT NAME $DEPLOYMENT_NM. BRANCH $BRANCH. DOCKER IMAGE $IMAGE.
 
 post_start_script="
 echo 'export DATA_DIR=/mnt/ssd-0/megatron-3d/data' >> /home/mchorse/.bashrc;
-git clone --branch $BRANCH https://github.com/EleutherAI/megatron-3d.git;
+git clone --branch $BRANCH https://github.com/EleutherAI/gpt-neox.git;
 "
 echo $post_start_script > $WD/post_start_script_dw.sh
 

@@ -1,18 +1,20 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: neox
 spec:
-  strategy:
-    type: Recreate
+#  strategy:
+#    type: Recreate
   replicas: 4
+  serviceName: neox
+  podManagementPolicy: "Parallel"
   selector:
     matchLabels:
-      app.kubernetes.io/name: neox
+      app: neox
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: neox
+        app: neox
     spec:
       terminationGracePeriodSeconds: 10
       containers:
@@ -23,7 +25,7 @@ spec:
         image: leogao2/gpt-neox
         ports:
           - name: sshd
-            containerPort: 2222
+            containerPort: 22
             protocol: TCP
         volumeMounts:
           - mountPath: /dev/shm
