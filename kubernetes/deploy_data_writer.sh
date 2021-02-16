@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 
 #  --- USAGE ---
-# $ deploy_data_writer.sh [branch] [image]
+# $ deploy_cluster.sh [branch] [image]
 # You need to install yq
 
 # Check yq
 yq &> /dev/null || { echo 'You need to install `yq >= v4`. `brew install yq` or `pip install yq`' ; exit 1; }
 
-DEFAULT_IMAGE="leogao2/megatron-3d:sha-b8f5852"
+DEFAULT_IMAGE="leogao2/gpt-neox:sha-ef55a42"
 
 BRANCH=${1:-main}
 IMAGE=${4:-$DEFAULT_IMAGE}
