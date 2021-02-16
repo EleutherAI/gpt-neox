@@ -11,8 +11,9 @@ DISTRIBUTED_ARGS="--nproc_per_node $WORLD_SIZE \
 TASK="LAMBADA"
 
 VALID_DATA=<lambada path>
-VOCAB_FILE=gpt2-vocab.json
-MERGE_FILE=gpt2-merges.txt
+DATA_DIR="${DATA_DIR:-data}"
+VOCAB_PATH=$DATA_DIR/gpt2-vocab.json
+MERGE_PATH=$DATA_DIR/gpt2-merges.txt
 CHECKPOINT=checkpoints/gpt2_345m
 
 
@@ -21,8 +22,8 @@ python -m torch.distributed.launch $DISTRIBUTED_ARGS ./tasks/main.py \
                --valid-data $VALID_DATA \
                --tokenizer-type GPT2BPETokenizer \
                --strict-lambada \
-               --vocab-file $VOCAB_FILE \
-               --merge-file $MERGE_FILE \
+               --vocab-file $VOCAB_PATH \
+               --merge-file $MERGE_PATH \
                --load $CHECKPOINT \
                --model-parallel-size 1 \
                --num-layers 24 \
