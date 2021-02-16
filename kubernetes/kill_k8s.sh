@@ -7,5 +7,5 @@ SUFFIX=${1:-$(whoami)}
 CLUSTER_NM='neox-'"$SUFFIX"
 MOUNT_NAME="$CLUSTER_NM-ssd-cluster"
 
-kubectl delete deploy/$CLUSTER_NM
+kubectl delete statefulsets/$CLUSTER_NM
 kubectl delete persistentvolumeclaims/$MOUNT_NAME
