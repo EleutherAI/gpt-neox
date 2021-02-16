@@ -1,0 +1,13 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: eleuther-ssd-0
+  namespace: tenant-eleutherai
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: sharedfs-ssd-replicated
+  volumeMode: Filesystem
