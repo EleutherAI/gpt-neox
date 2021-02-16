@@ -1,6 +1,6 @@
 # GPT-NeoX
 
-This repository records [EleutherAI](www.eleuther.ai)'s work-in-progress for training large scale GPU language models. Our current frameowrk is based on NVIDIA's [Megatron Language Model](https://github.com/NVIDIA/Megatron-LM) and has been augmented with techniques from [DeepSpeed](https://www.deepspeed.ai) as well as some novel optimizations. 
+This repository records [EleutherAI](www.eleuther.ai)'s work-in-progress for training large scale GPU language models. Our current framework is based on NVIDIA's [Megatron Language Model](https://github.com/NVIDIA/Megatron-LM) and has been augmented with techniques from [DeepSpeed](https://www.deepspeed.ai) as well as some novel optimizations. 
 
 If you are looking for our TPU codebase, see [GPT-Neo](https://github.com/EleutherAI/gpt-neo).
 
