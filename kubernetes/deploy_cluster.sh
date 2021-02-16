@@ -101,4 +101,4 @@ kubectl cp $WD/id_rsa $MAIN_ID:/home/mchorse/.ssh
 rm $WD/id_rsa* $WD/hostfile $WD/hosts $WD/k8s_spec_temp.yml $WD/k8_spec_ssd-cluster_temp.yml $WD/post_start_script.sh
 
 echo Remote shell into main $MAIN_ID
-kubectl exec --stdin --tty $MAIN_ID -- /bin/bash
+kubectl exec --stdin --tty $MAIN_ID -- /bin/bash -c "cd /home/mchorse/gpt-neox; bash"
