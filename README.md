@@ -16,7 +16,31 @@ TO DO: Make a table showing the datasets currently avaliable for download. List 
 
 ### Training
 
-TO DO
+## Features
+
+### Model Structure
+
+**Positional Encoding:** Currently we only support sinesoidal positional encodings.
+
+**Sparsity:**
+
+### Optimizers
+
+**Zero Redundnacy Optimizer (ZeRO):**
+
+**ZeRO-Offloding:**
+
+**1-Bit Adam:**
+
+### Memory Optimizations
+
+**Data Parallel:**
+
+**Model Parallel:**
+
+**Pipeline Parallel:**
+
+**Mixed Precision Training:**
 
 ## Licensing
 
