@@ -26,7 +26,10 @@ def get_wandb_api_key():
 # Generate unique run group name
 wandb_group = shortuuid.uuid()
 sys.argv.extend(['--wandb_group', wandb_group])
-sys.argv.extend(['--wandb_team', 'eleutherai'])
+
+wandb_team = os.environ.get('WANDB_TEAM')
+if wandb_team:
+    sys.argv.extend(['--wandb_team', wandb_team])
 
 # Extract wandb API key and inject into worker environments
 wandb_token = get_wandb_api_key()
