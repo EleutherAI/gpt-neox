@@ -29,7 +29,7 @@ _GLOBAL_TOKENIZER = None
 _GLOBAL_TENSORBOARD_WRITER = None
 _GLOBAL_ADLR_AUTORESUME = None
 _GLOBAL_TIMERS = None
-
+_GLOBAL_USE_WANDB = False
 
 def get_args():
     """Return arguments."""
@@ -231,3 +231,11 @@ class Timers:
                 print(string, flush=True)
         else:
             print(string, flush=True)
+
+def get_use_wandb():
+    global _GLOBAL_USE_WANDB
+    return _GLOBAL_USE_WANDB
+
+def set_use_wandb(b: bool):
+    global _GLOBAL_USE_WANDB
+    _GLOBAL_USE_WANDB = b
