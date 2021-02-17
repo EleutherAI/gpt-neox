@@ -149,7 +149,9 @@ fi
 
 full_options="${gpt_options} ${deepspeed_options} ${chkp_opt}"
 
-run_cmd="/home/mchorse/gpt-neox/deepy.py pretrain_gpt2.py $@ ${full_options}"
+DS_EXE="${DS_EXE:-deepspeed}"
+
+run_cmd="$DS_EXE pretrain_gpt2.py $@ ${full_options}"
 echo ${run_cmd}
 eval ${run_cmd}
 
