@@ -4,8 +4,6 @@
 # $ public_cluster.sh [name_suffix=$USER]
 # You need to install yq
 
-set -e
-
 # Check yq
 yq &> /dev/null || { echo 'You need to install `yq >= v4`. `brew install yq` or `pip install yq`' ; exit 1; }
 
@@ -41,12 +39,13 @@ pw_cmd="sudo usermod --password \$(echo $PASSWORD | openssl passwd -1 -stdin) mc
 kubectl exec --stdin --tty $MAIN_ID -- /bin/bash -c "$pw_cmd"
 
 SERVICE_NM="$CLUSTER_NM-service"
-echo Setting up Public IP. Service $SERVICE_NM
 cat $WD/pubic-IP-service.yaml |
 yq e '.metadata.name = "'"$SERVICE_NM"\" - |
 yq e '.spec.selector["statefulset.kubernetes.io/pod-name"] = "'"$MAIN_ID"\" - > $WD/pubic-IP-service_temp.yml
 
 kubectl delete service/$SERVICE_NM
+
+echo Setting up Public IP. Service $SERVICE_NM
 kubectl apply -f $WD/pubic-IP-service_temp.yml
 
 PUBLIC_ID=$(kubectl get service/$SERVICE_NM -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
