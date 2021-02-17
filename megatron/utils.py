@@ -14,9 +14,10 @@
 # limitations under the License.
 
 """General utilities."""
-
+import os
 import sys
 
+import requests
 import torch
 
 from megatron import get_args
@@ -174,4 +175,32 @@ def get_ltor_masks_and_position_ids(data,
 
     return attention_mask, loss_mask, position_ids
 
+def local_rank():
+    """ Local rank of process """
+    return int(os.environ["LOCAL_RANK"])
 
+def is_local_main():
+    """ True if is the local main process """
+    return local_rank() == 0
+
+
+def get_wandb_api_key():
+    """ Get Weights and Biases API key from ENV or .netrc file. Otherwise return None """
+    if 'WANDB_API_KEY' in os.environ:
+        return os.environ['WANDB_API_KEY']
+
+    wandb_token = requests.utils.get_netrc_auth('https://api.wandb.ai')
+
+    if wandb_token is not None:
+        return wandb_token[1]
+
+
+def neox_args(parser):
+    group = parser.add_argument_group(title='Weights and Biases monitoring args')
+
+    group.add_argument('--wandb_group', type=str, default=None,
+                       help='Weights and Biases group name - used to group together "runs".')
+    group.add_argument('--wandb_team', type=str, default=None,
+                       help='Team name for Weights and Biases.')
+
+    return parser
