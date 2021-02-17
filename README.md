@@ -4,6 +4,9 @@ This repository records [EleutherAI](www.eleuther.ai)'s work-in-progress for tra
 
 If you are looking for our TPU codebase, see [GPT-Neo](https://github.com/EleutherAI/gpt-neo).
 
+<!--ts-->
+<!--te-->
+
 ## Getting Started
 
 Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), a custom modification to the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library. We strongly recommend using Anaconda, a virtual environment, or some other form of package isolation before installing from `requirements.txt`. Failure to do so may cause other repositories that rely on DeepSpeed to break.
@@ -15,6 +18,8 @@ Once you've installed `requirements.txt`, the next step is obtaining and process
 TO DO: Make a table showing the datasets currently avaliable for download. List the name, size on disk (compressed), actual size, and number of tokens.
 
 ### Training
+
+If you are already familiar with training models using DeepSpeed, you can use the exact same API to train our models.
 
 ## Features
 
