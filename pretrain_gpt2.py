@@ -154,14 +154,8 @@ def forward_step(data_iterator, model):
     loss_mask = loss_mask.view(-1)
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
 
-    if get_use_wandb():
-        wandb.log({'loss': loss.item()})
-
     # Reduce loss for logging.
     reduced_loss = reduce_losses([loss])
-
-    if get_use_wandb():
-        wandb.log({'reduced_loss': loss.item()})
 
     return loss, {'lm loss': reduced_loss[0]}
 
