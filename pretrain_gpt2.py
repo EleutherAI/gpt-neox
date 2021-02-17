@@ -17,8 +17,10 @@
 # limitations under the License.
 
 """Pretrain GPT2"""
+import socket
 
 import torch
+from wandb import UsageError
 
 from megatron import get_args
 from megatron import print_rank_0
@@ -26,12 +28,13 @@ from megatron import get_timers
 from megatron import get_tokenizer
 from megatron import mpu
 from megatron.data.gpt2_dataset import build_train_valid_test_datasets
+from megatron.global_vars import set_use_wandb, get_use_wandb
 from megatron.model import GPT2Model, GPT2ModelPipe
 from megatron.training import pretrain
-from megatron.utils import get_ltor_masks_and_position_ids
+from megatron.utils import get_ltor_masks_and_position_ids, is_local_main, local_rank, get_wandb_api_key, neox_args
 from megatron.utils import reduce_losses
 from megatron.fp16 import fp32_to_fp16
-
+import wandb
 
 def model_provider():
     """Build the model."""
@@ -46,6 +49,27 @@ def model_provider():
         # This is a hack to give us a reference to get_batch_pipe from within training.py
         # We need to call model.set_batch_fn after deepspeed.initialize
         model._megatron_batch_fn = get_batch_pipe
+
+    ## Wandb
+    use_wandb = get_wandb_api_key() is not None
+    set_use_wandb(use_wandb)
+    args_dict = vars(args)
+    if use_wandb:
+        # only display system stats from one worker per machine
+        wandb_settings = wandb.Settings() if is_local_main() else wandb.Settings(_disable_stats=True)
+        group_name = args_dict.get('wandb_group')
+        name = f'{socket.gethostname()}-{local_rank()}' if group_name else None
+
+        try:
+            wandb.init(project="neox", group=group_name, name=name, save_code=False,
+                       force=False, entity=args_dict.get('wandb_team'), settings=wandb_settings)
+        except UsageError as e:
+            set_use_wandb(False)
+            print(e)
+            print('Skipping wandb. Execute `wandb login` on local or main node machine to enable.')
+
+    if use_wandb:
+        wandb.config.update(args_dict)
 
     return model
 
@@ -157,4 +181,4 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
 
 if __name__ == "__main__":
     pretrain(train_valid_test_datasets_provider, model_provider, forward_step,
-             args_defaults={'tokenizer_type': 'GPT2BPETokenizer'})
+             args_defaults={'tokenizer_type': 'GPT2BPETokenizer'}, extra_args_provider=neox_args)

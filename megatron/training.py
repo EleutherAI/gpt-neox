@@ -25,6 +25,7 @@ from datetime import datetime
 import math
 import sys
 import torch
+import wandb
 from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
 from apex.optimizers import FusedAdam as Adam
 
@@ -37,6 +38,7 @@ from megatron.checkpointing import load_checkpoint
 from megatron.checkpointing import save_checkpoint
 from megatron.fp16 import FP16_Module
 from megatron.fp16 import FP16_Optimizer
+from megatron.global_vars import get_use_wandb
 from megatron.initialize import initialize_megatron
 from megatron.learning_rates import AnnealingLR
 from megatron.model import DistributedDataParallel as LocalDDP
@@ -429,8 +431,12 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         writer.add_scalar('learning_rate', learning_rate, iteration)
         for key in loss_dict:
             writer.add_scalar(key, loss_dict[key], iteration)
+            if get_use_wandb():
+                wandb.log({key: loss_dict[key]})
         if args.fp16:
             writer.add_scalar('loss_scale', loss_scale, iteration)
+            if get_use_wandb():
+                wandb.log({'loss_scale': loss_scale})
         normalizer = iteration % args.log_interval
         if normalizer == 0:
             normalizer = args.log_interval
@@ -440,8 +446,11 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
     if iteration % args.log_interval == 0:
         elapsed_time = timers('interval time').elapsed()
         if writer and torch.distributed.get_rank() == 0:
+            iteration_time = elapsed_time / args.log_interval
             writer.add_scalar('iteration_time',
-                              elapsed_time / args.log_interval, iteration)
+                              iteration_time, iteration)
+            if get_use_wandb():
+                wandb.log({'iteration_time': iteration_time})
         log_string = ' iteration {:8d}/{:8d} |'.format(iteration,
                                                        args.train_iters)
         log_string += ' elapsed time per iteration (ms): {:.1f} |'.format(
