@@ -9,7 +9,7 @@ If you are looking for our TPU codebase, see [GPT-Neo](https://github.com/Eleuth
 
 ## Getting Started
 
-Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), a custom modification to the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library. We strongly recommend using Anaconda, a virtual environment, or some other form of package isolation before installing from `requirements.txt`. Failure to do so may cause other repositories that rely on DeepSpeed to break.
+Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), a custom modification to the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library. We strongly recommend using Anaconda, a virtual environment, or some other form of environment isolation before installing from `requirements.txt`. Failure to do so may cause other repositories that rely on DeepSpeed to break.
 
 ### Datasets
 
