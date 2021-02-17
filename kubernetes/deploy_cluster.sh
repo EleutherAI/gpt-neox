@@ -35,6 +35,8 @@ ssh-keygen -t rsa -f $WD/id_rsa -N ""
 
 post_start_script="
 echo 'export DATA_DIR=/mnt/ssd-cluster/data' >> /home/mchorse/.bashrc;
+echo 'export WANDB_TEAM=eleutherai' >> /home/mchorse/.bashrc;
+echo 'export DS_EXE=/home/mchorse/gpt-neox/deepy.py' >> /home/mchorse/.bashrc;
 sudo cp /secrets/id_rsa.pub /home/mchorse/.ssh/authorized_keys;
 sudo chown mchorse:mchorse /home/mchorse/.ssh/authorized_keys;
 sudo chown -R mchorse:mchorse /home/mchorse/.ssh;
