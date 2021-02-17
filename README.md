@@ -13,7 +13,7 @@ Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed),
 
 ### Datasets
 
-Once you've installed `requirements.txt`, the next step is obtaining and processing data. For demonstrative purposes we have hosted the Enron Emails corpus and made it avaliable for downloading. Running `python prepare_data.py` will download and process the dataset for language modeling. To use your own data, extend the `DataDownloader` class in `tools/corpa.py`and register the new class in the `DATA_DOWNLOADERS` dict. Once this is done, you can call `prepare_dataset('enron')` to process your data.
+Once you've installed `requirements.txt`, the next step is obtaining and processing data. For demonstrative purposes we have hosted the Enron Emails corpus and made it avaliable for downloading. Running `python prepare_data.py` will download and process the dataset for language modeling. To use your own data, extend the `DataDownloader` class in `tools/corpa.py`and register the new class in the `DATA_DOWNLOADERS` dict. Once this is done, you can add `prepare_dataset(dataset_name)` to `process_data.py` to load your data.
 
 TO DO: Make a table showing the datasets currently avaliable for download. List the name, size on disk (compressed), actual size, and number of tokens.
 
