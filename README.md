@@ -18,7 +18,7 @@ TO
 
 ## Licensing
 
-This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright 2021 Stella Biderman, Sid Black, Josh Levy-Kramer, and Shivanshu Purohit.
+This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright (c) 2021 Stella Biderman, Sid Black, Josh Levy-Kramer, Michael Pieler, and Shivanshu Purohit.
 
     GPT-NeoX is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
