@@ -587,7 +587,6 @@ class ParallelTransformer(MegatronModule):
 
     def __init__(self, attention_mask_func,
                  init_method, output_layer_init_method):
-#                 rpe=True, rpe_causal=False, rpe_num_buckets=32, rpe_max_distance=128):
         super(ParallelTransformer, self).__init__()
         args = get_args()
 
