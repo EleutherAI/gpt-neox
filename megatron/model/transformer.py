@@ -586,10 +586,15 @@ class ParallelTransformer(MegatronModule):
     """Transformer class."""
 
     def __init__(self, attention_mask_func,
-                 init_method, output_layer_init_method,
-                 rpe=True, rpe_causal=False, rpe_num_buckets=32, rpe_max_distance=128):
+                 init_method, output_layer_init_method):
+#                 rpe=True, rpe_causal=False, rpe_num_buckets=32, rpe_max_distance=128):
         super(ParallelTransformer, self).__init__()
         args = get_args()
+
+        self.rpe = args.rpe # True
+        self.rpe_causal = args.rpe_causal # False
+        self.rpe_num_buckets =.args.rpe_num_buckets # 32
+        self.rpe_max_distance = args.rpe_max_distance # 128
 
         # Store activation checkpoiting flag.
         self.checkpoint_activations = args.checkpoint_activations
