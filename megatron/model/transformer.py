@@ -199,10 +199,7 @@ class ParallelSelfAttention(MegatronModule):
             coeff = self.layer_number
             self.norm_factor *= coeff
 
-        if rpe:
-            self.rpe = rpe
-        else:
-            self.rpe = False
+        self.rpe = rpe
 
         self.sparse = sparse
         if self.sparse:
@@ -590,7 +587,7 @@ class ParallelTransformer(MegatronModule):
         super(ParallelTransformer, self).__init__()
         args = get_args()
 
-        rpe = args.rpe
+        self.rpe = args.rpe
         rpe_causal = args.rpe_causal
         rpe_num_buckets = args.rpe_num_buckets
         rpe_max_distance = args.rpe_max_distance
@@ -615,7 +612,7 @@ class ParallelTransformer(MegatronModule):
         self.num_attention_heads_per_partition = mpu.divide(
             args.num_attention_heads, world_size)
 
-        if rpe:
+        if self.rpe:
             self.rpe = RelativePositionBias(causal=rpe_causal, num_buckets=rpe_num_buckets, max_distance=rpe_max_distance, heads=self.num_attention_heads_per_partition)
 
         # Transformer layers.
@@ -629,7 +626,7 @@ class ParallelTransformer(MegatronModule):
                 sparse = not layer_number % 2 == 0
             return ParallelTransformerLayer(
                 attention_mask_func, init_method,
-                output_layer_init_method, layer_number, sparse=sparse, rpe=self.rpe if rpe else False)
+                output_layer_init_method, layer_number, sparse=sparse, rpe=self.rpe)
 
         self.layers = torch.nn.ModuleList(
             [build_layer(i + 1) for i in range(self.num_unique_layers)])
