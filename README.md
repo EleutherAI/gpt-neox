@@ -4,6 +4,8 @@ This repository records [EleutherAI](www.eleuther.ai)'s work-in-progress for tra
 
 If you are looking for our TPU codebase, see [GPT-Neo](https://github.com/EleutherAI/gpt-neo).
 
+![GitHub issues](https://img.shields.io/github/issues/EleutherAI/gpt-neox)
+
 <!--ts-->
 <!--te-->
 
