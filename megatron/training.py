@@ -20,8 +20,10 @@
 #
 
 """Pretrain utilities."""
-
+import json
 from datetime import datetime
+from json import JSONDecodeError
+
 import math
 import sys
 import torch
@@ -252,6 +254,15 @@ def setup_model_and_optimizer(model_provider_func):
     optimizer, param_groups = get_optimizer(model)
     lr_scheduler = get_learning_rate_scheduler(optimizer)
 
+    # Determine if deepspeed config is JSON or filepath
+    deepspeed_conf = None
+    if hasattr(args, 'deepspeed_config'):
+        try:
+            deepspeed_conf = json.loads(args.deepspeed_config)
+            args.deepspeed_config = None
+        except JSONDecodeError:
+            pass
+
     if args.deepspeed:
         print_rank_0("DeepSpeed is enabled.")
 
@@ -262,7 +273,9 @@ def setup_model_and_optimizer(model_provider_func):
             lr_scheduler=lr_scheduler,
             mpu=mpu if args.pipe_parallel_size == 0 else None,
             dist_init_required=False,
-            model_parameters=param_groups if optimizer is None else None)
+            model_parameters=param_groups if optimizer is None else None,
+            config_params=deepspeed_conf,
+        )
 
         if args.pipe_parallel_size > 0:
             model.set_batch_fn(model.module._megatron_batch_fn)
