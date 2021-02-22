@@ -23,11 +23,13 @@
 import json
 from datetime import datetime
 from json import JSONDecodeError
+from tempfile import TemporaryFile
 
 import math
 import sys
 import torch
 import wandb
+import yaml
 from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
 from apex.optimizers import FusedAdam as Adam
 
@@ -259,8 +261,11 @@ def setup_model_and_optimizer(model_provider_func):
     if hasattr(args, 'deepspeed_config'):
         print('DATATATATA', args.deepspeed_config)
         print('TYPPE', type(args.deepspeed_config))
-        deepspeed_json_conf = str(args.deepspeed_config)
-        deepspeed_conf = json.loads(deepspeed_json_conf)
+
+        with TemporaryFile() as f:
+            f.write(args.deepspeed_config)
+            f.seek(0)
+            deepspeed_conf = json.load(f)
 
 
         try:
