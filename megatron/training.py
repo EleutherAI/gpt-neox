@@ -27,6 +27,10 @@ from tempfile import TemporaryFile
 
 import math
 import sys
+
+import os
+
+import tempfile
 import torch
 import wandb
 import yaml
@@ -257,25 +261,15 @@ def setup_model_and_optimizer(model_provider_func):
     lr_scheduler = get_learning_rate_scheduler(optimizer)
 
     # Determine if deepspeed config is JSON or filepath
-    deepspeed_conf = None
     if hasattr(args, 'deepspeed_config'):
-        print('DATATATATA', args.deepspeed_config)
-        print('TYPPE', type(args.deepspeed_config))
+        if not os.path.exists(args.deepspeed_config):
+            # Write to temp json file
+            tmp_file = tempfile.mkdtemp()
+            with open(tmp_file, 'w') as f:
+                f.write(args.deepspeed_config)
 
-        with TemporaryFile('w') as f:
-            f.write(args.deepspeed_config)
-            f.seek(0)
-            deepspeed_conf = json.load(f)
-
-
-        try:
-            print('LOADING CONFIG!!!!!!!!!!!!!')
-            #deepspeed_conf = json.loads(args.deepspeed_config)
-            args.deepspeed_config = None
-            print('DONE CONFIG!!!!!!!!!!!!!')
-            print('ARGGGGSSSS', args)
-        except JSONDecodeError:
-            pass
+            args.deepspeed_config = tmp_file
+            print('tempfile', args.deepspeed_config)
 
     if args.deepspeed:
         print_rank_0("DeepSpeed is enabled.")
@@ -287,8 +281,7 @@ def setup_model_and_optimizer(model_provider_func):
             lr_scheduler=lr_scheduler,
             mpu=mpu if args.pipe_parallel_size == 0 else None,
             dist_init_required=False,
-            model_parameters=param_groups if optimizer is None else None,
-            config_params=deepspeed_conf,
+            model_parameters=param_groups if optimizer is None else None
         )
 
         if args.pipe_parallel_size > 0:
