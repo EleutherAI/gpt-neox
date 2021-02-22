@@ -254,24 +254,16 @@ def setup_model_and_optimizer(model_provider_func):
     optimizer, param_groups = get_optimizer(model)
     lr_scheduler = get_learning_rate_scheduler(optimizer)
 
-    # Determine if deepspeed config is JSON or filepath
+    # Determine if deepspeed config is JSON or filepath.
+    # If JSON then directly load it
     deepspeed_conf = None
     if hasattr(args, 'deepspeed_config'):
-        print('DATATATATA', args.deepspeed_config)
-        print('TYPPE', type(args.deepspeed_config))
         deepspeed_json_conf = args.deepspeed_config
         if len(deepspeed_json_conf) > 2 and deepspeed_json_conf[0] == "'" and deepspeed_json_conf[-1] == "'":
             deepspeed_json_conf = deepspeed_json_conf[1:-1]  # Remove shell quotes
-
-        deepspeed_conf = json.loads(deepspeed_json_conf)
-
-
         try:
-            print('LOADING CONFIG!!!!!!!!!!!!!')
             deepspeed_conf = json.loads(deepspeed_json_conf)
             args.deepspeed_config = None
-            print('DONE CONFIG!!!!!!!!!!!!!')
-            print('ARGGGGSSSS', args)
         except JSONDecodeError:
             pass
 
