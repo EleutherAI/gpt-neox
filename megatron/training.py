@@ -259,12 +259,13 @@ def setup_model_and_optimizer(model_provider_func):
     if hasattr(args, 'deepspeed_config'):
         print('DATATATATA', args.deepspeed_config)
         print('TYPPE', type(args.deepspeed_config))
-        deepspeed_conf = json.loads(args.deepspeed_config)
+        deepspeed_json_conf = str(args.deepspeed_config)
+        deepspeed_conf = json.loads(deepspeed_json_conf)
 
 
         try:
             print('LOADING CONFIG!!!!!!!!!!!!!')
-            deepspeed_conf = json.loads(args.deepspeed_config)
+            #deepspeed_conf = json.loads(args.deepspeed_config)
             args.deepspeed_config = None
             print('DONE CONFIG!!!!!!!!!!!!!')
             print('ARGGGGSSSS', args)
