@@ -257,8 +257,9 @@ def setup_model_and_optimizer(model_provider_func):
     # Determine if deepspeed config is JSON or filepath
     deepspeed_conf = None
     if hasattr(args, 'deepspeed_config'):
-        deepspeed_conf = json.loads(args.deepspeed_config)
         print('DATATATATA', args.deepspeed_config)
+        deepspeed_conf = json.loads(args.deepspeed_config)
+
 
         try:
             print('LOADING CONFIG!!!!!!!!!!!!!')
