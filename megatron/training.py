@@ -262,7 +262,7 @@ def setup_model_and_optimizer(model_provider_func):
         print('DATATATATA', args.deepspeed_config)
         print('TYPPE', type(args.deepspeed_config))
 
-        with TemporaryFile() as f:
+        with TemporaryFile('w') as f:
             f.write(args.deepspeed_config)
             f.seek(0)
             deepspeed_conf = json.load(f)
