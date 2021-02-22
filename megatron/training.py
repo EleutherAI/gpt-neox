@@ -264,7 +264,7 @@ def setup_model_and_optimizer(model_provider_func):
     if hasattr(args, 'deepspeed_config'):
         if not os.path.exists(args.deepspeed_config):
             # Write to temp json file
-            tmp_file = tempfile.mkdtemp()
+            tmp_file = tempfile.mktemp()
             with open(tmp_file, 'w') as f:
                 f.write(args.deepspeed_config)
 
