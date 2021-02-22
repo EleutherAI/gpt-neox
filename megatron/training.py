@@ -258,8 +258,11 @@ def setup_model_and_optimizer(model_provider_func):
     deepspeed_conf = None
     if hasattr(args, 'deepspeed_config'):
         try:
+            print('LOADING CONFIG!!!!!!!!!!!!!')
             deepspeed_conf = json.loads(args.deepspeed_config)
             args.deepspeed_config = None
+            print('DONE CONFIG!!!!!!!!!!!!!')
+            print('ARGGGGSSSS', args)
         except JSONDecodeError:
             pass
 
