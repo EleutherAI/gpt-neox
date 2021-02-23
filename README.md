@@ -40,8 +40,9 @@ Tools (cd to `~/gpt-neox`):
 * To copy a file to all nodes `bash tools/sync.sh $FILE`
 * To copy a directory to all nodes `bash tools/syncdir.sh $DIR`
 * To run a `git pull` command on all nodes `pdsh -w ^/job/hosts 'cd gpt-neox; git pull'`
+* `/job/hostfile` and `/job/hosts` store the list of cluster nodes in Deepspeed and PDSH format respectively
 
-Utils:
+CLI utils:
 * `htop`: process monitor, CPU and memory utilisation
 * `gpustat`: GPU utilisation
 * `tmux`: use this so that when you disconnect you don't kill your run
@@ -56,6 +57,12 @@ To set-up a cluster for someone else (named `NAME`) without cluster permissions:
 
 1. `bash kubernetes/deploy_cluster.sh main 2 NAME`
 2. `bash kubernetes/public_cluster.sh NAME`
+
+### Cluster management tools
+
+* To write data to cold storage. Start the cold storage writer node: `bash kubernetes/deploy_data_writer.sh`
+* To open a node: `bash kubernetes/open_pod.sh $NODENAME`
+* To kill your cluster: `bash kubernetes/kill_k8s.sh`
 
 ## Licensing
 
