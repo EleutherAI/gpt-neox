@@ -33,15 +33,19 @@ megatron_keys = ['num-layers', 'num-unique-layers', 'param-sharing-style', 'hidd
                  'zero-reduce-scatter', 'zero-contigious-gradients', 'zero-reduce-bucket-size',
                  'zero-allgather-bucket-size', 'deepspeed-activation-checkpointing', 'partition-activations',
                  'contigious-checkpointing', 'checkpoint-in-cpu', 'synchronize-each-layer', 'profile-backward',
-                 'deepspeed', 'deepspeed_config', 'deepscale', 'deepspeed_mpi'] # 'fp16' is duplicate
-
-ds_config_keys = ['train_batch_size', 'train_micro_batch_size_per_gpu', 'steps_per_print', 'optimizer',
-                  'gradient_clipping', 'fp16', 'wall_clock_breakdown', 'zero_allow_untested_optimizer']
+                 'deepspeed', 'deepspeed_config', 'deepscale', 'deepspeed_mpi']  # 'fp16' is duplicate
+# DS Config manually taken from https://www.deepspeed.ai/docs/config-json/ plus some undocumented keys
+ds_config_keys = ['train_batch_size', 'train_micro_batch_size_per_gpu', 'gradient_accumulation_steps', 'optimizer',
+                  'scheduler', 'fp32_allreduce', 'prescale_gradients', 'gradient_predivide_factor', 'sparse_gradients',
+                  'fp16', 'amp', 'gradient_clipping', 'zero_optimization', 'steps_per_print', 'wall_clock_breakdown',
+                  'dump_state', 'flops_profiler', 'activation_checkpointing', 'sparse_attention',
+                  'zero_allow_untested_optimizer', ]
 neox_config_keys = ['wandb_group', 'wandb_team']
 
 ds_runner_keys_exclude = []
 megatron_keys_exclude = [
     'fp16',  # Duplicated in ds_config
+    'gas', # Duplicate of `gradient_accumulation_steps` in ds_config
 ]
 ds_config_keys_exclude = []
 
@@ -114,12 +118,27 @@ class ConfigMonster:
     def derive_params_and_split(self, conf):
         """ Derive and insert implicit parameters """
 
+        # Defaults to 1
+        if 'gradient_accumulation_steps' not in conf:
+            conf['gradient_accumulation_steps'] = 1
+            log.info(f"`gradient_accumulation_steps` set to default: 1")
+
+        # Automatically derive train_batch_size = train_micro_batch_size_per_gpu*num_gpus*gradient_accumulation_steps
+        if (
+            'train_batch_size' not in conf
+            and all(e in conf for e in ['train_micro_batch_size_per_gpu', 'num_gpus','gradient_accumulation_steps'])
+        ):
+            conf['train_batch_size'] = \
+                conf['train_micro_batch_size_per_gpu']*conf['num_gpus']*conf['gradient_accumulation_steps']
+            log.info(f"`train_batch_size` derived and set to {conf['train_batch_size']}")
+
         ds_runner_conf = {key: conf[key] for key in ds_runner_keys if key in conf}
         megatron_conf = {key: conf[key] for key in megatron_keys + neox_config_keys if key in conf}
         ds_config_conf = {key: conf[key] for key in ds_config_keys if key in conf}
 
-        # fp16 is duplicated from DS runner config
+        # Items duplicated
         megatron_conf['fp16'] = conf.get('fp16', {}).get('enabled', False)
+        megatron_conf['gas'] = conf.get('gradient_accumulation_steps')
 
         return ds_runner_conf, megatron_conf, ds_config_conf
 
