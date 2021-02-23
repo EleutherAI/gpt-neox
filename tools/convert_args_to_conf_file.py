@@ -165,71 +165,50 @@ def parser_to_params_list(parser):
         if e.dest != 'help']
     return params
 
+def try_cast_to_number(e: Any):
+    if isinstance(e, str):  # Could be a bool
+        try:
+            return int(e)
+        except ValueError:
+            pass
+        try:
+            return float(e)
+        except ValueError:
+            pass
+    return e
+
 args = crude_arg_parser()
 
 print('Drop this into a deepspeed/megatron examples script instead of `deepspeed` to capture the arguments and '
       'produce a conf json')
 
 print('------- Convert args to JSON -------')
-conf = crude_arg_parser()
+conf_0 = crude_arg_parser()
+conf = {k: try_cast_to_number(v) for k, v in conf_0.items() if k != 'deepspeed_config'}
+
+with open(conf_0['deepspeed_config']) as f: # Get deepspeed bit. WARNING it will override keys
+    ds_config = json.load(f)
+intersect = set(ds_config.keys()).intersection(set(conf.keys()))
+if len(intersect) > 0:
+    print(f"WARNING KEYS OVERRIDDEN BY DS: {intersect}")
+conf.update(ds_config)
+
 conf_json = json.dumps(conf)
 print(conf_json)
 
 
-print('------- DISCOVER ALL PARAMS -------')
-
-print('--- DS RUNNER PARAMS ---')
-ds_runner_parser = get_deepspeed_runner_parser()
-ds_runner_params = parser_to_params_list(ds_runner_parser)
-print([e.name for e in ds_runner_params])
-
-print('--- MEGATRON PARAMS ---')
-megatron_parser = get_megatron_parser()
-megatron_parser_params = parser_to_params_list(megatron_parser)
-megatron_parser_params = [e for e in megatron_parser_params if e.name != 'deepscale_config']
-print([e.name for e in megatron_parser_params])
-
-print('--- DS CONFIG PARAMS ---')
-# with open(megatron_args['deepspeed_config']) as f:
-#     ds_config = json.load(f)
-# with open(megatron_args['deepspeed_config']) as f:
-#     ds_config_json = f.read()
-# print(ds_config_json)
-
-
-# print('DS RUNNER ARGS')
-# ds_runner_args = get_deepspeed_runner_parser()
-# ds_runner_args = vars(ds_runner_args)
-# ds_runner_args_json = json.dumps(ds_runner_args)
-# print(ds_runner_args_json)
+# print('------- DISCOVER ALL PARAMS -------')
 #
+# print('--- DS RUNNER PARAMS ---')
+# ds_runner_parser = get_deepspeed_runner_parser()
+# ds_runner_params = parser_to_params_list(ds_runner_parser)
+# print([e.name for e in ds_runner_params])
 #
+# print('--- MEGATRON PARAMS ---')
+# megatron_parser = get_megatron_parser()
+# megatron_parser_params = parser_to_params_list(megatron_parser)
+# megatron_parser_params = [e for e in megatron_parser_params if e.name != 'deepscale_config']
+# print([e.name for e in megatron_parser_params])
 #
-# print('MEGATRON ARGS')
-# user_script_args = ds_runner_args['user_args']
-# megatron_args = megatron_parse_args(user_script_args)
-# megatron_args = vars(megatron_args)
-# megatron_args_json = json.dumps(megatron_args)
-# print(megatron_args_json)
-#
-#
-# print('DS CONFIG ARGS')
-# with open(megatron_args['deepspeed_config']) as f:
-#     ds_config = json.load(f)
-# with open(megatron_args['deepspeed_config']) as f:
-#     ds_config_json = f.read()
-# print(ds_config_json)
-#
-# print('DS RUNNER KEYS')
-# print(list(ds_runner_args.keys()))
-#
-# print('MEGATRON KEYS')
-# print(list(megatron_args.keys()))
-#
-# print('DS CONFIG KEYS')
+# print('--- DS CONFIG PARAMS FROM PROVIDED JSON (NOT ALL PARAMS) ---')
 # print(list(ds_config.keys()))
-#
-
-
-
-# Get arg
