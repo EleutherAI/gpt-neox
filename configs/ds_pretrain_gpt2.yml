@@ -2,7 +2,6 @@
    "num_nodes": 1,
    "num_gpus": 8,
    "model-parallel-size": 4,
-   "pipe-parallel-size": 2,
 
    "num-layers": 24,
    "hidden-size": 1024,
@@ -24,22 +23,22 @@
    "clip-grad": 1.0,
    "warmup": 0.01,
 
-   "checkpoint-activations": True,
+   "checkpoint-activations": true,
    "log-interval": 100,
    "save-interval": 10000,
    "eval-interval": 1000,
    "eval-iters": 10,
    "tensorboard-dir": "tensorboard_data/24l_1024h_1n_8g_4mp_9b_ds4",
-   "deepspeed": True,
+   "deepspeed": true,
 
    "zero-stage": 0,
    "zero-reduce-bucket-size": 50000000,
    "zero-allgather-bucket-size": 5000000000,
-   "zero-contigious-gradients": True,
-   "zero-reduce-scatter": True,
+   "zero-contigious-gradients": true,
+   "zero-reduce-scatter": true,
    "checkpoint-num-layers": 1,
-   "partition-activations": True,
-   "synchronize-each-layer": True,
+   "partition-activations": true,
+   "synchronize-each-layer": true,
 
   # Deepspeed conf ds_config.json
    "train_batch_size": 224,
