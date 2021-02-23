@@ -26,6 +26,8 @@ from json import JSONDecodeError
 
 import math
 import sys
+
+import os
 import torch
 import wandb
 from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
@@ -258,14 +260,19 @@ def setup_model_and_optimizer(model_provider_func):
     # If JSON then directly load it
     deepspeed_conf = None
     if hasattr(args, 'deepspeed_config'):
-        deepspeed_json_conf = args.deepspeed_config
-        if len(deepspeed_json_conf) > 2 and deepspeed_json_conf[0] == "'" and deepspeed_json_conf[-1] == "'":
-            deepspeed_json_conf = deepspeed_json_conf[1:-1]  # Remove shell quotes
-        try:
-            deepspeed_conf = json.loads(deepspeed_json_conf)
-            args.deepspeed_config = None
-        except JSONDecodeError:
-            pass
+        if not os.path.exists(args.deepspeed_config):
+            # If its not a path trying parsing as a JSON string
+            deepspeed_json_conf = args.deepspeed_config
+            if len(deepspeed_json_conf) > 2 and deepspeed_json_conf[0] == "'" and deepspeed_json_conf[-1] == "'":
+                deepspeed_json_conf = deepspeed_json_conf[1:-1]  # Remove shell quotes
+            try:
+                deepspeed_conf = json.loads(deepspeed_json_conf)
+                args.deepspeed_config = None  # Pass directy as dictionary to deepspeed
+            except JSONDecodeError:
+                # Not a path or a string
+                raise ValueError(
+                    f'The parameter `deepspeed_config` is neither a file path that exists or a JSON string:'
+                    f' {args.deepspeed_config}')
 
     if args.deepspeed:
         print_rank_0("DeepSpeed is enabled.")
