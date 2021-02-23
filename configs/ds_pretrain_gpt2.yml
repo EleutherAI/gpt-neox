@@ -2,6 +2,7 @@
    "num_nodes": 1,
    "num_gpus": 8,
    "model-parallel-size": 4,
+   "pipe-parallel-size": 2,
 
    "num-layers": 24,
    "hidden-size": 1024,
