@@ -44,6 +44,8 @@ if wandb_token is not None:
 
 old_style_args = ConfigMonster().consume_args(extra_conf=extra_conf)
 
+### LOG CONFIG TO WANDB
+
 if __name__ == '__main__':
     main(old_style_args)
 
