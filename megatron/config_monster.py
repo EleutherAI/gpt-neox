@@ -19,6 +19,7 @@ import shlex
 import sys
 import logging
 import yaml
+from deepspeed.launcher.runner import DLTS_HOSTFILE
 
 from megatron.utils import obtain_resource_rool
 
@@ -141,7 +142,8 @@ class ConfigMonster:
 
         # Get number of GPUs param or hostfile
         num_gpus = conf.get('num_gpus')
-        if num_gpus is None and 'hostfile' in conf:
+        if num_gpus is None and ('hostfile' in conf or os.path.exists(DLTS_HOSTFILE)):
+            hostfile_path = conf.get('hostfile', DLTS_HOSTFILE)
             resources = obtain_resource_rool(conf['hostfile'], conf.get('include', ''), conf.get('exclude', ''))
             num_gpus = sum(resources.values())
 
@@ -173,19 +175,13 @@ class ConfigMonster:
                 return [f'--{k}']
             if v is None:
                 return []
-            return [f'--{k}', shlex.quote(str(v))]
-
-        def shell_escape(s: str):
-            """`shlex.quote` doesn't seem to work when n-workers > 1."""
-            # s = s.replace(' ', '\\ ') # Its really '\ ' but need to exscape backslash for python
-            # s = s.replace('"', '\\"')
-            return s
+            return [f'--{k}', str(v)]
 
         # Convert to CLI args
         ds_runner_args = [e for k, v in ds_runner_conf.items() for e in convert_(k, v)]
         user_script_args = (
                 [e for k, v in megatron_conf.items() for e in convert_(k, v)]
-                + ['--deepspeed_config', shell_escape(json.dumps(ds_config_conf, separators=(',', ':')))])
+                + ['--deepspeed_config', json.dumps(ds_config_conf, separators=(',', ':'))])
 
         old_style_args = ds_runner_args + [parsed_args.user_script] + user_script_args
 
