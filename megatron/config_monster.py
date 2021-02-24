@@ -169,11 +169,17 @@ class ConfigMonster:
                 return []
             return [f'--{k}', shlex.quote(str(v))]
 
+        def shell_escape(s: str):
+            """`shlex.quote` doesn't seem to work when n-workers > 1."""
+            s = s.replace(' ', r'\ ')
+            s = s.replace('"', r'\"')
+            return s
+
         # Convert to CLI args
         ds_runner_args = [e for k, v in ds_runner_conf.items() for e in convert_(k, v)]
         user_script_args = (
                 [e for k, v in megatron_conf.items() for e in convert_(k, v)]
-                + ['--deepspeed_config', shlex.quote(json.dumps(ds_config_conf, separators=(',', ':')))])
+                + ['--deepspeed_config', shell_escape(json.dumps(ds_config_conf, separators=(',', ':')))])
 
         old_style_args = ds_runner_args + [parsed_args.user_script] + user_script_args
 
