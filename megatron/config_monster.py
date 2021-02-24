@@ -163,7 +163,7 @@ class ConfigMonster:
         """
 
         def convert_(k, v):
-            if v == True:
+            if isinstance(v, bool) and v == True:
                 return [f'--{k}']
             if v is None:
                 return []
