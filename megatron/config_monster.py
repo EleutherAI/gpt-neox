@@ -173,7 +173,7 @@ class ConfigMonster:
         ds_runner_args = [e for k, v in ds_runner_conf.items() for e in convert_(k, v)]
         user_script_args = (
                 [e for k, v in megatron_conf.items() for e in convert_(k, v)]
-                + ['--deepspeed_config', shlex.quote(json.dumps(ds_config_conf))])
+                + ['--deepspeed_config', shlex.quote(json.dumps(ds_config_conf, separators=(',', ':')))])
 
         old_style_args = ds_runner_args + [parsed_args.user_script] + user_script_args
 
