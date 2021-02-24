@@ -1,3 +1,17 @@
+# Copyright 2021 Josh Levy-Kramer. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import argparse
 import json
 import os
@@ -14,7 +28,7 @@ megatron_keys = ['num-layers', 'num-unique-layers', 'param-sharing-style', 'hidd
                  'max-position-embeddings', 'make-vocab-size-divisible-by', 'layernorm-epsilon',
                  'apply-residual-connection-post-layernorm', 'openai-gelu', 'onnx-safe', 'attention-dropout',
                  'hidden-dropout', 'weight-decay', 'clip-grad', 'adam-beta1', 'adam-beta2', 'adam-eps', 'batch-size',
-                 'onebitadam', 'gas', 'checkpoint-activations', 'distribute-checkpointed-activations',
+                 'onebitadam', 'checkpoint-activations', 'distribute-checkpointed-activations',
                  'checkpoint-num-layers', 'train-iters', 'log-interval', 'exit-interval', 'tensorboard-dir',
                  'scaled-upper-triang-masked-softmax-fusion', 'scaled-masked-softmax-fusion', 'bias-gelu-fusion',
                  'geglu', 'no-weight-tying', 'sinusoidal-pos-emb', 'bias-dropout-fusion', 'sparsity', 'cpu-optimizer',
