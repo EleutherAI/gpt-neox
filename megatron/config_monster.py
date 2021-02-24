@@ -148,7 +148,7 @@ class ConfigMonster:
             num_gpus = sum(map(len, resources.values()))
             # conf['num_gpus'] = num_gpus
             # conf['num_nodes'] = len(resources)
-            log.info(f"Total number of GPUs determined to be: {conf['num_gpus']}")
+            log.info(f"Total number of GPUs determined to be: {num_gpus}")
             #log.info(f"`num_nodes` determined to be: {conf['num_nodes']}")
 
         # Automatically derive train_batch_size = train_micro_batch_size_per_gpu*num_gpus*gradient_accumulation_steps
