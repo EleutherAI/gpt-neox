@@ -1,4 +1,4 @@
-# Copyright 2021 Josh Levy-Kramer. All rights reserved.
+# Copyright 2021 (c) Josh Levy-Kramer <josh@levykramer.co.uk>. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@ import shlex
 import sys
 import logging
 import yaml
+
+from megatron.utils import obtain_resource_rool
 
 log = logging.getLogger('ConfigMonster')
 
@@ -59,7 +61,7 @@ neox_config_keys = ['wandb_group', 'wandb_team']
 ds_runner_keys_exclude = []
 megatron_keys_exclude = [
     'fp16',  # Duplicated in ds_config
-    'gas', # Duplicate of `gradient_accumulation_steps` in ds_config
+    'gas',  # Duplicate of `gradient_accumulation_steps` in ds_config
 ]
 ds_config_keys_exclude = []
 
@@ -137,13 +139,17 @@ class ConfigMonster:
             conf['gradient_accumulation_steps'] = 1
             log.info(f"`gradient_accumulation_steps` set to default: 1")
 
+        # Get number of GPUs param or hostfile
+        num_gpus = conf.get('num_gpus')
+        if num_gpus is None and 'hostfile' in conf:
+            resources = obtain_resource_rool(conf['hostfile'], conf.get('include', ''), conf.get('exclude', ''))
+            num_gpus = sum(resources.values())
+
         # Automatically derive train_batch_size = train_micro_batch_size_per_gpu*num_gpus*gradient_accumulation_steps
-        if (
-            'train_batch_size' not in conf
-            and all(e in conf for e in ['train_micro_batch_size_per_gpu', 'num_gpus','gradient_accumulation_steps'])
-        ):
+        if ('train_batch_size' not in conf and 'train_micro_batch_size_per_gpu' in conf
+                and 'gradient_accumulation_steps' in conf and num_gpus is not None):
             conf['train_batch_size'] = \
-                conf['train_micro_batch_size_per_gpu']*conf['num_gpus']*conf['gradient_accumulation_steps']
+                conf['train_micro_batch_size_per_gpu'] * num_gpus * conf['gradient_accumulation_steps']
             log.info(f"`train_batch_size` derived and set to {conf['train_batch_size']}")
 
         ds_runner_conf = {key: conf[key] for key in ds_runner_keys if key in conf}
@@ -171,8 +177,8 @@ class ConfigMonster:
 
         def shell_escape(s: str):
             """`shlex.quote` doesn't seem to work when n-workers > 1."""
-            #s = s.replace(' ', '\\ ') # Its really '\ ' but need to exscape backslash for python
-            #s = s.replace('"', '\\"')
+            # s = s.replace(' ', '\\ ') # Its really '\ ' but need to exscape backslash for python
+            # s = s.replace('"', '\\"')
             return s
 
         # Convert to CLI args

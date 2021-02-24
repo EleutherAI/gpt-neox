@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright 2021 Josh Levy-Kramer. All rights reserved.
+# Copyright 2021 (c) Josh Levy-Kramer <josh@levykramer.co.uk>. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.

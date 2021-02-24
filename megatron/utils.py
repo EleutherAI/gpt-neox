@@ -1,4 +1,8 @@
 # coding=utf-8
+
+# Copyright (c) 2021 Josh Levy-Kramer <josh@levykramer.co.uk>.
+# This file is based on code by the authors denoted below and has been modified from its original version.
+#
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,9 +20,11 @@
 """General utilities."""
 import os
 import sys
+from typing import Dict
 
 import requests
 import torch
+from deepspeed.launcher.runner import fetch_hostfile, parse_inclusion_exclusion
 
 from megatron import get_args
 from megatron import print_rank_0
@@ -204,3 +210,21 @@ def neox_args(parser):
                        help='Team name for Weights and Biases.')
 
     return parser
+
+def obtain_resource_rool(hostfile_path, include_arg, exclude_arg) -> Dict[str, int]:
+    """
+    Get dict of `resource_pool[hostname] = slot_count` using hostfile, include and exclude args.
+    Modified from: `deepspeed.launcher.runner.main`
+    """
+    resource_pool = fetch_hostfile(hostfile_path)
+    if not resource_pool:
+        resource_pool = {}
+        device_count = torch.cuda.device_count()
+        if device_count == 0:
+            raise RuntimeError("Unable to proceed, no GPU resources available")
+        resource_pool['localhost'] = device_count
+
+    active_resources = parse_inclusion_exclusion(resource_pool,
+                                                 include_arg,
+                                                 exclude_arg)
+    return active_resources
