@@ -50,9 +50,7 @@ if wandb_token is not None:
     deepspeed.launcher.runner.EXPORT_ENVS.append('WANDB_API_KEY')
     os.environ['WANDB_API_KEY'] = wandb_token
 
-old_style_args = ConfigMonster().consume_args(extra_conf=extra_conf)
-
-### LOG CONFIG TO WANDB
+old_style_args, conf = ConfigMonster().consume_args(extra_conf=extra_conf)
 
 if __name__ == '__main__':
     main(old_style_args)
