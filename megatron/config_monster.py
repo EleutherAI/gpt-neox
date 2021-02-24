@@ -141,20 +141,21 @@ class ConfigMonster:
             log.info(f"`gradient_accumulation_steps` set to default: 1")
 
         # Get number of GPUs param or hostfile
+        num_gpus = conf.get('num_gpus')
         if 'num_gpus' not in conf and ('hostfile' in conf or os.path.exists(DLTS_HOSTFILE)):
             hostfile_path = conf.get('hostfile', DLTS_HOSTFILE)
             resources = obtain_resource_rool(hostfile_path, conf.get('include', ''), conf.get('exclude', ''))
             num_gpus = sum(map(len, resources.values()))
-            conf['num_gpus'] = num_gpus
-            conf['num_nodes'] = len(resources)
-            log.info(f"`num_gpus` determined to be: {conf['num_gpus']}")
-            log.info(f"`num_nodes` determined to be: {conf['num_nodes']}")
+            # conf['num_gpus'] = num_gpus
+            # conf['num_nodes'] = len(resources)
+            log.info(f"Total number of GPUs determined to be: {conf['num_gpus']}")
+            #log.info(f"`num_nodes` determined to be: {conf['num_nodes']}")
 
         # Automatically derive train_batch_size = train_micro_batch_size_per_gpu*num_gpus*gradient_accumulation_steps
         if ('train_batch_size' not in conf and 'train_micro_batch_size_per_gpu' in conf
-                and 'gradient_accumulation_steps' in conf and 'num_gpus' in conf):
+                and 'gradient_accumulation_steps' in conf and num_gpus is not None):
             conf['train_batch_size'] = \
-                conf['train_micro_batch_size_per_gpu'] * conf['num_gpus'] * conf['gradient_accumulation_steps']
+                conf['train_micro_batch_size_per_gpu'] * num_gpus//2 * conf['gradient_accumulation_steps']
             log.info(f"`train_batch_size` derived and set to {conf['train_batch_size']}")
 
         ds_runner_conf = {key: conf[key] for key in ds_runner_keys if key in conf}
