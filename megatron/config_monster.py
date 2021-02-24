@@ -145,7 +145,7 @@ class ConfigMonster:
         if num_gpus is None and ('hostfile' in conf or os.path.exists(DLTS_HOSTFILE)):
             hostfile_path = conf.get('hostfile', DLTS_HOSTFILE)
             resources = obtain_resource_rool(hostfile_path, conf.get('include', ''), conf.get('exclude', ''))
-            num_gpus = sum(resources.values())
+            num_gpus = sum(map(len, resources.values()))
 
         # Automatically derive train_batch_size = train_micro_batch_size_per_gpu*num_gpus*gradient_accumulation_steps
         if ('train_batch_size' not in conf and 'train_micro_batch_size_per_gpu' in conf

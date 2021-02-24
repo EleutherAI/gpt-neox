@@ -20,7 +20,7 @@
 """General utilities."""
 import os
 import sys
-from typing import Dict
+from typing import Dict, List
 
 import requests
 import torch
@@ -211,9 +211,9 @@ def neox_args(parser):
 
     return parser
 
-def obtain_resource_rool(hostfile_path, include_arg, exclude_arg) -> Dict[str, int]:
+def obtain_resource_rool(hostfile_path, include_arg, exclude_arg) -> Dict[str, List[int]]:
     """
-    Get dict of `resource_pool[hostname] = slot_count` using hostfile, include and exclude args.
+    Get dict of `resource_pool[hostname] = [list of GPU ranks]` using hostfile, include and exclude args.
     Modified from: `deepspeed.launcher.runner.main`
     """
     resource_pool = fetch_hostfile(hostfile_path)
