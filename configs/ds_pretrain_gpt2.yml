@@ -1,6 +1,6 @@
 {
-   "num_nodes": 1,
-   "num_gpus": 8,
+#   "num_nodes": 1,
+#   "num_gpus": 8,
    "model-parallel-size": 4,
 
    "num-layers": 24,
@@ -41,7 +41,6 @@
    "synchronize-each-layer": true,
 
   # Deepspeed conf ds_config.json
-   "train_batch_size": 224,
    "train_micro_batch_size_per_gpu": 4,
    "steps_per_print": 10,
    "optimizer": {
