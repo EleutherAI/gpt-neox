@@ -25,7 +25,7 @@ from megatron.config_monster import ConfigMonster
 import logging
 
 logger = logging.getLogger('gpt-neox')
-logger.setLevel('info')
+logger.setLevel('INFO')
 
 def get_wandb_api_key():
     """ Get Weights and Biases API key from ENV or .netrc file. Otherwise return None """
