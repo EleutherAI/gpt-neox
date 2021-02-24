@@ -171,8 +171,8 @@ class ConfigMonster:
 
         def shell_escape(s: str):
             """`shlex.quote` doesn't seem to work when n-workers > 1."""
-            s = s.replace(' ', r'\ ')
-            s = s.replace('"', r'\"')
+            s = s.replace(' ', '\\ ') # Its really '\ ' but need to exscape backslash for python
+            s = s.replace('"', '\\"')
             return s
 
         # Convert to CLI args
