@@ -5,7 +5,7 @@
 
    "num-layers": 24,
    "hidden-size": 1024,
-   "num-attention-heads": 15,
+   "num-attention-heads": 16,
    "seq-length": 1024,
    "max-position-embeddings": 1024,
 
