@@ -47,7 +47,7 @@
    "partition-activations":true,
    "checkpoint-in-cpu":true,
    "synchronize-each-layer":true,
-   #"train_batch_size":224,
+   "train_batch_size":micro_batch_per_gpu * gradient_acc_step * world_size,
    "train_micro_batch_size_per_gpu":4,
    "steps_per_print":10,
    "zero_optimization":{
