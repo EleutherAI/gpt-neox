@@ -1,4 +1,4 @@
-{
+{  "model-parallel-size":1,
    "num-layers":24,
    "hidden-size":1024,
    "num-attention-heads":16,
