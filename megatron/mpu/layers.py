@@ -407,7 +407,7 @@ class RMSNorm(torch.nn.Module):
         return self.scale * x_normed
 
 args = get_args()
-if args.rmsnorm:
+if args.rms_norm:
     LayerNorm = RMSNorm
 else:
     # default to FusedLayerNorm
