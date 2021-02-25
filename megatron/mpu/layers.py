@@ -41,7 +41,16 @@ from .utils import split_tensor_along_last_dim
 from .utils import VocabUtility
 from megatron import get_args
 
+# default to FusedLayerNorm
+try:
+    from apex.normalization.fused_layer_norm import FusedLayerNorm as LayerNorm
+    # Try to use FusedLayerNorm from Apex - this will trigger an error.
+    _ = LayerNorm(8, eps=1e-5)
 
+except Exception as e:
+    print('WARNING: APEX is not installed, using torch.nn.LayerNorm '
+          'instead of apex.normalization.FusedLayerNorm!')
+    from torch.nn import LayerNorm
 
 def _initialize_affine_weight_gpu(weight, init_method,
                                   partition_dim, stride=1):
@@ -407,13 +416,3 @@ class RMSNorm(torch.nn.Module):
         return self.scale * x_normed
 
 
-# default to FusedLayerNorm
-try:
-    from apex.normalization.fused_layer_norm import FusedLayerNorm as LayerNorm
-    # Try to use FusedLayerNorm from Apex - this will trigger an error.
-    _ = LayerNorm(8, eps=1e-5)
-
-except Exception as e:
-    print('WARNING: APEX is not installed, using torch.nn.LayerNorm '
-          'instead of apex.normalization.FusedLayerNorm!')
-    from torch.nn import LayerNorm

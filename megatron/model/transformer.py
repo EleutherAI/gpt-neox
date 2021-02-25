@@ -472,13 +472,14 @@ class ParallelTransformerLayer(MegatronModule):
             = args.apply_residual_connection_post_layernorm
 
         if args.rms_norm:
-            LayerNorm = RMSNorm
+            norm = RMSNorm
             eps = args.rms_norm_epsilon
         else:
             eps = args.layernorm_epsilon
+            norm = LayerNorm
 
         # Layernorm on the input data.
-        self.input_layernorm = LayerNorm(
+        self.input_layernorm = norm(
             args.hidden_size,
             eps=eps)
 
@@ -491,7 +492,7 @@ class ParallelTransformerLayer(MegatronModule):
         self.bias_dropout_fusion = args.bias_dropout_fusion
 
         # Layernorm on the input data.
-        self.post_attention_layernorm = LayerNorm(
+        self.post_attention_layernorm = norm(
             args.hidden_size,
             eps=eps)
 
@@ -622,12 +623,13 @@ class ParallelTransformer(MegatronModule):
 
         # Final layer norm before output.
         if args.rms_norm:
-            LayerNorm = RMSNorm
+            norm = RMSNorm
             eps = args.rms_norm_epsilon
         else:
             eps = args.layernorm_epsilon
+            norm = LayerNorm
 
-        self.final_layernorm = LayerNorm(
+        self.final_layernorm = norm(
             args.hidden_size,
             eps=eps)
 

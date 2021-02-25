@@ -207,13 +207,14 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
 
         # Final layernorm after transformer layers
         if args.rms_norm:
-            LayerNorm = RMSNorm
+            norm = RMSNorm
             eps = args.rms_norm_epsilon
         else:
             eps = args.layernorm_epsilon
+            norm = LayerNorm
 
         self.specs.append(
-            LayerSpec(LayerNorm,
+            LayerSpec(norm,
                       args.hidden_size,
                       eps=eps))
 
