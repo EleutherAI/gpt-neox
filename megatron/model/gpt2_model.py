@@ -31,9 +31,9 @@ from .utils import scaled_init_method_normal
 
 # Pipeline parallelism
 from megatron import mpu
+from .utils import openai_gelu
 import torch.nn.functional as F
-import torch.nn.functional as F
-from apex.normalization.fused_layer_norm import FusedLayerNorm as LayerNorm
+from megatron.mpu import LayerNorm
 import megatron.fp16 as fp16
 from megatron.model.transformer import ParallelTransformerLayerPipe
 from .language_model import EmbeddingPipe
