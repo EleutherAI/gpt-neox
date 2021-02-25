@@ -24,7 +24,7 @@ import torch.nn.functional as F
 
 from megatron import get_args
 from megatron import mpu
-from megatron.mpu import LayerNorm
+from megatron.mpu import LayerNorm, RMSNorm
 from megatron.module import MegatronModule
 from megatron.checkpointing import get_checkpoint_version
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
@@ -471,10 +471,16 @@ class ParallelTransformerLayer(MegatronModule):
         self.apply_residual_connection_post_layernorm \
             = args.apply_residual_connection_post_layernorm
 
+        if args.rms_norm:
+            LayerNorm = RMSNorm
+            eps = args.rms_norm_epsilon
+        else:
+            eps = args.layernorm_epsilon
+
         # Layernorm on the input data.
         self.input_layernorm = LayerNorm(
             args.hidden_size,
-            eps=args.layernorm_epsilon)
+            eps=eps)
 
         # Self attention.
         self.attention = ParallelSelfAttention(attention_mask_func, init_method,
@@ -487,7 +493,7 @@ class ParallelTransformerLayer(MegatronModule):
         # Layernorm on the input data.
         self.post_attention_layernorm = LayerNorm(
             args.hidden_size,
-            eps=args.layernorm_epsilon)
+            eps=eps)
 
         # MLP
         self.mlp = ParallelMLP(init_method,
@@ -615,9 +621,15 @@ class ParallelTransformer(MegatronModule):
                           flush=True)
 
         # Final layer norm before output.
+        if args.rms_norm:
+            LayerNorm = RMSNorm
+            eps = args.rms_norm_epsilon
+        else:
+            eps = args.layernorm_epsilon
+
         self.final_layernorm = LayerNorm(
             args.hidden_size,
-            eps=args.layernorm_epsilon)
+            eps=eps)
 
         if deepspeed.checkpointing.is_configured():
             global get_cuda_rng_tracker, checkpoint

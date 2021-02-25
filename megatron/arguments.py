@@ -282,6 +282,7 @@ def _add_training_args(parser):
                         interspersed = sparse on odd layers, dense on even')
     group.add_argument('--rms-norm', action='store_true',
                        help='Use root mean squared norm')
+    group.add_argument('--rms-norm-epsilon', type=float, default=1e-5)
     group.add_argument('--cpu-optimizer', action='store_true',
                        help='Run optimizer on CPU')
     group.add_argument('--cpu_torch_adam', action='store_true',
