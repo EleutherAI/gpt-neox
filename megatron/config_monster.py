@@ -12,58 +12,54 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from pprint import pprint
+import inspect
 import argparse
 import json
 import os
-import shlex
-import sys
 import logging
 import yaml
 from deepspeed.launcher.runner import DLTS_HOSTFILE
 
 from megatron.utils import obtain_resource_rool
+from megatron.arguments import _get_parser
 
 log = logging.getLogger('ConfigMonster')
 
 ds_runner_keys = ['hostfile', 'include', 'exclude', 'num_nodes', 'num_gpus', 'master_port', 'master_addr', 'launcher',
                   'launcher_args']  # handle separately: 'user_script', 'user_args'
-megatron_keys = ['num-layers', 'num-unique-layers', 'param-sharing-style', 'hidden-size', 'num-attention-heads',
-                 'max-position-embeddings', 'make-vocab-size-divisible-by', 'layernorm-epsilon',
-                 'apply-residual-connection-post-layernorm', 'openai-gelu', 'onnx-safe', 'attention-dropout',
-                 'hidden-dropout', 'weight-decay', 'clip-grad', 'adam-beta1', 'adam-beta2', 'adam-eps', 'batch-size',
-                 'onebitadam', 'checkpoint-activations', 'distribute-checkpointed-activations',
-                 'checkpoint-num-layers', 'train-iters', 'log-interval', 'exit-interval', 'tensorboard-dir',
-                 'scaled-upper-triang-masked-softmax-fusion', 'scaled-masked-softmax-fusion', 'bias-gelu-fusion',
-                 'geglu', 'no-weight-tying', 'sinusoidal-pos-emb', 'bias-dropout-fusion', 'sparsity', 'cpu-optimizer',
-                 'cpu_torch_adam', 'seed', 'init-method-std', 'lr', 'lr-decay-style', 'lr-decay-iters', 'min-lr',
-                 'warmup', 'override-lr-scheduler', 'use-checkpoint-lr-scheduler', 'save', 'save-interval',
-                 'no-save-optim', 'no-save-rng', 'load', 'no-load-optim', 'no-load-rng', 'finetune',
-                 'apply-query-key-layer-scaling', 'attention-softmax-in-fp32', 'fp32-allreduce', 'hysteresis',
-                 'loss-scale', 'loss-scale-window', 'min-scale', 'fp16-lm-cross-entropy', 'model-parallel-size',
-                 'pipe-parallel-size', 'distributed-backend', 'DDP-impl', 'local_rank', 'lazy-mpu-init',
-                 'use-cpu-initialization', 'eval-iters', 'eval-interval', 'data-path', 'split', 'vocab-file',
-                 'merge-file', 'seq-length', 'mask-prob', 'short-seq-prob', 'mmap-warmup', 'num-workers',
-                 'tokenizer-type', 'data-impl', 'reset-position-ids', 'reset-attention-mask', 'eod-mask-loss',
-                 'adlr-autoresume', 'adlr-autoresume-interval', 'ict-head-size', 'ict-load', 'bert-load',
-                 'titles-data-path', 'query-in-block-prob', 'use-one-sent-docs', 'report-topk-accuracies',
-                 'faiss-use-gpu', 'block-data-path', 'indexer-batch-size', 'indexer-log-interval', 'zero-stage',
-                 'zero-reduce-scatter', 'zero-contigious-gradients', 'zero-reduce-bucket-size',
-                 'zero-allgather-bucket-size', 'deepspeed-activation-checkpointing', 'partition-activations',
-                 'contigious-checkpointing', 'checkpoint-in-cpu', 'synchronize-each-layer', 'profile-backward',
-                 'deepspeed', 'deepspeed_config', 'deepscale', 'deepspeed_mpi']  # 'fp16' is duplicate
+
+megatron_keys_exclude = [
+    'fp16',  # Duplicated in ds_config
+    'gas',  # Duplicate of `gradient_accumulation_steps` in ds_config,
+    '-h', 'help'  # Argparse arguments - unneeded
+]
+
+
+def _get_megatron_keys():
+    megatron_keys = list(_get_parser()._option_string_actions.keys())
+    megatron_keys = [item.replace('--', '') for item in megatron_keys]
+    for item in megatron_keys_exclude:
+        try:
+            megatron_keys.remove(item)
+        except ValueError:
+            pass
+    return megatron_keys
+
+
+megatron_keys = _get_megatron_keys()
+
 # DS Config manually taken from https://www.deepspeed.ai/docs/config-json/ plus some undocumented keys
 ds_config_keys = ['train_batch_size', 'train_micro_batch_size_per_gpu', 'gradient_accumulation_steps', 'optimizer',
                   'scheduler', 'fp32_allreduce', 'prescale_gradients', 'gradient_predivide_factor', 'sparse_gradients',
                   'fp16', 'amp', 'gradient_clipping', 'zero_optimization', 'steps_per_print', 'wall_clock_breakdown',
                   'dump_state', 'flops_profiler', 'activation_checkpointing', 'sparse_attention',
                   'zero_allow_untested_optimizer', ]
+
 neox_config_keys = ['wandb_group', 'wandb_team']
 
 ds_runner_keys_exclude = []
-megatron_keys_exclude = [
-    'fp16',  # Duplicated in ds_config
-    'gas',  # Duplicate of `gradient_accumulation_steps` in ds_config
-]
+
 ds_config_keys_exclude = []
 
 
