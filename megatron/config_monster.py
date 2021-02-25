@@ -155,7 +155,7 @@ class ConfigMonster:
         if ('train_batch_size' not in conf and 'train_micro_batch_size_per_gpu' in conf
                 and 'gradient_accumulation_steps' in conf and num_gpus is not None):
             conf['train_batch_size'] = \
-                conf['train_micro_batch_size_per_gpu'] * (num_gpus//num_nodes) * conf['gradient_accumulation_steps']
+                conf['train_micro_batch_size_per_gpu'] * num_gpus * conf['gradient_accumulation_steps']
             log.info(f"`train_batch_size` derived and set to {conf['train_batch_size']}")
 
         ds_runner_conf = {key: conf[key] for key in ds_runner_keys if key in conf}
