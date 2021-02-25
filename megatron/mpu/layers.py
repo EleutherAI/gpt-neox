@@ -410,7 +410,7 @@ args = get_args()
 if args.rmsnorm:
     LayerNorm = RMSNorm
 else:
-    # default to FusedLayerNorm 
+    # default to FusedLayerNorm
     try:
         from apex.normalization.fused_layer_norm import FusedLayerNorm as LayerNorm
         # Try to use FusedLayerNorm from Apex - this will trigger an error.
