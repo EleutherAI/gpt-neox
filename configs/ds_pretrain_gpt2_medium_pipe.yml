@@ -1,6 +1,4 @@
 {
-   #"model-parallel-size":1,
-   #"pipe-parallel-size":2,
    "num-layers":24,
    "hidden-size":1024,
    "num-attention-heads":16,
@@ -47,7 +45,6 @@
    "partition-activations":true,
    "checkpoint-in-cpu":true,
    "synchronize-each-layer":true,
-   #"train_batch_size":micro_batch_per_gpu * gradient_acc_step * world_size,
    "train_micro_batch_size_per_gpu":4,
    "steps_per_print":10,
    "zero_optimization":{
