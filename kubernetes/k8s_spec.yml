@@ -19,8 +19,8 @@ spec:
       terminationGracePeriodSeconds: 10
       containers:
       - name: neox
-        command: ["sudo"]
-        args: ["/usr/sbin/sshd", "-D"]
+#        command: ["sudo"]
+#        args: ["/usr/sbin/sshd", "-D"]
         tty: true
         image: leogao2/gpt-neox
         ports:
