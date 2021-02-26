@@ -1,5 +1,9 @@
 ## EleutherAI cluster
 
+This directory contains code designed to facilitate working on our Kubernetes cluster. If you are an EleutherAI member and wish to be given access to the cluster, reach out to Stella or Sid.
+
+If you are not an EleutherAI member, do not use any of the code in this directory.
+
 ### Using a cluster
 
 If you already have a EleutherAI cluster setup for you, test to see if the cluster is working:
