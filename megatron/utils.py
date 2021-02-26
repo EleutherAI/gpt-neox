@@ -228,3 +228,48 @@ def obtain_resource_pool(hostfile_path, include_arg, exclude_arg) -> Dict[str, L
                                                  include_arg,
                                                  exclude_arg)
     return active_resources
+
+
+def get_batch_related_parameters(train_batch, micro_batch, grad_acc, world_size):
+    """ Modified from deepspeed.DeepSpeedConfig._set_batch_related_parameters """
+
+    # all values are provided nothing needs to be set
+    if train_batch is not None and \
+            micro_batch is not None and \
+            grad_acc is not None:
+        return
+
+    # global_accumulation_steps needs to be set
+    elif train_batch is not None and \
+            micro_batch is not None:
+        grad_acc = train_batch // micro_batch
+        grad_acc //= world_size
+
+    # micro_batch_per_gpu needs to be set
+    elif train_batch is not None and \
+            grad_acc is not None:
+        micro_batch = train_batch // world_size
+        micro_batch //= grad_acc
+
+    # train_batch_size needs to be set
+    elif micro_batch is not None and \
+            grad_acc is not None:
+        train_batch = micro_batch * grad_acc
+        train_batch *= world_size
+
+    # gradient_accumulation_steps and micro_batch_per_gpus is set
+    elif train_batch is not None:
+        grad_acc = 1
+        micro_batch = train_batch // world_size
+
+    # train_batch_size and gradient_accumulation_step is set
+    elif micro_batch is not None:
+        train_batch = micro_batch * world_size
+        grad_acc = 1
+
+    # either none of the three parameters are provided or just gradient_accumulation_step is provided
+    else:
+        assert False, \
+            'Either train_batch_size or micro_batch_per_gpu needs to be provided'
+
+    return train_batch, micro_batch, grad_acc

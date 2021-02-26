@@ -33,21 +33,23 @@ echo Generate SSH key pair
 rm $WD/id_rsa*
 ssh-keygen -t rsa -f $WD/id_rsa -N "" 
 
-# This script is designed to work with any image that is debian based
-# The only requirement is /bin/bash to allow for quick prototyping
-# HINT: the `post_start_script` cannot have blank lines and NO comments
+# This script is designed to work with any image that is debian based to allow for quick prototyping.
+# The only requirement is `/bin/bash`. It works if the user is root or another such as `mchorse`.
+# HINT: the `post_start_script` cannot have blank lines and NO comments.
+# If this script hangs the pod will never enter a success state even though its running.
 post_start_script="
-apt-get update -y || sudo apt-get update -y;
-apt-get install -y sudo ssh pdsh || sudo apt-get install -y ssh pdsh;
-mkdir -p /run/sshd ~/.ssh;
-/usr/sbin/sshd &
-rm -rf /job;
-sudo mkdir -p /job;
-sudo chown $(whoami):$(whoami) /job;
+apt-get update -y || {sleep 3; sudo apt-get update -y}
+apt-get install -y sudo ssh pdsh || {sleep 3; sudo apt-get install -y ssh pdsh}
+mkdir -p /run/sshd;
+sudo /usr/sbin/sshd;
+sudo rm -rf /job;
+sudo mkdir -p /job ~/.ssh;
+USER=$(whoami)
+sudo chown $USER:$USER /job;
 sudo cp /secrets/id_rsa.pub ~/.ssh/authorized_keys;
-sudo chown $(whoami):$(whoami) ~/.ssh/authorized_keys;
-sudo chown -R $(whoami):$(whoami) ~/.ssh;
-chmod 600 ~/.ssh/authorized_keys;
+sudo chown $USER:$USER ~/.ssh/authorized_keys;
+sudo chown -R $USER:$USER ~/.ssh;
+schmod 600 ~/.ssh/authorized_keys;
 chmod 700 ~/.ssh;
 echo 'export DATA_DIR=/mnt/ssd-cluster/data' >> ~/.bashrc;
 echo 'export WANDB_TEAM=eleutherai' >> ~/.bashrc;

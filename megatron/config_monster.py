@@ -317,7 +317,7 @@ class ConfigMonster:
 
         conf['deepspeed'] = True  # Always use deepspeed
 
-        # Get number of GPUs param or hostfile to determine train_batch_size. Only do it using hostfile
+        # Get number of GPUs param or hostfile to determine train_batch_size
         num_gpus = conf.get('num_gpus')
         if num_gpus is None and ('hostfile' in conf or os.path.exists(DLTS_HOSTFILE)):
             hostfile_path = conf.get('hostfile', DLTS_HOSTFILE)
@@ -390,6 +390,6 @@ class ConfigMonster:
         parser = self.construct_arg_parser()
         parsed_args, conf = self.parse_args(parser, args, extra_conf)
         ds_runner_conf, megatron_conf, ds_config_conf = self.derive_params_and_split(conf)
-        old_style_args = self.convert_to_old_args(args, parsed_args, ds_runner_conf, megatron_conf, ds_config_conf)
+        old_style_args = self.convert_to_old_args(parsed_args, ds_runner_conf, megatron_conf, ds_config_conf)
         log.info(f"GPT-NEOX config: {conf}")
         return old_style_args, conf
