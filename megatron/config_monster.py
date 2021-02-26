@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pprint import pprint
-import inspect
 import argparse
 import json
 import os
@@ -26,14 +24,13 @@ from megatron.arguments import _get_parser
 
 log = logging.getLogger('ConfigMonster')
 
-ds_runner_keys = ['hostfile', 'include', 'exclude', 'num_nodes', 'num_gpus', 'master_port', 'master_addr', 'launcher',
-                  'launcher_args']  # handle separately: 'user_script', 'user_args'
-
 megatron_keys_exclude = [
     'fp16',  # Duplicated in ds_config
     'gas',  # Duplicate of `gradient_accumulation_steps` in ds_config,
     '-h', 'help'  # Argparse arguments - unneeded
 ]
+ds_runner_keys_exclude = []
+ds_config_keys_exclude = []
 
 
 def _get_megatron_keys():
@@ -56,11 +53,12 @@ ds_config_keys = ['train_batch_size', 'train_micro_batch_size_per_gpu', 'gradien
                   'dump_state', 'flops_profiler', 'activation_checkpointing', 'sparse_attention',
                   'zero_allow_untested_optimizer', ]
 
+ds_runner_keys = ['hostfile', 'include', 'exclude', 'num_nodes', 'num_gpus', 'master_port', 'master_addr', 'launcher',
+                  'launcher_args']  # handle separately: 'user_script', 'user_args'
+
 neox_config_keys = ['wandb_group', 'wandb_team']
 
-ds_runner_keys_exclude = []
 
-ds_config_keys_exclude = []
 
 
 class ConfigMonster:
