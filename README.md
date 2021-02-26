@@ -1,4 +1,5 @@
-![GitHub issues](https://img.shields.io/github/issues/EleutherAI/gpt-neox)
+[![GitHub issues](https://img.shields.io/github/issues/EleutherAI/gpt-neox)](https://github.com/EleutherAI/gpt-neox/issues)
+[![Weights & Biases monitoring](https://raw.githubusercontent.com/wandb/assets/main/wandb-github-badge-28.svg | height=10)](https://wandb.ai/eleutherai/neox)
 
 # GPT-NeoX
 
@@ -50,6 +51,10 @@ If you are already familiar with training models using DeepSpeed, you can use th
 **Pipeline Parallel:**
 
 **Mixed Precision Training:**
+
+## Monitoring
+
+EleutherAI is currently using [Weights & Biases to record experiments](https://wandb.ai/eleutherai/neox). If you are logged into Weights & Biases on your machine - you can do this by executing `wandb login` - your runs will automatically be recorded. Additionally, set the environment variable `WANDB_TEAM` if you would like the run to be added to a organisation/team account.
 
 ## Eleuther Cluster
 
