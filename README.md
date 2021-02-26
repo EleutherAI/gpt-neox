@@ -27,7 +27,7 @@ If you are already familiar with training models using DeepSpeed, you can use th
 
 ### Model Structure
 
-**Positional Encoding:** Currently we only support sinesoidal positional encodings.
+**Positional Encodings:**
 
 **Sparsity:**
 
