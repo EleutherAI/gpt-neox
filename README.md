@@ -1,5 +1,5 @@
 [![GitHub issues](https://img.shields.io/github/issues/EleutherAI/gpt-neox)](https://github.com/EleutherAI/gpt-neox/issues)
-[![Weights & Biases monitoring](https://raw.githubusercontent.com/wandb/assets/main/wandb-github-badge-28.svg | height=10)](https://wandb.ai/eleutherai/neox)
+[<img src="https://raw.githubusercontent.com/wandb/assets/main/wandb-github-badge-28.svg" alt="Weights & Biases monitoring" height=20>](https://wandb.ai/eleutherai/neox)
 
 # GPT-NeoX
 
@@ -8,9 +8,6 @@ This repository records [EleutherAI](www.eleuther.ai)'s work-in-progress for tra
 If you are looking for our TPU codebase, see [GPT-Neo](https://github.com/EleutherAI/gpt-neo).
 
 GPT-NeoX is under active development and rough around the edges. GPT-NeoX is a complicated beast that will take time and patients to work on any specific environment.
-
-<!--ts-->
-<!--te-->
 
 ## Getting Started
 
