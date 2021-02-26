@@ -43,7 +43,7 @@ If you are already familiar with training models using DeepSpeed, you can use th
 
 **Data Parallel:** Data parallelism is a ubiquitous technique in deep learning in which each input batch of training data is split among the data parallel workers. It is integrated into NeoX
 
-**Model Parallel:** Model Parallelism is a broad class of techniques that partitions the individual layers of the model across workers. Model Parallelism is built into NeoX as it is a part of (Megatron-LM)[https://github.com/NVIDIA/Megatron-LM]
+**Model Parallel:** Model Parallelism is a broad class of techniques that partitions the individual layers of the model across workers. Model Parallelism is built into NeoX as it is a part of [Megatron-LM](https://github.com/NVIDIA/Megatron-LM)
 
 **Pipeline Parallel:** Pipeline parallelism divides the layers of the model into stages that can be processed in parallel. It is integrated into deepspeed itself.
 
