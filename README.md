@@ -29,25 +29,25 @@ If you are already familiar with training models using DeepSpeed, you can use th
 
 **Positional Encoding:** Currently we only support sinesoidal positional encodings.
 
-**Sparsity:**
+**Sparsity:** Sparse attention kernels are supported, but they require model parallelism to be turned off. This is subject to change with updates in Deepspeed
 
 ### Optimizers
 
-**Zero Redundnacy Optimizer (ZeRO):**
+**Zero Redundnacy Optimizer (ZeRO):** ZeRO stage 1 works seamlessly with NeoX, while ZeRO stage 2 does not, as it requires disabling pipeline parallelsm due to conflicts with gradient checkpointing among the two features. 
 
-**ZeRO-Offloding:**
+**ZeRO-Offloding:** ZeRO-offloading requires ZeRO stage 2, hence is not supported.
 
 **1-Bit Adam:**
 
 ### Memory Optimizations
 
-**Data Parallel:**
+**Data Parallel:** Data parallelism is a ubiquitous technique in deep learning in which each input batch of training data is split among the data parallel workers. It is integrated into NeoX
 
-**Model Parallel:**
+**Model Parallel:** Model Parallelism is a broad class of techniques that partitions the individual layers of the model across workers. Model Parallelism is built into NeoX as it is a part of (Megatron-LM)[https://github.com/NVIDIA/Megatron-LM]
 
-**Pipeline Parallel:**
+**Pipeline Parallel:** Pipeline parallelism divides the layers of the model into stages that can be processed in parallel. It is integrated into deepspeed itself.
 
-**Mixed Precision Training:**
+**Mixed Precision Training:** Mixed precision training computes some operations in FP16 while some others in FP32, such as computing the forward pass and the gradient in fp16 and updating the weights in fp32. Mixed precision training is integrated into deepspeed as well.
 
 ## Monitoring
 
