@@ -80,13 +80,6 @@ ZERO_DEFAULTS = {
     "cpu_offload": False
 }
 
-SCHEDULER_DEFAULTS = {
-    "lr-decay-style": "linear",
-    "lr-decay-iters": None,  # defaults to train-iters
-    "min-lr": 0.0,
-    "warmup": 0.01,  # pct of total steps to warmup for
-}
-
 GRADIENT_CLIPPING_DEFAULT = 1.0
 
 OPTIMIZER_OPTIONS = ["adam", "onebitadam", "cpu_adam", "cpu_torch_adam"]
