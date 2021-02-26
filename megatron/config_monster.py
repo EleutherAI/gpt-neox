@@ -19,12 +19,12 @@ import logging
 import yaml
 from deepspeed.launcher.runner import DLTS_HOSTFILE
 
-from megatron.utils import obtain_resource_rool
+from megatron.utils import obtain_resource_rool, get_batch_related_parameters
 from megatron.arguments import _get_parser
 
 log = logging.getLogger('ConfigMonster')
 
-def _get_megatron_keys():
+def _get_megatron_keys(megatron_keys_exclude):
     megatron_keys = list(_get_parser()._option_string_actions.keys())
     megatron_keys = [item.lstrip('-') for item in megatron_keys]
     for item in megatron_keys_exclude:
@@ -43,7 +43,7 @@ megatron_keys_exclude = [
 ds_runner_keys_exclude = []
 ds_config_keys_exclude = []
 
-megatron_keys = _get_megatron_keys()
+megatron_keys = _get_megatron_keys(megatron_keys_exclude)
 
 # DS Config manually taken from https://www.deepspeed.ai/docs/config-json/ plus some undocumented keys
 ds_config_keys = ['train_batch_size', 'train_micro_batch_size_per_gpu', 'gradient_accumulation_steps', 'optimizer',
@@ -128,28 +128,27 @@ class ConfigMonster:
 
         conf['deepspeed'] = True  # Always use deepspeed
 
-        # Defaults to 1
-        if 'gradient_accumulation_steps' not in conf:
-            conf['gradient_accumulation_steps'] = 1
-            log.info(f"`gradient_accumulation_steps` set to default: 1")
-
-        # Get number of GPUs param or hostfile to determine train_batch_size. Only do it using hostfile
+        # Get number of GPUs param or hostfile to determine train_batch_size
         num_gpus = conf.get('num_gpus')
-        num_nodes = conf.get('num_nodes')
-        if 'hostfile' in conf or os.path.exists(DLTS_HOSTFILE) and num_gpus is None and num_nodes is None:
+        if num_gpus is None and ('hostfile' in conf or os.path.exists(DLTS_HOSTFILE)):
             hostfile_path = conf.get('hostfile', DLTS_HOSTFILE)
             resources = obtain_resource_rool(hostfile_path, conf.get('include', ''), conf.get('exclude', ''))
             num_gpus = sum(map(len, resources.values()))
-            num_nodes = len(resources)
             log.info(f"Total number of GPUs determined to be: {num_gpus}")
-            log.info(f"Number of nodes determined to be: {num_nodes}")
 
-        # Automatically derive train_batch_size = train_micro_batch_size_per_gpu*num_gpus*gradient_accumulation_steps
-        if ('train_batch_size' not in conf and 'train_micro_batch_size_per_gpu' in conf
-                and 'gradient_accumulation_steps' in conf and num_gpus is not None):
-            conf['train_batch_size'] = \
-                conf['train_micro_batch_size_per_gpu'] * (num_gpus//2) * conf['gradient_accumulation_steps']
-            log.info(f"`train_batch_size` derived and set to {conf['train_batch_size']}")
+        # Determine batch related parameters
+        train_batch, micro_batch, grad_acc = get_batch_related_parameters(
+            train_batch=conf.get('train_batch_size'), micro_batch=conf.get('train_micro_batch_size_per_gpu'),
+            grad_acc=conf.get('gradient_accumulation_steps'), world_size=num_gpus)
+        if conf.get('train_batch_size') is None:
+            log.info(f"`train_batch_size` determined to be: {train_batch}")
+            conf['train_batch_size'] = train_batch
+        if conf.get('train_micro_batch_size_per_gpu') is None:
+            log.info(f"`train_micro_batch_size_per_gpu` determined to be: {micro_batch}")
+            conf['train_micro_batch_size_per_gpu'] = micro_batch
+        if conf.get('gradient_accumulation_steps') is None:
+            log.info(f"`gradient_accumulation_steps` determined to be: {grad_acc}")
+            conf['gradient_accumulation_steps'] = grad_acc
 
         ds_runner_conf = {key: conf[key] for key in ds_runner_keys if key in conf}
         megatron_conf = {key: conf[key] for key in megatron_keys + neox_config_keys if key in conf}

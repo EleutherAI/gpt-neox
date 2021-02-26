@@ -4,6 +4,8 @@ import json
 import argparse
 import sys
 from typing import Any
+import dataclasses
+import pandas as pd
 
 import deepspeed
 from dataclasses import dataclass
@@ -217,10 +219,6 @@ if converting_args:
     print(list(ds_config.keys()))
 
 print('------- Document parameters -------')
-import dataclasses
-dataclasses.asdict
-import pandas as pd
-
 info = pd.DataFrame(map(dataclasses.asdict, ds_runner_params+megatron_parser_params))
 with open('param_info.md', 'w') as f:
     info.to_markdown(f)
