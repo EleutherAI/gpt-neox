@@ -211,7 +211,7 @@ def neox_args(parser):
 
     return parser
 
-def obtain_resource_rool(hostfile_path, include_arg, exclude_arg) -> Dict[str, List[int]]:
+def obtain_resource_pool(hostfile_path, include_arg, exclude_arg) -> Dict[str, List[int]]:
     """
     Get dict of `resource_pool[hostname] = [list of GPU ranks]` using hostfile, include and exclude args.
     Modified from: `deepspeed.launcher.runner.main`
