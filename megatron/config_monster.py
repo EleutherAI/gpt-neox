@@ -24,18 +24,9 @@ from megatron.arguments import _get_parser
 
 log = logging.getLogger('ConfigMonster')
 
-megatron_keys_exclude = [
-    'fp16',  # Duplicated in ds_config
-    'gas',  # Duplicate of `gradient_accumulation_steps` in ds_config,
-    '-h', 'help'  # Argparse arguments - unneeded
-]
-ds_runner_keys_exclude = []
-ds_config_keys_exclude = []
-
-
 def _get_megatron_keys():
     megatron_keys = list(_get_parser()._option_string_actions.keys())
-    megatron_keys = [item.replace('--', '') for item in megatron_keys]
+    megatron_keys = [item.lstrip('-') for item in megatron_keys]
     for item in megatron_keys_exclude:
         try:
             megatron_keys.remove(item)
@@ -43,6 +34,14 @@ def _get_megatron_keys():
             pass
     return megatron_keys
 
+megatron_keys_exclude = [
+    'fp16',  # Duplicated in ds_config
+    'gas',  # Duplicate of `gradient_accumulation_steps` in ds_config,
+    'h', 'help',  # Argparse arguments - unneeded
+    'deepspeed',
+]
+ds_runner_keys_exclude = []
+ds_config_keys_exclude = []
 
 megatron_keys = _get_megatron_keys()
 
@@ -57,8 +56,6 @@ ds_runner_keys = ['hostfile', 'include', 'exclude', 'num_nodes', 'num_gpus', 'ma
                   'launcher_args']  # handle separately: 'user_script', 'user_args'
 
 neox_config_keys = ['wandb_group', 'wandb_team']
-
-
 
 
 class ConfigMonster:
@@ -128,6 +125,8 @@ class ConfigMonster:
 
     def derive_params_and_split(self, conf):
         """ Derive and insert implicit parameters """
+
+        conf['deepspeed'] = True  # Always use deepspeed
 
         # Defaults to 1
         if 'gradient_accumulation_steps' not in conf:
