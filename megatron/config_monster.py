@@ -88,7 +88,7 @@ OPT_DEFAULT = "adam"
 OPT_PARAMS_DEFAULTS = {
     "lr": 0.001,
     "betas": [
-        0.8,
+        0.9,
         0.999
     ],
     "eps": 1e-8,
