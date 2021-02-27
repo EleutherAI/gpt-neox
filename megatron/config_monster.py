@@ -308,8 +308,6 @@ class ConfigMonster:
         Derive and insert implicit parameters
         """
 
-        conf['deepspeed'] = True  # Always use deepspeed
-
         # Get number of GPUs param or hostfile to determine train_batch_size
         num_gpus = conf.get('num_gpus')
         if num_gpus is None and ('hostfile' in conf or os.path.exists(DLTS_HOSTFILE)):
@@ -340,6 +338,8 @@ class ConfigMonster:
         ds_config_conf = {key: conf[key] for key in ds_config_keys if key in conf}
 
         # Items duplicated
+        megatron_conf['deepspeed'] = True # should always be using deepspeed
+        ds_config_conf['deepspeed'] = True
         megatron_conf['fp16'] = conf.get('fp16', {}).get('enabled', False)
         megatron_conf['gas'] = conf.get('gradient_accumulation_steps')
         _set_zero_params(ds_config_conf, megatron_conf)
