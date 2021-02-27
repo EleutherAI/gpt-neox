@@ -575,6 +575,11 @@ class ParallelTransformer(MegatronModule):
                  init_method, output_layer_init_method):
         super(ParallelTransformer, self).__init__()
         args = get_args()
+        #T5 rpe args
+        self.rpe = args.rpe # True
+        self.rpe_causal = args.rpe_causal # False
+        self.rpe_num_buckets =.args.rpe_num_buckets # 32
+        self.rpe_max_distance = args.rpe_max_distance # 128
 
         # Store activation checkpoiting flag.
         self.checkpoint_activations = args.checkpoint_activations
