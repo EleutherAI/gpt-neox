@@ -406,8 +406,9 @@ class ParallelSelfAttention(MegatronModule):
             query_layer, key_layer, value_layer = map(lambda t: t.permute(1, 2, 0, 3).contiguous(),
                                                       (query_layer, key_layer,
                                                        value_layer))
-            # output shape [b, np(heads), sq, hn]                                                                        
-            context_layer = self.sparse_attn(query_layer, key_layer, value_layer, attn_mask=attention_mask)
+            # output shape [b, np(heads), sq, hn]
+            attn_mask = attention_mask.to(query_layer.dtype) * -10000
+            context_layer = self.sparse_attn(query_layer, key_layer, value_layer, attn_mask=attn_mask)
 
         # [b, np, sq, hn] --> [sq, b, np, hn]
         context_layer = context_layer.permute(2, 0, 1, 3).contiguous()
