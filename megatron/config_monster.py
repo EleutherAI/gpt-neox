@@ -146,8 +146,8 @@ def _set_optimizer_params(ds_conf, megatron_conf):
     """
     opt_params = ds_conf.get("optimizer", {"type": OPT_DEFAULT, "params": OPT_PARAMS_DEFAULTS})
     megatron_conf['lr'] = opt_params['params'].get('lr', OPT_PARAMS_DEFAULTS['lr'])
-    megatron_conf['adam-beta1'] = opt_params['params'].get(['betas'][0]), OPT_PARAMS_DEFAULTS['betas'][0])
-    megatron_conf['adam-beta2'] = opt_params['params'].get(['betas'][1]), OPT_PARAMS_DEFAULTS['betas'][1])
+    megatron_conf['adam-beta1'] = opt_params['params'].get(['betas'][0]), OPT_PARAMS_DEFAULTS['betas'][0]
+    megatron_conf['adam-beta2'] = opt_params['params'].get(['betas'][1]), OPT_PARAMS_DEFAULTS['betas'][1]
     megatron_conf['adam-eps'] = opt_params['params'].get('eps', OPT_PARAMS_DEFAULTS['eps'])
 
     assert megatron_conf['lr'] is not None
