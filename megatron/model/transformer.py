@@ -403,17 +403,18 @@ class ParallelSelfAttention(MegatronModule):
             context_layer = context_layer.view(*output_size)
         else:
             # shape of q/k/v is [sq, b, np, hn] and needs to be transposed to [b, np, sq, hn]
-            query_layer, key_layer, value_layer = map(lambda t: t.permute(1, 2, 0, 3).contiguous(), (query_layer, key_layer,
-                                                                                        value_layer))
+            query_layer, key_layer, value_layer = map(lambda t: t.permute(1, 2, 0, 3).contiguous(),
+                                                      (query_layer, key_layer,
+                                                       value_layer))
             # output shape [b, np(heads), sq, hn]                                                                        
             context_layer = self.sparse_attn(query_layer, key_layer, value_layer, attn_mask=attention_mask)
-        
+
         # [b, np, sq, hn] --> [sq, b, np, hn]
         context_layer = context_layer.permute(2, 0, 1, 3).contiguous()
 
         # [sq, b, np, hn] --> [sq, b, hp]
         new_context_layer_shape = context_layer.size()[:-2] + \
-                                    (self.hidden_size_per_partition,)
+                                  (self.hidden_size_per_partition,)
         context_layer = context_layer.view(*new_context_layer_shape)
 
         # =================
@@ -568,6 +569,7 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
         hidden_states, attention_mask = args[0], args[1]
         return super().forward(*args), attention_mask
 
+
 class ParallelTransformer(MegatronModule):
     """Transformer class."""
 
@@ -575,11 +577,6 @@ class ParallelTransformer(MegatronModule):
                  init_method, output_layer_init_method):
         super(ParallelTransformer, self).__init__()
         args = get_args()
-        #T5 rpe args
-        rpe = args.rpe
-        rpe_causal = args.rpe_causal
-        rpe_num_buckets = args.rpe_num_buckets
-        rpe_max_distance = args.rpe_max_distance
 
         # Store activation checkpoiting flag.
         self.checkpoint_activations = args.checkpoint_activations
@@ -593,17 +590,10 @@ class ParallelTransformer(MegatronModule):
         assert self.num_layers % self.num_unique_layers == 0, \
             'number of layers should be divisible by number of unique layers'
         self.param_sharing_style = args.param_sharing_style
-        world_size = mpu.get_model_parallel_world_size()
-        self.hidden_size_per_partition = mpu.divide(args.hidden_size,
-                                                    world_size)
-        self.num_attention_heads_per_partition = mpu.divide(
-            args.num_attention_heads, world_size)
-
-        if self.rpe:
-            self.rpe = RelativePositionBias(causal=rpe_causal, num_buckets=rpe_num_buckets, max_distance=rpe_max_distance, heads=self.num_attention_heads_per_partition)
 
         # Transformer layers.
         sparsity = args.sparsity
+
         def build_layer(layer_number):
             if sparsity == 'none':
                 sparse = False
@@ -611,9 +601,11 @@ class ParallelTransformer(MegatronModule):
                 sparse = True
             elif sparsity == 'interspersed':
                 sparse = not layer_number % 2 == 0
+            else:
+                raise ValueError(f'Sparsity type {sparsity} not recognized')
             return ParallelTransformerLayer(
                 attention_mask_func, init_method,
-                output_layer_init_method, layer_number, sparse=sparse, rpe=self.rpe)
+                output_layer_init_method, layer_number, sparse=sparse)
 
         self.layers = torch.nn.ModuleList(
             [build_layer(i + 1) for i in range(self.num_unique_layers)])
