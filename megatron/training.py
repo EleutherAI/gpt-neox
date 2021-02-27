@@ -426,7 +426,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
     add_to_logging('optimizer')
     add_to_logging('batch generator')
 
-    # Log timmer info to tensorboard and wandb
+    # Log timer info to tensorboard and wandb
     normalizer = iteration % args.log_interval
     if normalizer == 0:
         normalizer = args.log_interval
