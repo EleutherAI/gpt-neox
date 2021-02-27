@@ -1,4 +1,6 @@
 # coding=utf-8
+# Copyright 2021 Josh Levy-Kramer <josh@levykramer.co.uk> et al.
+# This file is based on code by the authors denoted below and has been modified from its original version.
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +22,7 @@ import sys
 import time
 
 import torch
+import wandb
 
 from megatron.tokenizer import build_tokenizer
 from .arguments import parse_args
@@ -208,7 +211,7 @@ class Timers:
             self.timers[name] = _Timer(name)
         return self.timers[name]
 
-    def write(self, names, writer, iteration, normalizer=1.0, reset=False):
+    def write(self, names, iteration, normalizer=1.0, reset=False):
         """Write timers to a tensorboard writer"""
         # currently when using add_scalars,
         # torch.utils.add_scalars makes each timer its own run, which
@@ -216,7 +219,13 @@ class Timers:
         assert normalizer > 0.0
         for name in names:
             value = self.timers[name].elapsed(reset=reset) / normalizer
-            writer.add_scalar(name + '_time', value, iteration)
+
+            writer = get_tensorboard_writer()
+            if writer:
+                writer.add_scalar(name + '_time', value, iteration)
+
+            if get_use_wandb():
+                wandb.log({name + '_time': value}, step=iteration)
 
     def log(self, names, normalizer=1.0, reset=True):
         """Log a group of timers."""
