@@ -1,0 +1,67 @@
+{
+#   "num_nodes": 1,
+#   "num_gpus": 8,
+   "pipe-parallel-size": 4,
+
+   "num-layers": 24,
+   "hidden-size": 1024,
+   "num-attention-heads": 16,
+   "seq-length": 1024,
+   "max-position-embeddings": 1024,
+
+   "train-iters": 320000,
+   "lr-decay-iters": 320000,
+   "save": "checkpoints/gpt2_345m_ds",
+   "load": "checkpoints/gpt2_345m_ds",
+   "data-impl": "mmap",
+   "split": "949,50,1",
+   "distributed-backend": "nccl",
+   "lr": 1.5e-4,
+   "lr-decay-style": "cosine",
+   "min-lr": 1.0e-5,
+   "weight-decay": 1e-2,
+   "warmup": 0.01,
+
+   "checkpoint-activations": true,
+   "log-interval": 100,
+   "save-interval": 10000,
+   "eval-interval": 1000,
+   "eval-iters": 10,
+   "tensorboard-dir": "tensorboard_data/24l_1024h_1n_8g_4mp_9b_ds4",
+   "checkpoint-num-layers": 1,
+   "partition-activations": true,
+   "synchronize-each-layer": true,
+
+  # Deepspeed conf ds_config.json
+   "zero_optimization": {
+    "stage": 0,
+    "allgather_partitions": True,
+    "allgather_bucket_size": 500000000,
+    "overlap_comm": False,
+    "reduce_scatter": True,
+    "reduce_bucket_size": 500000000,
+    "contiguous_gradients": False,
+    "cpu_offload": False
+},
+   "train_micro_batch_size_per_gpu": 4,
+   "steps_per_print": 10,
+   "optimizer": {
+     "type": "Adam",
+     "params": {
+       "lr": 0.00015,
+       "max_grad_norm": 1.0,
+       "betas": [0.9, 0.95]
+     }
+   },
+   "gradient_clipping": 1.0,
+   "fp16": { # Duplicated in megatron
+     "fp16": true,
+     "enabled": true,
+     "loss_scale": 0,
+     "loss_scale_window": 1000,
+     "hysteresis": 2,
+     "min_loss_scale": 1
+   },
+   "wall_clock_breakdown": true,
+   "zero_allow_untested_optimizer": false
+}

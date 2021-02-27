@@ -52,3 +52,5 @@ PUBLIC_ID=$(kubectl get service/$SERVICE_NM -o jsonpath='{.status.loadBalancer.i
 echo Public IP $PUBLIC_ID
 echo ssh command:
 echo ssh mchorse@$PUBLIC_ID
+
+rm $WD/pubic-IP-service_temp.yml

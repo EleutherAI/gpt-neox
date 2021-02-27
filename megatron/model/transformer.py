@@ -24,7 +24,7 @@ import torch.nn.functional as F
 
 from megatron import get_args
 from megatron import mpu
-from megatron.mpu import LayerNorm
+from megatron.mpu import LayerNorm, RMSNorm
 from megatron.module import MegatronModule
 from megatron.model.t5rpe import RelativePositionBias
 from megatron.checkpointing import get_checkpoint_version
@@ -413,17 +413,19 @@ class ParallelSelfAttention(MegatronModule):
             context_layer = context_layer.view(*output_size)
         else:
             # shape of q/k/v is [sq, b, np, hn] and needs to be transposed to [b, np, sq, hn]
-            query_layer, key_layer, value_layer = map(lambda t: t.permute(1, 2, 0, 3).contiguous(), (query_layer, key_layer,
-                                                                                        value_layer))
-            # output shape [b, np(heads), sq, hn]                                                                        
-            context_layer = self.sparse_attn(query_layer, key_layer, value_layer, attn_mask=attention_mask, rpe=rpe if self.rpe else None)
-        
+            query_layer, key_layer, value_layer = map(lambda t: t.permute(1, 2, 0, 3).contiguous(),
+                                                      (query_layer, key_layer,
+                                                       value_layer))
+            # output shape [b, np(heads), sq, hn]
+            attn_mask = attention_mask.to(query_layer.dtype) * -10000
+            context_layer = self.sparse_attn(query_layer, key_layer, value_layer, attn_mask=attn_mask)
+
         # [b, np, sq, hn] --> [sq, b, np, hn]
         context_layer = context_layer.permute(2, 0, 1, 3).contiguous()
 
         # [sq, b, np, hn] --> [sq, b, hp]
         new_context_layer_shape = context_layer.size()[:-2] + \
-                                    (self.hidden_size_per_partition,)
+                                  (self.hidden_size_per_partition,)
         context_layer = context_layer.view(*new_context_layer_shape)
 
         # =================
@@ -481,10 +483,17 @@ class ParallelTransformerLayer(MegatronModule):
         self.apply_residual_connection_post_layernorm \
             = args.apply_residual_connection_post_layernorm
 
+        if args.rms_norm:
+            norm = RMSNorm
+            eps = args.rms_norm_epsilon
+        else:
+            eps = args.layernorm_epsilon
+            norm = LayerNorm
+
         # Layernorm on the input data.
-        self.input_layernorm = LayerNorm(
+        self.input_layernorm = norm(
             args.hidden_size,
-            eps=args.layernorm_epsilon)
+            eps=eps)
 
         # Self attention.
         self.attention = ParallelSelfAttention(attention_mask_func, init_method,
@@ -496,9 +505,9 @@ class ParallelTransformerLayer(MegatronModule):
         self.bias_dropout_fusion = args.bias_dropout_fusion
 
         # Layernorm on the input data.
-        self.post_attention_layernorm = LayerNorm(
+        self.post_attention_layernorm = norm(
             args.hidden_size,
-            eps=args.layernorm_epsilon)
+            eps=eps)
 
         # MLP
         self.mlp = ParallelMLP(init_method,
@@ -579,6 +588,7 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
         hidden_states, attention_mask = args[0], args[1]
         return super().forward(*args), attention_mask
 
+
 class ParallelTransformer(MegatronModule):
     """Transformer class."""
 
@@ -617,6 +627,7 @@ class ParallelTransformer(MegatronModule):
 
         # Transformer layers.
         sparsity = args.sparsity
+
         def build_layer(layer_number):
             if sparsity == 'none':
                 sparse = False
@@ -624,6 +635,8 @@ class ParallelTransformer(MegatronModule):
                 sparse = True
             elif sparsity == 'interspersed':
                 sparse = not layer_number % 2 == 0
+            else:
+                raise ValueError(f'Sparsity type {sparsity} not recognized')
             return ParallelTransformerLayer(
                 attention_mask_func, init_method,
                 output_layer_init_method, layer_number, sparse=sparse, rpe=self.rpe)
@@ -641,9 +654,16 @@ class ParallelTransformer(MegatronModule):
                           flush=True)
 
         # Final layer norm before output.
-        self.final_layernorm = LayerNorm(
+        if args.rms_norm:
+            norm = RMSNorm
+            eps = args.rms_norm_epsilon
+        else:
+            eps = args.layernorm_epsilon
+            norm = LayerNorm
+
+        self.final_layernorm = norm(
             args.hidden_size,
-            eps=args.layernorm_epsilon)
+            eps=eps)
 
         if deepspeed.checkpointing.is_configured():
             global get_cuda_rng_tracker, checkpoint
