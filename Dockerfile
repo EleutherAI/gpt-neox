@@ -6,7 +6,7 @@ RUN apt-get update -y && \
         git python3.8 python3.8-dev libpython3.8-dev  python3-pip python3-venv sudo pdsh \
         htop llvm-9-dev tmux zstd libpython3-dev software-properties-common build-essential autotools-dev \
         nfs-common pdsh cmake g++ gcc curl wget tmux less unzip htop iftop iotop ca-certificates \
-        rsync iputils-ping net-tools llvm-9-dev libcupti-dev && \
+        rsync iputils-ping net-tools libcupti-dev && \
     update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1 && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3.8 1 && \
     update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1

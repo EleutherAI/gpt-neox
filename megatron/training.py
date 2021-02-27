@@ -20,10 +20,14 @@
 #
 
 """Pretrain utilities."""
-
+import json
 from datetime import datetime
+from json import JSONDecodeError
+
 import math
 import sys
+
+import os
 import torch
 import wandb
 from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
@@ -252,6 +256,24 @@ def setup_model_and_optimizer(model_provider_func):
     optimizer, param_groups = get_optimizer(model)
     lr_scheduler = get_learning_rate_scheduler(optimizer)
 
+    # Determine if deepspeed config is JSON or filepath.
+    # If JSON then directly load it
+    deepspeed_conf = None
+    if hasattr(args, 'deepspeed_config'):
+        if not os.path.exists(args.deepspeed_config):
+            # If its not a path trying parsing as a JSON string
+            deepspeed_json_conf = args.deepspeed_config
+            if len(deepspeed_json_conf) > 2 and deepspeed_json_conf[0] == "'" and deepspeed_json_conf[-1] == "'":
+                deepspeed_json_conf = deepspeed_json_conf[1:-1]  # Remove shell quotes
+            try:
+                deepspeed_conf = json.loads(deepspeed_json_conf)
+                args.deepspeed_config = None  # Pass directy as dictionary to deepspeed
+            except JSONDecodeError:
+                # Not a path or a string
+                raise ValueError(
+                    f'The parameter `deepspeed_config` is neither a file path that exists or a JSON string:'
+                    f' {args.deepspeed_config}')
+
     if args.deepspeed:
         print_rank_0("DeepSpeed is enabled.")
 
@@ -262,7 +284,9 @@ def setup_model_and_optimizer(model_provider_func):
             lr_scheduler=lr_scheduler,
             mpu=mpu if args.pipe_parallel_size == 0 else None,
             dist_init_required=False,
-            model_parameters=param_groups if optimizer is None else None)
+            model_parameters=param_groups if optimizer is None else None,
+            config_params=deepspeed_conf,
+        )
 
         if args.pipe_parallel_size > 0:
             model.set_batch_fn(model.module._megatron_batch_fn)
