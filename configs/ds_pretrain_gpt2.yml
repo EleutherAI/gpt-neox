@@ -21,6 +21,9 @@
    "min-lr": 1.0e-5,
    "weight-decay": 1e-2,
    "warmup": 0.01,
+   "rpe": true,
+   "rpe-num-buckets": 32,
+   "rpe-max-distance": 128,
 
    "checkpoint-activations": true,
    "log-interval": 100,
