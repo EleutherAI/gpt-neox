@@ -430,7 +430,8 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
     normalizer = iteration % args.log_interval
     if normalizer == 0:
         normalizer = args.log_interval
-    timers.write(names=timers_to_log, iteration=iteration, normalizer=normalizer)
+    if torch.distributed.get_rank() == 0:
+        timers.write(names=timers_to_log, iteration=iteration, normalizer=normalizer)
 
     # wandb writer
     if get_use_wandb() and torch.distributed.get_rank() == 0:
@@ -618,8 +619,8 @@ def evaluate_and_print_results(prefix, forward_step_func,
 
         if get_use_wandb() and torch.distributed.get_rank() == 0:
             wandb.log({
-                '{} value'.format(key): total_loss_dict[key].item(),
-                '{} ppl'.format(key): ppl
+                'validation {} value'.format(key): total_loss_dict[key].item(),
+                'validation {} ppl'.format(key): ppl
             }, step=iteration)
 
     length = len(string) + 1
