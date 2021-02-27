@@ -30,7 +30,11 @@ from .utils import scaled_init_method_normal
 
 # Pipeline parallelism
 from megatron import mpu
+from .utils import openai_gelu
+import torch.nn.functional as F
+from megatron.mpu import LayerNorm, RMSNorm
 from apex.normalization.fused_layer_norm import FusedLayerNorm as LayerNorm
+
 import megatron.fp16 as fp16
 from megatron.model.transformer import ParallelTransformerLayerPipe
 from .language_model import EmbeddingPipe
@@ -203,10 +207,17 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
         self.specs.append(lambda x: x[0].transpose(0, 1).contiguous())
 
         # Final layernorm after transformer layers
+        if args.rms_norm:
+            norm = RMSNorm
+            eps = args.rms_norm_epsilon
+        else:
+            eps = args.layernorm_epsilon
+            norm = LayerNorm
+
         self.specs.append(
-            LayerSpec(LayerNorm,
+            LayerSpec(norm,
                       args.hidden_size,
-                      eps=args.layernorm_epsilon))
+                      eps=eps))
 
         # XXX forward_method_parallel_output is assumed to be None, but we're not in a
         # fwd method to assert
