@@ -613,7 +613,7 @@ class ParallelTransformer(MegatronModule):
                 sparse = not layer_number % 2 == 0
             return ParallelTransformerLayer(
                 attention_mask_func, init_method,
-                output_layer_init_method, layer_number, sparse=sparse)
+                output_layer_init_method, layer_number, sparse=sparse, rpe=self.rpe)
 
         self.layers = torch.nn.ModuleList(
             [build_layer(i + 1) for i in range(self.num_unique_layers)])
