@@ -593,6 +593,14 @@ class ParallelTransformer(MegatronModule):
         assert self.num_layers % self.num_unique_layers == 0, \
             'number of layers should be divisible by number of unique layers'
         self.param_sharing_style = args.param_sharing_style
+        world_size = mpu.get_model_parallel_world_size()
+        self.hidden_size_per_partition = mpu.divide(args.hidden_size,
+                                                    world_size)
+        self.num_attention_heads_per_partition = mpu.divide(
+            args.num_attention_heads, world_size)
+
+        if self.rpe:
+            self.rpe = RelativePositionBias(causal=rpe_causal, num_buckets=rpe_num_buckets, max_distance=rpe_max_distance, heads=self.num_attention_heads_per_partition)
 
         # Transformer layers.
         sparsity = args.sparsity
