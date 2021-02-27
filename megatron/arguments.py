@@ -276,6 +276,14 @@ def _add_training_args(parser):
                        help='Disables weight tying between embedding weights and final Linear layer')
     group.add_argument('--sinusoidal-pos-emb', action='store_true',
                        help='Uses Sinusoidal Positional embedding applied to the inputs instead of learned')
+    group.add_argument('--rpe', action='store_true',
+                       help='T5 relative positional encoding')
+    group.add_argument('--rpe-causal', action='store_true',
+                       help='T5 relative positional encoding causal flag')
+    group.add_argument('--rpe-num-buckets', type=int, default=32,
+                       help='T5 relative positional encoding number of buckets, default 32.')
+    group.add_argument('--rpe-max-distance', type=int, default=128,
+                       help='T5 relative positional encoding max distance, default 128.')
     group.add_argument('--bias-dropout-fusion', action='store_true',
                        help='Enable bias and dropout fusion.')
     group.add_argument('--sparsity', type=str, default='none',
