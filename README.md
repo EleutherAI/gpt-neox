@@ -55,7 +55,7 @@ EleutherAI is currently using [Weights & Biases to record experiments](https://w
 
 ## Eleuther Cluster
 
-We run our experiments on a Kubernetes cluster generously provided by [CoreWeave](https://coreweave.com/). The `/kubernetes/` directory contains code designed to facilitate work on our server. If you are an EleuthrrAI member, see the [corresponding read-me](kubernetes/README.md) for information about how to use our cluster.
+We run our experiments on a Kubernetes cluster generously provided by [CoreWeave](https://coreweave.com/). The `/kubernetes/` directory contains code designed to facilitate work on our server. If you are an EleutherAI member, see the [corresponding read-me](kubernetes/README.md) for information about how to use our cluster.
 
 ## Licensing
 
