@@ -403,17 +403,19 @@ class ParallelSelfAttention(MegatronModule):
             context_layer = context_layer.view(*output_size)
         else:
             # shape of q/k/v is [sq, b, np, hn] and needs to be transposed to [b, np, sq, hn]
-            query_layer, key_layer, value_layer = map(lambda t: t.permute(1, 2, 0, 3).contiguous(), (query_layer, key_layer,
-                                                                                        value_layer))
-            # output shape [b, np(heads), sq, hn]                                                                        
-            context_layer = self.sparse_attn(query_layer, key_layer, value_layer, attn_mask=attention_mask)
-        
+            query_layer, key_layer, value_layer = map(lambda t: t.permute(1, 2, 0, 3).contiguous(),
+                                                      (query_layer, key_layer,
+                                                       value_layer))
+            # output shape [b, np(heads), sq, hn]
+            attn_mask = attention_mask.to(query_layer.dtype) * -10000
+            context_layer = self.sparse_attn(query_layer, key_layer, value_layer, attn_mask=attn_mask)
+
         # [b, np, sq, hn] --> [sq, b, np, hn]
         context_layer = context_layer.permute(2, 0, 1, 3).contiguous()
 
         # [sq, b, np, hn] --> [sq, b, hp]
         new_context_layer_shape = context_layer.size()[:-2] + \
-                                    (self.hidden_size_per_partition,)
+                                  (self.hidden_size_per_partition,)
         context_layer = context_layer.view(*new_context_layer_shape)
 
         # =================
@@ -568,6 +570,7 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
         hidden_states, attention_mask = args[0], args[1]
         return super().forward(*args), attention_mask
 
+
 class ParallelTransformer(MegatronModule):
     """Transformer class."""
 
@@ -591,6 +594,7 @@ class ParallelTransformer(MegatronModule):
 
         # Transformer layers.
         sparsity = args.sparsity
+
         def build_layer(layer_number):
             if sparsity == 'none':
                 sparse = False
