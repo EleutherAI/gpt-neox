@@ -88,11 +88,11 @@ OPT_DEFAULT = "adam"
 OPT_PARAMS_DEFAULTS = {
     "lr": 0.001,
     "betas": [
-        0.8,
+        0.9,
         0.999
     ],
     "eps": 1e-8,
-    "weight_decay": 3e-7,
+    "weight_decay": 0,
     "freeze_step": 400,
     "cuda_aware": False
 }
@@ -146,9 +146,9 @@ def _set_optimizer_params(ds_conf, megatron_conf):
     """
     opt_params = ds_conf.get("optimizer", {"type": OPT_DEFAULT, "params": OPT_PARAMS_DEFAULTS})
     megatron_conf['lr'] = opt_params['params'].get('lr', OPT_PARAMS_DEFAULTS['lr'])
-    megatron_conf['adam-beta1'] = opt_params['params'].get('adam-beta1', OPT_PARAMS_DEFAULTS['betas'][0])
-    megatron_conf['adam-beta2'] = opt_params['params'].get('adam-beta2', OPT_PARAMS_DEFAULTS['betas'][1])
-    megatron_conf['adam-eps'] = opt_params['params'].get('adam-eps', OPT_PARAMS_DEFAULTS['eps'])
+    megatron_conf['adam-beta1'] = opt_params['params'].get('betas', OPT_PARAMS_DEFAULTS['betas'])[0]
+    megatron_conf['adam-beta2'] = opt_params['params'].get('betas', OPT_PARAMS_DEFAULTS['betas'])[1]
+    megatron_conf['adam-eps'] = opt_params['params'].get('eps', OPT_PARAMS_DEFAULTS['eps'])
 
     assert megatron_conf['lr'] is not None
     if opt_params["type"].lower() == "adam":
