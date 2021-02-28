@@ -38,18 +38,23 @@ ssh-keygen -t rsa -f $WD/id_rsa -N ""
 # HINT: the `post_start_script` cannot have blank lines and NO comments.
 # If this script hangs the pod will never enter a success state even though its running.
 post_start_script="
-apt-get update -y || {sleep 3; sudo apt-get update -y}
-apt-get install -y sudo ssh pdsh || {sleep 3; sudo apt-get install -y ssh pdsh}
+export DEBIAN_FRONTEND=noninteractive;
+apt-get update -y || { sleep 3; sudo apt-get update -y; };
+apt-get install -y sudo pdsh git || { sleep 3; apt-get install -y pdsh git; };
+if [ \$(dpkg-query -W -f='\${Status}' ssh 2>/dev/null | grep -c 'ok installed') -eq 0 ];
+then
+  apt-get install -y ssh || { sleep 3; sudo apt-get install ssh; }
+fi;
 mkdir -p /run/sshd;
 sudo /usr/sbin/sshd;
 sudo rm -rf /job;
 sudo mkdir -p /job ~/.ssh;
-USER=$(whoami)
-sudo chown $USER:$USER /job;
+USER=\$(whoami);
+sudo chown \$USER:\$USER /job;
 sudo cp /secrets/id_rsa.pub ~/.ssh/authorized_keys;
-sudo chown $USER:$USER ~/.ssh/authorized_keys;
-sudo chown -R $USER:$USER ~/.ssh;
-schmod 600 ~/.ssh/authorized_keys;
+sudo chown -R \$USER:\$USER ~/.ssh;
+sudo chown \$USER:\$USER ~/.ssh/authorized_keys;
+chmod 600 ~/.ssh/authorized_keys;
 chmod 700 ~/.ssh;
 echo 'export DATA_DIR=/mnt/ssd-cluster/data' >> ~/.bashrc;
 echo 'export WANDB_TEAM=eleutherai' >> ~/.bashrc;
@@ -59,6 +64,7 @@ git clone --branch $BRANCH https://github.com/EleutherAI/gpt-neox.git;
 sudo apt-get update -y;
 sudo apt-get install -y libpython3-dev;
 "
+echo $post_start_script > test.bash
 if [ -n "$WANDB_APIKEY" ]
 then
       post_start_script+=" wandb login $WANDB_APIKEY || true; "
