@@ -39,7 +39,7 @@ Further examples are contained in the examples folder.
 
 ## Configuration and parameters
 
-GPT-NeoX parameters are defined in a YAML configuration file which is passed to the `deepy.py` launcher - for examples see the `configs` folder and the `examples` folder. For a full list of parameters and documentation see [corresponding readme](configs/README.md).
+GPT-NeoX parameters are defined in a YAML configuration file which is passed to the `deepy.py` launcher - for examples see the `configs` folder and the `examples` folder. For a full list of parameters and documentation see [corresponding readme](configs).
 
 ## Features
 
