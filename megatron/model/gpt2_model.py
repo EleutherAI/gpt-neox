@@ -149,38 +149,32 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
         self.num_tokentypes = num_tokentypes
         self.init_method = init_method_normal(args.init_method_std)
         self.output_layer_init_method = scaled_init_method_normal(args.init_method_std, args.num_layers)
-        input_embedding = args.pos_emb in ["learned", "sinusoidal"]
         weight_tying = not args.no_weight_tying
-        sinusoidal_pos_emb = args.pos_emb == "sinusoidal"
 
         #
         # forward() prototype
         # 
         self.specs = []
-        if input_embedding:
-            # Embedding layer
-            if weight_tying:
-                self.specs.append(TiedLayerSpec('embed',
-                                                EmbeddingPipe,
-                                                self.hidden_size,
-                                                args.padded_vocab_size,
-                                                args.max_position_embeddings,
-                                                args.hidden_dropout,
-                                                self.init_method,
-                                                self.num_tokentypes,
-                                                sinusoidal_pos_emb,
-                                                tied_weight_attr='word_embeddings_weight'))
-            else:
-                self.specs.append(LayerSpec(EmbeddingPipe,
+        # Embedding layer
+        if weight_tying:
+            self.specs.append(TiedLayerSpec('embed',
+                                            EmbeddingPipe,
                                             self.hidden_size,
                                             args.padded_vocab_size,
                                             args.max_position_embeddings,
                                             args.hidden_dropout,
                                             self.init_method,
                                             self.num_tokentypes,
-                                            sinusoidal_pos_emb))
+                                            tied_weight_attr='word_embeddings_weight'))
         else:
-            self.specs.append(lambda x: (x[0], x[1]))  # return just (inputs, attention_mask)
+            self.specs.append(LayerSpec(EmbeddingPipe,
+                                        self.hidden_size,
+                                        args.padded_vocab_size,
+                                        args.max_position_embeddings,
+                                        args.hidden_dropout,
+                                        self.init_method,
+                                        self.num_tokentypes))
+
 
         # outputs are now (hidden_states, attention_mask)
 
@@ -227,7 +221,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                 embedding.word_embeddings_weight,
                 self.parallel_output)
 
-        if weight_tying and input_embedding:
+        if weight_tying:
             self.specs.append(
                 TiedLayerSpec('embed',
                               EmbeddingPipe,
@@ -237,7 +231,6 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                               args.hidden_dropout,
                               self.init_method,
                               self.num_tokentypes,
-                              sinusoidal_pos_emb,
                               forward_fn=_logits_helper,
                               tied_weight_attr='word_embeddings_weight')
             )

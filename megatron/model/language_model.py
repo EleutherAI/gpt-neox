@@ -27,7 +27,7 @@ from megatron.module import MegatronModule
 from megatron.model.transformer import ParallelTransformer
 from megatron.model.utils import get_linear_layer
 from megatron.model.utils import init_method_normal, scaled_init_method_normal
-
+from megatron.model.utils import identity
 
 def parallel_lm_logits(input_, word_embeddings_weight, parallel_output,
                        bias=None, weight_tying=True):
@@ -139,10 +139,9 @@ class Embedding(MegatronModule):
                  max_sequence_length,
                  embedding_dropout_prob,
                  init_method,
-                 num_tokentypes=0,
-                 sinusoidal_positional_embedding=False):
+                 num_tokentypes=0):
         super(Embedding, self).__init__()
-
+        args = get_args()
         self.hidden_size = hidden_size
         self.init_method = init_method
         self.num_tokentypes = num_tokentypes
@@ -153,14 +152,14 @@ class Embedding(MegatronModule):
         self._word_embeddings_key = 'word_embeddings'
 
         # Position embedding (serial).
-        self.sinusoidal_positional_embedding = sinusoidal_positional_embedding
-        if not self.sinusoidal_positional_embedding:
+        self.embedding_type = args.pos_emb
+        if self.embedding_type == "learned":
             self.position_embeddings = torch.nn.Embedding(
                 max_sequence_length, self.hidden_size)
             self._position_embeddings_key = 'position_embeddings'
             # Initialize the position embeddings.
             self.init_method(self.position_embeddings.weight)
-        else:
+        elif self.embedding_type == "sinusoidal":
             self.position_embeddings = SinusoidalPositionalEmbedding(self.hidden_size)
 
         # Token type embedding.
@@ -198,8 +197,11 @@ class Embedding(MegatronModule):
     def forward(self, input_ids, position_ids, tokentype_ids=None):
         # Embeddings.
         words_embeddings = self.word_embeddings(input_ids)
-        position_embeddings = self.position_embeddings(position_ids)
-        embeddings = words_embeddings + position_embeddings
+        if self.embedding_type in ["learned", "sinusoidal"]:
+            position_embeddings = self.position_embeddings(position_ids)
+            embeddings = words_embeddings + position_embeddings
+        else:
+            embeddings = words_embeddings
         if tokentype_ids is not None:
             assert self.tokentype_embeddings is not None
             embeddings = embeddings + self.tokentype_embeddings(tokentype_ids)
@@ -218,7 +220,7 @@ class Embedding(MegatronModule):
         state_dict_ = {}
         state_dict_[self._word_embeddings_key] \
             = self.word_embeddings.state_dict(destination, prefix, keep_vars)
-        if not self.sinusoidal_positional_embedding:
+        if self.embedding_type == "learned":
             state_dict_[self._position_embeddings_key] \
                 = self.position_embeddings.state_dict(
                 destination, prefix, keep_vars)
@@ -245,7 +247,7 @@ class Embedding(MegatronModule):
         self.word_embeddings.load_state_dict(state_dict_, strict=strict)
 
         # Position embedding.
-        if not self.sinusoidal_positional_embedding:
+        if self.embedding_type == "learned":
             if self._position_embeddings_key in state_dict:
                 state_dict_ = state_dict[self._position_embeddings_key]
             else:
@@ -331,15 +333,13 @@ class TransformerLanguageModel(MegatronModule):
         self.add_pooler = add_pooler
         self.embedding_type = args.pos_emb
         # Embeddings
-        if self.embedding_type in ["sinusoidal", "learned"]:
-            self.embedding = Embedding(self.hidden_size,
-                                       args.padded_vocab_size,
-                                       args.max_position_embeddings,
-                                       args.hidden_dropout,
-                                       self.init_method,
-                                       self.num_tokentypes,
-                                       args.pos_emb == "sinusoidal")
-            self._embedding_key = 'embedding'
+        self.embedding = Embedding(self.hidden_size,
+                                   args.padded_vocab_size,
+                                   args.max_position_embeddings,
+                                   args.hidden_dropout,
+                                   self.init_method,
+                                   self.num_tokentypes)
+        self._embedding_key = 'embedding'
 
 
         # Transformer
@@ -358,11 +358,8 @@ class TransformerLanguageModel(MegatronModule):
                 pooling_sequence_index=0):
 
         # Embeddings.
-        if self.embedding_type in ["learned", "sinusoidal"]:
-            embedding_output = self.embedding(input_ids, position_ids,
-                                              tokentype_ids=tokentype_ids)
-        else:
-            embedding_output = input_ids
+        embedding_output = self.embedding(input_ids, position_ids,
+                                          tokentype_ids=tokentype_ids)
 
         # Transformer.
         transformer_output = self.transformer(embedding_output,
