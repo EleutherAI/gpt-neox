@@ -597,7 +597,7 @@ class ParallelTransformer(MegatronModule):
         super(ParallelTransformer, self).__init__()
         args = get_args()
 
-        self.rpe = args.rpe
+        self.rpe = args.pos_emb == 'rpe'
         rpe_causal = args.rpe_causal
         rpe_num_buckets = args.rpe_num_buckets
         rpe_max_distance = args.rpe_max_distance

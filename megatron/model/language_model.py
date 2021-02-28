@@ -329,16 +329,18 @@ class TransformerLanguageModel(MegatronModule):
         self.num_tokentypes = num_tokentypes
         self.init_method = init_method
         self.add_pooler = add_pooler
-
+        self.embedding_type = args.pos_emb
         # Embeddings
-        self.embedding = Embedding(self.hidden_size,
-                                   args.padded_vocab_size,
-                                   args.max_position_embeddings,
-                                   args.hidden_dropout,
-                                   self.init_method,
-                                   self.num_tokentypes,
-                                   args.sinusoidal_pos_emb)
-        self._embedding_key = 'embedding'
+        if self.embedding_type in ["sinusoidal", "learned"]:
+            self.embedding = Embedding(self.hidden_size,
+                                       args.padded_vocab_size,
+                                       args.max_position_embeddings,
+                                       args.hidden_dropout,
+                                       self.init_method,
+                                       self.num_tokentypes,
+                                       args.pos_emb == "sinusoidal")
+            self._embedding_key = 'embedding'
+
 
         # Transformer
         self.transformer = ParallelTransformer(
@@ -356,8 +358,11 @@ class TransformerLanguageModel(MegatronModule):
                 pooling_sequence_index=0):
 
         # Embeddings.
-        embedding_output = self.embedding(input_ids, position_ids,
-                                          tokentype_ids=tokentype_ids)
+        if self.embedding_type in ["learned", "sinusoidal"]:
+            embedding_output = self.embedding(input_ids, position_ids,
+                                              tokentype_ids=tokentype_ids)
+        else:
+            embedding_output = input_ids
 
         # Transformer.
         transformer_output = self.transformer(embedding_output,
