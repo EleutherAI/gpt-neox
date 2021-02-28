@@ -43,8 +43,6 @@ GPT-NeoX parameters are defined in a YAML configuration file which is passed to 
 
 ## Features
 
-Here we give an overview of the major features offered by our model. For a detailed discussion of all of the parameters and how to use them, see [here](configs).
-
 ### Model Structure
 
 **Positional Encodings:**
