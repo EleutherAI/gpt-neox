@@ -346,6 +346,7 @@ class ConfigMonster:
         megatron_conf['clip-grad'] = ds_config_conf.get('gradient_clipping', GRADIENT_CLIPPING_DEFAULT)
         _set_scheduler_params(ds_config_conf, megatron_conf)
         _set_optimizer_params(ds_config_conf, megatron_conf)
+
         return ds_runner_conf, megatron_conf, ds_config_conf
 
     @staticmethod
