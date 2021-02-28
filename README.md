@@ -31,11 +31,11 @@ Example usage:
 ```
 
 This will:
-* Deploy the `pretrain_gpt2.py` script on all nodes with one process per GPU. The worker nodes and number of GPUsare specified in the `/job/hostfile` file (see parameter documentation). The worker processes are deployed by default using [`pdsh`](https://linux.die.net/man/1/pdsh).
+* Deploy the `pretrain_gpt2.py` script on all nodes with one process per GPU. The worker nodes and number of GPUs are specified in the `/job/hostfile` file (see parameter documentation). The worker processes are deployed by default using [`pdsh`](https://linux.die.net/man/1/pdsh).
 * Model parameters are defined in the file `configs/ds_pretrain_gpt2.yml` (configuration directory is `configs/`) which are used by GPT-NeoX
 * Data path parameters are defined in the file `configs/local_setup.yml`
 
-Further examples are contained in the examples folder.
+Further examples are contained in the [examples folder](examples).
 
 ## Configuration and parameters
 
