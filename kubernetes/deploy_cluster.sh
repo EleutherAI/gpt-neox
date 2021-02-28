@@ -64,7 +64,6 @@ git clone --branch $BRANCH https://github.com/EleutherAI/gpt-neox.git;
 sudo apt-get update -y;
 sudo apt-get install -y libpython3-dev;
 "
-echo $post_start_script > test.bash
 if [ -n "$WANDB_APIKEY" ]
 then
       post_start_script+=" wandb login $WANDB_APIKEY || true; "
