@@ -1,4 +1,8 @@
 # coding=utf-8
+
+# Copyright (c) 2021 Josh Levy-Kramer <josh@levykramer.co.uk>.
+# This file is based on code by the authors denoted below and has been modified from its original version.
+#
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,9 +20,11 @@
 """General utilities."""
 import os
 import sys
+from typing import Dict, List
 
 import requests
 import torch
+from deepspeed.launcher.runner import fetch_hostfile, parse_inclusion_exclusion
 
 from megatron import get_args
 from megatron import print_rank_0
@@ -133,7 +139,7 @@ def get_ltor_masks_and_position_ids(data,
         att_mask_batch = 1
     attention_mask = torch.tril(torch.ones(
         (att_mask_batch, seq_length, seq_length), device=data.device)).view(
-            att_mask_batch, 1, seq_length, seq_length)
+        att_mask_batch, 1, seq_length, seq_length)
 
     # Loss mask.
     loss_mask = torch.ones(data.size(), dtype=torch.float, device=data.device)
@@ -175,9 +181,11 @@ def get_ltor_masks_and_position_ids(data,
 
     return attention_mask, loss_mask, position_ids
 
+
 def local_rank():
     """ Local rank of process """
     return int(os.environ["LOCAL_RANK"])
+
 
 def is_local_main():
     """ True if is the local main process """
@@ -204,3 +212,22 @@ def neox_args(parser):
                        help='Team name for Weights and Biases.')
 
     return parser
+
+
+def obtain_resource_pool(hostfile_path, include_arg, exclude_arg) -> Dict[str, List[int]]:
+    """
+    Get dict of `resource_pool[hostname] = [list of GPU ranks]` using hostfile, include and exclude args.
+    Modified from: `deepspeed.launcher.runner.main`
+    """
+    resource_pool = fetch_hostfile(hostfile_path)
+    if not resource_pool:
+        resource_pool = {}
+        device_count = torch.cuda.device_count()
+        if device_count == 0:
+            raise RuntimeError("Unable to proceed, no GPU resources available")
+        resource_pool['localhost'] = device_count
+
+    active_resources = parse_inclusion_exclusion(resource_pool,
+                                                 include_arg,
+                                                 exclude_arg)
+    return active_resources

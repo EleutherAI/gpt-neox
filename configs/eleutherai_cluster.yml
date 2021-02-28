@@ -1,0 +1,6 @@
+# Data paths when using EleutherAI cluster
+{
+  "data-path": "/mnt/ssd-cluster/data/enron/enron_text_document",
+  "vocab-file": "/mnt/ssd-cluster/data/gpt2-vocab.json",
+  "merge-file": "/mnt/ssd-cluster/data/gpt2-merges.txt",
+}

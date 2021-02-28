@@ -20,10 +20,14 @@
 #
 
 """Pretrain utilities."""
-
+import json
 from datetime import datetime
+from json import JSONDecodeError
+
 import math
 import sys
+
+import os
 import torch
 import wandb
 from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
@@ -252,6 +256,24 @@ def setup_model_and_optimizer(model_provider_func):
     optimizer, param_groups = get_optimizer(model)
     lr_scheduler = get_learning_rate_scheduler(optimizer)
 
+    # Determine if deepspeed config is JSON or filepath.
+    # If JSON then directly load it
+    deepspeed_conf = None
+    if hasattr(args, 'deepspeed_config'):
+        if not os.path.exists(args.deepspeed_config):
+            # If its not a path trying parsing as a JSON string
+            deepspeed_json_conf = args.deepspeed_config
+            if len(deepspeed_json_conf) > 2 and deepspeed_json_conf[0] == "'" and deepspeed_json_conf[-1] == "'":
+                deepspeed_json_conf = deepspeed_json_conf[1:-1]  # Remove shell quotes
+            try:
+                deepspeed_conf = json.loads(deepspeed_json_conf)
+                args.deepspeed_config = None  # Pass directy as dictionary to deepspeed
+            except JSONDecodeError:
+                # Not a path or a string
+                raise ValueError(
+                    f'The parameter `deepspeed_config` is neither a file path that exists or a JSON string:'
+                    f' {args.deepspeed_config}')
+
     if args.deepspeed:
         print_rank_0("DeepSpeed is enabled.")
 
@@ -262,7 +284,9 @@ def setup_model_and_optimizer(model_provider_func):
             lr_scheduler=lr_scheduler,
             mpu=mpu if args.pipe_parallel_size == 0 else None,
             dist_init_required=False,
-            model_parameters=param_groups if optimizer is None else None)
+            model_parameters=param_groups if optimizer is None else None,
+            config_params=deepspeed_conf,
+        )
 
         if args.pipe_parallel_size > 0:
             model.set_batch_fn(model.module._megatron_batch_fn)
@@ -426,31 +450,37 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
     add_to_logging('optimizer')
     add_to_logging('batch generator')
 
+    # Log timer info to tensorboard and wandb
+    normalizer = iteration % args.log_interval
+    if normalizer == 0:
+        normalizer = args.log_interval
+    if torch.distributed.get_rank() == 0:
+        timers.write(names=timers_to_log, iteration=iteration, normalizer=normalizer)
+
+    # wandb writer
+    if get_use_wandb() and torch.distributed.get_rank() == 0:
+        wandb.log({'learning_rate': learning_rate}, step=iteration)
+        for key in loss_dict:
+            wandb.log({key: loss_dict[key]}, step=iteration)
+        if args.fp16:
+            wandb.log({'loss_scale': loss_scale}, step=iteration)
+
     # Tensorboard values.
     if writer and torch.distributed.get_rank() == 0:
         writer.add_scalar('learning_rate', learning_rate, iteration)
         for key in loss_dict:
             writer.add_scalar(key, loss_dict[key], iteration)
-            if get_use_wandb():
-                wandb.log({key: loss_dict[key]})
         if args.fp16:
             writer.add_scalar('loss_scale', loss_scale, iteration)
-            if get_use_wandb():
-                wandb.log({'loss_scale': loss_scale})
-        normalizer = iteration % args.log_interval
-        if normalizer == 0:
-            normalizer = args.log_interval
-        timers.write(timers_to_log, writer, iteration,
-                     normalizer=normalizer)
 
     if iteration % args.log_interval == 0:
         elapsed_time = timers('interval time').elapsed()
+        iteration_time = elapsed_time / args.log_interval
         if writer and torch.distributed.get_rank() == 0:
-            iteration_time = elapsed_time / args.log_interval
-            writer.add_scalar('iteration_time',
-                              iteration_time, iteration)
-            if get_use_wandb():
-                wandb.log({'iteration_time': iteration_time})
+            writer.add_scalar('iteration_time', iteration_time, iteration)
+        if get_use_wandb() and torch.distributed.get_rank() == 0:
+            wandb.log({'iteration_time': iteration_time}, step=iteration)
+
         log_string = ' iteration {:8d}/{:8d} |'.format(iteration,
                                                        args.train_iters)
         log_string += ' elapsed time per iteration (ms): {:.1f} |'.format(
@@ -610,6 +640,12 @@ def evaluate_and_print_results(prefix, forward_step_func,
                               total_loss_dict[key].item(),
                               iteration)
             writer.add_scalar('{} ppl'.format(key), ppl, iteration)
+
+        if get_use_wandb() and torch.distributed.get_rank() == 0:
+            wandb.log({
+                'validation {} value'.format(key): total_loss_dict[key].item(),
+                'validation {} ppl'.format(key): ppl
+            }, step=iteration)
 
     length = len(string) + 1
     print_rank_0('-' * length)

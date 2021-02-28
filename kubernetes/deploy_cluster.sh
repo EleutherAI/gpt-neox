@@ -33,26 +33,42 @@ echo Generate SSH key pair
 rm $WD/id_rsa*
 ssh-keygen -t rsa -f $WD/id_rsa -N "" 
 
+# This script is designed to work with any image that is debian based to allow for quick prototyping.
+# The only requirement is `/bin/bash`. It works if the user is root or another such as `mchorse`.
+# HINT: the `post_start_script` cannot have blank lines and NO comments.
+# If this script hangs the pod will never enter a success state even though its running.
 post_start_script="
-echo 'export DATA_DIR=/mnt/ssd-cluster/data' >> /home/mchorse/.bashrc;
-echo 'export WANDB_TEAM=eleutherai' >> /home/mchorse/.bashrc;
-echo 'export DS_EXE=/home/mchorse/gpt-neox/deepy.py' >> /home/mchorse/.bashrc;
-sudo cp /secrets/id_rsa.pub /home/mchorse/.ssh/authorized_keys;
-sudo chown mchorse:mchorse /home/mchorse/.ssh/authorized_keys;
-sudo chown -R mchorse:mchorse /home/mchorse/.ssh;
-chmod 600 /home/mchorse/.ssh/authorized_keys;
-chmod 700 /home/mchorse/.ssh;
-cd /home/mchorse;
+export DEBIAN_FRONTEND=noninteractive;
+apt-get update -y || { sleep 3; sudo apt-get update -y; };
+apt-get install -y sudo pdsh git || { sleep 3; apt-get install -y pdsh git; };
+if [ \$(dpkg-query -W -f='\${Status}' ssh 2>/dev/null | grep -c 'ok installed') -eq 0 ];
+then
+  apt-get install -y ssh || { sleep 3; sudo apt-get install ssh; }
+fi;
+mkdir -p /run/sshd;
+sudo /usr/sbin/sshd;
+sudo rm -rf /job;
+sudo mkdir -p /job ~/.ssh;
+USER=\$(whoami);
+sudo chown \$USER:\$USER /job;
+sudo cp /secrets/id_rsa.pub ~/.ssh/authorized_keys;
+sudo chown -R \$USER:\$USER ~/.ssh;
+sudo chown \$USER:\$USER ~/.ssh/authorized_keys;
+chmod 600 ~/.ssh/authorized_keys;
+chmod 700 ~/.ssh;
+echo 'export DATA_DIR=/mnt/ssd-cluster/data' >> ~/.bashrc;
+echo 'export WANDB_TEAM=eleutherai' >> ~/.bashrc;
+echo 'export DS_EXE=/home/mchorse/gpt-neox/deepy.py' >> ~/.bashrc;
+cd ~;
 git clone --branch $BRANCH https://github.com/EleutherAI/gpt-neox.git;
 sudo apt-get update -y;
 sudo apt-get install -y libpython3-dev;
-sudo mkdir -p /job;
-sudo chown mchorse:mchorse /job;
 "
 if [ -n "$WANDB_APIKEY" ]
 then
-      post_start_script+=" wandb login $WANDB_APIKEY; "
+      post_start_script+=" wandb login $WANDB_APIKEY || true; "
 fi
+post_start_script+="exit 0;" # Always exit with ok status
 
 echo $post_start_script > $WD/post_start_script.sh
 
@@ -96,11 +112,12 @@ export MAIN_ID=$(kubectl get pods | grep $CLUSTER_NM | awk '{print $1}' | head -
 
 echo Copying ssh key and host file to main node:
 echo $MAIN_ID
+HOME_DIR=$(kubectl exec $MAIN_ID -- /bin/bash -c 'cd ~; pwd')
 kubectl cp $WD/hostfile $MAIN_ID:/job
 kubectl cp $WD/hosts $MAIN_ID:/job
-kubectl cp $WD/id_rsa $MAIN_ID:/home/mchorse/.ssh
+kubectl cp $WD/id_rsa $MAIN_ID:$HOME_DIR/.ssh
 
 rm $WD/id_rsa* $WD/hostfile $WD/hosts $WD/k8s_spec_temp.yml $WD/k8_spec_ssd-cluster_temp.yml $WD/post_start_script.sh
 
 echo Remote shell into main $MAIN_ID
-kubectl exec --stdin --tty $MAIN_ID -- /bin/bash -c "cd /home/mchorse/gpt-neox; bash"
+kubectl exec --stdin --tty $MAIN_ID -- /bin/bash -c "cd $HOME_DIR/gpt-neox; bash"

@@ -38,7 +38,7 @@ from .initialize import get_io_parallel_group
 from .initialize import initialize_model_parallel
 from .initialize import model_parallel_is_initialized
 
-from .layers import LayerNorm
+from .layers import LayerNorm, RMSNorm
 from .layers import ColumnParallelLinear
 from .layers import RowParallelLinear
 from .layers import VocabParallelEmbedding

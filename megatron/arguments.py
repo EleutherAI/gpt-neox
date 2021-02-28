@@ -27,9 +27,8 @@ from megatron import fused_kernels
 
 import deepspeed
 
-def parse_args(extra_args_provider=None, defaults={},
-               ignore_unknown_args=False):
-    """Parse all arguments."""
+
+def _get_parser(extra_args_provider=None):
     parser = argparse.ArgumentParser(description='Megatron-LM Arguments',
                                      allow_abbrev=False)
 
@@ -55,7 +54,13 @@ def parse_args(extra_args_provider=None, defaults={},
 
     # Include DeepSpeed configuration arguments
     parser = deepspeed.add_config_arguments(parser)
+    return parser
 
+
+def parse_args(extra_args_provider=None, defaults={},
+               ignore_unknown_args=False):
+    """Parse all arguments."""
+    parser = _get_parser(extra_args_provider)
     # Parse.
     if ignore_unknown_args:
         args, _ = parser.parse_known_args()
@@ -83,7 +88,6 @@ def parse_args(extra_args_provider=None, defaults={},
         print('using {} for parameters ...'.format(args.params_dtype),
               flush=True)
 
-
     # Set input defaults.
     for key in defaults:
         # For default to be valid, it should not be provided in the
@@ -94,14 +98,14 @@ def parse_args(extra_args_provider=None, defaults={},
                 print('WARNING: overriding default arguments for {key}:{v} \
                        with {key}:{v2}'.format(key=key, v=defaults[key],
                                                v2=getattr(args, key)),
-                                               flush=True)
+                      flush=True)
         else:
             setattr(args, key, defaults[key])
 
     # Check required arguments.
     required_args = ['num_layers', 'hidden_size', 'num_attention_heads',
                      'max_position_embeddings']
-    for req_arg in required_args: 
+    for req_arg in required_args:
         _check_arg_is_not_none(args, req_arg)
 
     # Checks.
@@ -126,7 +130,7 @@ def parse_args(extra_args_provider=None, defaults={},
     # Activation checkpointing.
     if args.distribute_checkpointed_activations:
         assert args.checkpoint_activations, \
-            'for distribute-checkpointed-activations to work you '\
+            'for distribute-checkpointed-activations to work you ' \
             'need to enable checkpoint-activations'
 
     # load scaled_upper_triang_masked_softmax_fusion kernel
@@ -165,34 +169,34 @@ def _add_network_size_args(parser):
                        help='Number of transformer layers.')
     group.add_argument('--num-unique-layers', type=int, default=None,
                        help='Number of unique transformer layers. '
-                       '`num-layers` should be divisible by this value.')
+                            '`num-layers` should be divisible by this value.')
     group.add_argument('--param-sharing-style', default='grouped',
                        choices=['grouped', 'spaced'],
                        help='Ordering of the shared parameters. For example, '
-                       'for a `num-layers`=4 and `--num-unique-layers`=2, '
-                       'we will have the following ordering for two unique '
-                       'layers 1 and 2: '
-                       '    grouped: [1, 2, 1, 2] and spaced: [1, 1, 2, 2].')
+                            'for a `num-layers`=4 and `--num-unique-layers`=2, '
+                            'we will have the following ordering for two unique '
+                            'layers 1 and 2: '
+                            '    grouped: [1, 2, 1, 2] and spaced: [1, 1, 2, 2].')
     group.add_argument('--hidden-size', type=int, default=None,
                        help='Tansformer hidden size.')
     group.add_argument('--num-attention-heads', type=int, default=None,
                        help='Number of transformer attention heads.')
     group.add_argument('--max-position-embeddings', type=int, default=None,
                        help='Maximum number of position embeddings to use. '
-                       'This is the size of position embedding.')
+                            'This is the size of position embedding.')
     group.add_argument('--make-vocab-size-divisible-by', type=int, default=128,
                        help='Pad the vocab size to be divisible by this value.'
-                       'This is added for computational efficieny reasons.')
+                            'This is added for computational efficieny reasons.')
     group.add_argument('--layernorm-epsilon', type=float, default=1e-5,
                        help='Layer norm epsilon.')
     group.add_argument('--apply-residual-connection-post-layernorm',
                        action='store_true',
                        help='If set, use original BERT residula connection '
-                       'ordering.')
+                            'ordering.')
     group.add_argument('--openai-gelu', action='store_true',
                        help='Use OpenAIs GeLU implementation. This option'
-                       'should not be used unless for backward compatibility'
-                       'reasons.')
+                            'should not be used unless for backward compatibility'
+                            'reasons.')
     group.add_argument('--onnx-safe', type=bool, required=False,
                        help='Use workarounds for known problems with Torch ONNX exporter')
 
@@ -212,13 +216,13 @@ def _add_regularization_args(parser):
                        help='Gradient clipping based on global L2 norm.')
     group.add_argument('--adam-beta1', type=float, default=0.9,
                        help='First coefficient for computing running averages of'
-                       'gradient and its square')
+                            'gradient and its square')
     group.add_argument('--adam-beta2', type=float, default=0.999,
                        help='Second coefficient for computing running averages of'
-                       'gradient and its square')
+                            'gradient and its square')
     group.add_argument('--adam-eps', type=float, default=1e-08,
                        help='Term added to the denominator to improve'
-                       'numerical stability')
+                            'numerical stability')
 
     return parser
 
@@ -228,58 +232,69 @@ def _add_training_args(parser):
 
     group.add_argument('--batch-size', type=int, default=None,
                        help='Batch size per model instance (local batch size). '
-                       'Global batch size is local batch size times data '
-                       'parallel size.')
+                            'Global batch size is local batch size times data '
+                            'parallel size.')
     group.add_argument('--onebitadam', action='store_true',
                        help='Enable one bit adam optimizer [MUST BE USING DEEPSPEED]')
     group.add_argument('--gas', type=int, default=1,
                        help='Gradient accumulation steps (pipeline parallelism only). '
-                       'Global batch size is local batch size times data '
-                       'parallel size times gas.')
+                            'Global batch size is local batch size times data '
+                            'parallel size times gas.')
     group.add_argument('--checkpoint-activations', action='store_true',
                        help='Checkpoint activation to allow for training '
-                       'with larger models, sequences, and batch sizes.')
+                            'with larger models, sequences, and batch sizes.')
     group.add_argument('--distribute-checkpointed-activations',
                        action='store_true',
                        help='If set, distribute checkpointed activations '
-                       'across model parallel group.')
+                            'across model parallel group.')
     group.add_argument('--checkpoint-num-layers', type=int, default=1,
                        help='chunk size (number of layers) for checkpointing.')
     group.add_argument('--train-iters', type=int, default=None,
                        help='Total number of iterations to train over all '
-                       'training runs.')
+                            'training runs.')
     group.add_argument('--log-interval', type=int, default=100,
                        help='Report loss and timing interval.')
     group.add_argument('--exit-interval', type=int, default=None,
                        help='Exit the program after the iteration is divisible '
-                       'by this value.')
+                            'by this value.')
     group.add_argument('--tensorboard-dir', type=str, default=None,
                        help='Write TensorBoard logs to this directory.')
     group.add_argument('--scaled-upper-triang-masked-softmax-fusion',
                        action='store_true',
                        help='Enable fusion of query_key_value_scaling '
-                       'time (upper diagonal) masking and softmax.')
+                            'time (upper diagonal) masking and softmax.')
     group.add_argument('--scaled-masked-softmax-fusion',
                        action='store_true',
                        help='Enable fusion of query_key_value_scaling '
-                       'general masking and softmax.')
+                            'general masking and softmax.')
     group.add_argument('--bias-gelu-fusion', action='store_true',
-                        help='Enable bias and gelu fusion.')
+                       help='Enable bias and gelu fusion.')
     group.add_argument('--geglu', action='store_true',
-                        help='Enable geglu activation function (WARNING: will increase memory usage, '
-                             'adjust embd dims accordingly)')
+                       help='Enable geglu activation function (WARNING: will increase memory usage, '
+                            'adjust embd dims accordingly)')
     group.add_argument('--no-weight-tying', action='store_true',
-                        help='Disables weight tying between embedding weights and final Linear layer')        
+                       help='Disables weight tying between embedding weights and final Linear layer')
     group.add_argument('--sinusoidal-pos-emb', action='store_true',
                         help='Uses Sinusoidal Positional embedding applied to the inputs instead of learned')                                       
+    group.add_argument('--rpe', action='store_true',
+                        help='T5 relative positional encoding')
+    group.add_argument('--rpe-causal', action='store_true',
+                        help='T5 relative positional encoding causal flag')
+    group.add_argument('--rpe-num-buckets', type=int, default=32,
+                        help='T5 relative positional encoding number of buckets, default 32.')
+    group.add_argument('--rpe-max-distance', type=int, default=128,
+                        help='T5 relative positional encoding max distance, default 128.')
     group.add_argument('--bias-dropout-fusion', action='store_true',
                        help='Enable bias and dropout fusion.')
     group.add_argument('--sparsity', type=str, default='none',
-                    choices=['none', 'all', 'interspersed'], 
-                    help='sparse attention layer configuration. \
+                       choices=['none', 'all', 'interspersed'],
+                       help='sparse attention layer configuration. \
                         none = all regular attn, \
                         all = all sparse attn, \
                         interspersed = sparse on odd layers, dense on even')
+    group.add_argument('--rms-norm', action='store_true',
+                       help='Use root mean squared norm')
+    group.add_argument('--rms-norm-epsilon', type=float, default=1e-8)
     group.add_argument('--cpu-optimizer', action='store_true',
                        help='Run optimizer on CPU')
     group.add_argument('--cpu_torch_adam', action='store_true',
@@ -292,10 +307,10 @@ def _add_initialization_args(parser):
 
     group.add_argument('--seed', type=int, default=1234,
                        help='Random seed used for python, numpy, '
-                       'pytorch, and cuda.')
+                            'pytorch, and cuda.')
     group.add_argument('--init-method-std', type=float, default=0.02,
                        help='Standard deviation of the zero mean normal '
-                       'distribution used for weight initialization.')
+                            'distribution used for weight initialization.')
 
     return parser
 
@@ -305,31 +320,31 @@ def _add_learning_rate_args(parser):
 
     group.add_argument('--lr', type=float, default=None,
                        help='Initial learning rate. Depending on decay style '
-                       'and initial warmup, the learing rate at each '
-                       'iteration would be different.')
+                            'and initial warmup, the learing rate at each '
+                            'iteration would be different.')
     group.add_argument('--lr-decay-style', type=str, default='linear',
                        choices=['constant', 'linear', 'cosine', 'exponential'],
                        help='Learning rate decay function.')
     group.add_argument('--lr-decay-iters', type=int, default=None,
                        help='number of iterations to decay learning rate over,'
-                       ' If None defaults to `--train-iters`')
+                            ' If None defaults to `--train-iters`')
     group.add_argument('--min-lr', type=float, default=0.0,
                        help='Minumum value for learning rate. The scheduler'
-                       'clip values below this threshold.')
+                            'clip values below this threshold.')
     group.add_argument('--warmup', type=float, default=0.01,
                        help='Percentage of total iterations to warmup on '
-                       '(.01 = 1 percent of all training iters).')
+                            '(.01 = 1 percent of all training iters).')
     group.add_argument('--override-lr-scheduler', action='store_true',
                        help='Reset the values of the scheduler (learning rate,'
-                       'warmup iterations, minimum learning rate, maximum '
-                       'number of iterations, and decay style from input '
-                       'arguments and ignore values from checkpoints. Note'
-                       'that all the above values will be reset.')
+                            'warmup iterations, minimum learning rate, maximum '
+                            'number of iterations, and decay style from input '
+                            'arguments and ignore values from checkpoints. Note'
+                            'that all the above values will be reset.')
     group.add_argument('--use-checkpoint-lr-scheduler', action='store_true',
                        help='Use checkpoint to set the values of the scheduler '
-                       '(learning rate, warmup iterations, minimum learning '
-                       'rate, maximum number of iterations, and decay style '
-                       'from checkpoint and ignore input arguments.')
+                            '(learning rate, warmup iterations, minimum learning '
+                            'rate, maximum number of iterations, and decay style '
+                            'from checkpoint and ignore input arguments.')
 
     return parser
 
@@ -353,8 +368,8 @@ def _add_checkpointing_args(parser):
                        help='Do not load rng state when loading checkpoint.')
     group.add_argument('--finetune', action='store_true',
                        help='Load model for finetuning. Do not load optimizer '
-                       'or rng state from checkpoint and set iteration to 0. '
-                       'Assumed when loading a release checkpoint.')
+                            'or rng state from checkpoint and set iteration to 0. '
+                            'Assumed when loading a release checkpoint.')
 
     return parser
 
@@ -366,8 +381,8 @@ def _add_mixed_precision_args(parser):
                        help='Run model in fp16 mode.')
     group.add_argument('--apply-query-key-layer-scaling', action='store_true',
                        help='Scale Q * K^T by 1 / layer-number. If this flag '
-                       'is set, then it will automatically set '
-                       'attention-softmax-in-fp32 to true')
+                            'is set, then it will automatically set '
+                            'attention-softmax-in-fp32 to true')
     group.add_argument('--attention-softmax-in-fp32', action='store_true',
                        help='Run attention masking and softmax in fp32.')
     group.add_argument('--fp32-allreduce', action='store_true',
@@ -376,16 +391,15 @@ def _add_mixed_precision_args(parser):
                        help='hysteresis for dynamic loss scaling')
     group.add_argument('--loss-scale', type=float, default=None,
                        help='Static loss scaling, positive power of 2 '
-                       'values can improve fp16 convergence. If None, dynamic'
-                       'loss scaling is used.')
+                            'values can improve fp16 convergence. If None, dynamic'
+                            'loss scaling is used.')
     group.add_argument('--loss-scale-window', type=float, default=1000,
                        help='Window over which to raise/lower dynamic scale.')
     group.add_argument('--min-scale', type=float, default=1,
                        help='Minimum loss scale for dynamic loss scale.')
     group.add_argument('--fp16-lm-cross-entropy', action='store_true',
                        help='Move the cross entropy unreduced loss calculation'
-                       'for lm head to fp16.')
-
+                            'for lm head to fp16.')
 
     return parser
 
@@ -403,16 +417,16 @@ def _add_distributed_args(parser):
     group.add_argument('--DDP-impl', default='local',
                        choices=['local', 'torch'],
                        help='which DistributedDataParallel implementation '
-                       'to use.')
+                            'to use.')
     group.add_argument('--local_rank', type=int, default=None,
                        help='local rank passed from distributed launcher.')
     group.add_argument('--lazy-mpu-init', type=bool, required=False,
                        help='If set to True, initialize_megatron() skips DDP initialization'
-                       ' and returns function to complete it instead.'
-                       'Also turns on --use-cpu-initialization flag.'
-                       'This is for external DDP manager.' )
+                            ' and returns function to complete it instead.'
+                            'Also turns on --use-cpu-initialization flag.'
+                            'This is for external DDP manager.')
     group.add_argument('--use-cpu-initialization', action='store_true',
-                       help='If set, affine parallel weights initialization uses CPU' )
+                       help='If set, affine parallel weights initialization uses CPU')
     return parser
 
 
@@ -421,10 +435,10 @@ def _add_validation_args(parser):
 
     group.add_argument('--eval-iters', type=int, default=100,
                        help='Number of iterations to run for evaluation'
-                       'validation/test for.')
+                            'validation/test for.')
     group.add_argument('--eval-interval', type=int, default=1000,
                        help='Interval between running evaluation on '
-                       'validation set.')
+                            'validation set.')
 
     return parser
 
@@ -436,9 +450,9 @@ def _add_data_args(parser):
                        help='Path to combined dataset to split.')
     group.add_argument('--split', type=str, default='969, 30, 1',
                        help='Comma-separated list of proportions for training,'
-                       ' validation, and test split. For example the split '
-                       '`90,5,5` will use 90% of data for training, 5% for '
-                       'validation and 5% for test.')
+                            ' validation, and test split. For example the split '
+                            '`90,5,5` will use 90% of data for training, 5% for '
+                            'validation and 5% for test.')
     group.add_argument('--vocab-file', type=str, default=None,
                        help='Path to the vocab file.')
     group.add_argument('--merge-file', type=str, default=None,
@@ -466,7 +480,7 @@ def _add_data_args(parser):
                        help='Reset posistion ids after end-of-document token.')
     group.add_argument('--reset-attention-mask', action='store_true',
                        help='Reset self attention maske after '
-                       'end-of-document token.')
+                            'end-of-document token.')
     group.add_argument('--eod-mask-loss', action='store_true',
                        help='Mask loss for the end of document tokens.')
 
@@ -480,7 +494,7 @@ def _add_autoresume_args(parser):
                        help='Enable autoresume on adlr cluster.')
     group.add_argument('--adlr-autoresume-interval', type=int, default=1000,
                        help='Intervals over which check for autoresume'
-                       'termination signal')
+                            'termination signal')
 
     return parser
 

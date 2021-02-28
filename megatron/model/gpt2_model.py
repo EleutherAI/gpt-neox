@@ -21,9 +21,8 @@
 import torch
 
 from megatron import get_args
-from megatron import mpu
 from megatron.module import MegatronModule
-
+from functools import partial
 from .language_model import parallel_lm_logits
 from .language_model import get_language_model
 from .utils import init_method_normal
@@ -31,9 +30,11 @@ from .utils import scaled_init_method_normal
 
 # Pipeline parallelism
 from megatron import mpu
+from .utils import openai_gelu
 import torch.nn.functional as F
-import torch.nn.functional as F
+from megatron.mpu import LayerNorm, RMSNorm
 from apex.normalization.fused_layer_norm import FusedLayerNorm as LayerNorm
+
 import megatron.fp16 as fp16
 from megatron.model.transformer import ParallelTransformerLayerPipe
 from .language_model import EmbeddingPipe
@@ -46,10 +47,15 @@ def gpt2_attention_mask_func(attention_scores, ltor_mask):
     return attention_scores
 
 
-def CrossEntropy(output, labels):
+def cross_entropy(output, labels, _fp16=False):
     """ From pretrain_gpt2:forward_step() """
     labels, loss_mask = labels[0], labels[1]
-    losses = mpu.vocab_parallel_cross_entropy(output.contiguous().float(), labels)
+    if _fp16:
+        assert output.dtype == torch.half
+        losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels)
+    else:
+        output = fp16.fp16_to_fp32(output)
+        losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels)
     loss_mask = loss_mask.view(-1)
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
     return loss
@@ -104,7 +110,6 @@ class GPT2Model(MegatronModule):
                 None,
                 parallel_output, weight_tying=False)
 
-
         if get_key_value:
             output = [output, presents]
 
@@ -150,11 +155,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
         self.num_tokentypes = num_tokentypes
         self.init_method = init_method_normal(args.init_method_std)
         self.output_layer_init_method = scaled_init_method_normal(args.init_method_std, args.num_layers)
-
-        # Use torch gelu unless otherwise forced.
-        gelu = F.gelu
-        if args.openai_gelu:
-            gelu = openai_gelu
+        self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
 
         #
         # forward() prototype
@@ -175,13 +176,13 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                                             tied_weight_attr='word_embeddings_weight'))
         else:
             self.specs.append(LayerSpec(EmbeddingPipe,
-                                self.hidden_size,
-                                args.padded_vocab_size,
-                                args.max_position_embeddings,
-                                args.hidden_dropout,
-                                self.init_method,
-                                self.num_tokentypes,
-                                args.sinusoidal_pos_emb))
+                                        self.hidden_size,
+                                        args.padded_vocab_size,
+                                        args.max_position_embeddings,
+                                        args.hidden_dropout,
+                                        self.init_method,
+                                        self.num_tokentypes,
+                                        args.sinusoidal_pos_emb))
 
         # outputs are now (hidden_states, attention_mask)
 
@@ -206,10 +207,17 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
         self.specs.append(lambda x: x[0].transpose(0, 1).contiguous())
 
         # Final layernorm after transformer layers
+        if args.rms_norm:
+            norm = RMSNorm
+            eps = args.rms_norm_epsilon
+        else:
+            eps = args.layernorm_epsilon
+            norm = LayerNorm
+
         self.specs.append(
-            LayerSpec(LayerNorm,
+            LayerSpec(norm,
                       args.hidden_size,
-                      eps=args.layernorm_epsilon))
+                      eps=eps))
 
         # XXX forward_method_parallel_output is assumed to be None, but we're not in a
         # fwd method to assert
@@ -220,20 +228,20 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                 lm_output,
                 embedding.word_embeddings_weight,
                 self.parallel_output)
-        
+
         if weight_tying:
             self.specs.append(
                 TiedLayerSpec('embed',
-                            EmbeddingPipe,
-                            self.hidden_size,
-                            args.padded_vocab_size,
-                            args.max_position_embeddings,
-                            args.hidden_dropout,
-                            self.init_method,
-                            self.num_tokentypes,
-                            args.sinusoidal_pos_emb,
-                            forward_fn=_logits_helper,
-                            tied_weight_attr='word_embeddings_weight')
+                              EmbeddingPipe,
+                              self.hidden_size,
+                              args.padded_vocab_size,
+                              args.max_position_embeddings,
+                              args.hidden_dropout,
+                              self.init_method,
+                              self.num_tokentypes,
+                              args.sinusoidal_pos_emb,
+                              forward_fn=_logits_helper,
+                              tied_weight_attr='word_embeddings_weight')
             )
         else:
             self.specs.append(
@@ -247,19 +255,15 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                     skip_bias_add=False
                 )
             )
-            self.specs.append(lambda x: x[0]) # drop bias
+            self.specs.append(lambda x: x[0])  # drop bias
 
-
-        # Should maybe be done in loss_fn() instead?
-        if args.fp16:
-            self.specs.append(fp16.fp16_to_fp32)
-
+        loss_fn = partial(cross_entropy, _fp16=self.fp16_lm_cross_entropy)
         if args.checkpoint_activations:
             interval = args.checkpoint_num_layers
         else:
             interval = 0
         super().__init__(layers=self.specs,
-                         loss_fn=CrossEntropy,
+                         loss_fn=loss_fn,
                          topology=topology,
                          activation_checkpoint_interval=interval,
                          partition_method='type:transformer')
