@@ -11,9 +11,10 @@ GPT-NeoX is under active development and rough around the edges. GPT-NeoX is a c
 
 ## Getting Started
 
-Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), a custom modification to the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library. We strongly recommend using Anaconda, a virtual environment, or some other form of environment isolation before installing from `requirements.txt`. Failure to do so may cause other repositories that rely on DeepSpeed to break.
+Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), a custom modification to the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library. We strongly recommend using Anaconda, a virtual machine, or some other form of environment isolation before installing from `requirements.txt`. Failure to do so may cause other repositories that rely on DeepSpeed to break.
 
-## Datasets
+
+### Datasets
 
 Once you've installed `requirements.txt`, the next step is obtaining and processing data. For demonstrative purposes we have hosted the Enron Emails corpus and made it available for downloading. Running `python prepare_data.py` will download and process the dataset for language modeling. To use your own data, extend the `DataDownloader` class in `tools/corpa.py`and register the new class in the `DATA_DOWNLOADERS` dict. Once this is done, you can add `prepare_dataset(dataset_name)` to `process_data.py` to load your data.
 
@@ -21,7 +22,24 @@ TO DO: Make a table showing the datasets currently available for download. List 
 
 ### Training
 
-If you are already familiar with training models using DeepSpeed, you can use the exact same API to train our models.
+GPT-NeoX is launched using the `deepy.py` script which is the root folder of this repo. You also need to ensure that repo root directory is added to the Python path so that the megatron folder is importable.
+
+Example usage:
+
+```bash
+./deepy.py pretrain_gpt2.py -d configs ds_pretrain_gpt2.yml local_setup.yml
+```
+
+This will:
+* Deploy the `pretrain_gpt2.py` script on all nodes with one process per GPU. The worker nodes and number of GPUs are specified in the `/job/hostfile` file (see parameter documentation). The worker processes are deployed by default using [`pdsh`](https://linux.die.net/man/1/pdsh).
+* Model parameters are defined in the file `configs/ds_pretrain_gpt2.yml` (configuration directory is `configs/`) which are used by GPT-NeoX
+* Data path parameters are defined in the file `configs/local_setup.yml`
+
+Further examples are contained in the [examples folder](examples).
+
+## Configuration and parameters
+
+GPT-NeoX parameters are defined in a YAML configuration file which is passed to the `deepy.py` launcher - for examples see the `configs` folder and the `examples` folder. For a full list of parameters and documentation see [corresponding readme](configs).
 
 ## Features
 
