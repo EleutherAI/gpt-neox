@@ -7,7 +7,7 @@ from einops import rearrange
 
 
 class RelativePositionBias(nn.Module):
-    def __init__(self, causal = False, num_buckets = 32, max_distance = 128, heads = 8):
+    def __init__(self, causal=False, num_buckets=32, max_distance=128, heads=8):
         super().__init__()
         self.causal = causal
         self.num_buckets = num_buckets
@@ -15,7 +15,7 @@ class RelativePositionBias(nn.Module):
         self.relative_attention_bias = nn.Embedding(num_buckets, heads)
 
     @staticmethod
-    def _relative_position_bucket(relative_position, causal = True, num_buckets = 32, max_distance = 128):
+    def _relative_position_bucket(relative_position, causal=True, num_buckets=32, max_distance=128):
         ret = 0
         n = -relative_position
         if not causal:
@@ -29,7 +29,7 @@ class RelativePositionBias(nn.Module):
         is_small = n < max_exact
 
         val_if_large = max_exact + (
-            torch.log(n.float() / max_exact) / math.log(max_distance / max_exact) * (num_buckets - max_exact)
+                torch.log(n.float() / max_exact) / math.log(max_distance / max_exact) * (num_buckets - max_exact)
         ).long()
         val_if_large = torch.min(val_if_large, torch.full_like(val_if_large, num_buckets - 1))
 
@@ -37,11 +37,11 @@ class RelativePositionBias(nn.Module):
         return ret
 
     def forward(self, q_len, k_len):
-        q_pos = torch.arange(q_len, dtype = torch.long, device = torch.cuda.current_device())
-        k_pos = torch.arange(k_len, dtype = torch.long, device = torch.cuda.current_device())
+        q_pos = torch.arange(q_len, dtype=torch.long, device=torch.cuda.current_device())
+        k_pos = torch.arange(k_len, dtype=torch.long, device=torch.cuda.current_device())
         rel_pos = k_pos[None, :] - q_pos[:, None]
-        rp_bucket = self._relative_position_bucket(rel_pos, causal = self.causal, num_buckets = self.num_buckets, max_distance = self.max_distance)
+        rp_bucket = self._relative_position_bucket(rel_pos, causal=self.causal, num_buckets=self.num_buckets,
+                                                   max_distance=self.max_distance)
         values = self.relative_attention_bias(rp_bucket)
         bias = rearrange(values, 'i j h -> () h i j')
         return bias
-

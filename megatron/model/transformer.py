@@ -598,7 +598,6 @@ class ParallelTransformer(MegatronModule):
         args = get_args()
 
         self.rpe = args.pos_emb == 'rpe'
-        rpe_causal = args.rpe_causal
         rpe_num_buckets = args.rpe_num_buckets
         rpe_max_distance = args.rpe_max_distance
 
@@ -623,7 +622,7 @@ class ParallelTransformer(MegatronModule):
             args.num_attention_heads, world_size)
 
         if self.rpe:
-            self.rpe = RelativePositionBias(causal=rpe_causal, num_buckets=rpe_num_buckets, max_distance=rpe_max_distance, heads=self.num_attention_heads_per_partition)
+            self.rpe = RelativePositionBias(causal=True, num_buckets=rpe_num_buckets, max_distance=rpe_max_distance, heads=self.num_attention_heads_per_partition)
 
         # Transformer layers.
         sparsity = args.sparsity
