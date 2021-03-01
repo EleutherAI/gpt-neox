@@ -31,9 +31,9 @@ Example usage:
 ```
 
 This will:
-* Deploy the `pretrain_gpt2.py` script on all nodes with one process per GPU. The worker nodes and number of GPUs are specified in the `/job/hostfile` file (see parameter documentation). The worker processes are deployed by default using [`pdsh`](https://linux.die.net/man/1/pdsh).
-* Model parameters are defined in the file `configs/ds_pretrain_gpt2.yml` (configuration directory is `configs/`) which are used by GPT-NeoX
-* Data path parameters are defined in the file `configs/local_setup.yml`
+* Deploy the `pretrain_gpt2.py` script on all nodes with one process per GPU. The worker nodes and number of GPUs are specified in the `/job/hostfile` file (see [parameter documentation](configs)). The worker processes are deployed by default using [`pdsh`](https://linux.die.net/man/1/pdsh).
+* Model parameters are defined in the config file `configs/ds_pretrain_gpt2.yml` (configuration directory is `configs/`) which are used by GPT-NeoX
+* Data path parameters are defined in the config file `configs/local_setup.yml`. If you are an EleutherAI member and using the [Kubernetes cluster](kubernetes), the `eleutherai_cluster.yml` config should be instead.
 
 Further examples are contained in the [examples folder](examples).
 
@@ -47,25 +47,25 @@ GPT-NeoX parameters are defined in a YAML configuration file which is passed to 
 
 **Positional Encodings:**
 
-**Sparsity:**
+**Sparsity:** Sparse attention kernels are supported, but they require model parallelism to be turned off. This is subject to change with updates in Deepspeed
 
 ### Optimizers
 
-**Zero Redundnacy Optimizer (ZeRO):**
+**Zero Redundnacy Optimizer (ZeRO):** ZeRO stage 1 works seamlessly with NeoX, while ZeRO stage 2 does not, as it requires disabling pipeline parallelsm due to conflicts with gradient checkpointing among the two features. 
 
-**ZeRO-Offloding:**
+**ZeRO-Offloding:** ZeRO-offloading requires ZeRO stage 2, hence is not supported.
 
 **1-Bit Adam:**
 
 ### Memory Optimizations
 
-**Data Parallel:**
+**Data Parallel:** Data parallelism is a ubiquitous technique in deep learning in which each input batch of training data is split among the data parallel workers. It is integrated into NeoX
 
-**Model Parallel:**
+**Model Parallel:** Model Parallelism is a broad class of techniques that partitions the individual layers of the model across workers. Model Parallelism is built into NeoX as it is a part of [Megatron-LM](https://github.com/NVIDIA/Megatron-LM)
 
-**Pipeline Parallel:**
+**Pipeline Parallel:** Pipeline parallelism divides the layers of the model into stages that can be processed in parallel. It is integrated into deepspeed itself.
 
-**Mixed Precision Training:**
+**Mixed Precision Training:** Mixed precision training computes some operations in FP16 while some others in FP32, such as computing the forward pass and the gradient in fp16 and updating the weights in fp32. Mixed precision training is integrated into deepspeed as well.
 
 ## Monitoring
 
@@ -73,7 +73,7 @@ EleutherAI is currently using [Weights & Biases to record experiments](https://w
 
 ## Eleuther Cluster
 
-We run our experiments on a Kubernetes cluster generously provided by [CoreWeave](https://coreweave.com/). The `/kubernetes/` directory contains code designed to facilitate work on our server. If you are an EleuthrrAI member, see the [corresponding read-me](kubernetes/README.md) for information about how to use our cluster.
+We run our experiments on a Kubernetes cluster generously provided by [CoreWeave](https://coreweave.com/). The `/kubernetes/` directory contains code designed to facilitate work on our server. If you are an EleutherAI member, see the [corresponding read-me](kubernetes) for information about how to use our cluster.
 
 ## Licensing
 
