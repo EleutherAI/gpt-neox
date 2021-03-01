@@ -166,7 +166,7 @@ class ParallelSelfAttention(MegatronModule):
 
     def __init__(self, attention_mask_func, init_method,
                  output_layer_init_method, layer_number, sparse=False,
-                 rpe=False):
+                 rpe_emb=False):
         super(ParallelSelfAttention, self).__init__()
         args = get_args()
         self.fp16 = args.fp16
@@ -199,7 +199,7 @@ class ParallelSelfAttention(MegatronModule):
             coeff = self.layer_number
             self.norm_factor *= coeff
 
-        self.rpe = rpe
+        self.rpe_emb = rpe_emb
 
         self.sparse = sparse
         if self.sparse:
@@ -315,8 +315,8 @@ class ParallelSelfAttention(MegatronModule):
         if get_key_value:
             present = (key_layer, value_layer)
 
-        if self.rpe:
-            rpe = self.rpe(query_layer.size(0), key_layer.size(0))
+        if self.rpe_emb:
+            rpe = self.rpe_emb(query_layer.size(0), key_layer.size(0))
 
         if not self.sparse:
             # ===================================
@@ -373,7 +373,7 @@ class ParallelSelfAttention(MegatronModule):
             # Attention probs and dropout
             # ===========================
 
-            if self.rpe:
+            if self.rpe_emb:
                 attention_scores += rpe # [1, np, sq, sk]
 
             # attention scores and attention mask [b, np, sq, sk]
@@ -474,7 +474,7 @@ class ParallelTransformerLayer(MegatronModule):
     """
 
     def __init__(self, attention_mask_func, init_method,
-                 output_layer_init_method, layer_number, sparse=False, rpe=False):
+                 output_layer_init_method, layer_number, sparse=False, rpe_emb=False):
         args = get_args()
 
         super(ParallelTransformerLayer, self).__init__()
@@ -500,7 +500,7 @@ class ParallelTransformerLayer(MegatronModule):
                                                output_layer_init_method,
                                                layer_number,
                                                sparse=sparse,
-                                               rpe=rpe)
+                                               rpe_emb=rpe_emb)
         self.hidden_dropout = args.hidden_dropout
         self.bias_dropout_fusion = args.bias_dropout_fusion
 
@@ -622,7 +622,7 @@ class ParallelTransformer(MegatronModule):
             args.num_attention_heads, world_size)
 
         if self.rpe:
-            self.rpe = RelativePositionBias(causal=True, num_buckets=rpe_num_buckets, max_distance=rpe_max_distance, heads=self.num_attention_heads_per_partition)
+            self.rpe_emb = RelativePositionBias(causal=True, num_buckets=rpe_num_buckets, max_distance=rpe_max_distance, heads=self.num_attention_heads_per_partition)
 
         # Transformer layers.
         sparsity = args.sparsity
@@ -638,7 +638,7 @@ class ParallelTransformer(MegatronModule):
                 raise ValueError(f'Sparsity type {sparsity} not recognized')
             return ParallelTransformerLayer(
                 attention_mask_func, init_method,
-                output_layer_init_method, layer_number, sparse=sparse, rpe=self.rpe)
+                output_layer_init_method, layer_number, sparse=sparse, rpe_emb=self.rpe_emb)
 
         self.layers = torch.nn.ModuleList(
             [build_layer(i + 1) for i in range(self.num_unique_layers)])
