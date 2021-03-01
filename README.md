@@ -31,9 +31,9 @@ Example usage:
 ```
 
 This will:
-* Deploy the `pretrain_gpt2.py` script on all nodes with one process per GPU. The worker nodes and number of GPUs are specified in the `/job/hostfile` file (see parameter documentation). The worker processes are deployed by default using [`pdsh`](https://linux.die.net/man/1/pdsh).
-* Model parameters are defined in the file `configs/ds_pretrain_gpt2.yml` (configuration directory is `configs/`) which are used by GPT-NeoX
-* Data path parameters are defined in the file `configs/local_setup.yml`
+* Deploy the `pretrain_gpt2.py` script on all nodes with one process per GPU. The worker nodes and number of GPUs are specified in the `/job/hostfile` file (see [parameter documentation](configs)). The worker processes are deployed by default using [`pdsh`](https://linux.die.net/man/1/pdsh).
+* Model parameters are defined in the config file `configs/ds_pretrain_gpt2.yml` (configuration directory is `configs/`) which are used by GPT-NeoX
+* Data path parameters are defined in the config file `configs/local_setup.yml`. If you are an EleutherAI member and using the [Kubernetes cluster](kubernetes), the `eleutherai_cluster.yml` config should be instead.
 
 Further examples are contained in the [examples folder](examples).
 
@@ -73,7 +73,7 @@ EleutherAI is currently using [Weights & Biases to record experiments](https://w
 
 ## Eleuther Cluster
 
-We run our experiments on a Kubernetes cluster generously provided by [CoreWeave](https://coreweave.com/). The `/kubernetes/` directory contains code designed to facilitate work on our server. If you are an EleutherAI member, see the [corresponding read-me](kubernetes/README.md) for information about how to use our cluster.
+We run our experiments on a Kubernetes cluster generously provided by [CoreWeave](https://coreweave.com/). The `/kubernetes/` directory contains code designed to facilitate work on our server. If you are an EleutherAI member, see the [corresponding read-me](kubernetes) for information about how to use our cluster.
 
 ## Licensing
 
