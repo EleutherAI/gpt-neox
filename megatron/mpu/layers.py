@@ -256,7 +256,7 @@ class ParallelRelativePositionBias(torch.nn.Module):
         q_pos = torch.arange(q_len, dtype=torch.long, device=torch.cuda.current_device())
         k_pos = torch.arange(k_len, dtype=torch.long, device=torch.cuda.current_device())
         rel_pos = k_pos[None, :] - q_pos[:, None]
-        rp_bucket = self._relative_position_bucket(rel_pos, causal=self.causal, num_buckets=self.num_buckets,
+        rp_bucket = self._relative_position_bucket(rel_pos, num_buckets=self.num_buckets,
                                                    max_distance=self.max_distance)
         values = F.embedding(rp_bucket, self.weight, self.padding_idx,
                              self.max_norm, self.norm_type, self.scale_grad_by_freq, self.sparse)
