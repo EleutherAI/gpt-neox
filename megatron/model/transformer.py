@@ -596,9 +596,6 @@ class ParallelTransformer(MegatronModule):
         super(ParallelTransformer, self).__init__()
         args = get_args()
 
-        rpe_num_buckets = args.rpe_num_buckets
-        rpe_max_distance = args.rpe_max_distance
-
         # Store activation checkpoiting flag.
         self.checkpoint_activations = args.checkpoint_activations
         self.checkpoint_num_layers = args.checkpoint_num_layers
@@ -613,7 +610,8 @@ class ParallelTransformer(MegatronModule):
         self.param_sharing_style = args.param_sharing_style
 
         if args.pos_emb == 'rpe':
-            self.rpe_emb = ParallelRelativePositionBias(causal=True, num_buckets=rpe_num_buckets, max_distance=rpe_max_distance,
+            self.rpe_emb = ParallelRelativePositionBias(causal=True, num_buckets=args.rpe_num_buckets, max_distance=args.rpe_max_distance
+,
                                             heads=args.num_attention_heads)
         else:
             self.rpe_emb = None
