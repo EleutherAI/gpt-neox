@@ -206,7 +206,7 @@ class ParallelRelativePositionBias(torch.nn.Module):
         # Divide the weight matrix along the heads dimension.
         self.head_start_index, self.head_end_index = self.get_heads_range(self.heads, self.model_parallel_rank,
                                                                           self.model_parallel_size)
-        self.num_heads_per_partition = self.head_start_index - self.head_end_index
+        self.num_heads_per_partition = self.head_end_index - self.head_start_index
 
         # Allocate weights and initialize.
         args = get_args()

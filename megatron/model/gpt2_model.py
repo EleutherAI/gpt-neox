@@ -148,10 +148,10 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
         self.output_layer_init_method = scaled_init_method_normal(args.init_method_std, args.num_layers)
         weight_tying = not args.no_weight_tying
         if args.pos_emb == 'rpe':
-            self.rpe_emb = ParallelRelativePositionBias(causal=True, num_buckets=args.rpe_num_buckets, max_distance=args.rpe_max_distance,
+            rpe_emb = ParallelRelativePositionBias(causal=True, num_buckets=args.rpe_num_buckets, max_distance=args.rpe_max_distance,
                                             heads=args.num_attention_heads)
         else:
-            self.rpe_emb = None
+            rpe_emb = None
 
         #
         # forward() prototype
@@ -197,7 +197,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                           output_layer_init_method=self.output_layer_init_method,
                           layer_number=x,
                           sparse=sparse,
-                          rpe=self.rpe_emb))
+                          rpe=rpe_emb))
         # Undo data format change and drop mask
         self.specs.append(lambda x: x[0].transpose(0, 1).contiguous())
 
