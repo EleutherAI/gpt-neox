@@ -371,7 +371,6 @@ class ParallelSelfAttention(MegatronModule):
             # ===========================
 
             if exists(self.rpe):
-                print('adding rpe')
                 rpe = self.rpe(query_layer.size(0), key_layer.size(0))
                 attention_scores += rpe  # [1, np, sq, sk]
 
