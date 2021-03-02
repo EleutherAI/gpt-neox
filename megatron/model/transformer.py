@@ -315,9 +315,6 @@ class ParallelSelfAttention(MegatronModule):
         if get_key_value:
             present = (key_layer, value_layer)
 
-        if exists(self.rpe):
-            rpe = self.rpe(query_layer.size(0), key_layer.size(0))
-
         if not self.sparse:
             # ===================================
             # Raw attention scores. [b, np, s, s]
@@ -374,6 +371,8 @@ class ParallelSelfAttention(MegatronModule):
             # ===========================
 
             if exists(self.rpe):
+                print('adding rpe')
+                rpe = self.rpe(query_layer.size(0), key_layer.size(0))
                 attention_scores += rpe  # [1, np, sq, sk]
 
             # attention scores and attention mask [b, np, sq, sk]
@@ -597,7 +596,6 @@ class ParallelTransformer(MegatronModule):
         super(ParallelTransformer, self).__init__()
         args = get_args()
 
-        self.rpe = args.pos_emb == 'rpe'
         rpe_num_buckets = args.rpe_num_buckets
         rpe_max_distance = args.rpe_max_distance
 
@@ -614,9 +612,11 @@ class ParallelTransformer(MegatronModule):
             'number of layers should be divisible by number of unique layers'
         self.param_sharing_style = args.param_sharing_style
 
-        if self.rpe:
-            self.rpe = ParallelRelativePositionBias(causal=True, num_buckets=rpe_num_buckets, max_distance=rpe_max_distance,
+        if args.pos_emb == 'rpe':
+            self.rpe_emb = ParallelRelativePositionBias(causal=True, num_buckets=rpe_num_buckets, max_distance=rpe_max_distance,
                                             heads=args.num_attention_heads)
+        else:
+            self.rpe_emb = None
 
         # Transformer layers.
         sparsity = args.sparsity
@@ -632,7 +632,7 @@ class ParallelTransformer(MegatronModule):
                 raise ValueError(f'Sparsity type {sparsity} not recognized')
             return ParallelTransformerLayer(
                 attention_mask_func, init_method,
-                output_layer_init_method, layer_number, sparse=sparse, rpe=self.rpe)
+                output_layer_init_method, layer_number, sparse=sparse, rpe=self.rpe_emb)
 
         self.layers = torch.nn.ModuleList(
             [build_layer(i + 1) for i in range(self.num_unique_layers)])

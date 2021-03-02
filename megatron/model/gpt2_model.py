@@ -21,7 +21,6 @@
 import torch
 
 from megatron import get_args
-from megatron import mpu
 from megatron.module import MegatronModule
 
 from .language_model import parallel_lm_logits
@@ -31,9 +30,7 @@ from .utils import scaled_init_method_normal
 
 # Pipeline parallelism
 from megatron import mpu
-from .utils import openai_gelu
-import torch.nn.functional as F
-from megatron.mpu import LayerNorm, RMSNorm
+from megatron.mpu import LayerNorm, RMSNorm, ParallelRelativePositionBias
 import megatron.fp16 as fp16
 from megatron.model.transformer import ParallelTransformerLayerPipe
 from .language_model import EmbeddingPipe
@@ -150,6 +147,11 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
         self.init_method = init_method_normal(args.init_method_std)
         self.output_layer_init_method = scaled_init_method_normal(args.init_method_std, args.num_layers)
         weight_tying = not args.no_weight_tying
+        if args.pos_emb == 'rpe':
+            self.rpe_emb = ParallelRelativePositionBias(causal=True, num_buckets=rpe_num_buckets, max_distance=rpe_max_distance,
+                                            heads=args.num_attention_heads)
+        else:
+            self.rpe_emb = None
 
         #
         # forward() prototype
@@ -194,7 +196,8 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                           init_method=self.init_method,
                           output_layer_init_method=self.output_layer_init_method,
                           layer_number=x,
-                          sparse=sparse))
+                          sparse=sparse,
+                          rpe=self.rpe_emb))
         # Undo data format change and drop mask
         self.specs.append(lambda x: x[0].transpose(0, 1).contiguous())
 
