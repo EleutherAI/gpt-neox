@@ -277,8 +277,6 @@ def _add_training_args(parser):
     pos_emb_choices = ['learned', 'sinusoidal', 'rpe', 'none']
     group.add_argument('--pos-emb', type=str, choices=pos_emb_choices, default='learned',
                        help=f'Type of positional embedding to use - choose from {pos_emb_choices}')
-    group.add_argument('--rpe-causal', action='store_true',
-                        help='T5 relative positional encoding causal flag')
     group.add_argument('--rpe-num-buckets', type=int, default=32,
                         help='T5 relative positional encoding number of buckets, default 32.')
     group.add_argument('--rpe-max-distance', type=int, default=128,
