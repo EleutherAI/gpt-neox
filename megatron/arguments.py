@@ -59,12 +59,8 @@ def _get_parser(extra_args_provider=None):
 
 def configure_distributed_args(args):
     if args.deepspeed_mpi:
-        # discover the necessary parameters to get mpi working
-        assert all([os.environ.get('OMPI_COMM_WORLD_NODE_RANK') is not None,
-                    os.environ.get('PMIX_RANK') is not None]), "mpi environment variables cannot be found"
-
-        os.environ['LOCAL_RANK'] = os.environ['OMPI_COMM_WORLD_NODE_RANK']
-        os.environ['RANK'] = os.environ['PMIX_RANK']
+        from deepspeed.utils.distributed import mpi_discovery
+        mpi_discovery()
     args.local_rank = int(os.getenv('LOCAL_RANK', '0'))
     args.rank = int(os.getenv('RANK', '0'))
     args.world_size = int(os.getenv("WORLD_SIZE", '1'))
