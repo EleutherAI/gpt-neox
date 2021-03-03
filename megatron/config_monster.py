@@ -216,6 +216,7 @@ def _configure_train_batch_size(world_size, train_batch=None, micro_batch=None, 
     Modified from deepspeed.DeepSpeedConfig._set_batch_related_parameters.
     """
     train_batch, micro_batch, grad_acc = _set_batch_parameters(world_size, train_batch, micro_batch, grad_acc)
+    print(train_batch, micro_batch, grad_acc)
     _batch_assertion(world_size, train_batch=train_batch, micro_batch=micro_batch, grad_acc=grad_acc)
     return train_batch, micro_batch, grad_acc
 
