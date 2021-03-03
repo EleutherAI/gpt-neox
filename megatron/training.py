@@ -193,6 +193,15 @@ def get_optimizer(model):
         assert args.deepspeed
         optimizer = None
         # onebitadam needs to be instantiated within the deepspeed engine to work :|
+    elif args.sm3:
+        from .optimizers import SM3
+        optimizer = SM3(
+            param_groups,
+            lr=args.lr,
+            momentum=args.momentum,
+            beta=args.adam_beta1,
+            eps=args.adam_eps,
+        )
     else:
         # Use Adam
         optimizer = Adam(param_groups,
@@ -200,7 +209,6 @@ def get_optimizer(model):
                          weight_decay=args.weight_decay,
                          betas=(args.adam_beta1, args.adam_beta2),
                          eps=args.adam_eps)
-
     if args.deepspeed:
         # fp16 wrapper is not required for DeepSpeed.
         return optimizer, param_groups

@@ -82,6 +82,7 @@ OPT_PARAMS_DEFAULTS = {
     "eps": 1e-8,
     "weight_decay": 0,
     "freeze_step": 400,
+    "momentum": 0.0,
     "cuda_aware": False
 }
 
@@ -137,6 +138,7 @@ def _set_optimizer_params(ds_conf, megatron_conf):
     megatron_conf['adam-beta1'] = opt_params['params'].get('betas', OPT_PARAMS_DEFAULTS['betas'])[0]
     megatron_conf['adam-beta2'] = opt_params['params'].get('betas', OPT_PARAMS_DEFAULTS['betas'])[1]
     megatron_conf['adam-eps'] = opt_params['params'].get('eps', OPT_PARAMS_DEFAULTS['eps'])
+    megatron_conf['momentum'] = opt_params['params'].get('momentum', OPT_PARAMS_DEFAULTS['momentum'])
 
     assert megatron_conf['lr'] is not None
     if opt_params["type"].lower() == "adam":
@@ -147,6 +149,8 @@ def _set_optimizer_params(ds_conf, megatron_conf):
         megatron_conf['cpu-optimizer'] = True
     elif opt_params["type"].lower() == "cpu_torch_adam":
         megatron_conf['cpu_torch_adam'] = True
+    elif opt_params["type"].lower() == "sm3":
+        megatron_conf['sm3'] = True
     else:
         raise ValueError(
             f'Optimizer type {opt_params["type"]} not recognized, please choose from: \n {OPTIMIZER_OPTIONS}')
