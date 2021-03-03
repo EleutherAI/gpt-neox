@@ -3,6 +3,7 @@
 import json
 import argparse
 import sys
+from io import StringIO
 from typing import Any
 import dataclasses
 import pandas as pd
@@ -17,6 +18,22 @@ from megatron.arguments import _add_network_size_args, _add_regularization_args,
     _add_initialization_args, _add_learning_rate_args, _add_checkpointing_args, _add_mixed_precision_args, \
     _add_distributed_args, _add_validation_args, _add_data_args, _add_autoresume_args, _add_realm_args, _add_zero_args, \
     _add_activation_checkpoint_args
+
+megatron_keys_exclude = [
+    'fp16',  # Duplicated in ds_config
+    'gas',  # Duplicate of `gradient_accumulation_steps` in ds_config,
+    '-h', 'help'  # Argparse arguments - unneeded
+          'zero-stage', 'zero-reduce-scatter', 'zero-contiguous-gradients',
+    'zero-reduce-bucket-size', 'zero-allgather-bucket-size',  # all zero params from ds_config
+    'clip-grad',
+    'deepspeed'
+]
+
+ds_config_keys = ['train_batch_size', 'train_micro_batch_size_per_gpu', 'gradient_accumulation_steps', 'optimizer',
+                  'scheduler', 'fp32_allreduce', 'prescale_gradients', 'gradient_predivide_factor', 'sparse_gradients',
+                  'fp16', 'amp', 'gradient_clipping', 'zero_optimization', 'steps_per_print', 'wall_clock_breakdown',
+                  'dump_state', 'flops_profiler', 'activation_checkpointing', 'sparse_attention',
+                  'zero_allow_untested_optimizer', ]
 
 @dataclass
 class Param:
@@ -160,11 +177,15 @@ def crude_arg_parser(args=sys.argv):
 
     return args_dict
 
-def parser_to_params_list(parser):
+def parser_to_params_list(parser, exclude_args=None):
     params = [
         Param(e.option_strings[-1].split('--')[-1], e.dest, e.default, e.help)
         for e in parser._get_optional_actions()  # Only consider optional arguments. You can get positional using `_get_positional_actions()`
-        if e.dest != 'help']
+    ]
+    if exclude_args:
+        params = [
+            p for p in params if p.name not in exclude_args
+        ]
     return params
 
 def try_cast_to_number(e: Any):
@@ -210,7 +231,7 @@ print([e.name for e in ds_runner_params])
 
 print('--- MEGATRON PARAMS ---')
 megatron_parser = get_megatron_parser()
-megatron_parser_params = parser_to_params_list(megatron_parser)
+megatron_parser_params = parser_to_params_list(megatron_parser, exclude_args=megatron_keys_exclude)
 megatron_parser_params = [e for e in megatron_parser_params if e.name != 'deepscale_config']
 print([e.name for e in megatron_parser_params])
 
@@ -219,6 +240,13 @@ if converting_args:
     print(list(ds_config.keys()))
 
 print('------- Document parameters -------')
-info = pd.DataFrame(map(dataclasses.asdict, ds_runner_params+megatron_parser_params))
-with open('param_info.md', 'w') as f:
-    info.to_markdown(f)
+info = pd.concat([
+    pd.DataFrame(map(dataclasses.asdict, ds_runner_params)).assign(origin='DSR'),
+    pd.DataFrame(map(dataclasses.asdict, megatron_parser_params)).assign(origin='Meg'),
+    pd.DataFrame({'name': ds_config_keys, 'origin': 'DSC'}),
+])
+info = info[['origin', 'name', 'default', 'help']]
+
+md_tb = StringIO()
+info.to_csv(md_tb, index=False)
+print(md_tb.getvalue())

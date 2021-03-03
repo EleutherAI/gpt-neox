@@ -11,4 +11,5 @@ zstandard==0.15.1
 cupy-cuda102==8.4.0
 mpi4py==3.0.3
 wandb==0.10.18
-einops
+einops==0.3.0
+

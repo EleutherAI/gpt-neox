@@ -9,7 +9,7 @@ If you are not an EleutherAI member, do not use any of the code in this director
 If you already have a EleutherAI cluster setup for you, test to see if the cluster is working:
     
 1. Copy data from cold storage to the shared mount: `cp -R /mnt/ssd-0/megatron-3d/data /mnt/ssd-cluster/data`
-2. Example run `bash examples/ds_pretrain_gpt2_medium_pipe.sh`
+2. Example run `bash examples/pretrain_gpt2_eleutherai_cluster.sh`
     
 ## Cluster features
 
