@@ -43,9 +43,10 @@ apt-get update -y || { sleep 3; sudo apt-get update -y; };
 apt-get install -y sudo pdsh git || { sleep 3; apt-get install -y pdsh git; };
 if [ \$(dpkg-query -W -f='\${Status}' ssh 2>/dev/null | grep -c 'ok installed') -eq 0 ];
 then
-  apt-get install -y ssh || { sleep 3; sudo apt-get install ssh; }
+  sudo apt-get install ssh;
 fi;
-mkdir -p /run/sshd;
+echo '    StrictHostKeyChecking no' >> ~/.ssh/config;
+sudo mkdir -p /run/sshd;
 sudo /usr/sbin/sshd;
 sudo rm -rf /job;
 sudo mkdir -p /job ~/.ssh;
@@ -59,6 +60,8 @@ chmod 700 ~/.ssh;
 echo 'export DATA_DIR=/mnt/ssd-cluster/data' >> ~/.bashrc;
 echo 'export WANDB_TEAM=eleutherai' >> ~/.bashrc;
 echo 'export DS_EXE=/home/mchorse/gpt-neox/deepy.py' >> ~/.bashrc;
+echo 'export LC_ALL=C.UTF-8' >> ~/.bashrc;
+echo 'export LANG=C.UTF-8' >> ~/.bashrc;
 cd ~;
 git clone --branch $BRANCH https://github.com/EleutherAI/gpt-neox.git;
 sudo apt-get update -y;
