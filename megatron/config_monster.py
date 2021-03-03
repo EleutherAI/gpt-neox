@@ -173,7 +173,7 @@ def _set_batch_parameters(world_size, train_batch=None, micro_batch=None, grad_a
     if train_batch is not None and \
             micro_batch is not None and \
             grad_acc is not None:
-        return
+        return train_batch, micro_batch, grad_acc
 
     # gradient_accumulation_steps needs to be set
     elif train_batch is not None and \
