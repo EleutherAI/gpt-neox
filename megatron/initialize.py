@@ -150,7 +150,7 @@ def _initialize_distributed():
             torch.cuda.set_device(device)
 
         # TODO: this terrible hack won't be necessary when our default image is using later versions of Deep(er)speed
-        if 'init_method' in inspect.Signature(deepspeed.init_distributed).parameters:
+        if 'init_method' in inspect.signature(distributed.init_distributed).parameters::
             # Call the init process
             init_method = 'tcp://'
             master_ip = os.getenv('MASTER_ADDR', 'localhost')
