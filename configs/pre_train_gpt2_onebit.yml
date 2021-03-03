@@ -46,6 +46,7 @@
     "cpu_offload": False
 },
    "train_micro_batch_size_per_gpu": 4,
+   "gradient_accumulation_steps": 1,
    "steps_per_print": 10,
    "optimizer": {
      "type": "OneBitAdam",
@@ -58,7 +59,6 @@
      }
    },
    "gradient_clipping": 1.0,
-   "gradient_accumulation_steps": 2,
    "fp16": { # Duplicated in megatron
      "fp16": true,
      "enabled": true,
