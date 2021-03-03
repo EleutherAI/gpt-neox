@@ -29,6 +29,9 @@ from megatron.global_vars import set_global_variables
 from megatron.mpu import set_model_parallel_rank, set_model_parallel_world_size
 
 import deepspeed
+import inspect
+
+from deepspeed.utils import distributed
 
 
 def initialize_megatron(extra_args_provider=None, args_defaults={},
@@ -57,20 +60,20 @@ def initialize_megatron(extra_args_provider=None, args_defaults={},
         args = get_args()
         # Pytorch distributed.
         _initialize_distributed()
-        
+
         # Random seeds for reproducibility.
         if args.rank == 0:
             print('> setting random seeds to {} ...'.format(args.seed))
         _set_random_seed(args.seed)
 
     args = get_args()
-    if  args.lazy_mpu_init:
-        args.use_cpu_initialization=True
+    if args.lazy_mpu_init:
+        args.use_cpu_initialization = True
         # delayed initialization of DDP-related stuff
         # We only set basic DDP globals    
         set_model_parallel_world_size(args.model_parallel_size)
         # and return function for external DDP manager to call when it has DDP initialized
-        set_model_parallel_rank(args.rank)    
+        set_model_parallel_rank(args.rank)
         return finish_mpu_init
     else:
         # Megatron's MPU is the master. Complete initialization right away.
@@ -78,15 +81,15 @@ def initialize_megatron(extra_args_provider=None, args_defaults={},
 
         # Initialize memory buffers.
         _initialize_mem_buffs()
-        
+
         # Autoresume.
         _init_autoresume()
-        
+
         # Write arguments to tensorboard.
         _write_args_to_tensorboard()
         # No continuation function
         return None
-        
+
 
 def setup_deepspeed_random_and_activation_checkpointing(args):
     '''Optional DeepSpeed Activation Checkpointing features.
@@ -145,15 +148,28 @@ def _initialize_distributed():
             else:
                 args.local_rank = device
             torch.cuda.set_device(device)
-        # Call the init process
-        init_method = 'tcp://'
-        master_ip = os.getenv('MASTER_ADDR', 'localhost')
-        master_port = os.getenv('MASTER_PORT', '6000')
-        init_method += master_ip + ':' + master_port
-        torch.distributed.init_process_group(
-            backend=args.distributed_backend,
-            world_size=args.world_size, rank=args.rank,
-            init_method=init_method)
+
+        # TODO: this terrible hack won't be necessary when our default image is using later versions of Deep(er)speed
+        if 'init_method' in inspect.signature(distributed.init_distributed).parameters:
+            # Call the init process
+            init_method = 'tcp://'
+            master_ip = os.getenv('MASTER_ADDR', 'localhost')
+            master_port = os.getenv('MASTER_PORT', '6000')
+            init_method += master_ip + ':' + master_port
+            distributed.init_distributed(
+                dist_backend=args.distributed_backend,
+                auto_mpi_discovery=True,
+                distributed_port=os.getenv('MASTER_PORT', '6000'),
+                verbose=True,
+                init_method=init_method
+            )
+        else:
+            distributed.init_distributed(
+                dist_backend=args.distributed_backend,
+                auto_mpi_discovery=True,
+                distributed_port=os.getenv('MASTER_PORT', '6000'),
+                verbose=True,
+            )
 
     # Setup 3D topology.
     if args.pipe_parallel_size > 0:
@@ -174,7 +190,6 @@ def _initialize_distributed():
     else:
         topo = None
 
-
     # Set the model-parallel / data-parallel communicators.
     if device_count > 0:
         if mpu.model_parallel_is_initialized():
@@ -186,6 +201,7 @@ def _initialize_distributed():
     #
     if args.deepspeed and args.deepspeed_activation_checkpointing:
         setup_deepspeed_random_and_activation_checkpointing(args)
+
 
 def _init_autoresume():
     """Set autoresume start time."""

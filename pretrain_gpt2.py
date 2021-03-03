@@ -36,6 +36,7 @@ from megatron.utils import reduce_losses
 from megatron.fp16 import fp32_to_fp16
 import wandb
 
+
 def model_provider():
     """Build the model."""
 

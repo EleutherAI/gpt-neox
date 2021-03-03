@@ -108,7 +108,7 @@ def _megatron_to_ds_scheduler_args(ds_conf, megatron_conf):
     """
     opt_params = ds_conf.get("optimizer", {"type": OPT_DEFAULT, "params": OPT_PARAMS_DEFAULTS})
     ds_conf["scheduler"] = {
-        "type": "WarmupLR",  # for now this is the only ds scheduler offering decay
+        "type": "WarmupDecayLR",  # for now this is the only ds scheduler offering decay
         "params": {
             "warmup_min_lr": 0,
             "warmup_max_lr": opt_params["params"]["lr"],
@@ -173,7 +173,7 @@ def _set_batch_parameters(world_size, train_batch=None, micro_batch=None, grad_a
     if train_batch is not None and \
             micro_batch is not None and \
             grad_acc is not None:
-        return
+        return train_batch, micro_batch, grad_acc
 
     # gradient_accumulation_steps needs to be set
     elif train_batch is not None and \
@@ -216,6 +216,7 @@ def _configure_train_batch_size(world_size, train_batch=None, micro_batch=None, 
     Modified from deepspeed.DeepSpeedConfig._set_batch_related_parameters.
     """
     train_batch, micro_batch, grad_acc = _set_batch_parameters(world_size, train_batch, micro_batch, grad_acc)
+    print(train_batch, micro_batch, grad_acc)
     _batch_assertion(world_size, train_batch=train_batch, micro_batch=micro_batch, grad_acc=grad_acc)
     return train_batch, micro_batch, grad_acc
 
@@ -318,7 +319,7 @@ class ConfigMonster:
             'gradient_accumulation_steps'] = _configure_train_batch_size(world_size, conf.get('train_batch_size'),
                                                                          conf.get('train_micro_batch_size_per_gpu'),
                                                                          conf.get('gradient_accumulation_steps'))
-
+        conf['gradient_accumulation_steps'] = int(conf['gradient_accumulation_steps'])
         conf['batch-size'] = conf['train_micro_batch_size_per_gpu']  # we need to pass batch size into megatron
 
         ds_runner_conf = {key: conf[key] for key in ds_runner_keys if key in conf}

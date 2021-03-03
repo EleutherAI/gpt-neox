@@ -57,6 +57,19 @@ def _get_parser(extra_args_provider=None):
     return parser
 
 
+def configure_distributed_args(args):
+    if args.deepspeed_mpi:
+        from deepspeed.utils.distributed import mpi_discovery
+        mpi_discovery()
+    args.local_rank = int(os.getenv('LOCAL_RANK', '0'))
+    args.rank = int(os.getenv('RANK', '0'))
+    args.world_size = int(os.getenv("WORLD_SIZE", '1'))
+    args.model_parallel_size = min(args.model_parallel_size, args.world_size)
+    if args.rank == 0:
+        print('using world size: {} and model-parallel size: {} '.format(
+            args.world_size, args.model_parallel_size))
+
+
 def parse_args(extra_args_provider=None, defaults={},
                ignore_unknown_args=False):
     """Parse all arguments."""
@@ -68,12 +81,7 @@ def parse_args(extra_args_provider=None, defaults={},
         args = parser.parse_args()
 
     # Distributed args.
-    args.rank = int(os.getenv('RANK', '0'))
-    args.world_size = int(os.getenv("WORLD_SIZE", '1'))
-    args.model_parallel_size = min(args.model_parallel_size, args.world_size)
-    if args.rank == 0:
-        print('using world size: {} and model-parallel size: {} '.format(
-            args.world_size, args.model_parallel_size))
+    configure_distributed_args(args)
 
     # Fp16 loss scaling.
     args.dynamic_loss_scale = False
@@ -275,15 +283,15 @@ def _add_training_args(parser):
     group.add_argument('--no-weight-tying', action='store_true',
                        help='Disables weight tying between embedding weights and final Linear layer')
     group.add_argument('--sinusoidal-pos-emb', action='store_true',
-                        help='Uses Sinusoidal Positional embedding applied to the inputs instead of learned')                                       
+                       help='Uses Sinusoidal Positional embedding applied to the inputs instead of learned')
     group.add_argument('--rpe', action='store_true',
-                        help='T5 relative positional encoding')
+                       help='T5 relative positional encoding')
     group.add_argument('--rpe-causal', action='store_true',
-                        help='T5 relative positional encoding causal flag')
+                       help='T5 relative positional encoding causal flag')
     group.add_argument('--rpe-num-buckets', type=int, default=32,
-                        help='T5 relative positional encoding number of buckets, default 32.')
+                       help='T5 relative positional encoding number of buckets, default 32.')
     group.add_argument('--rpe-max-distance', type=int, default=128,
-                        help='T5 relative positional encoding max distance, default 128.')
+                       help='T5 relative positional encoding max distance, default 128.')
     group.add_argument('--bias-dropout-fusion', action='store_true',
                        help='Enable bias and dropout fusion.')
     group.add_argument('--sparsity', type=str, default='none',
@@ -412,7 +420,7 @@ def _add_distributed_args(parser):
     group.add_argument('--pipe-parallel-size', type=int, default=0,
                        help='Size of the pipeline parallel. Disable with 0.')
     group.add_argument('--distributed-backend', default='nccl',
-                       choices=['nccl', 'gloo'],
+                       choices=['nccl', 'gloo', 'mpi'],
                        help='Which backend to use for distributed training.')
     group.add_argument('--DDP-impl', default='local',
                        choices=['local', 'torch'],

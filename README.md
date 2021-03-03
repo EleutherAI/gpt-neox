@@ -27,7 +27,7 @@ GPT-NeoX is launched using the `deepy.py` script which is the root folder of thi
 Example usage:
 
 ```bash
-./deepy.py pretrain_gpt2.py -d configs ds_pretrain_gpt2.yml local_setup.yml
+./deepy.py pretrain_gpt2.py -d configs pretrain_gpt2.yml local_setup.yml
 ```
 
 This will:
