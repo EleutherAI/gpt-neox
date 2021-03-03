@@ -420,7 +420,7 @@ def _add_distributed_args(parser):
     group.add_argument('--pipe-parallel-size', type=int, default=0,
                        help='Size of the pipeline parallel. Disable with 0.')
     group.add_argument('--distributed-backend', default='nccl',
-                       choices=['nccl', 'gloo'],
+                       choices=['nccl', 'gloo', 'mpi'],
                        help='Which backend to use for distributed training.')
     group.add_argument('--DDP-impl', default='local',
                        choices=['local', 'torch'],
