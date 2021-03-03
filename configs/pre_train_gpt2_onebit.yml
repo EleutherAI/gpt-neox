@@ -58,6 +58,7 @@
      }
    },
    "gradient_clipping": 1.0,
+   "gradient_accumulation_steps": 2,
    "fp16": { # Duplicated in megatron
      "fp16": true,
      "enabled": true,
