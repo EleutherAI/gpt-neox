@@ -2,7 +2,7 @@
    "launcher": "openmpi",
    "deepspeed_mpi": true,
    #"pipe-parallel-size": 4,
-   "train_batch_size": 240,
+   "train_batch_size": 192,
    "model-parallel-size": 1,
 
    "num-layers": 12,
