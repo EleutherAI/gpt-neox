@@ -64,10 +64,9 @@ def configure_distributed_args(args):
                     os.environ.get('PMIX_RANK') is not None]), "mpi environment variables cannot be found"
 
         args.local_rank = os.environ['LOCAL_RANK'] = os.environ['OMPI_COMM_WORLD_NODE_RANK']
-        args.rank = os.environ['RANK'] = os.environ['PMIX_RANK']
-    else:
-        # or don't
-        args.rank = int(os.getenv('RANK', '0'))
+        os.environ['RANK'] = os.environ['PMIX_RANK']
+
+    args.rank = int(os.getenv('RANK', '0'))
     args.world_size = int(os.getenv("WORLD_SIZE", '1'))
     args.model_parallel_size = min(args.model_parallel_size, args.world_size)
     if args.rank == 0:
