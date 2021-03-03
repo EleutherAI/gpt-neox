@@ -46,7 +46,7 @@
     "cpu_offload": False
 },
    "train_micro_batch_size_per_gpu": 4,
-   "gradient_accumulation_steps": 1,
+   #"gradient_accumulation_steps": 1,
    "steps_per_print": 10,
    "optimizer": {
      "type": "OneBitAdam",
