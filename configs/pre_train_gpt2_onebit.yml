@@ -1,6 +1,4 @@
 {
-   #"num_nodes": 2,
-   #"num_gpus": 1,
    "launcher": "openmpi",
    "deepspeed_mpi": true,
    #"pipe-parallel-size": 4,
