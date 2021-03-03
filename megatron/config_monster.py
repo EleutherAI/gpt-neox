@@ -113,7 +113,7 @@ def _megatron_to_ds_scheduler_args(ds_conf, megatron_conf):
             "warmup_min_lr": 0,
             "warmup_max_lr": opt_params["params"]["lr"],
             "warmup_num_steps": int(megatron_conf["train-iters"] * megatron_conf["warmup"]),
-            "total_num_steps": megatron_conf.get("lr-decay-iters", megatron_conf["train-iters"])
+            #"total_num_steps": megatron_conf.get("lr-decay-iters", megatron_conf["train-iters"])
         }}
 
 
@@ -318,7 +318,7 @@ class ConfigMonster:
             'gradient_accumulation_steps'] = _configure_train_batch_size(world_size, conf.get('train_batch_size'),
                                                                          conf.get('train_micro_batch_size_per_gpu'),
                                                                          conf.get('gradient_accumulation_steps'))
-
+        conf['gradient_accumulation_steps'] = int(conf['gradient_accumulation_steps'])
         conf['batch-size'] = conf['train_micro_batch_size_per_gpu']  # we need to pass batch size into megatron
 
         ds_runner_conf = {key: conf[key] for key in ds_runner_keys if key in conf}

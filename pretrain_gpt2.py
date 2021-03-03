@@ -180,5 +180,22 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
 
 
 if __name__ == "__main__":
+    ### From observation these enviroment varibles change with the rank when using OpenMPI
+    # Global ranks:
+    # PMIX_RANK
+    # OMPI_COMM_WORLD_RANK
+    # Local ranks:
+    # OMPI_COMM_WORLD_LOCAL_RANK
+    # OMPI_COMM_WORLD_NODE_RANK
+    # OMPI_MCA_ess_base_vpid
+    # OMPI_MCA_orte_ess_node_rank
+
+    # THIS IS THE FURTHEREST IVE GOT BUT IT THEN HANGS AND DOES NOTHING
+    import sys, os
+    print('ENV:::', os.environ)
+    sys.argv += ['--local_rank', os.environ['OMPI_COMM_WORLD_NODE_RANK']]
+    # os.environ['WORLD_SIZE'] = '8' # Local number of GPUS
+    os.environ['RANK'] = os.environ['PMIX_RANK']
+    os.environ['LOCAL_RANK'] = os.environ['OMPI_COMM_WORLD_NODE_RANK']
     pretrain(train_valid_test_datasets_provider, model_provider, forward_step,
              args_defaults={'tokenizer_type': 'GPT2BPETokenizer'}, extra_args_provider=neox_args)

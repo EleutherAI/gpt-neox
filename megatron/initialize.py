@@ -31,6 +31,8 @@ from megatron.mpu import set_model_parallel_rank, set_model_parallel_world_size
 import deepspeed
 
 
+from deepspeed.utils import distributed
+
 def initialize_megatron(extra_args_provider=None, args_defaults={},
                         ignore_unknown_args=False, allow_no_cuda=False):
     """Set global variables, initialize distributed, and
@@ -150,10 +152,16 @@ def _initialize_distributed():
         master_ip = os.getenv('MASTER_ADDR', 'localhost')
         master_port = os.getenv('MASTER_PORT', '6000')
         init_method += master_ip + ':' + master_port
-        torch.distributed.init_process_group(
-            backend=args.distributed_backend,
-            world_size=args.world_size, rank=args.rank,
-            init_method=init_method)
+        # torch.distributed.init_process_group(
+        #     backend=args.distributed_backend,
+        #     world_size=args.world_size, rank=args.rank,
+        #     init_method=init_method)
+        distributed.init_distributed(
+            dist_backend="nccl",
+            auto_mpi_discovery=True,
+            distributed_port=os.getenv('MASTER_PORT', '6000'),
+            verbose=True,
+        )
 
     # Setup 3D topology.
     if args.pipe_parallel_size > 0:
