@@ -108,12 +108,12 @@ def _megatron_to_ds_scheduler_args(ds_conf, megatron_conf):
     """
     opt_params = ds_conf.get("optimizer", {"type": OPT_DEFAULT, "params": OPT_PARAMS_DEFAULTS})
     ds_conf["scheduler"] = {
-        "type": "WarmupLR",  # for now this is the only ds scheduler offering decay
+        "type": "WarmupDecayLR",  # for now this is the only ds scheduler offering decay
         "params": {
             "warmup_min_lr": 0,
             "warmup_max_lr": opt_params["params"]["lr"],
             "warmup_num_steps": int(megatron_conf["train-iters"] * megatron_conf["warmup"]),
-            #"total_num_steps": megatron_conf.get("lr-decay-iters", megatron_conf["train-iters"])
+            "total_num_steps": megatron_conf.get("lr-decay-iters", megatron_conf["train-iters"])
         }}
 
 
