@@ -55,10 +55,10 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
     echo 'export PATH=/usr/local/mpi/bin:$PATH' >> /home/mchorse/.bashrc && \
     echo 'export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:$LD_LIBRARY_PATH' >> /home/mchorse/.bashrc
 
-#### Python packages
+#### Python packages. Pytorch v1.8.0 CUDA 10.2 Nightly build
 RUN python -m pip install --upgrade pip && \
     pip install gpustat && \
-    pip install torch==1.7.1
+    pip install https://download.pytorch.org/whl/nightly/cu102/torch-1.8.0.dev20210210-cp38-cp38-linux_x86_64.whl
 
 COPY requirements.txt $STAGE_DIR
 RUN pip install -r $STAGE_DIR/requirements.txt

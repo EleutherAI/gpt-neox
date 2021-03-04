@@ -1,5 +1,4 @@
 pybind11==2.6.2
-torch==1.7.1
 six
 regex
 numpy==1.19.5
