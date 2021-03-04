@@ -42,10 +42,6 @@ extra_conf = {
     'wandb_group': wandb_group
 }
 
-wandb_team = os.environ.get('WANDB_TEAM')
-if wandb_team:
-    extra_conf['wandb_team'] = wandb_team
-
 # Extract wandb API key and inject into worker environments
 wandb_token = get_wandb_api_key()
 if wandb_token is not None:
