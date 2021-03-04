@@ -13,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from socket import gethostname
 
 import shortuuid
 import sys
@@ -23,6 +24,8 @@ import requests
 
 from megatron.config_monster import ConfigMonster
 import logging
+
+from megatron.utils import Tee
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 
@@ -49,6 +52,11 @@ if wandb_token is not None:
     os.environ['WANDB_API_KEY'] = wandb_token
 
 old_style_args, conf = ConfigMonster().consume_args(extra_conf=extra_conf)
+
+if 'log-dir' in conf:
+    file_prefix = os.path.join(conf['log-dir'], '0-deepy')
+    Tee(file_prefix+'_stdout.txt', err=False)
+    Tee(file_prefix + '_stderr.txt', err=True)
 
 if __name__ == '__main__':
     main(old_style_args)
