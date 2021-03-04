@@ -84,6 +84,7 @@ def parse_args(extra_args_provider=None, defaults={},
 
     # Tee logs to file ASAP
     if args.log_dir:
+        os.makedirs(args.log_dir, exist_ok=True)
         hostname = gethostname()
         file_prefix = os.path.join(args.log_dir, hostname)
         Tee(file_prefix+'_stdout.txt', err=False)

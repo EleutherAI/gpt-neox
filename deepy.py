@@ -54,6 +54,7 @@ if wandb_token is not None:
 old_style_args, conf = ConfigMonster().consume_args(extra_conf=extra_conf)
 
 if 'log-dir' in conf:
+    os.makedirs(conf['log-dir'], exist_ok=True)
     file_prefix = os.path.join(conf['log-dir'], '0-deepy')
     Tee(file_prefix+'_stdout.txt', err=False)
     Tee(file_prefix + '_stderr.txt', err=True)
