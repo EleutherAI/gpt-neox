@@ -21,11 +21,13 @@
 
 import argparse
 import os
+from socket import gethostname
 
 import torch
 from megatron import fused_kernels
 
 import deepspeed
+from megatron.logging import Tee
 
 
 def _get_parser(extra_args_provider=None):
@@ -79,6 +81,14 @@ def parse_args(extra_args_provider=None, defaults={},
         args, _ = parser.parse_known_args()
     else:
         args = parser.parse_args()
+
+    # Tee logs to file ASAP
+    if args.log_dir:
+        os.makedirs(args.log_dir, exist_ok=True)
+        hostname = gethostname()
+        file_prefix = os.path.join(args.log_dir, hostname)
+        Tee(file_prefix+'_stdout.txt', err=False)
+        Tee(file_prefix + '_stderr.txt', err=True)
 
     # Distributed args.
     configure_distributed_args(args)
@@ -488,6 +498,7 @@ def _add_data_args(parser):
                             'end-of-document token.')
     group.add_argument('--eod-mask-loss', action='store_true',
                        help='Mask loss for the end of document tokens.')
+    group.add_argument('--log-dir', type=str, help='Directory to store logs.')
 
     return parser
 
