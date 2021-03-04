@@ -1,3 +1,4 @@
+# GPT-2 pretraining setup with onebitadam
 {
    "launcher": "openmpi",
    "deepspeed_mpi": true,
@@ -13,8 +14,6 @@
 
    "train-iters": 320000,
    "lr-decay-iters": 320000,
-   "save": "checkpoints/gpt2_345m_ds",
-   "load": "checkpoints/gpt2_345m_ds",
    "data-impl": "mmap",
    "split": "949,50,1",
    "distributed-backend": "nccl",
@@ -29,7 +28,6 @@
    "save-interval": 10000,
    "eval-interval": 1000,
    "eval-iters": 10,
-   "tensorboard-dir": "tensorboard_data/24l_1024h_1n_8g_4mp_9b_ds4",
    "checkpoint-num-layers": 1,
    "partition-activations": true,
    "synchronize-each-layer": true,
