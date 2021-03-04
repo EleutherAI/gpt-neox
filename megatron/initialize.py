@@ -149,16 +149,11 @@ def _initialize_distributed():
                 args.local_rank = device
             torch.cuda.set_device(device)
 
-        init_method = 'tcp://'
-        master_ip = os.getenv('MASTER_ADDR', 'localhost')
-        master_port = os.getenv('MASTER_PORT', '6000')
-        init_method += master_ip + ':' + master_port
         distributed.init_distributed(
             dist_backend=args.distributed_backend,
             auto_mpi_discovery=True,
             distributed_port=os.getenv('MASTER_PORT', '6000'),
             verbose=True,
-            init_method=init_method
         )
 
     # Setup 3D topology.
