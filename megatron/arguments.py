@@ -27,8 +27,8 @@ import torch
 from megatron import fused_kernels
 
 import deepspeed
-import sys
-from megatron.utils import Tee
+from megatron.logging import Tee
+
 
 def _get_parser(extra_args_provider=None):
     parser = argparse.ArgumentParser(description='Megatron-LM Arguments',

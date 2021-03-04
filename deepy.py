@@ -25,7 +25,7 @@ import requests
 from megatron.config_monster import ConfigMonster
 import logging
 
-from megatron.utils import Tee
+from megatron.logging import Tee
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 
