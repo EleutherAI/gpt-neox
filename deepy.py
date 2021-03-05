@@ -62,7 +62,7 @@ if 'log-dir' in conf:
 
 if 'save' in conf:
     os.makedirs(conf['save'], exist_ok=True)
-    config_file = os.path.join(conf['save'], 'config.yaml')
+    config_file = os.path.join(conf['save'], 'config.yml')
     with open(config_file, 'w') as f:
         json.dump(conf, f, indent=4)
 
