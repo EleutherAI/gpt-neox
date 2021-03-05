@@ -52,7 +52,7 @@ if wandb_token is not None:
     deepspeed.launcher.runner.EXPORT_ENVS.append('WANDB_API_KEY')
     os.environ['WANDB_API_KEY'] = wandb_token
 
-old_style_args, conf, _, _ = ConfigMonster().consume_args(default_conf=default_conf)
+old_style_args, conf = ConfigMonster().consume_args(default_conf=default_conf)
 
 if 'log-dir' in conf:
     os.makedirs(conf['log-dir'], exist_ok=True)
