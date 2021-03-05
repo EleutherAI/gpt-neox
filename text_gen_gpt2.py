@@ -30,7 +30,7 @@ from megatron import print_rank_0
 from megatron import get_tokenizer
 from megatron.checkpointing import load_checkpoint
 from megatron.initialize import initialize_megatron
-from megatron.model import GPT2Model
+from megatron.model import GPT2Model, GPT2ModelPipe
 from megatron.training import get_model
 from megatron.text_generation_utils import generate_and_write_samples_unconditional
 from megatron.text_generation_utils import generate_samples_input_from_file
@@ -42,13 +42,16 @@ def main():
     Provide load
     """
 
+    GPT2ModelPipe
+
     _, conf, _, user_script_args = ConfigMonster().consume_args()
 
     initialize_megatron(args_defaults={'tokenizer_type': 'GPT2BPETokenizer'}, args=user_script_args)
 
     # Set up model and load checkpoint.
-    model = get_model(model_provider)
+    model = get_model(lambda: model_provider(use_wandb=False))
     args = get_args()
+    args.deepspeed = False
     if args.load is not None:
         print(f"Loading model: {args.load}")
         _ = load_checkpoint(model, None, None)
