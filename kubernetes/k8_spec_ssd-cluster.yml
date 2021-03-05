@@ -8,6 +8,6 @@ spec:
     - ReadWriteMany
   resources:
     requests:
-      storage: 50Gi
+      storage: 500Gi
   storageClassName: sharedfs-ssd-replicated
   volumeMode: Filesystem
