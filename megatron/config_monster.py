@@ -254,7 +254,7 @@ class ConfigMonster:
         return parser
 
     @staticmethod
-    def parse_args(parser: argparse.ArgumentParser, args=None, extra_conf=None):
+    def parse_args(parser: argparse.ArgumentParser, args=None, extra_conf=None, default_conf=None):
         """
         Parse User Arguments
         """
@@ -281,6 +281,12 @@ class ConfigMonster:
                                                f'loaded file:  {key_intersection}'
 
             conf.update(conf_i)
+
+        # Default values that are used if not already set
+        conf = {} if default_conf is None else default_conf
+        for k, v in default_conf.items():
+            if k not in conf:
+                conf[k] = v
 
         # Assert there are no keys that are not recognised
         unrecognised_keys = [key for key in conf.keys()
@@ -369,14 +375,14 @@ class ConfigMonster:
 
         return old_style_args, ds_runner_args, user_script_args
 
-    def consume_args(self, args=None, extra_conf=None):
+    def consume_args(self, args=None, extra_conf=None, default_conf=None):
         """
         Parse CLI args. Transform and derive other params.
         Convert to old style CLI args for deepspeed and megatron.
         """
         parser = self.construct_arg_parser()
-        parsed_args, conf = self.parse_args(parser, args, extra_conf)
+        parsed_args, conf = self.parse_args(parser, args, extra_conf, default_conf)
         ds_runner_conf, megatron_conf, ds_config_conf = self.derive_params_and_split(conf)
         old_style_args, ds_runner_args, user_script_args = self.convert_to_old_args(parsed_args, ds_runner_conf, megatron_conf, ds_config_conf)
         log.info(f"GPT-NEOX config: {conf}")
-        return old_style_args, conf, ds_runner_args, user_script_args
+        return old_style_args, conf
