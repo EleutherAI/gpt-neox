@@ -162,7 +162,7 @@ def _initialize_distributed():
     if args.pipe_parallel_size > 0:
         pp = args.pipe_parallel_size
         mp = args.model_parallel_size
-        assert args.world_size % (pp * mp) == 0
+        assert args.world_size % (pp * mp) == 0, f'world_size={args.world_size}, pp={pp}, mp={mp}'
         dp = args.world_size // (pp * mp)
 
         from deepspeed.runtime.pipe.topology import PipeModelDataParallelTopology
