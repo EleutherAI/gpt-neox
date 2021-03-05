@@ -9,7 +9,7 @@ yq &> /dev/null || { echo 'You need to install `yq >= v4`. `brew install yq` or 
 
 WD_BRANCH=$(git branch  --no-color --show-current)
 WD_BRANCH="${WD_BRANCH/\//-}"  # remove forward slashes and replace with underscore
-DEFAULT_IMAGE="leogao2/gpt-neox:sha-a7731be"
+DEFAULT_IMAGE="leogao2/gpt-neox:sha-18df9ad"
 
 BRANCH=${1:-main}
 N_NODES=${2:-4}
@@ -57,9 +57,6 @@ sudo chown -R \$USER:\$USER ~/.ssh;
 sudo chown \$USER:\$USER ~/.ssh/authorized_keys;
 chmod 600 ~/.ssh/authorized_keys;
 chmod 700 ~/.ssh;
-echo 'export DATA_DIR=/mnt/ssd-cluster/data' >> ~/.bashrc;
-echo 'export WANDB_TEAM=eleutherai' >> ~/.bashrc;
-echo 'export DS_EXE=/home/mchorse/gpt-neox/deepy.py' >> ~/.bashrc;
 echo 'export LC_ALL=C.UTF-8' >> ~/.bashrc;
 echo 'export LANG=C.UTF-8' >> ~/.bashrc;
 cd ~;

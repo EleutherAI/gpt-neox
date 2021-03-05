@@ -69,7 +69,7 @@ GPT-NeoX parameters are defined in a YAML configuration file which is passed to 
 
 ## Monitoring
 
-EleutherAI is currently using [Weights & Biases to record experiments](https://wandb.ai/eleutherai/neox). If you are logged into Weights & Biases on your machine - you can do this by executing `wandb login` - your runs will automatically be recorded. Additionally, set the environment variable `WANDB_TEAM` if you would like the run to be added to a organisation/team account.
+EleutherAI is currently using [Weights & Biases to record experiments](https://wandb.ai/eleutherai/neox). If you are logged into Weights & Biases on your machine - you can do this by executing `wandb login` - your runs will automatically be recorded. Additionally, set the config parameter `wandb_team` if you would like the run to be added to an organisation/team account.
 
 ## Eleuther Cluster
 

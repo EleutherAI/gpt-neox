@@ -30,11 +30,7 @@ from .utils import scaled_init_method_normal
 
 # Pipeline parallelism
 from megatron import mpu
-from .utils import openai_gelu
-import torch.nn.functional as F
-from megatron.mpu import LayerNorm, RMSNorm
-from apex.normalization.fused_layer_norm import FusedLayerNorm as LayerNorm
-
+from megatron.mpu import LayerNorm, RMSNorm, ParallelRelativePositionBias
 import megatron.fp16 as fp16
 from megatron.model.transformer import ParallelTransformerLayerPipe
 from .language_model import EmbeddingPipe
@@ -155,13 +151,18 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
         self.num_tokentypes = num_tokentypes
         self.init_method = init_method_normal(args.init_method_std)
         self.output_layer_init_method = scaled_init_method_normal(args.init_method_std, args.num_layers)
+        weight_tying = not args.no_weight_tying
+        if args.pos_emb == 'rpe':
+            rpe_emb = ParallelRelativePositionBias(causal=True, num_buckets=args.rpe_num_buckets, max_distance=args.rpe_max_distance,
+                                            heads=args.num_attention_heads)
+        else:
+            rpe_emb = None
         self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
-
+        
         #
         # forward() prototype
         # 
         self.specs = []
-        weight_tying = not args.no_weight_tying
         # Embedding layer
         if weight_tying:
             self.specs.append(TiedLayerSpec('embed',
@@ -172,7 +173,6 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                                             args.hidden_dropout,
                                             self.init_method,
                                             self.num_tokentypes,
-                                            args.sinusoidal_pos_emb,
                                             tied_weight_attr='word_embeddings_weight'))
         else:
             self.specs.append(LayerSpec(EmbeddingPipe,
@@ -181,8 +181,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                                         args.max_position_embeddings,
                                         args.hidden_dropout,
                                         self.init_method,
-                                        self.num_tokentypes,
-                                        args.sinusoidal_pos_emb))
+                                        self.num_tokentypes))
 
         # outputs are now (hidden_states, attention_mask)
 
@@ -202,7 +201,8 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                           init_method=self.init_method,
                           output_layer_init_method=self.output_layer_init_method,
                           layer_number=x,
-                          sparse=sparse))
+                          sparse=sparse,
+                          rpe=rpe_emb))
         # Undo data format change and drop mask
         self.specs.append(lambda x: x[0].transpose(0, 1).contiguous())
 
@@ -239,7 +239,6 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                               args.hidden_dropout,
                               self.init_method,
                               self.num_tokentypes,
-                              args.sinusoidal_pos_emb,
                               forward_fn=_logits_helper,
                               tied_weight_attr='word_embeddings_weight')
             )

@@ -21,11 +21,13 @@
 
 import argparse
 import os
+from socket import gethostname
 
 import torch
 from megatron import fused_kernels
 
 import deepspeed
+from megatron.logging import Tee
 
 
 def _get_parser(extra_args_provider=None):
@@ -79,6 +81,14 @@ def parse_args(extra_args_provider=None, defaults={},
         args, _ = parser.parse_known_args()
     else:
         args = parser.parse_args()
+
+    # Tee logs to file ASAP
+    if args.log_dir:
+        os.makedirs(args.log_dir, exist_ok=True)
+        hostname = gethostname()
+        file_prefix = os.path.join(args.log_dir, hostname)
+        Tee(file_prefix+'_stdout.txt', err=False)
+        Tee(file_prefix + '_stderr.txt', err=True)
 
     # Distributed args.
     configure_distributed_args(args)
@@ -281,16 +291,13 @@ def _add_training_args(parser):
                             'adjust embd dims accordingly)')
     group.add_argument('--no-weight-tying', action='store_true',
                        help='Disables weight tying between embedding weights and final Linear layer')
-    group.add_argument('--sinusoidal-pos-emb', action='store_true',
-                       help='Uses Sinusoidal Positional embedding applied to the inputs instead of learned')
-    group.add_argument('--rpe', action='store_true',
-                       help='T5 relative positional encoding')
-    group.add_argument('--rpe-causal', action='store_true',
-                       help='T5 relative positional encoding causal flag')
+    pos_emb_choices = ['learned', 'sinusoidal', 'rpe', 'none']
+    group.add_argument('--pos-emb', type=str, choices=pos_emb_choices, default='learned',
+                       help=f'Type of positional embedding to use - choose from {pos_emb_choices}')
     group.add_argument('--rpe-num-buckets', type=int, default=32,
                        help='T5 relative positional encoding number of buckets, default 32.')
     group.add_argument('--rpe-max-distance', type=int, default=128,
-                       help='T5 relative positional encoding max distance, default 128.')
+                        help='T5 relative positional encoding max distance, default 128.')
     group.add_argument('--bias-dropout-fusion', action='store_true',
                        help='Enable bias and dropout fusion.')
     group.add_argument('--sparsity', type=str, default='none',
@@ -496,6 +503,7 @@ def _add_data_args(parser):
                             'end-of-document token.')
     group.add_argument('--eod-mask-loss', action='store_true',
                        help='Mask loss for the end of document tokens.')
+    group.add_argument('--log-dir', type=str, help='Directory to store logs.')
 
     return parser
 

@@ -90,3 +90,11 @@ def get_params_for_weight_decay_optimization(module):
                  if p is not None and n == 'bias'])
 
     return weight_decay_params, no_weight_decay_params
+
+
+def identity(x, *args, **kwargs):
+    return x
+
+
+def exists(x):
+    return x is not None
