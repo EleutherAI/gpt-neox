@@ -2,12 +2,12 @@
 # Make sure `load` is specified somewhere else
 {
   "temperature": 1.0,
-  "greedy": flase,
+  #"greedy": flase,
   "top_p": 0.0,
   "top_k": 0,
   "out-seq-length": 102,
   "num-samples": 0,
-  "recompute": false,
+  #"recompute": false,
   #"sample-input-file": "",
   #"sample-output-file": "",
   #"genfile": "",
