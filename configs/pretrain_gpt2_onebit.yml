@@ -25,6 +25,7 @@
 
    "checkpoint-activations": true,
    "log-interval": 100,
+   "keep-last-n-checkpoints": 4,
    "save-interval": 10000,
    "eval-interval": 1000,
    "eval-iters": 10,
