@@ -1,6 +1,8 @@
 # coding=utf-8
 #
-# Copyright 2021 Biderman et al. This file is based on code by the authors denoted below and has been modified from its original version.
+# Copyright 2021 Biderman et al.
+# This file is based on code by the authors denoted below and has been modified from its original version.
+#
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
