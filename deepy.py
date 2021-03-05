@@ -68,4 +68,3 @@ if 'save' in conf:
 
 if __name__ == '__main__':
     main(old_style_args)
-

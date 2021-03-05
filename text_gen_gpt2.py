@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Sample Generate GPT2"""
+"""Generate text / sample GPT2"""
 
 import os
 import sys
@@ -39,19 +39,19 @@ from megatron.text_generation_utils import generate_samples_interactive
 
 def main():
     """
-    Provide load
+    Generate text/sample model
     """
 
-    GPT2ModelPipe
-
-    _, conf, _, user_script_args = ConfigMonster().consume_args()
-
-    initialize_megatron(args_defaults={'tokenizer_type': 'GPT2BPETokenizer'}, args=user_script_args)
+    initialize_megatron(args_defaults={'tokenizer_type': 'GPT2BPETokenizer'})
 
     # Set up model and load checkpoint.
+    #model = get_model(lambda: model_provider(use_wandb=False))
+
     args = get_args()
+    args.deepspeed = False
     if args.load is not None:
         print(f"Loading model: {args.load}")
+        #_ = load_checkpoint(model, None, None)
         model, optimizer, lr_scheduler = setup_model_and_optimizer(lambda: model_provider(use_wandb=False))
     else:
         raise ValueError("`load` parameter must be supplied to load model`")
