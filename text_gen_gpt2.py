@@ -56,17 +56,21 @@ def main():
     else:
         raise ValueError("`load` parameter must be supplied to load model`")
 
+    print('Finished loading model')
+
     # Generate samples.
     if args.num_samples == 0:
         args.batch_size = 1
-        if args.sample_input_file != None:
+        if args.sample_input_file is not None:
+            print(f'Generating {args.num_samples} samples from input file {args.sample_input_file}')
             generate_samples_input_from_file(model)
         else:
+            print(f'Generating {args.num_samples} samples interactively')
             generate_samples_interactive(model)
     else:
+        print('Generating samples unconditionally')
         generate_and_write_samples_unconditional(model)
 
 
 if __name__ == "__main__":
-
     main()
