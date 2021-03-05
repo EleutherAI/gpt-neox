@@ -1,6 +1,11 @@
-# Data paths when using EleutherAI cluster
+# Data paths and options when using EleutherAI cluster
 {
   "data-path": "/mnt/ssd-cluster/data/enron/enron_text_document",
   "vocab-file": "/mnt/ssd-cluster/data/gpt2-vocab.json",
   "merge-file": "/mnt/ssd-cluster/data/gpt2-merges.txt",
+  "save": "/mnt/ssd-cluster/checkpoints",
+  "load": "/mnt/ssd-cluster/checkpoints",
+  "tensorboard-dir": "/mnt/ssd-cluster/tensorboard",
+  "log-dir": "/mnt/ssd-cluster/logs",
+  "wandb_team": "eleutherai",
 }

@@ -231,3 +231,4 @@ def obtain_resource_pool(hostfile_path, include_arg, exclude_arg) -> Dict[str, L
                                                  include_arg,
                                                  exclude_arg)
     return active_resources
+

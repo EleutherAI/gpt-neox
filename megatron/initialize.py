@@ -149,27 +149,12 @@ def _initialize_distributed():
                 args.local_rank = device
             torch.cuda.set_device(device)
 
-        # TODO: this terrible hack won't be necessary when our default image is using later versions of Deep(er)speed
-        if 'init_method' in inspect.signature(distributed.init_distributed).parameters:
-            # Call the init process
-            init_method = 'tcp://'
-            master_ip = os.getenv('MASTER_ADDR', 'localhost')
-            master_port = os.getenv('MASTER_PORT', '6000')
-            init_method += master_ip + ':' + master_port
-            distributed.init_distributed(
-                dist_backend=args.distributed_backend,
-                auto_mpi_discovery=True,
-                distributed_port=os.getenv('MASTER_PORT', '6000'),
-                verbose=True,
-                init_method=init_method
-            )
-        else:
-            distributed.init_distributed(
-                dist_backend=args.distributed_backend,
-                auto_mpi_discovery=True,
-                distributed_port=os.getenv('MASTER_PORT', '6000'),
-                verbose=True,
-            )
+        distributed.init_distributed(
+            dist_backend=args.distributed_backend,
+            auto_mpi_discovery=True,
+            distributed_port=os.getenv('MASTER_PORT', '6000'),
+            verbose=True,
+        )
 
     # Setup 3D topology.
     if args.pipe_parallel_size > 0:
