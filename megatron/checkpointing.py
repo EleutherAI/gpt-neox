@@ -209,6 +209,7 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load'):
 
     assert iteration > 0 or release, 'error parsing metadata file {}'.format(
         tracker_filename)
+    print(f'Loading iteration {iteration}')
 
     if args.deepspeed:
         checkpoint_name, state_dict = model.load_checkpoint(load_dir)

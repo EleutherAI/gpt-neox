@@ -31,7 +31,7 @@ from megatron import get_tokenizer
 from megatron.checkpointing import load_checkpoint
 from megatron.initialize import initialize_megatron
 from megatron.model import GPT2Model, GPT2ModelPipe
-from megatron.training import get_model
+from megatron.training import get_model, setup_model_and_optimizer
 from megatron.text_generation_utils import generate_and_write_samples_unconditional
 from megatron.text_generation_utils import generate_samples_input_from_file
 from megatron.text_generation_utils import generate_samples_interactive
@@ -49,14 +49,12 @@ def main():
     initialize_megatron(args_defaults={'tokenizer_type': 'GPT2BPETokenizer'}, args=user_script_args)
 
     # Set up model and load checkpoint.
-    model = get_model(lambda: model_provider(use_wandb=False))
     args = get_args()
-    args.deepspeed = False
     if args.load is not None:
         print(f"Loading model: {args.load}")
-        _ = load_checkpoint(model, None, None)
+        model, optimizer, lr_scheduler = setup_model_and_optimizer(lambda: model_provider(use_wandb=False))
     else:
-        print("WARNING: not loading a model")
+        raise ValueError("`load` parameter must be supplied to load model`")
 
     # Generate samples.
     if args.num_samples == 0:

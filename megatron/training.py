@@ -275,7 +275,7 @@ def setup_model_and_optimizer(model_provider_func):
                 deepspeed_json_conf = deepspeed_json_conf[1:-1]  # Remove shell quotes
             try:
                 deepspeed_conf = json.loads(deepspeed_json_conf)
-                args.deepspeed_config = None  # Pass directy as dictionary to deepspeed
+                args.deepspeed_config = None  # Pass directly as dictionary to deepspeed
             except JSONDecodeError:
                 # Not a path or a string
                 raise ValueError(
@@ -301,6 +301,7 @@ def setup_model_and_optimizer(model_provider_func):
 
     if args.load is not None:
         args.iteration = load_checkpoint(model, optimizer, lr_scheduler)
+        print(f'Loading checkpoint and starting from iteration {args.iteration}')
     else:
         args.iteration = 0
 
