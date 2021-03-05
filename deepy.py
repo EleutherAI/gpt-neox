@@ -64,7 +64,7 @@ if 'save' in conf:
     os.makedirs(conf['save'], exist_ok=True)
     config_file = os.path.join(conf['save'], 'config.yaml')
     with open(config_file, 'w') as f:
-        json.dump(conf, f)
+        json.dump(conf, f, indent=4)
 
 if __name__ == '__main__':
     main(old_style_args)
