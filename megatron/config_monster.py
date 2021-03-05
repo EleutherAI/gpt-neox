@@ -283,7 +283,7 @@ class ConfigMonster:
             conf.update(conf_i)
 
         # Default values that are used if not already set
-        conf = {} if default_conf is None else default_conf
+        default_conf = {} if default_conf is None else default_conf
         for k, v in default_conf.items():
             if k not in conf:
                 conf[k] = v
