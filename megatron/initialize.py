@@ -148,7 +148,7 @@ def _initialize_distributed():
             else:
                 args.local_rank = device
             torch.cuda.set_device(device)
-
+            
         distributed.init_distributed(
             dist_backend=args.distributed_backend,
             auto_mpi_discovery=True,
