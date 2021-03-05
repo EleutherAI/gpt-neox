@@ -31,7 +31,7 @@ from megatron.data.gpt2_dataset import build_train_valid_test_datasets
 from megatron.global_vars import set_use_wandb, get_use_wandb
 from megatron.model import GPT2Model, GPT2ModelPipe
 from megatron.training import pretrain
-from megatron.utils import get_ltor_masks_and_position_ids, is_local_main, local_rank, get_wandb_api_key, neox_args
+from megatron.utils import get_ltor_masks_and_position_ids, is_local_main, local_rank, get_wandb_api_key
 from megatron.utils import reduce_losses
 from megatron.fp16 import fp32_to_fp16
 import wandb
@@ -182,4 +182,4 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
 
 if __name__ == "__main__":
     pretrain(train_valid_test_datasets_provider, model_provider, forward_step,
-             args_defaults={'tokenizer_type': 'GPT2BPETokenizer'}, extra_args_provider=neox_args)
+             args_defaults={'tokenizer_type': 'GPT2BPETokenizer'})

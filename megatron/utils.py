@@ -203,17 +203,6 @@ def get_wandb_api_key():
         return wandb_token[1]
 
 
-def neox_args(parser):
-    group = parser.add_argument_group(title='Weights and Biases monitoring args')
-
-    group.add_argument('--wandb_group', type=str, default=None,
-                       help='Weights and Biases group name - used to group together "runs".')
-    group.add_argument('--wandb_team', type=str, default=None,
-                       help='Team name for Weights and Biases.')
-
-    return parser
-
-
 def obtain_resource_pool(hostfile_path, include_arg, exclude_arg) -> Dict[str, List[int]]:
     """
     Get dict of `resource_pool[hostname] = [list of GPU ranks]` using hostfile, include and exclude args.

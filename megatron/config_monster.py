@@ -233,7 +233,7 @@ class ConfigMonster:
 
     @staticmethod
     def construct_arg_parser():
-        parser = argparse.ArgumentParser(description='GPT-NEOX Configuration',
+        parser = argparse.ArgumentParser(description='GPT-NeoX Configuration',
                                          allow_abbrev=False)
 
         parser.add_argument("user_script",

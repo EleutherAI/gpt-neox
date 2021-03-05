@@ -50,6 +50,7 @@ def _get_parser(extra_args_provider=None):
     parser = _add_zero_args(parser)
     parser = _add_activation_checkpoint_args(parser)
     parser = _add_text_generate_args(parser)
+    parser = _wandb_args(parser)
 
     # Custom arguments.
     if extra_args_provider is not None:
@@ -589,6 +590,15 @@ def _add_activation_checkpoint_args(parser):
                        help='Enables backward pass profiling for checkpointed layers.')
     return parser
 
+def _wandb_args(parser):
+    group = parser.add_argument_group(title='Weights and Biases monitoring args')
+
+    group.add_argument('--wandb_group', type=str, default=None,
+                       help='Weights and Biases group name - used to group together "runs".')
+    group.add_argument('--wandb_team', type=str, default=None,
+                       help='Team name for Weights and Biases.')
+
+    return parser
 
 def _add_text_generate_args(parser):
     """Text generation arguments. Only used for model sampling"""
