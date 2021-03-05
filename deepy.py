@@ -13,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 from socket import gethostname
 
 import shortuuid
@@ -58,6 +59,12 @@ if 'log-dir' in conf:
     file_prefix = os.path.join(conf['log-dir'], '0-deepy')
     Tee(file_prefix+'_stdout.txt', err=False)
     Tee(file_prefix + '_stderr.txt', err=True)
+
+if 'save' in conf:
+    os.makedirs(conf['save'], exist_ok=True)
+    config_file = os.path.join(conf['save'], 'config.yaml')
+    with open(config_file, 'w') as f:
+        json.dump(conf, f)
 
 if __name__ == '__main__':
     main(old_style_args)
