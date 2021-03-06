@@ -58,7 +58,7 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
 #### Python packages. Pytorch v1.8.0 CUDA 10.2 Nightly build
 RUN python -m pip install --upgrade pip && \
     pip install gpustat && \
-    pip install https://download.pytorch.org/whl/nightly/cu102/torch-1.8.0.dev20210210-cp38-cp38-linux_x86_64.whl
+    pip install torch==1.8.0
 
 COPY requirements.txt $STAGE_DIR
 RUN pip install -r $STAGE_DIR/requirements.txt
