@@ -1,4 +1,4 @@
-FROM nvcr.io/nvidia/pytorch:21.02-py3
+FROM nvcr.io/nvidia/pytorch:20.12-py3
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -35,7 +35,7 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
 
 #### Python packages
 RUN python -m pip install --upgrade pip
-RUN pip install pybind11==2.6.2 six regex nltk==3.5 zstandard==0.15.1 cupy-cuda112==8.4.0 mpi4py==3.0.3 wandb==0.10.18 einops==0.3.0 gpustat
+RUN pip install pybind11==2.6.2 six regex nltk==3.5 zstandard==0.15.1 cupy-cuda111 mpi4py==3.0.3 wandb==0.10.18 einops==0.3.0 gpustat
 RUN pip install -e git+git://github.com/EleutherAI/DeeperSpeed.git@cac19a86b67e6e98b9dca37128bc01e50424d9e9#egg=deepspeed
 RUN pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@e2083df5eb96643c61613b9df48dd4eea6b07690
 RUN echo 'deb http://archive.ubuntu.com/ubuntu/ focal main restricted' >> /etc/apt/sources.list && apt-get install --upgrade libpython3-dev
