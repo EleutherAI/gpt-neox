@@ -56,6 +56,10 @@ def main():
     model, optimizer, lr_scheduler = setup_model_and_optimizer(lambda: model_provider(use_wandb=False))
 
     print('Finished loading model')
+
+    print('Generating samples unconditionally')
+    generate_and_write_samples_unconditional(model)
+
     exit()
 
     # Generate samples.
