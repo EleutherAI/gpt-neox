@@ -1,4 +1,4 @@
-FROM atlanticcrypto/cuda-ssh-server:10.2-cudnn
+FROM nvcr.io/nvidia/pytorch:21.02-py3
 
 #### System package
 RUN apt-get update -y && \
@@ -17,28 +17,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV STAGE_DIR=/build
 RUN mkdir -p ${STAGE_DIR}
 
-#### OPENMPI
-ENV OPENMPI_BASEVERSION=4.0
-ENV OPENMPI_VERSION=${OPENMPI_BASEVERSION}.1
-RUN cd ${STAGE_DIR} && \
-    wget -q -O - https://download.open-mpi.org/release/open-mpi/v${OPENMPI_BASEVERSION}/openmpi-${OPENMPI_VERSION}.tar.gz | tar xzf - && \
-    cd openmpi-${OPENMPI_VERSION} && \
-    ./configure --prefix=/usr/local/openmpi-${OPENMPI_VERSION} && \
-    make -j"$(nproc)" install && \
-    ln -s /usr/local/openmpi-${OPENMPI_VERSION} /usr/local/mpi && \
-    # Sanity check:
-    test -f /usr/local/mpi/bin/mpic++ && \
-    cd ${STAGE_DIR} && \
-    rm -r ${STAGE_DIR}/openmpi-${OPENMPI_VERSION}
-# Needs to be in docker PATH if compiling other items & bashrc PATH (later)
-ENV PATH=/usr/local/mpi/bin:${PATH} \
-    LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:${LD_LIBRARY_PATH}
-# Create a wrapper for OpenMPI to allow running as root by default
-RUN mv /usr/local/mpi/bin/mpirun /usr/local/mpi/bin/mpirun.real && \
-    echo '#!/bin/bash' > /usr/local/mpi/bin/mpirun && \
-    echo 'mpirun.real --allow-run-as-root --prefix /usr/local/mpi "$@"' >> /usr/local/mpi/bin/mpirun && \
-    chmod a+x /usr/local/mpi/bin/mpirun
-
 #### User account
 RUN useradd --create-home --uid 1000 --shell /bin/bash mchorse && \
     usermod -aG sudo mchorse && \
@@ -55,13 +33,10 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
     echo 'export PATH=/usr/local/mpi/bin:$PATH' >> /home/mchorse/.bashrc && \
     echo 'export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:$LD_LIBRARY_PATH' >> /home/mchorse/.bashrc
 
-#### Python packages. Pytorch v1.8.0 CUDA 10.2 Nightly build
-RUN python -m pip install --upgrade pip && \
-    pip install gpustat && \
-    pip install torch==1.8.0
-
-COPY requirements.txt $STAGE_DIR
-RUN pip install -r $STAGE_DIR/requirements.txt
+#### Python packages
+RUN python -m pip install --upgrade pip
+RUN pip install pybind11==2.6.2 six regex nltk==3.5 zstandard==0.15.1 cupy-cuda112==8.4.0 mpi4py==3.0.3 wandb==0.10.18 einops==0.3.0 gpustat
+RUN pip install -e git+git://github.com/EleutherAI/DeeperSpeed.git@cac19a86b67e6e98b9dca37128bc01e50424d9e9#egg=deepspeed
 RUN pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@e2083df5eb96643c61613b9df48dd4eea6b07690
 RUN echo 'deb http://archive.ubuntu.com/ubuntu/ focal main restricted' >> /etc/apt/sources.list && apt-get install --upgrade libpython3-dev
 RUN sudo apt-get update -y && sudo apt-get install -y libpython3-dev

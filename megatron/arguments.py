@@ -489,9 +489,7 @@ def _add_data_args(parser):
                        help="Dataloader number of workers.")
     group.add_argument('--tokenizer-type', type=str,
                        default=None,
-                       choices=['BertWordPieceLowerCase',
-                                'BertWordPieceCase',
-                                'GPT2BPETokenizer'],
+                       choices=['GPT2BPETokenizer'],
                        help='What type of tokenizer to use.')
     group.add_argument('--data-impl', type=str, default='infer',
                        choices=['lazy', 'cached', 'mmap', 'infer'],
@@ -566,8 +564,8 @@ def _add_zero_args(parser):
     group.add_argument("--zero-stage", type=int, default=1.0)
     group.add_argument('--zero-reduce-scatter', action='store_true',
                        help='Use reduce scatter if specified')
-    group.add_argument('--zero-contigious-gradients', action='store_true',
-                       help='Use contigious memory optimizaiton if specified')
+    group.add_argument('--zero-contiguous-gradients', action='store_true',
+                       help='Use contiguous memory optimization if specified')
     group.add_argument("--zero-reduce-bucket-size", type=int, default=0.0)
     group.add_argument("--zero-allgather-bucket-size", type=int, default=0.0)
     return parser
@@ -580,8 +578,8 @@ def _add_activation_checkpoint_args(parser):
                        help='uses activation checkpointing from deepspeed')
     group.add_argument('--partition-activations', action='store_true',
                        help='partition Activations across GPUs before checkpointing.')
-    group.add_argument('--contigious-checkpointing', action='store_true',
-                       help='Contigious memory checkpointing for activatoins.')
+    group.add_argument('--contiguous-checkpointing', action='store_true',
+                       help='Contiguous memory checkpointing for activatoins.')
     group.add_argument('--checkpoint-in-cpu', action='store_true',
                        help='Move the activation checkpoints to CPU.')
     group.add_argument('--synchronize-each-layer', action='store_true',
