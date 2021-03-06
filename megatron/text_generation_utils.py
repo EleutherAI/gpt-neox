@@ -244,8 +244,7 @@ def generate_samples_unconditional(model):
     ctr = 0
     while True:
         start_time = time.time()
-        for token_stream in get_token_stream(model,
-                                             copy.deepcopy(context_tokens)):
+        for token_stream in get_token_stream(model, copy.deepcopy(context_tokens)):
             pass
         if ctr % args.log_interval == 0:
             print('Avg s/batch:',

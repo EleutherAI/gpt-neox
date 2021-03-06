@@ -57,28 +57,21 @@ def main():
 
     print('Finished loading model')
 
-    print('Generating samples unconditionally')
-    generate_and_write_samples_unconditional(model)
-
-    exit()
-
     if args.text_gen_type == 'unconditional':
-        pass
-    else:
-        raise ValueError(f"`text-gen-type` either not specified or not recognised: {args.text_gen_type}")
-
-    # Generate samples.
-    if args.num_samples == 0:
-        args.batch_size = 1
-        if args.sample_input_file is not None:
-            print(f'Generating {args.num_samples} samples from input file {args.sample_input_file}')
-            generate_samples_input_from_file(model)
-        else:
-            print(f'Generating {args.num_samples} samples interactively')
-            generate_samples_interactive(model)
-    else:
         print('Generating samples unconditionally')
         generate_and_write_samples_unconditional(model)
+
+    elif args.text_gen_type == 'input-file':
+        assert args.sample_input_file is not None
+        print(f'Generating {args.num_samples} samples from input file {args.sample_input_file}')
+        generate_samples_input_from_file(model)
+
+    elif args.text_gen_type == 'interactive':
+        print(f'Generating {args.num_samples} samples interactively')
+        generate_samples_interactive(model)
+
+    else:
+        raise ValueError(f"`text-gen-type` either not specified or not recognised: {args.text_gen_type}")
 
 
 if __name__ == "__main__":
