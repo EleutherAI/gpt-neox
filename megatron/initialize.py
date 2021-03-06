@@ -111,7 +111,7 @@ def setup_deepspeed_random_and_activation_checkpointing(args):
     deepspeed.checkpointing.configure(
         mpu,
         partition_activations=args.partition_activations,
-        contiguous_checkpointing=args.contigious_checkpointing,
+        contiguous_checkpointing=args.contiguous_checkpointing,
         num_checkpoints=num_layers,
         checkpoint_in_cpu=args.checkpoint_in_cpu,
         synchronize=args.synchronize_each_layer,
