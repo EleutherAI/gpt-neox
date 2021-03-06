@@ -49,7 +49,7 @@ def main():
 
     args = get_args()
 
-    if args.load is not None:
+    if args.load is None:
         raise ValueError("`load` parameter must be supplied to load a model`")
 
     # Set up model and load checkpoint.
