@@ -1,5 +1,7 @@
 FROM nvcr.io/nvidia/pytorch:21.02-py3
 
+ENV DEBIAN_FRONTEND=noninteractive
+
 #### System package
 RUN apt-get update -y && \
     apt-get install -y \
@@ -10,8 +12,6 @@ RUN apt-get update -y && \
     update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1 && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3.8 1 && \
     update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
-
-ENV DEBIAN_FRONTEND=noninteractive
 
 #### Temporary Installation Directory
 ENV STAGE_DIR=/build
