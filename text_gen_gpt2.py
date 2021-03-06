@@ -15,9 +15,12 @@
 # limitations under the License.
 
 """Generate text / sample GPT2"""
-
+import json
 import os
 import sys
+from json import JSONDecodeError
+
+import deepspeed
 
 from megatron.config_monster import ConfigMonster
 from pretrain_gpt2 import model_provider
@@ -44,8 +47,15 @@ def main():
 
     initialize_megatron(args_defaults={'tokenizer_type': 'GPT2BPETokenizer'})
 
+    args = get_args()
+
     # Set up model and load checkpoint.
-    #model = get_model(lambda: model_provider(use_wandb=False))
+    model = get_model(lambda: model_provider(use_wandb=False))
+
+    model, optimizer, lr_scheduler = setup_model_and_optimizer(lambda: model_provider(use_wandb=False))
+
+    print('Done')
+    exit()
 
     args = get_args()
     args.deepspeed = False
