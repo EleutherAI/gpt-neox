@@ -31,7 +31,6 @@ from megatron import get_args
 from megatron import print_rank_0
 from megatron import get_adlr_autoresume
 from megatron import mpu
-from megatron.checkpointing import save_checkpoint
 from megatron.data.samplers import DistributedBatchSampler
 from megatron.fp16 import FP16_Optimizer
 
@@ -83,6 +82,8 @@ def print_params_min_max_norm(optimizer, iteration):
 def check_adlr_autoresume_termination(iteration, model,
                                       optimizer, lr_scheduler):
     """Check for autoresume signal and exit if it is received."""
+    # to prevent circular import
+    from megatron.checkpointing import save_checkpoint
     args = get_args()
     autoresume = get_adlr_autoresume()
     # Add barrier to ensure consistnecy.
