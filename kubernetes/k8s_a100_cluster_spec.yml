@@ -3,8 +3,6 @@ kind: StatefulSet
 metadata:
   name: neox
 spec:
-#  strategy:
-#    type: Recreate
   replicas: 4
   serviceName: neox
   podManagementPolicy: "Parallel"
@@ -19,8 +17,6 @@ spec:
       terminationGracePeriodSeconds: 10
       containers:
       - name: neox
-#        command: ["sudo"]
-#        args: ["/usr/sbin/sshd", "-D"]
         tty: true
         image: leogao2/gpt-neox
         ports:
@@ -41,10 +37,11 @@ spec:
             readOnly: false
         resources:
           requests:
-            cpu: 30
-            memory: 40Gi
+            cpu: "100"
+            memory: 700Gi
+            nvidia.com/gpu: "6"
           limits:
-            nvidia.com/gpu: 8
+            nvidia.com/gpu: "6"
         lifecycle:
           postStart:
             exec:
@@ -55,11 +52,11 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
             - matchExpressions:
-              # Edit for different GPU
               - key: gpu.nvidia.com/model
                 operator: In
                 values:
-                  - GeForce_RTX_2080_Ti
+                  - A100_PCIE_40GB
+                  - A100-PCIE-40GB
               - key: failure-domain.beta.kubernetes.io/region
                 operator: In
                 values:

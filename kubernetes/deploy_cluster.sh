@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 #  --- USAGE ---
-# $ deploy_k8.sh [branch=main] [n_nodes=4] [name_suffix=$USER] [image]
+# $ deploy_k8.sh [branch=main] [n_nodes=4] [name_suffix=$USER] [A100s='no'. Option:no/yes] [image]
 # You need to install yq
 
 # Check yq
@@ -9,12 +9,13 @@ yq &> /dev/null || { echo 'You need to install `yq >= v4`. `brew install yq` or 
 
 WD_BRANCH=$(git branch  --no-color --show-current)
 WD_BRANCH="${WD_BRANCH/\//-}"  # remove forward slashes and replace with underscore
-DEFAULT_IMAGE="leogao2/gpt-neox:sha-18df9ad"
+DEFAULT_IMAGE="leogao2/gpt-neox:sha-1ff9f9b"
 
 BRANCH=${1:-main}
 N_NODES=${2:-4}
 SUFFIX=${3:-$(whoami)}
-IMAGE=${4:-$DEFAULT_IMAGE}
+USE_A100s=${4:-"no"}
+IMAGE=${5:-$DEFAULT_IMAGE}
 
 CLUSTER_NM='neox-'"$SUFFIX"
 WD=`dirname "$BASH_SOURCE"`
@@ -79,9 +80,19 @@ kubectl create secret generic $SECRET_NM \
   --from-file=id_rsa.pub=$WD/id_rsa.pub \
   --from-file=post_start_script.sh=$WD/post_start_script.sh
 
+# Use A100s? Default to no
+if [ "$USE_A100s" = "yes" ]; then
+    echo Using A100s.
+    CLUSTER_SPEC=$WD/k8s_a100_cluster_spec.yml
+else
+    echo Using normal cluster.
+    CLUSTER_SPEC=$WD/k8s_cluster_spec.yml
+fi
+
+
 # Template k8 configuration - deployment
 MOUNT_NAME="$CLUSTER_NM-ssd-cluster"
-cat $WD/k8s_spec.yml |
+cat $CLUSTER_SPEC |
 yq e '.metadata.name = "'"$CLUSTER_NM"\" - |
 yq e '.spec.serviceName = "'"$CLUSTER_NM"\" - |
 yq e '.spec.selector.matchLabels.app.kubernetes.io/name = "'"$CLUSTER_NM"\" - |
