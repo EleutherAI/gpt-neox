@@ -604,6 +604,9 @@ def _add_text_generate_args(parser):
     """Text generation arguments. Only used for model sampling"""
     group = parser.add_argument_group(title='text generation/model sampling')
 
+    group.add_argument("--text-gen-type", type=str, default=None,
+                       help='How to generate text/sample the model.'
+                            'Options: `unconditional`, `input-file`, `interactive`')
     group.add_argument("--temperature", type=float, default=1.0,
                        help='Sampling temperature.')
     group.add_argument("--greedy", action='store_true', default=False,

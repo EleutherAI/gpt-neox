@@ -62,6 +62,11 @@ def main():
 
     exit()
 
+    if args.text_gen_type == 'unconditional':
+        pass
+    else:
+        raise ValueError(f"`text-gen-type` either not specified or not recognised: {args.text_gen_type}")
+
     # Generate samples.
     if args.num_samples == 0:
         args.batch_size = 1

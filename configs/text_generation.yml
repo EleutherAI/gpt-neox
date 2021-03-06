@@ -1,13 +1,14 @@
 # Parameters used for text generation
 # Make sure `load` is specified somewhere else
 {
+  "text-gen-type": "unconditional",
   "temperature": 1.0,
   #"greedy": flase,
   "top_p": 0.0,
   "top_k": 0,
   "out-seq-length": 102,
   "num-samples": 0,
-  "genfile": "/mnt/data/gen_text",
+  "genfile": "/mnt/ssd-cluster/output/text_generation.txt",
   #"recompute": false,
   #"sample-input-file": "",
   #"sample-output-file": "",

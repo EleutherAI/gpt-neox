@@ -271,9 +271,17 @@ def generate_and_write_samples_unconditional(model):
 
     args = get_args()
     assert args.genfile is not None
-    with open(args.genfile, 'w') as f:
-        for datum in generate_samples_unconditional(model):
+    genfile = args.genfile
+
+    # Create directory
+    genfile_dir = os.path.dirname(genfile)
+    os.makedirs(genfile_dir, exist_ok=True)
+
+    with open(genfile, 'w') as f:
+        for n, datum in enumerate(generate_samples_unconditional(model), 1):
             f.write(json.dumps(datum) + '\n')
+            if n != 0 and n % args.log_interval:
+                print(f"Text generated and written: {n}")
 
 
 def pad_batch(batch, pad_id, args):
