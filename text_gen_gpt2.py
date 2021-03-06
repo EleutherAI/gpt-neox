@@ -49,24 +49,14 @@ def main():
 
     args = get_args()
 
-    # Set up model and load checkpoint.
-    model = get_model(lambda: model_provider(use_wandb=False))
+    if args.load is not None:
+        raise ValueError("`load` parameter must be supplied to load a model`")
 
+    # Set up model and load checkpoint.
     model, optimizer, lr_scheduler = setup_model_and_optimizer(lambda: model_provider(use_wandb=False))
 
-    print('Done')
-    exit()
-
-    args = get_args()
-    args.deepspeed = False
-    if args.load is not None:
-        print(f"Loading model: {args.load}")
-        #_ = load_checkpoint(model, None, None)
-        model, optimizer, lr_scheduler = setup_model_and_optimizer(lambda: model_provider(use_wandb=False))
-    else:
-        raise ValueError("`load` parameter must be supplied to load model`")
-
     print('Finished loading model')
+    exit()
 
     # Generate samples.
     if args.num_samples == 0:
