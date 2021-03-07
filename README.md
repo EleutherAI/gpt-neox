@@ -77,7 +77,7 @@ We run our experiments on a Kubernetes cluster generously provided by [CoreWeave
 
 ## Licensing
 
-This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright (c) 2021 Stella Biderman, Sid Black, Josh Levy-Kramer, Michael Pieler, and Shivanshu Purohit.
+This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright (c) 2021 Stella Biderman, Sid Black, Josh Levy-Kramer, Michael Pieler, Shivanshu Purohit, and Eric Hallahan.
 
     GPT-NeoX is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
