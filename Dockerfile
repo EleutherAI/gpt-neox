@@ -73,7 +73,6 @@ RUN pip install torch==1.8.0+cu111 -f https://download.pytorch.org/whl/torch_sta
 
 COPY requirements.txt $STAGE_DIR
 RUN pip install -r $STAGE_DIR/requirements.txt
-RUN pip install -e git+git://github.com/EleutherAI/DeeperSpeed.git@cac19a86b67e6e98b9dca37128bc01e50424d9e9#egg=deepspeed
 RUN pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@e2083df5eb96643c61613b9df48dd4eea6b07690
 
 # Clear staging
