@@ -20,7 +20,19 @@ IMAGE=${5:-$DEFAULT_IMAGE}
 CLUSTER_NM='neox-'"$SUFFIX"
 WD=`dirname "$BASH_SOURCE"`
 
-echo BRANCH $BRANCH. N-NODES $N_NODES. CLUSTER NAME $CLUSTER_NM. DOCKER IMAGE $IMAGE.
+# Use A100s? Default to no
+if [ "$USE_A100s" = "yes" ]; then
+    CLUSTER_SPEC=$WD/k8s_a100_cluster_spec.yml
+    GPUS_PER_NODE=6
+    awk_print='{print $6 " slots=6"}'
+else
+    USE_A100s="no"
+    CLUSTER_SPEC=$WD/k8s_cluster_spec.yml
+    GPUS_PER_NODE=8
+    awk_print='{print $6 " slots=8"}'
+fi
+
+echo BRANCH $BRANCH. N-NODES $N_NODES. CLUSTER NAME $CLUSTER_NM. Use A100s: $USE_A100s. DOCKER IMAGE $IMAGE.
 
 # Obtain wandb API key
 WANDB_APIKEY=$(python $WD/get_wandb_api_key.py)
@@ -62,8 +74,6 @@ echo 'export LC_ALL=C.UTF-8' >> ~/.bashrc;
 echo 'export LANG=C.UTF-8' >> ~/.bashrc;
 cd ~;
 git clone --branch $BRANCH https://github.com/EleutherAI/gpt-neox.git;
-sudo apt-get update -y;
-sudo apt-get install -y libpython3-dev;
 "
 if [ -n "$WANDB_APIKEY" ]
 then
@@ -79,16 +89,6 @@ SECRET_NM="$CLUSTER_NM-$DATE"
 kubectl create secret generic $SECRET_NM \
   --from-file=id_rsa.pub=$WD/id_rsa.pub \
   --from-file=post_start_script.sh=$WD/post_start_script.sh
-
-# Use A100s? Default to no
-if [ "$USE_A100s" = "yes" ]; then
-    echo Using A100s.
-    CLUSTER_SPEC=$WD/k8s_a100_cluster_spec.yml
-else
-    echo Using normal cluster.
-    CLUSTER_SPEC=$WD/k8s_cluster_spec.yml
-fi
-
 
 # Template k8 configuration - deployment
 MOUNT_NAME="$CLUSTER_NM-ssd-cluster"
@@ -117,7 +117,7 @@ echo Waiting for cluster deployment to complete...
 kubectl rollout status --watch --timeout=600s statefulsets/$CLUSTER_NM  || { echo 'Cluster deployment failed' ; exit 1; }
 
 echo Generate hosts file
-kubectl get pods -o wide | grep $CLUSTER_NM | awk '{print $6 " slots=8"}' > $WD/hostfile
+kubectl get pods -o wide | grep $CLUSTER_NM | awk $awk_print > $WD/hostfile
 cat $WD/hostfile | cut -f1 -d' ' > $WD/hosts
 export MAIN_ID=$(kubectl get pods | grep $CLUSTER_NM | awk '{print $1}' | head -n 1)
 
