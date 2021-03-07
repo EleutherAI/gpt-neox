@@ -2,10 +2,10 @@ FROM nvidia/cuda:11.1.1-devel-ubuntu20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-#### System package
+#### System package (uses Python 3.8)
 RUN apt-get update -y && \
     apt-get install -y \
-        git python3.8 python3.8-dev libpython3.8-dev  python3.8-pip sudo pdsh \
+        git python3 python3-dev libpython3-dev  python3-pip sudo pdsh \
         htop llvm-9-dev tmux zstd software-properties-common build-essential autotools-dev \
         nfs-common pdsh cmake g++ gcc curl wget tmux less unzip htop iftop iotop ca-certificates ssh \
         rsync iputils-ping net-tools libcupti-dev && \
