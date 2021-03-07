@@ -16,17 +16,18 @@ RUN apt-get update -y && \
     pip install gpustat
 
 ### SSH
-# Install OpenSSH, X server and libgtk (for NVIDIA Visual Profiler)
 # Set password
-COPY password.txt .
-RUN mkdir /var/run/sshd && \
-  echo "root:`cat password.txt`" | chpasswd && \
-  # Allow root login with password
-  sed -i 's/PermitRootLogin without-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-  # Prevent user being kicked off after login
-  sed -i 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' /etc/pam.d/sshd && \
-  # Clean up
-  rm password.txt
+RUN echo 'password' >> password.txt && \
+    mkdir /var/run/sshd && \
+    echo "root:`cat password.txt`" | chpasswd && \
+    # Allow root login with password
+    sed -i 's/PermitRootLogin without-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+    # Prevent user being kicked off after login
+    sed -i 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' /etc/pam.d/sshd && \
+    echo 'AuthorizedKeysFile     .ssh/authorized_keys' >> /etc/ssh/sshd_config && \
+    echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config && \
+    # Clean up
+    rm password.txt
 # Expose SSH port
 EXPOSE 22
 # Add CUDA back to path during SSH
@@ -43,8 +44,6 @@ RUN useradd --create-home --uid 1000 --shell /bin/bash mchorse && \
 RUN mkdir -p /home/mchorse/.ssh /job && \
     echo 'Host *' > /home/mchorse/.ssh/config && \
     echo '    StrictHostKeyChecking no' >> /home/mchorse/.ssh/config && \
-    echo 'AuthorizedKeysFile     .ssh/authorized_keys' >> /etc/ssh/sshd_config && \
-    echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config && \
     echo 'export PDSH_RCMD_TYPE=ssh' >> /home/mchorse/.bashrc && \
     echo 'export PATH=/home/mchorse/.local/bin:$PATH' >> /home/mchorse/.bashrc && \
     echo 'export PATH=/usr/local/mpi/bin:$PATH' >> /home/mchorse/.bashrc && \
