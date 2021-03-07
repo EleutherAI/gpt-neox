@@ -29,11 +29,11 @@ class RMSNorm(torch.nn.Module):
         self.p = p
         self.bias = bias
 
-        self.scale = torch.nn.Parameter(torch.ones(d))
+        self.scale = torch.nn.Parameter(torch.ones(dim))
         self.register_parameter("scale", self.scale)
 
         if self.bias:
-            self.offset = torch.nn.Parameter(torch.zeros(d))
+            self.offset = torch.nn.Parameter(torch.zeros(dim))
             self.register_parameter("offset", self.offset)
 
     def forward(self, x):
