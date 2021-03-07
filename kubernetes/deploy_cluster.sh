@@ -9,7 +9,7 @@ yq &> /dev/null || { echo 'You need to install `yq >= v4`. `brew install yq` or 
 
 WD_BRANCH=$(git branch  --no-color --show-current)
 WD_BRANCH="${WD_BRANCH/\//-}"  # remove forward slashes and replace with underscore
-DEFAULT_IMAGE="leogao2/gpt-neox:sha-1ff9f9b"
+DEFAULT_IMAGE="joshlk/gpt-neox:sha-e6629c9-man"
 
 BRANCH=${1:-main}
 N_NODES=${2:-4}
@@ -117,7 +117,13 @@ echo Waiting for cluster deployment to complete...
 kubectl rollout status --watch --timeout=600s statefulsets/$CLUSTER_NM  || { echo 'Cluster deployment failed' ; exit 1; }
 
 echo Generate hosts file
-kubectl get pods -o wide | grep $CLUSTER_NM | awk $awk_print > $WD/hostfile
+
+if [ "$USE_A100s" = "yes" ]; then
+    kubectl get pods -o wide | grep $CLUSTER_NM | awk '{print $6 " slots=6"}' > $WD/hostfile
+else
+    kubectl get pods -o wide | grep $CLUSTER_NM | awk '{print $6 " slots=8"}' > $WD/hostfile
+fi
+
 cat $WD/hostfile | cut -f1 -d' ' > $WD/hosts
 export MAIN_ID=$(kubectl get pods | grep $CLUSTER_NM | awk '{print $1}' | head -n 1)
 
