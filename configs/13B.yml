@@ -11,7 +11,7 @@
    "seq-length": 2048,
    "max-position-embeddings": 2048,
    "fp16-lm-cross-entropy": true, # calculate loss in fp16
-   "rms-norm": true,
+   "norm": "rmsnorm",
    "pos-emb": "none",
    "scaled-upper-triang-masked-softmax-fusion": true,
    

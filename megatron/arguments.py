@@ -205,11 +205,9 @@ def _add_network_size_args(parser):
     group.add_argument('--make-vocab-size-divisible-by', type=int, default=128,
                        help='Pad the vocab size to be divisible by this value.'
                             'This is added for computational efficieny reasons.')
-    group.add_argument('--layernorm-epsilon', type=float, default=1e-5,
-                       help='Layer norm epsilon.')
     group.add_argument('--apply-residual-connection-post-layernorm',
                        action='store_true',
-                       help='If set, use original BERT residula connection '
+                       help='If set, use original BERT residual connection '
                             'ordering.')
     group.add_argument('--openai-gelu', action='store_true',
                        help='Use OpenAIs GeLU implementation. This option'
@@ -306,9 +304,15 @@ def _add_training_args(parser):
                         none = all regular attn, \
                         all = all sparse attn, \
                         interspersed = sparse on odd layers, dense on even')
-    group.add_argument('--rms-norm', action='store_true',
-                       help='Use root mean squared norm')
-    group.add_argument('--rms-norm-epsilon', type=float, default=1e-8)
+    norm_choices = ['layernorm', 'scalenorm', 'rmsnorm']
+    group.add_argument('--norm', type=str, default='layernorm',
+                        choices=norm_choices, help=f'normalization layer to use. Choose from {norm_choices}')
+    group.add_argument('--scalenorm-epsilon', type=float, default=1e-8,
+                        help='Scalenorm epsilon')
+    group.add_argument('--rms-norm-epsilon', type=float, default=1e-8,
+                        help='RMS norm epsilon')
+    group.add_argument('--layernorm-epsilon', type=float, default=1e-5,
+                       help='Layer norm epsilon.')
     group.add_argument('--cpu-optimizer', action='store_true',
                        help='Run optimizer on CPU')
     group.add_argument('--cpu_torch_adam', action='store_true',
