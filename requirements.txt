@@ -1,4 +1,3 @@
-torch==1.8.0+cu111 -f https://download.pytorch.org/whl/torch_stable.html
 pybind11==2.6.2
 six
 regex
