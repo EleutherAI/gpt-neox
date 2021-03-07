@@ -134,12 +134,6 @@ def get_model(model_provider_func):
     # Build model on cpu.
     model = model_provider_func()
 
-    # Print number of parameters.
-    if mpu.get_data_parallel_rank() == 0:
-        print(' > number of parameters on model parallel rank {}: {}'.format(
-            mpu.get_model_parallel_rank(),
-            sum([p.nelement() for p in model.parameters()])), flush=True)
-
     if args.deepspeed:
         # DeepSpeed handles CUDA, FP16, and DDP components.
         return model
@@ -296,8 +290,14 @@ def setup_model_and_optimizer(model_provider_func):
             config_params=deepspeed_conf,
         )
 
+        model.total_params = get_total_params(model.module)
+        print_rank_0(f' > total params: {"{:,}".format(model.total_params)}')
+
         if args.pipe_parallel_size > 0:
             model.set_batch_fn(model.module._megatron_batch_fn)
+    else:
+        model.total_params = get_total_params(model)
+        print(f' > total params: {model.total_params}')
 
     if args.load is not None:
         args.iteration = load_checkpoint(model, optimizer, lr_scheduler)
@@ -416,7 +416,7 @@ def train_step_pipe(model, data_iterator):
 
 
 def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
-                 loss_scale, report_memory_flag, skipped_iter):
+                 loss_scale, report_memory_flag, skipped_iter, model):
     """Log training information such as losses, timing, ...."""
     args = get_args()
     timers = get_timers()
@@ -488,7 +488,6 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
             writer.add_scalar('iteration_time', iteration_time, iteration)
         if get_use_wandb() and torch.distributed.get_rank() == 0:
             wandb.log({'iteration_time': iteration_time}, step=iteration)
-
         log_string = ' iteration {:8d}/{:8d} |'.format(iteration,
                                                        args.train_iters)
         log_string += ' elapsed time per iteration (ms): {:.1f} |'.format(
@@ -496,6 +495,14 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         log_string += ' learning rate: {:.3E} |'.format(learning_rate)
         num_iterations = max(
             1, args.log_interval - total_loss_dict[skipped_iters_key])
+
+        # calculate tflop / gpu
+        flops_per_s_per_gpu = get_flops(model, elapsed_time)
+        if writer and torch.distributed.get_rank() == 0:
+            writer.add_scalar('flops/s/gpu', flops_per_s_per_gpu, iteration)
+        if get_use_wandb() and torch.distributed.get_rank() == 0:
+            wandb.log({'flops/s/gpu': flops_per_s_per_gpu}, step=iteration)
+
         for key in total_loss_dict:
             if key not in [skipped_iters_key, got_nan_key]:
                 v = total_loss_dict[key].item() if hasattr(total_loss_dict[key], 'item') else total_loss_dict[key]
@@ -551,7 +558,7 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
         report_memory_flag = training_log(loss_dict, total_loss_dict,
                                           optimizer.param_groups[0]['lr'],
                                           iteration, loss_scale,
-                                          report_memory_flag, skipped_iter)
+                                          report_memory_flag, skipped_iter, model)
 
         # Autoresume
         if args.adlr_autoresume and \
@@ -759,3 +766,32 @@ def build_train_valid_test_data_iterators(
         test_data_iterator = None
 
     return train_data_iterator, valid_data_iterator, test_data_iterator
+
+
+def get_total_params(model):
+    # Print number of parameters.
+    if mpu.get_data_parallel_rank() == 0:
+        params = sum([p.nelement() for p in model.parameters()])
+        print(' > number of parameters on model parallel rank {}: {}'.format(
+            mpu.get_model_parallel_rank(), params), flush=True)
+    else:
+        params = 0
+
+    total_n_parameters = torch.tensor([params]).cuda(torch.cuda.current_device())
+    torch.distributed.all_reduce(total_n_parameters)
+    total_n_parameters = total_n_parameters.item()
+    return total_n_parameters
+
+
+def get_flops(model, iteration_time):
+    args = get_args()
+    world_size = os.environ.get('WORLD_SIZE', None)
+    if world_size is None:
+        world_size = torch.distributed.get_world_size()
+    global_batch_size = args.batch_size * mpu.get_data_parallel_world_size() * args.gas
+    tokens_per_iter = global_batch_size * args.seq_length
+    flops_per_iter = model.total_params * 6 * tokens_per_iter
+    flops_per_gpu_per_iter = flops_per_iter / world_size
+    flops_per_s_per_gpu = flops_per_gpu_per_iter / iteration_time
+    return flops_per_s_per_gpu
+
