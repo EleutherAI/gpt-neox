@@ -164,6 +164,8 @@ def _initialize_distributed():
         dp = args.world_size // (pp * mp)
 
         from deepspeed.runtime.pipe.topology import PipeModelDataParallelTopology
+        # this does pipe on the most outside, then data, then model. 
+        # PipeModelDataParallelTopology is just a wrapper over ProcessTopology that predefines this order.
         topo = PipeModelDataParallelTopology(num_pp=pp, num_mp=mp, num_dp=dp)
 
         # Offset base seeds for the interior pipeline stages.
