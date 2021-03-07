@@ -1,6 +1,7 @@
 # GPT-2 pretraining setup
 {
-   # parallelism settings ( you will want to change these based on your cluster setup )
+   # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
+   # across the node boundaries )
    "pipe-parallel-size": 1,
    "model-parallel-size": 1,
 
@@ -10,10 +11,11 @@
    "num-attention-heads": 40,
    "seq-length": 2048,
    "max-position-embeddings": 2048,
-   "fp16-lm-cross-entropy": true, # calculate loss in fp16
    "norm": "rmsnorm",
    "pos-emb": "none",
-   "scaled-upper-triang-masked-softmax-fusion": true,
+   "no-weight-tying": true,
+    # this should provide some speedup but takes a while to build, set to true if desired
+   "scaled-upper-triang-masked-softmax-fusion": false,
    
    # optimizer settings
    "optimizer": {
