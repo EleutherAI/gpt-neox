@@ -2,15 +2,14 @@ FROM nvidia/cuda:11.1.1-devel-ubuntu20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-#### System package (uses Python 3.8)
+#### System package (uses default Python 3 version in Ubuntu 20.04)
 RUN apt-get update -y && \
     apt-get install -y \
-        git python3 python3-dev libpython3-dev  python3-pip sudo pdsh \
+        git python3 python3-dev libpython3-dev python3-pip sudo pdsh \
         htop llvm-9-dev tmux zstd software-properties-common build-essential autotools-dev \
         nfs-common pdsh cmake g++ gcc curl wget tmux less unzip htop iftop iotop ca-certificates ssh \
         rsync iputils-ping net-tools libcupti-dev && \
-    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1 && \
-    update-alternatives --install /usr/bin/python python /usr/bin/python3.8 1 && \
+    update-alternatives --install /usr/bin/python python /usr/bin/python3 1 && \
     update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1 && \
     pip install --upgrade pip && \
     pip install gpustat
@@ -32,8 +31,8 @@ RUN echo 'password' >> password.txt && \
 EXPOSE 22
 
 #### OPENMPI
-ENV OPENMPI_BASEVERSION=4.0
-ENV OPENMPI_VERSION=${OPENMPI_BASEVERSION}.1
+ENV OPENMPI_BASEVERSION=4.1
+ENV OPENMPI_VERSION=${OPENMPI_BASEVERSION}.0
 RUN mkdir -p /build && \
     cd ${STAGE_DIR} && \
     wget -q -O - https://download.open-mpi.org/release/open-mpi/v${OPENMPI_BASEVERSION}/openmpi-${OPENMPI_VERSION}.tar.gz | tar xzf - && \
