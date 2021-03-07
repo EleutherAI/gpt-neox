@@ -791,7 +791,7 @@ def get_flops(model, iteration_time):
     global_batch_size = args.batch_size * mpu.get_data_parallel_world_size() * args.gas
     tokens_per_iter = global_batch_size * args.seq_length
     flops_per_iter = model.total_params * 6 * tokens_per_iter
-    flops_per_gpu_per_iter = flops_per_iter / world_size
+    flops_per_gpu_per_iter = flops_per_iter / int(world_size)
     flops_per_s_per_gpu = flops_per_gpu_per_iter / iteration_time
     return flops_per_s_per_gpu
 
