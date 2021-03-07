@@ -30,10 +30,6 @@ RUN echo 'password' >> password.txt && \
     rm password.txt
 # Expose SSH port
 EXPOSE 22
-# Add CUDA back to path during SSH
-RUN echo "export PATH=$PATH:/usr/local/cuda/bin" >> /etc/profile
-# Copy SSH script to set up LD_LIBRARY_PATH
-COPY ssh.sh /opt/
 
 #### User account
 RUN useradd --create-home --uid 1000 --shell /bin/bash mchorse && \
