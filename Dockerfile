@@ -46,7 +46,7 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
     echo 'export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:$LD_LIBRARY_PATH' >> /home/mchorse/.bashrc
 
 #### Python packages
-RUN pip install torch==1.8.0+cu111
+RUN pip install torch==1.8.0+cu111 -f https://download.pytorch.org/whl/torch_stable.html
 
 COPY requirements.txt $STAGE_DIR
 RUN pip install -r $STAGE_DIR/requirements.txt
