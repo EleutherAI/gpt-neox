@@ -34,7 +34,8 @@ EXPOSE 22
 #### OPENMPI
 ENV OPENMPI_BASEVERSION=4.0
 ENV OPENMPI_VERSION=${OPENMPI_BASEVERSION}.1
-RUN cd ${STAGE_DIR} && \
+RUN mkdir -p /build && \
+    cd ${STAGE_DIR} && \
     wget -q -O - https://download.open-mpi.org/release/open-mpi/v${OPENMPI_BASEVERSION}/openmpi-${OPENMPI_VERSION}.tar.gz | tar xzf - && \
     cd openmpi-${OPENMPI_VERSION} && \
     ./configure --prefix=/usr/local/openmpi-${OPENMPI_VERSION} && \
@@ -43,7 +44,7 @@ RUN cd ${STAGE_DIR} && \
     # Sanity check:
     test -f /usr/local/mpi/bin/mpic++ && \
     cd ${STAGE_DIR} && \
-    rm -r ${STAGE_DIR}/openmpi-${OPENMPI_VERSION}
+    rm -r /build
 # Needs to be in docker PATH if compiling other items & bashrc PATH (later)
 ENV PATH=/usr/local/mpi/bin:${PATH} \
     LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:${LD_LIBRARY_PATH}
