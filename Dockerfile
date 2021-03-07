@@ -1,21 +1,38 @@
-FROM nvcr.io/nvidia/pytorch:20.12-py3
+FROM nvidia/cuda:11.1.1-devel-ubuntu20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 #### System package
 RUN apt-get update -y && \
     apt-get install -y \
-        git python3.8 python3.8-dev libpython3.8-dev  python3-pip python3-venv sudo pdsh \
-        htop llvm-9-dev tmux zstd libpython3-dev software-properties-common build-essential autotools-dev \
-        nfs-common pdsh cmake g++ gcc curl wget tmux less unzip htop iftop iotop ca-certificates \
+        git python3.8 python3.8-dev libpython3.8-dev  python3.8-pip sudo pdsh \
+        htop llvm-9-dev tmux zstd software-properties-common build-essential autotools-dev \
+        nfs-common pdsh cmake g++ gcc curl wget tmux less unzip htop iftop iotop ca-certificates ssh \
         rsync iputils-ping net-tools libcupti-dev && \
     update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1 && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3.8 1 && \
-    update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
+    update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1 && \
+    pip install --upgrade pip && \
+    pip install gpustat
 
-#### Temporary Installation Directory
-ENV STAGE_DIR=/build
-RUN mkdir -p ${STAGE_DIR}
+### SSH
+# Install OpenSSH, X server and libgtk (for NVIDIA Visual Profiler)
+# Set password
+COPY password.txt .
+RUN mkdir /var/run/sshd && \
+  echo "root:`cat password.txt`" | chpasswd && \
+  # Allow root login with password
+  sed -i 's/PermitRootLogin without-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+  # Prevent user being kicked off after login
+  sed -i 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' /etc/pam.d/sshd && \
+  # Clean up
+  rm password.txt
+# Expose SSH port
+EXPOSE 22
+# Add CUDA back to path during SSH
+RUN echo "export PATH=$PATH:/usr/local/cuda/bin" >> /etc/profile
+# Copy SSH script to set up LD_LIBRARY_PATH
+COPY ssh.sh /opt/
 
 #### User account
 RUN useradd --create-home --uid 1000 --shell /bin/bash mchorse && \
@@ -34,15 +51,15 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
     echo 'export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:$LD_LIBRARY_PATH' >> /home/mchorse/.bashrc
 
 #### Python packages
-RUN python -m pip install --upgrade pip
-RUN pip install pybind11==2.6.2 six regex nltk==3.5 zstandard==0.15.1 cupy-cuda111 mpi4py==3.0.3 wandb==0.10.18 einops==0.3.0 gpustat
+RUN pip install torch==1.8.0+cu111
+
+COPY requirements.txt $STAGE_DIR
+RUN pip install -r $STAGE_DIR/requirements.txt
 RUN pip install -e git+git://github.com/EleutherAI/DeeperSpeed.git@cac19a86b67e6e98b9dca37128bc01e50424d9e9#egg=deepspeed
 RUN pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@e2083df5eb96643c61613b9df48dd4eea6b07690
-RUN echo 'deb http://archive.ubuntu.com/ubuntu/ focal main restricted' >> /etc/apt/sources.list && apt-get install --upgrade libpython3-dev
-RUN sudo apt-get update -y && sudo apt-get install -y libpython3-dev
 
 # Clear staging
-RUN rm -r $STAGE_DIR && mkdir -p /tmp && chmod 0777 /tmp
+RUN mkdir -p /tmp && chmod 0777 /tmp
 
 #### SWITCH TO mchorse USER
 USER mchorse

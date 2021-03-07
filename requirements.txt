@@ -1,4 +1,4 @@
-torch==1.8.0
+torch==1.8.0+cu111
 pybind11==2.6.2
 six
 regex
@@ -8,8 +8,7 @@ tensorflow==2.4.1
 -e git+git://github.com/EleutherAI/DeeperSpeed.git@cac19a86b67e6e98b9dca37128bc01e50424d9e9#egg=deepspeed
 autopep8==1.5.5
 zstandard==0.15.1
-cupy-cuda102==8.4.0
+cupy-cuda111==8.5.0
 mpi4py==3.0.3
-wandb==0.10.18
+wandb==0.10.21
 einops==0.3.0
-
