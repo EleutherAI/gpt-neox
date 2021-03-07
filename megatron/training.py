@@ -137,6 +137,9 @@ def get_model(model_provider_func):
     if args.deepspeed:
         # DeepSpeed handles CUDA, FP16, and DDP components.
         return model
+    
+    # TODO: since args.deepspeed is always true, everything past here is dead code. 
+    # In particular, nothing else in the entire codebase uses LocalDDP (megatron.model.DistributedDataParallel)
 
     # GPU allocation.
     model.cuda(torch.cuda.current_device())
