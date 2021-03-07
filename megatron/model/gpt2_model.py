@@ -27,10 +27,11 @@ from .language_model import parallel_lm_logits
 from .language_model import get_language_model
 from .utils import init_method_normal
 from .utils import scaled_init_method_normal
+from .norms import  LayerNorm, RMSNorm, ScaleNorm
 
 # Pipeline parallelism
 from megatron import mpu
-from megatron.mpu import LayerNorm, RMSNorm, ParallelRelativePositionBias
+from megatron.mpu import ParallelRelativePositionBias
 import megatron.fp16 as fp16
 from megatron.model.transformer import ParallelTransformerLayerPipe
 from .language_model import EmbeddingPipe
@@ -207,12 +208,15 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
         self.specs.append(lambda x: x[0].transpose(0, 1).contiguous())
 
         # Final layernorm after transformer layers
-        if args.rms_norm:
+        if args.norm == "rmsnorm":
             norm = RMSNorm
             eps = args.rms_norm_epsilon
-        else:
+        elif args.norm == "layernorm":
             eps = args.layernorm_epsilon
             norm = LayerNorm
+        elif args.norm == "scalenorm":
+            eps = args.scalenorm_epsilon
+            norm = ScaleNorm
 
         self.specs.append(
             LayerSpec(norm,

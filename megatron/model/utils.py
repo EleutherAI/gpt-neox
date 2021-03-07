@@ -22,7 +22,7 @@ import math
 
 import torch
 
-from .transformer import LayerNorm, RMSNorm
+from .transformer import LayerNorm, RMSNorm, ScaleNorm
 
 
 def init_method_normal(sigma):
@@ -77,7 +77,7 @@ def get_params_for_weight_decay_optimization(module):
     weight_decay_params = {'params': []}
     no_weight_decay_params = {'params': [], 'weight_decay': 0.0}
     for module_ in module.modules():
-        if any([isinstance(module_, LayerNorm), isinstance(module_, RMSNorm)]):
+        if any([isinstance(module_, LayerNorm), isinstance(module_, RMSNorm), isinstance(module_, ScaleNorm)]):
             no_weight_decay_params['params'].extend(
                 [p for p in list(module_._parameters.values())
                  if p is not None])
