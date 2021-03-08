@@ -7,7 +7,7 @@ This repository records [EleutherAI](www.eleuther.ai)'s work-in-progress for tra
 
 If you are looking for our TPU codebase, see [GPT-Neo](https://github.com/EleutherAI/gpt-neo).
 
-GPT-NeoX is under active development and rough around the edges. GPT-NeoX is a complicated beast that will take time and patients to work on any specific environment.
+GPT-NeoX is under active development and rough around the edges. GPT-NeoX is a complicated beast that will take time and patience to work on any specific environment.
 
 ## Getting Started
 
