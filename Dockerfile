@@ -34,7 +34,7 @@ EXPOSE 22
 ENV OPENMPI_BASEVERSION=4.1
 ENV OPENMPI_VERSION=${OPENMPI_BASEVERSION}.0
 RUN mkdir -p /build && \
-    cd ${STAGE_DIR} && \
+    cd /build && \
     wget -q -O - https://download.open-mpi.org/release/open-mpi/v${OPENMPI_BASEVERSION}/openmpi-${OPENMPI_VERSION}.tar.gz | tar xzf - && \
     cd openmpi-${OPENMPI_VERSION} && \
     ./configure --prefix=/usr/local/openmpi-${OPENMPI_VERSION} && \
@@ -42,8 +42,8 @@ RUN mkdir -p /build && \
     ln -s /usr/local/openmpi-${OPENMPI_VERSION} /usr/local/mpi && \
     # Sanity check:
     test -f /usr/local/mpi/bin/mpic++ && \
-    cd ${STAGE_DIR} && \
-    rm -r /build
+    cd ~ && \
+    rm -rf /build
 # Needs to be in docker PATH if compiling other items & bashrc PATH (later)
 ENV PATH=/usr/local/mpi/bin:${PATH} \
     LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:${LD_LIBRARY_PATH}
@@ -68,10 +68,10 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
     echo 'export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:$LD_LIBRARY_PATH' >> /home/mchorse/.bashrc
 
 #### Python packages
-RUN pip install torch==1.8.0+cu111 -f https://download.pytorch.org/whl/torch_stable.html
+RUN pip install torch==1.8.0+cu111 -f https://download.pytorch.org/whl/torch_stable.html && pip cache purge
 
-COPY requirements.txt $STAGE_DIR
-RUN pip install -r $STAGE_DIR/requirements.txt
+COPY requirements.txt .
+RUN pip install -r requirements.txt && pip cache purge
 RUN pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@e2083df5eb96643c61613b9df48dd4eea6b07690
 
 # Clear staging
@@ -80,4 +80,4 @@ RUN mkdir -p /tmp && chmod 0777 /tmp
 #### SWITCH TO mchorse USER
 USER mchorse
 WORKDIR /home/mchorse
-ENV PATH="/home/mchorse/.local/bin:${PATH}"
+
