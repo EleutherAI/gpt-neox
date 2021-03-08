@@ -125,6 +125,9 @@ class ParallelMLP(MegatronModule):
             gather_output=False,
             init_method=init_method,
             skip_bias_add=True)
+        
+        if self.dense_h_to_4h.bias is not None:
+            deepspeed.zero.register_external_parameter(self, self.dense_h_to_4h.bias)
 
         # Project back to h.
         self.dense_4h_to_h = mpu.RowParallelLinear(
