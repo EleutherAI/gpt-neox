@@ -76,6 +76,8 @@ class GPT2Model(MegatronModule):
             init_method=init_method_normal(args.init_method_std),
             scaled_init_method=scaled_init_method_normal(args.init_method_std,
                                                          args.num_layers))
+        deepspeed.zero.register_external_parameter(self,
+                                                   self.language_model.embedding.word_embeddings.weight)
 
     def forward(self, input_ids, position_ids, attention_mask, labels=None,
                 tokentype_ids=None, layer_past=None, get_key_value=False,
