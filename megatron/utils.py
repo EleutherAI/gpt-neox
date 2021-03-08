@@ -20,6 +20,7 @@
 """General utilities."""
 import os
 import sys
+import re
 from typing import Dict, List
 
 import requests
@@ -30,7 +31,6 @@ from megatron import get_args
 from megatron import print_rank_0
 from megatron import get_adlr_autoresume
 from megatron import mpu
-from megatron.checkpointing import save_checkpoint
 from megatron.data.samplers import DistributedBatchSampler
 from megatron.fp16 import FP16_Optimizer
 
@@ -82,6 +82,8 @@ def print_params_min_max_norm(optimizer, iteration):
 def check_adlr_autoresume_termination(iteration, model,
                                       optimizer, lr_scheduler):
     """Check for autoresume signal and exit if it is received."""
+    # to prevent circular import
+    from megatron.checkpointing import save_checkpoint
     args = get_args()
     autoresume = get_adlr_autoresume()
     # Add barrier to ensure consistnecy.
@@ -220,4 +222,9 @@ def obtain_resource_pool(hostfile_path, include_arg, exclude_arg) -> Dict[str, L
                                                  include_arg,
                                                  exclude_arg)
     return active_resources
+
+def natural_sort(l):
+    convert = lambda text: int(text) if text.isdigit() else text.lower()
+    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
+    return sorted(l, key=alphanum_key)
 

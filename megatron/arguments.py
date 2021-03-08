@@ -207,11 +207,9 @@ def _add_network_size_args(parser):
     group.add_argument('--make-vocab-size-divisible-by', type=int, default=128,
                        help='Pad the vocab size to be divisible by this value.'
                             'This is added for computational efficieny reasons.')
-    group.add_argument('--layernorm-epsilon', type=float, default=1e-5,
-                       help='Layer norm epsilon.')
     group.add_argument('--apply-residual-connection-post-layernorm',
                        action='store_true',
-                       help='If set, use original BERT residula connection '
+                       help='If set, use original BERT residual connection '
                             'ordering.')
     group.add_argument('--openai-gelu', action='store_true',
                        help='Use OpenAIs GeLU implementation. This option'
@@ -308,9 +306,15 @@ def _add_training_args(parser):
                         none = all regular attn, \
                         all = all sparse attn, \
                         interspersed = sparse on odd layers, dense on even')
-    group.add_argument('--rms-norm', action='store_true',
-                       help='Use root mean squared norm')
-    group.add_argument('--rms-norm-epsilon', type=float, default=1e-8)
+    norm_choices = ['layernorm', 'scalenorm', 'rmsnorm']
+    group.add_argument('--norm', type=str, default='layernorm',
+                        choices=norm_choices, help=f'normalization layer to use. Choose from {norm_choices}')
+    group.add_argument('--scalenorm-epsilon', type=float, default=1e-8,
+                        help='Scalenorm epsilon')
+    group.add_argument('--rms-norm-epsilon', type=float, default=1e-8,
+                        help='RMS norm epsilon')
+    group.add_argument('--layernorm-epsilon', type=float, default=1e-5,
+                       help='Layer norm epsilon.')
     group.add_argument('--cpu-optimizer', action='store_true',
                        help='Run optimizer on CPU')
     group.add_argument('--cpu_torch_adam', action='store_true',
@@ -376,6 +380,8 @@ def _add_checkpointing_args(parser):
                        help='Output directory to save checkpoints to.')
     group.add_argument('--save-interval', type=int, default=None,
                        help='Number of iterations between checkpoint saves.')
+    group.add_argument('--keep-last-n-checkpoints', type=int, default=None,
+                       help='keep only the last n checkpoints, older ones are deleted')
     group.add_argument('--no-save-optim', action='store_true',
                        help='Do not save current optimizer.')
     group.add_argument('--no-save-rng', action='store_true',
@@ -489,9 +495,7 @@ def _add_data_args(parser):
                        help="Dataloader number of workers.")
     group.add_argument('--tokenizer-type', type=str,
                        default=None,
-                       choices=['BertWordPieceLowerCase',
-                                'BertWordPieceCase',
-                                'GPT2BPETokenizer'],
+                       choices=['GPT2BPETokenizer'],
                        help='What type of tokenizer to use.')
     group.add_argument('--data-impl', type=str, default='infer',
                        choices=['lazy', 'cached', 'mmap', 'infer'],
@@ -566,8 +570,8 @@ def _add_zero_args(parser):
     group.add_argument("--zero-stage", type=int, default=1.0)
     group.add_argument('--zero-reduce-scatter', action='store_true',
                        help='Use reduce scatter if specified')
-    group.add_argument('--zero-contigious-gradients', action='store_true',
-                       help='Use contigious memory optimizaiton if specified')
+    group.add_argument('--zero-contiguous-gradients', action='store_true',
+                       help='Use contiguous memory optimization if specified')
     group.add_argument("--zero-reduce-bucket-size", type=int, default=0.0)
     group.add_argument("--zero-allgather-bucket-size", type=int, default=0.0)
     return parser
@@ -580,8 +584,8 @@ def _add_activation_checkpoint_args(parser):
                        help='uses activation checkpointing from deepspeed')
     group.add_argument('--partition-activations', action='store_true',
                        help='partition Activations across GPUs before checkpointing.')
-    group.add_argument('--contigious-checkpointing', action='store_true',
-                       help='Contigious memory checkpointing for activatoins.')
+    group.add_argument('--contiguous-checkpointing', action='store_true',
+                       help='Contiguous memory checkpointing for activatoins.')
     group.add_argument('--checkpoint-in-cpu', action='store_true',
                        help='Move the activation checkpoints to CPU.')
     group.add_argument('--synchronize-each-layer', action='store_true',

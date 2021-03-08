@@ -22,9 +22,9 @@ import math
 import torch
 import torch.nn.functional as F
 
+from .norms import  LayerNorm, RMSNorm, ScaleNorm
 from megatron import get_args
 from megatron import mpu
-from megatron.mpu import LayerNorm, RMSNorm
 from megatron.module import MegatronModule
 from megatron.checkpointing import get_checkpoint_version
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
@@ -481,12 +481,15 @@ class ParallelTransformerLayer(MegatronModule):
         self.apply_residual_connection_post_layernorm \
             = args.apply_residual_connection_post_layernorm
 
-        if args.rms_norm:
+        if args.norm == "rmsnorm":
             norm = RMSNorm
             eps = args.rms_norm_epsilon
-        else:
+        elif args.norm == "layernorm":
             eps = args.layernorm_epsilon
             norm = LayerNorm
+        elif args.norm == "scalenorm":
+            eps = args.scalenorm_epsilon
+            norm = ScaleNorm
 
         # Layernorm on the input data.
         self.input_layernorm = norm(
@@ -644,12 +647,15 @@ class ParallelTransformer(MegatronModule):
                           flush=True)
 
         # Final layer norm before output.
-        if args.rms_norm:
+        if args.norm == "rmsnorm":
             norm = RMSNorm
             eps = args.rms_norm_epsilon
-        else:
+        elif args.norm == "layernorm":
             eps = args.layernorm_epsilon
             norm = LayerNorm
+        elif args.norm == "scalenorm":
+            eps = args.scalenorm_epsilon
+            norm = ScaleNorm
 
         self.final_layernorm = norm(
             args.hidden_size,
