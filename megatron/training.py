@@ -449,14 +449,26 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         if name in timers.timers:
             timers_to_log.append(name)
 
-    add_to_logging('forward')
-    add_to_logging('backward')
-    add_to_logging('backward-backward')
-    add_to_logging('backward-allreduce')
-    add_to_logging('backward-master-grad')
-    add_to_logging('backward-clip-grad')
-    add_to_logging('optimizer')
-    add_to_logging('batch generator')
+    if args.pipe_parallel_size <= 0:
+        add_to_logging('forward')
+        add_to_logging('backward')
+        add_to_logging('backward-backward')
+        add_to_logging('backward-allreduce')
+        add_to_logging('backward-master-grad')
+        add_to_logging('backward-clip-grad')
+        add_to_logging('optimizer')
+        add_to_logging('batch generator')
+    else:
+        # with pipeline parallel, the megatron timers are overridden by the deepspeed ones.
+        # Try to grab timer values from model engine. Only recently added to deeperspeed, so check that the engine
+        # has that attribute first
+        if hasattr(model, 'timer_values') and model.timer_values is not None:
+            if model.wall_clock_breakdown() and model.global_steps % model.steps_per_print() == 0:
+                timer_values = model.timer_values
+                # deepspeed already logs to tensorboard / prints values, so just log to wandb
+                if get_use_wandb() and torch.distributed.get_rank() == 0:
+                    for key in timer_values:
+                        wandb.log({key: timer_values[key]}, step=iteration)
 
     # Log timer info to tensorboard and wandb
     normalizer = iteration % args.log_interval
@@ -788,8 +800,10 @@ def get_flops(model, iteration_time):
     world_size = os.environ.get('WORLD_SIZE', None)
     if world_size is None:
         world_size = torch.distributed.get_world_size()
+
     global_batch_size = args.batch_size * mpu.get_data_parallel_world_size() * args.gas
     tokens_per_iter = global_batch_size * args.seq_length
+
     flops_per_iter = model.total_params * 6 * tokens_per_iter
     flops_per_gpu_per_iter = flops_per_iter / int(world_size)
     flops_per_s_per_gpu = flops_per_gpu_per_iter / iteration_time
