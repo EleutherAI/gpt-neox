@@ -38,7 +38,7 @@
     "stage3_prefetch_bucket_size": 200000,
     "stage3_param_persitance_threshold": 100000,
     "reduce_bucket_size": 3000000,
-    "sub_group_size": 1000000
+    "sub_group_size": 1e6
   },
    # batch / data settings
    "train_micro_batch_size_per_gpu": 4,
