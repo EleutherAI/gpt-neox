@@ -29,7 +29,7 @@
    },
    "zero_optimization": {
     "stage": 3,
-    "cpu_offload": true,
+    "cpu_offload": false,
     "cpu_offload_params": false,
     "overlap_comm": true,
     "contiguous_gradients": true,
