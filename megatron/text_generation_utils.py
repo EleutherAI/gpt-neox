@@ -152,100 +152,19 @@ def generate_samples_input_from_file_2(model):
 
             if mpu.get_model_parallel_rank() == 0:
                 datum = {'context': raw_text, 'text': text, 'length': length - 1, 'finished': is_finished}
-                fname_out.write(json.dumps(datum))
+                fname_out.write(json.dumps(datum) + '\n')
 
                 print("\nYou say:")
                 print(raw_text)
                 print("\nI say:")
                 print(text)
 
+                if ctr % args.log_interval == 0:
+                    print('Avg s/batch:',
+                          (time.time() - start_time) / min(args.log_interval, ctr + 1))
+                    start_time = time.time()
+                ctr += 1
 
-        if ctr % args.log_interval == 0:
-            print('Avg s/batch:',
-                  (time.time() - start_time) / min(args.log_interval, ctr + 1))
-            start_time = time.time()
-        ctr += 1
-
-def generate_samples_input_from_file(model):
-
-    args = get_args()
-    tokenizer = get_tokenizer()
-
-    # Read the sample file and open the output file.
-    assert args.sample_input_file is not None, \
-        'sample input file is not provided.'
-    if mpu.get_model_parallel_rank() == 0:
-        fname = open(args.sample_input_file, "r")
-        all_raw_text = fname.readlines()
-        input_count = len(all_raw_text)
-        input_pos = 0
-        if args.sample_output_file is None:
-            sample_output_file = args.sample_input_file + ".out"
-            print('could not find `sample-output-file`, setting '
-                  'it to {}'.format(sample_output_file))
-        else:
-            sample_output_file = args.sample_output_file
-        fname_out = open(sample_output_file, "w+")
-
-    context_count = 0
-    model.eval()
-    with torch.no_grad():
-        while True:
-            torch.distributed.barrier(group=mpu.get_model_parallel_group())
-            terminate_runs = 0
-
-            if mpu.get_model_parallel_rank() == 0:
-                raw_text = all_raw_text[input_pos]
-                input_pos += 1
-                if input_pos == input_count:
-                    raw_text = "stop"
-
-                if "stop" in raw_text:
-                    terminate_runs = 1
-                else:
-                    context_tokens = tokenizer.tokenize(raw_text)
-                    context_length = len(context_tokens)
-
-                    if context_length >= (args.seq_length // 2):
-                        print("\nContext length", context_length,
-                              "\nPlease give smaller context (half of the "
-                              "sequence length)!", flush=True)
-                        continue
-            else:
-                context_tokens = tokenizer.tokenize("EMPTY TEXT")
-                context_length = len(context_tokens)
-
-            terminate_runs_tensor = torch.cuda.LongTensor([terminate_runs])
-            torch.distributed.broadcast(terminate_runs_tensor,
-                                        mpu.get_model_parallel_src_rank(),
-                                        group=mpu.get_model_parallel_group())
-            terminate_runs = terminate_runs_tensor[0].item()
-
-            if terminate_runs == 1:
-                return
-
-            token_stream = get_token_stream(model, [context_tokens])
-            for _, decode_tokens in enumerate(token_stream):
-                decode_tokens, _ = decode_tokens
-                decode_tokens = decode_tokens[0].cpu().numpy().tolist()
-
-            if mpu.get_model_parallel_rank() == 0:
-                os.system('clear')
-                print("\nContext:", raw_text, flush=True)
-                trim_decode_tokens = tokenizer.detokenize(
-                    decode_tokens)[len(raw_text):]
-                print("\nMegatron-LM:", trim_decode_tokens, flush=True)
-
-                fname_out.write("\nContext:")
-                fname_out.write(raw_text)
-                fname_out.write("\n\nMegatron-LM:")
-                fname_out.write(trim_decode_tokens)
-                fname_out.write("\n")
-
-            raw_text = None
-
-            torch.distributed.barrier(group=mpu.get_model_parallel_group())
-            context_count += 1
 
 def generate_samples_interactive(model, print_frequency=24):
 
