@@ -30,7 +30,7 @@
    "zero_optimization": {
     "stage": 3,
     "cpu_offload": true,
-    "cpu_offload_params": true,
+    "cpu_offload_params": false,
     "overlap_comm": true,
     "contiguous_gradients": true,
     "stage3_max_live_parameters": 6000000,
