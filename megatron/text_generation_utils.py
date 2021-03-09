@@ -132,7 +132,7 @@ def generate_samples_input_from_file_2(model):
         # if terminate_runs == 1:
         #     return
 
-        for token_stream in get_token_stream(model, copy.deepcopy(context_tokens)):
+        for token_stream in get_token_stream(model, copy.deepcopy([context_tokens])):
             pass
         token_batch = token_stream[0].cpu().numpy().tolist()
         length_batch = token_stream[1].cpu().numpy().tolist()
