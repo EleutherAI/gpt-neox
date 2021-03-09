@@ -48,7 +48,6 @@ def model_provider():
     if args.pipe_parallel_size == 0: # This must be 0 to use ZeRO 2 or ZeRO 3
         model = GPT2Model(num_tokentypes=0, parallel_output=True)
         if args.zero_stage == 3: # Special ZeRO 3 initialization functions
-            print("passes")
             with deepspeed.zero.Init(data_parallel_group=mpu.get_data_parallel_group()):
                 model = GPT2Model(num_tokentypes=0, parallel_output=True)
 
@@ -80,7 +79,6 @@ def model_provider():
 
     if use_wandb:
         wandb.config.update(args_dict)
-    print("Let's go!")
     return model
 
 
