@@ -80,6 +80,76 @@ def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
     return logits
 
 
+def generate_samples_input_from_file_2(model):
+    args = get_args()
+    tokenizer = get_tokenizer()
+
+    # Read the sample file and open the output file.
+    assert args.sample_input_file is not None, \
+        'sample input file is not provided.'
+    if mpu.get_model_parallel_rank() == 0:
+        fname = open(args.sample_input_file, "r")
+        all_raw_text = fname.readlines()
+        input_count = len(all_raw_text)
+        input_pos = 0
+        if args.sample_output_file is None:
+            sample_output_file = args.sample_input_file + ".out"
+            print('could not find `sample-output-file`, setting '
+                  'it to {}'.format(sample_output_file))
+        else:
+            sample_output_file = args.sample_output_file
+        fname_out = open(sample_output_file, "w+")
+
+    ctr = 0
+    while True:
+        start_time = time.time()
+        # Convert text into tokens
+        # torch.distributed.barrier(group=mpu.get_model_parallel_group())
+        # terminate_runs = 0
+
+        if mpu.get_model_parallel_rank() == 0:
+            raw_text = all_raw_text[input_pos]
+            input_pos += 1
+            if input_pos == input_count:
+                raw_text = "stop"
+
+            if "stop" in raw_text:
+                terminate_runs = 1
+            else:
+                context_tokens = tokenizer.tokenize(raw_text)
+                context_length = len(context_tokens)
+
+                if context_length >= (args.seq_length // 2):
+                    print("\nContext length", context_length,
+                          "\nPlease give smaller context (half of the "
+                          "sequence length)!", flush=True)
+                    continue
+        else:
+            context_tokens = tokenizer.tokenize("EMPTY TEXT")
+            context_length = len(context_tokens)
+
+        for token_stream in get_token_stream(model, copy.deepcopy(context_tokens)):
+            pass
+        if ctr % args.log_interval == 0:
+            print('Avg s/batch:',
+                  (time.time() - start_time) / min(args.log_interval, ctr + 1))
+            start_time = time.time()
+        length = len(token_stream)
+        token_batch = token_stream[0].cpu().numpy().tolist()
+        length_batch = token_stream[1].cpu().numpy().tolist()
+
+        for tokens, length in zip(token_batch, length_batch):
+            tokens = tokens[1:length - 1]
+            try:
+                text = tokenizer.detokenize(tokens)
+            except KeyError:
+                print("WARNING: generated token which doesn't exist. Skipping")
+                continue
+            is_finished = length < args.seq_length - 1
+            datum = {'text': text, 'length': length - 1, 'finished': is_finished}
+            yield datum
+            ctr += 1
+
 def generate_samples_input_from_file(model):
 
     args = get_args()

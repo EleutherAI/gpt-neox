@@ -35,7 +35,7 @@ from megatron.checkpointing import load_checkpoint
 from megatron.initialize import initialize_megatron
 from megatron.model import GPT2Model, GPT2ModelPipe
 from megatron.training import get_model, setup_model_and_optimizer
-from megatron.text_generation_utils import generate_and_write_samples_unconditional
+from megatron.text_generation_utils import generate_and_write_samples_unconditional, generate_samples_input_from_file_2
 from megatron.text_generation_utils import generate_samples_input_from_file
 from megatron.text_generation_utils import generate_samples_interactive
 
@@ -71,7 +71,7 @@ def main():
     elif args.text_gen_type == 'input-file':
         print(f'Generating {args.num_samples} samples from input file {args.sample_input_file}')
         assert args.sample_input_file is not None and args.sample_output_file is not None
-        generate_samples_input_from_file(model)
+        generate_samples_input_from_file_2(model)
 
     elif args.text_gen_type == 'interactive':
         print(f'Generating {args.num_samples} samples interactively')
