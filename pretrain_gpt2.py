@@ -47,7 +47,7 @@ def model_provider():
     print_rank_0('building GPT2 model ...')
     if args.pipe_parallel_size == 0: # This must be 0 to use ZeRO 2 or ZeRO 3
         model = GPT2Model(num_tokentypes=0, parallel_output=True)
-        if args.zero == 3: # Special ZeRO 3 initialization functions
+        if args.zero-stage == 3: # Special ZeRO 3 initialization functions
             with deepspeed.zero.InitContext(data_parallel_group=mpu.get_data_parallel_group(),
                                                    zero_modules=True,
                                                   remote_device=get_args().remote_device,
