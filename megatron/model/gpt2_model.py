@@ -36,6 +36,7 @@ import megatron.fp16 as fp16
 from megatron.model.transformer import ParallelTransformerLayerPipe
 from .language_model import EmbeddingPipe
 
+import deepspeed
 from deepspeed.pipe import PipelineModule, LayerSpec, TiedLayerSpec
 
 def gpt2_attention_mask_func(attention_scores, ltor_mask):
