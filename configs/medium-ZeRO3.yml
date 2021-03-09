@@ -28,17 +28,17 @@
      }
    },
    "zero_optimization": {
-    "stage": 1,
-    "cpu_offload": false,
-    "cpu_offload_params": false,
+    "stage": 3,
+    "cpu_offload": true,
+    "cpu_offload_params": true,
     "overlap_comm": true,
     "contiguous_gradients": true,
-    #"stage3_max_live_parameters": 6000000,
-    #"stage3_max_reuse_distance": 100000000,
-    #"stage3_prefetch_bucket_size": 200000,
-    #"stage3_param_persitance_threshold": 100000,
+    "stage3_max_live_parameters": 6000000,
+    "stage3_max_reuse_distance": 100000000,
+    "stage3_prefetch_bucket_size": 200000,
+    "stage3_param_persitance_threshold": 100000,
     "reduce_bucket_size": 3000000,
-    #"sub_group_size": 1000000.0
+    "sub_group_size": 1000000.0
   },
    # batch / data settings
    "train_micro_batch_size_per_gpu": 4,
