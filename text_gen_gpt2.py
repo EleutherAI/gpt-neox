@@ -15,29 +15,19 @@
 # limitations under the License.
 
 """Generate text / sample GPT2"""
-import json
+
 import os
 import sys
-from json import JSONDecodeError
-
-import deepspeed
-
-from megatron.config_monster import ConfigMonster
-from pretrain_gpt2 import model_provider, get_batch
+from pretrain_gpt2 import model_provider
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
                                              os.path.pardir)))
 
 from megatron import get_args
-from megatron import print_rank_0
-from megatron import get_tokenizer
-from megatron.checkpointing import load_checkpoint
 from megatron.initialize import initialize_megatron
-from megatron.model import GPT2Model, GPT2ModelPipe
-from megatron.training import get_model, setup_model_and_optimizer
-from megatron.text_generation_utils import generate_and_write_samples_unconditional, generate_samples_input_from_file_2
-from megatron.text_generation_utils import generate_samples_input_from_file
-from megatron.text_generation_utils import generate_samples_interactive
+from megatron.training import setup_model_and_optimizer
+from megatron.text_generation_utils import generate_and_write_samples_unconditional, generate_samples_input_from_file, \
+    generate_samples_interactive
 
 
 def main():
@@ -71,7 +61,7 @@ def main():
     elif args.text_gen_type == 'input-file':
         print(f'Generating {args.num_samples} samples from input file {args.sample_input_file}')
         assert args.sample_input_file is not None and args.sample_output_file is not None
-        generate_samples_input_from_file_2(model)
+        generate_samples_input_from_file(model)
 
     elif args.text_gen_type == 'interactive':
         print(f'Generating {args.num_samples} samples interactively')

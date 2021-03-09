@@ -80,7 +80,7 @@ def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
     return logits
 
 
-def generate_samples_input_from_file_2(model):
+def generate_samples_input_from_file(model):
     args = get_args()
     tokenizer = get_tokenizer()
 
