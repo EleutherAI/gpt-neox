@@ -36,6 +36,8 @@ from megatron.utils import reduce_losses
 from megatron.fp16 import fp32_to_fp16
 import wandb
 
+from deepspeed.zero import InitContext
+
 
 def model_provider():
     """Build the model."""
@@ -46,10 +48,10 @@ def model_provider():
     if args.pipe_parallel_size == 0: # This must be 0 to use ZeRO 2 or ZeRO 3
         model = GPT2Model(num_tokentypes=0, parallel_output=True)
         if args.zero == 3: # Special ZeRO 3 initialization functions
-            with deepspeed.zero.InitContext(data_parallel_group=mpu.get_data_parallel_group(),
-                                            zero_modules=True,
-                                            remote_device=get_args().remote_device,
-                                            enabled=get_args().zero_stage==3):
+            with InitContext(data_parallel_group=mpu.get_data_parallel_group(),
+                                    zero_modules=True,
+                                   remote_device=get_args().remote_device,
+                                         enabled=get_args().zero_stage==3):
                 model = GPT2Model(num_tokentypes=0, parallel_output=True)
 
         else: # Pleb initialization function for models that aren't ZeRO Stage 3
