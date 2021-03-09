@@ -37,8 +37,6 @@ from megatron.model.transformer import ParallelTransformerLayerPipe
 from .language_model import EmbeddingPipe
 
 from deepspeed.pipe import PipelineModule, LayerSpec, TiedLayerSpec
-from deepspeed.zero import register_external_parameter
-
 
 def gpt2_attention_mask_func(attention_scores, ltor_mask):
     attention_scores.masked_fill_(ltor_mask, -10000.0)
@@ -76,7 +74,7 @@ class GPT2Model(MegatronModule):
             add_pooler=False,
             init_method=init_method_normal(args.init_method_std),
             scaled_init_method=scaled_init_method_normal(args.init_method_std,args.num_layers))
-        register_external_parameter(self,self.language_model.embedding.word_embeddings.weight)
+        deepspeed.zero.register_external_parameter(self,self.language_model.embedding.word_embeddings.weight)
 
     def forward(self, input_ids, position_ids, attention_mask, labels=None,
                 tokentype_ids=None, layer_past=None, get_key_value=False,
