@@ -112,25 +112,29 @@ def generate_samples_input_from_file_2(model):
             raw_text = all_raw_text[input_pos]
             input_pos += 1
             if input_pos == input_count:
-                raw_text = "stop"
-
-            if "stop" in raw_text:
                 terminate_runs = 1
-            else:
-                context_tokens = tokenizer.tokenize(raw_text)
-                context_length = len(context_tokens)
 
-                if context_length >= (args.seq_length // 2):
-                    print("\nContext length", context_length,
-                          "\nPlease give smaller context (half of the "
-                          "sequence length)!", flush=True)
-                    continue
+            context_tokens = tokenizer.tokenize(raw_text)
+            context_length = len(context_tokens)
+
+            if context_length >= (args.seq_length // 2):
+                print("\nContext length", context_length,
+                      "\nPlease give smaller context (half of the "
+                      "sequence length)!", flush=True)
+                continue
         else:
             context_tokens = tokenizer.tokenize("EMPTY TEXT")
             context_length = len(context_tokens)
 
-        # if terminate_runs == 1:
-        #     return
+        # Send signal to all workers to terminate if
+        terminate_runs_tensor = torch.cuda.LongTensor([terminate_runs])
+        torch.distributed.broadcast(terminate_runs_tensor,
+                                    mpu.get_model_parallel_src_rank(),
+                                    group=mpu.get_model_parallel_group())
+        terminate_runs = terminate_runs_tensor[0].item()
+
+        if terminate_runs == 1:
+            return
 
         for token_stream in get_token_stream(model, copy.deepcopy([context_tokens])):
             pass
