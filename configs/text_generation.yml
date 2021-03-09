@@ -5,7 +5,6 @@
   "text-gen-type": "unconditional",
 
   # Params for all
-  "num-samples": 10,
   "out-seq-length": 102,
   "temperature": 1.0,
   "top_p": 0.0,
@@ -14,6 +13,7 @@
   #"greedy": flase,
 
   # `unconditional`: output file
+  "num-samples": 10,
   "genfile": "/mnt/ssd-cluster/output/text_generation.txt",
 
   # `input-file`: input/output file
