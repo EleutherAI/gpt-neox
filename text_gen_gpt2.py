@@ -23,7 +23,7 @@ from pretrain_gpt2 import model_provider
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
                                              os.path.pardir)))
 
-from megatron import get_args
+from megatron import get_args, print_rank_0
 from megatron.initialize import initialize_megatron
 from megatron.training import setup_model_and_optimizer
 from megatron.text_generation_utils import generate_and_write_samples_unconditional, generate_samples_input_from_file, \
@@ -51,20 +51,20 @@ def main():
     # Set up model and load checkpoint.
     model, optimizer, lr_scheduler = setup_model_and_optimizer(lambda: model_provider(use_wandb=False))
 
-    print('Finished loading model')
+    print_rank_0('Finished loading model')
 
     if args.text_gen_type == 'unconditional':
-        print('Generating samples unconditionally')
+        print_rank_0('Generating samples unconditionally')
         assert args.genfile is not None
         generate_and_write_samples_unconditional(model)
 
     elif args.text_gen_type == 'input-file':
-        print(f'Generating {args.num_samples} samples from input file {args.sample_input_file}')
+        print_rank_0(f'Generating {args.num_samples} samples from input file {args.sample_input_file}')
         assert args.sample_input_file is not None and args.sample_output_file is not None
         generate_samples_input_from_file(model)
 
     elif args.text_gen_type == 'interactive':
-        print(f'Generating {args.num_samples} samples interactively')
+        print_rank_0(f'Generating {args.num_samples} samples interactively')
         raise NotImplementedError("Interactive generation is not implemented yet.")
         generate_samples_interactive(model)
 

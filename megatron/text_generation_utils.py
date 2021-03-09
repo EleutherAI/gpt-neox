@@ -23,7 +23,7 @@ import time
 import torch
 import torch.nn.functional as F
 
-from megatron import get_args
+from megatron import get_args, print_rank_0
 from megatron import get_tokenizer
 from megatron import mpu
 from megatron.utils import get_ltor_masks_and_position_ids
@@ -94,7 +94,7 @@ def generate_samples_input_from_file(model):
         input_pos = 0
         if args.sample_output_file is None:
             sample_output_file = args.sample_input_file + ".out"
-            print('could not find `sample-output-file`, setting '
+            print_rank_0('could not find `sample-output-file`, setting '
                   'it to {}'.format(sample_output_file))
         else:
             sample_output_file = args.sample_output_file
@@ -118,7 +118,7 @@ def generate_samples_input_from_file(model):
             context_length = len(context_tokens)
 
             if context_length >= (args.seq_length // 2):
-                print("\nContext length", context_length,
+                print_rank_0("\nContext length", context_length,
                       "\nPlease give smaller context (half of the "
                       "sequence length)!", flush=True)
                 continue
@@ -146,7 +146,7 @@ def generate_samples_input_from_file(model):
             try:
                 text = tokenizer.detokenize(tokens)
             except KeyError:
-                print("WARNING: generated token which doesn't exist. Skipping")
+                print_rank_0("WARNING: generated token which doesn't exist. Skipping")
                 continue
             is_finished = length < args.seq_length - 1
 
@@ -154,13 +154,13 @@ def generate_samples_input_from_file(model):
                 datum = {'context': raw_text, 'text': text, 'length': length - 1, 'finished': is_finished}
                 fname_out.write(json.dumps(datum) + '\n')
 
-                print("\nYou say:")
-                print(raw_text)
-                print("\nI say:")
-                print(text)
+                print_rank_0("\nYou say:")
+                print_rank_0(raw_text)
+                print_rank_0("\nI say:")
+                print_rank_0(text)
 
                 if ctr % args.log_interval == 0:
-                    print('Avg s/batch:',
+                    print_rank_0('Avg s/batch:',
                           (time.time() - start_time) / min(args.log_interval, ctr + 1))
                     start_time = time.time()
                 ctr += 1
@@ -182,7 +182,7 @@ def generate_samples_interactive(model, print_frequency=24):
                 os.system('clear')
                 raw_text = input("\nContext prompt (stop to exit) >>> ")
                 while not raw_text:
-                    print('Prompt should not be empty!')
+                    print_rank_0('Prompt should not be empty!')
                     raw_text = input("\nContext prompt (stop to exit) >>> ")
 
                 if "stop" in raw_text:
@@ -192,7 +192,7 @@ def generate_samples_interactive(model, print_frequency=24):
                     context_length = len(context_tokens)
 
                     if context_length >= (args.seq_length // 2):
-                        print("\nContext length", context_length,
+                        print_rank_0("\nContext length", context_length,
                               "\nPlease give smaller context (half of the "
                               "sequence length)!", flush=True)
                         continue
@@ -217,17 +217,17 @@ def generate_samples_interactive(model, print_frequency=24):
                 if mpu.get_model_parallel_rank() == 0 and \
                    counter % print_frequency == 0:
                     os.system('clear')
-                    print("\nContext:", raw_text, flush=True)
+                    print_rank_0("\nContext:", raw_text, flush=True)
                     trim_decode_tokens = tokenizer.detokenize(
                         decode_tokens)[len(raw_text):]
-                    print("\nMegatron-LM:", trim_decode_tokens, flush=True)
+                    print_rank_0("\nMegatron-LM:", trim_decode_tokens, flush=True)
 
             if mpu.get_model_parallel_rank() == 0:
                 os.system('clear')
-                print("\nContext:", raw_text, flush=True)
+                print_rank_0("\nContext:", raw_text, flush=True)
                 trim_decode_tokens = tokenizer.detokenize(
                     decode_tokens)[len(raw_text):]
-                print("\nMegatron-LM:", trim_decode_tokens, flush=True)
+                print_rank_0("\nMegatron-LM:", trim_decode_tokens, flush=True)
 
             raw_text = None
             torch.distributed.barrier(group=mpu.get_model_parallel_group())
@@ -251,7 +251,7 @@ def generate_samples_unconditional(model):
         for token_stream in get_token_stream(model, copy.deepcopy(context_tokens)):
             pass
         if ctr % args.log_interval == 0:
-            print('Avg s/batch:',
+            print_rank_0('Avg s/batch:',
                   (time.time() - start_time) / min(args.log_interval, ctr + 1))
             start_time = time.time()
         length = len(token_stream)
@@ -263,7 +263,7 @@ def generate_samples_unconditional(model):
             try:
                 text = tokenizer.detokenize(tokens)
             except KeyError:
-                print("WARNING: generated token which doesn't exist. Skipping")
+                print_rank_0("WARNING: generated token which doesn't exist. Skipping")
                 continue
             is_finished = length < args.seq_length - 1
             datum = {'text': text, 'length': length - 1, 'finished': is_finished}
@@ -289,7 +289,7 @@ def generate_and_write_samples_unconditional(model):
         for n, datum in enumerate(generate_samples_unconditional(model), 1):
             f.write(json.dumps(datum) + '\n')
             if n != 0 and n % args.log_interval:
-                print(f"Text generated and written: {n}")
+                print_rank_0(f"Text generated and written: {n}")
 
 
 def pad_batch(batch, pad_id, args):
