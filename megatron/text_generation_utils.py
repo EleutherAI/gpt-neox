@@ -146,8 +146,16 @@ def generate_samples_input_from_file_2(model):
                 print("WARNING: generated token which doesn't exist. Skipping")
                 continue
             is_finished = length < args.seq_length - 1
-            datum = {'text': text, 'length': length - 1, 'finished': is_finished}
-            yield datum
+
+            if mpu.get_model_parallel_rank() == 0:
+                datum = {'context': raw_text, 'text': text, 'length': length - 1, 'finished': is_finished}
+                fname_out.write(json.dumps(datum))
+
+                print("\nYou say:")
+                print(raw_text)
+                print("\nI say:")
+                print(text)
+
             ctr += 1
 
 def generate_samples_input_from_file(model):
@@ -230,7 +238,6 @@ def generate_samples_input_from_file(model):
 
             torch.distributed.barrier(group=mpu.get_model_parallel_group())
             context_count += 1
-
 
 def generate_samples_interactive(model, print_frequency=24):
 
