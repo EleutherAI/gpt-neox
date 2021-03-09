@@ -23,7 +23,7 @@ from json import JSONDecodeError
 import deepspeed
 
 from megatron.config_monster import ConfigMonster
-from pretrain_gpt2 import model_provider
+from pretrain_gpt2 import model_provider, get_batch
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
                                              os.path.pardir)))
@@ -52,6 +52,12 @@ def main():
     if args.load is None:
         raise ValueError("`load` parameter must be supplied to load a model`")
 
+    # Force disable PP, checkpoint activations and always weight tie
+    args.pipe_parallel_size = 0
+    args.checkpoint_activations = False
+    args.partition_activations = False
+    args.no_weight_tying = False
+
     # Set up model and load checkpoint.
     model, optimizer, lr_scheduler = setup_model_and_optimizer(lambda: model_provider(use_wandb=False))
 
@@ -59,20 +65,21 @@ def main():
 
     if args.text_gen_type == 'unconditional':
         print('Generating samples unconditionally')
+        assert args.genfile is not None
         generate_and_write_samples_unconditional(model)
 
     elif args.text_gen_type == 'input-file':
-        assert args.sample_input_file is not None
         print(f'Generating {args.num_samples} samples from input file {args.sample_input_file}')
+        assert args.sample_input_file is not None and args.sample_output_file is not None
         generate_samples_input_from_file(model)
 
     elif args.text_gen_type == 'interactive':
         print(f'Generating {args.num_samples} samples interactively')
+        raise NotImplementedError("Interactive generation is not implemented yet.")
         generate_samples_interactive(model)
 
     else:
         raise ValueError(f"`text-gen-type` either not specified or not recognised: {args.text_gen_type}")
-
 
 if __name__ == "__main__":
     main()

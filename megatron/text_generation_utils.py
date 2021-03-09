@@ -253,9 +253,14 @@ def generate_samples_unconditional(model):
         length = len(token_stream)
         token_batch = token_stream[0].cpu().numpy().tolist()
         length_batch = token_stream[1].cpu().numpy().tolist()
+
         for tokens, length in zip(token_batch, length_batch):
             tokens = tokens[1:length - 1]
-            text = tokenizer.detokenize(tokens)
+            try:
+                text = tokenizer.detokenize(tokens)
+            except KeyError:
+                print("WARNING: generated token which doesn't exist. Skipping")
+                continue
             is_finished = length < args.seq_length - 1
             datum = {'text': text, 'length': length - 1, 'finished': is_finished}
             yield datum
