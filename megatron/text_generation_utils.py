@@ -128,13 +128,11 @@ def generate_samples_input_from_file_2(model):
             context_tokens = tokenizer.tokenize("EMPTY TEXT")
             context_length = len(context_tokens)
 
+        if terminate_runs == 1:
+            return
+
         for token_stream in get_token_stream(model, copy.deepcopy(context_tokens)):
             pass
-        if ctr % args.log_interval == 0:
-            print('Avg s/batch:',
-                  (time.time() - start_time) / min(args.log_interval, ctr + 1))
-            start_time = time.time()
-        length = len(token_stream)
         token_batch = token_stream[0].cpu().numpy().tolist()
         length_batch = token_stream[1].cpu().numpy().tolist()
 
@@ -156,7 +154,12 @@ def generate_samples_input_from_file_2(model):
                 print("\nI say:")
                 print(text)
 
-            ctr += 1
+
+        if ctr % args.log_interval == 0:
+            print('Avg s/batch:',
+                  (time.time() - start_time) / min(args.log_interval, ctr + 1))
+            start_time = time.time()
+        ctr += 1
 
 def generate_samples_input_from_file(model):
 
