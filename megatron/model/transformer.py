@@ -34,7 +34,7 @@ from megatron.mpu import ParallelRelativePositionBias
 
 import deepspeed
 from deepspeed.ops.sparse_attention import SparseSelfAttention, VariableSparsityConfig
-from deepspeed.runtime.zero import register_external_parameter
+from deepspeed.zero import register_external_parameter
 
 
 # flags required to enable jit fusion kernels
