@@ -107,6 +107,7 @@ def generate_samples_input_from_file_2(model):
         # torch.distributed.barrier(group=mpu.get_model_parallel_group())
         # terminate_runs = 0
 
+        terminate_runs = 0
         if mpu.get_model_parallel_rank() == 0:
             raw_text = all_raw_text[input_pos]
             input_pos += 1
@@ -128,8 +129,8 @@ def generate_samples_input_from_file_2(model):
             context_tokens = tokenizer.tokenize("EMPTY TEXT")
             context_length = len(context_tokens)
 
-        if terminate_runs == 1:
-            return
+        # if terminate_runs == 1:
+        #     return
 
         for token_stream in get_token_stream(model, copy.deepcopy(context_tokens)):
             pass
