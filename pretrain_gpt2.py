@@ -36,7 +36,7 @@ from megatron.utils import reduce_losses
 from megatron.fp16 import fp32_to_fp16
 import wandb
 
-from deepspeed.zero import InitContext
+from deepspeed.runtime.zero import InitContext
 
 
 def model_provider():
