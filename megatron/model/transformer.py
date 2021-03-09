@@ -517,9 +517,9 @@ class ParallelTransformerLayer(MegatronModule):
         self.mlp = ParallelMLP(init_method, output_layer_init_method)
         
         if self.attention.dense.bias is not None:
-            register_external_parameter(self, self.attention.dense.bias)
+            deepspeed.zero.register_external_parameter(self, self.attention.dense.bias)
         if self.mlp.dense_4h_to_h.bias is not None:
-            register_external_parameter(self, self.mlp.dense_4h_to_h.bias)
+            deepspeed.zero.register_external_parameter(self, self.mlp.dense_4h_to_h.bias)
 
     def forward(self, hidden_states, attention_mask, layer_past=None,
                 get_key_value=False):
