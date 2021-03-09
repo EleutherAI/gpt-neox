@@ -50,9 +50,7 @@ def model_provider():
         if args.zero_stage == 3: # Special ZeRO 3 initialization functions
             print("passes")
             with deepspeed.zero.Init(data_parallel_group=mpu.get_data_parallel_group(),
-                                            zero_modules=True,
-                                           remote_device="cpu",
-                                                 enabled=get_args().zero_stage==3):
+                                           remote_device="cpu"):
                 model = GPT2Model(num_tokentypes=0, parallel_output=True)
 
         else: # Pleb initialization function for models that aren't ZeRO Stage 3
