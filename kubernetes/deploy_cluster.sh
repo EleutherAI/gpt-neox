@@ -9,7 +9,7 @@ yq &> /dev/null || { echo 'You need to install `yq >= v4`. `brew install yq` or 
 
 WD_BRANCH=$(git branch  --no-color --show-current)
 WD_BRANCH="${WD_BRANCH/\//-}"  # remove forward slashes and replace with underscore
-DEFAULT_IMAGE="leogao2/gpt-neox:sha-86664f3"
+DEFAULT_IMAGE="leogao2/gpt-neox:sha-d22254a"
 
 BRANCH=${1:-main}
 N_NODES=${2:-4}
