@@ -14,6 +14,7 @@
    "norm": "rmsnorm",
    "pos-emb": "none",
    "no-weight-tying": true,
+   "fp16-lm-cross-entropy": true,
     # this should provide some speedup but takes a while to build, set to true if desired
    "scaled-upper-triang-masked-softmax-fusion": false,
 
