@@ -49,7 +49,7 @@ def parallel_lm_logits(input_, word_embeddings_weight, parallel_output,
             bias=False,
             input_is_parallel=True,
             skip_bias_add=False)
-        logits_parallel = logits_fn(input_parallel)
+        logits_parallel, logits_bias = logits_fn(input_parallel)
 
     # Gather if needed.
     if parallel_output:
