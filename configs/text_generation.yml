@@ -17,6 +17,6 @@
   "genfile": "/mnt/ssd-cluster/output/text_generation.txt",
 
   # `input-file`: input/output file
-  "sample-input-file": "/mnt/ssd-cluster/output/text_generation.txt",
+  "sample-input-file": "/mnt/ssd-cluster/output/sample_input.txt",
   "sample-output-file": "/mnt/ssd-cluster/output/sample_output.txt",
 }
