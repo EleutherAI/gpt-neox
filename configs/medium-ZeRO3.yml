@@ -20,7 +20,7 @@
    
    # optimizer settings
    "optimizer": {
-     "type": "Adam",
+     "type": "cpu_adam",
      "params": {
        "lr": 0.0003,
        "max_grad_norm": 1.0,
