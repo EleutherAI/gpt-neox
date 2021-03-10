@@ -88,7 +88,6 @@ class GPT2Model(MegatronModule):
                                         tokentype_ids=tokentype_ids,
                                         layer_past=layer_past,
                                         get_key_value=get_key_value)
-
         if get_key_value:
             lm_output, presents = lm_output
 
@@ -96,20 +95,13 @@ class GPT2Model(MegatronModule):
         parallel_output = self.parallel_output
         if forward_method_parallel_output is not None:
             parallel_output = forward_method_parallel_output
-        if self.weight_tying:
-            output = parallel_lm_logits(
-                lm_output,
-                self.language_model.embedding.word_embeddings.weight,
-                parallel_output)
-        else:
-            output = parallel_lm_logits(
-                lm_output,
-                None,
-                parallel_output, weight_tying=False)
-        print(output)
+
+        output = parallel_lm_logits(lm_output,
+                                    self.language_model.embedding.word_embeddings.weight,
+                                    parallel_output)
         if get_key_value:
             output = [output, presents]
-            
+
         if labels is None:
             return output
         else:
