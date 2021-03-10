@@ -166,7 +166,7 @@ def get_optimizer(model):
     # Build parameter groups (weight decay and non-decay).
     while isinstance(model, (torchDDP, LocalDDP, FP16_Module)):
         model = model.module
-    param_groups = get_params_for_weight_decay_optimization(model)
+    param_groups = get_params_for_weight_decay_optimization(model, args)
 
     # Add model parallel attribute if it is not set.
     for param_group in param_groups:
@@ -469,7 +469,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
                 if get_use_wandb() and torch.distributed.get_rank() == 0:
                     for key in timer_values:
                         wandb.log({key: timer_values[key]}, step=iteration)
-                        
+
     # Log timer info to tensorboard and wandb
     normalizer = iteration % args.log_interval
     if normalizer == 0:
