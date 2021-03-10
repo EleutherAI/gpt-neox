@@ -449,14 +449,14 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         if name in timers.timers:
             timers_to_log.append(name)
 
-        add_to_logging('forward')
-        add_to_logging('backward')
-        add_to_logging('backward-backward')
-        add_to_logging('backward-allreduce')
-        add_to_logging('backward-master-grad')
-        add_to_logging('backward-clip-grad')
-        add_to_logging('optimizer')
-        add_to_logging('batch generator')
+    add_to_logging('forward')
+    add_to_logging('backward')
+    add_to_logging('backward-backward')
+    add_to_logging('backward-allreduce')
+    add_to_logging('backward-master-grad')
+    add_to_logging('backward-clip-grad')
+    add_to_logging('optimizer')
+    add_to_logging('batch generator')
 
     # Log timer info to tensorboard and wandb
     normalizer = iteration % args.log_interval
