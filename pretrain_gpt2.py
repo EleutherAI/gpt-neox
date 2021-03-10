@@ -48,8 +48,8 @@ def model_provider():
     if args.pipe_parallel_size == 0: # This must be 0 to use ZeRO 2 or ZeRO 3
         model = GPT2Model(num_tokentypes=0, parallel_output=True)
         if args.zero_stage == 3: # Special ZeRO 3 initialization functions
-            with deepspeed.zero.Init(data_parallel_group=mpu.get_data_parallel_group()):
-                model = GPT2Model(num_tokentypes=0, parallel_output=True)
+            with deepspeed.zero.Init(data_parallel_group=mpu.get_data_parallel_group(), remote_device="cpu"):
+                model = GPT2Model(num_tokentypes=0, parallel_output=True, topology=mpu.get_topology())
 
         else: # Pleb initialization function for models that aren't ZeRO Stage 3
             model = GPT2Model(num_tokentypes=0, parallel_output=True)
