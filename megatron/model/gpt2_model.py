@@ -95,10 +95,11 @@ class GPT2Model(MegatronModule):
         parallel_output = self.parallel_output
         if forward_method_parallel_output is not None:
             parallel_output = forward_method_parallel_output
+        if self.weight_tying:
+            output = parallel_lm_logits(lm_output, self.language_model.embedding.word_embeddings.weight, parallel_output)
+        else:
+            output = parallel_lm_logits(lm_output, None, parallel_output, weight_tying=False)
 
-        output = parallel_lm_logits(lm_output,
-                                    self.language_model.embedding.word_embeddings.weight,
-                                    parallel_output)
         if get_key_value:
             output = [output, presents]
 
