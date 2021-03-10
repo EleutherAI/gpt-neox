@@ -25,6 +25,8 @@ RUN echo 'password' >> password.txt && \
     sed -i 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' /etc/pam.d/sshd && \
     echo 'AuthorizedKeysFile     .ssh/authorized_keys' >> /etc/ssh/sshd_config && \
     echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config && \
+    # FIX SUDO BUG: https://github.com/sudo-project/sudo/issues/42
+    echo "Set disable_coredump false" >> /etc/sudo.conf && \
     # Clean up
     rm password.txt
 # Expose SSH port
