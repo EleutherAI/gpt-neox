@@ -449,6 +449,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         if name in timers.timers:
             timers_to_log.append(name)
 
+    if args.pipe_parallel_size <= 0:
         add_to_logging('forward')
         add_to_logging('backward')
         add_to_logging('backward-backward')
@@ -457,7 +458,18 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         add_to_logging('backward-clip-grad')
         add_to_logging('optimizer')
         add_to_logging('batch generator')
-
+    else:
+        # with pipeline parallel, the megatron timers are overridden by the deepspeed ones.
+        # Try to grab timer values from model engine. Only recently added to deeperspeed, so check that the engine
+        # has that attribute first
+        if hasattr(model, 'timer_values') and model.timer_values is not None:
+            if model.wall_clock_breakdown() and model.global_steps % model.steps_per_print() == 0:
+                timer_values = model.timer_values
+                # deepspeed already logs to tensorboard / prints values, so just log to wandb
+                if get_use_wandb() and torch.distributed.get_rank() == 0:
+                    for key in timer_values:
+                        wandb.log({key: timer_values[key]}, step=iteration)
+                        
     # Log timer info to tensorboard and wandb
     normalizer = iteration % args.log_interval
     if normalizer == 0:
