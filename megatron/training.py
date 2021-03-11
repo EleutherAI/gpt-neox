@@ -166,7 +166,7 @@ def get_optimizer(model):
     # Build parameter groups (weight decay and non-decay).
     while isinstance(model, (torchDDP, LocalDDP, FP16_Module)):
         model = model.module
-    param_groups = get_params_for_weight_decay_optimization(model)
+    param_groups = get_params_for_weight_decay_optimization(model, args)
 
     # Add model parallel attribute if it is not set.
     for param_group in param_groups:
@@ -449,14 +449,26 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         if name in timers.timers:
             timers_to_log.append(name)
 
-    add_to_logging('forward')
-    add_to_logging('backward')
-    add_to_logging('backward-backward')
-    add_to_logging('backward-allreduce')
-    add_to_logging('backward-master-grad')
-    add_to_logging('backward-clip-grad')
-    add_to_logging('optimizer')
-    add_to_logging('batch generator')
+    if args.pipe_parallel_size <= 0:
+        add_to_logging('forward')
+        add_to_logging('backward')
+        add_to_logging('backward-backward')
+        add_to_logging('backward-allreduce')
+        add_to_logging('backward-master-grad')
+        add_to_logging('backward-clip-grad')
+        add_to_logging('optimizer')
+        add_to_logging('batch generator')
+    else:
+        # with pipeline parallel, the megatron timers are overridden by the deepspeed ones.
+        # Try to grab timer values from model engine. Only recently added to deeperspeed, so check that the engine
+        # has that attribute first
+        if hasattr(model, 'timer_values') and model.timer_values is not None:
+            if model.wall_clock_breakdown() and model.global_steps % model.steps_per_print() == 0:
+                timer_values = model.timer_values
+                # deepspeed already logs to tensorboard / prints values, so just log to wandb
+                if get_use_wandb() and torch.distributed.get_rank() == 0:
+                    for key in timer_values:
+                        wandb.log({key: timer_values[key]}, step=iteration)
 
     # Log timer info to tensorboard and wandb
     normalizer = iteration % args.log_interval
