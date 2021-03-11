@@ -2,9 +2,9 @@
 {
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
-   "pipe-parallel-size": 2,
-   "model-parallel-size": 1,
-   "include": "10.140.103.249:1,2", 
+   "pipe-parallel-size": 1,
+   "model-parallel-size": 2,
+#    "include": "10.140.103.249:1,2", 
    #"num_nodes": 1,
 
    # model settings
