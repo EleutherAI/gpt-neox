@@ -1,0 +1,87 @@
+# GPT-2 pretraining setup
+{
+   # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
+   # across the node boundaries )
+   "pipe-parallel-size": 2,
+   "model-parallel-size": 1,
+   "include": "10.140.103.249:1,2", 
+   #"num_nodes": 1,
+
+   # model settings
+   "num-layers": 30,
+   "hidden-size": 2304,
+   "num-attention-heads": 18,
+   "seq-length": 1024,
+   "max-position-embeddings": 1024,
+   "norm": "layernorm",
+   "pos-emb": "none",
+   # "no-weight-tying": true,
+    # this should provide some speedup but takes a while to build, set to true if desired
+   "scaled-upper-triang-masked-softmax-fusion": true,
+   "bias-gelu-fusion": true,
+
+   
+   # optimizer settings
+   "optimizer": {
+     "type": "Adam",
+     "params": {
+       "lr": 0.0002,
+       "max_grad_norm": 1.0,
+       "betas": [0.9, 0.95]
+     }
+   },
+   "zero_optimization": {
+    "stage": 0,
+    "allgather_partitions": True,
+    "allgather_bucket_size": 500000000,
+    "overlap_comm": True,
+    "reduce_scatter": True,
+    "reduce_bucket_size": 500000000,
+    "contiguous_gradients": True,
+    "cpu_offload": False
+  },
+
+   # batch / data settings
+   "train_micro_batch_size_per_gpu": 16,
+   "gradient_accumulation_steps": 1,
+   "data-impl": "mmap",
+   "split": "949,50,1",
+
+   # activation checkpointing
+   "checkpoint-activations": true,
+   "checkpoint-num-layers": 6,
+   "partition-activations": true,
+   "synchronize-each-layer": true,
+
+   # regularization
+   "gradient_clipping": 1.0,
+   "weight-decay": 0,
+   "hidden-dropout": 0,
+   "attention-dropout": 0,
+
+   # precision settings
+   "fp16": { 
+     "fp16": true,
+     "enabled": true,
+     "loss_scale": 0,
+     "loss_scale_window": 1000,
+     "hysteresis": 2,
+     "min_loss_scale": 1
+   },
+
+   # misc. training settings
+   "train-iters": 320000,
+   "lr-decay-iters": 320000,
+   "distributed-backend": "nccl",
+   "lr-decay-style": "cosine",
+   "warmup": 0.01,
+   "save-interval": 10000,
+   "eval-interval": 1000,
+   "eval-iters": 10,
+
+   # logging
+   "log-interval": 100,
+   "steps_per_print": 10,
+   "keep-last-n-checkpoints": 4,
+   "wall_clock_breakdown": true,
+}
