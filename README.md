@@ -7,7 +7,7 @@ This repository records [EleutherAI](www.eleuther.ai)'s work-in-progress for tra
 
 If you are looking for our TPU codebase, see [GPT-Neo](https://github.com/EleutherAI/gpt-neo).
 
-GPT-NeoX is under active development and rough around the edges. GPT-NeoX is a complicated beast that will take time and patients to work on any specific environment.
+GPT-NeoX is under active development and rough around the edges. GPT-NeoX is a complicated beast that will take time and patience to work on any specific environment.
 
 ## Getting Started
 
@@ -77,7 +77,7 @@ We run our experiments on a Kubernetes cluster generously provided by [CoreWeave
 
 ## Licensing
 
-This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright (c) 2021 Stella Biderman, Sid Black, Josh Levy-Kramer, Michael Pieler, and Shivanshu Purohit.
+This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright (c) 2021 Stella Biderman, Sid Black, Eric Hallahan, Josh Levy-Kramer, Michael Pieler, Shivanshu Purohit.
 
     GPT-NeoX is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
