@@ -206,7 +206,7 @@ class ParallelSelfAttention(MegatronModule):
             assert args.model_parallel_size <= 1, "TODO: sparsity doesn't yet work with mp size > 1"
 
             sparsity_config = VariableSparsityConfig(
-                num_heads=args.num_attention_heads,
+                num_heads=self.num_attention_heads_per_partition,
                 attention="unidirectional"
             )
 
