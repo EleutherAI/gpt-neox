@@ -6,7 +6,8 @@
    "model-parallel-size": 1,
    "num_gpus": 1, 
    "num_nodes": 1,
-
+   "detect_nvlink_pairs": true,
+   
    # model settings
    "num-layers": 24,
    "hidden-size": 1920,
@@ -14,7 +15,7 @@
    "seq-length": 1024,
    "max-position-embeddings": 1024,
    "norm": "layernorm",
-   "pos-emb": "none",
+   "pos-emb": "learned",
    # "no-weight-tying": true,
     # this should provide some speedup but takes a while to build, set to true if desired
    "scaled-upper-triang-masked-softmax-fusion": true,
@@ -50,8 +51,8 @@
    # activation checkpointing
    "checkpoint-activations": true,
    "checkpoint-num-layers": 6,
-   "partition-activations": true,
-   "synchronize-each-layer": true,
+   "partition-activations": false,
+   "synchronize-each-layer": false,
 
    # regularization
    "gradient_clipping": 1.0,
