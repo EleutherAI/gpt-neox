@@ -25,7 +25,7 @@ def _get_megatron_keys(_megatron_keys_exclude):
 
 
 ds_runner_keys = ['hostfile', 'include', 'exclude', 'num_nodes', 'num_gpus', 'master_port', 'master_addr', 'launcher',
-                  'launcher_args']  # handle separately: 'user_script', 'user_args'
+                  'launcher_args', 'detect_nvlink_pairs']  # handle separately: 'user_script', 'user_args'
 
 megatron_keys_exclude = [
     'fp16',  # Duplicated in ds_config
