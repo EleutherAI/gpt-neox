@@ -213,7 +213,8 @@ class ParallelSelfAttention(MegatronModule):
             self.sparse_attn = SparseSelfAttention(
                 sparsity_config=sparsity_config,
                 max_seq_length=args.seq_length,
-                attn_mask_mode='add')
+                attn_mask_mode='add',
+                mpu=mpu)
         else:
             self.scale_mask_softmax = FusedScaleMaskSoftmax(
                 self.fp16,
