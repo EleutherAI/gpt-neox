@@ -497,7 +497,8 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
             1, args.log_interval - total_loss_dict[skipped_iters_key])
 
         # calculate tflop / gpu
-        flops_per_s_per_gpu = get_flops(model, elapsed_time)
+        flops_per_s_per_gpu = get_flops(model, iteration_time)
+        log_string += f' approx flops per GPU: {human_readable_flops(flops_per_s_per_gpu)}'
         if writer and torch.distributed.get_rank() == 0:
             writer.add_scalar('flops/s/gpu', flops_per_s_per_gpu, iteration)
         if get_use_wandb() and torch.distributed.get_rank() == 0:
@@ -783,17 +784,22 @@ def get_total_params(model):
     return total_n_parameters
 
 
-def get_flops(model, iteration_time):
+def human_readable_flops(num):
+    for unit in ['', 'KFLOPS', 'MFLOPS', 'GFLOPS', 'TFLOPS', 'PFLOPS', 'EFLOPS', 'ZFLOPS']:
+        if abs(num) < 1024.0:
+            return "%3.1f%s" % (num, unit)
+        num /= 1024.0
+    return "%.1f%s" % (num, 'Yi')
+
+
+def get_flops(model, iter_time_s):
     args = get_args()
-    world_size = os.environ.get('WORLD_SIZE', None)
-    if world_size is None:
-        world_size = torch.distributed.get_world_size()
 
+    world_size = torch.distributed.get_world_size()
     global_batch_size = args.batch_size * mpu.get_data_parallel_world_size() * args.gas
-    tokens_per_iter = global_batch_size * args.seq_length
 
-    flops_per_iter = model.total_params * 6 * tokens_per_iter
-    flops_per_gpu_per_iter = flops_per_iter / int(world_size)
-    flops_per_s_per_gpu = flops_per_gpu_per_iter / iteration_time
-    return flops_per_s_per_gpu
+    ff = model.total_params * 6
+    attn = args.seq_length * args.hidden_size * args.num_layers * 60
+    flops = global_batch_size * args.seq_length * (ff + attn) / (iter_time_s * world_size)
 
+    return flops
