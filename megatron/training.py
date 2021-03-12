@@ -510,7 +510,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
 
         # calculate tflop / gpu
         flops_per_s_per_gpu = get_flops(model, iteration_time)
-        log_string += f' approx flops per GPU: {human_readable_flops(flops_per_s_per_gpu)}'
+        log_string += f' approx flops per GPU: {human_readable_flops(flops_per_s_per_gpu)} |'
         if writer and torch.distributed.get_rank() == 0:
             writer.add_scalar('flops/s/gpu', flops_per_s_per_gpu, iteration)
         if get_use_wandb() and torch.distributed.get_rank() == 0:
