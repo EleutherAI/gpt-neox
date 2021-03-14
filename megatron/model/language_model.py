@@ -158,10 +158,11 @@ class Embedding(MegatronModule):
             self.position_embeddings = torch.nn.Embedding(
                 max_sequence_length, self.hidden_size)
             self._position_embeddings_key = 'position_embeddings'
+
             # Initialize the position embeddings.
             with deepspeed.zero.GatheredParameters(self.position_embeddings.weight, modifier_rank=0):
             	self.init_method(self.position_embeddings.weight)
-
+                self.init_method(self.position_embeddings.weight)
         elif self.embedding_type == "sinusoidal":
             self.position_embeddings = SinusoidalPositionalEmbedding(self.hidden_size)
 
@@ -176,6 +177,7 @@ class Embedding(MegatronModule):
             # Initialize the token-type embeddings.
             with deepspeed.zero.GatheredParameters(self.tokentype_embeddings.weight, modifier_rank=0):
 	            self.init_method(self.tokentype_embeddings.weight)
+
         else:
             self.tokentype_embeddings = None
 
