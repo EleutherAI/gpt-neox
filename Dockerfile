@@ -7,7 +7,7 @@ RUN apt-get update -y && \
     apt-get install -y \
         git python3 python3-dev libpython3-dev python3-pip sudo pdsh \
         htop llvm-9-dev tmux zstd software-properties-common build-essential autotools-dev \
-        nfs-common pdsh cmake g++ gcc curl wget tmux less unzip htop iftop iotop ca-certificates ssh \
+        nfs-common pdsh cmake g++ gcc curl wget vim less unzip htop iftop iotop ca-certificates ssh \
         rsync iputils-ping net-tools libcupti-dev && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3 1 && \
     update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1 && \
@@ -25,6 +25,8 @@ RUN echo 'password' >> password.txt && \
     sed -i 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' /etc/pam.d/sshd && \
     echo 'AuthorizedKeysFile     .ssh/authorized_keys' >> /etc/ssh/sshd_config && \
     echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config && \
+    # FIX SUDO BUG: https://github.com/sudo-project/sudo/issues/42
+    echo "Set disable_coredump false" >> /etc/sudo.conf && \
     # Clean up
     rm password.txt
 # Expose SSH port
