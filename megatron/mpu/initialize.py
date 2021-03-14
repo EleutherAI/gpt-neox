@@ -1,4 +1,7 @@
 # coding=utf-8
+#
+# Copyright 2021 Biderman et al. This file is based on code by the authors denoted below and has been modified from its original version.
+#
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +23,7 @@ import torch
 
 from .utils import ensure_divisibility
 
+
 # Model parallel group that the current rank belongs to.
 _MODEL_PARALLEL_GROUP = None
 # Data parallel group that the current rank belongs to.
@@ -30,7 +34,7 @@ _PIPE_PARALLEL_GROUP = None
 # A group used to sync during the IO process. Usually this is data_parallel_group(),
 # but with pipeline parallelism it must also involve the last stage (which is not in the
 # DP group of rank 0)
-_IO_PARALLEL_GROUP = None
+_IO_PARALLEL_GROUP = None 
 
 # These values enable us to change the mpu sizes on the fly.
 _MPU_WORLD_SIZE = None
@@ -38,7 +42,6 @@ _MPU_RANK = None
 
 # Used to query 3D topology
 _MPU_TOPOLOGY = None
-
 
 def is_unitialized():
     """Useful for code segments that may be accessed with or without mpu initialization"""
@@ -121,6 +124,7 @@ def initialize_model_parallel(model_parallel_size_, topology=None):
     else:
         _IO_PARALLEL_GROUP = get_data_parallel_group()
 
+
     # Build the model parallel groups.
     global _MODEL_PARALLEL_GROUP
     assert _MODEL_PARALLEL_GROUP is None, \
@@ -147,11 +151,11 @@ def initialize_model_parallel(model_parallel_size_, topology=None):
     else:
         for i in range(world_size // model_parallel_size):
             ranks = range(i * model_parallel_size,
-                          (i + 1) * model_parallel_size)
+                        (i + 1) * model_parallel_size)
             group = torch.distributed.new_group(ranks)
             if i == (rank // model_parallel_size):
                 _MODEL_PARALLEL_GROUP = group
-
+    
 
 def model_parallel_is_initialized():
     """Check if model and data parallel groups are initialized."""
@@ -172,7 +176,6 @@ def get_data_parallel_group():
     assert _DATA_PARALLEL_GROUP is not None, \
         'data parallel group is not initialized'
     return _DATA_PARALLEL_GROUP
-
 
 def get_io_parallel_group():
     """Get the IO parallel group the caller rank belongs to."""
@@ -210,18 +213,10 @@ def get_model_parallel_rank():
 
 
 def get_model_parallel_src_rank():
-    """Calculate the global rank corresponding to a local rank zero
+    """Calculate the global rank corresponding to a local rank zeor
     in the model parallel group."""
     global_rank = torch.distributed.get_rank()
     local_world_size = get_model_parallel_world_size()
-    return (global_rank // local_world_size) * local_world_size
-
-
-def get_data_parallel_src_rank():
-    """Calculate the global rank corresponding to a local rank zero
-    in the data parallel group."""
-    global_rank = torch.distributed.get_rank()
-    local_world_size = get_data_parallel_world_size()
     return (global_rank // local_world_size) * local_world_size
 
 
@@ -234,10 +229,8 @@ def get_data_parallel_rank():
     """Return my rank for the data parallel group."""
     return torch.distributed.get_rank(group=get_data_parallel_group())
 
-
 def get_topology():
     return _MPU_TOPOLOGY
-
 
 def get_pipe_parallel_group():
     """Get the pipe parallel group the caller rank belongs to."""
@@ -245,11 +238,9 @@ def get_pipe_parallel_group():
         'data parallel group is not initialized'
     return _PIPE_PARALLEL_GROUP
 
-
 def get_pipe_parallel_rank():
     """Return my rank for the pipe parallel group."""
     return torch.distributed.get_rank(group=get_pipe_parallel_group())
-
 
 def get_pipe_parallel_world_size():
     """Return world size for the pipe parallel group."""

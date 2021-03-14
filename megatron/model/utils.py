@@ -70,15 +70,14 @@ def erf_gelu(x):
     return x * 0.5 * (torch.erf(x / 1.41421).to(dtype=x.dtype) + torch.ones_like(x).to(dtype=x.dtype))
 
 
-def get_params_for_weight_decay_optimization(module, args):
+def get_params_for_weight_decay_optimization(module):
     """Divide params into with-weight-decay and without-weight-decay groups.
-    Layernorms and biases will have no weight decay but the rest will.
+    Layernorms and baises will have no weight decay but the rest will.
     """
     weight_decay_params = {'params': []}
     no_weight_decay_params = {'params': [], 'weight_decay': 0.0}
     for module_ in module.modules():
-        if any([isinstance(module_, LayerNorm), isinstance(module_, RMSNorm), isinstance(module_, ScaleNorm)]) or \
-                (args.weight_decay == 0.0):  # also include all parameters here if no weight decay is being done
+        if any([isinstance(module_, LayerNorm), isinstance(module_, RMSNorm), isinstance(module_, ScaleNorm)]):
             no_weight_decay_params['params'].extend(
                 [p for p in list(module_._parameters.values())
                  if p is not None])
@@ -89,11 +88,7 @@ def get_params_for_weight_decay_optimization(module, args):
             no_weight_decay_params['params'].extend(
                 [p for n, p in list(module_._parameters.items())
                  if p is not None and n == 'bias'])
-    if args.weight_decay == 0.0:
-        # only return a single param group
-        # with onebitadam, we want to minimize the calls to compressed_allreduce. Every param group calls it once.
-        # to avoid this, only use a single param group when weight decay is off.
-        return [no_weight_decay_params]
+
     return weight_decay_params, no_weight_decay_params
 
 
