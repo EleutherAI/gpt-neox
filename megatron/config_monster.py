@@ -177,35 +177,42 @@ def _set_batch_parameters(world_size, train_batch=None, micro_batch=None, grad_a
     if train_batch is not None and \
             micro_batch is not None and \
             grad_acc is not None:
+        print("fml")
         return train_batch, micro_batch, grad_acc
 
     # gradient_accumulation_steps needs to be set
     elif train_batch is not None and \
             micro_batch is not None:
+        print("4432423")
         grad_acc = train_batch // micro_batch
         grad_acc //= world_size
 
     # micro_batch_per_gpu needs to be set
     elif train_batch is not None and \
             grad_acc is not None:
+        print("fsdfde")
         micro_batch = train_batch // world_size
         micro_batch //= grad_acc
 
     # train_batch_size needs to be set
     elif micro_batch is not None and \
             grad_acc is not None:
+        print("poo")
         train_batch = micro_batch * grad_acc
         train_batch *= world_size
 
     # gradient_accumulation_steps and micro_batch_per_gpus is set
     elif train_batch is not None:
+        print("grrr")
         grad_acc = 1
         micro_batch = train_batch // world_size
 
     # train_batch_size and gradient_accumulation_step is set
     elif micro_batch is not None:
+        print("lol"
         train_batch = micro_batch * world_size
         grad_acc = 1
+    print("hi")
 
     # either none of the three parameters are provided or just gradient_accumulation_step is provided
     else:
