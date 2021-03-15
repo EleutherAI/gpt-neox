@@ -207,12 +207,11 @@ def _set_batch_parameters(world_size, train_batch=None, micro_batch=None, grad_a
         print("lol")
         train_batch = micro_batch * world_size
         grad_acc = 1
-    
-    #print("hi")
-
     # either none of the three parameters are provided or just gradient_accumulation_step is provided
     else:
+        print("fsdfasdfasd")
         assert False, 'Either train_batch_size or micro_batch_per_gpu needs to be provided'
+    print(train_batch, micro_batch, grad_acc)
     return train_batch, micro_batch, grad_acc
 
 
