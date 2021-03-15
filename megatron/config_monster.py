@@ -204,7 +204,7 @@ def _set_batch_parameters(world_size, train_batch=None, micro_batch=None, grad_a
 
     # train_batch_size and gradient_accumulation_step is set
     elif micro_batch is not None:
-        print("lol"
+        print("lol")
         train_batch = micro_batch * world_size
         grad_acc = 1
     
