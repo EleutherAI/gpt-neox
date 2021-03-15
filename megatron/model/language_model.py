@@ -161,8 +161,8 @@ class Embedding(MegatronModule):
 
             with deepspeed.zero.GatheredParameters(self.position_embeddings.weight, 
 						   modifier_rank=0):
-		#initialize the positional embeddings
-		self.init_method(self.position_embeddings.weight)
+				#initialize the positional embeddings
+				self.init_method(self.position_embeddings.weight)
         elif self.embedding_type == "sinusoidal":
             self.position_embeddings = SinusoidalPositionalEmbedding(self.hidden_size)
 
@@ -176,8 +176,8 @@ class Embedding(MegatronModule):
                                                            self.hidden_size)
             with deepspeed.zero.GatheredParameters(self.tokentype_embeddings.weight,
 						   modifier_rank=0):
-		#initialize the token-type embeddings
-		self.init_method(self.tokentype_embeddings.weight)
+				#initialize the token-type embeddings
+				self.init_method(self.tokentype_embeddings.weight)
 
         else:
             self.tokentype_embeddings = None
@@ -200,8 +200,8 @@ class Embedding(MegatronModule):
                                                        self.hidden_size)
         with deepspeed.zero.GatheredParameters(self.tokentype_embeddings.weight,
 					       modifier_rank=0):
-	    #initialize the token-type embeddings
-	    self.init_method(self.tokentype_embeddings.weight)
+	    	#initialize the token-type embeddings
+	    	self.init_method(self.tokentype_embeddings.weight)
 
     def forward(self, input_ids, position_ids, tokentype_ids=None):
         # Embeddings.
