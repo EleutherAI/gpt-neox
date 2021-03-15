@@ -9,6 +9,8 @@ If you are looking for our TPU codebase, see [GPT-Neo](https://github.com/Eleuth
 
 GPT-NeoX is under active development and rough around the edges. GPT-NeoX is a complicated beast that will take time and patience to work on any specific environment.
 
+**Important:** GPT-NeoX is a framework for training very large models on large numbers of GPUs. If you are trying to train on fewer than 8 GPUs or a model smaller than 1.5 billion parameters, you probably don't need GPT-NeoX.
+
 ## Getting Started
 
 Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), a custom modification to the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library. We strongly recommend using Anaconda, a virtual machine, or some other form of environment isolation before installing from `requirements.txt`. Failure to do so may cause other repositories that rely on DeepSpeed to break.
