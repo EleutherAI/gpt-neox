@@ -212,7 +212,8 @@ def neox_args(parser):
                        help='Weights and Biases group name - used to group together "runs".')
     group.add_argument('--wandb_team', type=str, default=None,
                        help='Team name for Weights and Biases.')
-
+    group.add_argument('--git_hash', type=str, default=None,
+                       help='current git hash of repository')
     return parser
 
 
