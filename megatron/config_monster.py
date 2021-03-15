@@ -208,7 +208,7 @@ def _set_batch_parameters(world_size, train_batch=None, micro_batch=None, grad_a
         train_batch = micro_batch * world_size
         grad_acc = 1
     
-    print("hi")
+    #print("hi")
 
     # either none of the three parameters are provided or just gradient_accumulation_step is provided
     else:
