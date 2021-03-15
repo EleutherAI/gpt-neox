@@ -496,11 +496,15 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
     if iteration % args.log_interval == 0:
         elapsed_time = timers('interval time').elapsed()
         iteration_time = elapsed_time / args.log_interval
+        samples_per_sec = get_global_batch_size(args) / iteration_time
+        log_string = ' samples/sec: {:.3f} |'.format(samples_per_sec)
         if writer and torch.distributed.get_rank() == 0:
+            writer.add_scalar('samples/sec', samples_per_sec, iteration)
             writer.add_scalar('iteration_time', iteration_time, iteration)
         if get_use_wandb() and torch.distributed.get_rank() == 0:
+            wandb.log({'samples/sec': samples_per_sec}, step=iteration)
             wandb.log({'iteration_time': iteration_time}, step=iteration)
-        log_string = ' iteration {:8d}/{:8d} |'.format(iteration,
+        log_string += ' iteration {:8d}/{:8d} |'.format(iteration,
                                                        args.train_iters)
         log_string += ' elapsed time per iteration (ms): {:.1f} |'.format(
             elapsed_time * 1000.0 / args.log_interval)
@@ -804,11 +808,15 @@ def human_readable_flops(num):
     return "%.1f%s" % (num, 'Yi')
 
 
+def get_global_batch_size(args):
+    return args.batch_size * mpu.get_data_parallel_world_size() * args.gas
+
+
 def get_flops(model, iter_time_s):
     args = get_args()
 
     world_size = torch.distributed.get_world_size()
-    global_batch_size = args.batch_size * mpu.get_data_parallel_world_size() * args.gas
+    global_batch_size = get_global_batch_size(args)
 
     ff = model.total_params * 6
     attn = args.seq_length * args.hidden_size * args.num_layers * 60
