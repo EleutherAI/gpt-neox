@@ -166,7 +166,7 @@ def get_optimizer(model):
     # Build parameter groups (weight decay and non-decay).
     while isinstance(model, (torchDDP, LocalDDP, FP16_Module)):
         model = model.module
-    param_groups = get_params_for_weight_decay_optimization(model)
+    param_groups = get_params_for_weight_decay_optimization(model, args)
 
     # Add model parallel attribute if it is not set.
     for param_group in param_groups:
@@ -449,14 +449,26 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         if name in timers.timers:
             timers_to_log.append(name)
 
-    add_to_logging('forward')
-    add_to_logging('backward')
-    add_to_logging('backward-backward')
-    add_to_logging('backward-allreduce')
-    add_to_logging('backward-master-grad')
-    add_to_logging('backward-clip-grad')
-    add_to_logging('optimizer')
-    add_to_logging('batch generator')
+    if args.pipe_parallel_size <= 0:
+        add_to_logging('forward')
+        add_to_logging('backward')
+        add_to_logging('backward-backward')
+        add_to_logging('backward-allreduce')
+        add_to_logging('backward-master-grad')
+        add_to_logging('backward-clip-grad')
+        add_to_logging('optimizer')
+        add_to_logging('batch generator')
+    else:
+        # with pipeline parallel, the megatron timers are overridden by the deepspeed ones.
+        # Try to grab timer values from model engine. Only recently added to deeperspeed, so check that the engine
+        # has that attribute first
+        if hasattr(model, 'timer_values') and model.timer_values is not None:
+            if model.wall_clock_breakdown() and model.global_steps % model.steps_per_print() == 0:
+                timer_values = model.timer_values
+                # deepspeed already logs to tensorboard / prints values, so just log to wandb
+                if get_use_wandb() and torch.distributed.get_rank() == 0:
+                    for key in timer_values:
+                        wandb.log({key: timer_values[key]}, step=iteration)
 
     # Log timer info to tensorboard and wandb
     normalizer = iteration % args.log_interval
@@ -497,7 +509,8 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
             1, args.log_interval - total_loss_dict[skipped_iters_key])
 
         # calculate tflop / gpu
-        flops_per_s_per_gpu = get_flops(model, elapsed_time)
+        flops_per_s_per_gpu = get_flops(model, iteration_time)
+        log_string += f' approx flops per GPU: {human_readable_flops(flops_per_s_per_gpu)} |'
         if writer and torch.distributed.get_rank() == 0:
             writer.add_scalar('flops/s/gpu', flops_per_s_per_gpu, iteration)
         if get_use_wandb() and torch.distributed.get_rank() == 0:
@@ -783,17 +796,22 @@ def get_total_params(model):
     return total_n_parameters
 
 
-def get_flops(model, iteration_time):
+def human_readable_flops(num):
+    for unit in ['', 'KFLOPS', 'MFLOPS', 'GFLOPS', 'TFLOPS', 'PFLOPS', 'EFLOPS', 'ZFLOPS']:
+        if abs(num) < 1024.0:
+            return "%3.1f%s" % (num, unit)
+        num /= 1024.0
+    return "%.1f%s" % (num, 'Yi')
+
+
+def get_flops(model, iter_time_s):
     args = get_args()
-    world_size = os.environ.get('WORLD_SIZE', None)
-    if world_size is None:
-        world_size = torch.distributed.get_world_size()
 
+    world_size = torch.distributed.get_world_size()
     global_batch_size = args.batch_size * mpu.get_data_parallel_world_size() * args.gas
-    tokens_per_iter = global_batch_size * args.seq_length
 
-    flops_per_iter = model.total_params * 6 * tokens_per_iter
-    flops_per_gpu_per_iter = flops_per_iter / int(world_size)
-    flops_per_s_per_gpu = flops_per_gpu_per_iter / iteration_time
-    return flops_per_s_per_gpu
+    ff = model.total_params * 6
+    attn = args.seq_length * args.hidden_size * args.num_layers * 60
+    flops = global_batch_size * args.seq_length * (ff + attn) / (iter_time_s * world_size)
 
+    return flops
