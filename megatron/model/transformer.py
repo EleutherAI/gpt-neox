@@ -203,17 +203,23 @@ class ParallelSelfAttention(MegatronModule):
 
         self.sparse = sparse
         if self.sparse:
-            assert args.model_parallel_size <= 1, "TODO: sparsity doesn't yet work with mp size > 1"
 
             sparsity_config = VariableSparsityConfig(
-                num_heads=args.num_attention_heads,
+                num_heads=self.num_attention_heads_per_partition,
                 attention="unidirectional"
             )
-
-            self.sparse_attn = SparseSelfAttention(
-                sparsity_config=sparsity_config,
-                max_seq_length=args.seq_length,
-                attn_mask_mode='add')
+            try:
+                self.sparse_attn = SparseSelfAttention(
+                    sparsity_config=sparsity_config,
+                    max_seq_length=args.seq_length,
+                    attn_mask_mode='add',
+                    mpu=mpu)
+            except TypeError:
+                # older versions don't have the mpu arg
+                self.sparse_attn = SparseSelfAttention(
+                    sparsity_config=sparsity_config,
+                    max_seq_length=args.seq_length,
+                    attn_mask_mode='add')
         else:
             self.scale_mask_softmax = FusedScaleMaskSoftmax(
                 self.fp16,
