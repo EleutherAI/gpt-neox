@@ -4,22 +4,22 @@
    # across the node boundaries )
    "pipe-parallel-size": 3,
    "model-parallel-size": 2,
-   "detect_nvlink_pairs": true,
-  #  "num_gpus": 2, 
-  #  "num_nodes": 1,
-   #"include": "10.140.4.111:0,1,2,3", # will need to change this to your node's ip
+   #"detect_nvlink_pairs": true,
+   #"num_gpus": 12, 
+   #"num_nodes": 2,
+  #  "include": "10.140.4.111:0,1,2,3", # will need to change this to your node's ip
    # model settings
-   "num-layers": 36,
-   "hidden-size": 3072,
+   "num-layers": 42,
+   "hidden-size": 4032,
    "num-attention-heads": 24,
    "seq-length": 1024,
    "max-position-embeddings": 1024,
    "norm": "layernorm",
    "pos-emb": "learned",
-   "no-weight-tying": true,
+   # "no-weight-tying": true,
     # this should provide some speedup but takes a while to build, set to true if desired
-   #"scaled-upper-triang-masked-softmax-fusion": true,
-   #"bias-gelu-fusion": true,
+   "scaled-upper-triang-masked-softmax-fusion": false,
+   "bias-gelu-fusion": false,
 
    
    # optimizer settings
@@ -44,14 +44,14 @@
 
    # batch / data settings
    "train_micro_batch_size_per_gpu": 16,
-   "gradient_accumulation_steps": 16,
+   "gradient_accumulation_steps": 1,
    "data-impl": "mmap",
    "split": "949,50,1",
 
    # activation checkpointing
    "checkpoint-activations": true,
-   "checkpoint-num-layers": 3,
-   "partition-activations": false,
+   "checkpoint-num-layers": 1,
+   "partition-activations": true,
    "synchronize-each-layer": false,
 
    # regularization
@@ -81,7 +81,7 @@
    "eval-iters": 10,
 
    # logging
-   "log-interval": 10,
+   "log-interval": 100,
    "steps_per_print": 10,
    "keep-last-n-checkpoints": 4,
    "wall_clock_breakdown": true,
