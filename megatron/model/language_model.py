@@ -29,28 +29,18 @@ from megatron.model.utils import get_linear_layer
 from megatron.model.utils import init_method_normal, scaled_init_method_normal
 from megatron.model.utils import identity
 
-import deepspeed
 
 def parallel_lm_logits(input_, word_embeddings_weight, parallel_output,
-                       bias=None, weight_tying=True):
+                       bias=None):
     """LM logits using word embedding weights."""
     # Parallel logits.
     input_parallel = mpu.copy_to_model_parallel_region(input_)
-    if weight_tying:
-        # Matrix multiply.
-        if bias is None:
-            logits_parallel = F.linear(input_parallel, word_embeddings_weight)
-        else:
-            logits_parallel = F.linear(input_parallel, word_embeddings_weight, bias)
+
+    # Matrix multiply.
+    if bias is None:
+        logits_parallel = F.linear(input_parallel, word_embeddings_weight)
     else:
-        args = get_args()
-        logits_fn = mpu.RowParallelLinear(
-            args.hidden_size,
-            args.padded_vocab_size,
-            bias=False,
-            input_is_parallel=True,
-            skip_bias_add=False)
-        logits_parallel, logits_bias = logits_fn(input_parallel)
+        logits_parallel = F.linear(input_parallel, word_embeddings_weight, bias)
 
     # Gather if needed.
     if parallel_output:
@@ -159,10 +149,10 @@ class Embedding(MegatronModule):
             self.position_embeddings = torch.nn.Embedding(
                 max_sequence_length, self.hidden_size)
             self._position_embeddings_key = 'position_embeddings'
-
+            # Initialize the position embeddings.
             with deepspeed.zero.GatheredParameters(self.position_embeddings.weight, modifier_rank=0):
-            	#initialize the positional embeddings
             	self.init_method(self.position_embeddings.weight)
+
         elif self.embedding_type == "sinusoidal":
             self.position_embeddings = SinusoidalPositionalEmbedding(self.hidden_size)
 
@@ -174,10 +164,9 @@ class Embedding(MegatronModule):
         if self.num_tokentypes > 0:
             self.tokentype_embeddings = torch.nn.Embedding(self.num_tokentypes,
                                                            self.hidden_size)
+            # Initialize the token-type embeddings.
             with deepspeed.zero.GatheredParameters(self.tokentype_embeddings.weight, modifier_rank=0):
-            	#initialize the token-type embeddings
-            	self.init_method(self.tokentype_embeddings.weight)
-
+	            self.init_method(self.tokentype_embeddings.weight)
         else:
             self.tokentype_embeddings = None
 
@@ -197,8 +186,8 @@ class Embedding(MegatronModule):
         self.num_tokentypes = num_tokentypes
         self.tokentype_embeddings = torch.nn.Embedding(num_tokentypes,
                                                        self.hidden_size)
+        # Initialize the token-type embeddings.
         with deepspeed.zero.GatheredParameters(self.tokentype_embeddings.weight, modifier_rank=0):
-        	#initialize the token-type embeddings
         	self.init_method(self.tokentype_embeddings.weight)
 
     def forward(self, input_ids, position_ids, tokentype_ids=None):
