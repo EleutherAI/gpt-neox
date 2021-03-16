@@ -125,6 +125,9 @@ class ParallelMLP(MegatronModule):
             gather_output=False,
             init_method=init_method,
             skip_bias_add=True)
+        
+        if self.dense_h_to_4h.bias is not None:
+            deepspeed.zero.register_external_parameter(self, self.dense_h_to_4h.bias)
 
         # Project back to h.
         self.dense_4h_to_h = mpu.RowParallelLinear(
@@ -517,8 +520,12 @@ class ParallelTransformerLayer(MegatronModule):
             eps=eps)
 
         # MLP
-        self.mlp = ParallelMLP(init_method,
-                               output_layer_init_method)
+        self.mlp = ParallelMLP(init_method, output_layer_init_method)
+        
+        if self.attention.dense.bias is not None:
+            deepspeed.zero.register_external_parameter(self, self.attention.dense.bias)
+        if self.mlp.dense_4h_to_h.bias is not None:
+            deepspeed.zero.register_external_parameter(self, self.mlp.dense_4h_to_h.bias)
 
     def forward(self, hidden_states, attention_mask, layer_past=None,
                 get_key_value=False):
