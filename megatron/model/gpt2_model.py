@@ -35,8 +35,8 @@ import megatron.fp16 as fp16
 from megatron.model.transformer import ParallelTransformerLayerPipe
 from .language_model import EmbeddingPipe, parallel_lm_logits
 
+import deepspeed
 from deepspeed.pipe import PipelineModule, LayerSpec, TiedLayerSpec
-
 
 def gpt2_attention_mask_func(attention_scores, ltor_mask):
     attention_scores.masked_fill_(ltor_mask, -10000.0)
@@ -91,8 +91,8 @@ class GPT2Model(MegatronModule):
             num_tokentypes=num_tokentypes,
             add_pooler=False,
             init_method=init_method_normal(args.init_method_std),
-            scaled_init_method=scaled_init_method_normal(args.init_method_std,
-                                                         args.num_layers))
+            scaled_init_method=scaled_init_method_normal(args.init_method_std,args.num_layers))
+        deepspeed.zero.register_external_parameter(self,self.language_model.embedding.word_embeddings.weight)
 
     def forward(self, input_ids, position_ids, attention_mask, labels=None,
                 tokentype_ids=None, layer_past=None, get_key_value=False,
@@ -105,7 +105,6 @@ class GPT2Model(MegatronModule):
                                         tokentype_ids=tokentype_ids,
                                         layer_past=layer_past,
                                         get_key_value=get_key_value)
-
         if get_key_value:
             lm_output, presents = lm_output
 
@@ -114,10 +113,7 @@ class GPT2Model(MegatronModule):
         if forward_method_parallel_output is not None:
             parallel_output = forward_method_parallel_output
         if self.weight_tying:
-            output = parallel_lm_logits(
-                lm_output,
-                self.language_model.embedding.word_embeddings.weight,
-                parallel_output)
+            output = parallel_lm_logits(lm_output, self.language_model.embedding.word_embeddings.weight, parallel_output)
         else:
             output, bias = self.final_linear(lm_output)
 

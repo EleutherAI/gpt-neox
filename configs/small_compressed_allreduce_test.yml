@@ -2,13 +2,13 @@
 {
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
-   "pipe-parallel-size": 0,
+   "pipe-parallel-size": 4,
    "model-parallel-size": 1,
 
    # model settings
-   "num-layers": 24,
-   "hidden-size": 1024,
-   "num-attention-heads": 16,
+   "num-layers": 12,
+   "hidden-size": 768,
+   "num-attention-heads": 12,
    "seq-length": 2048,
    "max-position-embeddings": 2048,
    "norm": "rmsnorm",
@@ -17,18 +17,17 @@
     # this should provide some speedup but takes a while to build, set to true if desired
    "scaled-upper-triang-masked-softmax-fusion": false,
 
-   
    # optimizer settings
    "optimizer": {
-     "type": "Adam",
+     "type": "onebitadam",
      "params": {
-       "lr": 0.0003,
-       "max_grad_norm": 1.0,
-       "betas": [0.9, 0.95]
+       "lr": 0.0006,
+       "betas": [0.9, 0.95],
+       "freeze_step": 400
      }
    },
    "zero_optimization": {
-    "stage": 1,
+    "stage": 0,
     "allgather_partitions": True,
     "allgather_bucket_size": 500000000,
     "overlap_comm": True,
@@ -37,6 +36,7 @@
     "contiguous_gradients": True,
     "cpu_offload": False
   },
+
    # batch / data settings
    "train_micro_batch_size_per_gpu": 4,
    "data-impl": "mmap",
