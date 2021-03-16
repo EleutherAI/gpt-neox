@@ -46,7 +46,7 @@ ds_config_keys = ['train_batch_size', 'train_micro_batch_size_per_gpu', 'gradien
                   'dump_state', 'flops_profiler', 'activation_checkpointing', 'sparse_attention',
                   'zero_allow_untested_optimizer', ]
 
-neox_config_keys = ['wandb_group', 'wandb_team']
+neox_config_keys = ['wandb_group', 'wandb_team', 'git_hash']
 
 ds_runner_keys_exclude = []
 
