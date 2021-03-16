@@ -16,7 +16,7 @@
    "max-position-embeddings": 1024,
    "norm": "layernorm",
    "pos-emb": "learned",
-   "no-weight-tying": true,
+   "no-weight-tying": false,
     # this should provide some speedup but takes a while to build, set to true if desired
    #"scaled-upper-triang-masked-softmax-fusion": true,
    #"bias-gelu-fusion": true,
