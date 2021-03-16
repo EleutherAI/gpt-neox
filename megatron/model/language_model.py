@@ -29,6 +29,7 @@ from megatron.model.utils import get_linear_layer
 from megatron.model.utils import init_method_normal, scaled_init_method_normal
 from megatron.model.utils import identity
 
+import deepspeed
 
 def parallel_lm_logits(input_, word_embeddings_weight, parallel_output,
                        bias=None, weight_tying=True):
