@@ -21,9 +21,12 @@
 from abc import ABC
 from abc import abstractmethod
 
+from tokenizers import Tokenizer
+
 from .gpt2_tokenization import GPT2Tokenizer
 
 
+# TODO: tokenizer_change
 def build_tokenizer(args):
     """Initialize tokenizer."""
     if args.rank == 0:
@@ -145,6 +148,40 @@ class _GPT2BPETokenizer(AbstractTokenizer):
 
     def tokenize(self, text):
         return self.tokenizer.encode(text)
+
+    def detokenize(self, token_ids):
+        return self.tokenizer.decode(token_ids)
+
+    @property
+    def eod(self):
+        return self.eod_id
+
+
+class HFTokenizer(AbstractTokenizer):
+    """Designed to Integrate HF's Tokenizer library."""
+
+    def __init__(self, vocab_file, from_pretrained=False):
+        name = 'HF'
+        super().__init__(name)
+
+        #TODO: from pretrained
+        self.tokenizer = Tokenizer.from_file(vocab_file)
+        self.eod_id = self.tokenizer.token_to_id('<|endoftext|>')
+
+    @property
+    def vocab_size(self):
+        return self.tokenizer.get_vocab_size()
+
+    @property
+    def vocab(self):
+        return self.tokenizer.get_vocab()
+
+    @property
+    def inv_vocab(self):
+        return self.tokenizer.decoder
+
+    def tokenize(self, text):
+        return self.tokenizer.encode(text).ids
 
     def detokenize(self, token_ids):
         return self.tokenizer.decode(token_ids)
