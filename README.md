@@ -13,6 +13,37 @@ If you're looking for our TPU codebase, see [GPT-Neo](https://github.com/Eleuthe
 
 GPT-NeoX is under active development.
 
+## Features:
+
+### 3D Parallelism 
+
+- GPTNeoX offers full 3D parallelism (data, model and pipeline parallel) using deepspeed, allowing you to scale model training to hundreds of billions of parameters across multiple GPUs.
+
+### Model Structure
+
+- **Positional Encodings:** 
+
+    - Choose between T5 RPE style positional encodings, a learned encoding added to the input (GPT2-style), Sinusoidal positional encoding, and no positional encodings at all (which [recent](https://arxiv.org/abs/1905.04226) [research](https://arxiv.org/abs/2102.11174) has found to even outperform other positional encodings in autoregressive models).
+
+- **Sparsity:** 
+
+    - Deepspeed's sparse attention kernels are supported, but don't work with cuda 11.0+, and require a specific hardware setup (V100s/RTX2080s). add `"sparsity": "all"` to your config to use sparse attention on all layers, or `"sparsity": "interspersed"` to use it every other layer. 
+
+- **Norms:**
+
+    - A [recent Google paper](https://arxiv.org/abs/2102.11972) has shown layernorm may not be the best option for transformer models. 
+We offer a choice of layernorm, scalenorm and RMSNorm easily configured by changing a single line in your config file.
+
+### Optimizers
+
+- NeoX supports Adam, CPUAdam, 1-Bit Adam and SM3 optimizers, as well as Deepspeed's [Zero Redundancy Optimizer](https://www.deepspeed.ai/features/#the-zero-redundancy-optimizer).
+
+- **Zero Redundancy Optimizer (ZeRO):** 
+
+    - ZeRO stage 1 works seamlessly with NeoX, while ZeRO stage 2 requires pipeline parallelism be set to 0. We are additionally working on integrating ZeRO 3 into the codebase.
+    Turning on ZeRO is as simple as adding one field to your configuration file.
+
+
 ## Getting Started
 
 Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), our fork of the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library with some added changes. 
@@ -129,36 +160,6 @@ Example usage:
 This will deploy the `pretrain_gpt2.py` script on all nodes with one process per GPU. The worker nodes and number of GPUs are specified in the `/job/hostfile` file (see [parameter documentation](configs)), or can simply be passed in as the `num_gpus` arg if running on a single node setup.
 * Model parameters are defined in the config file `configs/small.yml`.
 * Data path parameters are defined in the config file `configs/local_setup.yml`. If you are an EleutherAI member and using the [Kubernetes cluster](kubernetes), the `eleutherai_cluster.yml` config should be instead.
-
-## Features:
-
-### 3D Parallelism 
-
-- GPTNeoX offers full 3D parallelism (data, model and pipeline parallel) allowing you to scale model training to hundreds of billions of parameters across multiple GPUs.
-
-### Model Structure
-
-- **Positional Encodings:** 
-
-    - Choose between T5 RPE style positional encodings, a learned encoding added to the input (GPT2-style), Sinusoidal positional encoding, and no positional encodings at all (which [recent](https://arxiv.org/abs/1905.04226) [research](https://arxiv.org/abs/2102.11174) has found to even outperform other positional encodings in autoregressive models).
-
-- **Sparsity:** 
-
-    - Deepspeed's sparse attention kernels are supported, but don't work with cuda 11.0+, and require a specific hardware setup (V100s/RTX2080s). add `"sparsity": "all"` to your config to use sparse attention on all layers, or `"sparsity": "interspersed"` to use it every other layer. 
-
-- **Norms:**
-
-    - A [recent Google paper](https://arxiv.org/abs/2102.11972) has shown layernorm may not be the best option for transformer models. 
-We offer a choice of layernorm, scalenorm and RMSNorm easily configured by changing a single line in your config file.
-
-### Optimizers
-
-- NeoX supports Adam, CPUAdam, 1-Bit Adam and SM3 optimizers, as well as Deepspeed's [Zero Redundancy Optimizer](https://www.deepspeed.ai/features/#the-zero-redundancy-optimizer).
-
-- **Zero Redundancy Optimizer (ZeRO):** 
-
-    - ZeRO stage 1 works seamlessly with NeoX, while ZeRO stage 2 requires pipeline parallelism be set to 0. We are additionally working on integrating ZeRO 3 into the codebase.
-    Turning on ZeRO is as simple as adding one field to your configuration file.
 
 ## Monitoring
 
