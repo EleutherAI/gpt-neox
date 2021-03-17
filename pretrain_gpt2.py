@@ -36,8 +36,6 @@ from megatron.utils import reduce_losses
 from megatron.fp16 import fp32_to_fp16
 import wandb
 
-import deepspeed
-
 
 def model_provider():
     """Build the model."""
@@ -45,14 +43,8 @@ def model_provider():
     args = get_args()
 
     print_rank_0('building GPT2 model ...')
-    if args.pipe_parallel_size == 0: # This must be 0 to use ZeRO 2 or ZeRO 3
+    if args.pipe_parallel_size == 0:
         model = GPT2Model(num_tokentypes=0, parallel_output=True)
-        if args.zero_stage == 3: # Special ZeRO 3 initialization functions
-            with deepspeed.zero.Init(data_parallel_group=mpu.get_data_parallel_group(), remote_device="cpu"):
-                model = GPT2Model(num_tokentypes=0, parallel_output=True)
-
-        else: # Pleb initialization function for models that aren't ZeRO Stage 3
-            model = GPT2Model(num_tokentypes=0, parallel_output=True)
     else:
         model = GPT2ModelPipe(num_tokentypes=0, parallel_output=True, topology=mpu.get_topology())
         # This is a hack to give us a reference to get_batch_pipe from within training.py
@@ -79,6 +71,7 @@ def model_provider():
 
     if use_wandb:
         wandb.config.update(args_dict)
+
     return model
 
 
