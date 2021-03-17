@@ -43,6 +43,10 @@ We offer a choice of layernorm, scalenorm and RMSNorm easily configured by chang
     - ZeRO stage 1 works seamlessly with NeoX, while ZeRO stage 2 requires pipeline parallelism be set to 0. We are additionally working on integrating ZeRO 3 into the codebase.
     Turning on ZeRO is as simple as adding one field to your configuration file.
 
+### Straightforward configuration
+
+- Other libraries such as Megatron-LM require you configure them using command line arguments, which can often be difficult to work with and iterate upon. We offer straightforward configuration using .yaml files, which enables you to launch training runs across 100s of GPUs with a single line bash script. 
+- Additionally, we hope to make data preparation easier on the user by providing scripts to automatically download and pretokenize a number of large-scale datasets.
 
 ## Getting Started
 
