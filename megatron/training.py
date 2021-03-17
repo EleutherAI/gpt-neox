@@ -137,26 +137,8 @@ def get_model(model_provider_func):
     if args.deepspeed:
         # DeepSpeed handles CUDA, FP16, and DDP components.
         return model
-
-    # GPU allocation.
-    model.cuda(torch.cuda.current_device())
-
-    # Fp16 conversion.
-    if args.fp16:
-        model = FP16_Module(model)
-
-    # Wrap model for distributed training."""
-    if args.DDP_impl == 'torch':
-        i = torch.cuda.current_device()
-        model = torchDDP(model, device_ids=[i], output_device=i,
-                         process_group=mpu.get_data_parallel_group())
-        return model
-    if args.DDP_impl == 'local':
-        model = LocalDDP(model)
-        return model
-
-    raise NotImplementedError('Unknown DDP implementation specified: {}. '
-                              'Exiting.'.format(args.DDP_impl))
+    else:
+        raise ValueError("Must be using deepspeed to run neox")
 
 
 def get_optimizer(model):
@@ -206,18 +188,8 @@ def get_optimizer(model):
     if args.deepspeed:
         # fp16 wrapper is not required for DeepSpeed.
         return optimizer, param_groups
-
-    # Wrap into fp16 optimizer.
-    if args.fp16:
-        optimizer = FP16_Optimizer(optimizer,
-                                   static_loss_scale=args.loss_scale,
-                                   dynamic_loss_scale=args.dynamic_loss_scale,
-                                   dynamic_loss_args={
-                                       'scale_window': args.loss_scale_window,
-                                       'min_scale': args.min_scale,
-                                       'delayed_shift': args.hysteresis})
-
-    return optimizer, param_groups
+    else:
+        raise ValueError("Must be using deepspeed to run neox")
 
 
 def get_learning_rate_scheduler(optimizer):
@@ -296,8 +268,7 @@ def setup_model_and_optimizer(model_provider_func):
         if args.pipe_parallel_size > 0:
             model.set_batch_fn(model.module._megatron_batch_fn)
     else:
-        model.total_params = get_total_params(model)
-        print(f' > total params: {model.total_params}')
+        raise ValueError("Must be using deepspeed to run neox")
 
     if args.load is not None:
         args.iteration = load_checkpoint(model, optimizer, lr_scheduler)
@@ -322,11 +293,7 @@ def backward_step(optimizer, model, loss):
     if args.deepspeed:
         model.backward(loss)
     else:
-        optimizer.zero_grad(set_grads_to_None=True)
-        if args.fp16:
-            optimizer.backward(loss, update_master_grads=False)
-        else:
-            loss.backward()
+        raise ValueError("Must be using deepspeed to run neox")
     timers('backward-backward').stop()
 
     if args.deepspeed:
@@ -334,12 +301,7 @@ def backward_step(optimizer, model, loss):
         # Reset the timer to avoid breaking timer logs below.
         timers('backward-allreduce').reset()
     else:
-        # All-reduce if needed.
-        if args.DDP_impl == 'local':
-            timers('backward-allreduce').start()
-            model.allreduce_params(reduce_after=False,
-                                   fp32_allreduce=args.fp32_allreduce)
-            timers('backward-allreduce').stop()
+        raise ValueError("Must be using deepspeed to run neox")
 
     if not args.deepspeed:
         # Update master gradients.
@@ -384,12 +346,7 @@ def train_step(forward_step_func, data_iterator,
     if args.deepspeed:
         model.step()
     else:
-        optimizer.step()
-        # Update learning rate.
-        if not (args.fp16 and optimizer.overflow):
-            lr_scheduler.step()
-        else:
-            skipped_iter = 1
+        raise ValueError("Must be using deepspeed to run neox")
     timers('optimizer').stop()
 
     return loss_reduced, skipped_iter
