@@ -215,7 +215,7 @@ ZeRO optimization in NeoX is currently configured identically to how deepspeed c
 
 If you want to combine an optimizer untested by DeepSpeed with ZeRO (i.e, not ADAM or LAMB), you must pass `"zero_allow_untested_optimizer": true` *outside* of the `"zero_optimization"` dictionary (see above).
 
-N.B ZeRO stages 2+ are incompatible with pipeline parallelism. Please set `"pipe-parallel-size"` to 0 if you want to use ZeRO stage 2 or more.
+N.B - ZeRO stages 2+ are incompatible with pipeline parallelism. Please set `"pipe-parallel-size"` to 0 if you want to use ZeRO stage 2 or more.
 
 ### Batch Size Settings:
 
