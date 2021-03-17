@@ -58,7 +58,9 @@ You may need to change the version of `cupy-cudaxxx` to match your machine's cud
 
 Finally, certain features rely on apex, which you can install with the command below:
 
-`pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@e2083df5eb96643c61613b9df48dd4eea6b07690`
+```bash
+pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@e2083df5eb96643c61613b9df48dd4eea6b07690
+```
 
 We also host a Docker Image on Dockerhub at `leogao2/gpt-neox`, which enables easy multi-node training.
 
