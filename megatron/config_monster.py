@@ -9,6 +9,7 @@ from deepspeed.launcher.runner import DLTS_HOSTFILE
 
 from megatron.utils import obtain_resource_pool
 from megatron.arguments import _get_parser
+import torch
 
 log = logging.getLogger('ConfigMonster')
 
@@ -267,6 +268,11 @@ class ConfigMonster:
         if args.conf_dir:
             conf_files = [os.path.join(args.conf_dir, f) for f in conf_files]
 
+        # enables us to pass in `small` instead of `small.yml`
+        for cf in conf_files:
+            if not cf.endswith('.yml'):
+                cf += '.yml'
+
         # Load and merge all configuration
         conf = {} if extra_conf is None else extra_conf
         for path in conf_files:
@@ -307,7 +313,11 @@ class ConfigMonster:
             hostfile_path = conf.get('hostfile', DLTS_HOSTFILE)
             resources = obtain_resource_pool(hostfile_path, conf.get('include', ''), conf.get('exclude', ''))
             num_gpus = sum(map(len, resources.values()))
-            log.info(f"Total number of GPUs determined to be: {num_gpus}")
+        else:
+            num_gpus = torch.cuda.device_count()
+            conf["num_gpus"] = num_gpus
+
+        log.info(f"Total number of GPUs determined to be: {num_gpus}")
 
         # get world size in the model/pipe parallel case, the actual `world size` deepspeed uses is the size of the
         # data-parallel group, or (num_gpus / mp_size) / pp_size
