@@ -2,16 +2,16 @@
 {
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
-   "pipe-parallel-size": 3,
+   "pipe-parallel-size": 12,
    "model-parallel-size": 2,
    "detect_nvlink_pairs": true,
-   "num_gpus": 6, 
-   "num_nodes": 1,
+  # "num_gpus": 6, 
+   #"num_nodes": 2,
    # "include": "10.140.4.119:0,1,2,3", # will need to change this to your node's ip
    # model settings
-   "num-layers": 36,
-   "hidden-size": 3072,
-   "num-attention-heads": 24,
+   "num-layers": 48,
+   "hidden-size": 4608,
+   "num-attention-heads": 36,
    "seq-length": 1024,
    "max-position-embeddings": 1024,
    "norm": "layernorm",
@@ -31,6 +31,7 @@
        "betas": [0.9, 0.95]
      }
    },
+
    "zero_optimization": {
     "stage": 0,
     "allgather_partitions": True,
@@ -43,7 +44,7 @@
   },
 
    # batch / data settings
-  # "train_batch_size": 256,
+   #"train_batch_size": 512,
    "train_micro_batch_size_per_gpu": 16,
    "gradient_accumulation_steps": 16,
    "data-impl": "mmap",
