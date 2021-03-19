@@ -286,4 +286,4 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                          loss_fn=loss_fn,
                          topology=topology,
                          activation_checkpoint_interval=interval,
-                         partition_method='type:transformer')
+                         partition_method=args.pipe_partition_method)  # 'type:transformer' / 'parameters'

@@ -431,6 +431,12 @@ def _add_distributed_args(parser):
                        help='Size of the model parallel.')
     group.add_argument('--pipe-parallel-size', type=int, default=0,
                        help='Size of the pipeline parallel. Disable with 0.')
+    group.add_argument('--pipe-partition-method', type=str, default='type:transformer',
+                       help='method used to distribute model layers across pipeline stages. Choose from "parameters", '
+                            'which balances the number of parameters on each pipeline stage, "uniform", which naively '
+                            'balances the number of layers per stage, or "type:[regex]" (in our instance this will '
+                            'basically only be type:transformer), which balances layers whose class names match [regex]'
+                       )
     group.add_argument('--distributed-backend', default='nccl',
                        choices=['nccl', 'gloo', 'mpi'],
                        help='Which backend to use for distributed training.')
