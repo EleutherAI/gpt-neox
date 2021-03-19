@@ -77,7 +77,7 @@ We run our experiments on a Kubernetes cluster generously provided by [CoreWeave
 
 ## Licensing
 
-   Copyright (c) 2021 Stella Biderman, Sid Black, Josh Levy-Kramer, Michael Pieler, and Shivanshu Purohit.
+   Copyright (c) 2021 EleutherAI, Stella Biderman, Sid Black, Josh Levy-Kramer, Michael Pieler, and Shivanshu Purohit.
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
