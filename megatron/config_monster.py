@@ -1,4 +1,5 @@
-# Copyright 2021 (c) Josh Levy-Kramer <josh@levykramer.co.uk> et al. All rights reserved.
+# Copyright (c) 2021 EleutherAI
+# This file is based on code by the authors denoted below and has been modified from its original version.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
