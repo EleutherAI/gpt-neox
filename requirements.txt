@@ -1,14 +1,12 @@
 pybind11==2.6.2
 six
 regex
-numpy==1.19.5
+numpy==1.20.1
 nltk==3.5
-tensorflow==2.4.1
--e git+git://github.com/EleutherAI/DeeperSpeed.git@47cdacef8f1c27a6c111109f057497e7c4c0043e#egg=deepspeed
+-e git+git://github.com/EleutherAI/DeeperSpeed.git@8b080acba379010f3c89021a0d5b20720ac565a5#egg=deepspeed
 autopep8==1.5.5
 zstandard==0.15.1
-cupy-cuda102==8.4.0
+cupy-cuda111==8.5.0
 mpi4py==3.0.3
-wandb==0.10.18
+wandb==0.10.21
 einops==0.3.0
-

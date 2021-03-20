@@ -19,16 +19,20 @@
 """Input/output checkpointing."""
 
 import os
+import re
+import shutil
 import random
 import sys
 import numpy as np
 
 import torch
 from torch.nn.parallel import DistributedDataParallel as torchDDP
+from glob import glob
 
 from megatron import mpu, get_args
 from megatron import get_args
 from megatron import print_rank_0
+from megatron.utils import natural_sort
 
 _CHECKPOINT_VERSION = None
 
@@ -93,6 +97,24 @@ def get_checkpoint_tracker_filename(checkpoints_path):
     """Tracker file rescords the latest chckpoint during
     training to restart from."""
     return os.path.join(checkpoints_path, 'latest_checkpointed_iteration.txt')
+
+
+def delete_old_checkpoints(save_dir, n_to_keep):
+    if torch.distributed.get_rank() == 0:
+        ckpt_dir_regex = r'global_step[\d]*'
+        if save_dir.endswith('/'):
+            save_dir = save_dir.strip('/')
+        all_ckpts = natural_sort([i for i in glob(f'{save_dir}/*') if os.path.isdir(i)
+                                  and re.search(ckpt_dir_regex, i)])
+        n_to_delete = len(all_ckpts) - n_to_keep
+        if n_to_delete > 0:
+            to_delete = all_ckpts[:n_to_delete]
+            print(f"WARNING: Deleting old checkpoints: \n\t{', '.join(to_delete)}")
+            for ckpt in to_delete:
+                try:
+                    shutil.rmtree(ckpt)
+                except FileNotFoundError:
+                    pass
 
 
 def save_ds_checkpoint(iteration, model, args):
@@ -170,6 +192,12 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
         tracker_filename = get_checkpoint_tracker_filename(args.save)
         with open(tracker_filename, 'w') as f:
             f.write(str(iteration))
+
+    # Wait so everyone is done (necessary)
+    torch.distributed.barrier()
+    if args.keep_last_n_checkpoints is not None:
+        delete_old_checkpoints(args.save, args.keep_last_n_checkpoints)
+
     # Wait so everyone is done (not necessary)
     torch.distributed.barrier()
 
@@ -303,43 +331,3 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load'):
         print('  successfully loaded {}'.format(checkpoint_name))
 
     return iteration
-
-
-def load_ict_checkpoint(model, only_query_model=False, only_block_model=False, from_realm_chkpt=False):
-    """selectively load ICT models for indexing/retrieving from ICT or REALM checkpoints"""
-
-    args = get_args()
-
-    if isinstance(model, torchDDP):
-        model = model.module
-
-    load_path = args.load if from_realm_chkpt else args.ict_load
-
-    tracker_filename = get_checkpoint_tracker_filename(load_path)
-    with open(tracker_filename, 'r') as f:
-        iteration = int(f.read().strip())
-
-    # assert iteration > 0
-    checkpoint_name = get_checkpoint_name(load_path, iteration, False)
-    if mpu.get_data_parallel_rank() == 0:
-        print('global rank {} is loading checkpoint {}'.format(
-            torch.distributed.get_rank(), checkpoint_name))
-
-    state_dict = torch.load(checkpoint_name, map_location='cpu')
-    ict_state_dict = state_dict['model']
-    if from_realm_chkpt and mpu.get_data_parallel_rank() == 0:
-        print(" loading ICT state dict from REALM", flush=True)
-        ict_state_dict = ict_state_dict['retriever']['ict_model']
-
-    if only_query_model:
-        ict_state_dict.pop('context_model')
-    if only_block_model:
-        ict_state_dict.pop('question_model')
-
-    model.load_state_dict(ict_state_dict)
-    torch.distributed.barrier()
-
-    if mpu.get_data_parallel_rank() == 0:
-        print(' successfully loaded {}'.format(checkpoint_name))
-
-    return model

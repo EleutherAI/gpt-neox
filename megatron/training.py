@@ -135,35 +135,11 @@ def get_model(model_provider_func):
     # Build model on cpu.
     model = model_provider_func()
 
-    # Print number of parameters.
-    if mpu.get_data_parallel_rank() == 0:
-        print(' > number of parameters on model parallel rank {}: {}'.format(
-            mpu.get_model_parallel_rank(),
-            sum([p.nelement() for p in model.parameters()])), flush=True)
-
     if args.deepspeed:
         # DeepSpeed handles CUDA, FP16, and DDP components.
         return model
-
-    # GPU allocation.
-    model.cuda(torch.cuda.current_device())
-
-    # Fp16 conversion.
-    if args.fp16:
-        model = FP16_Module(model)
-
-    # Wrap model for distributed training."""
-    if args.DDP_impl == 'torch':
-        i = torch.cuda.current_device()
-        model = torchDDP(model, device_ids=[i], output_device=i,
-                         process_group=mpu.get_data_parallel_group())
-        return model
-    if args.DDP_impl == 'local':
-        model = LocalDDP(model)
-        return model
-
-    raise NotImplementedError('Unknown DDP implementation specified: {}. '
-                              'Exiting.'.format(args.DDP_impl))
+    else:
+        raise ValueError("Must be using deepspeed to run neox")
 
 
 def get_optimizer(model):
@@ -173,7 +149,7 @@ def get_optimizer(model):
     # Build parameter groups (weight decay and non-decay).
     while isinstance(model, (torchDDP, LocalDDP, FP16_Module)):
         model = model.module
-    param_groups = get_params_for_weight_decay_optimization(model)
+    param_groups = get_params_for_weight_decay_optimization(model, args)
 
     # Add model parallel attribute if it is not set.
     for param_group in param_groups:
@@ -194,6 +170,15 @@ def get_optimizer(model):
         assert args.deepspeed
         optimizer = None
         # onebitadam needs to be instantiated within the deepspeed engine to work :|
+    elif args.sm3:
+        from .optimizers import SM3
+        optimizer = SM3(
+            param_groups,
+            lr=args.lr,
+            momentum=args.momentum,
+            beta=args.adam_beta1,
+            eps=args.adam_eps,
+        )
     else:
         # Use Adam
         optimizer = Adam(param_groups,
@@ -201,22 +186,11 @@ def get_optimizer(model):
                          weight_decay=args.weight_decay,
                          betas=(args.adam_beta1, args.adam_beta2),
                          eps=args.adam_eps)
-
     if args.deepspeed:
         # fp16 wrapper is not required for DeepSpeed.
         return optimizer, param_groups
-
-    # Wrap into fp16 optimizer.
-    if args.fp16:
-        optimizer = FP16_Optimizer(optimizer,
-                                   static_loss_scale=args.loss_scale,
-                                   dynamic_loss_scale=args.dynamic_loss_scale,
-                                   dynamic_loss_args={
-                                       'scale_window': args.loss_scale_window,
-                                       'min_scale': args.min_scale,
-                                       'delayed_shift': args.hysteresis})
-
-    return optimizer, param_groups
+    else:
+        raise ValueError("Must be using deepspeed to run neox")
 
 
 def get_learning_rate_scheduler(optimizer):
@@ -289,8 +263,13 @@ def setup_model_and_optimizer(model_provider_func):
             config_params=deepspeed_conf,
         )
 
+        model.total_params = get_total_params(model.module)
+        print_rank_0(f' > total params: {"{:,}".format(model.total_params)}')
+
         if args.pipe_parallel_size > 0:
             model.set_batch_fn(model.module._megatron_batch_fn)
+    else:
+        raise ValueError("Must be using deepspeed to run neox")
 
     if args.load is not None:
         args.iteration = load_checkpoint(model, optimizer, lr_scheduler)
@@ -315,11 +294,7 @@ def backward_step(optimizer, model, loss):
     if args.deepspeed:
         model.backward(loss)
     else:
-        optimizer.zero_grad(set_grads_to_None=True)
-        if args.fp16:
-            optimizer.backward(loss, update_master_grads=False)
-        else:
-            loss.backward()
+        raise ValueError("Must be using deepspeed to run neox")
     timers('backward-backward').stop()
 
     if args.deepspeed:
@@ -327,12 +302,7 @@ def backward_step(optimizer, model, loss):
         # Reset the timer to avoid breaking timer logs below.
         timers('backward-allreduce').reset()
     else:
-        # All-reduce if needed.
-        if args.DDP_impl == 'local':
-            timers('backward-allreduce').start()
-            model.allreduce_params(reduce_after=False,
-                                   fp32_allreduce=args.fp32_allreduce)
-            timers('backward-allreduce').stop()
+        raise ValueError("Must be using deepspeed to run neox")
 
     if not args.deepspeed:
         # Update master gradients.
@@ -377,12 +347,7 @@ def train_step(forward_step_func, data_iterator,
     if args.deepspeed:
         model.step()
     else:
-        optimizer.step()
-        # Update learning rate.
-        if not (args.fp16 and optimizer.overflow):
-            lr_scheduler.step()
-        else:
-            skipped_iter = 1
+        raise ValueError("Must be using deepspeed to run neox")
     timers('optimizer').stop()
 
     return loss_reduced, skipped_iter
@@ -409,7 +374,7 @@ def train_step_pipe(model, data_iterator):
 
 
 def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
-                 loss_scale, report_memory_flag, skipped_iter):
+                 loss_scale, report_memory_flag, skipped_iter, model):
     """Log training information such as losses, timing, ...."""
     args = get_args()
     timers = get_timers()
@@ -442,14 +407,26 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         if name in timers.timers:
             timers_to_log.append(name)
 
-    add_to_logging('forward')
-    add_to_logging('backward')
-    add_to_logging('backward-backward')
-    add_to_logging('backward-allreduce')
-    add_to_logging('backward-master-grad')
-    add_to_logging('backward-clip-grad')
-    add_to_logging('optimizer')
-    add_to_logging('batch generator')
+    if args.pipe_parallel_size <= 0:
+        add_to_logging('forward')
+        add_to_logging('backward')
+        add_to_logging('backward-backward')
+        add_to_logging('backward-allreduce')
+        add_to_logging('backward-master-grad')
+        add_to_logging('backward-clip-grad')
+        add_to_logging('optimizer')
+        add_to_logging('batch generator')
+    else:
+        # with pipeline parallel, the megatron timers are overridden by the deepspeed ones.
+        # Try to grab timer values from model engine. Only recently added to deeperspeed, so check that the engine
+        # has that attribute first
+        if hasattr(model, 'timer_values') and model.timer_values is not None:
+            if model.wall_clock_breakdown() and model.global_steps % model.steps_per_print() == 0:
+                timer_values = model.timer_values
+                # deepspeed already logs to tensorboard / prints values, so just log to wandb
+                if get_use_wandb() and torch.distributed.get_rank() == 0:
+                    for key in timer_values:
+                        wandb.log({key: timer_values[key]}, step=iteration)
 
     # Log timer info to tensorboard and wandb
     normalizer = iteration % args.log_interval
@@ -477,18 +454,30 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
     if iteration % args.log_interval == 0:
         elapsed_time = timers('interval time').elapsed()
         iteration_time = elapsed_time / args.log_interval
+        samples_per_sec = get_global_batch_size(args) / iteration_time
+        log_string = ' samples/sec: {:.3f} |'.format(samples_per_sec)
         if writer and torch.distributed.get_rank() == 0:
+            writer.add_scalar('samples/sec', samples_per_sec, iteration)
             writer.add_scalar('iteration_time', iteration_time, iteration)
         if get_use_wandb() and torch.distributed.get_rank() == 0:
+            wandb.log({'samples/sec': samples_per_sec}, step=iteration)
             wandb.log({'iteration_time': iteration_time}, step=iteration)
-
-        log_string = ' iteration {:8d}/{:8d} |'.format(iteration,
+        log_string += ' iteration {:8d}/{:8d} |'.format(iteration,
                                                        args.train_iters)
         log_string += ' elapsed time per iteration (ms): {:.1f} |'.format(
             elapsed_time * 1000.0 / args.log_interval)
         log_string += ' learning rate: {:.3E} |'.format(learning_rate)
         num_iterations = max(
             1, args.log_interval - total_loss_dict[skipped_iters_key])
+
+        # calculate tflop / gpu
+        flops_per_s_per_gpu = get_flops(model, iteration_time)
+        log_string += f' approx flops per GPU: {human_readable_flops(flops_per_s_per_gpu)} |'
+        if writer and torch.distributed.get_rank() == 0:
+            writer.add_scalar('flops/s/gpu', flops_per_s_per_gpu, iteration)
+        if get_use_wandb() and torch.distributed.get_rank() == 0:
+            wandb.log({'flops/s/gpu': flops_per_s_per_gpu}, step=iteration)
+
         for key in total_loss_dict:
             if key not in [skipped_iters_key, got_nan_key]:
                 v = total_loss_dict[key].item() if hasattr(total_loss_dict[key], 'item') else total_loss_dict[key]
@@ -544,7 +533,7 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
         report_memory_flag = training_log(loss_dict, total_loss_dict,
                                           optimizer.param_groups[0]['lr'],
                                           iteration, loss_scale,
-                                          report_memory_flag, skipped_iter)
+                                          report_memory_flag, skipped_iter, model)
 
         # Autoresume
         if args.adlr_autoresume and \
@@ -752,3 +741,43 @@ def build_train_valid_test_data_iterators(
         test_data_iterator = None
 
     return train_data_iterator, valid_data_iterator, test_data_iterator
+
+
+def get_total_params(model):
+    # Print number of parameters.
+    if mpu.get_data_parallel_rank() == 0:
+        params = sum([p.nelement() for p in model.parameters()])
+        print(' > number of parameters on model parallel rank {}: {}'.format(
+            mpu.get_model_parallel_rank(), params), flush=True)
+    else:
+        params = 0
+
+    total_n_parameters = torch.tensor([params]).cuda(torch.cuda.current_device())
+    torch.distributed.all_reduce(total_n_parameters)
+    total_n_parameters = total_n_parameters.item()
+    return total_n_parameters
+
+
+def human_readable_flops(num):
+    for unit in ['', 'KFLOPS', 'MFLOPS', 'GFLOPS', 'TFLOPS', 'PFLOPS', 'EFLOPS', 'ZFLOPS']:
+        if abs(num) < 1024.0:
+            return "%3.1f%s" % (num, unit)
+        num /= 1024.0
+    return "%.1f%s" % (num, 'Yi')
+
+
+def get_global_batch_size(args):
+    return args.batch_size * mpu.get_data_parallel_world_size() * args.gas
+
+
+def get_flops(model, iter_time_s):
+    args = get_args()
+
+    world_size = torch.distributed.get_world_size()
+    global_batch_size = get_global_batch_size(args)
+
+    ff = model.total_params * 6
+    attn = args.seq_length * args.hidden_size * args.num_layers * 60
+    flops = global_batch_size * args.seq_length * (ff + attn) / (iter_time_s * world_size)
+
+    return flops

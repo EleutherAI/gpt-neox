@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 #  --- USAGE ---
-# $ deploy_k8.sh [branch=main] [n_nodes=4] [name_suffix=$USER] [image]
+# $ deploy_k8.sh [branch=main] [n_nodes=4] [name_suffix=$USER] [A100s='no'. Option:no/yes] [image]
 # You need to install yq
 
 # Check yq
@@ -9,17 +9,30 @@ yq &> /dev/null || { echo 'You need to install `yq >= v4`. `brew install yq` or 
 
 WD_BRANCH=$(git branch  --no-color --show-current)
 WD_BRANCH="${WD_BRANCH/\//-}"  # remove forward slashes and replace with underscore
-DEFAULT_IMAGE="leogao2/gpt-neox:sha-18df9ad"
+DEFAULT_IMAGE="leogao2/gpt-neox:sha-86664f3"
 
 BRANCH=${1:-main}
 N_NODES=${2:-4}
 SUFFIX=${3:-$(whoami)}
-IMAGE=${4:-$DEFAULT_IMAGE}
+USE_A100s=${4:-"no"}
+IMAGE=${5:-$DEFAULT_IMAGE}
 
 CLUSTER_NM='neox-'"$SUFFIX"
 WD=`dirname "$BASH_SOURCE"`
 
-echo BRANCH $BRANCH. N-NODES $N_NODES. CLUSTER NAME $CLUSTER_NM. DOCKER IMAGE $IMAGE.
+# Use A100s? Default to no
+if [ "$USE_A100s" = "yes" ]; then
+    CLUSTER_SPEC=$WD/k8s_a100_cluster_spec.yml
+    GPUS_PER_NODE=6
+    awk_print='{print $6 " slots=6"}'
+else
+    USE_A100s="no"
+    CLUSTER_SPEC=$WD/k8s_cluster_spec.yml
+    GPUS_PER_NODE=8
+    awk_print='{print $6 " slots=8"}'
+fi
+
+echo BRANCH $BRANCH. N-NODES $N_NODES. CLUSTER NAME $CLUSTER_NM. Use A100s: $USE_A100s. DOCKER IMAGE $IMAGE.
 
 # Obtain wandb API key
 WANDB_APIKEY=$(python $WD/get_wandb_api_key.py)
@@ -61,8 +74,6 @@ echo 'export LC_ALL=C.UTF-8' >> ~/.bashrc;
 echo 'export LANG=C.UTF-8' >> ~/.bashrc;
 cd ~;
 git clone --branch $BRANCH https://github.com/EleutherAI/gpt-neox.git;
-sudo apt-get update -y;
-sudo apt-get install -y libpython3-dev;
 "
 if [ -n "$WANDB_APIKEY" ]
 then
@@ -81,7 +92,7 @@ kubectl create secret generic $SECRET_NM \
 
 # Template k8 configuration - deployment
 MOUNT_NAME="$CLUSTER_NM-ssd-cluster"
-cat $WD/k8s_spec.yml |
+cat $CLUSTER_SPEC |
 yq e '.metadata.name = "'"$CLUSTER_NM"\" - |
 yq e '.spec.serviceName = "'"$CLUSTER_NM"\" - |
 yq e '.spec.selector.matchLabels.app.kubernetes.io/name = "'"$CLUSTER_NM"\" - |
@@ -106,7 +117,13 @@ echo Waiting for cluster deployment to complete...
 kubectl rollout status --watch --timeout=600s statefulsets/$CLUSTER_NM  || { echo 'Cluster deployment failed' ; exit 1; }
 
 echo Generate hosts file
-kubectl get pods -o wide | grep $CLUSTER_NM | awk '{print $6 " slots=8"}' > $WD/hostfile
+
+if [ "$USE_A100s" = "yes" ]; then
+    kubectl get pods -o wide | grep $CLUSTER_NM | awk '{print $6 " slots=6"}' > $WD/hostfile
+else
+    kubectl get pods -o wide | grep $CLUSTER_NM | awk '{print $6 " slots=8"}' > $WD/hostfile
+fi
+
 cat $WD/hostfile | cut -f1 -d' ' > $WD/hosts
 export MAIN_ID=$(kubectl get pods | grep $CLUSTER_NM | awk '{print $1}' | head -n 1)
 
