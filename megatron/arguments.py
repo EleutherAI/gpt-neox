@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright (c) 2021 EleutherAI
+# Copyright (c) 2021, EleutherAI contributors
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.

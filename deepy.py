@@ -1,6 +1,5 @@
-# coding=utf-8
-# Copyright (c) 2021 EleutherAI
-# This file is based on code by the authors denoted below and has been modified from its original version.
+#!/usr/bin/env python
+# Copyright (c) 2021, EleutherAI contributors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
