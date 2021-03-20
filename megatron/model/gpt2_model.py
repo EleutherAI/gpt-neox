@@ -23,18 +23,17 @@ import torch
 from megatron import get_args
 from megatron.module import MegatronModule
 from functools import partial
-from .language_model import parallel_lm_logits
 from .language_model import get_language_model
 from .utils import init_method_normal
 from .utils import scaled_init_method_normal
-from .norms import  LayerNorm, RMSNorm, ScaleNorm
+from .norms import LayerNorm, RMSNorm, ScaleNorm
 
 # Pipeline parallelism
 from megatron import mpu
 from megatron.mpu import ParallelRelativePositionBias
 import megatron.fp16 as fp16
 from megatron.model.transformer import ParallelTransformerLayerPipe
-from .language_model import EmbeddingPipe
+from .language_model import EmbeddingPipe, parallel_lm_logits
 
 from deepspeed.pipe import PipelineModule, LayerSpec, TiedLayerSpec
 
@@ -46,9 +45,17 @@ def gpt2_attention_mask_func(attention_scores, ltor_mask):
 
 def cross_entropy(output, labels, _fp16=False):
     """ From pretrain_gpt2:forward_step() """
+    """
+    if self.fp16_lm_cross_entropy:
+        assert output.dtype == torch.half
+        loss = mpu.vocab_parallel_cross_entropy(output, labels)
+    else:
+        loss = mpu.vocab_parallel_cross_entropy(output.float(), labels)
+        return loss
+    """
     labels, loss_mask = labels[0], labels[1]
     if _fp16:
-        assert output.dtype == torch.half
+        assert (output.dtype == torch.half and loss_mask.dtype == torch.half)
         losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels)
     else:
         output = fp16.fp16_to_fp32(output)
@@ -64,9 +71,19 @@ class GPT2Model(MegatronModule):
     def __init__(self, num_tokentypes=0, parallel_output=True):
         super(GPT2Model, self).__init__()
         args = get_args()
-        self.weight_tying = not args.no_weight_tying
-
         self.parallel_output = parallel_output
+        self.weight_tying = not args.no_weight_tying
+        if not self.weight_tying:
+            # TODO: not sure whether to use RowParallelLinear's default scatter to mp region here, or copy, which is
+            # the default of parallel_lm_logits. Should investigate benefits of both
+            self.final_linear = mpu.RowParallelLinear(
+                args.hidden_size,
+                args.padded_vocab_size,
+                bias=False,
+                input_is_parallel=False,
+                skip_bias_add=False,
+                parallel_output=self.parallel_output)
+
         self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
 
         self.language_model, self._language_model_key = get_language_model(
@@ -102,10 +119,7 @@ class GPT2Model(MegatronModule):
                 self.language_model.embedding.word_embeddings.weight,
                 parallel_output)
         else:
-            output = parallel_lm_logits(
-                lm_output,
-                None,
-                parallel_output, weight_tying=False)
+            output, bias = self.final_linear(lm_output)
 
         if get_key_value:
             output = [output, presents]
@@ -154,12 +168,13 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
         self.output_layer_init_method = scaled_init_method_normal(args.init_method_std, args.num_layers)
         weight_tying = not args.no_weight_tying
         if args.pos_emb == 'rpe':
-            rpe_emb = ParallelRelativePositionBias(causal=True, num_buckets=args.rpe_num_buckets, max_distance=args.rpe_max_distance,
-                                            heads=args.num_attention_heads)
+            rpe_emb = ParallelRelativePositionBias(causal=True, num_buckets=args.rpe_num_buckets,
+                                                   max_distance=args.rpe_max_distance,
+                                                   heads=args.num_attention_heads)
         else:
             rpe_emb = None
         self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
-        
+
         #
         # forward() prototype
         # 
@@ -247,6 +262,8 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                               tied_weight_attr='word_embeddings_weight')
             )
         else:
+            # TODO: not sure whether to use RowParallelLinear's default scatter to mp region here, or copy, which is
+            # the default of parallel_lm_logits. Should investigate benefits of both
             self.specs.append(
                 LayerSpec(
                     mpu.RowParallelLinear,
@@ -254,7 +271,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                     args.padded_vocab_size,
                     bias=False,
                     input_is_parallel=False,
-                    parallel_output=True,
+                    parallel_output=self.parallel_output,
                     skip_bias_add=False
                 )
             )
@@ -269,4 +286,4 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                          loss_fn=loss_fn,
                          topology=topology,
                          activation_checkpoint_interval=interval,
-                         partition_method='type:transformer')
+                         partition_method=args.pipe_partition_method)  # 'type:transformer' / 'parameters'

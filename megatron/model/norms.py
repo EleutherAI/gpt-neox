@@ -59,7 +59,7 @@ class RMSNorm(torch.nn.Module):
 class ScaleNorm(torch.nn.Module):
     def __init__(self, dim, eps=1e-5):
         super().__init__()
-        self.g = nn.Parameter(torch.ones(1))
+        self.g = torch.nn.Parameter(torch.ones(1))
         self.eps = eps
 
     def forward(self, x):

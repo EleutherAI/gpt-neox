@@ -2,15 +2,14 @@ FROM nvidia/cuda:11.1.1-devel-ubuntu20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-#### System package (uses Python 3.8)
+#### System package (uses default Python 3 version in Ubuntu 20.04)
 RUN apt-get update -y && \
     apt-get install -y \
-        git python3 python3-dev libpython3-dev  python3-pip sudo pdsh \
+        git python3 python3-dev libpython3-dev python3-pip sudo pdsh \
         htop llvm-9-dev tmux zstd software-properties-common build-essential autotools-dev \
-        nfs-common pdsh cmake g++ gcc curl wget tmux less unzip htop iftop iotop ca-certificates ssh \
+        nfs-common pdsh cmake g++ gcc curl wget vim less unzip htop iftop iotop ca-certificates ssh \
         rsync iputils-ping net-tools libcupti-dev && \
-    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1 && \
-    update-alternatives --install /usr/bin/python python /usr/bin/python3.8 1 && \
+    update-alternatives --install /usr/bin/python python /usr/bin/python3 1 && \
     update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1 && \
     pip install --upgrade pip && \
     pip install gpustat
@@ -26,16 +25,18 @@ RUN echo 'password' >> password.txt && \
     sed -i 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' /etc/pam.d/sshd && \
     echo 'AuthorizedKeysFile     .ssh/authorized_keys' >> /etc/ssh/sshd_config && \
     echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config && \
+    # FIX SUDO BUG: https://github.com/sudo-project/sudo/issues/42
+    echo "Set disable_coredump false" >> /etc/sudo.conf && \
     # Clean up
     rm password.txt
 # Expose SSH port
 EXPOSE 22
 
 #### OPENMPI
-ENV OPENMPI_BASEVERSION=4.0
-ENV OPENMPI_VERSION=${OPENMPI_BASEVERSION}.1
+ENV OPENMPI_BASEVERSION=4.1
+ENV OPENMPI_VERSION=${OPENMPI_BASEVERSION}.0
 RUN mkdir -p /build && \
-    cd ${STAGE_DIR} && \
+    cd /build && \
     wget -q -O - https://download.open-mpi.org/release/open-mpi/v${OPENMPI_BASEVERSION}/openmpi-${OPENMPI_VERSION}.tar.gz | tar xzf - && \
     cd openmpi-${OPENMPI_VERSION} && \
     ./configure --prefix=/usr/local/openmpi-${OPENMPI_VERSION} && \
@@ -43,8 +44,8 @@ RUN mkdir -p /build && \
     ln -s /usr/local/openmpi-${OPENMPI_VERSION} /usr/local/mpi && \
     # Sanity check:
     test -f /usr/local/mpi/bin/mpic++ && \
-    cd ${STAGE_DIR} && \
-    rm -r /build
+    cd ~ && \
+    rm -rf /build
 # Needs to be in docker PATH if compiling other items & bashrc PATH (later)
 ENV PATH=/usr/local/mpi/bin:${PATH} \
     LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:${LD_LIBRARY_PATH}
@@ -69,10 +70,10 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
     echo 'export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:$LD_LIBRARY_PATH' >> /home/mchorse/.bashrc
 
 #### Python packages
-RUN pip install torch==1.8.0+cu111 -f https://download.pytorch.org/whl/torch_stable.html
+RUN pip install torch==1.8.0+cu111 -f https://download.pytorch.org/whl/torch_stable.html && pip cache purge
 
-COPY requirements.txt $STAGE_DIR
-RUN pip install -r $STAGE_DIR/requirements.txt
+COPY requirements.txt .
+RUN pip install -r requirements.txt && pip cache purge
 RUN pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@e2083df5eb96643c61613b9df48dd4eea6b07690
 
 # Clear staging
@@ -81,4 +82,4 @@ RUN mkdir -p /tmp && chmod 0777 /tmp
 #### SWITCH TO mchorse USER
 USER mchorse
 WORKDIR /home/mchorse
-ENV PATH="/home/mchorse/.local/bin:${PATH}"
+
