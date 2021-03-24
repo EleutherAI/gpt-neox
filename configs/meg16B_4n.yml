@@ -9,17 +9,17 @@
    #"num_nodes": 2,
    # "include": "10.140.4.119:0,1,2,3", # will need to change this to your node's ip
    # model settings
-   "num-layers": 50,
+   "num-layers": 48,
    "hidden-size": 5120,
    "num-attention-heads": 40,
    "seq-length": 1024,
    "max-position-embeddings": 1024,
-   "norm": "layernorm",
-   "pos-emb": "learned",
+   "norm": "scalenorm",
+   "pos-emb": "none",
    "no-weight-tying": true,
     # this should provide some speedup but takes a while to build, set to true if desired
-   #"scaled-upper-triang-masked-softmax-fusion": true,
-   #"bias-gelu-fusion": true,
+   "scaled-upper-triang-masked-softmax-fusion": true,
+   "bias-gelu-fusion": true,
 
    
    # optimizer settings
@@ -46,7 +46,7 @@
    # batch / data settings
    #"train_batch_size": 512,
    "train_micro_batch_size_per_gpu": 16,
-   "gradient_accumulation_steps": 16,
+   "gradient_accumulation_steps": 96,
    "data-impl": "mmap",
    "split": "949,50,1",
 

@@ -7,7 +7,7 @@
    "detect_nvlink_pairs": true,
    #"num_gpus": 12, 
    #"num_nodes": 2,
-   "include": "10.141.246.167:0,1,2,3,4,5@10.140.246.238:0,1,2,3,4,5", # will need to change this to your node's ip
+   "include": "10.141.246.180:0,1,2,3,4,5@10.140.128.86:0,1,2,3,4,5", # will need to change this to your node's ip
    # model settings
    "num-layers": 42,
    "hidden-size": 4096,
@@ -45,7 +45,7 @@
    # batch / data settings
    #"train_batch_size": 256,
    "train_micro_batch_size_per_gpu": 16,
-   "gradient_accumulation_steps": 16,
+   "gradient_accumulation_steps": 64,
    "data-impl": "mmap",
    "split": "949,50,1",
 
