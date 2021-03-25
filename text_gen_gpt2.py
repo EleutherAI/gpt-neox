@@ -30,14 +30,14 @@ from megatron.initialize import initialize_megatron
 from megatron.training import setup_model_and_optimizer
 from megatron.text_generation_utils import generate_and_write_samples_unconditional, generate_samples_input_from_file, \
     generate_samples_interactive
+from megatron.utils import neox_args
 
-
-def main():
+def main(extra_args_provider=None):
     """
     Generate text/sample model
     """
 
-    initialize_megatron(args_defaults={'tokenizer_type': 'GPT2BPETokenizer'})
+    initialize_megatron(args_defaults={'tokenizer_type': 'GPT2BPETokenizer'}, extra_args_provider=extra_args_provider)
 
     args = get_args()
 
@@ -48,7 +48,7 @@ def main():
     args.pipe_parallel_size = 0
     args.checkpoint_activations = False
     args.partition_activations = False
-    args.no_weight_tying = False
+    args.no_load_optim = True
 
     # Set up model and load checkpoint.
     model, optimizer, lr_scheduler = setup_model_and_optimizer(lambda: model_provider(use_wandb=False))
@@ -74,4 +74,4 @@ def main():
         raise ValueError(f"`text-gen-type` either not specified or not recognised: {args.text_gen_type}")
 
 if __name__ == "__main__":
-    main()
+    main(extra_args_provider=neox_args)
