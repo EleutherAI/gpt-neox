@@ -1,4 +1,16 @@
-# Copyright 2021 (c) Josh Levy-Kramer <josh@levykramer.co.uk>. All rights reserved.
+# Copyright (c) 2021, EleutherAI contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import argparse
 import json
@@ -9,6 +21,7 @@ from deepspeed.launcher.runner import DLTS_HOSTFILE
 
 from megatron.utils import obtain_resource_pool
 from megatron.arguments import _get_parser
+import torch
 
 log = logging.getLogger('ConfigMonster')
 
@@ -25,7 +38,7 @@ def _get_megatron_keys(_megatron_keys_exclude):
 
 
 ds_runner_keys = ['hostfile', 'include', 'exclude', 'num_nodes', 'num_gpus', 'master_port', 'master_addr', 'launcher',
-                  'launcher_args']  # handle separately: 'user_script', 'user_args'
+                  'launcher_args', 'detect_nvlink_pairs']  # handle separately: 'user_script', 'user_args'
 
 megatron_keys_exclude = [
     'fp16',  # Duplicated in ds_config
@@ -46,7 +59,7 @@ ds_config_keys = ['train_batch_size', 'train_micro_batch_size_per_gpu', 'gradien
                   'dump_state', 'flops_profiler', 'activation_checkpointing', 'sparse_attention',
                   'zero_allow_untested_optimizer', ]
 
-neox_config_keys = ['wandb_group', 'wandb_team']
+neox_config_keys = ['wandb_group', 'wandb_team', 'git_hash']
 
 ds_runner_keys_exclude = []
 
@@ -267,6 +280,11 @@ class ConfigMonster:
         if args.conf_dir:
             conf_files = [os.path.join(args.conf_dir, f) for f in conf_files]
 
+        # enables us to pass in `small` instead of `small.yml`
+        for cf in conf_files:
+            if not cf.endswith('.yml'):
+                cf += '.yml'
+
         # Load and merge all configuration
         conf = {} if extra_conf is None else extra_conf
         for path in conf_files:
@@ -313,7 +331,11 @@ class ConfigMonster:
             hostfile_path = conf.get('hostfile', DLTS_HOSTFILE)
             resources = obtain_resource_pool(hostfile_path, conf.get('include', ''), conf.get('exclude', ''))
             num_gpus = sum(map(len, resources.values()))
-            log.info(f"Total number of GPUs determined to be: {num_gpus}")
+        else:
+            num_gpus = torch.cuda.device_count()
+            conf["num_gpus"] = num_gpus
+
+        log.info(f"Total number of GPUs determined to be: {num_gpus}")
 
         # get world size in the model/pipe parallel case, the actual `world size` deepspeed uses is the size of the
         # data-parallel group, or (num_gpus / mp_size) / pp_size

@@ -1,6 +1,5 @@
 # coding=utf-8
-
-# Copyright (c) 2021 Josh Levy-Kramer <josh@levykramer.co.uk>.
+# Copyright (c) 2021, EleutherAI contributors
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
@@ -203,6 +202,18 @@ def get_wandb_api_key():
 
     if wandb_token is not None:
         return wandb_token[1]
+
+
+def neox_args(parser):
+    group = parser.add_argument_group(title='Weights and Biases monitoring args')
+
+    group.add_argument('--wandb_group', type=str, default=None,
+                       help='Weights and Biases group name - used to group together "runs".')
+    group.add_argument('--wandb_team', type=str, default=None,
+                       help='Team name for Weights and Biases.')
+    group.add_argument('--git_hash', type=str, default=None,
+                       help='current git hash of repository')
+    return parser
 
 
 def obtain_resource_pool(hostfile_path, include_arg, exclude_arg) -> Dict[str, List[int]]:

@@ -1,6 +1,6 @@
 # coding=utf-8
-#
-# Copyright 2021 Biderman et al. This file is based on code by the authors denoted below and has been modified from its original version.
+# Copyright (c) 2021, EleutherAI contributors
+# This file is based on code by the authors denoted below and has been modified from its original version.
 #
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
@@ -46,7 +46,6 @@ def _get_parser(extra_args_provider=None):
     parser = _add_validation_args(parser)
     parser = _add_data_args(parser)
     parser = _add_autoresume_args(parser)
-    parser = _add_realm_args(parser)
     parser = _add_zero_args(parser)
     parser = _add_activation_checkpoint_args(parser)
     parser = _add_text_generate_args(parser)
@@ -141,9 +140,6 @@ def parse_args(extra_args_provider=None, defaults={},
         assert args.num_unique_layers <= args.num_layers
         assert args.num_layers % args.num_unique_layers == 0, \
             'num-layers should be divisible by num-unique-layers.'
-        if args.num_unique_layers < args.num_layers:
-            assert args.DDP_impl == 'local', \
-                'torch-DDP does not work with parameters sharing.'
     # Mixed precision checks.
     if args.fp16_lm_cross_entropy:
         assert args.fp16, 'lm cross entropy in fp16 only support in fp16 mode.'
@@ -198,7 +194,7 @@ def _add_network_size_args(parser):
                             'layers 1 and 2: '
                             '    grouped: [1, 2, 1, 2] and spaced: [1, 1, 2, 2].')
     group.add_argument('--hidden-size', type=int, default=None,
-                       help='Tansformer hidden size.')
+                       help='Transformer hidden size.')
     group.add_argument('--num-attention-heads', type=int, default=None,
                        help='Number of transformer attention heads.')
     group.add_argument('--max-position-embeddings', type=int, default=None,
@@ -437,13 +433,15 @@ def _add_distributed_args(parser):
                        help='Size of the model parallel.')
     group.add_argument('--pipe-parallel-size', type=int, default=0,
                        help='Size of the pipeline parallel. Disable with 0.')
+    group.add_argument('--pipe-partition-method', type=str, default='type:transformer',
+                       help='method used to distribute model layers across pipeline stages. Choose from "parameters", '
+                            'which balances the number of parameters on each pipeline stage, "uniform", which naively '
+                            'balances the number of layers per stage, or "type:[regex]" (in our instance this will '
+                            'basically only be type:transformer), which balances layers whose class names match [regex]'
+                       )
     group.add_argument('--distributed-backend', default='nccl',
                        choices=['nccl', 'gloo', 'mpi'],
                        help='Which backend to use for distributed training.')
-    group.add_argument('--DDP-impl', default='local',
-                       choices=['local', 'torch'],
-                       help='which DistributedDataParallel implementation '
-                            'to use.')
     group.add_argument('--local_rank', type=int, default=None,
                        help='local rank passed from distributed launcher.')
     group.add_argument('--lazy-mpu-init', type=bool, required=False,
@@ -458,14 +456,12 @@ def _add_distributed_args(parser):
 
 def _add_validation_args(parser):
     group = parser.add_argument_group(title='validation')
-
     group.add_argument('--eval-iters', type=int, default=100,
                        help='Number of iterations to run for evaluation'
                             'validation/test for.')
     group.add_argument('--eval-interval', type=int, default=1000,
                        help='Interval between running evaluation on '
                             'validation set.')
-
     return parser
 
 
@@ -485,8 +481,6 @@ def _add_data_args(parser):
                        help='Path to the BPE merge file.')
     group.add_argument('--seq-length', type=int, default=None,
                        help="Maximum sequence length to process.")
-    group.add_argument('--mask-prob', type=float, default=0.15,
-                       help='Probability of replacing a token with mask.')
     group.add_argument('--short-seq-prob', type=float, default=0.1,
                        help='Probability of producing a short sequence.')
     group.add_argument('--mmap-warmup', action='store_true',
@@ -501,13 +495,13 @@ def _add_data_args(parser):
                        choices=['lazy', 'cached', 'mmap', 'infer'],
                        help='Implementation of indexed datasets.')
     group.add_argument('--reset-position-ids', action='store_true',
-                       help='Reset posistion ids after end-of-document token.')
+                       help='Reset position ids after end-of-document token.')
     group.add_argument('--reset-attention-mask', action='store_true',
-                       help='Reset self attention maske after '
+                       help='Reset self attention mask after '
                             'end-of-document token.')
     group.add_argument('--eod-mask-loss', action='store_true',
                        help='Mask loss for the end of document tokens.')
-    group.add_argument('--log-dir', type=str, help='Directory to store logs.')
+    group.add_argument('--log-dir', type=str, help='Directory to store logs.', default='./logs')
 
     return parser
 
@@ -521,45 +515,6 @@ def _add_autoresume_args(parser):
                        help='Intervals over which check for autoresume'
                             'termination signal')
 
-    return parser
-
-
-def _add_realm_args(parser):
-    group = parser.add_argument_group(title='realm')
-
-    # network size
-    group.add_argument('--ict-head-size', type=int, default=None,
-                       help='Size of block embeddings to be used in ICT and REALM (paper default: 128)')
-
-    # checkpointing
-    group.add_argument('--ict-load', type=str, default=None,
-                       help='Directory containing an ICTBertModel checkpoint')
-    group.add_argument('--bert-load', type=str, default=None,
-                       help='Directory containing an BertModel checkpoint (needed to start ICT and REALM)')
-
-    # data
-    group.add_argument('--titles-data-path', type=str, default=None,
-                       help='Path to titles dataset used for ICT')
-    group.add_argument('--query-in-block-prob', type=float, default=0.1,
-                       help='Probability of keeping query in block for ICT dataset')
-    group.add_argument('--use-one-sent-docs', action='store_true',
-                       help='Whether to use one sentence documents in ICT')
-
-    # training
-    group.add_argument('--report-topk-accuracies', nargs='+', default=[],
-                       help="Which top-k accuracies to report (e.g. '1 5 20')")
-
-    # faiss index
-    group.add_argument('--faiss-use-gpu', action='store_true',
-                       help='Whether create the FaissMIPSIndex on GPU')
-    group.add_argument('--block-data-path', type=str, default=None,
-                       help='Where to save/load BlockData to/from')
-
-    # indexer
-    group.add_argument('--indexer-batch-size', type=int, default=128,
-                       help='How large of batches to use when doing indexing jobs')
-    group.add_argument('--indexer-log-interval', type=int, default=1000,
-                       help='After how many batches should the indexer report progress')
     return parser
 
 
