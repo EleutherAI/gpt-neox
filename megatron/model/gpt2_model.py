@@ -32,8 +32,9 @@ from .norms import LayerNorm, RMSNorm, ScaleNorm
 from megatron import mpu
 from megatron.mpu import ParallelRelativePositionBias
 import megatron.fp16 as fp16
-from megatron.model.transformer import ParallelTransformerLayerPipe
+from megatron.model.transformer import ParallelTransformerLayerPipe, NormPipe, RowParallelLinearPipe
 from .language_model import EmbeddingPipe, parallel_lm_logits
+from megatron import print_rank_0
 
 from deepspeed.pipe import PipelineModule, LayerSpec, TiedLayerSpec
 
@@ -94,9 +95,8 @@ class GPT2Model(MegatronModule):
             scaled_init_method=scaled_init_method_normal(args.init_method_std,
                                                          args.num_layers))
 
-    def forward(self, input_ids, position_ids, attention_mask, labels=None,
-                tokentype_ids=None, layer_past=None, get_key_value=False,
-                forward_method_parallel_output=None):
+    def forward(self, input_ids, position_ids, attention_mask, tokentype_ids=None, 
+                layer_past=None, get_key_value=False, forward_method_parallel_output=None, labels=None):
 
         # Language model.
         lm_output = self.language_model(input_ids,
@@ -160,12 +160,32 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
 
     def __init__(self, num_tokentypes=0, parallel_output=True, topology=None):
         args = get_args()
+        self.inference = True
 
         self.parallel_output = parallel_output
         self.hidden_size = args.hidden_size
         self.num_tokentypes = num_tokentypes
         self.init_method = init_method_normal(args.init_method_std)
         self.output_layer_init_method = scaled_init_method_normal(args.init_method_std, args.num_layers)
+        self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
+
+        #
+        # forward() prototype
+        # 
+        self.specs = []
+        self.init_specs_for_training(args)
+        loss_fn = partial(cross_entropy, _fp16=self.fp16_lm_cross_entropy)
+        if args.checkpoint_activations:
+            interval = args.checkpoint_num_layers
+        else:
+            interval = 0
+        super().__init__(layers=self.specs,
+                         loss_fn=loss_fn,
+                         topology=topology,
+                         activation_checkpoint_interval=interval,
+                         partition_method='type:transformer')
+
+    def init_specs_for_training(self, args):
         weight_tying = not args.no_weight_tying
         if args.pos_emb == 'rpe':
             rpe_emb = ParallelRelativePositionBias(causal=True, num_buckets=args.rpe_num_buckets,
@@ -173,12 +193,6 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                                                    heads=args.num_attention_heads)
         else:
             rpe_emb = None
-        self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
-
-        #
-        # forward() prototype
-        # 
-        self.specs = []
         # Embedding layer
         if weight_tying:
             self.specs.append(TiedLayerSpec('embed',
@@ -199,10 +213,19 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                                         self.init_method,
                                         self.num_tokentypes))
 
-        # outputs are now (hidden_states, attention_mask)
+        # outputs are now
+        #           Train: (hidden_states, attention_mask)
+        #           Inference: (hidden_states, attention_mask, layer_past, get_key_value)
 
-        # data format change to avoid explicit tranposes : [b s h] --> [s b h]
-        self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), x[1]))
+
+        if self.inference:
+            # we need to add a container to cache `presents` from each layer's forward pass
+            # inputs/outputs are now (hidden_states, attention_mask, layer_past, get_key_value, presents)
+            self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), *x[1:], []))
+        else:
+            # data format change to avoid explicit tranposes : [b s h] --> [s b h]
+            self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), *x[1:]))
+
         # Transformer layers
         for x in range(args.num_layers):
             if args.sparsity == 'none':
@@ -219,8 +242,13 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                           layer_number=x,
                           sparse=sparse,
                           rpe=rpe_emb))
-        # Undo data format change and drop mask
-        self.specs.append(lambda x: x[0].transpose(0, 1).contiguous())
+        if self.inference:
+            # from (hidden_states, attention_mask, layer_past, get_key_value, presents)
+            # to (hidden_states^T, presents)
+            self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), x[-1]))
+        else:
+            # Undo data format change and drop mask
+            self.specs.append(lambda x: x[0].transpose(0, 1).contiguous())
 
         # Final layernorm after transformer layers
         if args.norm == "rmsnorm":
@@ -233,20 +261,34 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
             eps = args.scalenorm_epsilon
             norm = ScaleNorm
 
+        # NormPipe is a helper class to pass presents through to the output when doing inference
         self.specs.append(
-            LayerSpec(norm,
+            LayerSpec(NormPipe,
+                      norm,
                       args.hidden_size,
                       eps=eps))
+
+        # outputs are now
+        #           Train: hidden_states
+        #           Inference: (hidden_states, presents)
 
         # XXX forward_method_parallel_output is assumed to be None, but we're not in a
         # fwd method to assert
 
         def _logits_helper(embedding, lm_output):
             """Just a wrapper to massage inputs/outputs from pipeline. """
-            return parallel_lm_logits(
-                lm_output,
-                embedding.word_embeddings_weight,
-                self.parallel_output)
+            if self.inference and len(lm_output) == 2:
+                hidden_states, presents = lm_output
+                output = parallel_lm_logits(
+                    hidden_states,
+                    embedding.word_embeddings_weight,
+                    self.parallel_output)
+                return hidden_states, presents
+            else:
+                return parallel_lm_logits(
+                    lm_output,
+                    embedding.word_embeddings_weight,
+                    self.parallel_output)
 
         if weight_tying:
             self.specs.append(
@@ -266,7 +308,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
             # the default of parallel_lm_logits. Should investigate benefits of both
             self.specs.append(
                 LayerSpec(
-                    mpu.RowParallelLinear,
+                    RowParallelLinearPipe,
                     args.hidden_size,
                     args.padded_vocab_size,
                     bias=False,
@@ -275,15 +317,5 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                     skip_bias_add=False
                 )
             )
-            self.specs.append(lambda x: x[0])  # drop bias
-
-        loss_fn = partial(cross_entropy, _fp16=self.fp16_lm_cross_entropy)
-        if args.checkpoint_activations:
-            interval = args.checkpoint_num_layers
-        else:
-            interval = 0
-        super().__init__(layers=self.specs,
-                         loss_fn=loss_fn,
-                         topology=topology,
-                         activation_checkpoint_interval=interval,
-                         partition_method=args.pipe_partition_method)  # 'type:transformer' / 'parameters'
+        # so output in training should just be logits
+        # in inference it will be (logits, presents) (assuming get_key_value) is on

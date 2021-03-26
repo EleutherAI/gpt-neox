@@ -256,4 +256,5 @@ def pipe_to_normal(model_engine):
         args=get_args(),
         model=model_engine.module,
         mpu=model_engine.module.mpu(),
-        dist_init_required=False)
+        dist_init_required=False,
+        config_params=model_engine.config_params)

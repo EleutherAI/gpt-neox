@@ -339,6 +339,15 @@ def switch(val1, val2, boolean):
     boolean = boolean.type_as(val1)
     return (1 - boolean) * val1 + boolean * val2
 
+def forward_model(model, model_inputs):
+    # because someone at deepspeed decided pipeline modules couldn't use kwargs,
+    # we need to forward a pipe model by access model.module() instead of just model()
+    args = get_args()
+    if args.pipe_parallel_size >= 1:
+        return model.module(model_inputs)
+    else:
+        return model(*model_inputs)
+
 
 def sample_sequence_batch(model, context_tokens, context_lengths,
                           attention_mask, position_ids,
@@ -369,11 +378,15 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
         while context_length <= (maxlen):
 
             if args.recompute:
-                logits = model(tokens,
+                # we need to use args instead of kwargs here because deepspeed :|
+                model_inputs = (tokens,
                                position_ids,
                                attention_mask,
-                               tokentype_ids=type_ids,
-                               forward_method_parallel_output=False)
+                               type_ids, # tokentype_ids
+                               None, # layer_past,
+                               False, # get_key_value
+                               )
+                logits = forward_model(model, model_inputs)
                 logits = logits[:, context_length - 1, :]
             else:
                 types2use = None
@@ -390,13 +403,15 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
                     if type_ids is not None:
                         types2use = type_ids[:, context_length - 1].view(
                             batch_size, -1)
-                logits, layer_past = model(tokens2use,
-                                           positions2use,
-                                           attention_mask,
-                                           layer_past=layer_past,
-                                           get_key_value=True,
-                                           tokentype_ids=types2use,
-                                           forward_method_parallel_output=False)
+                # we have to use args instead of kwargs here because deepspeed :|
+                model_inputs = (tokens2use, # input_ids
+                                positions2use, # position_ids
+                                attention_mask, # attention_mask
+                                types2use, # tokentype_ids
+                                layer_past, # layer_past
+                                True, # get_key_value
+                                )
+                logits, layer_past = forward_model(model, model_inputs)
                 logits = logits[:, -1].view(batch_size, -1).contiguous()
 
             if args.greedy:

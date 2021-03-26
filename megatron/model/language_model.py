@@ -282,13 +282,23 @@ class EmbeddingPipe(Embedding):
         input_ids = args[0]
         position_ids = args[1]
         attention_mask = args[2]
-        if len(args) == 4:
-            tokentype_ids = args[3]
-        else:
+        if len(args) == 3:
             tokentype_ids = None
-
+        elif len(args) == 4:
+            tokentype_ids = args[3]
+        elif len(args) == 6:
+            # we are in inference
+            tokentype_ids = args[3]
+            layer_past = args[4]
+            get_key_value = args[5]
+        else:
+            raise ValueError(f'Incorrect number of args passed to {self.__class__.__name__}')
         embeddings = super().forward(input_ids, position_ids, tokentype_ids=tokentype_ids)
-        return embeddings, attention_mask
+
+        if len(args) == 6:
+            return embeddings, attention_mask, layer_past, get_key_value
+        else:
+            return embeddings, attention_mask
 
 
 class TransformerLanguageModel(MegatronModule):

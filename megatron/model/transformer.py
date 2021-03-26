@@ -22,7 +22,7 @@ import math
 import torch
 import torch.nn.functional as F
 
-from .norms import  LayerNorm, RMSNorm, ScaleNorm
+from .norms import LayerNorm, RMSNorm, ScaleNorm
 from megatron import get_args
 from megatron import mpu
 from megatron.module import MegatronModule
@@ -170,7 +170,6 @@ class ParallelSelfAttention(MegatronModule):
         super(ParallelSelfAttention, self).__init__()
         args = get_args()
         self.fp16 = args.fp16
-
         self.attention_mask_func = attention_mask_func
         self.apply_query_key_layer_scaling = args.apply_query_key_layer_scaling
         self.attention_softmax_in_fp32 = args.attention_softmax_in_fp32
@@ -200,7 +199,6 @@ class ParallelSelfAttention(MegatronModule):
             self.norm_factor *= coeff
 
         self.rpe = rpe
-
         self.sparse = sparse
         if self.sparse:
 
@@ -592,8 +590,65 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
     """Extends ParallelTransformerLayer to forward attention_mask through the pipeline. """
 
     def forward(self, args):
-        hidden_states, attention_mask = args[0], args[1]
-        return super().forward(*args), attention_mask
+        if len(args) == 2:
+            hidden_states, attention_mask = args[0], args[1]
+            # we are returning just [hidden_states, mask]
+            return super().forward(*args), attention_mask
+        elif len(args) == 5:
+            # we are in inference
+            hidden_states, attention_mask, layer_past, get_key_value, presents = args
+            past = None
+            if layer_past is not None:
+                past = layer_past[self.layer_number]
+            outputs = super().forward(hidden_states, attention_mask, past, get_key_value)
+            if get_key_value:
+                # outputs = [hidden_states, present]
+                hidden_states, present = outputs
+                presents.append(present)
+            return hidden_states, attention_mask, layer_past, get_key_value, presents
+        else:
+            raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
+
+
+class NormPipe(MegatronModule):
+    """Just a helper class to pass presents through to the output when doing inference with a Pipe Parallel model"""
+
+    def __init__(self, norm_class, hidden_size, eps):
+        super().__init__()
+        self.norm = norm_class(hidden_size, eps=eps)
+
+    def forward(self, args):
+        if not isinstance(args, tuple):
+            # in training, args = hidden_state (tensor, so we check if object isn't a tuple and pass through here)
+            hidden_state = args
+            return self.norm(hidden_state)
+        elif len(args) == 2:
+            # in inference, args will be (hidden_state, presents)
+            hidden_state, presents = args
+            hidden_state = self.norm(hidden_state)
+            return hidden_state, presents
+        else:
+            raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
+
+
+class RowParallelLinearPipe(mpu.RowParallelLinear):
+    """Another helper class to pass presents through to the output when doing inference with a Pipe Parallel model"""
+
+    def forward(self, args):
+        if not isinstance(args, tuple):
+            # in training, args = hidden_state (tensor, so we check if object isn't a tuple and pass through here)
+            hidden_state = args
+            logits, bias = super().forward(hidden_state)
+            return logits
+        elif len(args) == 2:
+            # we are in inference, so input is (hidden_states, presents)
+            hidden_state, presents = args
+            logits, bias = super().forward(hidden_state)
+            return logits, presents
+        else:
+            raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
+
+
 
 
 class ParallelTransformer(MegatronModule):
@@ -618,9 +673,10 @@ class ParallelTransformer(MegatronModule):
         self.param_sharing_style = args.param_sharing_style
 
         if args.pos_emb == 'rpe':
-            self.rpe_emb = ParallelRelativePositionBias(causal=True, num_buckets=args.rpe_num_buckets, max_distance=args.rpe_max_distance
-,
-                                            heads=args.num_attention_heads)
+            self.rpe_emb = ParallelRelativePositionBias(causal=True, num_buckets=args.rpe_num_buckets,
+                                                        max_distance=args.rpe_max_distance
+                                                        ,
+                                                        heads=args.num_attention_heads)
         else:
             self.rpe_emb = None
 

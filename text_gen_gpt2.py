@@ -30,7 +30,9 @@ from megatron.initialize import initialize_megatron
 from megatron.training import setup_model_and_optimizer
 from megatron.text_generation_utils import generate_and_write_samples_unconditional, generate_samples_input_from_file, \
     generate_samples_interactive
-from megatron.utils import neox_args
+from megatron.utils import neox_args, pipe_to_normal
+
+from deepspeed import PipelineEngine
 
 def main(extra_args_provider=None):
     """
@@ -44,15 +46,17 @@ def main(extra_args_provider=None):
     if args.load is None:
         raise ValueError("`load` parameter must be supplied to load a model`")
 
-    # Force disable PP, checkpoint activations and always weight tie
-    args.pipe_parallel_size = 0
+    # Force disable PP, checkpoint activations
+    if args.pipe_parallel_size > 1:
+        args.pipe_parallel_size = 1
     args.checkpoint_activations = False
     args.partition_activations = False
     args.no_load_optim = True
 
     # Set up model and load checkpoint.
-    model, optimizer, lr_scheduler = setup_model_and_optimizer(lambda: model_provider(use_wandb=False))
-
+    model, _, _ = setup_model_and_optimizer(lambda: model_provider(use_wandb=False))
+    if isinstance(model, PipelineEngine):
+        model = pipe_to_normal(model)
     print_rank_0('Finished loading model')
 
     if args.text_gen_type == 'unconditional':

@@ -144,7 +144,8 @@ def get_model(model_provider_func):
 def get_optimizer(model):
     """Set up the optimizer."""
     args = get_args()
-
+    if args.no_load_optim:
+        return None, None
     # Build parameter groups (weight decay and non-decay).
     while isinstance(model, (torchDDP, LocalDDP, FP16_Module)):
         model = model.module
@@ -195,6 +196,9 @@ def get_optimizer(model):
 def get_learning_rate_scheduler(optimizer):
     """Build the learning rate scheduler."""
     args = get_args()
+    if args.no_load_optim:
+        # TODO: this should be configured as a separate arg
+        return None
     if args.deepspeed and args.onebitadam:
         print_rank_0("WARNING: onebitadam requires the lr scheduler be built by deepspeed - "
                      "Make sure one is added to your deepspeed config")
@@ -250,15 +254,23 @@ def setup_model_and_optimizer(model_provider_func):
 
     if args.deepspeed:
         print_rank_0("DeepSpeed is enabled.")
+        
+        if args.no_load_optim:
+            assert optimizer is None
+            _model_params = None
+            _lr_scheduler = None
+        else:
+            _model_params = param_groups if optimizer is None else None
+            _lr_scheduler = lr_scheduler
 
         model, optimizer, _, lr_scheduler = deepspeed.initialize(
             model=model,
             optimizer=optimizer,
             args=args,
-            lr_scheduler=lr_scheduler,
+            lr_scheduler=_lr_scheduler,
             mpu=mpu if args.pipe_parallel_size == 0 else None,
             dist_init_required=False,
-            model_parameters=param_groups if optimizer is None else None,
+            model_parameters=_model_params,
             config_params=deepspeed_conf,
         )
 
