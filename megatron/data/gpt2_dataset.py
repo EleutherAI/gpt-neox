@@ -1,6 +1,6 @@
 # coding=utf-8
-#
-# Copyright 2021 Biderman et al. This file is based in code by the authors denoted below and has been modified from its original version.
+# Copyright (c) 2021, EleutherAI contributors
+# This file is based on code by the authors denoted below and has been modified from its original version.
 #
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
@@ -191,7 +191,7 @@ def _build_index_mappings(name, data_prefix, documents, sizes,
             # sample_idx = _build_sample_idx(sizes, doc_idx, seq_length,
             #                               num_epochs, tokens_per_epoch)
             np.save(sample_idx_filename, sample_idx, allow_pickle=True)
-            print_rank_0(' > elasped time to build and save sample-idx mapping '
+            print_rank_0(' > elapsed time to build and save sample-idx mapping '
                          '(seconds): {:4f}'.format(time.time() - start_time))
             # shuffle-idx.
             start_time = time.time()
@@ -199,7 +199,7 @@ def _build_index_mappings(name, data_prefix, documents, sizes,
             #    sample i --> [sample_idx[i], sample_idx[i+1])
             shuffle_idx = _build_shuffle_idx(sample_idx.shape[0] - 1, np_rng)
             np.save(shuffle_idx_filename, shuffle_idx, allow_pickle=True)
-            print_rank_0(' > elasped time to build and save shuffle-idx mapping'
+            print_rank_0(' > elapsed time to build and save shuffle-idx mapping'
                          ' (seconds): {:4f}'.format(time.time() - start_time))
 
     # This should be a barrier but nccl barrier assumes
