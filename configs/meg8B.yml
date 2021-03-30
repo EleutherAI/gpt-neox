@@ -54,7 +54,7 @@
    # activation checkpointing
    "checkpoint-activations": true,
    "checkpoint-num-layers": 1,
-   "partition-activations": true,
+   "partition-activations": false,
    "synchronize-each-layer": false,
 
    # regularization
