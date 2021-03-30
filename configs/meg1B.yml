@@ -4,6 +4,7 @@
    # across the node boundaries )
    "pipe-parallel-size": 1,
    "model-parallel-size": 1,
+
    "num_gpus": 1, 
    "num_nodes": 1,
    "detect_nvlink_pairs": true,
