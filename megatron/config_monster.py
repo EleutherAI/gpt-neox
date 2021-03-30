@@ -1,4 +1,16 @@
-# Copyright 2021 (c) Josh Levy-Kramer <josh@levykramer.co.uk>. All rights reserved.
+# Copyright (c) 2021, EleutherAI contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import argparse
 import json
@@ -9,6 +21,7 @@ from deepspeed.launcher.runner import DLTS_HOSTFILE
 
 from megatron.utils import obtain_resource_pool
 from megatron.arguments import _get_parser
+import torch
 
 log = logging.getLogger('ConfigMonster')
 
@@ -267,6 +280,11 @@ class ConfigMonster:
         if args.conf_dir:
             conf_files = [os.path.join(args.conf_dir, f) for f in conf_files]
 
+        # enables us to pass in `small` instead of `small.yml`
+        for cf in conf_files:
+            if not cf.endswith('.yml'):
+                cf += '.yml'
+
         # Load and merge all configuration
         conf = {} if extra_conf is None else extra_conf
         for path in conf_files:
@@ -303,11 +321,16 @@ class ConfigMonster:
 
         # Get number of GPUs param or hostfile to determine train_batch_size
         num_gpus = conf.get('num_gpus')
-        if num_gpus is None and ('hostfile' in conf or os.path.exists(DLTS_HOSTFILE)):
-            hostfile_path = conf.get('hostfile', DLTS_HOSTFILE)
-            resources = obtain_resource_pool(hostfile_path, conf.get('include', ''), conf.get('exclude', ''))
-            num_gpus = sum(map(len, resources.values()))
-            log.info(f"Total number of GPUs determined to be: {num_gpus}")
+        if num_gpus is None:
+            if 'hostfile' in conf or os.path.exists(DLTS_HOSTFILE):
+                hostfile_path = conf.get('hostfile', DLTS_HOSTFILE)
+                resources = obtain_resource_pool(hostfile_path, conf.get('include', ''), conf.get('exclude', ''))
+                num_gpus = sum(map(len, resources.values()))
+            else:
+                num_gpus = torch.cuda.device_count()
+                conf["num_gpus"] = num_gpus
+
+        log.info(f"Total number of GPUs determined to be: {num_gpus}")
 
         # get world size in the model/pipe parallel case, the actual `world size` deepspeed uses is the size of the
         # data-parallel group, or (num_gpus / mp_size) / pp_size
