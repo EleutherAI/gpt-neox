@@ -21,8 +21,8 @@
    "pos-emb": "learned",
    # "no-weight-tying": true,
     # this should provide some speedup but takes a while to build, set to true if desired
-   "scaled-upper-triang-masked-softmax-fusion": false,
-   "bias-gelu-fusion": false,
+   "scaled-upper-triang-masked-softmax-fusion": true,
+   "bias-gelu-fusion": true,
 
    
    # optimizer settings
@@ -53,7 +53,7 @@
 
    # activation checkpointing
    "checkpoint-activations": true,
-   "checkpoint-num-layers": 1,
+   "checkpoint-num-layers": 6,
    "partition-activations": false,
    "synchronize-each-layer": false,
 
