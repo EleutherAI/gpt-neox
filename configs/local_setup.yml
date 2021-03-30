@@ -1,8 +1,8 @@
 # Suggested data paths when using GPT-NeoX locally
 {
-  "data-path": "data/enron/enron_text_document",
-  "vocab-file": "data/gpt2-vocab.json",
-  "merge-file": "data/gpt2-merges.txt",
+  "data-path": "/workspace/enron/enron_text_document",
+  "vocab-file": "/workspace/gpt2-vocab.json",
+  "merge-file": "/workspace/gpt2-merges.txt",
   "save": "checkpoints",
   "load": "checkpoints",
   "tensorboard-dir": "tensorboard",
