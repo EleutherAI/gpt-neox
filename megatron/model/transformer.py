@@ -22,7 +22,7 @@ import math
 import torch
 import torch.nn.functional as F
 
-from .norms import  LayerNorm, RMSNorm, ScaleNorm
+from .norms import LayerNorm, RMSNorm, ScaleNorm
 from megatron import get_args
 from megatron import mpu
 from megatron.module import MegatronModule
@@ -31,7 +31,7 @@ from megatron.model.fused_softmax import FusedScaleMaskSoftmax
 from megatron.model.fused_bias_gelu import bias_gelu_impl
 from megatron.model.utils import openai_gelu, erf_gelu, exists
 from megatron.mpu import ParallelRelativePositionBias
-
+from megatron.model.language_model import apply_rotary_pos_emb, SinusoidalPositionalEmbedding
 import deepspeed
 from deepspeed.ops.sparse_attention import SparseSelfAttention, VariableSparsityConfig
 
@@ -166,7 +166,7 @@ class ParallelSelfAttention(MegatronModule):
 
     def __init__(self, attention_mask_func, init_method,
                  output_layer_init_method, layer_number, sparse=False,
-                 rpe=None):
+                 rpe=None, rotary_pos_emb=None):
         super(ParallelSelfAttention, self).__init__()
         args = get_args()
         self.fp16 = args.fp16
@@ -200,10 +200,10 @@ class ParallelSelfAttention(MegatronModule):
             self.norm_factor *= coeff
 
         self.rpe = rpe
+        self.rotary_pos_emb = rotary_pos_emb
 
         self.sparse = sparse
         if self.sparse:
-
             sparsity_config = VariableSparsityConfig(
                 num_heads=self.num_attention_heads_per_partition,
                 attention="unidirectional"
@@ -379,6 +379,8 @@ class ParallelSelfAttention(MegatronModule):
             if exists(self.rpe):
                 rpe = self.rpe(query_layer.size(0), key_layer.size(0))
                 attention_scores += rpe  # [1, np, sq, sk]
+            elif exists(self.rotary_pos_emb):
+                query_layer, key_layer = apply_rotary_pos_emb(query_layer, key_layer, self.rotary_pos_emb)
 
             # attention scores and attention mask [b, np, sq, sk]
             attention_probs = self.scale_mask_softmax(attention_scores,
@@ -416,13 +418,19 @@ class ParallelSelfAttention(MegatronModule):
             # change view [b, np, sq, hn]
             context_layer = context_layer.view(*output_size)
         else:
+            if exists(self.rotary_pos_emb):
+                raise NotImplementedError("Rotary positional embedding not currently implemented for sparse attention.")
             # shape of q/k/v is [sq, b, np, hn] and needs to be transposed to [b, np, sq, hn]
             query_layer, key_layer, value_layer = map(lambda t: t.permute(1, 2, 0, 3).contiguous(),
                                                       (query_layer, key_layer,
                                                        value_layer))
             # output shape [b, np(heads), sq, hn]
             attn_mask = attention_mask.to(query_layer.dtype) * -10000
-            context_layer = self.sparse_attn(query_layer, key_layer, value_layer, attn_mask=attn_mask)
+            if exists(self.rpe):
+                rpe = self.rpe(query_layer.size(0), key_layer.size(0))
+            else:
+                rpe = None
+            context_layer = self.sparse_attn(query_layer, key_layer, value_layer, attn_mask=attn_mask, rpe=rpe)
 
         # [b, np, sq, hn] --> [sq, b, np, hn]
         context_layer = context_layer.permute(2, 0, 1, 3).contiguous()
@@ -478,7 +486,7 @@ class ParallelTransformerLayer(MegatronModule):
     """
 
     def __init__(self, attention_mask_func, init_method,
-                 output_layer_init_method, layer_number, sparse=False, rpe=None):
+                 output_layer_init_method, layer_number, sparse=False, rpe=None, rotary_pos_emb=None):
         args = get_args()
 
         super(ParallelTransformerLayer, self).__init__()
@@ -507,7 +515,8 @@ class ParallelTransformerLayer(MegatronModule):
                                                output_layer_init_method,
                                                layer_number,
                                                sparse=sparse,
-                                               rpe=rpe)
+                                               rpe=rpe,
+                                               rotary_pos_emb=rotary_pos_emb)
         self.hidden_dropout = args.hidden_dropout
         self.bias_dropout_fusion = args.bias_dropout_fusion
 
@@ -618,11 +627,12 @@ class ParallelTransformer(MegatronModule):
         self.param_sharing_style = args.param_sharing_style
 
         if args.pos_emb == 'rpe':
-            self.rpe_emb = ParallelRelativePositionBias(causal=True, num_buckets=args.rpe_num_buckets, max_distance=args.rpe_max_distance
-,
-                                            heads=args.num_attention_heads)
-        else:
-            self.rpe_emb = None
+            rpe_emb = ParallelRelativePositionBias(causal=True, num_buckets=args.rpe_num_buckets,
+                                                   max_distance=args.rpe_max_distance,
+                                                   heads=args.num_attention_heads)
+        elif args.pos_emb == 'rotary':
+            hidden_size_per_attention_head = mpu.divide(args.hidden_size, args.num_attention_heads)
+            rotary_pos_emb = SinusoidalPositionalEmbedding(hidden_size_per_attention_head)
 
         # Transformer layers.
         sparsity = args.sparsity
@@ -638,7 +648,8 @@ class ParallelTransformer(MegatronModule):
                 raise ValueError(f'Sparsity type {sparsity} not recognized')
             return ParallelTransformerLayer(
                 attention_mask_func, init_method,
-                output_layer_init_method, layer_number, sparse=sparse, rpe=self.rpe_emb)
+                output_layer_init_method, layer_number, sparse=sparse, rpe=rpe_emb if args.pos_emb == 'rpe' else None,
+                rotary_pos_emb=rotary_pos_emb if args.pos_emb == 'rotary' else None)
 
         self.layers = torch.nn.ModuleList(
             [build_layer(i + 1) for i in range(self.num_unique_layers)])

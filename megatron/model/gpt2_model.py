@@ -31,6 +31,7 @@ from .norms import LayerNorm, RMSNorm, ScaleNorm
 # Pipeline parallelism
 from megatron import mpu
 from megatron.mpu import ParallelRelativePositionBias
+from megatron.model.language_model import SinusoidalPositionalEmbedding
 import megatron.fp16 as fp16
 from megatron.model.transformer import ParallelTransformerLayerPipe
 from .language_model import EmbeddingPipe, parallel_lm_logits
@@ -171,8 +172,9 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
             rpe_emb = ParallelRelativePositionBias(causal=True, num_buckets=args.rpe_num_buckets,
                                                    max_distance=args.rpe_max_distance,
                                                    heads=args.num_attention_heads)
-        else:
-            rpe_emb = None
+        elif args.pos_emb == 'rotary':
+            hidden_size_per_attention_head = mpu.divide(args.hidden_size, args.num_attention_heads)
+            rotary_pos_emb = SinusoidalPositionalEmbedding(hidden_size_per_attention_head)
         self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
 
         #
@@ -218,7 +220,8 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                           output_layer_init_method=self.output_layer_init_method,
                           layer_number=x,
                           sparse=sparse,
-                          rpe=rpe_emb))
+                          rpe=rpe_emb if args.pos_emb == 'rpe' else None,
+                          rotary_pos_emb=rotary_pos_emb if args.pos_emb == 'rotary' else None))
         # Undo data format change and drop mask
         self.specs.append(lambda x: x[0].transpose(0, 1).contiguous())
 
