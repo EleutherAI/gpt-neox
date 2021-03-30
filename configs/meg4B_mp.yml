@@ -3,16 +3,17 @@
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
    "pipe-parallel-size": 1,
-   "model-parallel-size": 2,
+   "model-parallel-size": 4,
 
-   "num_gpus": 2, 
+   "num_gpus": 4,
    "num_nodes": 1,
    "detect_nvlink_pairs": true,
 
+   # "include": "10.140.4.111:0,1,2,3", # will need to change this to your node's ip
    # model settings
-   "num-layers": 30,
-   "hidden-size": 2304,
-   "num-attention-heads": 18,
+   "num-layers": 36,
+   "hidden-size": 3072,
+   "num-attention-heads": 24,
    "seq-length": 1024,
    "max-position-embeddings": 1024,
    "norm": "layernorm",
