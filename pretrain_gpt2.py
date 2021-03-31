@@ -36,7 +36,7 @@ from megatron.fp16 import fp32_to_fp16
 import wandb
 
 
-def model_provider(use_wandb=True):
+def model_provider(use_wandb=True, inference=False):
     """Build the model."""
 
     args = get_args()
@@ -45,7 +45,7 @@ def model_provider(use_wandb=True):
     if args.pipe_parallel_size == 0:
         model = GPT2Model(num_tokentypes=0, parallel_output=True)
     else:
-        model = GPT2ModelPipe(num_tokentypes=0, parallel_output=True, topology=mpu.get_topology())
+        model = GPT2ModelPipe(num_tokentypes=0, parallel_output=True, topology=mpu.get_topology(), inference=inference)
         # This is a hack to give us a reference to get_batch_pipe from within training.py
         # We need to call model.set_batch_fn after deepspeed.initialize
         model._megatron_batch_fn = get_batch_pipe

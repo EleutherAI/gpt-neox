@@ -607,7 +607,7 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
                 presents.append(present)
             return hidden_states, attention_mask, layer_past, get_key_value, presents
         else:
-            raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
+            raise ValueError(f'In layer {self.layer_number} - Incorrect number of arguments ({len(args)}) for {self.__class__.__name__}')
 
 
 class NormPipe(MegatronModule):

@@ -48,13 +48,13 @@ def main(extra_args_provider=None):
 
     # Force disable PP, checkpoint activations
     if args.pipe_parallel_size > 1:
-        args.pipe_parallel_size = 1
+        raise Exception("Pipeline parallel size must <= 1 when running inference.")
     args.checkpoint_activations = False
     args.partition_activations = False
     args.no_load_optim = True
 
     # Set up model and load checkpoint.
-    model, _, _ = setup_model_and_optimizer(lambda: model_provider(use_wandb=False))
+    model, _, _ = setup_model_and_optimizer(lambda: model_provider(use_wandb=False, inference=True))
     if isinstance(model, PipelineEngine):
         model = pipe_to_normal(model)
     print_rank_0('Finished loading model')

@@ -29,6 +29,7 @@ from megatron import get_args, print_rank_0
 from megatron import get_tokenizer
 from megatron import mpu
 from megatron.utils import get_ltor_masks_and_position_ids
+from megatron.fp16 import fp32_to_fp16
 
 
 def get_batch(context_tokens):
@@ -45,7 +46,9 @@ def get_batch(context_tokens):
         args.reset_position_ids,
         args.reset_attention_mask,
         args.eod_mask_loss)
-
+    if args.pipe_parallel_size >= 1 and args.fp16:
+        # cast to fp16 because pipeline parallelism skips the FP16 wrapper.
+        return fp32_to_fp16((tokens, attention_mask, position_ids))
     return tokens, attention_mask, position_ids
 
 
@@ -335,7 +338,6 @@ def get_token_stream(model, context_tokens):
 
 
 def switch(val1, val2, boolean):
-
     boolean = boolean.type_as(val1)
     return (1 - boolean) * val1 + boolean * val2
 
@@ -343,8 +345,17 @@ def forward_model(model, model_inputs):
     # because someone at deepspeed decided pipeline modules couldn't use kwargs,
     # we need to forward a pipe model by access model.module() instead of just model()
     args = get_args()
-    if args.pipe_parallel_size >= 1:
+    if args.pipe_parallel_size == 1:
         return model.module(model_inputs)
+    elif args.pipe_parallel_size > 1:
+        # deepspeed makes this super difficult
+        raise NotImplementedError
+        # data_iterator = iter([[model_inputs, torch.Tensor(1)]])
+        # train_batch_fn = model.batch_fn
+        # model.set_batch_fn(lambda x: x)
+        # x = model.eval_batch(data_iterator)
+        # model.set_batch_fn(train_batch_fn)
+        # return x
     else:
         return model(*model_inputs)
 

@@ -158,10 +158,10 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
     sequence of layers including embedding, transformer layers, and output.
     """
 
-    def __init__(self, num_tokentypes=0, parallel_output=True, topology=None):
+    def __init__(self, num_tokentypes=0, parallel_output=True, topology=None, inference=True):
         args = get_args()
-        self.inference = True
 
+        self._inference = inference
         self.parallel_output = parallel_output
         self.hidden_size = args.hidden_size
         self.num_tokentypes = num_tokentypes
@@ -173,7 +173,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
         # forward() prototype
         # 
         self.specs = []
-        self.init_specs_for_training(args)
+        self.init_specs(args)
         loss_fn = partial(cross_entropy, _fp16=self.fp16_lm_cross_entropy)
         if args.checkpoint_activations:
             interval = args.checkpoint_num_layers
@@ -185,7 +185,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                          activation_checkpoint_interval=interval,
                          partition_method='type:transformer')
 
-    def init_specs_for_training(self, args):
+    def init_specs(self, args):
         weight_tying = not args.no_weight_tying
         if args.pos_emb == 'rpe':
             rpe_emb = ParallelRelativePositionBias(causal=True, num_buckets=args.rpe_num_buckets,
@@ -218,7 +218,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
         #           Inference: (hidden_states, attention_mask, layer_past, get_key_value)
 
 
-        if self.inference:
+        if self._inference:
             # we need to add a container to cache `presents` from each layer's forward pass
             # inputs/outputs are now (hidden_states, attention_mask, layer_past, get_key_value, presents)
             self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), *x[1:], []))
@@ -242,7 +242,8 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                           layer_number=x,
                           sparse=sparse,
                           rpe=rpe_emb))
-        if self.inference:
+                          
+        if self._inference:
             # from (hidden_states, attention_mask, layer_past, get_key_value, presents)
             # to (hidden_states^T, presents)
             self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), x[-1]))
@@ -277,7 +278,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
 
         def _logits_helper(embedding, lm_output):
             """Just a wrapper to massage inputs/outputs from pipeline. """
-            if self.inference and len(lm_output) == 2:
+            if self._inference and len(lm_output) == 2:
                 hidden_states, presents = lm_output
                 output = parallel_lm_logits(
                     hidden_states,
@@ -319,3 +320,4 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
             )
         # so output in training should just be logits
         # in inference it will be (logits, presents) (assuming get_key_value) is on
+
