@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 #  --- USAGE ---
-# $ deploy_k8.sh [branch=main] [n_nodes=4] [name_suffix=$USER] [A100s='no'. Option:no/yes] [image]
+# $ deploy_cluster.sh [branch=main] [n_nodes=4] [name_suffix=$USER] [A100s='no'. Option:no/yes] [image]
 # You need to install yq
 
 # Check yq
@@ -9,7 +9,7 @@ yq &> /dev/null || { echo 'You need to install `yq >= v4`. `brew install yq` or 
 
 WD_BRANCH=$(git branch  --no-color --show-current)
 WD_BRANCH="${WD_BRANCH/\//-}"  # remove forward slashes and replace with underscore
-DEFAULT_IMAGE="leogao2/gpt-neox:sha-86664f3"
+DEFAULT_IMAGE="leogao2/gpt-neox:sha-66dfd9a"
 
 BRANCH=${1:-main}
 N_NODES=${2:-4}
