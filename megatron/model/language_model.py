@@ -25,7 +25,7 @@ from einops import rearrange, repeat
 from megatron import get_args
 from megatron import mpu
 from megatron.module import MegatronModule
-from megatron.model.transformer import ParallelTransformer
+from megatron.model.transformer import ParallelTransformer, SinusoidalPositionalEmbedding, Embedding
 from megatron.model.utils import get_linear_layer
 from megatron.model.utils import init_method_normal, scaled_init_method_normal
 from megatron.model.utils import identity
@@ -72,239 +72,6 @@ def get_language_model(attention_mask_func, num_tokentypes, add_pooler,
     language_model_key = 'language_model'
 
     return language_model, language_model_key
-
-
-class Pooler(MegatronModule):
-    """Pooler layer.
-
-    Pool hidden states of a specific token (for example start of the
-    sequence) and add a linear transformation followed by a tanh.
-
-    Arguments:
-        hidden_size: hidden size
-        init_method: weight initialization method for the linear layer.
-            bias is set to zero.
-    """
-
-    def __init__(self, hidden_size, init_method):
-        super(Pooler, self).__init__()
-        self.dense = get_linear_layer(hidden_size, hidden_size, init_method)
-
-    def forward(self, hidden_states, sequence_index=0):
-        # hidden_states: [b, s, h]
-        # sequence_index: index of the token to pool.
-        pooled = hidden_states[:, sequence_index, :]
-        pooled = self.dense(pooled)
-        pooled = torch.tanh(pooled)
-        return pooled
-
-
-class SinusoidalPositionalEmbedding(MegatronModule):
-    def __init__(self, dim):
-        super().__init__()
-        inv_freq = 1. / (10000 ** (torch.arange(0, dim, 2).float() / dim))
-        self.register_buffer('inv_freq', inv_freq)
-
-    def forward(self, x, seq_dim=1):
-        t = torch.arange(x.shape[seq_dim], device=x.device).type_as(self.inv_freq)
-        sinusoid_inp = torch.einsum("i,j->ij", t, self.inv_freq)
-        emb = torch.cat((sinusoid_inp.sin(), sinusoid_inp.cos()), dim=-1)
-        return emb[None, :, :]
-
-
-def rotate_every_two(x):
-    x = rearrange(x, '... (d j) -> ... d j', j=2)
-    x1, x2 = x.unbind(dim=-1)
-    x = torch.stack((-x2, x1), dim=-1)
-    return rearrange(x, '... d j -> ... (d j)')
-
-
-def apply_rotary_pos_emb(q, k, sinu_pos):
-    sinu_pos = rearrange(sinu_pos, '() n (j d) -> n j d', j=2)
-    sin, cos = sinu_pos.unbind(dim=-2)
-    sin, cos = map(lambda t: repeat(t, 'b n -> b (n j)', j=2), (sin, cos))
-    q, k = map(lambda t: (t * cos) + (rotate_every_two(t) * sin), (q, k))
-    return q, k
-
-
-class Embedding(MegatronModule):
-    """Language model embeddings.
-
-    Arguments:
-        hidden_size: hidden size
-        vocab_size: vocabulary size
-        max_sequence_length: maximum size of sequence. This
-                             is used for positional embedding
-        embedding_dropout_prob: dropout probability for embeddings
-        init_method: weight initialization method
-        num_tokentypes: size of the token-type embeddings. 0 value
-                        will ignore this embedding
-    """
-
-    def __init__(self,
-                 hidden_size,
-                 vocab_size,
-                 max_sequence_length,
-                 embedding_dropout_prob,
-                 init_method,
-                 num_tokentypes=0):
-        super(Embedding, self).__init__()
-        args = get_args()
-        self.hidden_size = hidden_size
-        self.init_method = init_method
-        self.num_tokentypes = num_tokentypes
-
-        # Word embeddings (parallel).
-        self.word_embeddings = mpu.VocabParallelEmbedding(
-            vocab_size, self.hidden_size, init_method=self.init_method)
-        self._word_embeddings_key = 'word_embeddings'
-
-        # Position embedding (serial).
-        self.embedding_type = args.pos_emb
-        if self.embedding_type == "learned":
-            self.position_embeddings = torch.nn.Embedding(
-                max_sequence_length, self.hidden_size)
-            self._position_embeddings_key = 'position_embeddings'
-            # Initialize the position embeddings.
-            self.init_method(self.position_embeddings.weight)
-        elif self.embedding_type == "sinusoidal":
-            self.position_embeddings = SinusoidalPositionalEmbedding(self.hidden_size)
-
-        # Token type embedding.
-        # Add this as an optional field that can be added through
-        # method call so we can load a pretrain model without
-        # token types and add them as needed.
-        self._tokentype_embeddings_key = 'tokentype_embeddings'
-        if self.num_tokentypes > 0:
-            self.tokentype_embeddings = torch.nn.Embedding(self.num_tokentypes,
-                                                           self.hidden_size)
-            # Initialize the token-type embeddings.
-            self.init_method(self.tokentype_embeddings.weight)
-        else:
-            self.tokentype_embeddings = None
-
-        # Embeddings dropout
-        self.embedding_dropout = torch.nn.Dropout(embedding_dropout_prob)
-
-    def add_tokentype_embeddings(self, num_tokentypes):
-        """Add token-type embedding. This function is provided so we can add
-        token-type embeddings in case the pretrained model does not have it.
-        This allows us to load the model normally and then add this embedding.
-        """
-        if self.tokentype_embeddings is not None:
-            raise Exception('tokentype embeddings is already initialized')
-        if torch.distributed.get_rank() == 0:
-            print('adding embedding for {} tokentypes'.format(num_tokentypes),
-                  flush=True)
-        self.num_tokentypes = num_tokentypes
-        self.tokentype_embeddings = torch.nn.Embedding(num_tokentypes,
-                                                       self.hidden_size)
-        # Initialize the token-type embeddings.
-        self.init_method(self.tokentype_embeddings.weight)
-
-    def forward(self, input_ids, position_ids, tokentype_ids=None):
-        # Embeddings.
-        words_embeddings = self.word_embeddings(input_ids)
-        if self.embedding_type in ["learned", "sinusoidal"]:
-            position_embeddings = self.position_embeddings(position_ids)
-            embeddings = words_embeddings + position_embeddings
-        else:
-            embeddings = words_embeddings
-        if tokentype_ids is not None:
-            assert self.tokentype_embeddings is not None
-            embeddings = embeddings + self.tokentype_embeddings(tokentype_ids)
-        else:
-            assert self.tokentype_embeddings is None
-
-        # Dropout.
-        embeddings = self.embedding_dropout(embeddings)
-
-        return embeddings
-
-    def state_dict_for_save_checkpoint(self, destination=None, prefix='',
-                                       keep_vars=False):
-        """For easy load."""
-
-        state_dict_ = {}
-        state_dict_[self._word_embeddings_key] \
-            = self.word_embeddings.state_dict(destination, prefix, keep_vars)
-        if self.embedding_type == "learned":
-            state_dict_[self._position_embeddings_key] \
-                = self.position_embeddings.state_dict(
-                destination, prefix, keep_vars)
-        if self.num_tokentypes > 0:
-            state_dict_[self._tokentype_embeddings_key] \
-                = self.tokentype_embeddings.state_dict(
-                destination, prefix, keep_vars)
-
-        return state_dict_
-
-    def load_state_dict(self, state_dict, strict=True):
-        """Customized load."""
-
-        # Word embedding.
-        if self._word_embeddings_key in state_dict:
-            state_dict_ = state_dict[self._word_embeddings_key]
-        else:
-            # for backward compatibility.
-            state_dict_ = {}
-            for key in state_dict.keys():
-                if 'word_embeddings' in key:
-                    state_dict_[key.split('word_embeddings.')[1]] \
-                        = state_dict[key]
-        self.word_embeddings.load_state_dict(state_dict_, strict=strict)
-
-        # Position embedding.
-        if self.embedding_type == "learned":
-            if self._position_embeddings_key in state_dict:
-                state_dict_ = state_dict[self._position_embeddings_key]
-            else:
-                # for backward compatibility.
-                state_dict_ = {}
-                for key in state_dict.keys():
-                    if 'position_embeddings' in key:
-                        state_dict_[key.split('position_embeddings.')[1]] \
-                            = state_dict[key]
-            self.position_embeddings.load_state_dict(state_dict_, strict=strict)
-
-        # Tokentype embedding.
-        if self.num_tokentypes > 0:
-            state_dict_ = {}
-            if self._tokentype_embeddings_key in state_dict:
-                state_dict_ = state_dict[self._tokentype_embeddings_key]
-            else:
-                # for backward compatibility.
-                for key in state_dict.keys():
-                    if 'tokentype_embeddings' in key:
-                        state_dict_[key.split('tokentype_embeddings.')[1]] \
-                            = state_dict[key]
-            if len(state_dict_.keys()) > 0:
-                self.tokentype_embeddings.load_state_dict(state_dict_,
-                                                          strict=strict)
-            else:
-                print('***WARNING*** expected tokentype embeddings in the '
-                      'checkpoint but could not find it', flush=True)
-
-
-class EmbeddingPipe(Embedding):
-    """Extends Embedding to forward attention_mask through the pipeline."""
-
-    @property
-    def word_embeddings_weight(self):
-        """Easy accessory for the pipeline engine to tie embeddings across stages."""
-        return self.word_embeddings.weight
-
-    def forward(self, args):
-        input_ids = args[0]
-        position_ids = args[1]
-        attention_mask = args[2]
-        if len(args) == 4:
-            tokentype_ids = args[3]
-        else:
-            tokentype_ids = None
-
-        embeddings = super().forward(input_ids, position_ids, tokentype_ids=tokentype_ids)
-        return embeddings, attention_mask
 
 
 class TransformerLanguageModel(MegatronModule):
@@ -367,10 +134,14 @@ class TransformerLanguageModel(MegatronModule):
         # Embeddings.
         embedding_output = self.embedding(input_ids, position_ids,
                                           tokentype_ids=tokentype_ids)
-
+        if self.embedding_type == 'rotary':
+            embedding_output, rotary_pos_emb = embedding_output
+        else:
+            rotary_pos_emb = None
         # Transformer.
         transformer_output = self.transformer(embedding_output,
                                               attention_mask,
+                                              rotary_pos_emb=rotary_pos_emb,
                                               layer_past=layer_past,
                                               get_key_value=get_key_value)
 

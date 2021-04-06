@@ -33,8 +33,8 @@ from megatron import mpu
 from megatron.mpu import ParallelRelativePositionBias
 from megatron.model.language_model import SinusoidalPositionalEmbedding
 import megatron.fp16 as fp16
-from megatron.model.transformer import ParallelTransformerLayerPipe
-from .language_model import EmbeddingPipe, parallel_lm_logits
+from megatron.model.transformer import ParallelTransformerLayerPipe, EmbeddingPipe
+from megatron.model.language_model import parallel_lm_logits
 
 from deepspeed.pipe import PipelineModule, LayerSpec, TiedLayerSpec
 
@@ -202,9 +202,9 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                                         self.num_tokentypes))
 
         # outputs are now (hidden_states, attention_mask)
-
+        # unless args.pos_emb == rotary, then (hidden_states, rotary_pos_emb, attention_mask)
         # data format change to avoid explicit tranposes : [b s h] --> [s b h]
-        self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), x[1]))
+        self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), *x[1:]))
         # Transformer layers
         for x in range(args.num_layers):
             if args.sparsity == 'none':
@@ -220,8 +220,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                           output_layer_init_method=self.output_layer_init_method,
                           layer_number=x,
                           sparse=sparse,
-                          rpe=rpe_emb if args.pos_emb == 'rpe' else None,
-                          rotary_pos_emb=rotary_pos_emb if args.pos_emb == 'rotary' else None))
+                          rpe=rpe_emb if args.pos_emb == 'rpe' else None))
         # Undo data format change and drop mask
         self.specs.append(lambda x: x[0].transpose(0, 1).contiguous())
 
