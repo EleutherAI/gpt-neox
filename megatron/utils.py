@@ -194,6 +194,9 @@ def is_local_main():
     """ True if is the local main process """
     return local_rank() == 0
 
+def is_mp_rank_0():
+    """True if mp rank == 0"""
+    return mpu.get_model_parallel_rank() == 0
 
 def get_wandb_api_key():
     """ Get Weights and Biases API key from ENV or .netrc file. Otherwise return None """
