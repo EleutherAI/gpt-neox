@@ -295,11 +295,11 @@ class EmbeddingPipe(Embedding):
         return self.word_embeddings.weight
 
     def forward(self, args):
-        input_ids = args[0]
-        position_ids = args[1]
-        attention_mask = args[2]
+        input_ids = args[0]  # tensor
+        position_ids = args[1]  # tensor
+        attention_mask = args[2]  # tensor
         if len(args) == 4:
-            tokentype_ids = args[3]
+            tokentype_ids = args[3]  # almost always None? and if not None, tensor
         else:
             tokentype_ids = None
 
