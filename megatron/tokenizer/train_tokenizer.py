@@ -9,12 +9,7 @@ from tokenizers.normalizers import NFKC
 from glob import glob
 import os
 import json
-from collections import defaultdict
-from pathlib import Path
-import unicodedata
-# from sampler import WeightedSampler
 import argparse
-from argparse import Namespace
 
 def load_jsonl(input_path, quiet=True) -> list:
     """
@@ -31,19 +26,19 @@ def load_jsonl(input_path, quiet=True) -> list:
 def json_iterator(input_dir, text_key='text'):
     all_jsonls = glob(f'{input_dir}/*.jsonl') + glob(f'{input_dir}/*.json')
     for j in all_jsonls:
-        data = load_jsonl(j)[:1000]
+        data = load_jsonl(j)
         for doc in data:
             yield doc[text_key]
     
 
-def train_tokenizer(input_dir, save_path, tokenizer_type="BPE", vocab_size=52000):
+def train_tokenizer(input_dir: str, save_path: str, tokenizer_type: str = "BPE", vocab_size: int = 52000):
     """
-    Trains a tokenizer using all the languages contained in `langs` (a list of language ISO codes)
+    Trains a tokenizer on all the json files in `input_dir` and saves it to `save_path`
 
-    :param input_dir:
-    :param save_path:
-    :param tokenizer_type:
-    :param vocab_size:
+    :param input_dir: input directory containing jsonl files
+    :param save_path: path to save tokenizer to
+    :param tokenizer_type: type of tokenizer to train.
+    :param vocab_size: int, size of tokenizer's vocab
     :return:
     """
 
@@ -86,12 +81,7 @@ def parse_args():
 
 if __name__ == "__main__":
 
-    # args = parse_args()
-    args = Namespace()
-    args.json_input_dir = "/mnt/ssd-cluster/data/enron"
-    args.tokenizer_type = "BPE"
-    args.vocab_size = 52000
-    args.tokenizer_output_path = "/mnt/ssd-cluster/data/tokenizer.json"
+    args = parse_args()
 
     train_tokenizer(args.json_input_dir,
                     save_path=args.tokenizer_output_path,
