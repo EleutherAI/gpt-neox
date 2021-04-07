@@ -22,7 +22,7 @@ import math
 import torch
 import torch.nn.functional as F
 
-from .norms import  LayerNorm, RMSNorm, ScaleNorm
+from .norms import LayerNorm, RMSNorm, ScaleNorm
 from megatron import get_args
 from megatron import mpu
 from megatron.module import MegatronModule
@@ -31,9 +31,9 @@ from megatron.model.fused_softmax import FusedScaleMaskSoftmax
 from megatron.model.fused_bias_gelu import bias_gelu_impl
 from megatron.model.utils import openai_gelu, erf_gelu, exists
 from megatron.mpu import ParallelRelativePositionBias
-
 import deepspeed
 from deepspeed.ops.sparse_attention import SparseSelfAttention, VariableSparsityConfig
+from einops import rearrange, repeat
 
 # flags required to enable jit fusion kernels
 torch._C._jit_set_profiling_mode(False)
@@ -62,6 +62,34 @@ torch._C._jit_override_can_fuse_on_gpu(True)
                                      unmaksed-attention-scores, attention-mask)
 """
 
+class SinusoidalPositionalEmbedding(MegatronModule):
+    def __init__(self, dim):
+        super().__init__()
+        inv_freq = 1. / (10000 ** (torch.arange(0, dim, 2).float() / dim))
+        self.register_buffer('inv_freq', inv_freq)
+
+    def forward(self, x, seq_dim=1):
+        t = torch.arange(x.shape[seq_dim], device=x.device).type_as(self.inv_freq)
+        sinusoid_inp = torch.einsum("i,j->ij", t, self.inv_freq)
+        emb = torch.cat((sinusoid_inp.sin(), sinusoid_inp.cos()), dim=-1)
+        return emb[None, :, :]
+
+
+def rotate_every_two(x):
+    x = rearrange(x, '... (d j) -> ... d j', j=2)
+    x1, x2 = x.unbind(dim=-1)
+    x = torch.stack((-x2, x1), dim=-1)
+    return rearrange(x, '... d j -> ... (d j)')
+
+
+def apply_rotary_pos_emb(q, k, sinu_pos):
+    # TODO: get rid of these transposes
+    q, k = map(lambda t: t.transpose(0, 1), (q, k))
+    sinu_pos = rearrange(sinu_pos, '() n (j d) -> n j d', j=2)
+    sin, cos = sinu_pos.unbind(dim=-2)
+    sin, cos = map(lambda t: repeat(t, 'b n -> b (n j)', j=2), (sin, cos))
+    q, k = map(lambda t: (t * cos) + (rotate_every_two(t) * sin), (q, k))
+    return map(lambda t: t.transpose(1, 0), (q, k))
 
 class GEGLU(MegatronModule):
 
@@ -203,7 +231,6 @@ class ParallelSelfAttention(MegatronModule):
 
         self.sparse = sparse
         if self.sparse:
-
             sparsity_config = VariableSparsityConfig(
                 num_heads=self.num_attention_heads_per_partition,
                 attention="unidirectional"
@@ -277,7 +304,7 @@ class ParallelSelfAttention(MegatronModule):
 
         return mixed_layer
 
-    def forward(self, hidden_states, attention_mask, layer_past=None,
+    def forward(self, hidden_states, attention_mask, rotary_pos_emb=None, layer_past=None,
                 get_key_value=False):
         # hidden_states: [sq, b, h]
 
@@ -379,6 +406,8 @@ class ParallelSelfAttention(MegatronModule):
             if exists(self.rpe):
                 rpe = self.rpe(query_layer.size(0), key_layer.size(0))
                 attention_scores += rpe  # [1, np, sq, sk]
+            if exists(rotary_pos_emb):
+                query_layer, key_layer = apply_rotary_pos_emb(query_layer, key_layer, rotary_pos_emb)
 
             # attention scores and attention mask [b, np, sq, sk]
             attention_probs = self.scale_mask_softmax(attention_scores,
@@ -416,13 +445,19 @@ class ParallelSelfAttention(MegatronModule):
             # change view [b, np, sq, hn]
             context_layer = context_layer.view(*output_size)
         else:
+            if exists(rotary_pos_emb):
+                raise NotImplementedError("Rotary positional embedding not currently implemented for sparse attention.")
             # shape of q/k/v is [sq, b, np, hn] and needs to be transposed to [b, np, sq, hn]
             query_layer, key_layer, value_layer = map(lambda t: t.permute(1, 2, 0, 3).contiguous(),
                                                       (query_layer, key_layer,
                                                        value_layer))
             # output shape [b, np(heads), sq, hn]
             attn_mask = attention_mask.to(query_layer.dtype) * -10000
-            context_layer = self.sparse_attn(query_layer, key_layer, value_layer, attn_mask=attn_mask)
+            if exists(self.rpe):
+                rpe = self.rpe(query_layer.size(0), key_layer.size(0))
+            else:
+                rpe = None
+            context_layer = self.sparse_attn(query_layer, key_layer, value_layer, attn_mask=attn_mask, rpe=rpe)
 
         # [b, np, sq, hn] --> [sq, b, np, hn]
         context_layer = context_layer.permute(2, 0, 1, 3).contiguous()
@@ -520,7 +555,7 @@ class ParallelTransformerLayer(MegatronModule):
         self.mlp = ParallelMLP(init_method,
                                output_layer_init_method)
 
-    def forward(self, hidden_states, attention_mask, layer_past=None,
+    def forward(self, hidden_states, attention_mask, rotary_pos_emb=None, layer_past=None,
                 get_key_value=False):
         # hidden_states: [b, s, h]
 
@@ -530,6 +565,7 @@ class ParallelTransformerLayer(MegatronModule):
         attention_output, attention_bias = \
             self.attention(layernorm_output,
                            attention_mask,
+                           rotary_pos_emb=rotary_pos_emb,
                            layer_past=layer_past,
                            get_key_value=get_key_value)
 
@@ -592,7 +628,12 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
     """Extends ParallelTransformerLayer to forward attention_mask through the pipeline. """
 
     def forward(self, args):
-        hidden_states, attention_mask = args[0], args[1]
+        if len(args) == 2:
+            hidden_states, attention_mask = args
+        elif len(args) == 3:
+            hidden_states, rotary_pos_emb, attention_mask = args
+            args = hidden_states, attention_mask, rotary_pos_emb
+            return super().forward(*args), rotary_pos_emb, attention_mask
         return super().forward(*args), attention_mask
 
 
@@ -618,11 +659,9 @@ class ParallelTransformer(MegatronModule):
         self.param_sharing_style = args.param_sharing_style
 
         if args.pos_emb == 'rpe':
-            self.rpe_emb = ParallelRelativePositionBias(causal=True, num_buckets=args.rpe_num_buckets, max_distance=args.rpe_max_distance
-,
-                                            heads=args.num_attention_heads)
-        else:
-            self.rpe_emb = None
+            rpe_emb = ParallelRelativePositionBias(causal=True, num_buckets=args.rpe_num_buckets,
+                                                   max_distance=args.rpe_max_distance,
+                                                   heads=args.num_attention_heads)
 
         # Transformer layers.
         sparsity = args.sparsity
@@ -638,7 +677,7 @@ class ParallelTransformer(MegatronModule):
                 raise ValueError(f'Sparsity type {sparsity} not recognized')
             return ParallelTransformerLayer(
                 attention_mask_func, init_method,
-                output_layer_init_method, layer_number, sparse=sparse, rpe=self.rpe_emb)
+                output_layer_init_method, layer_number, sparse=sparse, rpe=rpe_emb if args.pos_emb == 'rpe' else None)
 
         self.layers = torch.nn.ModuleList(
             [build_layer(i + 1) for i in range(self.num_unique_layers)])
@@ -706,7 +745,7 @@ class ParallelTransformer(MegatronModule):
 
         return hidden_states
 
-    def forward(self, hidden_states, attention_mask, layer_past=None,
+    def forward(self, hidden_states, attention_mask, rotary_pos_emb=None, layer_past=None,
                 get_key_value=False):
 
         # Checks
@@ -736,7 +775,8 @@ class ParallelTransformer(MegatronModule):
                 hidden_states = layer(hidden_states,
                                       attention_mask,
                                       layer_past=past,
-                                      get_key_value=get_key_value)
+                                      get_key_value=get_key_value,
+                                      rotary_pos_emb=rotary_pos_emb)
                 if get_key_value:
                     hidden_states, present = hidden_states
                     presents.append(present)
@@ -750,3 +790,196 @@ class ParallelTransformer(MegatronModule):
             output = [output, presents]
 
         return output
+
+
+class Embedding(MegatronModule):
+    """Language model embeddings.
+
+    Arguments:
+        hidden_size: hidden size
+        vocab_size: vocabulary size
+        max_sequence_length: maximum size of sequence. This
+                             is used for positional embedding
+        embedding_dropout_prob: dropout probability for embeddings
+        init_method: weight initialization method
+        num_tokentypes: size of the token-type embeddings. 0 value
+                        will ignore this embedding
+    """
+
+    def __init__(self,
+                 hidden_size,
+                 vocab_size,
+                 max_sequence_length,
+                 embedding_dropout_prob,
+                 init_method,
+                 rotary_pos_emb=False,
+                 num_tokentypes=0):
+        super(Embedding, self).__init__()
+        args = get_args()
+        self.hidden_size = hidden_size
+        self.init_method = init_method
+        self.num_tokentypes = num_tokentypes
+
+        # Word embeddings (parallel).
+        self.word_embeddings = mpu.VocabParallelEmbedding(
+            vocab_size, self.hidden_size, init_method=self.init_method)
+        self._word_embeddings_key = 'word_embeddings'
+
+        # Position embedding (serial).
+        self.embedding_type = args.pos_emb
+        if self.embedding_type == "learned":
+            self.position_embeddings = torch.nn.Embedding(
+                max_sequence_length, self.hidden_size)
+            self._position_embeddings_key = 'position_embeddings'
+            # Initialize the position embeddings.
+            self.init_method(self.position_embeddings.weight)
+        elif self.embedding_type == "sinusoidal":
+            self.position_embeddings = SinusoidalPositionalEmbedding(self.hidden_size)
+        elif self.embedding_type == 'rotary':
+            hidden_size_per_attention_head = mpu.divide(args.hidden_size, args.num_attention_heads)
+            self.rotary_pos_emb = SinusoidalPositionalEmbedding(hidden_size_per_attention_head)
+
+        # Token type embedding.
+        # Add this as an optional field that can be added through
+        # method call so we can load a pretrain model without
+        # token types and add them as needed.
+        self._tokentype_embeddings_key = 'tokentype_embeddings'
+        if self.num_tokentypes > 0:
+            self.tokentype_embeddings = torch.nn.Embedding(self.num_tokentypes,
+                                                           self.hidden_size)
+            # Initialize the token-type embeddings.
+            self.init_method(self.tokentype_embeddings.weight)
+        else:
+            self.tokentype_embeddings = None
+
+        # Embeddings dropout
+        self.embedding_dropout = torch.nn.Dropout(embedding_dropout_prob)
+
+    def add_tokentype_embeddings(self, num_tokentypes):
+        """Add token-type embedding. This function is provided so we can add
+        token-type embeddings in case the pretrained model does not have it.
+        This allows us to load the model normally and then add this embedding.
+        """
+        if self.tokentype_embeddings is not None:
+            raise Exception('tokentype embeddings is already initialized')
+        if torch.distributed.get_rank() == 0:
+            print('adding embedding for {} tokentypes'.format(num_tokentypes),
+                  flush=True)
+        self.num_tokentypes = num_tokentypes
+        self.tokentype_embeddings = torch.nn.Embedding(num_tokentypes,
+                                                       self.hidden_size)
+        # Initialize the token-type embeddings.
+        self.init_method(self.tokentype_embeddings.weight)
+
+    def forward(self, input_ids, position_ids, tokentype_ids=None):
+        # Embeddings.
+        words_embeddings = self.word_embeddings(input_ids)
+        if self.embedding_type in ["learned", "sinusoidal"]:
+            position_embeddings = self.position_embeddings(position_ids)
+            embeddings = words_embeddings + position_embeddings
+        else:
+            embeddings = words_embeddings
+        if self.embedding_type == 'rotary':
+            rotary_pos_emb = self.rotary_pos_emb(words_embeddings, seq_dim=1)
+            embeddings = words_embeddings
+        if tokentype_ids is not None:
+            assert self.tokentype_embeddings is not None
+            embeddings = embeddings + self.tokentype_embeddings(tokentype_ids)
+        else:
+            assert self.tokentype_embeddings is None
+
+        # Dropout.
+        embeddings = self.embedding_dropout(embeddings)
+        if self.embedding_type == 'rotary':
+            return embeddings, rotary_pos_emb
+        else:
+            return embeddings
+
+    def state_dict_for_save_checkpoint(self, destination=None, prefix='',
+                                       keep_vars=False):
+        """For easy load."""
+
+        state_dict_ = {}
+        state_dict_[self._word_embeddings_key] \
+            = self.word_embeddings.state_dict(destination, prefix, keep_vars)
+        if self.embedding_type == "learned":
+            state_dict_[self._position_embeddings_key] \
+                = self.position_embeddings.state_dict(
+                destination, prefix, keep_vars)
+        if self.num_tokentypes > 0:
+            state_dict_[self._tokentype_embeddings_key] \
+                = self.tokentype_embeddings.state_dict(
+                destination, prefix, keep_vars)
+
+        return state_dict_
+
+    def load_state_dict(self, state_dict, strict=True):
+        """Customized load."""
+
+        # Word embedding.
+        if self._word_embeddings_key in state_dict:
+            state_dict_ = state_dict[self._word_embeddings_key]
+        else:
+            # for backward compatibility.
+            state_dict_ = {}
+            for key in state_dict.keys():
+                if 'word_embeddings' in key:
+                    state_dict_[key.split('word_embeddings.')[1]] \
+                        = state_dict[key]
+        self.word_embeddings.load_state_dict(state_dict_, strict=strict)
+
+        # Position embedding.
+        if self.embedding_type == "learned":
+            if self._position_embeddings_key in state_dict:
+                state_dict_ = state_dict[self._position_embeddings_key]
+            else:
+                # for backward compatibility.
+                state_dict_ = {}
+                for key in state_dict.keys():
+                    if 'position_embeddings' in key:
+                        state_dict_[key.split('position_embeddings.')[1]] \
+                            = state_dict[key]
+            self.position_embeddings.load_state_dict(state_dict_, strict=strict)
+
+        # Tokentype embedding.
+        if self.num_tokentypes > 0:
+            state_dict_ = {}
+            if self._tokentype_embeddings_key in state_dict:
+                state_dict_ = state_dict[self._tokentype_embeddings_key]
+            else:
+                # for backward compatibility.
+                for key in state_dict.keys():
+                    if 'tokentype_embeddings' in key:
+                        state_dict_[key.split('tokentype_embeddings.')[1]] \
+                            = state_dict[key]
+            if len(state_dict_.keys()) > 0:
+                self.tokentype_embeddings.load_state_dict(state_dict_,
+                                                          strict=strict)
+            else:
+                print('***WARNING*** expected tokentype embeddings in the '
+                      'checkpoint but could not find it', flush=True)
+
+
+class EmbeddingPipe(Embedding):
+    """Extends Embedding to forward attention_mask through the pipeline."""
+
+    @property
+    def word_embeddings_weight(self):
+        """Easy accessory for the pipeline engine to tie embeddings across stages."""
+        return self.word_embeddings.weight
+
+    def forward(self, args):
+        input_ids = args[0]
+        position_ids = args[1]
+        attention_mask = args[2]
+        if len(args) == 4:
+            tokentype_ids = args[3]
+        else:
+            tokentype_ids = None
+
+        embeddings = super().forward(input_ids, position_ids, tokentype_ids=tokentype_ids)
+        if self.embedding_type == 'rotary':
+            embeddings, rotary_pos_emb = embeddings
+            return embeddings, rotary_pos_emb, attention_mask
+        else:
+            return embeddings, attention_mask

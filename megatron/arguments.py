@@ -285,7 +285,7 @@ def _add_training_args(parser):
                             'adjust embd dims accordingly)')
     group.add_argument('--no-weight-tying', action='store_true',
                        help='Disables weight tying between embedding weights and final Linear layer')
-    pos_emb_choices = ['learned', 'sinusoidal', 'rpe', 'none']
+    pos_emb_choices = ['learned', 'sinusoidal', 'rpe', 'rotary', 'none']
     group.add_argument('--pos-emb', type=str, choices=pos_emb_choices, default='learned',
                        help=f'Type of positional embedding to use - choose from {pos_emb_choices}')
     group.add_argument('--rpe-num-buckets', type=int, default=32,

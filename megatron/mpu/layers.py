@@ -40,6 +40,7 @@ from .utils import VocabUtility
 from megatron import get_args
 from einops import rearrange
 
+
 def _initialize_affine_weight_gpu(weight, init_method,
                                   partition_dim, stride=1):
     """Initialize affine weight for model parallel on GPU."""
@@ -251,7 +252,6 @@ class ParallelRelativePositionBias(torch.nn.Module):
         return bias
 
 
-
 class ColumnParallelLinear(torch.nn.Module):
     """Linear layer with column parallelism.
 
@@ -446,6 +446,3 @@ class RowParallelLinear(torch.nn.Module):
             output = output_
             output_bias = self.bias
         return output, output_bias
-
-
-
