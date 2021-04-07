@@ -1,9 +1,24 @@
+# coding=utf-8
+# Copyright (c) 2021, EleutherAI contributors
+# This file is based on code by the authors denoted below and has been modified from its original version.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 import os
 import tarfile
 from abc import ABC, abstractmethod
-from glob import glob
 import shutil
-import random
 import zstandard
 
 """
@@ -22,6 +37,7 @@ GPT2_VOCAB_FP = f"{DEFAULT_DATA_DIR}/gpt2-vocab.json"
 GPT2_VOCAB_URL = "https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-vocab.json"
 GPT2_MERGE_FP = f"{DEFAULT_DATA_DIR}/gpt2-merges.txt"
 GPT2_MERGE_URL = "https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-merges.txt"
+
 
 class DataDownloader(ABC):
     """Dataset registry class to automatically download / extract datasets"""
@@ -136,6 +152,7 @@ class DataDownloader(ABC):
             self.extract()
             self.tokenize()
 
+
 class Enron(DataDownloader):
     name = "enron"
     filetype = "jsonl.zst"
@@ -148,7 +165,9 @@ class Enron(DataDownloader):
 
     def extract(self, remove_zstd=True):
         self._extract_zstd(remove_zstd=remove_zstd)
-        shutil.move(os.path.join(self.base_dir, os.path.basename(self.url).replace(".zst", "")), os.path.join(self.base_dir, self.name))
+        shutil.move(os.path.join(self.base_dir, os.path.basename(self.url).replace(".zst", "")),
+                    os.path.join(self.base_dir, self.name))
+
 
 def maybe_download_gpt2_tokenizer_data(tokenizer_type):
     if tokenizer_type is None or tokenizer_type == DEFAULT_TOKENIZER_TYPE:
@@ -156,6 +175,7 @@ def maybe_download_gpt2_tokenizer_data(tokenizer_type):
             os.system(f'wget {GPT2_VOCAB_URL} -O {GPT2_VOCAB_FP}')
         if not os.path.isfile(GPT2_MERGE_FP):
             os.system(f'wget {GPT2_MERGE_URL} -O {GPT2_MERGE_FP}')
+
 
 DATA_DOWNLOADERS = {
     "enron": Enron

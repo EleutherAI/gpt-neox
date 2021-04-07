@@ -29,6 +29,7 @@ import torch
 
 try:
     import nltk
+
     nltk_available = True
 except ImportError:
     nltk_available = False
