@@ -26,7 +26,6 @@ from transformers import GPT2Tokenizer, GPT2TokenizerFast
 from typing import List, Union
 from .gpt2_tokenization import GPT2Tokenizer
 
-# TODO: tokenizer_change
 def build_tokenizer(args):
     """Initialize tokenizer."""
     if args.rank == 0:
