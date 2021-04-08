@@ -31,6 +31,7 @@ from .norms import LayerNorm, RMSNorm, ScaleNorm
 # Pipeline parallelism
 from megatron import mpu
 from megatron.mpu import ParallelRelativePositionBias
+from megatron.model.language_model import SinusoidalPositionalEmbedding
 import megatron.fp16 as fp16
 from megatron.model.transformer import ParallelTransformerLayerPipe, NormPipe, RowParallelLinearPipe
 from .language_model import EmbeddingPipe, parallel_lm_logits
@@ -172,6 +173,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
         self.init_method = init_method_normal(args.init_method_std)
         self.output_layer_init_method = scaled_init_method_normal(args.init_method_std, args.num_layers)
         self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
+        self.embedding_type = args.pos_emb
 
         #
         # forward() prototype
@@ -191,12 +193,18 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
 
     def init_specs(self, args):
         weight_tying = not args.no_weight_tying
-        if args.pos_emb == 'rpe':
+        if self.embedding_type == 'rpe':
             rpe_emb = ParallelRelativePositionBias(causal=True, num_buckets=args.rpe_num_buckets,
                                                    max_distance=args.rpe_max_distance,
                                                    heads=args.num_attention_heads)
         else:
             rpe_emb = None
+        self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
+
+        #
+        # forward() prototype
+        # 
+        self.specs = []
         # Embedding layer
         # input will be (input_ids, position_ids, attention_mask) in Training
         # and (input_ids, position_ids, attention_mask, layer_past) in Inference
@@ -223,17 +231,18 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
         # one stage to the next, because deepspeed is hacks on top of hacks.
         #
         # outputs are now
-        #           Train: (hidden_states, attention_mask)
-        #           Inference: (hidden_states, layer_past, attention_mask)
+        #           Train: (hidden_states, ((maybe) rotary_pos_emb), attention_mask)
+        #           Inference: (hidden_states, layer_past, ((maybe) rotary_pos_emb), attention_mask)
         # 
         # data format change for hidden_states to avoid explicit tranposes : [b s h] --> [s b h]
 
         if self._inference:
             # we need to add a container to cache `presents` from each layer's forward pass
             # inputs/outputs are now (hidden_states, layer_past, presents, attention_mask)
-            self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), x[1], torch.Tensor(), x[2]))
+            self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), x[1], torch.Tensor(), *x[2:]))
         else:
             self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), *x[1:]))
+
 
         # Transformer layers
         for x in range(args.num_layers):
@@ -254,8 +263,8 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                           get_key_value=self.get_key_value))
                           
         if self._inference:
-            # we can get rid of the mask / pasts now
-            # from (hidden_states, layer_past, presents, attention_mask)
+            # we can get rid of the mask / pasts / (?rotary_pos_emb) now
+            # from (hidden_states, layer_past, presents, (maybe rotary_pos_emb), attention_mask)
             # to (hidden_states^T, presents)
             self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), x[2]))
         else:

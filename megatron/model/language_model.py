@@ -20,6 +20,7 @@
 
 import torch
 import torch.nn.functional as F
+from einops import rearrange, repeat
 
 from megatron import get_args
 from megatron import mpu
@@ -71,7 +72,6 @@ def get_language_model(attention_mask_func, num_tokentypes,
     language_model_key = 'language_model'
 
     return language_model, language_model_key
-
 
 
 class TransformerLanguageModel(MegatronModule):
@@ -128,7 +128,10 @@ class TransformerLanguageModel(MegatronModule):
         # Embeddings.
         embedding_output = self.embedding(input_ids, position_ids,
                                           tokentype_ids=tokentype_ids)
-
+        if self.embedding_type == 'rotary':
+            embedding_output, rotary_pos_emb = embedding_output
+        else:
+            rotary_pos_emb = None
         # Transformer.
         transformer_output = self.transformer(embedding_output,
                                               attention_mask,

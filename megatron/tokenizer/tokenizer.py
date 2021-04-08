@@ -21,8 +21,10 @@
 from abc import ABC
 from abc import abstractmethod
 
+from tokenizers import Tokenizer
+from transformers import GPT2Tokenizer, GPT2TokenizerFast
+from typing import List, Union
 from .gpt2_tokenization import GPT2Tokenizer
-
 
 def build_tokenizer(args):
     """Initialize tokenizer."""
@@ -31,10 +33,17 @@ def build_tokenizer(args):
               flush=True)
 
     # Select and instantiate the tokenizer.
-    assert args.vocab_file is not None
-    if args.tokenizer_type == 'GPT2BPETokenizer':
+    if args.tokenizer_type.lower() == 'GPT2BPETokenizer'.lower():
+        assert args.vocab_file is not None
         assert args.merge_file is not None
         tokenizer = _GPT2BPETokenizer(args.vocab_file, args.merge_file)
+    elif args.tokenizer_type.lower() == 'HFTokenizer'.lower():
+        assert args.vocab_file is not None
+        tokenizer = HFTokenizer(args.vocab_file)
+    elif args.tokenizer_type.lower() == 'HFGPT2Tokenizer'.lower():
+        if args.vocab_file is None:
+            print("WARNING: No vocab file found, loading Huggingface's pretrained GPT2Tokenizer")
+        tokenizer = HFGPT2Tokenizer(args.vocab_file)
     else:
         raise NotImplementedError('{} tokenizer is not '
                                   'implemented.'.format(args.tokenizer_type))
@@ -145,6 +154,89 @@ class _GPT2BPETokenizer(AbstractTokenizer):
 
     def tokenize(self, text):
         return self.tokenizer.encode(text)
+
+    def detokenize(self, token_ids):
+        return self.tokenizer.decode(token_ids)
+
+    @property
+    def eod(self):
+        return self.eod_id
+
+
+class HFTokenizer(AbstractTokenizer):
+    """Designed to Integrate HF's Tokenizer library."""
+
+    def __init__(self, vocab_file):
+        name = 'HFTokenizer'
+        super().__init__(name)
+
+        self.tokenizer = Tokenizer.from_file(vocab_file)
+        self.eod_id = self.tokenizer.token_to_id('<|endoftext|>')
+        self.pad_id = self.tokenizer.token_to_id('<|padding|>')
+
+    @property
+    def vocab_size(self):
+        return self.tokenizer.get_vocab_size()
+
+    @property
+    def vocab(self):
+        return self.tokenizer.get_vocab()
+
+    @property
+    def inv_vocab(self):
+        return self.tokenizer.decoder
+
+    def tokenize(self, text: str):
+        return self.tokenizer.encode(text).ids
+    
+    def tokenize_batch(self, text_batch: Union[List[str], str]):
+        return self.tokenizer.encode_batch(text_batch)
+
+    def detokenize(self, token_ids):
+        return self.tokenizer.decode(token_ids)
+
+    @property
+    def eod(self):
+        return self.eod_id
+
+
+class HFGPT2Tokenizer(AbstractTokenizer):
+    """Designed to Integrate the pretrained OpenAI GPT2 Tokenizers from HF"""
+
+    def __init__(self, vocab_file=None, fast=True):
+        name = 'HFGPT2Tokenizer'
+        if fast: name += "Fast"
+        super().__init__(name)
+        if vocab_file is None:
+            vocab_file = 'gpt2'
+        if fast:
+            self.tokenizer = GPT2TokenizerFast.from_pretrained(vocab_file)
+        else:
+            self.tokenizer = GPT2Tokenizer.from_pretrained(vocab_file)
+
+        self.tokenizer.add_special_tokens({'pad_token': '<|padding|>'})
+        self.eod_id = self.tokenizer.eos_token_id
+        self.pad_id = self.tokenizer.pad_token_id
+
+    @property
+    def vocab_size(self):
+        return len(self.tokenizer)
+
+    @property
+    def vocab(self):
+        return self.tokenizer.get_vocab()
+
+    @property
+    def inv_vocab(self):
+        return self.tokenizer._tokenizer.decoder
+
+    def tokenize(self, text: str):
+        return self.tokenizer.encode(text)
+    
+    def tokenize_batch(self, text_batch: Union[List[str], str]):
+        if isinstance(text_batch, str):
+            text_batch = [text_batch]
+        return [self.tokenize(t) for t in text_batch]
 
     def detokenize(self, token_ids):
         return self.tokenizer.decode(token_ids)

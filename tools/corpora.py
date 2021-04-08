@@ -30,21 +30,41 @@ When done, add it to the DATA_DOWNLOADERS dict. The function process_data runs t
 dataset.
 """
 
-DATA_DIR = os.environ.get('DATA_DIR', './data')
+DEFAULT_DATA_DIR = os.environ.get('DATA_DIR', './data')
 
-GPT2_VOCAB_FP = f"{DATA_DIR}/gpt2-vocab.json"
+DEFAULT_TOKENIZER_TYPE = "GPT2BPETokenizer"
+GPT2_VOCAB_FP = f"{DEFAULT_DATA_DIR}/gpt2-vocab.json"
 GPT2_VOCAB_URL = "https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-vocab.json"
-GPT2_MERGE_FP = f"{DATA_DIR}/gpt2-merges.txt"
+GPT2_MERGE_FP = f"{DEFAULT_DATA_DIR}/gpt2-merges.txt"
 GPT2_MERGE_URL = "https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-merges.txt"
 
 
 class DataDownloader(ABC):
     """Dataset registry class to automatically download / extract datasets"""
 
+    def __init__(self, tokenizer_type=None, merge_file=None, vocab_file=None, data_dir=None):
+        if tokenizer_type is None:
+            tokenizer_type = DEFAULT_TOKENIZER_TYPE
+        if merge_file is None:
+            merge_file = GPT2_MERGE_FP
+        if vocab_file is None:
+            if tokenizer_type == DEFAULT_TOKENIZER_TYPE:
+                vocab_file = GPT2_VOCAB_FP
+            elif tokenizer_type == "HFGPT2Tokenizer":
+                vocab_file = 'gpt2'
+            else:
+                assert vocab_file is not None, 'No vocab file provided'
+        if data_dir is None:
+            data_dir = DEFAULT_DATA_DIR
+        self._tokenizer_type = tokenizer_type
+        self._merge_file = merge_file
+        self._vocab_file = vocab_file
+        self._data_dir = data_dir
+
     @property
     def base_dir(self):
         """base data directory"""
-        return DATA_DIR
+        return self._data_dir
 
     @property
     @abstractmethod
@@ -63,6 +83,21 @@ class DataDownloader(ABC):
     def url(self):
         """URL from which to download dataset"""
         pass
+
+    @property
+    def tokenizer_type(self):
+        """tokenizer type to use when tokenizing data"""
+        return self._tokenizer_type
+
+    @property
+    def merge_file(self):
+        """Merge file for tokenizer"""
+        return self._merge_file
+
+    @property
+    def vocab_file(self):
+        """Vocab file for tokenizer"""
+        return self._vocab_file
 
     def _extract_tar(self):
         self.path = os.path.join(self.base_dir, self.name)
@@ -105,10 +140,10 @@ class DataDownloader(ABC):
         os.system(f"python tools/preprocess_data.py \
             --input {jsonl_filepath} \
             --output-prefix {parent_folder}/{self.name} \
-            --vocab {GPT2_VOCAB_FP} \
+            --vocab {self.vocab_file} \
             --dataset-impl mmap \
-            --tokenizer-type GPT2BPETokenizer \
-            --merge-file {GPT2_MERGE_FP} \
+            --tokenizer-type {self.tokenizer_type} \
+            --merge-file {self.merge_file} \
             --append-eod")
 
     def prepare(self):
@@ -134,24 +169,29 @@ class Enron(DataDownloader):
                     os.path.join(self.base_dir, self.name))
 
 
-def maybe_download_gpt2_tokenizer_data():
-    if not os.path.isfile(GPT2_VOCAB_FP):
-        os.system(f'wget {GPT2_VOCAB_URL} -O {GPT2_VOCAB_FP}')
-    if not os.path.isfile(GPT2_MERGE_FP):
-        os.system(f'wget {GPT2_MERGE_URL} -O {GPT2_MERGE_FP}')
+def maybe_download_gpt2_tokenizer_data(tokenizer_type):
+    if tokenizer_type is None or tokenizer_type == DEFAULT_TOKENIZER_TYPE:
+        if not os.path.isfile(GPT2_VOCAB_FP):
+            os.system(f'wget {GPT2_VOCAB_URL} -O {GPT2_VOCAB_FP}')
+        if not os.path.isfile(GPT2_MERGE_FP):
+            os.system(f'wget {GPT2_MERGE_URL} -O {GPT2_MERGE_FP}')
 
 
 DATA_DOWNLOADERS = {
     "enron": Enron
 }
 
-
-def prepare_dataset(dataset_name):
-    os.makedirs(DATA_DIR, exist_ok=True)
-    maybe_download_gpt2_tokenizer_data()
+def prepare_dataset(dataset_name: str, tokenizer_type: str = None, data_dir: str = None, vocab_file: str = None, merge_file: str = None):
+    """
+    Downloads + tokenizes a dataset in the registry (dataset_name) and saves output .npy files to data_dir.
+    """
+    if data_dir is None:
+        data_dir = DEFAULT_DATA_DIR
+    os.makedirs(data_dir, exist_ok=True)
+    maybe_download_gpt2_tokenizer_data(tokenizer_type)
     DownloaderClass = DATA_DOWNLOADERS.get(dataset_name, None)
     if DownloaderClass is None:
         raise NotImplementedError
     else:
-        d = DownloaderClass()
+        d = DownloaderClass(tokenizer_type=tokenizer_type, vocab_file=vocab_file, merge_file=merge_file, data_dir=data_dir)
         d.prepare()
