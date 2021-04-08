@@ -69,7 +69,7 @@ def cross_entropy(output, labels, _fp16=False):
 class GPT2Model(MegatronModule):
     """GPT-2 Language model."""
 
-    def __init__(self, num_tokentypes=0, parallel_output=True):
+    def __init__(self, num_tokentypes=0, parallel_output=True, inference=False, get_key_value=True):
         super(GPT2Model, self).__init__()
         args = get_args()
         self.parallel_output = parallel_output
@@ -87,26 +87,29 @@ class GPT2Model(MegatronModule):
 
         self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
 
+        self.inference = inference
+        self.get_key_value = get_key_value if inference else False
+
         self.language_model, self._language_model_key = get_language_model(
             attention_mask_func=gpt2_attention_mask_func,
             num_tokentypes=num_tokentypes,
-            add_pooler=False,
             init_method=init_method_normal(args.init_method_std),
             scaled_init_method=scaled_init_method_normal(args.init_method_std,
-                                                         args.num_layers))
+                                                         args.num_layers),
+            get_key_value=self.get_key_value)
 
-    def forward(self, input_ids, position_ids, attention_mask, tokentype_ids=None, 
-                layer_past=None, get_key_value=False, forward_method_parallel_output=None, labels=None):
+
+    def forward(self, input_ids, position_ids, attention_mask, 
+                layer_past=None, tokentype_ids=None, forward_method_parallel_output=None, labels=None):
 
         # Language model.
         lm_output = self.language_model(input_ids,
                                         position_ids,
                                         attention_mask,
                                         tokentype_ids=tokentype_ids,
-                                        layer_past=layer_past,
-                                        get_key_value=get_key_value)
+                                        layer_past=layer_past)
 
-        if get_key_value:
+        if self.get_key_value:
             lm_output, presents = lm_output
 
         # Output.
@@ -121,7 +124,7 @@ class GPT2Model(MegatronModule):
         else:
             output, bias = self.final_linear(lm_output)
 
-        if get_key_value:
+        if self.get_key_value:
             output = [output, presents]
 
         if labels is None:
@@ -158,10 +161,11 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
     sequence of layers including embedding, transformer layers, and output.
     """
 
-    def __init__(self, num_tokentypes=0, parallel_output=True, topology=None, inference=True):
+    def __init__(self, num_tokentypes=0, parallel_output=True, topology=None, inference=False, get_key_value=True):
         args = get_args()
 
         self._inference = inference
+        self.get_key_value = get_key_value if inference else False
         self.parallel_output = parallel_output
         self.hidden_size = args.hidden_size
         self.num_tokentypes = num_tokentypes
@@ -194,6 +198,8 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
         else:
             rpe_emb = None
         # Embedding layer
+        # input will be (input_ids, position_ids, attention_mask) in Training
+        # and (input_ids, position_ids, attention_mask, layer_past) in Inference
         if weight_tying:
             self.specs.append(TiedLayerSpec('embed',
                                             EmbeddingPipe,
@@ -213,17 +219,20 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                                         self.init_method,
                                         self.num_tokentypes))
 
+        # NB: in inference, the attention mask always needs to be the *last* item in the args when being passed from 
+        # one stage to the next, because deepspeed is hacks on top of hacks.
+        #
         # outputs are now
         #           Train: (hidden_states, attention_mask)
-        #           Inference: (hidden_states, attention_mask, layer_past, get_key_value)
-
+        #           Inference: (hidden_states, layer_past, attention_mask)
+        # 
+        # data format change for hidden_states to avoid explicit tranposes : [b s h] --> [s b h]
 
         if self._inference:
             # we need to add a container to cache `presents` from each layer's forward pass
-            # inputs/outputs are now (hidden_states, attention_mask, layer_past, get_key_value, presents)
-            self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), *x[1:], []))
+            # inputs/outputs are now (hidden_states, layer_past, presents, attention_mask)
+            self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), x[1], torch.Tensor(), x[2]))
         else:
-            # data format change to avoid explicit tranposes : [b s h] --> [s b h]
             self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), *x[1:]))
 
         # Transformer layers
@@ -241,12 +250,14 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                           output_layer_init_method=self.output_layer_init_method,
                           layer_number=x,
                           sparse=sparse,
-                          rpe=rpe_emb))
+                          rpe=rpe_emb,
+                          get_key_value=self.get_key_value))
                           
         if self._inference:
-            # from (hidden_states, attention_mask, layer_past, get_key_value, presents)
+            # we can get rid of the mask / pasts now
+            # from (hidden_states, layer_past, presents, attention_mask)
             # to (hidden_states^T, presents)
-            self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), x[-1]))
+            self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), x[2]))
         else:
             # Undo data format change and drop mask
             self.specs.append(lambda x: x[0].transpose(0, 1).contiguous())
@@ -319,5 +330,5 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                 )
             )
         # so output in training should just be logits
-        # in inference it will be (logits, presents) (assuming get_key_value) is on
+        # in inference it will be (logits, presents) (assuming get_key_value) is true
 

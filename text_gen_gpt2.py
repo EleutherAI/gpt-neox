@@ -34,7 +34,7 @@ from megatron.utils import neox_args, pipe_to_normal
 
 from deepspeed import PipelineEngine
 
-def main(extra_args_provider=None):
+def main(extra_args_provider=None, get_key_value=True):
     """
     Generate text/sample model
     """
@@ -54,7 +54,7 @@ def main(extra_args_provider=None):
     args.no_load_optim = True
 
     # Set up model and load checkpoint.
-    model, _, _ = setup_model_and_optimizer(lambda: model_provider(use_wandb=False, inference=True))
+    model, _, _ = setup_model_and_optimizer(lambda: model_provider(use_wandb=False, inference=True, get_key_value=get_key_value))
     if isinstance(model, PipelineEngine):
         model = pipe_to_normal(model)
     print_rank_0('Finished loading model')

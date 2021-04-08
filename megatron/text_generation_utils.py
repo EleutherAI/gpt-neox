@@ -184,7 +184,7 @@ def forward_model(model, model_inputs):
 
 def sample_sequence_batch(model, context_tokens, context_lengths,
                           attention_mask, position_ids,
-                          maxlen=None, type_ids=None):
+                          maxlen=None):
     """
     yields completions from a model as an iterator.
 
@@ -207,7 +207,7 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
         counter = 0
         org_context_length = context_length
 
-        layer_past = None
+        layer_past = torch.Tensor()
         batch_size = context_tokens.size(0)
         is_done = torch.zeros([batch_size]).byte().cuda()
         tokens = context_tokens
@@ -225,34 +225,24 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
                 model_inputs = (tokens,
                                position_ids,
                                attention_mask,
-                               type_ids, # tokentype_ids
-                               None, # layer_past,
-                               False, # get_key_value
+                               torch.Tensor(),
                                )
                 logits = forward_model(model, model_inputs)
                 logits = logits[:, context_length - 1, :]
             else:
-                types2use = None
                 if counter == 0:
                     tokens2use = tokens[:, :context_length]
                     positions2use = position_ids[:, :context_length]
-                    if type_ids is not None:
-                        types2use = type_ids[:, :context_length]
                 else:
                     tokens2use = tokens[:, context_length - 1].view(
                         batch_size, -1)
                     positions2use = position_ids[:, context_length - 1].view(
                         batch_size, -1)
-                    if type_ids is not None:
-                        types2use = type_ids[:, context_length - 1].view(
-                            batch_size, -1)
                 # we have to use args instead of kwargs here because deepspeed :|
                 model_inputs = (tokens2use, # input_ids
                                 positions2use, # position_ids
                                 attention_mask, # attention_mask
-                                types2use, # tokentype_ids
                                 layer_past, # layer_past
-                                True, # get_key_value
                                 )
                 logits, layer_past = forward_model(model, model_inputs)
                 logits = logits[:, -1].view(batch_size, -1).contiguous()
