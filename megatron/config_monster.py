@@ -327,13 +327,14 @@ class ConfigMonster:
 
         # Get number of GPUs param or hostfile to determine train_batch_size
         num_gpus = conf.get('num_gpus')
-        if num_gpus is None and ('hostfile' in conf or os.path.exists(DLTS_HOSTFILE)):
-            hostfile_path = conf.get('hostfile', DLTS_HOSTFILE)
-            resources = obtain_resource_pool(hostfile_path, conf.get('include', ''), conf.get('exclude', ''))
-            num_gpus = sum(map(len, resources.values()))
-        else:
-            num_gpus = torch.cuda.device_count()
-            conf["num_gpus"] = num_gpus
+        if num_gpus is None:
+            if 'hostfile' in conf or os.path.exists(DLTS_HOSTFILE):
+                hostfile_path = conf.get('hostfile', DLTS_HOSTFILE)
+                resources = obtain_resource_pool(hostfile_path, conf.get('include', ''), conf.get('exclude', ''))
+                num_gpus = sum(map(len, resources.values()))
+            else:
+                num_gpus = torch.cuda.device_count()
+                conf["num_gpus"] = num_gpus
 
         log.info(f"Total number of GPUs determined to be: {num_gpus}")
 

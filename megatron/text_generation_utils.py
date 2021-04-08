@@ -46,9 +46,6 @@ def get_batch(context_tokens):
         args.reset_position_ids,
         args.reset_attention_mask,
         args.eod_mask_loss)
-    if args.pipe_parallel_size >= 1 and args.fp16:
-        # cast to fp16 because pipeline parallelism skips the FP16 wrapper.
-        return fp32_to_fp16((tokens, attention_mask, position_ids))
     return tokens, attention_mask, position_ids
 
 
@@ -167,17 +164,13 @@ def forward_model(model, model_inputs):
     # because someone at deepspeed decided pipeline modules couldn't use kwargs,
     # we need to forward a pipe model by access model.module() instead of just model()
     args = get_args()
+    torch.distributed.barrier()
     if args.pipe_parallel_size == 1:
         return model.module(model_inputs)
     elif args.pipe_parallel_size > 1:
-        # deepspeed makes this super difficult
-        raise NotImplementedError
-        # data_iterator = iter([[model_inputs, torch.Tensor(1)]])
-        # train_batch_fn = model.batch_fn
-        # model.set_batch_fn(lambda x: x)
-        # x = model.eval_batch(data_iterator)
-        # model.set_batch_fn(train_batch_fn)
-        # return x
+        data_iterator = iter([[model_inputs, torch.Tensor(1)]]) # we need to feed in fake labels bc deepspeed is only built for training
+        x = model.inference_batch(data_iterator)
+        return x
     else:
         return model(*model_inputs)
 
@@ -206,11 +199,11 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
 
         counter = 0
         org_context_length = context_length
-
-        layer_past = torch.Tensor()
         batch_size = context_tokens.size(0)
         is_done = torch.zeros([batch_size]).byte().cuda()
         tokens = context_tokens
+        layer_past = torch.Tensor().cuda()
+
         if maxlen is None:
             maxlen = args.seq_length - 1
             if maxlen > (org_context_length + args.out_seq_length):
@@ -219,7 +212,6 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
 
         while context_length <= (maxlen):
-
             if args.recompute:
                 # we need to use args instead of kwargs here because deepspeed :|
                 model_inputs = (tokens,
@@ -238,41 +230,41 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
                         batch_size, -1)
                     positions2use = position_ids[:, context_length - 1].view(
                         batch_size, -1)
-                # we have to use args instead of kwargs here because deepspeed :|
-                model_inputs = (tokens2use, # input_ids
-                                positions2use, # position_ids
-                                attention_mask, # attention_mask
-                                layer_past, # layer_past
-                                )
-                logits, layer_past = forward_model(model, model_inputs)
-                logits = logits[:, -1].view(batch_size, -1).contiguous()
+            # we have to use args instead of kwargs here because deepspeed :|
+            model_inputs = (tokens2use, # input_ids
+                            positions2use, # position_ids
+                            attention_mask, # attention_mask
+                            layer_past, # layer_past
+                            )
 
+            logits, layer_past = forward_model(model, model_inputs)
+
+            # TODO: we are replicating computation across all machines here, which is really unecessary, we should probably just do it on one then communicate the results
+            logits = logits[:, -1].view(batch_size, -1).contiguous()
             if args.greedy:
                 prev = torch.argmax(logits, dim=-1).view(-1)
             else:
                 logits = logits.float()
                 logits /= args.temperature
                 logits = top_k_logits(logits, top_k=args.top_k,
-                                      top_p=args.top_p)
+                                    top_p=args.top_p)
                 log_probs = F.softmax(logits, dim=-1)
                 prev = torch.multinomial(log_probs, num_samples=1).view(-1)
 
             print_logits = []
             for p in prev:
                 print_logits.append([logits[i, p].item()
-                                     for i in range(batch_size)])
+                                    for i in range(batch_size)])
             started = context_lengths <= context_length
             tokens[:, context_length] = switch(
                 tokens[:, context_length].view(-1), prev, started)
             context_length += 1
             counter += 1
-
             done_token = (prev == eos_id).byte() & started.byte()
             just_finished = (done_token & ~is_done).bool()
             lengths[just_finished.view(-1)] = context_length
             is_done = is_done | done_token
             done = torch.all(is_done)
-
             yield tokens, lengths
             if done:
                 break
@@ -489,8 +481,12 @@ def generate_samples_unconditional(model):
     ctr = 0
     while True:
         start_time = time.time()
+        token_stream = None
+
         for token_stream in get_token_stream(model, copy.deepcopy(context_tokens)):
+            ' print(token_stream) -> 1, 1,2, 1,2,3'
             pass
+        if token_stream is None: break
         if ctr % args.log_interval == 0:
             print_rank_0('Avg s/batch:',
                   (time.time() - start_time) / min(args.log_interval, ctr + 1))

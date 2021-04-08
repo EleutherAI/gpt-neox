@@ -184,7 +184,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
         else:
             interval = 0
         super().__init__(layers=self.specs,
-                         loss_fn=loss_fn,
+                         loss_fn=loss_fn if not self._inference else None,
                          topology=topology,
                          activation_checkpoint_interval=interval,
                          partition_method='type:transformer')

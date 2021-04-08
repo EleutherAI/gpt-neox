@@ -46,16 +46,15 @@ def main(extra_args_provider=None, get_key_value=True):
     if args.load is None:
         raise ValueError("`load` parameter must be supplied to load a model`")
 
-    # Force disable PP, checkpoint activations
-    if args.pipe_parallel_size > 1:
-        raise Exception("Pipeline parallel size must <= 1 when running inference.")
+    # Force checkpoint activations, don't load optimizer states
     args.checkpoint_activations = False
     args.partition_activations = False
     args.no_load_optim = True
 
     # Set up model and load checkpoint.
     model, _, _ = setup_model_and_optimizer(lambda: model_provider(use_wandb=False, inference=True, get_key_value=get_key_value))
-    if isinstance(model, PipelineEngine):
+    if args.pipe_parallel_size == 1 and isinstance(model, PipelineEngine):
+        # if it's a pipe parallel model but not actually doing parallelism, convert it to a normal deepspeed model
         model = pipe_to_normal(model)
     print_rank_0('Finished loading model')
 
