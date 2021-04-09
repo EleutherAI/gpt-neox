@@ -74,6 +74,7 @@ class SinusoidalPositionalEmbedding(MegatronModule):
         emb = torch.cat((sinusoid_inp.sin(), sinusoid_inp.cos()), dim=-1)
         return emb[None, :, :]
 
+## rotary pos emb helpers: 
 
 def rotate_every_two(x):
     x = rearrange(x, '... (d j) -> ... d j', j=2)
@@ -83,13 +84,14 @@ def rotate_every_two(x):
 
 
 def apply_rotary_pos_emb(q, k, sinu_pos):
-    # TODO: get rid of these transposes
-    q, k = map(lambda t: t.transpose(0, 1), (q, k))
+    # TODO: get rid of these premutes if poss
+    q, k = map(lambda t: t.permute(1, 2, 0, 3), (q, k))
     sinu_pos = rearrange(sinu_pos, '() n (j d) -> n j d', j=2)
     sin, cos = sinu_pos.unbind(dim=-2)
     sin, cos = map(lambda t: repeat(t, 'b n -> b (n j)', j=2), (sin, cos))
     q, k = map(lambda t: (t * cos) + (rotate_every_two(t) * sin), (q, k))
-    return map(lambda t: t.transpose(1, 0), (q, k))
+    return map(lambda t: t.permute(2, 0, 1, 3), (q, k))
+
 
 class GEGLU(MegatronModule):
 
@@ -275,7 +277,7 @@ class ParallelSelfAttention(MegatronModule):
             checkpoint = deepspeed.checkpointing.checkpoint
 
     def _transpose_last_dim(self, mixed_layer, num_splits, num_splits_first):
-        input_shape = mixed_layer.size();
+        input_shape = mixed_layer.size()
         if num_splits_first:
             """[s, b, num_splits * np * hn] 
             -->(view) [s, b, num_splits, np, hn] 
@@ -334,6 +336,9 @@ class ParallelSelfAttention(MegatronModule):
         (query_layer,
          key_layer,
          value_layer) = mpu.split_tensor_along_last_dim(mixed_x_layer, 3)
+
+        if exists(rotary_pos_emb):
+            query_layer, key_layer = apply_rotary_pos_emb(query_layer, key_layer, rotary_pos_emb)
 
         # ==================================
         # Adjust key and value for inference
@@ -406,8 +411,6 @@ class ParallelSelfAttention(MegatronModule):
             if exists(self.rpe):
                 rpe = self.rpe(query_layer.size(0), key_layer.size(0))
                 attention_scores += rpe  # [1, np, sq, sk]
-            if exists(rotary_pos_emb):
-                query_layer, key_layer = apply_rotary_pos_emb(query_layer, key_layer, rotary_pos_emb)
 
             # attention scores and attention mask [b, np, sq, sk]
             attention_probs = self.scale_mask_softmax(attention_scores,
@@ -445,8 +448,6 @@ class ParallelSelfAttention(MegatronModule):
             # change view [b, np, sq, hn]
             context_layer = context_layer.view(*output_size)
         else:
-            if exists(rotary_pos_emb):
-                raise NotImplementedError("Rotary positional embedding not currently implemented for sparse attention.")
             # shape of q/k/v is [sq, b, np, hn] and needs to be transposed to [b, np, sq, hn]
             query_layer, key_layer, value_layer = map(lambda t: t.permute(1, 2, 0, 3).contiguous(),
                                                       (query_layer, key_layer,
