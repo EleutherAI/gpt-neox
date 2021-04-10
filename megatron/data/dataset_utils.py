@@ -1,6 +1,5 @@
-# coding=utf-8
-#
-# Copyright 2021 Biderman et al. This file is based in code by the authors denoted below and has been modified from its original version.
+# Copyright (c) 2021, EleutherAI contributors
+# This file is based on code by the authors denoted below and has been modified from its original version.
 #
 # Copyright 2018 The Google AI Language Team Authors, and NVIDIA.
 #

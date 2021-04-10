@@ -1,6 +1,6 @@
 # coding=utf-8
-#
-# Copyright 2021 Biderman et al. This file is based on code by the authors denoted below and has been modified from its original version.
+# Copyright (c) 2021, EleutherAI contributors
+# This file is based on code by the authors denoted below and has been modified from its original version.
 #
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
@@ -39,6 +39,7 @@ from .utils import divide
 from .utils import VocabUtility
 from megatron import get_args
 from einops import rearrange
+
 
 def _initialize_affine_weight_gpu(weight, init_method,
                                   partition_dim, stride=1):
@@ -251,7 +252,6 @@ class ParallelRelativePositionBias(torch.nn.Module):
         return bias
 
 
-
 class ColumnParallelLinear(torch.nn.Module):
     """Linear layer with column parallelism.
 
@@ -446,6 +446,3 @@ class RowParallelLinear(torch.nn.Module):
             output = output_
             output_bias = self.bias
         return output, output_bias
-
-
-

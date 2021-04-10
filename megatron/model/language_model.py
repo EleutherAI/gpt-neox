@@ -20,11 +20,12 @@
 
 import torch
 import torch.nn.functional as F
+from einops import rearrange, repeat
 
 from megatron import get_args
 from megatron import mpu
 from megatron.module import MegatronModule
-from megatron.model.transformer import ParallelTransformer
+from megatron.model.transformer import ParallelTransformer, SinusoidalPositionalEmbedding, Embedding
 from megatron.model.utils import get_linear_layer
 from megatron.model.utils import init_method_normal, scaled_init_method_normal
 from megatron.model.utils import identity
@@ -72,7 +73,6 @@ def get_language_model(attention_mask_func, num_tokentypes, add_pooler,
     language_model_key = 'language_model'
 
     return language_model, language_model_key
-
 
 class Pooler(MegatronModule):
     """Pooler layer.
@@ -295,7 +295,6 @@ class EmbeddingPipe(Embedding):
         embeddings = super().forward(input_ids, position_ids, tokentype_ids=tokentype_ids)
         return embeddings, attention_mask
 
-
 class TransformerLanguageModel(MegatronModule):
     """Transformer language model.
 
@@ -356,10 +355,14 @@ class TransformerLanguageModel(MegatronModule):
         # Embeddings.
         embedding_output = self.embedding(input_ids, position_ids,
                                           tokentype_ids=tokentype_ids)
-
+        if self.embedding_type == 'rotary':
+            embedding_output, rotary_pos_emb = embedding_output
+        else:
+            rotary_pos_emb = None
         # Transformer.
         transformer_output = self.transformer(embedding_output,
                                               attention_mask,
+                                              rotary_pos_emb=rotary_pos_emb,
                                               layer_past=layer_past,
                                               get_key_value=get_key_value)
 

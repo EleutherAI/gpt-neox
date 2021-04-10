@@ -3,10 +3,12 @@ six
 regex
 numpy==1.20.1
 nltk==3.5
--e git+git://github.com/EleutherAI/DeeperSpeed.git@018f718730284a71403e85d6f983d869d04d12f5#egg=deepspeed
+-e git+git://github.com/EleutherAI/DeeperSpeed.git@0e9573776caf7227ecafdc8a3d57c7955165d8e2#egg=deepspeed
 autopep8==1.5.5
 zstandard==0.15.1
 cupy-cuda111==8.5.0
 mpi4py==3.0.3
 wandb==0.10.21
 einops==0.3.0
+transformers==4.5.0
+tokenizers==0.10.2

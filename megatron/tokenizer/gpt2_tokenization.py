@@ -1,6 +1,6 @@
 # coding=utf-8
-#
-# Copyright 2021 Biderman et al. This file is based on code by the authors denoted below and has been modified from its original version.
+# Copyright (c) 2021, EleutherAI contributors
+# This file is based on code by the authors denoted below and has been modified from its original version.
 #
 # Copyright 2018 The Open AI Team Authors and The HuggingFace Inc. team.
 #
@@ -28,14 +28,8 @@ import os
 import regex as re
 from io import open
 
-try:
-    from functools import lru_cache
-except ImportError:
-    # Just a dummy decorator to get the checks to run on python2
-    # because honestly I don't want to support a byte-level unicode BPE
-    # tokenizer on python 2 right now.
-    def lru_cache():
-        return lambda func: func
+from functools import lru_cache
+
 
 
 logger = logging.getLogger(__name__)
