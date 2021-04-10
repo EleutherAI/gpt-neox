@@ -42,7 +42,7 @@ GPT2_MERGE_URL = "https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-merge
 class DataDownloader(ABC):
     """Dataset registry class to automatically download / extract datasets"""
 
-    def __init__(self, tokenizer_type=None, merge_file=None, vocab_file=None, data_dir=None):
+    def __init__(self, tokenizer_type=None, merge_file=None, vocab_file=None, data_dir=None, num_workers=1):
         if tokenizer_type is None:
             tokenizer_type = DEFAULT_TOKENIZER_TYPE
         if merge_file is None:
@@ -60,6 +60,7 @@ class DataDownloader(ABC):
         self._merge_file = merge_file
         self._vocab_file = vocab_file
         self._data_dir = data_dir
+        self._num_workers = num_workers
 
     @property
     def base_dir(self):
@@ -93,6 +94,16 @@ class DataDownloader(ABC):
         """Vocab file for tokenizer"""
         return self._vocab_file
 
+    @property
+    def num_workers(self):
+        """Number of workers to use in preprocessing"""
+        return self._num_workers
+    
+    @property
+    def num_docs(self):
+        """Number of documents in the dataset (if known)"""
+        return None
+
     def exists(self):
         """Checks if the dataset is present"""
         return os.path.isdir(f"{self.base_dir}/{self.name}")
@@ -104,20 +115,27 @@ class DataDownloader(ABC):
             os.system(f"wget {url} -O {os.path.join(self.base_dir, self.name, os.path.basename(url))}")
 
     def tokenize(self):
+        """tokenizes dataset"""
         parent_folder = os.path.join(self.base_dir, self.name)
         jsonl_filepath = ",".join([
             os.path.join(parent_folder, os.path.basename(url)) 
             for url in self.urls
         ])
-    
-        os.system(f"python tools/preprocess_data.py \
+
+        cmd = f"python tools/preprocess_data.py \
             --input {jsonl_filepath} \
             --output-prefix {parent_folder}/{self.name} \
             --vocab {self.vocab_file} \
             --dataset-impl mmap \
             --tokenizer-type {self.tokenizer_type} \
             --merge-file {self.merge_file} \
-            --append-eod")
+            --append-eod \
+            --workers {self.num_workers} "
+        
+        if self.num_docs is not None:
+            cmd += f"--num-docs {self.num_docs}"
+    
+        os.system(cmd)
 
     def prepare(self):
         if not self.exists():
@@ -128,6 +146,7 @@ class DataDownloader(ABC):
 class Enron(DataDownloader):
     name = "enron"
     urls = ["http://eaidata.bmk.sh/data/enron_emails.jsonl.zst"]
+    num_docs = 517401
 
 
 class PileSubset(DataDownloader):
@@ -150,6 +169,59 @@ class ArXiv(DataDownloader):
     urls = ["http://eaidata.bmk.sh/data/arxiv.jsonl.zst"]
 
 
+class EuroParl(DataDownloader):
+    name = "europarl"
+    urls = ["https://the-eye.eu/public/AI/pile_preliminary_components/EuroParliamentProceedings_1996_2011.jsonl.zst"]
+
+
+class FreeLaw(DataDownloader):
+    name = "freelaw"
+    urls = ["https://the-eye.eu/public/AI/pile_preliminary_components/FreeLaw_Opinions.jsonl.zst"]
+
+
+class NiH(DataDownloader):
+    name = "nih"
+    urls = ["https://the-eye.eu/public/AI/pile_preliminary_components/NIH_ExPORTER_awarded_grant_text.jsonl.zst"]
+
+
+class PubMed(DataDownloader):
+    name = "pubmed"
+    urls = ["https://the-eye.eu/public/AI/pile_preliminary_components/PMC_extracts.tar.gz"]
+
+
+class Books1(DataDownloader):
+    name = "books1"
+    urls = ["https://the-eye.eu/public/AI/pile_preliminary_components/books1.tar.gz"]
+
+
+class Books3(DataDownloader):
+    name = "books3"
+    urls = ["https://the-eye.eu/public/AI/pile_preliminary_components/books3.tar.gz"]
+
+
+class HackerNews(DataDownloader):
+    name = "hackernews"
+    urls = ["https://the-eye.eu/public/AI/pile_preliminary_components/hn.tar.gz"]
+
+
+class OpenWebText2(DataDownloader):
+    name = "openwebtext2"
+    urls = ["https://the-eye.eu/public/AI/pile_preliminary_components/openwebtext2.jsonl.zst.tar"]
+
+
+class StackExchange(DataDownloader):
+    name = "stackexchange"
+    urls = ["https://the-eye.eu/public/AI/pile_preliminary_components/stackexchange_dataset.tar"]
+
+
+class UbuntuIRC(DataDownloader):
+    name = "ubuntu_irc"
+    urls = ["https://the-eye.eu/public/AI/pile_preliminary_components/ubuntu_irc_until_2020_9_1.jsonl.zst"]
+
+
+class YoutubeSubtitles(DataDownloader):
+    name = "youtube_subtitles"
+    urls = ["https://the-eye.eu/public/AI/pile_preliminary_components/yt_subs.jsonl.zst"]
 
 def maybe_download_gpt2_tokenizer_data(tokenizer_type):
     if tokenizer_type is None or tokenizer_type == DEFAULT_TOKENIZER_TYPE:
@@ -165,9 +237,20 @@ DATA_DOWNLOADERS = {
     "pile": Pile,
     "github": Github,
     "arxiv": ArXiv,
+    "europarl": EuroParl,
+    "freelaw": FreeLaw,
+    "nih": NiH,
+    "pubmed": PubMed,
+    "books1": Books1,
+    "books3": Books3,
+    "hackernews": HackerNews,
+    "openwebtext2": OpenWebText2,
+    "stackexchange": StackExchange,
+    "ubuntu_irc": UbuntuIRC,
+    "youtube_subtitles": YoutubeSubtitles
 }
 
-def prepare_dataset(dataset_name: str, tokenizer_type: str = None, data_dir: str = None, vocab_file: str = None, merge_file: str = None):
+def prepare_dataset(dataset_name: str, tokenizer_type: str = None, data_dir: str = None, vocab_file: str = None, merge_file: str = None, num_workers: int = 1):
     """
     Downloads + tokenizes a dataset in the registry (dataset_name) and saves output .npy files to data_dir.
     """
@@ -175,9 +258,9 @@ def prepare_dataset(dataset_name: str, tokenizer_type: str = None, data_dir: str
         data_dir = DEFAULT_DATA_DIR
     os.makedirs(data_dir, exist_ok=True)
     maybe_download_gpt2_tokenizer_data(tokenizer_type)
-    DownloaderClass = DATA_DOWNLOADERS.get(dataset_name, None)
+    DownloaderClass = DATA_DOWNLOADERS.get(dataset_name.lower(), None)
     if DownloaderClass is None:
-        raise NotImplementedError
+        raise NotImplementedError(f'Dataset "{dataset_name}" not recognized - please choose from {list(DATA_DOWNLOADERS.keys())}')
     else:
-        d = DownloaderClass(tokenizer_type=tokenizer_type, vocab_file=vocab_file, merge_file=merge_file, data_dir=data_dir)
+        d = DownloaderClass(tokenizer_type=tokenizer_type, vocab_file=vocab_file, merge_file=merge_file, data_dir=data_dir, num_workers=num_workers)
         d.prepare()
