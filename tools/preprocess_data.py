@@ -148,7 +148,7 @@ def get_args():
 
 def _multi_lmd(fnames):
     for fname in fnames:
-        yield from lmd.Reader(fname).stream_data()
+        yield from filter(lambda x: x, lmd.Reader(fname).stream_data())
 
 
 def main():

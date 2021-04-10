@@ -99,9 +99,8 @@ class DataDownloader(ABC):
 
     def download(self):
         """downloads dataset"""
+        os.makedirs(os.path.join(self.base_dir, self.name), exist_ok=True)
         for url in self.urls:
-            os.makedirs(self.base_dir, exist_ok=True)
-            os.system(f"mkdir -p {os.path.join(self.base_dir, self.name)}")
             os.system(f"wget {url} -O {os.path.join(self.base_dir, self.name, os.path.basename(url))}")
 
     def tokenize(self):
