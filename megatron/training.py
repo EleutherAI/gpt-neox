@@ -45,7 +45,6 @@ from megatron.fp16 import FP16_Optimizer
 from megatron.global_vars import get_use_wandb
 from megatron.initialize import initialize_megatron
 from megatron.learning_rates import AnnealingLR
-from megatron.model import DistributedDataParallel as LocalDDP
 from megatron.model import get_params_for_weight_decay_optimization
 from megatron.utils import check_adlr_autoresume_termination
 from megatron.utils import make_data_loader
@@ -146,7 +145,7 @@ def get_optimizer(model):
     args = get_args()
 
     # Build parameter groups (weight decay and non-decay).
-    while isinstance(model, (torchDDP, LocalDDP, FP16_Module)):
+    while isinstance(model, (torchDDP, FP16_Module)):
         model = model.module
     param_groups = get_params_for_weight_decay_optimization(model, args)
 
