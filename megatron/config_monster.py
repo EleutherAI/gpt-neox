@@ -175,43 +175,35 @@ def _batch_assertion(world_size, train_batch, micro_batch, grad_acc):
 def _set_batch_parameters(world_size, train_batch=None, micro_batch=None, grad_acc=None):
     # all values are provided nothing needs to be set
     if train_batch is not None and micro_batch is not None and grad_acc is not None:
-        print("fml")
         return train_batch, micro_batch, grad_acc
 
     # gradient_accumulation_steps needs to be set
     elif train_batch is not None and micro_batch is not None:
-        print("4432423")
         grad_acc = train_batch // micro_batch
         grad_acc //= world_size
 
     # micro_batch_per_gpu needs to be set
     elif train_batch is not None and grad_acc is not None:
-        print("fsdfde")
         micro_batch = train_batch // world_size
         micro_batch //= grad_acc
 
     # train_batch_size needs to be set
     elif micro_batch is not None and grad_acc is not None:
-        print("poo")
         train_batch = micro_batch * grad_acc
         train_batch *= world_size
 
     # gradient_accumulation_steps and micro_batch_per_gpus is set
     elif train_batch is not None:
-        print("grrr")
         grad_acc = 1
         micro_batch = train_batch // world_size
 
     # train_batch_size and gradient_accumulation_step is set
     elif micro_batch is not None:
-        print("lol")
         train_batch = micro_batch * world_size
         grad_acc = 1
     # either none of the three parameters are provided or just gradient_accumulation_step is provided
     else:
-        print("fsdfasdfasd")
         assert False, 'Either train_batch_size or micro_batch_per_gpu needs to be provided'
-    print(train_batch, micro_batch, grad_acc)
     return train_batch, micro_batch, grad_acc
 
 
@@ -221,7 +213,6 @@ def _configure_train_batch_size(world_size, train_batch=None, micro_batch=None, 
     Modified from deepspeed.DeepSpeedConfig._set_batch_related_parameters.
     """
     train_batch, micro_batch, grad_acc = _set_batch_parameters(world_size, train_batch, micro_batch, grad_acc)
-    print(train_batch, micro_batch, grad_acc)
     _batch_assertion(world_size, train_batch=train_batch, micro_batch=micro_batch, grad_acc=grad_acc)
     return train_batch, micro_batch, grad_acc
 
@@ -316,7 +307,6 @@ class ConfigMonster:
         pp_size = pp_size if pp_size >= 1 else 1
         mp_size = conf.get('model-parallel-size', 0)
         mp_size = mp_size if mp_size >= 1 else 1
-        print(num_gpus)
         world_size = ((num_gpus / pp_size) / mp_size)
         assert world_size % 1 == 0, f"(num_gpus / pp_size) / mp_size [({num_gpus} / {pp_size}) / {mp_size}] must be a whole number"
 
