@@ -25,7 +25,7 @@ import lm_dataformat as lmd
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
                                              os.path.pardir)))
 import time
-
+import tqdm
 import torch
 
 try:
@@ -111,7 +111,7 @@ def get_args():
                        help='Split documents into sentences.')
     group.add_argument('--keep-newlines', action='store_true',
                        help='Keep newlines between sentences when splitting.')
-
+    group.add_argument('--num-docs', default=None, help='Number of documents in the input data (if known) for an accurate progress bar.', type=int)
     group = parser.add_argument_group(title='tokenizer')
     group.add_argument('--tokenizer-type', type=str, required=True,
                        choices=['HFGPT2Tokenizer', 'HFTokenizer',
@@ -188,7 +188,7 @@ def main():
     proc_start = time.time()
     total_bytes_processed = 0
     print("Time to startup:", startup_end - startup_start)
-
+    pbar = tqdm.tqdm()
     for i, (doc, bytes_processed) in enumerate(encoded_docs, start=1):
         total_bytes_processed += bytes_processed
         for key, sentences in doc.items():
@@ -199,9 +199,9 @@ def main():
             current = time.time()
             elapsed = current - proc_start
             mbs = total_bytes_processed / elapsed / 1024 / 1024
-            print(f"Processed {i} documents",
-                  f"({i / elapsed} docs/s, {mbs} MB/s).",
-                  file=sys.stderr)
+            pbar.set_description(f"Processed {i}{'' if args.num_docs is None else '/' + str(args.num_docs)} documents ({i / elapsed} docs/s, {mbs} MB/s).")
+            if i != 0:
+                pbar.update(args.log_interval)
 
     for key in args.json_keys:
         builders[key].finalize(output_idx_files[key])
