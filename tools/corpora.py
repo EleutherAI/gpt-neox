@@ -161,12 +161,12 @@ class Pile(DataDownloader):
 
 class Github(DataDownloader):
     name = "github"
-    urls = ["http://eaidata.bmk.sh/data/github_small.jsonl.zst"]
+    urls = ["https://the-eye.eu/public/AI/pile_preliminary_components/github.tar"]
 
 
 class ArXiv(DataDownloader):
     name = "arxiv"
-    urls = ["http://eaidata.bmk.sh/data/arxiv.jsonl.zst"]
+    urls = ["https://the-eye.eu/public/AI/pile_preliminary_components/2020-09-08-arxiv-extracts-nofallback-until-2007-068.tar.gz"]
 
 
 class EuroParl(DataDownloader):
