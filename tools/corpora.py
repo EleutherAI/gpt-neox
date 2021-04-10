@@ -161,7 +161,7 @@ class Pile(DataDownloader):
 
 class Github(DataDownloader):
     name = "github"
-    urls = ["https://the-eye.eu/public/AI/pile_preliminary_components/github.tar"]
+    urls = ["http://eaidata.bmk.sh/data/github_small.jsonl.zst"]
 
 
 class ArXiv(DataDownloader):
