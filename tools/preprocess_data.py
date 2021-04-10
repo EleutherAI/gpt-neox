@@ -20,6 +20,7 @@ import json
 import multiprocessing
 import os
 import sys
+import lm_dataformat as lmd
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
                                              os.path.pardir)))
@@ -80,7 +81,11 @@ class Encoder(object):
             Encoder.splitter = IdentitySplitter()
 
     def encode(self, json_line):
-        data = json.loads(json_line)
+
+        data = {
+            "text": json_line
+        }
+        
         ids = {}
         for key in self.args.json_keys:
             text = data[key]
@@ -99,7 +104,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     group = parser.add_argument_group(title='input data')
     group.add_argument('--input', type=str, required=True,
-                       help='Path to input JSON')
+                       help='Path to input lmd archives')
     group.add_argument('--json-keys', nargs='+', default=['text'],
                        help='space separate listed of keys to extract from json')
     group.add_argument('--split-sentences', action='store_true',
@@ -141,12 +146,18 @@ def get_args():
     return args
 
 
+def _multi_lmd(fnames):
+    for fname in fnames:
+        yield from lmd.Reader(fname).stream_data()
+
+
 def main():
     args = get_args()
     startup_start = time.time()
 
     print("Opening", args.input)
-    fin = open(args.input, 'r', encoding='utf-8')
+    fin = _multi_lmd(args.input.split(","))
+
     if nltk_available and args.split_sentences:
         nltk.download("punkt", quiet=True)
 
