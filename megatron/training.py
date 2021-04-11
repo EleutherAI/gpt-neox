@@ -109,7 +109,8 @@ def pretrain(train_valid_test_dataset_provider, model_provider,
         iteration = train(forward_step_func,
                           model, optimizer, lr_scheduler,
                           train_data_iterator, valid_data_iterator)
-
+        # TODO: I would do growing of batch size here, so something like, if batch size boundary,
+        #       reload the model with this batch size.
     if args.do_valid:
         prefix = 'the end of training for val data'
         evaluate_and_print_results(prefix, forward_step_func,
@@ -325,6 +326,7 @@ def train_step(forward_step_func, data_iterator,
     """Single training step."""
     args = get_args()
     timers = get_timers()
+    # TODO: BATCH SIZE CHANGES - simply change args / model.batch_size_per_gpu?
 
     # Pipeline parallelism schedules forward/backward/step
     if args.pipe_parallel_size > 0:
@@ -356,7 +358,7 @@ def train_step_pipe(model, data_iterator):
     """Single training step with DeepSpeed's pipeline parallel engine. """
     args = get_args()
     timers = get_timers()
-
+    # TODO: BATCH SIZE CHANGES - simply change args / model.batch_size_per_gpu?
     assert args.deepspeed
     loss = model.train_batch(data_iter=data_iterator)
     loss_dict = {'lm loss': loss}
@@ -517,6 +519,7 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
 
     timers('interval time').start()
     report_memory_flag = True
+    # TODO: batch size scheduling here somewhere
     while iteration < args.train_iters:
         loss_dict, skipped_iter = train_step(forward_step_func,
                                              train_data_iterator,
@@ -524,6 +527,7 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
                                              optimizer,
                                              lr_scheduler)
         iteration += 1
+        # something like, if we're at a boundary, call function that changes the batch sizes here.
 
         # Logging.
         loss_scale = None
@@ -643,7 +647,7 @@ def evaluate_and_print_results(prefix, forward_step_func,
 
 
 def build_train_valid_test_data_iterators(
-        build_train_valid_test_datasets_provider):
+        build_train_valid_test_datasets_provider, batch_size=None):
     """XXX"""
     args = get_args()
 
