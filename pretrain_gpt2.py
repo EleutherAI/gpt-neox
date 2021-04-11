@@ -42,7 +42,7 @@ def model_provider():
     """Build the model."""
 
     args = get_args()
-
+    
     print_rank_0('building GPT2 model ...')
     if args.pipe_parallel_size == 0: # This must be 0 to use ZeRO 2 or ZeRO 3
         model = GPT2Model(num_tokentypes=0, parallel_output=True)
@@ -53,6 +53,8 @@ def model_provider():
         else: # Pleb initialization function for models that aren't ZeRO Stage 3
             model = GPT2Model(num_tokentypes=0, parallel_output=True)
     else:
+        if args.zero_stage == 3:
+            raise ValueError('ZeRO Stage 3 cannot be used with pipeline parallel modules. Either set PP = 0 or use another ZeRO configuration.')
         model = GPT2ModelPipe(num_tokentypes=0, parallel_output=True, topology=mpu.get_topology())
         # This is a hack to give us a reference to get_batch_pipe from within training.py
         # We need to call model.set_batch_fn after deepspeed.initialize
