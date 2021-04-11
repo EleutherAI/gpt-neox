@@ -16,16 +16,15 @@
 
 
 import os
-import tarfile
 from abc import ABC, abstractmethod
-import shutil
-import zstandard
+from multiprocessing import cpu_count
 
 """
 This registry is for automatically downloading and extracting datasets.
-To register a class you need to inherit the DataDownloader class, provide name, filetype and url attributes, and 
-(optionally) provide download / extract / exists / tokenize functions to check if the data exists, and, if it doesn't, download, 
-extract and tokenize the data into the correct directory.
+
+To register a class you need to inherit the DataDownloader class, and provide name and url attributes, and (optionally) 
+the number of documents.
+
 When done, add it to the DATA_DOWNLOADERS dict. The function process_data runs the pre-processing for the selected 
 dataset.
 """
@@ -42,7 +41,7 @@ GPT2_MERGE_URL = "https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-merge
 class DataDownloader(ABC):
     """Dataset registry class to automatically download / extract datasets"""
 
-    def __init__(self, tokenizer_type=None, merge_file=None, vocab_file=None, data_dir=None, num_workers=1):
+    def __init__(self, tokenizer_type=None, merge_file=None, vocab_file=None, data_dir=None, num_workers=None):
         if tokenizer_type is None:
             tokenizer_type = DEFAULT_TOKENIZER_TYPE
         if merge_file is None:
@@ -56,6 +55,8 @@ class DataDownloader(ABC):
                 assert vocab_file is not None, 'No vocab file provided'
         if data_dir is None:
             data_dir = DEFAULT_DATA_DIR
+        if num_workers is None:
+            num_workers = cpu_count()
         self._tokenizer_type = tokenizer_type
         self._merge_file = merge_file
         self._vocab_file = vocab_file
@@ -98,7 +99,7 @@ class DataDownloader(ABC):
     def num_workers(self):
         """Number of workers to use in preprocessing"""
         return self._num_workers
-    
+
     @property
     def num_docs(self):
         """Number of documents in the dataset (if known)"""
@@ -118,7 +119,7 @@ class DataDownloader(ABC):
         """tokenizes dataset"""
         parent_folder = os.path.join(self.base_dir, self.name)
         jsonl_filepath = ",".join([
-            os.path.join(parent_folder, os.path.basename(url)) 
+            os.path.join(parent_folder, os.path.basename(url))
             for url in self.urls
         ])
 
@@ -131,10 +132,10 @@ class DataDownloader(ABC):
             --merge-file {self.merge_file} \
             --append-eod \
             --workers {self.num_workers} "
-        
+
         if self.num_docs is not None:
             cmd += f"--num-docs {self.num_docs}"
-    
+
         os.system(cmd)
 
     def prepare(self):
@@ -207,6 +208,7 @@ class HackerNews(DataDownloader):
 class OpenWebText2(DataDownloader):
     name = "openwebtext2"
     urls = ["https://the-eye.eu/public/AI/pile_preliminary_components/openwebtext2.jsonl.zst.tar"]
+    num_docs = 17103000
 
 
 class StackExchange(DataDownloader):
@@ -222,6 +224,17 @@ class UbuntuIRC(DataDownloader):
 class YoutubeSubtitles(DataDownloader):
     name = "youtube_subtitles"
     urls = ["https://the-eye.eu/public/AI/pile_preliminary_components/yt_subs.jsonl.zst"]
+
+
+class C4(DataDownloader):
+    name = "c4"
+    urls = [f"https://the-eye.eu/eleuther_staging/c4/en/c4-train.{i:05}-of-01024.json.gz" for i in range(1024)]
+
+
+class C4OpenWebText(DataDownloader):
+    name = "c4_openwebtext"
+    urls = [f"https://the-eye.eu/eleuther_staging/c4/realnewslike/c4-train.{i:05}-of-00512.json.gz" for i in range(512)]
+
 
 def maybe_download_gpt2_tokenizer_data(tokenizer_type):
     if tokenizer_type is None or tokenizer_type == DEFAULT_TOKENIZER_TYPE:
@@ -247,10 +260,14 @@ DATA_DOWNLOADERS = {
     "openwebtext2": OpenWebText2,
     "stackexchange": StackExchange,
     "ubuntu_irc": UbuntuIRC,
-    "youtube_subtitles": YoutubeSubtitles
+    "youtube_subtitles": YoutubeSubtitles,
+    "c4": C4,
+    "c4_openwebtext": C4OpenWebText
 }
 
-def prepare_dataset(dataset_name: str, tokenizer_type: str = None, data_dir: str = None, vocab_file: str = None, merge_file: str = None, num_workers: int = 1):
+
+def prepare_dataset(dataset_name: str, tokenizer_type: str = None, data_dir: str = None, vocab_file: str = None,
+                    merge_file: str = None, num_workers: int = None):
     """
     Downloads + tokenizes a dataset in the registry (dataset_name) and saves output .npy files to data_dir.
     """
@@ -260,7 +277,9 @@ def prepare_dataset(dataset_name: str, tokenizer_type: str = None, data_dir: str
     maybe_download_gpt2_tokenizer_data(tokenizer_type)
     DownloaderClass = DATA_DOWNLOADERS.get(dataset_name.lower(), None)
     if DownloaderClass is None:
-        raise NotImplementedError(f'Dataset "{dataset_name}" not recognized - please choose from {list(DATA_DOWNLOADERS.keys())}')
+        raise NotImplementedError(
+            f'Dataset "{dataset_name}" not recognized - please choose from {list(DATA_DOWNLOADERS.keys())}')
     else:
-        d = DownloaderClass(tokenizer_type=tokenizer_type, vocab_file=vocab_file, merge_file=merge_file, data_dir=data_dir, num_workers=num_workers)
+        d = DownloaderClass(tokenizer_type=tokenizer_type, vocab_file=vocab_file, merge_file=merge_file,
+                            data_dir=data_dir, num_workers=num_workers)
         d.prepare()
