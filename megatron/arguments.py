@@ -315,6 +315,7 @@ def _add_training_args(parser):
                        help='Use Torch Adam as optimizer on CPU.')
     group.add_argument('--onebitadam', action='store_true',
                        help='Enable one bit adam optimizer [MUST BE USING DEEPSPEED]')
+    group.add_argument('--no-adamw', action='store_true', help='Use default Adam instead of AdamW')
     group.add_argument('--sm3', action='store_true',
                        help='Enable sm3 optimizer')
     return parser
