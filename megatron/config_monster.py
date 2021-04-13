@@ -22,6 +22,7 @@ from deepspeed.launcher.runner import DLTS_HOSTFILE
 from megatron.utils import obtain_resource_pool
 from megatron.arguments import _get_parser
 import torch
+import shortuuid
 
 log = logging.getLogger('ConfigMonster')
 
@@ -287,6 +288,10 @@ class ConfigMonster:
 
         # Load and merge all configuration
         conf = {} if extra_conf is None else extra_conf
+        if conf.get('wandb_group') is None:
+            conf['wandb_group'] = shortuuid.uuid()
+        else:
+            conf['wandb_group'] = str(conf['wandb_group']) + shortuuid.uuid()
         for path in conf_files:
             with open(path) as f:
                 conf_i = yaml.load(f, Loader=yaml.FullLoader)
