@@ -12,6 +12,7 @@ except Exception as e:
           'instead of apex.normalization.FusedLayerNorm!')
     from torch.nn import LayerNorm
 
+
 class RMSNorm(torch.nn.Module):
     def __init__(self, dim, p=-1., eps=1e-8, bias=False):
         """

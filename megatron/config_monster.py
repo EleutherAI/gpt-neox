@@ -22,6 +22,7 @@ from deepspeed.launcher.runner import DLTS_HOSTFILE
 from megatron.utils import obtain_resource_pool
 from megatron.arguments import _get_parser
 import torch
+import shortuuid
 
 log = logging.getLogger('ConfigMonster')
 
@@ -299,7 +300,11 @@ class ConfigMonster:
                                                f'loaded file:  {key_intersection}'
 
             conf.update(conf_i)
-
+        # make sure wandb_group is unique
+        if conf.get('wandb_group') is None:
+            conf['wandb_group'] = shortuuid.uuid()
+        else:
+            conf['wandb_group'] = str(conf['wandb_group']) + shortuuid.uuid()
         # Assert there are no keys that are not recognised
         unrecognised_keys = [key for key in conf.keys()
                              if key not in ds_runner_keys + megatron_keys + ds_config_keys + neox_config_keys]

@@ -183,7 +183,8 @@ def get_optimizer(model):
                          lr=args.lr,
                          weight_decay=args.weight_decay,
                          betas=(args.adam_beta1, args.adam_beta2),
-                         eps=args.adam_eps)
+                         eps=args.adam_eps,
+                         adam_w_mode=not args.no_adamw)
     if args.deepspeed:
         # fp16 wrapper is not required for DeepSpeed.
         return optimizer, param_groups
