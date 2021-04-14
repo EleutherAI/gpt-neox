@@ -20,23 +20,12 @@ import requests
 import subprocess
 
 from megatron.config_monster import ConfigMonster
+from megatron.utils import get_wandb_api_key
 import logging
 
 from megatron.logging import Tee
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
-
-
-def get_wandb_api_key():
-    """ Get Weights and Biases API key from ENV or .netrc file. Otherwise return None """
-    if 'WANDB_API_KEY' in os.environ:
-        return os.environ['WANDB_API_KEY']
-
-    wandb_token = requests.utils.get_netrc_auth('https://api.wandb.ai')
-
-    if wandb_token is not None:
-        return wandb_token[1]
-
 
 def get_git_commit_hash():
     """ Gets the git commit hash of your current repo (if it exists) """

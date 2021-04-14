@@ -195,6 +195,8 @@ def is_local_main():
 
 def get_wandb_api_key():
     """ Get Weights and Biases API key from ENV or .netrc file. Otherwise return None """
+    if 'WANDB_LOCAL' in os.environ:
+        return 'LOCAL'
     if 'WANDB_API_KEY' in os.environ:
         return os.environ['WANDB_API_KEY']
 
