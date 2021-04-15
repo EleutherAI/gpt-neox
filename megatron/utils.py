@@ -30,7 +30,7 @@ from megatron import get_args
 from megatron import print_rank_0
 from megatron import get_adlr_autoresume
 from megatron import mpu
-from megatron.data.samplers import DistributedBatchSampler
+from megatron.data.samplers import DistributedBatchSampler, DistributedBatchSamplerScheduled
 from megatron.fp16 import FP16_Optimizer
 
 
@@ -97,7 +97,9 @@ def check_adlr_autoresume_termination(iteration, model,
         sys.exit(0)
 
 
-def make_data_loader(dataset):
+def make_data_loader(dataset, scheduler=None):
+    # HERE IS KEY PART FOR SCHEDULING BS
+    # i can modify the batch samplers batch size with dataloader.batch_sampler.batch_size
     """Buld dataloader given an input dataset."""
     if dataset is None:
         return None
@@ -111,11 +113,19 @@ def make_data_loader(dataset):
 
     # Use a simple sampler with distributed batch sampler.
     sampler = torch.utils.data.SequentialSampler(dataset)
-    batch_sampler = DistributedBatchSampler(sampler=sampler,
-                                            batch_size=global_batch_size,
-                                            drop_last=True,
-                                            rank=rank,
-                                            world_size=world_size)
+    if scheduler is not None:
+        batch_sampler = DistributedBatchSamplerScheduled(sampler=sampler,
+                                                batch_size=global_batch_size,
+                                                drop_last=True,
+                                                rank=rank,
+                                                world_size=world_size,
+                                                batch_size_scheduler=scheduler)
+    else:
+        batch_sampler = DistributedBatchSampler(sampler=sampler,
+                                                batch_size=global_batch_size,
+                                                drop_last=True,
+                                                rank=rank,
+                                                world_size=world_size)
     # Torch dataloader.
     return torch.utils.data.DataLoader(dataset,
                                        batch_sampler=batch_sampler,
