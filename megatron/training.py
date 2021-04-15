@@ -184,8 +184,8 @@ def get_optimizer(model):
         optimizer = Adafactor(
             param_groups,
             lr=args.lr,
-            eps=args.adafactor_eps,
-            clip_threshold=args.clip_grad,
+            eps=(args.adafactor_eps1, args.adafactor_eps2),
+            clip_threshold=args.adafactor_clip,
             decay_rate=args.adafactor_decay,
             beta1=args.adafactor_beta1,
             weight_decay=args.weight_decay,

@@ -236,6 +236,10 @@ def _add_regularization_args(parser):
                        help='Term added to the denominator to improve'
                             'numerical stability')
     group.add_argument('--momentum', type=float, default=0.0, help='momentum term for sm3 optimizer')
+    group.add_argument('--adafactor-eps1', type=float, default=1e-30, help='Regularization constant for square gradient')
+    group.add_argument('--adafactor-eps2', type=float, default=1e-3, help='Regularization constant for parameter scale')
+    group.add_argument('--adafactor-clip', type=float, default=1.0, help='Threshold of root mean square of final gradient update')
+    group.add_argument('--adafactor-beta1', type=float, default=None, help='Coefficient used for computing running averages of gradient')
 
     return parser
 
@@ -318,6 +322,7 @@ def _add_training_args(parser):
     group.add_argument('--no-adamw', action='store_true', help='Use default Adam instead of AdamW')
     group.add_argument('--sm3', action='store_true',
                        help='Enable sm3 optimizer')
+    group.add_argument('--adafactor', action='store_true', help='Enable Adafactor optimizer')
     return parser
 
 
@@ -364,6 +369,16 @@ def _add_learning_rate_args(parser):
                             '(learning rate, warmup iterations, minimum learning '
                             'rate, maximum number of iterations, and decay style '
                             'from checkpoint and ignore input arguments.')
+
+    group.add_argument('--use-checkpoint-lr-scheduler', action='store_true',
+                       help='')
+
+    # Adafactor
+    group.add_argument('--adafactor-decay', type=float, default=-0.8, help='Coefficient used to compute running averages of square')
+    group.add_argument('--relative-step', action='store_true', help='If True, time-dependent learning rate is computed instead of external learning rate')
+    group.add_argument('--scale-parameter', action='store_true', help='If True, learning rate is scaled by root mean square')
+    group.add_argument('--adafactor-warmup', action='store_true', help='Time-dependent learning rate computation depends on whether warm-up initialization is being used')
+
 
     return parser
 
