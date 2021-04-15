@@ -40,7 +40,6 @@ from .utils import VocabUtility
 from megatron import get_args
 from einops import rearrange
 
-
 def _initialize_affine_weight_gpu(weight, init_method,
                                   partition_dim, stride=1):
     """Initialize affine weight for model parallel on GPU."""
@@ -211,6 +210,11 @@ class ParallelRelativePositionBias(torch.nn.Module):
                 device=torch.cuda.current_device(), dtype=args.params_dtype))
             _initialize_affine_weight_gpu(self.weight, init_method,
                                           partition_dim=1, stride=1)
+        self._q_len_cached = None
+        self._k_len_cached = None
+        self._q_pos_cached = None
+        self._k_pos_cached = None
+        self._rel_pos_bucket_cached = None
 
     @staticmethod
     def get_heads_range(global_n_heads, rank, world_size):
@@ -238,14 +242,20 @@ class ParallelRelativePositionBias(torch.nn.Module):
         val_if_large = torch.min(val_if_large, torch.full_like(val_if_large, num_buckets - 1))
 
         ret += torch.where(is_small, n, val_if_large)
-        return ret
+        self._rel_pos_bucket_cached = ret
+        return self._rel_pos_bucket_cached
 
     def forward(self, q_len, k_len):
-        q_pos = torch.arange(q_len, dtype=torch.long, device=torch.cuda.current_device())
-        k_pos = torch.arange(k_len, dtype=torch.long, device=torch.cuda.current_device())
-        rel_pos = k_pos[None, :] - q_pos[:, None]
-        rp_bucket = self._relative_position_bucket(rel_pos, num_buckets=self.num_buckets,
-                                                   max_distance=self.max_distance)
+        if self._q_len_cached != q_len or self._k_len_cached != k_len:
+            # cache bucket if first step seq len stays constant
+            self._q_len_cached, self._k_len_cached = q_len, k_len
+            q_pos = torch.arange(q_len, dtype=torch.long, device=torch.cuda.current_device())
+            k_pos = torch.arange(k_len, dtype=torch.long, device=torch.cuda.current_device())
+            rel_pos = k_pos[None, :] - q_pos[:, None]
+            rp_bucket = self._relative_position_bucket(rel_pos, num_buckets=self.num_buckets,
+                                                       max_distance=self.max_distance)
+        else:
+            rp_bucket = self._rel_pos_bucket_cached
         values = F.embedding(rp_bucket, self.weight, self.padding_idx,
                              self.max_norm, self.norm_type, self.scale_grad_by_freq, self.sparse)
         bias = rearrange(values, 'i j h -> () h i j')
