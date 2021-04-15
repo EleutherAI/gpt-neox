@@ -285,7 +285,7 @@ def _add_training_args(parser):
                             'adjust embd dims accordingly)')
     group.add_argument('--no-weight-tying', action='store_true',
                        help='Disables weight tying between embedding weights and final Linear layer')
-    pos_emb_choices = ['learned', 'sinusoidal', 'rpe', 'none']
+    pos_emb_choices = ['learned', 'sinusoidal', 'rpe', 'rotary', 'none']
     group.add_argument('--pos-emb', type=str, choices=pos_emb_choices, default='learned',
                        help=f'Type of positional embedding to use - choose from {pos_emb_choices}')
     group.add_argument('--rpe-num-buckets', type=int, default=32,
@@ -315,6 +315,7 @@ def _add_training_args(parser):
                        help='Use Torch Adam as optimizer on CPU.')
     group.add_argument('--onebitadam', action='store_true',
                        help='Enable one bit adam optimizer [MUST BE USING DEEPSPEED]')
+    group.add_argument('--no-adamw', action='store_true', help='Use default Adam instead of AdamW')
     group.add_argument('--sm3', action='store_true',
                        help='Enable sm3 optimizer')
     group.add_argument('--batch-size-schedule', type=str, help='Schedule for progressive growing of batch size', default=None)

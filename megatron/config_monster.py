@@ -22,6 +22,7 @@ from deepspeed.launcher.runner import DLTS_HOSTFILE
 from megatron.utils import obtain_resource_pool
 from megatron.arguments import _get_parser
 import torch
+import shortuuid
 
 log = logging.getLogger('ConfigMonster')
 
@@ -298,7 +299,11 @@ class ConfigMonster:
                                                f'loaded file:  {key_intersection}'
 
             conf.update(conf_i)
-
+        # make sure wandb_group is unique
+        if conf.get('wandb_group') is None:
+            conf['wandb_group'] = shortuuid.uuid()
+        else:
+            conf['wandb_group'] = str(conf['wandb_group']) + shortuuid.uuid()
         # Assert there are no keys that are not recognised
         unrecognised_keys = [key for key in conf.keys()
                              if key not in ds_runner_keys + megatron_keys + ds_config_keys + neox_config_keys]
@@ -320,13 +325,14 @@ class ConfigMonster:
 
         # Get number of GPUs param or hostfile to determine train_batch_size
         num_gpus = conf.get('num_gpus')
-        if num_gpus is None and ('hostfile' in conf or os.path.exists(DLTS_HOSTFILE)):
-            hostfile_path = conf.get('hostfile', DLTS_HOSTFILE)
-            resources = obtain_resource_pool(hostfile_path, conf.get('include', ''), conf.get('exclude', ''))
-            num_gpus = sum(map(len, resources.values()))
-        else:
-            num_gpus = torch.cuda.device_count()
-            conf["num_gpus"] = num_gpus
+        if num_gpus is None:
+            if 'hostfile' in conf or os.path.exists(DLTS_HOSTFILE):
+                hostfile_path = conf.get('hostfile', DLTS_HOSTFILE)
+                resources = obtain_resource_pool(hostfile_path, conf.get('include', ''), conf.get('exclude', ''))
+                num_gpus = sum(map(len, resources.values()))
+            else:
+                num_gpus = torch.cuda.device_count()
+                conf["num_gpus"] = num_gpus
 
         log.info(f"Total number of GPUs determined to be: {num_gpus}")
 
@@ -336,6 +342,15 @@ class ConfigMonster:
         pp_size = pp_size if pp_size >= 1 else 1
         mp_size = conf.get('model-parallel-size', 0)
         mp_size = mp_size if mp_size >= 1 else 1
+                      
+        # pp_size and mp_size are only used here to compute world_size and nowhere else. The way that these values actually get to deepspeed
+        # is through convert_to_old_args. The entire chain of how that happens:
+        # https://github.com/EleutherAI/gpt-neox/blob/2ceefba0ef12b94eb35a518f7dea9f34fc43c9af/megatron/arguments.py#L430
+        # https://github.com/EleutherAI/gpt-neox/blob/2ceefba0ef12b94eb35a518f7dea9f34fc43c9af/megatron/arguments.py#L45
+        # https://github.com/EleutherAI/gpt-neox/blob/2ceefba0ef12b94eb35a518f7dea9f34fc43c9af/megatron/config_monster.py#L17
+        # https://github.com/EleutherAI/gpt-neox/blob/2ceefba0ef12b94eb35a518f7dea9f34fc43c9af/megatron/config_monster.py#L40
+        # https://github.com/EleutherAI/gpt-neox/blob/2ceefba0ef12b94eb35a518f7dea9f34fc43c9af/megatron/config_monster.py#L330
+
         world_size = ((num_gpus / pp_size) / mp_size)
         assert world_size % 1 == 0, f"(num_gpus / pp_size) / mp_size [({num_gpus} / {pp_size}) / {mp_size}] must be a whole number"
 

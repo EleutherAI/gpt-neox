@@ -50,19 +50,17 @@ def model_provider():
         # We need to call model.set_batch_fn after deepspeed.initialize
         model._megatron_batch_fn = get_batch_pipe
 
-    ## Wandb
-    use_wandb = get_wandb_api_key() is not None
+    ## Wandb. (one worker per machine)
+    use_wandb = is_local_main() and (get_wandb_api_key() is not None) 
     set_use_wandb(use_wandb)
     args_dict = vars(args)
     if use_wandb:
-        # only display system stats from one worker per machine
-        wandb_settings = wandb.Settings() if is_local_main() else wandb.Settings(_disable_stats=True)
         group_name = args_dict.get('wandb_group')
         name = f'{socket.gethostname()}-{local_rank()}' if group_name else None
 
         try:
             wandb.init(project="neox", group=group_name, name=name, save_code=False,
-                       force=False, entity=args_dict.get('wandb_team'), settings=wandb_settings)
+                       force=False, entity=args_dict.get('wandb_team'))
         except UsageError as e:
             set_use_wandb(False)
             print(e)
