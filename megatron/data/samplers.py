@@ -186,10 +186,13 @@ class DistributedBatchSamplerScheduled(data.sampler.BatchSampler):
         i = 0
         for idx in self.data_iterator(self.sampler, wrap_around=False):
             batch.append(idx)
-            self.batch_size = self.batch_size if self.batch_size_scheduler is None else self.batch_size_scheduler.get_current_batch_size()
+            # self.batch_size = self.batch_size if self.batch_size_scheduler is None else self.batch_size_scheduler.get_current_batch_size()
+            # self.batch_size = self.batch_size if self.batch_size_scheduler is None else self.batch_size_scheduler.get_current_batch_size()
+
             if len(batch) == self.batch_size:
                 tbatch = self._batch(batch)
                 if i >= self.start_iter:
+                    input(f'YIELDING T BATCH OF LEN: {len(tbatch)}')
                     yield tbatch
                     self.start_iter = 0
                 i += 1

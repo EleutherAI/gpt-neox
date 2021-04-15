@@ -486,7 +486,7 @@ def _add_data_args(parser):
                        help='Probability of producing a short sequence.')
     group.add_argument('--mmap-warmup', action='store_true',
                        help='Warm up mmap files.')
-    group.add_argument('--num-workers', type=int, default=2,
+    group.add_argument('--num-workers', type=int, default=1,
                        help="Dataloader number of workers.")
     group.add_argument('--tokenizer-type', type=str,
                        default=None,

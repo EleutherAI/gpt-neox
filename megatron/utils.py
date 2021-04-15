@@ -114,23 +114,26 @@ def make_data_loader(dataset, scheduler=None):
     # Use a simple sampler with distributed batch sampler.
     sampler = torch.utils.data.SequentialSampler(dataset)
     if scheduler is not None:
+        print('MAKING SCHEDULER')
         batch_sampler = DistributedBatchSamplerScheduled(sampler=sampler,
                                                 batch_size=global_batch_size,
                                                 drop_last=True,
                                                 rank=rank,
                                                 world_size=world_size,
                                                 batch_size_scheduler=scheduler)
+        print(f'CURRENT BATCH SIZE: {scheduler.get_current_batch_size()}')
     else:
         batch_sampler = DistributedBatchSampler(sampler=sampler,
-                                                batch_size=global_batch_size,
+                                                batch_size=int(global_batch_size),
                                                 drop_last=True,
                                                 rank=rank,
                                                 world_size=world_size)
     # Torch dataloader.
-    return torch.utils.data.DataLoader(dataset,
+    data_loader = torch.utils.data.DataLoader(dataset,
                                        batch_sampler=batch_sampler,
                                        num_workers=num_workers,
                                        pin_memory=True)
+    return data_loader
 
 
 def get_ltor_masks_and_position_ids(data,

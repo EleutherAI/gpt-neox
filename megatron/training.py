@@ -92,10 +92,11 @@ def pretrain(train_valid_test_dataset_provider, model_provider,
     timers('model and optimizer').stop()
 
     # Data stuff.
+    print(f'MAKING BS SCHEDULER WITH FINAL BATCH SIZE: {args.batch_size}')
     bs_scheduler = BatchSizeScheduler(
         final_batch_size=args.batch_size,
         num_intervals=8,
-        warmup_num_steps=10000
+        warmup_num_steps=100
     )
     timers('train/valid/test data iterators').start()
     train_data_iterator, valid_data_iterator, test_data_iterator \
@@ -113,7 +114,7 @@ def pretrain(train_valid_test_dataset_provider, model_provider,
     if args.do_train and args.train_iters > 0:
         iteration = train(forward_step_func,
                           model, optimizer, lr_scheduler,
-                          train_data_iterator, valid_data_iterator, bs_scheduler=bs_scheduler)
+                          train_data_iterator, valid_data_iterator, bs_scheduler=bs_scheduler, train_valid_test_datasets_provider=train_valid_test_dataset_provider)
         # TODO: I would do growing of batch size here, so something like, if batch size boundary,
         #       reload the model with this batch size.
     if args.do_valid:
@@ -509,7 +510,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
 
 
 def train(forward_step_func, model, optimizer, lr_scheduler,
-          train_data_iterator, valid_data_iterator, bs_scheduler=None):
+          train_data_iterator, valid_data_iterator, bs_scheduler=None, train_valid_test_datasets_provider=None):
     """Train the model function."""
     args = get_args()
     timers = get_timers()
@@ -528,13 +529,17 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
     # TODO: batch size scheduling here somewhere
 
     while iteration < args.train_iters:
+        _train_data_iterator, _, _ = maybe_update_current_batch_size(model, args, bs_scheduler, train_valid_test_datasets_provider)
+        if _train_data_iterator is not None:
+            train_data_iterator = train_data_iterator
         loss_dict, skipped_iter = train_step(forward_step_func,
                                              train_data_iterator,
                                              model,
                                              optimizer,
                                              lr_scheduler)
         iteration += 1
-        maybe_update_current_batch_size(model, args, bs_scheduler)
+        args.iteration = iteration
+        bs_scheduler.step()
         # Logging.
         loss_scale = None
         if args.fp16:
@@ -692,7 +697,8 @@ def build_train_valid_test_data_iterators(
             train_val_test_num_samples)
 
         # Build dataloders.
-        train_dataloader = make_data_loader(train_ds, scheduler=bs_scheduler)
+        # train_dataloader = make_data_loader(train_ds, scheduler=bs_scheduler)
+        train_dataloader = make_data_loader(train_ds)
         valid_dataloader = make_data_loader(valid_ds)
         test_dataloader = make_data_loader(test_ds)
 
@@ -748,7 +754,6 @@ def build_train_valid_test_data_iterators(
         test_data_iterator = iter(test_dataloader)
     else:
         test_data_iterator = None
-
     return train_data_iterator, valid_data_iterator, test_data_iterator
 
 
@@ -792,12 +797,14 @@ def get_flops(model, iter_time_s):
     return flops
 
 
-def maybe_update_current_batch_size(model, args, bs_scheduler):
+def maybe_update_current_batch_size(model, args, bs_scheduler, train_valid_test_datasets_provider):
     # we need to update the current batch size in the deepspeed engine and in our args to ensure logging is
     # accurate update mb_size in args
     prev_batch_size = args.batch_size
     args.batch_size = bs_scheduler.get_current_batch_size() if bs_scheduler is not None else args.batch_size
     if args.batch_size != prev_batch_size:
+        print(f'UPDATING prev batch size {prev_batch_size} to {args.batch_size}')
+        input('..')
         train_batch, micro_batch, _ = _configure_train_batch_size(mpu.get_data_parallel_world_size(),
                                                                   train_batch=None,
                                                                   micro_batch=args.batch_size,
@@ -808,3 +815,6 @@ def maybe_update_current_batch_size(model, args, bs_scheduler):
             if hasattr(model, 'tput_timer'):
                 # also update tput timer
                 model.tput_timer.batch_size = micro_batch
+        train_data_iterator, valid_data_iterator, test_data_iterator = build_train_valid_test_data_iterators(train_valid_test_datasets_provider)
+        return train_data_iterator, valid_data_iterator, test_data_iterator
+    return None, None, None
