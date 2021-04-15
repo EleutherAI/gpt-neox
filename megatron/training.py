@@ -41,7 +41,6 @@ from megatron import print_rank_0
 from megatron.checkpointing import load_checkpoint
 from megatron.checkpointing import save_checkpoint
 from megatron.fp16 import FP16_Module
-from megatron.fp16 import FP16_Optimizer
 from megatron.global_vars import get_use_wandb
 from megatron.initialize import initialize_megatron
 from megatron.learning_rates import AnnealingLR
@@ -49,7 +48,8 @@ from megatron.model import get_params_for_weight_decay_optimization
 from megatron.utils import check_adlr_autoresume_termination
 from megatron.utils import make_data_loader
 from megatron.utils import report_memory
-
+from megatron.bs_scheduling import BatchSizeScheduler
+from megatron.config_monster import _configure_train_batch_size
 import deepspeed
 
 
@@ -92,10 +92,15 @@ def pretrain(train_valid_test_dataset_provider, model_provider,
     timers('model and optimizer').stop()
 
     # Data stuff.
+    bs_scheduler = BatchSizeScheduler(
+        final_batch_size=args.batch_size,
+        num_intervals=8,
+        warmup_num_steps=10000
+    )
     timers('train/valid/test data iterators').start()
     train_data_iterator, valid_data_iterator, test_data_iterator \
         = build_train_valid_test_data_iterators(
-        train_valid_test_dataset_provider)
+        train_valid_test_dataset_provider, bs_scheduler=bs_scheduler)
     timers('train/valid/test data iterators').stop()
 
     # Print setup timing.
@@ -103,12 +108,14 @@ def pretrain(train_valid_test_dataset_provider, model_provider,
     timers.log(['model and optimizer', 'train/valid/test data iterators'])
     print_rank_0('training ...')
 
+
     iteration = 0
     if args.do_train and args.train_iters > 0:
         iteration = train(forward_step_func,
                           model, optimizer, lr_scheduler,
-                          train_data_iterator, valid_data_iterator)
-
+                          train_data_iterator, valid_data_iterator, bs_scheduler=bs_scheduler)
+        # TODO: I would do growing of batch size here, so something like, if batch size boundary,
+        #       reload the model with this batch size.
     if args.do_valid:
         prefix = 'the end of training for val data'
         evaluate_and_print_results(prefix, forward_step_func,
@@ -325,6 +332,7 @@ def train_step(forward_step_func, data_iterator,
     """Single training step."""
     args = get_args()
     timers = get_timers()
+    # TODO: BATCH SIZE CHANGES - simply change args / model.batch_size_per_gpu?
 
     # Pipeline parallelism schedules forward/backward/step
     if args.pipe_parallel_size > 0:
@@ -356,7 +364,7 @@ def train_step_pipe(model, data_iterator):
     """Single training step with DeepSpeed's pipeline parallel engine. """
     args = get_args()
     timers = get_timers()
-
+    # TODO: BATCH SIZE CHANGES - simply change args / model.batch_size_per_gpu?
     assert args.deepspeed
     loss = model.train_batch(data_iter=data_iterator)
     loss_dict = {'lm loss': loss}
@@ -501,7 +509,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
 
 
 def train(forward_step_func, model, optimizer, lr_scheduler,
-          train_data_iterator, valid_data_iterator):
+          train_data_iterator, valid_data_iterator, bs_scheduler=None):
     """Train the model function."""
     args = get_args()
     timers = get_timers()
@@ -517,6 +525,8 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
 
     timers('interval time').start()
     report_memory_flag = True
+    # TODO: batch size scheduling here somewhere
+
     while iteration < args.train_iters:
         loss_dict, skipped_iter = train_step(forward_step_func,
                                              train_data_iterator,
@@ -524,7 +534,7 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
                                              optimizer,
                                              lr_scheduler)
         iteration += 1
-
+        maybe_update_current_batch_size(model, args, bs_scheduler)
         # Logging.
         loss_scale = None
         if args.fp16:
@@ -643,7 +653,7 @@ def evaluate_and_print_results(prefix, forward_step_func,
 
 
 def build_train_valid_test_data_iterators(
-        build_train_valid_test_datasets_provider):
+        build_train_valid_test_datasets_provider, bs_scheduler=None):
     """XXX"""
     args = get_args()
 
@@ -682,7 +692,7 @@ def build_train_valid_test_data_iterators(
             train_val_test_num_samples)
 
         # Build dataloders.
-        train_dataloader = make_data_loader(train_ds)
+        train_dataloader = make_data_loader(train_ds, scheduler=bs_scheduler)
         valid_dataloader = make_data_loader(valid_ds)
         test_dataloader = make_data_loader(test_ds)
 
@@ -780,3 +790,21 @@ def get_flops(model, iter_time_s):
     flops = global_batch_size * args.seq_length * (ff + attn) / (iter_time_s * world_size)
 
     return flops
+
+
+def maybe_update_current_batch_size(model, args, bs_scheduler):
+    # we need to update the current batch size in the deepspeed engine and in our args to ensure logging is
+    # accurate update mb_size in args
+    prev_batch_size = args.batch_size
+    args.batch_size = bs_scheduler.get_current_batch_size() if bs_scheduler is not None else args.batch_size
+    if args.batch_size != prev_batch_size:
+        train_batch, micro_batch, _ = _configure_train_batch_size(mpu.get_data_parallel_world_size(),
+                                                                  train_batch=None,
+                                                                  micro_batch=args.batch_size,
+                                                                  grad_acc=args.gas)
+        if hasattr(model, '_config'):
+            model._config.train_batch_size = train_batch
+            model._config.train_micro_batch_size_per_gpu = micro_batch
+            if hasattr(model, 'tput_timer'):
+                # also update tput timer
+                model.tput_timer.batch_size = micro_batch

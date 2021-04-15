@@ -318,6 +318,8 @@ def _add_training_args(parser):
     group.add_argument('--no-adamw', action='store_true', help='Use default Adam instead of AdamW')
     group.add_argument('--sm3', action='store_true',
                        help='Enable sm3 optimizer')
+    group.add_argument('--batch-size-schedule', type=str, help='Schedule for progressive growing of batch size', default=None)
+    # example: 0.1-1000,0.2-2000,0.3-3000...
     return parser
 
 
