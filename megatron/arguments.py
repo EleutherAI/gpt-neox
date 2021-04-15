@@ -370,9 +370,6 @@ def _add_learning_rate_args(parser):
                             'rate, maximum number of iterations, and decay style '
                             'from checkpoint and ignore input arguments.')
 
-    group.add_argument('--use-checkpoint-lr-scheduler', action='store_true',
-                       help='')
-
     # Adafactor
     group.add_argument('--adafactor-decay', type=float, default=-0.8, help='Coefficient used to compute running averages of square')
     group.add_argument('--relative-step', action='store_true', help='If True, time-dependent learning rate is computed instead of external learning rate')
