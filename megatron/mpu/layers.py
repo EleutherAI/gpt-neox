@@ -212,8 +212,6 @@ class ParallelRelativePositionBias(torch.nn.Module):
                                           partition_dim=1, stride=1)
         self._q_len_cached = None
         self._k_len_cached = None
-        self._q_pos_cached = None
-        self._k_pos_cached = None
         self._rel_pos_bucket_cached = None
 
     @staticmethod
