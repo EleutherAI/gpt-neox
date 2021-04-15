@@ -177,6 +177,22 @@ def get_optimizer(model):
             beta=args.adam_beta1,
             eps=args.adam_eps,
         )
+    elif args.adafactor:
+        
+        from transformers.optimization import Adafactor
+
+        optimizer = Adafactor(
+            param_groups,
+            lr=args.lr,
+            eps=args.adafactor_eps,
+            clip_threshold=args.adafactor_clip,
+            decay_rate=args.adafactor_decay,
+            beta1=args.adafactor_beta1,
+            weight_decay=args.weight_decay,
+            relative_step=args.relative_step,
+            scale_parameter=args.scale_parameter,
+            warmup_init=args.adafactor_warmup
+        )
     else:
         # Use Adam
         optimizer = Adam(param_groups,
