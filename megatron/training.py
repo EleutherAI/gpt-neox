@@ -209,7 +209,7 @@ def get_optimizer(model):
 def get_learning_rate_scheduler(optimizer):
     """Build the learning rate scheduler."""
     args = get_args()
-    if args.deepspeed and args.onebitadam:
+    if args.deepspeed and args.optimizer == "onebitadam":
         print_rank_0("WARNING: onebitadam requires the lr scheduler be built by deepspeed - "
                      "Make sure one is added to your deepspeed config")
         return None
