@@ -155,8 +155,8 @@ def get_optimizer(model):
             if not hasattr(param, 'model_parallel'):
                 param.model_parallel = False
 
-    if args.cpu_optimizer:
-        if args.cpu_torch_adam:
+    if args.optimizer in ["cpu_torch_adam", "cpu_adam"]:
+        if args.optimizer == "cpu_torch_adam":
             cpu_adam_optimizer = torch.optim.Adam
         else:
             from deepspeed.ops.adam import DeepSpeedCPUAdam
@@ -164,11 +164,11 @@ def get_optimizer(model):
         optimizer = cpu_adam_optimizer(param_groups,
                                        lr=args.lr,
                                        weight_decay=args.weight_decay)
-    elif args.onebitadam:
+    elif args.optimizer == "onebitadam":
         assert args.deepspeed
         optimizer = None
         # onebitadam needs to be instantiated within the deepspeed engine to work :|
-    elif args.sm3:
+    elif args.optimizer == "sm3":
         from .optimizers import SM3
         optimizer = SM3(
             param_groups,
@@ -177,10 +177,8 @@ def get_optimizer(model):
             beta=args.adam_beta1,
             eps=args.adam_eps,
         )
-    elif args.adafactor:
-        
+    elif args.optimizer == "adafactor":
         from transformers.optimization import Adafactor
-
         optimizer = Adafactor(
             param_groups,
             lr=args.lr,
@@ -194,7 +192,7 @@ def get_optimizer(model):
             warmup_init=args.adafactor_warmup
         )
     else:
-        # Use Adam
+        # Default to using Adam
         optimizer = Adam(param_groups,
                          lr=args.lr,
                          weight_decay=args.weight_decay,

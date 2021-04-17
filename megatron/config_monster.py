@@ -20,7 +20,7 @@ import yaml
 from deepspeed.launcher.runner import DLTS_HOSTFILE
 
 from megatron.utils import obtain_resource_pool
-from megatron.arguments import _get_parser
+from megatron.arguments import _get_parser, OPTIMIZER_CHOICES
 import torch
 import shortuuid
 
@@ -83,8 +83,6 @@ ZERO_DEFAULTS = {
 }
 
 GRADIENT_CLIPPING_DEFAULT = 1.0
-
-OPTIMIZER_OPTIONS = ["adam", "onebitadam", "cpu_adam", "cpu_torch_adam"]
 
 OPT_DEFAULT = "adam"
 OPT_PARAMS_DEFAULTS = {
@@ -155,19 +153,10 @@ def _set_optimizer_params(ds_conf, megatron_conf):
     megatron_conf['momentum'] = opt_params['params'].get('momentum', OPT_PARAMS_DEFAULTS['momentum'])
 
     assert megatron_conf['lr'] is not None
-    if opt_params["type"].lower() == "adam":
-        pass
-    elif opt_params["type"].lower() == "onebitadam":
-        megatron_conf['onebitadam'] = True
-    elif opt_params["type"].lower() == "cpu_adam":
-        megatron_conf['cpu-optimizer'] = True
-    elif opt_params["type"].lower() == "cpu_torch_adam":
-        megatron_conf['cpu_torch_adam'] = True
-    elif opt_params["type"].lower() == "sm3":
-        megatron_conf['sm3'] = True
-    else:
-        raise ValueError(
-            f'Optimizer type {opt_params["type"]} not recognized, please choose from: \n {OPTIMIZER_OPTIONS}')
+    assert opt_params["type"].lower() in OPTIMIZER_CHOICES, f'Optimizer type {opt_params["type"]} not recognized, ' \
+                                                            f'please choose from: \n {OPTIMIZER_CHOICES} '
+
+    megatron_conf["optimizer"] = opt_params["type"].lower()
 
 
 def _batch_assertion(world_size, train_batch, micro_batch, grad_acc):
@@ -343,7 +332,7 @@ class ConfigMonster:
         pp_size = pp_size if pp_size >= 1 else 1
         mp_size = conf.get('model-parallel-size', 0)
         mp_size = mp_size if mp_size >= 1 else 1
-                      
+
         # pp_size and mp_size are only used here to compute world_size and nowhere else. The way that these values actually get to deepspeed
         # is through convert_to_old_args. The entire chain of how that happens:
         # https://github.com/EleutherAI/gpt-neox/blob/2ceefba0ef12b94eb35a518f7dea9f34fc43c9af/megatron/arguments.py#L430
@@ -368,7 +357,7 @@ class ConfigMonster:
         ds_config_conf = {key: conf[key] for key in ds_config_keys if key in conf}
 
         # Items duplicated
-        megatron_conf['deepspeed'] = True # should always be using deepspeed
+        megatron_conf['deepspeed'] = True  # should always be using deepspeed
         ds_config_conf['deepspeed'] = True
         megatron_conf['fp16'] = conf.get('fp16', {}).get('enabled', False)
         megatron_conf['gas'] = conf.get('gradient_accumulation_steps')

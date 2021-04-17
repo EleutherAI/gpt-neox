@@ -29,6 +29,8 @@ from megatron import fused_kernels
 import deepspeed
 from megatron.logging import Tee
 
+OPTIMIZER_CHOICES = ["adam", "cpu_adam", "cpu_torch_adam", "onebitadam", "sm3", "adafactor"]
+
 
 def _get_parser(extra_args_provider=None):
     parser = argparse.ArgumentParser(description='Megatron-LM Arguments',
@@ -86,7 +88,7 @@ def parse_args(extra_args_provider=None, defaults={},
         os.makedirs(args.log_dir, exist_ok=True)
         hostname = gethostname()
         file_prefix = os.path.join(args.log_dir, hostname)
-        Tee(file_prefix+'_stdout.txt', err=False)
+        Tee(file_prefix + '_stdout.txt', err=False)
         Tee(file_prefix + '_stderr.txt', err=True)
 
     # Distributed args.
@@ -236,10 +238,13 @@ def _add_regularization_args(parser):
                        help='Term added to the denominator to improve'
                             'numerical stability')
     group.add_argument('--momentum', type=float, default=0.0, help='momentum term for sm3 optimizer')
-    group.add_argument('--adafactor-eps1', type=float, default=1e-30, help='Regularization constant for square gradient')
+    group.add_argument('--adafactor-eps1', type=float, default=1e-30,
+                       help='Regularization constant for square gradient')
     group.add_argument('--adafactor-eps2', type=float, default=1e-3, help='Regularization constant for parameter scale')
-    group.add_argument('--adafactor-clip', type=float, default=1.0, help='Threshold of root mean square of final gradient update')
-    group.add_argument('--adafactor-beta1', type=float, default=None, help='Coefficient used for computing running averages of gradient')
+    group.add_argument('--adafactor-clip', type=float, default=1.0,
+                       help='Threshold of root mean square of final gradient update')
+    group.add_argument('--adafactor-beta1', type=float, default=None,
+                       help='Coefficient used for computing running averages of gradient')
 
     return parser
 
@@ -295,7 +300,7 @@ def _add_training_args(parser):
     group.add_argument('--rpe-num-buckets', type=int, default=32,
                        help='T5 relative positional encoding number of buckets, default 32.')
     group.add_argument('--rpe-max-distance', type=int, default=128,
-                        help='T5 relative positional encoding max distance, default 128.')
+                       help='T5 relative positional encoding max distance, default 128.')
     group.add_argument('--bias-dropout-fusion', action='store_true',
                        help='Enable bias and dropout fusion.')
     group.add_argument('--sparsity', type=str, default='none',
@@ -306,23 +311,18 @@ def _add_training_args(parser):
                         interspersed = sparse on odd layers, dense on even')
     norm_choices = ['layernorm', 'scalenorm', 'rmsnorm']
     group.add_argument('--norm', type=str, default='layernorm',
-                        choices=norm_choices, help=f'normalization layer to use. Choose from {norm_choices}')
+                       choices=norm_choices, help=f'normalization layer to use. Choose from {norm_choices}')
     group.add_argument('--scalenorm-epsilon', type=float, default=1e-8,
-                        help='Scalenorm epsilon')
+                       help='Scalenorm epsilon')
     group.add_argument('--rms-norm-epsilon', type=float, default=1e-8,
-                        help='RMS norm epsilon')
+                       help='RMS norm epsilon')
     group.add_argument('--layernorm-epsilon', type=float, default=1e-5,
                        help='Layer norm epsilon.')
-    group.add_argument('--cpu-optimizer', action='store_true',
-                       help='Run optimizer on CPU')
-    group.add_argument('--cpu_torch_adam', action='store_true',
-                       help='Use Torch Adam as optimizer on CPU.')
-    group.add_argument('--onebitadam', action='store_true',
-                       help='Enable one bit adam optimizer [MUST BE USING DEEPSPEED]')
+
+    # optimizer settings
+    group.add_argument('--optimizer', type=str, default="adam", choices=OPTIMIZER_CHOICES)
     group.add_argument('--no-adamw', action='store_true', help='Use default Adam instead of AdamW')
-    group.add_argument('--sm3', action='store_true',
-                       help='Enable sm3 optimizer')
-    group.add_argument('--adafactor', action='store_true', help='Enable Adafactor optimizer')
+
     return parser
 
 
@@ -371,11 +371,15 @@ def _add_learning_rate_args(parser):
                             'from checkpoint and ignore input arguments.')
 
     # Adafactor
-    group.add_argument('--adafactor-decay', type=float, default=-0.8, help='Coefficient used to compute running averages of square')
-    group.add_argument('--relative-step', action='store_true', help='If True, time-dependent learning rate is computed instead of external learning rate')
-    group.add_argument('--scale-parameter', action='store_true', help='If True, learning rate is scaled by root mean square')
-    group.add_argument('--adafactor-warmup', action='store_true', help='Time-dependent learning rate computation depends on whether warm-up initialization is being used')
-
+    group.add_argument('--adafactor-decay', type=float, default=-0.8,
+                       help='Coefficient used to compute running averages of square')
+    group.add_argument('--relative-step', action='store_true',
+                       help='If True, time-dependent learning rate is computed instead of external learning rate')
+    group.add_argument('--scale-parameter', action='store_true',
+                       help='If True, learning rate is scaled by root mean square')
+    group.add_argument('--adafactor-warmup', action='store_true',
+                       help='Time-dependent learning rate computation depends on whether warm-up initialization is '
+                            'being used')
 
     return parser
 
