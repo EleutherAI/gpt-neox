@@ -374,7 +374,7 @@ def _add_learning_rate_args(parser):
     group.add_argument('--adafactor-decay', type=float, default=-0.8, help='Coefficient used to compute running averages of square')
     group.add_argument('--relative-step', action='store_true', help='If True, time-dependent learning rate is computed instead of external learning rate')
     group.add_argument('--scale-parameter', action='store_true', help='If True, learning rate is scaled by root mean square')
-    group.add_argument('--adafactor-warmup', action='store_true', help='Time-dependent learning rate computation depends on whether warm-up initialization is being used')
+    group.add_argument('--adafactor-warmup', action='store_true', help='If True, warmup initialization is being used. This requires relative_step to be True as well.')
 
 
     return parser
