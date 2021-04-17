@@ -337,8 +337,8 @@ class Adafactor(Optimizer):
                 if p.grad is None:
                     continue
                 grad = p.grad.data
-                # if grad.dtype in {torch.float16, torch.bfloat16}:
-                #     grad = grad.float()
+                if grad.dtype in {torch.float16, torch.bfloat16}:
+                    grad = grad.float()
                 if grad.is_sparse:
                     raise RuntimeError("Adafactor does not support sparse gradients.")
 
@@ -371,8 +371,8 @@ class Adafactor(Optimizer):
 
                 p_data = p.data
 
-                # if p.data.dtype in {torch.float16, torch.bfloat16}:
-                #     p_data = p_data.float()
+                if p.data.dtype in {torch.float16, torch.bfloat16}:
+                    p_data = p_data.float()
 
                 state["step"] += 1
                 state["RMS"] = self._rms(p_data)
