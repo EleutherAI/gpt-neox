@@ -213,6 +213,9 @@ def get_learning_rate_scheduler(optimizer):
         print_rank_0("WARNING: onebitadam requires the lr scheduler be built by deepspeed - "
                      "Make sure one is added to your deepspeed config")
         return None
+    elif args.optimizer == "adafactor" and args.lr is None:
+        # adafactor has an adaptive lr that requires lr = None
+        return None
 
     # Add linear learning rate scheduler.
     if args.lr_decay_iters is not None:

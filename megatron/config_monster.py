@@ -160,20 +160,22 @@ def _set_optimizer_params(ds_conf, megatron_conf):
     megatron_conf['momentum'] = opt_params['params'].get('momentum', OPT_PARAMS_DEFAULTS['momentum'])
 
     # adafactor specific params
-    megatron_conf['adafactor_eps1'] = opt_params['params'].get('adafactor_eps1', OPT_PARAMS_DEFAULTS['adafactor_eps1'])
-    megatron_conf['adafactor_eps2'] = opt_params['params'].get('adafactor_eps2', OPT_PARAMS_DEFAULTS['adafactor_eps2'])
-    megatron_conf['adafactor_clip'] = opt_params['params'].get('adafactor_clip', OPT_PARAMS_DEFAULTS['adafactor_clip'])
-    megatron_conf['adafactor_decay'] = opt_params['params'].get('adafactor_decay', OPT_PARAMS_DEFAULTS['adafactor_decay'])
-    megatron_conf['adafactor_beta1'] = opt_params['params'].get('adafactor_beta1', OPT_PARAMS_DEFAULTS['adafactor_beta1'])
-    megatron_conf['relative_step'] = opt_params['params'].get('relative_step', OPT_PARAMS_DEFAULTS['relative_step'])
-    megatron_conf['scale_parameter'] = opt_params['params'].get('scale_parameter', OPT_PARAMS_DEFAULTS['scale_parameter'])
-    megatron_conf['adafactor_warmup'] = opt_params['params'].get('adafactor_warmup', OPT_PARAMS_DEFAULTS['adafactor_warmup'])
+    megatron_conf['adafactor-eps1'] = opt_params['params'].get('adafactor_eps1', OPT_PARAMS_DEFAULTS['adafactor_eps1'])
+    megatron_conf['adafactor-eps2'] = opt_params['params'].get('adafactor_eps2', OPT_PARAMS_DEFAULTS['adafactor_eps2'])
+    megatron_conf['adafactor-clip'] = opt_params['params'].get('adafactor_clip', OPT_PARAMS_DEFAULTS['adafactor_clip'])
+    megatron_conf['adafactor-decay'] = opt_params['params'].get('adafactor_decay', OPT_PARAMS_DEFAULTS['adafactor_decay'])
+    megatron_conf['adafactor-beta1'] = opt_params['params'].get('adafactor_beta1', OPT_PARAMS_DEFAULTS['adafactor_beta1'])
+    megatron_conf['relative-step'] = opt_params['params'].get('relative_step', OPT_PARAMS_DEFAULTS['relative_step'])
+    megatron_conf['scale-parameter'] = opt_params['params'].get('scale_parameter', OPT_PARAMS_DEFAULTS['scale_parameter'])
+    megatron_conf['adafactor-warmup'] = opt_params['params'].get('adafactor_warmup', OPT_PARAMS_DEFAULTS['adafactor_warmup'])
+    megatron_conf["optimizer"] = opt_params["type"].lower()
 
-    assert megatron_conf['lr'] is not None
+    if megatron_conf["optimizer"] != "adafactor":
+        # adafactor can have an adaptive lr so this assertion is unecessary there
+        assert megatron_conf['lr'] is not None
     assert opt_params["type"].lower() in OPTIMIZER_CHOICES, f'Optimizer type {opt_params["type"]} not recognized, ' \
                                                             f'please choose from: \n {OPTIMIZER_CHOICES} '
 
-    megatron_conf["optimizer"] = opt_params["type"].lower()
 
 
 def _batch_assertion(world_size, train_batch, micro_batch, grad_acc):
