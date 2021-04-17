@@ -73,7 +73,6 @@ ds_config_keys_exclude = []
 ZERO_DEFAULTS = {
     "stage": 0,
     "allgather_partitions": True,
-    "reduce_scatter": True,
     "allgather_bucket_size": int(5e8),
     "overlap_comm": False,
     "reduce_scatter": True,
@@ -95,7 +94,15 @@ OPT_PARAMS_DEFAULTS = {
     "weight_decay": 0,
     "freeze_step": 400,
     "momentum": 0.0,
-    "cuda_aware": False
+    "cuda_aware": False,
+    "adafactor_eps1" : 1e-30,
+    "adafactor_eps2" : 1e-3,
+    "adafactor_clip" : 1.0,
+    "adafactor_decay": 0.8,
+    "adafactor_beta1" : None,
+    "relative_step" : False,
+    "scale_parameter" : False,
+    "adafactor_warmup" : False
 }
 
 
@@ -151,6 +158,16 @@ def _set_optimizer_params(ds_conf, megatron_conf):
     megatron_conf['adam-beta2'] = opt_params['params'].get('betas', OPT_PARAMS_DEFAULTS['betas'])[1]
     megatron_conf['adam-eps'] = opt_params['params'].get('eps', OPT_PARAMS_DEFAULTS['eps'])
     megatron_conf['momentum'] = opt_params['params'].get('momentum', OPT_PARAMS_DEFAULTS['momentum'])
+
+    # adafactor specific params
+    megatron_conf['adafactor_eps1'] = opt_params['params'].get('adafactor_eps1', OPT_PARAMS_DEFAULTS['adafactor_eps1'])
+    megatron_conf['adafactor_eps2'] = opt_params['params'].get('adafactor_eps2', OPT_PARAMS_DEFAULTS['adafactor_eps2'])
+    megatron_conf['adafactor_clip'] = opt_params['params'].get('adafactor_clip', OPT_PARAMS_DEFAULTS['adafactor_clip'])
+    megatron_conf['adafactor_decay'] = opt_params['params'].get('adafactor_decay', OPT_PARAMS_DEFAULTS['adafactor_decay'])
+    megatron_conf['adafactor_beta1'] = opt_params['params'].get('adafactor_beta1', OPT_PARAMS_DEFAULTS['adafactor_beta1'])
+    megatron_conf['relative_step'] = opt_params['params'].get('relative_step', OPT_PARAMS_DEFAULTS['relative_step'])
+    megatron_conf['scale_parameter'] = opt_params['params'].get('scale_parameter', OPT_PARAMS_DEFAULTS['scale_parameter'])
+    megatron_conf['adafactor_warmup'] = opt_params['params'].get('adafactor_warmup', OPT_PARAMS_DEFAULTS['adafactor_warmup'])
 
     assert megatron_conf['lr'] is not None
     assert opt_params["type"].lower() in OPTIMIZER_CHOICES, f'Optimizer type {opt_params["type"]} not recognized, ' \

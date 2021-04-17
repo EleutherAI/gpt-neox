@@ -378,9 +378,8 @@ def _add_learning_rate_args(parser):
     group.add_argument('--scale-parameter', action='store_true',
                        help='If True, learning rate is scaled by root mean square')
     group.add_argument('--adafactor-warmup', action='store_true',
-                       help='Time-dependent learning rate computation depends on whether warm-up initialization is '
-                            'being used')
-
+                       help='If True, warmup initialization is being used. This requires relative_step to be True '
+                            'as well.')
     return parser
 
 
