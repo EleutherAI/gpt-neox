@@ -178,7 +178,7 @@ def get_optimizer(model):
             eps=args.adam_eps,
         )
     elif args.optimizer == "adafactor":
-        from transformers.optimization import Adafactor
+        from .optimizers import Adafactor
         optimizer = Adafactor(
             param_groups,
             lr=args.lr,
