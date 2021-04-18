@@ -40,11 +40,13 @@ class RotaryEmbedding(MegatronModule):
 # rotary pos emb helpers:
 # we should be able to torch.jit.script these but we get a weird bug
 
+@torch.jit.script
 def rotate_half(x):
     x1 = x[..., :x.shape[-1] // 2]
     x2 = x[..., x.shape[-1] // 2:]
-    return torch.cat((-x2, x1), dim=-1)
+    return torch.cat((-x2, x1), dim=x1.ndim - 1) # dim=-1 triggers a bug in earlier torch versions
 
+@torch.jit.script
 def apply_rotary_pos_emb(q, k, cos, sin):
     q = (q * cos) + (rotate_half(q) * sin)
     k = (k * cos) + (rotate_half(k) * sin)
