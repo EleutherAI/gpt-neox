@@ -32,21 +32,19 @@ class RotaryEmbedding(MegatronModule):
             t = torch.arange(x.shape[seq_dim], device=x.device).type_as(self.inv_freq)
             freqs = torch.einsum('i,j->ij', t, self.inv_freq)
             emb = torch.cat((freqs, freqs), dim=-1)
-            self.cos_cached = emb.cos()[:, None, ...].permute((2, 0, 1, 3))
-            self.sin_cached = emb.sin()[:, None, ...].permute((2, 0, 1, 3))
+            self.cos_cached = emb.cos()[:, None, None, :]
+            self.sin_cached = emb.sin()[:, None, None, :]
         return self.cos_cached, self.sin_cached
 
 
 # rotary pos emb helpers:
+# we should be able to torch.jit.script these but we get a weird bug
 
-@torch.jit.script
 def rotate_half(x):
     x1 = x[..., :x.shape[-1] // 2]
     x2 = x[..., x.shape[-1] // 2:]
     return torch.cat((-x2, x1), dim=-1)
 
-
-@torch.jit.script
 def apply_rotary_pos_emb(q, k, cos, sin):
     q = (q * cos) + (rotate_half(q) * sin)
     k = (k * cos) + (rotate_half(k) * sin)
