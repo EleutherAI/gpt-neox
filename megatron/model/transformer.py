@@ -202,7 +202,13 @@ class ParallelSelfAttention(MegatronModule):
 
         self.rpe = rpe
         if rotary:
-            self.rotary_emb = RotaryEmbedding(self.hidden_size_per_attention_head, base=args.rotary_emb_base)
+            if args.rotary_pct == 1:
+                self.rotary_ndims = None
+            else:
+                assert args.rotary_pct < 1
+                self.rotary_ndims = int(self.hidden_size_per_attention_head * args.rotary_pct)
+            dim = self.rotary_ndims if self.rotary_ndims is not None else self.hidden_size_per_attention_head
+            self.rotary_emb = RotaryEmbedding(dim, base=args.rotary_emb_base)
         else:
             self.rotary_emb = None
 
@@ -313,8 +319,17 @@ class ParallelSelfAttention(MegatronModule):
          value_layer) = mpu.split_tensor_along_last_dim(mixed_x_layer, 3)
 
         if exists(self.rotary_emb):
-            cos, sin = self.rotary_emb(query_layer, seq_dim=0)
-            query_layer, key_layer = apply_rotary_pos_emb(query_layer, key_layer, cos, sin)
+            if exists(self.rotary_ndims):
+                query_rot, query_pass = query_layer[..., :self.rotary_ndims], query_layer[..., self.rotary_ndims:]
+                key_rot, key_pass = key_layer[..., :self.rotary_ndims], key_layer[..., self.rotary_ndims:]
+                cos, sin = self.rotary_emb(query_rot, seq_dim=0)
+            else:
+                cos, sin = self.rotary_emb(query_layer, seq_dim=0)
+                query_rot, key_rot = query_layer, key_layer
+            query_layer, key_layer = apply_rotary_pos_emb(query_rot, key_rot, cos, sin)
+            if exists(self.rotary_ndims):
+                query_layer = torch.cat((query_rot, query_pass), dim=-1)
+                key_layer = torch.cat((key_rot, key_pass), dim=-1)
 
         # ==================================
         # Adjust key and value for inference
