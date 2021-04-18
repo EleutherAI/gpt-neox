@@ -17,6 +17,7 @@ class SinusoidalPositionalEmbedding(MegatronModule):
 
 
 class RotaryEmbedding(MegatronModule):
+    
     def __init__(self, dim, theta=10000):
         super().__init__()
         inv_freq = 1. / (theta ** (torch.arange(0, dim, 2).float() / dim))
@@ -38,7 +39,6 @@ class RotaryEmbedding(MegatronModule):
 
 
 # rotary pos emb helpers:
-# we should be able to torch.jit.script these but we get a weird bug
 
 @torch.jit.script
 def rotate_half(x):
