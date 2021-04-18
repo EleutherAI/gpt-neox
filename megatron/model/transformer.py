@@ -202,7 +202,7 @@ class ParallelSelfAttention(MegatronModule):
 
         self.rpe = rpe
         if rotary:
-            self.rotary_emb = RotaryEmbedding(self.hidden_size_per_attention_head, theta=args.rotary_emb_theta)
+            self.rotary_emb = RotaryEmbedding(self.hidden_size_per_attention_head, base=args.rotary_emb_base)
         else:
             self.rotary_emb = None
 

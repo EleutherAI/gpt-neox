@@ -4,9 +4,9 @@ from megatron.module import MegatronModule
 
 class SinusoidalPositionalEmbedding(MegatronModule):
 
-    def __init__(self, dim, theta=10000):
+    def __init__(self, dim, base=10000):
         super().__init__()
-        inv_freq = 1. / (theta ** (torch.arange(0, dim, 2).float() / dim))
+        inv_freq = 1. / (base ** (torch.arange(0, dim, 2).float() / dim))
         self.register_buffer('inv_freq', inv_freq)
 
     def forward(self, x, seq_dim=1):
@@ -18,9 +18,9 @@ class SinusoidalPositionalEmbedding(MegatronModule):
 
 class RotaryEmbedding(MegatronModule):
     
-    def __init__(self, dim, theta=10000):
+    def __init__(self, dim, base=10000):
         super().__init__()
-        inv_freq = 1. / (theta ** (torch.arange(0, dim, 2).float() / dim))
+        inv_freq = 1. / (base ** (torch.arange(0, dim, 2).float() / dim))
         self.register_buffer('inv_freq', inv_freq)
         self.seq_len_cached = None
         self.cos_cached = None
