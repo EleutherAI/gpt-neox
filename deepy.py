@@ -12,10 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
-from socket import gethostname
 
-import shortuuid
 import os
 import deepspeed
 from deepspeed.launcher.runner import main
@@ -44,17 +41,15 @@ def get_wandb_api_key():
 def get_git_commit_hash():
     """ Gets the git commit hash of your current repo (if it exists) """
     try:
-        git_hash = git_hash = subprocess.check_output(["git", "describe", "--always"]).strip()
+        git_hash = subprocess.check_output(["git", "describe", "--always"]).strip()
         git_hash = git_hash.decode()
     except subprocess.CalledProcessError:
         git_hash = None
     return git_hash
 
 
-# Generate unique run group name
-wandb_group = shortuuid.uuid()
+# add git hash
 extra_conf = {
-    'wandb_group': wandb_group,
     'git_hash': get_git_commit_hash()
 }
 

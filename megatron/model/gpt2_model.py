@@ -197,8 +197,6 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
             rpe_emb = ParallelRelativePositionBias(causal=True, num_buckets=args.rpe_num_buckets,
                                                    max_distance=args.rpe_max_distance,
                                                    heads=args.num_attention_heads)
-        else:
-            rpe_emb = None
         self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
 
         #
@@ -226,7 +224,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                                         args.hidden_dropout,
                                         self.init_method,
                                         self.num_tokentypes))
-
+            
         # NB: in inference, the attention mask always needs to be the *last* item in the args when being passed from 
         # one stage to the next, because deepspeed is hacks on top of hacks.
         #
@@ -242,8 +240,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
             self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), x[1], torch.Tensor(), *x[2:]))
         else:
             self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), *x[1:]))
-
-
+            
         # Transformer layers
         for x in range(args.num_layers):
             if args.sparsity == 'none':
@@ -259,8 +256,9 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                           output_layer_init_method=self.output_layer_init_method,
                           layer_number=x,
                           sparse=sparse,
-                          rpe=rpe_emb,
-                          get_key_value=self.get_key_value))
+                          rpe=rpe_emb if args.pos_emb == 'rpe' else None,
+                          get_key_value=self.get_key_value,
+                          rotary=args.pos_emb == 'rotary'))
                           
         if self._inference:
             # we can get rid of the mask / pasts / (?rotary_pos_emb) now

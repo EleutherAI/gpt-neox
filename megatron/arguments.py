@@ -289,6 +289,9 @@ def _add_training_args(parser):
     pos_emb_choices = ['learned', 'sinusoidal', 'rpe', 'rotary', 'none']
     group.add_argument('--pos-emb', type=str, choices=pos_emb_choices, default='learned',
                        help=f'Type of positional embedding to use - choose from {pos_emb_choices}')
+    group.add_argument('--rotary-pct', type=float, help='pct of hidden dims to apply rotary positional embedding to', default=1)
+    group.add_argument('--rotary-emb-base', type=int, default=10000,
+                       help=f'Base for rotary positional embedding')
     group.add_argument('--rpe-num-buckets', type=int, default=32,
                        help='T5 relative positional encoding number of buckets, default 32.')
     group.add_argument('--rpe-max-distance', type=int, default=128,
@@ -316,6 +319,7 @@ def _add_training_args(parser):
                        help='Use Torch Adam as optimizer on CPU.')
     group.add_argument('--onebitadam', action='store_true',
                        help='Enable one bit adam optimizer [MUST BE USING DEEPSPEED]')
+    group.add_argument('--no-adamw', action='store_true', help='Use default Adam instead of AdamW')
     group.add_argument('--sm3', action='store_true',
                        help='Enable sm3 optimizer')
     return parser

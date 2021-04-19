@@ -31,9 +31,10 @@ from megatron.model.fused_softmax import FusedScaleMaskSoftmax
 from megatron.model.fused_bias_gelu import bias_gelu_impl
 from megatron.model.utils import openai_gelu, erf_gelu, exists
 from megatron.mpu import ParallelRelativePositionBias
+from megatron.model.positional_embeddings import SinusoidalPositionalEmbedding, RotaryEmbedding, apply_rotary_pos_emb
+
 import deepspeed
 from deepspeed.ops.sparse_attention import SparseSelfAttention, VariableSparsityConfig
-from einops import rearrange, repeat
 
 # flags required to enable jit fusion kernels
 torch._C._jit_set_profiling_mode(False)
@@ -62,34 +63,6 @@ torch._C._jit_override_can_fuse_on_gpu(True)
                                      unmaksed-attention-scores, attention-mask)
 """
 
-class SinusoidalPositionalEmbedding(MegatronModule):
-    def __init__(self, dim):
-        super().__init__()
-        inv_freq = 1. / (10000 ** (torch.arange(0, dim, 2).float() / dim))
-        self.register_buffer('inv_freq', inv_freq)
-
-    def forward(self, x, seq_dim=1):
-        t = torch.arange(x.shape[seq_dim], device=x.device).type_as(self.inv_freq)
-        sinusoid_inp = torch.einsum("i,j->ij", t, self.inv_freq)
-        emb = torch.cat((sinusoid_inp.sin(), sinusoid_inp.cos()), dim=-1)
-        return emb[None, :, :]
-
-
-def rotate_every_two(x):
-    x = rearrange(x, '... (d j) -> ... d j', j=2)
-    x1, x2 = x.unbind(dim=-1)
-    x = torch.stack((-x2, x1), dim=-1)
-    return rearrange(x, '... d j -> ... (d j)')
-
-
-def apply_rotary_pos_emb(q, k, sinu_pos):
-    # TODO: get rid of these transposes
-    q, k = map(lambda t: t.transpose(0, 1), (q, k))
-    sinu_pos = rearrange(sinu_pos, '() n (j d) -> n j d', j=2)
-    sin, cos = sinu_pos.unbind(dim=-2)
-    sin, cos = map(lambda t: repeat(t, 'b n -> b (n j)', j=2), (sin, cos))
-    q, k = map(lambda t: (t * cos) + (rotate_every_two(t) * sin), (q, k))
-    return map(lambda t: t.transpose(1, 0), (q, k))
 
 
 class Embedding(MegatronModule):
@@ -363,7 +336,7 @@ class ParallelSelfAttention(MegatronModule):
 
     def __init__(self, attention_mask_func, init_method,
                  output_layer_init_method, layer_number, sparse=False,
-                 rpe=None, get_key_value=False):
+                 rpe=None, rotary=False, get_key_value=False):
         super(ParallelSelfAttention, self).__init__()
         args = get_args()
         self.fp16 = args.fp16
@@ -397,6 +370,17 @@ class ParallelSelfAttention(MegatronModule):
             self.norm_factor *= coeff
 
         self.rpe = rpe
+
+        if rotary:
+            if args.rotary_pct == 1:
+                self.rotary_ndims = None
+            else:
+                assert args.rotary_pct < 1
+                self.rotary_ndims = int(self.hidden_size_per_attention_head * args.rotary_pct)
+            dim = self.rotary_ndims if self.rotary_ndims is not None else self.hidden_size_per_attention_head
+            self.rotary_emb = RotaryEmbedding(dim, base=args.rotary_emb_base)
+        else:
+            self.rotary_emb = None
         self.sparse = sparse
         if self.sparse:
             sparsity_config = VariableSparsityConfig(
@@ -443,7 +427,7 @@ class ParallelSelfAttention(MegatronModule):
             checkpoint = deepspeed.checkpointing.checkpoint
 
     def _transpose_last_dim(self, mixed_layer, num_splits, num_splits_first):
-        input_shape = mixed_layer.size();
+        input_shape = mixed_layer.size()
         if num_splits_first:
             """[s, b, num_splits * np * hn] 
             -->(view) [s, b, num_splits, np, hn] 
@@ -472,7 +456,8 @@ class ParallelSelfAttention(MegatronModule):
 
         return mixed_layer
 
-    def forward(self, hidden_states, attention_mask, rotary_pos_emb=None, layer_past=None):
+    def forward(self, hidden_states, attention_mask, layer_past=None):
+
         # hidden_states: [sq, b, h]
 
         # =====================
@@ -501,6 +486,23 @@ class ParallelSelfAttention(MegatronModule):
         (query_layer,
          key_layer,
          value_layer) = mpu.split_tensor_along_last_dim(mixed_x_layer, 3)
+
+        if exists(self.rotary_emb):
+            if exists(self.rotary_ndims):
+                # partial rotary
+                query_rot, query_pass = query_layer[..., :self.rotary_ndims], query_layer[..., self.rotary_ndims:]
+                key_rot, key_pass = key_layer[..., :self.rotary_ndims], key_layer[..., self.rotary_ndims:]
+                cos, sin = self.rotary_emb(query_rot, seq_dim=0)
+            else:
+                # full rotary
+                cos, sin = self.rotary_emb(query_layer, seq_dim=0)
+                query_rot, key_rot = query_layer, key_layer
+
+            query_layer, key_layer = apply_rotary_pos_emb(query_rot, key_rot, cos, sin)
+           
+            if exists(self.rotary_ndims):
+                query_layer = torch.cat((query_layer, query_pass), dim=-1)
+                key_layer = torch.cat((key_layer, key_pass), dim=-1)
 
         # ==================================
         # Adjust key and value for inference
@@ -573,8 +575,6 @@ class ParallelSelfAttention(MegatronModule):
             if exists(self.rpe):
                 rpe = self.rpe(query_layer.size(0), key_layer.size(0))
                 attention_scores += rpe  # [1, np, sq, sk]
-            if exists(rotary_pos_emb):
-                query_layer, key_layer = apply_rotary_pos_emb(query_layer, key_layer, rotary_pos_emb)
 
             # attention scores and attention mask [b, np, sq, sk]
             attention_probs = self.scale_mask_softmax(attention_scores,
@@ -612,8 +612,6 @@ class ParallelSelfAttention(MegatronModule):
             # change view [b, np, sq, hn]
             context_layer = context_layer.view(*output_size)
         else:
-            if exists(rotary_pos_emb):
-                raise NotImplementedError("Rotary positional embedding not currently implemented for sparse attention.")
             # shape of q/k/v is [sq, b, np, hn] and needs to be transposed to [b, np, sq, hn]
             query_layer, key_layer, value_layer = map(lambda t: t.permute(1, 2, 0, 3).contiguous(),
                                                       (query_layer, key_layer,
@@ -680,7 +678,8 @@ class ParallelTransformerLayer(MegatronModule):
     """
 
     def __init__(self, attention_mask_func, init_method,
-                 output_layer_init_method, layer_number, sparse=False, rpe=None, get_key_value=False):
+                 output_layer_init_method, layer_number, sparse=False, rpe=None, rotary=False, get_key_value=False):
+
         args = get_args()
 
         super(ParallelTransformerLayer, self).__init__()
@@ -712,6 +711,8 @@ class ParallelTransformerLayer(MegatronModule):
                                                sparse=sparse,
                                                rpe=rpe,
                                                get_key_value=self.get_key_value)
+                                               rotary=rotary)
+          
         self.hidden_dropout = args.hidden_dropout
         self.bias_dropout_fusion = args.bias_dropout_fusion
 
@@ -724,8 +725,7 @@ class ParallelTransformerLayer(MegatronModule):
         self.mlp = ParallelMLP(init_method,
                                output_layer_init_method)
 
-
-    def forward(self, hidden_states, attention_mask, rotary_pos_emb=None, layer_past=None):
+    def forward(self, hidden_states, attention_mask, layer_past=None):
         # hidden_states: [b, s, h]
 
         # Layer norm at the begining of the transformer layer.
@@ -734,7 +734,6 @@ class ParallelTransformerLayer(MegatronModule):
         attention_output, attention_bias = \
             self.attention(layernorm_output,
                            attention_mask,
-                           rotary_pos_emb=rotary_pos_emb,
                            layer_past=layer_past)
 
         if self.get_key_value:
@@ -791,7 +790,7 @@ class ParallelTransformerLayer(MegatronModule):
 
         return output
 
-
+      
 class ParallelTransformer(MegatronModule):
     """Transformer class."""
 
@@ -835,7 +834,8 @@ class ParallelTransformer(MegatronModule):
                 attention_mask_func, init_method,
                 output_layer_init_method, layer_number, sparse=sparse, 
                 rpe=rpe_emb if args.pos_emb == 'rpe' else None, 
-                get_key_value=get_key_value)
+                get_key_value=get_key_value,
+                rotary=args.pos_emb == 'rotary')
 
         self.layers = torch.nn.ModuleList(
             [build_layer(i + 1) for i in range(self.num_unique_layers)])
@@ -904,8 +904,7 @@ class ParallelTransformer(MegatronModule):
         return hidden_states
 
 
-    def forward(self, hidden_states, attention_mask, rotary_pos_emb=None, layer_past=None,):
-
+    def forward(self, hidden_states, attention_mask, layer_past=None,):
         # Checks
         if layer_past is not None and layer_past.numel() > 0:
             assert self.get_key_value, \
@@ -932,8 +931,7 @@ class ParallelTransformer(MegatronModule):
                     past = layer_past[index]
                 hidden_states = layer(hidden_states,
                                       attention_mask,
-                                      layer_past=past,
-                                      rotary_pos_emb=rotary_pos_emb)
+                                      layer_past=past)
                 if self.get_key_value:
                     hidden_states, present = hidden_states
                     if presents.numel() == 0:
@@ -951,7 +949,6 @@ class ParallelTransformer(MegatronModule):
 
         return output
 
-
 class ParallelTransformerLayerPipe(ParallelTransformerLayer):
     """Extends ParallelTransformerLayer to forward attention_mask through the pipeline. """
 
@@ -961,25 +958,16 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
         has_rotary_pos_emb = len(args) in [3, 5] # if we're passing around a rotary pos emb, length of args will either be 3 or 5
 
         if in_train:
-            if has_rotary_pos_emb:
-                hidden_states, rotary_pos_emb, attention_mask = args
-            else:
-                hidden_states, attention_mask = args
-                rotary_pos_emb = None
+            hidden_states, attention_mask = args
             # we are returning just [hidden_states, mask]
-            return super().forward(hidden_states, attention_mask, rotary_pos_emb=rotary_pos_emb), attention_mask
+            return super().forward(hidden_states, attention_mask), attention_mask
         elif in_inference:
             # we are in inference
-            if has_rotary_pos_emb:
-                hidden_states, layer_past, presents, rotary_pos_emb, attention_mask = args
-            else:
-                hidden_states, layer_past, presents, attention_mask = args
-                rotary_pos_emb = None
+            hidden_states, layer_past, presents, attention_mask = args
             past = torch.Tensor()
             if layer_past is not None and layer_past.numel() > 0:
                 past = layer_past[self.layer_number]
-
-            outputs = super().forward(hidden_states, attention_mask, rotary_pos_emb=rotary_pos_emb, layer_past=past)
+            outputs = super().forward(hidden_states, attention_mask, layer_past=past)
 
             if self.get_key_value:
                 # outputs = [hidden_states, present]
@@ -990,10 +978,7 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
                     presents = torch.cat((presents, present.unsqueeze(dim=0)))
             else:
                 hidden_states = outputs
-            if has_rotary_pos_emb:
-                return hidden_states, layer_past, presents, rotary_pos_emb, attention_mask
-            else:
-                return hidden_states, layer_past, presents, attention_mask
+            return hidden_states, layer_past, presents, attention_mask
         else:
             raise ValueError(f'In layer {self.layer_number} - Incorrect number of arguments ({len(args)}) for {self.__class__.__name__}')
 
@@ -1018,6 +1003,66 @@ class NormPipe(MegatronModule):
         else:
             raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
 
+class Embedding(MegatronModule):
+    """Language model embeddings.
+
+    Arguments:
+        hidden_size: hidden size
+        vocab_size: vocabulary size
+        max_sequence_length: maximum size of sequence. This
+                             is used for positional embedding
+        embedding_dropout_prob: dropout probability for embeddings
+        init_method: weight initialization method
+        num_tokentypes: size of the token-type embeddings. 0 value
+                        will ignore this embedding
+    """
+
+    def __init__(self,
+                 hidden_size,
+                 vocab_size,
+                 max_sequence_length,
+                 embedding_dropout_prob,
+                 init_method,
+                 num_tokentypes=0):
+        super(Embedding, self).__init__()
+        args = get_args()
+        self.hidden_size = hidden_size
+        self.init_method = init_method
+        self.num_tokentypes = num_tokentypes
+
+        # Word embeddings (parallel).
+        self.word_embeddings = mpu.VocabParallelEmbedding(
+            vocab_size, self.hidden_size, init_method=self.init_method)
+        self._word_embeddings_key = 'word_embeddings'
+
+        # Position embedding (serial).
+        self.embedding_type = args.pos_emb
+        if self.embedding_type == "learned":
+            self.position_embeddings = torch.nn.Embedding(
+                max_sequence_length, self.hidden_size)
+            self._position_embeddings_key = 'position_embeddings'
+            # Initialize the position embeddings.
+            self.init_method(self.position_embeddings.weight)
+        elif self.embedding_type == "sinusoidal":
+            self.position_embeddings = SinusoidalPositionalEmbedding(self.hidden_size)
+            
+    def forward(self, input_ids, position_ids, tokentype_ids=None):
+        # Embeddings.
+        words_embeddings = self.word_embeddings(input_ids)
+        if self.embedding_type in ["learned", "sinusoidal"]:
+            position_embeddings = self.position_embeddings(position_ids)
+            embeddings = words_embeddings + position_embeddings
+        else:
+            embeddings = words_embeddings
+        if tokentype_ids is not None:
+            assert self.tokentype_embeddings is not None
+            embeddings = embeddings + self.tokentype_embeddings(tokentype_ids)
+        else:
+            assert self.tokentype_embeddings is None
+
+        # Dropout.
+        embeddings = self.embedding_dropout(embeddings)
+        return embeddings
 
 class RowParallelLinearPipe(mpu.RowParallelLinear):
     """Another helper class to pass presents through to the output when doing inference with a Pipe Parallel model"""
@@ -1060,16 +1105,8 @@ class EmbeddingPipe(Embedding):
             raise ValueError(f'Incorrect number of args passed to {self.__class__.__name__}')
 
         embeddings = super().forward(input_ids, position_ids)
-
-        # i hate this so much
-        if self.embedding_type == 'rotary':
-            embeddings, rotary_pos_emb = embeddings
-            if in_inference:
-                return embeddings, layer_past, rotary_pos_emb, attention_mask
-            else:
-                return embeddings, rotary_pos_emb, attention_mask
+        if in_inference:
+            return embeddings, layer_past, attention_mask
         else:
-            if in_inference:
-                return embeddings, layer_past, attention_mask
-            else:
-                return embeddings, attention_mask
+            return embeddings, attention_mask
+

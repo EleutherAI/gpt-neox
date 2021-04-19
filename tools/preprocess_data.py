@@ -20,11 +20,12 @@ import json
 import multiprocessing
 import os
 import sys
+import lm_dataformat as lmd
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
                                              os.path.pardir)))
 import time
-
+import tqdm
 import torch
 
 try:
@@ -80,7 +81,11 @@ class Encoder(object):
             Encoder.splitter = IdentitySplitter()
 
     def encode(self, json_line):
-        data = json.loads(json_line)
+
+        data = {
+            "text": json_line
+        }
+        
         ids = {}
         for key in self.args.json_keys:
             text = data[key]
@@ -99,14 +104,14 @@ def get_args():
     parser = argparse.ArgumentParser()
     group = parser.add_argument_group(title='input data')
     group.add_argument('--input', type=str, required=True,
-                       help='Path to input JSON')
+                       help='Path to input lmd archives')
     group.add_argument('--json-keys', nargs='+', default=['text'],
                        help='space separate listed of keys to extract from json')
     group.add_argument('--split-sentences', action='store_true',
                        help='Split documents into sentences.')
     group.add_argument('--keep-newlines', action='store_true',
                        help='Keep newlines between sentences when splitting.')
-
+    group.add_argument('--num-docs', default=None, help='Number of documents in the input data (if known) for an accurate progress bar.', type=int)
     group = parser.add_argument_group(title='tokenizer')
     group.add_argument('--tokenizer-type', type=str, required=True,
                        choices=['HFGPT2Tokenizer', 'HFTokenizer',
@@ -141,12 +146,18 @@ def get_args():
     return args
 
 
+def _multi_lmd(fnames):
+    for fname in fnames:
+        yield from filter(lambda x: x, lmd.Reader(fname).stream_data())
+
+
 def main():
     args = get_args()
     startup_start = time.time()
 
     print("Opening", args.input)
-    fin = open(args.input, 'r', encoding='utf-8')
+    fin = _multi_lmd(args.input.split(","))
+
     if nltk_available and args.split_sentences:
         nltk.download("punkt", quiet=True)
 
@@ -177,7 +188,7 @@ def main():
     proc_start = time.time()
     total_bytes_processed = 0
     print("Time to startup:", startup_end - startup_start)
-
+    pbar = tqdm.tqdm()
     for i, (doc, bytes_processed) in enumerate(encoded_docs, start=1):
         total_bytes_processed += bytes_processed
         for key, sentences in doc.items():
@@ -188,9 +199,9 @@ def main():
             current = time.time()
             elapsed = current - proc_start
             mbs = total_bytes_processed / elapsed / 1024 / 1024
-            print(f"Processed {i} documents",
-                  f"({i / elapsed} docs/s, {mbs} MB/s).",
-                  file=sys.stderr)
+            pbar.set_description(f"Processed {i}{'' if args.num_docs is None else '/' + str(args.num_docs)} documents ({i / elapsed} docs/s, {mbs} MB/s).")
+            if i != 0:
+                pbar.update(args.log_interval)
 
     for key in args.json_keys:
         builders[key].finalize(output_idx_files[key])
