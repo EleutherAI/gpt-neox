@@ -56,8 +56,7 @@ def model_provider():
     args_dict = vars(args)
     if use_wandb:
         group_name = args_dict.get('wandb_group')
-        name = f'{socket.gethostname()}-{local_rank()}' if group_name else None
-
+        name = f'{socket.gethostname()}-{local_rank()}' if group_name else args_dict.get('wandb_name')
         try:
             wandb.init(project="neox", group=group_name, name=name, save_code=False,
                        force=False, entity=args_dict.get('wandb_team'))
