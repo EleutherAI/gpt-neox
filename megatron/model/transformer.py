@@ -320,16 +320,20 @@ class ParallelSelfAttention(MegatronModule):
 
         if exists(self.rotary_emb):
             if exists(self.rotary_ndims):
+                # partial rotary
                 query_rot, query_pass = query_layer[..., :self.rotary_ndims], query_layer[..., self.rotary_ndims:]
                 key_rot, key_pass = key_layer[..., :self.rotary_ndims], key_layer[..., self.rotary_ndims:]
                 cos, sin = self.rotary_emb(query_rot, seq_dim=0)
             else:
+                # full rotary
                 cos, sin = self.rotary_emb(query_layer, seq_dim=0)
                 query_rot, key_rot = query_layer, key_layer
+
             query_layer, key_layer = apply_rotary_pos_emb(query_rot, key_rot, cos, sin)
+           
             if exists(self.rotary_ndims):
-                query_layer = torch.cat((query_rot, query_pass), dim=-1)
-                key_layer = torch.cat((key_rot, key_pass), dim=-1)
+                query_layer = torch.cat((query_layer, query_pass), dim=-1)
+                key_layer = torch.cat((key_layer, key_pass), dim=-1)
 
         # ==================================
         # Adjust key and value for inference
