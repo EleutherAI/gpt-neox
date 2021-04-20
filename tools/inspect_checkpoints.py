@@ -25,6 +25,8 @@ def pretty_print(contents: dict):
         key_length = len(str(k))
         line = " " * (col_size - key_length)
         line += f"{k}: {COLORS.BLUE}{type(v).__name__}{COLORS.END}"
+        if isinstance(v, dict):
+            pretty_print(v)
         if isinstance(v, PRIMITIVE_TYPES):
             line += f" = "
             line += f"{COLORS.CYAN}{repr(v)}{COLORS.END}"
