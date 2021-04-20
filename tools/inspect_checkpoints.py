@@ -27,7 +27,7 @@ def pretty_print(contents: dict):
         line += f"{k}: {COLORS.BLUE}{type(v).__name__}{COLORS.END}"
         if isinstance(v, dict):
             pretty_print(v)
-        if isinstance(v, PRIMITIVE_TYPES):
+        elif isinstance(v, PRIMITIVE_TYPES):
             line += f" = "
             line += f"{COLORS.CYAN}{repr(v)}{COLORS.END}"
         elif isinstance(v, Sequence):
