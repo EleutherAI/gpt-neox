@@ -133,3 +133,5 @@ wandb/
 
 # data files 
 data/
+checkpoints/
+.vscode/
