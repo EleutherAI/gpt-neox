@@ -20,7 +20,7 @@ import yaml
 from deepspeed.launcher.runner import DLTS_HOSTFILE
 
 from megatron.utils import obtain_resource_pool
-from megatron.arguments import _get_parser
+from megatron.arguments import _get_parser, OPTIMIZER_CHOICES
 import torch
 import shortuuid
 
@@ -73,7 +73,6 @@ ds_config_keys_exclude = []
 ZERO_DEFAULTS = {
     "stage": 0,
     "allgather_partitions": True,
-    "reduce_scatter": True,
     "allgather_bucket_size": int(5e8),
     "overlap_comm": False,
     "reduce_scatter": True,
@@ -83,8 +82,6 @@ ZERO_DEFAULTS = {
 }
 
 GRADIENT_CLIPPING_DEFAULT = 1.0
-
-OPTIMIZER_OPTIONS = ["adam", "onebitadam", "cpu_adam", "cpu_torch_adam"]
 
 OPT_DEFAULT = "adam"
 OPT_PARAMS_DEFAULTS = {
@@ -97,7 +94,15 @@ OPT_PARAMS_DEFAULTS = {
     "weight_decay": 0,
     "freeze_step": 400,
     "momentum": 0.0,
-    "cuda_aware": False
+    "cuda_aware": False,
+    "adafactor_eps1" : 1e-30,
+    "adafactor_eps2" : 1e-3,
+    "adafactor_clip" : 1.0,
+    "adafactor_decay": 0.8,
+    "adafactor_beta1" : None,
+    "relative_step" : False,
+    "scale_parameter" : False,
+    "adafactor_warmup" : False
 }
 
 
@@ -154,20 +159,23 @@ def _set_optimizer_params(ds_conf, megatron_conf):
     megatron_conf['adam-eps'] = opt_params['params'].get('eps', OPT_PARAMS_DEFAULTS['eps'])
     megatron_conf['momentum'] = opt_params['params'].get('momentum', OPT_PARAMS_DEFAULTS['momentum'])
 
-    assert megatron_conf['lr'] is not None
-    if opt_params["type"].lower() == "adam":
-        pass
-    elif opt_params["type"].lower() == "onebitadam":
-        megatron_conf['onebitadam'] = True
-    elif opt_params["type"].lower() == "cpu_adam":
-        megatron_conf['cpu-optimizer'] = True
-    elif opt_params["type"].lower() == "cpu_torch_adam":
-        megatron_conf['cpu_torch_adam'] = True
-    elif opt_params["type"].lower() == "sm3":
-        megatron_conf['sm3'] = True
-    else:
-        raise ValueError(
-            f'Optimizer type {opt_params["type"]} not recognized, please choose from: \n {OPTIMIZER_OPTIONS}')
+    # adafactor specific params
+    megatron_conf['adafactor-eps1'] = opt_params['params'].get('adafactor_eps1', OPT_PARAMS_DEFAULTS['adafactor_eps1'])
+    megatron_conf['adafactor-eps2'] = opt_params['params'].get('adafactor_eps2', OPT_PARAMS_DEFAULTS['adafactor_eps2'])
+    megatron_conf['adafactor-clip'] = opt_params['params'].get('adafactor_clip', OPT_PARAMS_DEFAULTS['adafactor_clip'])
+    megatron_conf['adafactor-decay'] = opt_params['params'].get('adafactor_decay', OPT_PARAMS_DEFAULTS['adafactor_decay'])
+    megatron_conf['adafactor-beta1'] = opt_params['params'].get('adafactor_beta1', OPT_PARAMS_DEFAULTS['adafactor_beta1'])
+    megatron_conf['relative-step'] = opt_params['params'].get('relative_step', OPT_PARAMS_DEFAULTS['relative_step'])
+    megatron_conf['scale-parameter'] = opt_params['params'].get('scale_parameter', OPT_PARAMS_DEFAULTS['scale_parameter'])
+    megatron_conf['adafactor-warmup'] = opt_params['params'].get('adafactor_warmup', OPT_PARAMS_DEFAULTS['adafactor_warmup'])
+    megatron_conf["optimizer"] = opt_params["type"].lower()
+
+    if megatron_conf["optimizer"] != "adafactor":
+        # adafactor can have an adaptive lr so this assertion is unecessary there
+        assert megatron_conf['lr'] is not None
+    assert opt_params["type"].lower() in OPTIMIZER_CHOICES, f'Optimizer type {opt_params["type"]} not recognized, ' \
+                                                            f'please choose from: \n {OPTIMIZER_CHOICES} '
+
 
 
 def _batch_assertion(world_size, train_batch, micro_batch, grad_acc):
@@ -343,7 +351,7 @@ class ConfigMonster:
         pp_size = pp_size if pp_size >= 1 else 1
         mp_size = conf.get('model-parallel-size', 0)
         mp_size = mp_size if mp_size >= 1 else 1
-                      
+
         # pp_size and mp_size are only used here to compute world_size and nowhere else. The way that these values actually get to deepspeed
         # is through convert_to_old_args. The entire chain of how that happens:
         # https://github.com/EleutherAI/gpt-neox/blob/2ceefba0ef12b94eb35a518f7dea9f34fc43c9af/megatron/arguments.py#L430
@@ -368,7 +376,7 @@ class ConfigMonster:
         ds_config_conf = {key: conf[key] for key in ds_config_keys if key in conf}
 
         # Items duplicated
-        megatron_conf['deepspeed'] = True # should always be using deepspeed
+        megatron_conf['deepspeed'] = True  # should always be using deepspeed
         ds_config_conf['deepspeed'] = True
         megatron_conf['fp16'] = conf.get('fp16', {}).get('enabled', False)
         megatron_conf['gas'] = conf.get('gradient_accumulation_steps')

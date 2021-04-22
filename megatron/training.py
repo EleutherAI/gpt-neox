@@ -155,8 +155,8 @@ def get_optimizer(model):
             if not hasattr(param, 'model_parallel'):
                 param.model_parallel = False
 
-    if args.cpu_optimizer:
-        if args.cpu_torch_adam:
+    if args.optimizer in ["cpu_torch_adam", "cpu_adam"]:
+        if args.optimizer == "cpu_torch_adam":
             cpu_adam_optimizer = torch.optim.Adam
         else:
             from deepspeed.ops.adam import DeepSpeedCPUAdam
@@ -164,11 +164,11 @@ def get_optimizer(model):
         optimizer = cpu_adam_optimizer(param_groups,
                                        lr=args.lr,
                                        weight_decay=args.weight_decay)
-    elif args.onebitadam:
+    elif args.optimizer == "onebitadam":
         assert args.deepspeed
         optimizer = None
         # onebitadam needs to be instantiated within the deepspeed engine to work :|
-    elif args.sm3:
+    elif args.optimizer == "sm3":
         from .optimizers import SM3
         optimizer = SM3(
             param_groups,
@@ -177,8 +177,22 @@ def get_optimizer(model):
             beta=args.adam_beta1,
             eps=args.adam_eps,
         )
+    elif args.optimizer == "adafactor":
+        from .optimizers import Adafactor
+        optimizer = Adafactor(
+            param_groups,
+            lr=args.lr,
+            eps=(args.adafactor_eps1, args.adafactor_eps2),
+            clip_threshold=args.adafactor_clip,
+            decay_rate=args.adafactor_decay,
+            beta1=args.adafactor_beta1,
+            weight_decay=args.weight_decay,
+            relative_step=args.relative_step,
+            scale_parameter=args.scale_parameter,
+            warmup_init=args.adafactor_warmup
+        )
     else:
-        # Use Adam
+        # Default to using Adam
         optimizer = Adam(param_groups,
                          lr=args.lr,
                          weight_decay=args.weight_decay,
@@ -195,9 +209,12 @@ def get_optimizer(model):
 def get_learning_rate_scheduler(optimizer):
     """Build the learning rate scheduler."""
     args = get_args()
-    if args.deepspeed and args.onebitadam:
+    if args.deepspeed and args.optimizer == "onebitadam":
         print_rank_0("WARNING: onebitadam requires the lr scheduler be built by deepspeed - "
                      "Make sure one is added to your deepspeed config")
+        return None
+    elif args.optimizer == "adafactor" and args.lr is None:
+        # adafactor has an adaptive lr that requires lr = None
         return None
 
     # Add linear learning rate scheduler.
