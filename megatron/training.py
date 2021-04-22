@@ -316,22 +316,6 @@ def backward_step(optimizer, model, loss):
     else:
         raise ValueError("Must be using deepspeed to run neox")
 
-    if not args.deepspeed:
-        # Update master gradients.
-        timers('backward-master-grad').start()
-        if args.fp16:
-            optimizer.update_master_grads()
-        timers('backward-master-grad').stop()
-
-        # Clipping gradients helps prevent the exploding gradient.
-        timers('backward-clip-grad').start()
-        if args.clip_grad > 0:
-            if not args.fp16:
-                mpu.clip_grad_norm(model.parameters(), args.clip_grad)
-            else:
-                optimizer.clip_master_grads(args.clip_grad)
-        timers('backward-clip-grad').stop()
-
 
 def train_step(forward_step_func, data_iterator,
                model, optimizer, lr_scheduler):
@@ -541,7 +525,7 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
         # Logging.
         loss_scale = None
         if args.fp16:
-            loss_scale = optimizer.cur_scale if args.deepspeed else optimizer.loss_scale
+            loss_scale = optimizer.cur_scale
         report_memory_flag = training_log(loss_dict, total_loss_dict,
                                           optimizer.param_groups[0]['lr'],
                                           iteration, loss_scale,

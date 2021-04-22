@@ -184,6 +184,7 @@ def main():
                                                      impl=args.dataset_impl,
                                                      vocab_size=tokenizer.vocab_size)
 
+
     startup_end = time.time()
     proc_start = time.time()
     total_bytes_processed = 0
