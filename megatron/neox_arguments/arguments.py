@@ -8,16 +8,20 @@ if __name__ == "__main__":
 from .deepspeed_runner import NeoXArgsDeepspeedRunnerArguments
 #from .deepspeed_config import NeoXArgsDeepspeedConfig
 from .model import NeoXArgsModel
+from .tokenizer import NeoXArgsTokenizer
 from .training import NeoXArgsTraining
 from .parallelism import NeoXArgsParallelism
+from .logging import NeoXArgsLogging
 from .other import NeoXArgsOther
 
 @dataclass
 class NeoXArgs(
     NeoXArgsDeepspeedRunnerArguments, 
     NeoXArgsModel, 
+    NeoXArgsTokenizer,
     NeoXArgsTraining, 
     NeoXArgsParallelism,
+    NeoXArgsLogging,
     NeoXArgsOther
     ):
 
@@ -53,6 +57,15 @@ class NeoXArgs(
                     defined_properties[item] = source_class.__name__
         return True
     
+
+    def validate_values(self):
+        # the current codebase assumes running with deepspeed only
+        if not self.deepspeed:
+            return False
+
+
+        return True
+
 if __name__ == "__main__":
 
     args = NeoXArgs()

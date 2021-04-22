@@ -5,9 +5,20 @@ class NeoXArgsDeepspeedRunnerArguments:
     #TODO what is this?
     #TODO 'launcher_args' # handle separately: 'user_script', 'user_args'
 
+    deepspeed: bool = True
+    """boolean flag to enable DeepSpeed"""
+
     deepscale: bool = False
     """
-    
+    Deprecated enable DeepSpeed (helper flag for user code, no impact on DeepSpeed backend)'
+    """
+
+    deepscale_config: str = None
+    """Deprecated deepscale json configuration file."""
+
+    deepspeed_mpi: bool = False
+    """
+    Run via MPI, this will attempt to discover the necessary variables to initialize torch distributed from the MPI environment
     """
 
     hostfile: str = None

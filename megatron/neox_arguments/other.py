@@ -53,11 +53,6 @@ class NeoXArgsOther:
     Random seed used for python, numpy, pytorch, and cuda.
     """
 
-    deepspeed_mpi: bool = False
-    """
-    Run via MPI, this will attempt to discover the necessary variables to initialize torch distributed from the MPI environment
-    """
-
     prescale_gradients: bool = False
     """
     Scale gradients before doing allreduce.

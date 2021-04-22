@@ -33,11 +33,6 @@ class NeoXArgsTraining:
     Number of iterations between checkpoint saves.
     """
 
-    seed: int = 1234
-    """
-    Random seed used for python, numpy, pytorch, and cuda.
-    """
-
     no_save_optim: bool = False
     """
     Do not save current optimizer.
@@ -86,16 +81,6 @@ class NeoXArgsTraining:
     merge_file: str = None
     """
     Path to the BPE merge file.
-    """
-
-    log_dir: str = None
-    """
-    Directory to save logs to.
-    """
-
-    tensorboard_dir: str = None
-    """
-    Write TensorBoard logs to this directory.
     """
 
     num_workers: int = 2
