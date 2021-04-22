@@ -39,6 +39,7 @@ def get_wandb_api_key():
         return wandb_token[1]
 
 
+#TODO remove here, function included in neox_arguments
 def get_git_commit_hash():
     """ Gets the git commit hash of your current repo (if it exists) """
     try:

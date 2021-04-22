@@ -1,12 +1,9 @@
 from dataclasses import dataclass
 
 @dataclass
-class NeoXArgsDeepspeedRunnerArguments:    
+class NeoXArgsDeepspeedRunner:    
     #TODO what is this?
     #TODO 'launcher_args' # handle separately: 'user_script', 'user_args'
-
-    deepspeed: bool = True
-    """boolean flag to enable DeepSpeed"""
 
     deepscale: bool = False
     """

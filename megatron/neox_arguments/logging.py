@@ -1,3 +1,4 @@
+import subprocess
 from dataclasses import dataclass
 
 def get_git_commit_hash():

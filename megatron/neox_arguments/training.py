@@ -58,9 +58,24 @@ class NeoXArgsTraining:
     Load model for finetuning. Do not load optimizer or rng state from checkpoint and set iteration to 0. Assumed when loading a release checkpoint.
     """
 
+    train_iters: int = None
+    """
+    Number of iterations to run for training.
+    """
+
     eval_iters: int = 100
     """
     Number of iterations to run for evaluationvalidation/test for.
+    """
+
+    log_interval: int = None
+    """
+    Interval between logging.
+    """
+
+    keep_last_n_checkpoints: int = None
+    """
+    Number of last checkpoints to keep
     """
 
     eval_interval: int = 1000
@@ -86,16 +101,6 @@ class NeoXArgsTraining:
     num_workers: int = 2
     """
     Dataloader number of workers.
-    """
-
-    steps_per_print: int = 10
-    """
-    Print train loss every N steps.
-    """
-
-    wall_clock_breakdown: bool = False
-    """
-    Enable timing of the latency of forward/backward/update training phases.
     """
 
     dump_state: bool = False
@@ -136,11 +141,6 @@ class NeoXArgsTraining:
     use_checkpoint_lr_scheduler: bool = False
     """
     Use checkpoint to set the values of the scheduler (learning rate, warmup iterations, minimum learning rate, maximum number of iterations, and decay style from checkpoint and ignore input arguments.
-    """
-
-    gradient_clipping: float = 0
-    """
-    Enable gradient clipping with provided value
     """
 
     attention_dropout: float = 0.1
