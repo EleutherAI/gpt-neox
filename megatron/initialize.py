@@ -38,7 +38,7 @@ from deepspeed.utils import distributed
 
 
 def initialize_megatron(extra_args_provider=None, args_defaults={},
-                        ignore_unknown_args=False, allow_no_cuda=False):
+                        ignore_unknown_args=False, allow_no_cuda=False, args=None):
     """Set global variables, initialize distributed, and
     set autoresume and random seeds.
     `allow_no_cuda` should not be set unless using megatron for cpu only 
@@ -56,7 +56,9 @@ def initialize_megatron(extra_args_provider=None, args_defaults={},
     # tensorboard-writer, and timers.
     set_global_variables(extra_args_provider=extra_args_provider,
                          args_defaults=args_defaults,
-                         ignore_unknown_args=ignore_unknown_args)
+                         ignore_unknown_args=ignore_unknown_args,
+                         args=args
+                         )
 
     # torch.distributed initialization
     def finish_mpu_init():
@@ -163,7 +165,7 @@ def _initialize_distributed():
     if args.pipe_parallel_size > 0:
         pp = args.pipe_parallel_size
         mp = args.model_parallel_size
-        assert args.world_size % (pp * mp) == 0
+        assert args.world_size % (pp * mp) == 0, f'world_size={args.world_size}, pp={pp}, mp={mp}'
         dp = args.world_size // (pp * mp)
 
         from deepspeed.runtime.pipe.topology import PipeModelDataParallelTopology

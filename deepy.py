@@ -18,6 +18,7 @@ import deepspeed
 from deepspeed.launcher.runner import main
 import requests
 import subprocess
+import json
 
 from megatron.config_monster import ConfigMonster
 import logging
@@ -66,6 +67,12 @@ if 'log-dir' in conf:
     file_prefix = os.path.join(conf['log-dir'], '0-deepy')
     Tee(file_prefix + '_stdout.txt', err=False)
     Tee(file_prefix + '_stderr.txt', err=True)
+
+if 'save' in conf:
+    os.makedirs(conf['save'], exist_ok=True)
+    config_file = os.path.join(conf['save'], 'config.yml')
+    with open(config_file, 'w') as f:
+        json.dump(conf, f, indent=4)
 
 if __name__ == '__main__':
     main(old_style_args)

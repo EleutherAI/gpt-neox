@@ -247,7 +247,7 @@ class ConfigMonster:
 
     @staticmethod
     def construct_arg_parser():
-        parser = argparse.ArgumentParser(description='GPT-NEOX Configuration',
+        parser = argparse.ArgumentParser(description='GPT-NeoX Configuration',
                                          allow_abbrev=False)
 
         parser.add_argument("user_script",
@@ -268,7 +268,7 @@ class ConfigMonster:
         return parser
 
     @staticmethod
-    def parse_args(parser: argparse.ArgumentParser, args=None, extra_conf=None):
+    def parse_args(parser: argparse.ArgumentParser, args=None, extra_conf=None, default_conf=None):
         """
         Parse User Arguments
         """
@@ -300,6 +300,7 @@ class ConfigMonster:
                                                f'loaded file:  {key_intersection}'
 
             conf.update(conf_i)
+          
         # make sure wandb_group is unique
         if conf.get('wandb_group') is None:
             conf['wandb_group'] = shortuuid.uuid()
@@ -380,7 +381,7 @@ class ConfigMonster:
         return ds_runner_conf, megatron_conf, ds_config_conf
 
     @staticmethod
-    def convert_to_old_args(args, parsed_args, ds_runner_conf, megatron_conf, ds_config_conf):
+    def convert_to_old_args(parsed_args, ds_runner_conf, megatron_conf, ds_config_conf):
         """
         Split configuration into DS runner, megatron and DS conf file parts.
         Convert constituents into arguments which deepspeed and megatron expect.
@@ -404,16 +405,16 @@ class ConfigMonster:
 
         old_style_args = ds_runner_args + [parsed_args.user_script] + user_script_args
 
-        return old_style_args
+        return old_style_args, ds_runner_args, user_script_args
 
-    def consume_args(self, args=None, extra_conf=None):
+    def consume_args(self, args=None, extra_conf=None, default_conf=None):
         """
         Parse CLI args. Transform and derive other params.
         Convert to old style CLI args for deepspeed and megatron.
         """
         parser = self.construct_arg_parser()
-        parsed_args, conf = self.parse_args(parser, args, extra_conf)
+        parsed_args, conf = self.parse_args(parser, args, extra_conf, default_conf)
         ds_runner_conf, megatron_conf, ds_config_conf = self.derive_params_and_split(conf)
-        old_style_args = self.convert_to_old_args(args, parsed_args, ds_runner_conf, megatron_conf, ds_config_conf)
+        old_style_args, ds_runner_args, user_script_args = self.convert_to_old_args(parsed_args, ds_runner_conf, megatron_conf, ds_config_conf)
         log.info(f"GPT-NEOX config: {conf}")
         return old_style_args, conf
