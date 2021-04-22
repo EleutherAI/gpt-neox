@@ -1,12 +1,10 @@
 from dataclasses import dataclass
+from typing import List
 from pathlib import Path
+import yaml
 
-if __name__ == "__main__":
-    import sys
-    sys.path.append(str(Path(__file__).parent.absolute()))
-
-from .deepspeed_runner import NeoXArgsDeepspeedRunnerArguments
-#from .deepspeed_config import NeoXArgsDeepspeedConfig
+from .deepspeed_runner import NeoXArgsDeepspeedRunner
+from .deepspeed_config import NeoXArgsDeepspeedConfig
 from .model import NeoXArgsModel
 from .tokenizer import NeoXArgsTokenizer
 from .training import NeoXArgsTraining
@@ -16,7 +14,8 @@ from .other import NeoXArgsOther
 
 @dataclass
 class NeoXArgs(
-    NeoXArgsDeepspeedRunnerArguments, 
+    NeoXArgsDeepspeedRunner, 
+    NeoXArgsDeepspeedConfig,
     NeoXArgsModel, 
     NeoXArgsTokenizer,
     NeoXArgsTraining, 
@@ -24,17 +23,46 @@ class NeoXArgs(
     NeoXArgsLogging,
     NeoXArgsOther
     ):
+    """
+    data class containing all configurations
 
-    def __init__(self):
+    NeoXArgs inherits from a number of small configuration classes
+    """
+
+    def __post_init__(self):
         self.calcule_derived()
-
 
     def get_deepspeed_args(self):
         pass
 
-    def load_from_yml(self, path_to_yml_file):
+    @classmethod
+    def from_ymls(cls, paths_to_yml_files: List[str]):
+        """
+        instantiates NeoXArgs while reading values from yml files
+        """
+
+        # initialize an empty config dictionary to be filled by yamls
+        config = dict()
+
+        # iterate of all to be loaded yaml files
+        for conf_file_name in paths_to_yml_files:
+
+            # load file
+            with open(conf_file_name) as conf_file:
+                conf = yaml.load(conf_file, Loader=yaml.FullLoader)
+
+            # check for key duplicates and load values
+            for conf_key, conf_value in conf.items():
+                if conf_key in config:
+                    raise ValueError(f'Conf file {conf_file_name} has the following duplicate keys with previously loaded file: {conf_key}')
+
+                conf_key_converted = conf_key.replace("-", "_") #TODO remove replace and update configuration files?
+                config[conf_key_converted] = conf_value
+
+        # instantiate class and return
+        # duplicate values are again checked upon instantiation
+        return cls(**config)
         
-        self.calcule_derived()
 
     def calcule_derived(self):
         pass
@@ -65,8 +93,3 @@ class NeoXArgs(
 
 
         return True
-
-if __name__ == "__main__":
-
-    args = NeoXArgs()
-    print("")
