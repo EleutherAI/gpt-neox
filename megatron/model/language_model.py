@@ -128,15 +128,10 @@ class TransformerLanguageModel(MegatronModule):
         # Embeddings.
         embedding_output = self.embedding(input_ids, position_ids,
                                           tokentype_ids=tokentype_ids)
-        if self.embedding_type == 'rotary':
-            embedding_output, rotary_pos_emb = embedding_output
-        else:
-            rotary_pos_emb = None
         # Transformer.
         transformer_output = self.transformer(embedding_output,
                                               attention_mask,
                                               layer_past=layer_past)
-
         return transformer_output
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='',

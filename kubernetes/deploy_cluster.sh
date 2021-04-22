@@ -15,28 +15,32 @@ DEFAULT_IMAGE="leogao2/gpt-neox:sha-5f22d5d"
 BRANCH=${1:-main}
 N_NODES=${2:-4}
 SUFFIX=${3:-$(whoami)}
-USE_A100s=${4:-"no"}
+TYPE=${4:-"A100"}
 IMAGE=${5:-$DEFAULT_IMAGE}
 
 CLUSTER_NM='neox-'"$SUFFIX"
 WD=`dirname "$BASH_SOURCE"`
 
 # Use A100s? Default to no
-if [ "$USE_A100s" = "yes" ]; then
+if [ "$TYPE" = "A100" ]; then
     CLUSTER_SPEC=$WD/k8s_a100_cluster_spec.yml
     GPUS_PER_NODE=6
     awk_print='{print $6 " slots=6"}'
+elif [ "$TYPE" = "A100-NVLINK" ]; then
+    CLUSTER_SPEC=$WD/k8s_a100_nvlink_cluster_spec.yml
+    GPUS_PER_NODE=4
+    awk_print='{print $6 " slots=4"}'
 else
-    USE_A100s="no"
+    TYPE="NA"
     CLUSTER_SPEC=$WD/k8s_cluster_spec.yml
     GPUS_PER_NODE=8
     awk_print='{print $6 " slots=8"}'
 fi
-
-echo BRANCH $BRANCH. N-NODES $N_NODES. CLUSTER NAME $CLUSTER_NM. Use A100s: $USE_A100s. DOCKER IMAGE $IMAGE.
+ 
+echo BRANCH $BRANCH. N-NODES $N_NODES. CLUSTER NAME $CLUSTER_NM. GPU TYPE: $TYPE. DOCKER IMAGE $IMAGE.
 
 # Obtain wandb API key
-WANDB_APIKEY=$(python $WD/get_wandb_api_key.py)
+WANDB_APIKEY=$(python3 $WD/get_wandb_api_key.py)
 if [ -n "$WANDB_APIKEY" ]
 then
       echo "wandb.ai API successfully obtained"
@@ -119,8 +123,10 @@ kubectl rollout status --watch --timeout=600s statefulsets/$CLUSTER_NM  || { ech
 
 echo Generate hosts file
 
-if [ "$USE_A100s" = "yes" ]; then
+if [ "$TYPE" = "A100" ]; then
     kubectl get pods -o wide | grep $CLUSTER_NM | awk '{print $6 " slots=6"}' > $WD/hostfile
+elif [ "$TYPE" = "A100-NVLINK" ]; then
+    kubectl get pods -o wide | grep $CLUSTER_NM | awk '{print $6 " slots=4"}' > $WD/hostfile
 else
     kubectl get pods -o wide | grep $CLUSTER_NM | awk '{print $6 " slots=8"}' > $WD/hostfile
 fi
