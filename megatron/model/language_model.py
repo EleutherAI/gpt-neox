@@ -134,14 +134,9 @@ class TransformerLanguageModel(MegatronModule):
         # Embeddings.
         embedding_output = self.embedding(input_ids, position_ids,
                                           tokentype_ids=tokentype_ids)
-        if self.embedding_type == 'rotary':
-            embedding_output, rotary_pos_emb = embedding_output
-        else:
-            rotary_pos_emb = None
         # Transformer.
         transformer_output = self.transformer(embedding_output,
                                               attention_mask,
-                                              rotary_pos_emb=rotary_pos_emb,
                                               layer_past=layer_past,
                                               get_key_value=get_key_value)
 
