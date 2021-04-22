@@ -28,6 +28,7 @@ def natural_sort(l):
     alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', str(key))]
     return sorted(l, key=alphanum_key)
 
+
 def pretty_print(contents: dict):
     """ Prints a nice summary of the top-level contens in a checkpoint dictionary. """
     col_size = max(len(str(k)) for k in contents)
@@ -54,11 +55,13 @@ def pretty_print(contents: dict):
                 line += f"{COLORS.CYAN}dtype={v.dtype}{COLORS.END}"
         print(line)
 
+
 def common_entries(*dcts):
     if not dcts:
         return
     for i in set(dcts[0]).intersection(*dcts[1:]):
         yield (i,) + tuple(d[i] for d in dcts)
+
 
 def pretty_print_double(contents1: dict, contents2: dict, args):
     """ Prints a nice summary of the top-level contens in a checkpoint dictionary. """
@@ -152,6 +155,7 @@ def get_attribute(obj: object, name: str) -> object:
         return obj.name
     return getattr(object, name)
 
+
 def get_files(pth):
     if os.path.isdir(pth):
         files = list(Path(pth).glob("*.pt")) + list(Path(pth).glob("*.ckpt"))
@@ -162,9 +166,10 @@ def get_files(pth):
         raise ValueError('Dir / File not found.')
     return natural_sort(files)
 
+
 def peek(args: Namespace):
 
-    files = get_files(pth)
+    files = get_files(args.dir)
 
     for file in files:
         file = Path(file).absolute()
@@ -187,6 +192,7 @@ def peek(args: Namespace):
                 local={"checkpoint": ckpt, "torch": torch},
             )
 
+
 def get_shared_fnames(files_1, files_2):
     names_1 = [Path(i).name for i in files_1]
     names_1_parent = Path(files_1[0]).parent
@@ -194,6 +200,7 @@ def get_shared_fnames(files_1, files_2):
     names_2_parent = Path(files_2[0]).parent
     shared_names = list(set.intersection(*map(set, [names_1, names_2])))
     return [names_1_parent / i for i in shared_names], [names_2_parent / i for i in shared_names]
+
 
 def get_selection(filename, args):
     ckpt = torch.load(filename, map_location=torch.device("cpu"))
@@ -206,6 +213,7 @@ def get_selection(filename, args):
             current = get_attribute(current, part)
         selection.update({name: current})
     return selection
+
 
 def compare(args: Namespace):
     dirs = [i.strip() for i in args.dir.split(',')]
