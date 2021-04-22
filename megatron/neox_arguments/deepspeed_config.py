@@ -18,6 +18,9 @@ class NeoXArgsDeepspeedConfig:
     optimizer: dict = None
     """"""
 
+    scheduler: dict = None
+    """"""
+
     fp16: dict = None
     """"""
 

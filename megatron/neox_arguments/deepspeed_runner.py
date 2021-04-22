@@ -44,9 +44,9 @@ class NeoXArgsDeepspeedRunner:
     Total number of worker nodes to run on, this will use the top N hosts from the given hostfile. -1 will use all.
     """
 
-    num_gpus: int = -1
+    num_gpus: int = None
     """
-    Max number of GPUs to use on each node, will use [0:N) GPU ids on each node. -1 will use all.
+    Max number of GPUs to use on each node, will use [0:N) GPU ids on each node. None / not specifying a value will use all.
     """
 
     master_port: int = 29500

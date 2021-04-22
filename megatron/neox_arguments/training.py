@@ -58,6 +58,11 @@ class NeoXArgsTraining:
     Load model for finetuning. Do not load optimizer or rng state from checkpoint and set iteration to 0. Assumed when loading a release checkpoint.
     """
 
+    batch_size: int = None
+    """
+    training batch size
+    """
+
     train_iters: int = None
     """
     Number of iterations to run for training.
@@ -203,4 +208,6 @@ class NeoXArgsTraining:
     Partition Activations across GPUs before checkpointing.
     """
 
+    gas: int = None
+    """gradient_accumulation_steps""" #TODO this is a duplicate, remove
 

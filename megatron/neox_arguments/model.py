@@ -3,6 +3,12 @@ from dataclasses import dataclass
 
 @dataclass
 class NeoXArgsModel:
+
+    half_precision: bool = None #TODO used to be args.fp16! here we have a duplicate naming with deepspeed config args
+    """
+    flag indicating whether fp16 is used
+    """
+
     num_layers: int = None
     """
     Number of transformer layers.
@@ -153,3 +159,77 @@ class NeoXArgsModel:
     All-reduce in fp32
     """
     
+    zero_stage: int = None
+    """
+    
+    """
+    
+    zero_reduce_scatter: bool = None
+    """
+    
+    """
+    
+    zero_contiguous_gradients: bool = None
+    """
+    
+    """
+    
+    zero_reduce_bucket_size: int = None
+    """
+    
+    """
+    
+    zero_allgather_bucket_size: int = None
+    """
+    
+    """
+
+    clip_grad: float = None #TODO duplicate deepspeed_config gradient_clipping, we do not need both 
+    """
+    
+    """
+
+    lr: float = None 
+    """
+    
+    """
+
+    adam_beta1: float = None 
+    """
+    
+    """
+
+    adam_beta2: float = None 
+    """
+    
+    """
+
+    adam_eps: float = None 
+    """
+    
+    """
+
+    momentum: float = None 
+    """
+    
+    """
+
+    onebitadam: bool = None 
+    """
+    
+    """
+
+    cpu_optimizer: bool = None 
+    """
+    
+    """
+
+    cpu_torch_adam: bool = None 
+    """
+    
+    """
+
+    sm3: bool = None 
+    """
+    
+    """

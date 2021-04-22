@@ -13,6 +13,11 @@ class NeoXArgsOther:
     local rank passed from distributed launcher.
     """
 
+    rank: int = None
+    """
+    
+    """
+
     lazy_mpu_init: int = True
     """
     If set to True, initialize_megatron() skips DDP initialization and returns function to complete it instead. Also turns on use-cpu-initialization flag. This is for external DDP manager.

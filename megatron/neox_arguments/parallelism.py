@@ -17,3 +17,8 @@ class NeoXArgsParallelism:
     """
     method used to distribute model layers across pipeline stages. Choose from "parameters", which balances the number of parameters on each pipeline stage, "uniform", which naively balances the number of layers per stage, or "type:[regex]" (in our case this will basically only be "type:transformer"), which balances layers whose class names match [regex]
     """
+
+    world_size: int = None
+    """
+    
+    """
