@@ -68,6 +68,7 @@ def pretty_print_double(contents1: dict, contents2: dict, args):
     uncommon_keys_2 = [i for i in contents1.keys() if i not in common_keys]
     diffs_found = False
     if uncommon_keys_1 + uncommon_keys_2:
+        diffs_found = True
         if uncommon_keys_1:
             print(f"{COLORS.RED}{len(uncommon_keys_1)} key(s) found in ckpt 1 that isn't present in ckpt 2:{COLORS.END} \n\t{COLORS.BLUE}{' '.join(uncommon_keys_1)}{COLORS.END}")
         if uncommon_keys_2:
