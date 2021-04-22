@@ -37,8 +37,14 @@ class Tee:
         self.file.close()
 
     def write(self, data):
-        self.file.write(data)
-        self.std.write(data)
+        try:
+            self.file.write(data)
+        except OSError:
+            pass
+        try:
+            self.std.write(data)
+        except OSError:
+            pass
 
     def flush(self):
         self.file.flush()
