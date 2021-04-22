@@ -227,8 +227,8 @@ def compare(args: Namespace):
 
         if args.interactive:
             code.interact(
-                banner="Entering interactive shell. You can access the checkpoint contents through the local variable 'checkpoint'.",
-                local={"checkpoint": ckpt, "torch": torch},
+                banner="Entering interactive shell. You can access the checkpoint contents through the local variable 'selection_1' / 'selection_2'.\nPress Ctrl-D to exit.",
+                local={"selection_1": selection_1, "selection_2": selection_2, "torch": torch},
             )
 
 
