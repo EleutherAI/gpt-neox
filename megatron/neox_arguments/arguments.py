@@ -41,15 +41,16 @@ class NeoXArgs(
         test that there are no duplicate arguments
         """
         source_classes = list(cls.__bases__)
-        defined_properties = set()
+        defined_properties = dict()
+
         for source_class in source_classes:
             source_vars = list(source_class.__dataclass_fields__)
             for item in source_vars:
-                if item in defined_properties:
-                    print(f'{cls.__name__} duplicate of item: {item}, in class {source_class.__name__}', flush=True)
+                if item in defined_properties.keys():
+                    print(f'({cls.__name__}) duplicate of item: {item}, in class {source_class.__name__} and {defined_properties[item]}', flush=True)
                     return False
                 else:
-                    defined_properties.add(item)
+                    defined_properties[item] = source_class.__name__
         return True
     
 if __name__ == "__main__":
