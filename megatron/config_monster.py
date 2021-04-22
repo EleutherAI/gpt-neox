@@ -225,7 +225,7 @@ def _set_batch_parameters(world_size, train_batch=None, micro_batch=None, grad_a
     else:
         assert False, \
             'Either train_batch_size or micro_batch_per_gpu needs to be provided'
-    return train_batch, micro_batch, grad_acc
+    return int(train_batch), int(micro_batch), int(grad_acc)
 
 
 def _configure_train_batch_size(world_size, train_batch=None, micro_batch=None, grad_acc=None):
