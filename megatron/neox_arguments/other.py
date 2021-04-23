@@ -80,3 +80,15 @@ class NeoXArgsOther:
     """
     user script to be run
     """
+
+    iteration: int = None
+    """"""
+
+    do_train: int = None
+    """"""
+
+    do_valid: int = None
+    """"""
+
+    do_test: int = None
+    """"""
