@@ -75,6 +75,9 @@ class NeoXArgs(
     NeoXArgs inherits from a number of small configuration classes
     """
 
+    ############################################################################################################################
+    # start of instantiation
+
     def __post_init__(self):
         """
         after initialization of default or loaded values 
@@ -89,68 +92,6 @@ class NeoXArgs(
         self.calculated_derived()
         self.validate_values()
         self.save_yml()
-
-    @property
-    def deepspeed_config(self):
-        """
-        returns variables within deepspeed config
-        """
-        return self.get_class_variables(NeoXArgsDeepspeedConfig)
-
-    @property
-    def deepspeed_runner(self):
-        """
-        returns variables within deepspeed runner
-        """
-        return self.get_class_variables(NeoXArgsDeepspeedRunner)
-
-    @property
-    def megatron_config(self):
-        """
-        returns variables within megatron args
-        """
-        return self.get_class_variables(NeoXArgsModel, 
-                                        NeoXArgsTokenizer,
-                                        NeoXArgsTraining, 
-                                        NeoXArgsParallelism,
-                                        NeoXArgsLogging,
-                                        NeoXArgsOther)
-
-    def get_class_variables(self, *parent_classes):
-        """
-        takes a sequence of parent classes and returns corrosponding updates values
-        """
-        result = dict()
-        for parent in parent_classes:
-            for key in parent.__dataclass_fields__:
-                result[key] = getattr(self, key)
-        return result
-
-    @property
-    def params_dtype(self):
-        """
-        returns the datatype on the basis of configured precision
-        """
-        if self.half_precision:
-            return torch.half
-        else:
-            return torch.float
-
-    def get_deepspeed_args(self):
-        pass
-
-    def update_value(self, key: str, value):
-        """
-        updates a property value if the key is already existing
-
-        Problem: a previously non-existing property can be added to the class instance without error. 
-        """
-        if hasattr(self, key):
-            setattr(self, key, value)
-        else:
-            error_message = self.__class__.__name__+".update_value() to be updated property "+str(key)+" does not exist"
-            logging.error(error_message)
-            raise ValueError(error_message)
 
     @classmethod
     def from_ymls(cls, paths_to_yml_files: List[str]):
@@ -183,7 +124,100 @@ class NeoXArgs(
         # instantiate class and return
         # duplicate values and unrecognized keys are again checked upon instantiation
         return cls(**config)
-        
+
+    def update_value(self, key: str, value):
+        """
+        updates a property value if the key is already existing
+
+        Problem: a previously non-existing property can be added to the class instance without error. 
+        """
+        if hasattr(self, key):
+            setattr(self, key, value)
+        else:
+            error_message = self.__class__.__name__+".update_value() to be updated property "+str(key)+" does not exist"
+            logging.error(error_message)
+            raise ValueError(error_message)
+
+    
+    ############################################################################################################################
+    # start of command line args interfase
+
+    def construct_arg_parser():
+        parser = argparse.ArgumentParser(description='GPT-NeoX Configuration',
+                                         allow_abbrev=False)
+
+        parser.add_argument("user_script",
+                            type=str,
+                            help="User script to launch, followed by any required "
+                                 "arguments.")
+
+        parser.add_argument("--conf_dir", '-d',
+                            type=str,
+                            default=None,
+                            help="Directory to prefix to all configuration file paths")
+
+        parser.add_argument("conf_file",
+                            type=str,
+                            nargs='+',
+                            help="Configuration file path. Multiple files can be provided and will be merged.")
+
+    
+    def consume_args(self, paths_to_yml_files: List[str]):
+        parser = self.construct_arg_parser()
+        args = parser.parse_args()
+
+    ############################################################################################################################
+    # start of calculated properties
+
+    @property
+    def deepspeed_config(self) -> dict:
+        """
+        returns a dict containing variables within deepspeed config
+        """
+        return self.get_parent_class_value_dict(NeoXArgsDeepspeedConfig)
+
+    @property
+    def deepspeed_runner(self) -> dict:
+        """
+        returns variables within deepspeed runner
+        """
+        return self.get_parent_class_value_dict(NeoXArgsDeepspeedRunner)
+
+    @property
+    def megatron_config(self) -> dict :
+        """
+        returns variables within megatron args
+        """
+        return self.get_parent_class_value_dict(NeoXArgsModel, 
+                                        NeoXArgsTokenizer,
+                                        NeoXArgsTraining, 
+                                        NeoXArgsParallelism,
+                                        NeoXArgsLogging,
+                                        NeoXArgsOther)
+
+    def get_parent_class_value_dict(self, *parent_classes) -> dict:
+        """
+        takes a sequence of parent classes and returns corrosponding updates values
+        """
+        result = dict()
+        for parent in parent_classes:
+            for key in parent.__dataclass_fields__:
+                result[key] = getattr(self, key)
+        return result
+
+    @property
+    def params_dtype(self):
+        """
+        returns the datatype on the basis of configured precision
+        """
+        if self.half_precision:
+            return torch.half
+        else:
+            return torch.float
+
+    ############################################################################################################################
+    # start of logging and output
+    
     def enable_logging(self):
         """
         enable Tee logs based on the configured logdir
@@ -216,6 +250,9 @@ class NeoXArgs(
             for arg in sorted(str_list, key=lambda x: x.lower()):
                 print(arg, flush=True)
             print('---------------- end of arguments ----------------', flush=True)
+
+    ############################################################################################################################
+    # start of calculations and derive valuess
 
     def configure_distributed_args(self):
         if self.deepspeed_mpi:
@@ -406,28 +443,8 @@ class NeoXArgs(
 
         print("")
 
-    def construct_arg_parser():
-        parser = argparse.ArgumentParser(description='GPT-NeoX Configuration',
-                                         allow_abbrev=False)
-
-        parser.add_argument("user_script",
-                            type=str,
-                            help="User script to launch, followed by any required "
-                                 "arguments.")
-
-        parser.add_argument("--conf_dir", '-d',
-                            type=str,
-                            default=None,
-                            help="Directory to prefix to all configuration file paths")
-
-        parser.add_argument("conf_file",
-                            type=str,
-                            nargs='+',
-                            help="Configuration file path. Multiple files can be provided and will be merged.")
-
-    def consume_args(self, paths_to_yml_files: List[str]):
-        parser = self.construct_arg_parser()
-        args = parser.parse_args()
+    ############################################################################################################################
+    # start of validation functions
 
     @classmethod
     def validate_keys(cls):
