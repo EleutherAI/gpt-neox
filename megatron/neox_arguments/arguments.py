@@ -436,7 +436,7 @@ class NeoXArgs(
         else:
             assert False, \
                 'Either train_batch_size or micro_batch_per_gpu needs to be provided'
-        return train_batch, micro_batch, grad_acc
+        return int(train_batch), int(micro_batch), int(grad_acc)
 
     @staticmethod
     def check_batch_parameters(world_size, train_batch, micro_batch, grad_acc):
@@ -700,6 +700,7 @@ class NeoXArgs(
             if actual_value is None: continue # we allow for some values not to be configured
             actual_type = type(actual_value)
             if actual_type != field_def.type:
+                if actual_type == int and field_def.type == float: continue
                 error_message = self.__class__.__name__+".validate_types() "+f"{field_name}: '{actual_type}' instead of '{field_def.type}'"
                 logging.error(error_message)
                 ret = False
