@@ -215,7 +215,7 @@ class NeoXArgs(
         """
         returns the datatype on the basis of configured precision
         """
-        if self.half_precision:
+        if self.precision == "fp16":
             return torch.half
         else:
             return torch.float
@@ -406,7 +406,7 @@ class NeoXArgs(
         self.update_value("batch_size", train_micro_batch_size_per_gpu)
       
         # duplicated items
-        self.update_value("half_precision", (self.fp16 or {}).get("enabled", False))
+        self.update_value("precision", "fp16" if (self.fp16 or {}).get("enabled", False) else "fp32")
         self.update_value("gas", self.gradient_accumulation_steps)
         
         # zero optimization
@@ -545,8 +545,14 @@ class NeoXArgs(
                 return False
 
         # Mixed precision checks.
-        if self.fp16_lm_cross_entropy and not self.half_precision:
-            error_message = self.__class__.__name__+".validate_values() lm cross entropy in fp16 only support in fp16 / half precision mode." 
+        if self.precision not in ["fp16", "fp32"]:
+            error_message = self.__class__.__name__+".validate_values() precision must be either one of fp16 or fp32, this is a calculated value, check code" 
+            logging.error(error_message)
+            raise ValueError(error_message)
+            return False
+
+        if self.fp16_lm_cross_entropy and self.precision != "fp16":
+            error_message = self.__class__.__name__+".validate_values() lm cross entropy in fp16 only support in fp16 mode." 
             logging.error(error_message)
             raise ValueError(error_message)
             return False

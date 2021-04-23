@@ -4,9 +4,9 @@ from dataclasses import dataclass
 @dataclass
 class NeoXArgsModel:
 
-    half_precision: bool = None #TODO used to be args.fp16! here we have a duplicate naming with deepspeed config args
+    precision: str = None 
     """
-    flag indicating whether fp16 is used
+    description of the used precision, either one of fp16 or fp32
     """
 
     num_layers: int = None
@@ -180,11 +180,6 @@ class NeoXArgsModel:
     """
     
     zero_allgather_bucket_size: int = None
-    """
-    
-    """
-
-    clip_grad: float = None #TODO duplicate deepspeed_config gradient_clipping, we do not need both 
     """
     
     """

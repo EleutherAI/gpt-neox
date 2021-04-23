@@ -319,17 +319,18 @@ def backward_step(optimizer, model, loss):
     if not args.deepspeed:
         # Update master gradients.
         timers('backward-master-grad').start()
-        if args.fp16:
+        if args.precision == "fp16":
             optimizer.update_master_grads()
         timers('backward-master-grad').stop()
 
         # Clipping gradients helps prevent the exploding gradient.
         timers('backward-clip-grad').start()
         if args.clip_grad > 0:
-            if not args.fp16:
-                mpu.clip_grad_norm(model.parameters(), args.clip_grad)
-            else:
+            if args.precision == "fp16":
                 optimizer.clip_master_grads(args.clip_grad)
+            else:
+                mpu.clip_grad_norm(model.parameters(), args.clip_grad)
+                
         timers('backward-clip-grad').stop()
 
 
@@ -373,7 +374,7 @@ def train_step_pipe(model, data_iterator):
     assert args.deepspeed
     loss = model.train_batch(data_iter=data_iterator)
     loss_dict = {'lm loss': loss}
-    if args.fp16 and model.optimizer.overflow:
+    if args.precision == "fp16" and model.optimizer.overflow:
         skipped_iter = 1
     else:
         skipped_iter = 0
@@ -452,7 +453,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         wandb.log({'learning_rate': learning_rate}, step=iteration)
         for key in loss_dict:
             wandb.log({key: loss_dict[key]}, step=iteration)
-        if args.fp16:
+        if args.precision == "fp16":
             wandb.log({'loss_scale': loss_scale}, step=iteration)
 
     # Tensorboard values.
@@ -460,7 +461,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         writer.add_scalar('learning_rate', learning_rate, iteration)
         for key in loss_dict:
             writer.add_scalar(key, loss_dict[key], iteration)
-        if args.fp16:
+        if args.precision == "fp16":
             writer.add_scalar('loss_scale', loss_scale, iteration)
 
     if iteration % args.log_interval == 0:
@@ -496,7 +497,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
                 avg = v / float(num_iterations)
                 log_string += ' {}: {:.6E} |'.format(key, avg)
                 total_loss_dict[key] = 0.0
-        if args.fp16:
+        if args.precision == "fp16":
             log_string += ' loss scale: {:.1f} |'.format(loss_scale)
         log_string += ' number of skipped iterations: {:3d} |'.format(
             total_loss_dict[skipped_iters_key])
@@ -540,7 +541,7 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
 
         # Logging.
         loss_scale = None
-        if args.fp16:
+        if args.precision == "fp16":
             loss_scale = optimizer.cur_scale if args.deepspeed else optimizer.loss_scale
         report_memory_flag = training_log(loss_dict, total_loss_dict,
                                           optimizer.param_groups[0]['lr'],

@@ -42,7 +42,7 @@ def process_batch(batch):
     types = batch['types'].long().cuda().contiguous()
     labels = batch['label'].long().cuda().contiguous()
     attention_mask = batch['padding_mask'].float().cuda().contiguous()
-    if args.fp16:
+    if args.precision == "fp16":
         attention_mask = attention_mask.half()
 
     return tokens, types, labels, attention_mask
@@ -239,7 +239,7 @@ def finetune(train_valid_datasets_provider, model_provider,
         args.load = original_load
         # This is critical when only model is loaded. We should make sure
         # master parameters are also updated.
-        if args.fp16:
+        if args.precision == "fp16":
             optimizer._model_params_to_master_params()
     timers('pretrained checkpoint').stop()
 

@@ -100,7 +100,7 @@ def parse_args(extra_args_provider=None, defaults={},
 
     # Parameters dtype.
     args.params_dtype = torch.float
-    if args.fp16:
+    if args.precision == "fp16":
         args.params_dtype = torch.half
     if args.rank == 0:
         print('using {} for parameters ...'.format(args.params_dtype),
@@ -141,7 +141,7 @@ def parse_args(extra_args_provider=None, defaults={},
             'num-layers should be divisible by num-unique-layers.'
     # Mixed precision checks.
     if args.fp16_lm_cross_entropy:
-        assert args.fp16, 'lm cross entropy in fp16 only support in fp16 mode.'
+        assert args.precision == "fp16", 'lm cross entropy in fp16 only support in fp16 mode.'
     # Activation checkpointing.
     if args.distribute_checkpointed_activations:
         assert args.checkpoint_activations, \

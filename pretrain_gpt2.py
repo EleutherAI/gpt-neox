@@ -130,7 +130,7 @@ def get_batch_pipe(data):
         args.eod_mask_loss)
 
     # unpack data
-    if args.fp16:
+    if args.precision == "fp16":
         # cast to fp16 because pipeline parallelism skips the FP16 wrapper.
         return fp32_to_fp16((tokens, position_ids, attention_mask)), fp32_to_fp16((labels, loss_mask))
     else:
