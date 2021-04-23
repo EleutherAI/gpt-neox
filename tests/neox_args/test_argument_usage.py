@@ -10,6 +10,7 @@ class ArgumentUsageTest(unittest.TestCase):
     
     def test_usage(self):
         
+        # collect files
         files = [] 
         foldersToCheck = ['./megatron/'] 
         while (len(foldersToCheck) > 0): 
@@ -24,20 +25,22 @@ class ArgumentUsageTest(unittest.TestCase):
                     del filenames[0] 
                 del foldersToCheck[0] 
 
+        # remove files from test
         files.remove('./megatron/text_generation_utils.py')
+        files.remove('./megatron/tokenizer/train_tokenizer.py')
 
         declared_all = True
-        exclude = ['params_dtype', 'deepspeed_config']
+        exclude = ['params_dtype', 'deepspeed_config', 'get', 'pop']
 
-        for file in files:
-            out = self.run_test(file)
+        for f in files:
+            out = self.run_test(f)
 
             for item in exclude:
                 if item in out:
                     out.remove(item)
 
             if out != []:
-                print(f"({__file__}): {file}: {out}")
+                print(f"(arguments used not in neox args): {f}: {out}", flush=True)
                 declared_all = False
 
         self.assertTrue(declared_all)
