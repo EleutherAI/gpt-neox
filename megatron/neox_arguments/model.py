@@ -153,11 +153,6 @@ class NeoXArgsModel:
     """
     Run attention masking and softmax in fp32.
     """
-
-    fp32_allreduce: bool = False
-    """
-    All-reduce in fp32
-    """
     
     zero_stage: int = None
     """

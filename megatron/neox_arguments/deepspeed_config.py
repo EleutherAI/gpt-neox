@@ -2,6 +2,10 @@ from dataclasses import dataclass
 
 @dataclass
 class NeoXArgsDeepspeedConfig:
+    """
+    args for deepspeed config
+    Every argument included here will be included in deepspeed config json
+    """ 
 
     deepspeed: bool = True
     """boolean flag to enable DeepSpeed"""
@@ -45,8 +49,12 @@ class NeoXArgsDeepspeedConfig:
     steps_per_print: int = None
     """"""
 
-    steps_per_print: int = None
-    """"""
+    fp32_allreduce: bool = False
+    """
+    During gradient averaging perform allreduce with 32 bit values
+    """
 
-    steps_per_print: int = None
-    """"""
+    #TODO ['prescale_gradients', 'gradient_predivide_factor', 'sparse_gradients',
+    #              'amp', 
+    #              'dump_state', 'flops_profiler', 'activation_checkpointing', 'sparse_attention',
+    #              'zero_allow_untested_optimizer', ]
