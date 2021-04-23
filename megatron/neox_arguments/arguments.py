@@ -25,6 +25,7 @@ from .training import NeoXArgsTraining
 from .parallelism import NeoXArgsParallelism
 from .logging import NeoXArgsLogging
 from .other import NeoXArgsOther
+from .textgen import NeoXArgsTextgen
 
 import argparse
 
@@ -67,7 +68,8 @@ class NeoXArgs(
     NeoXArgsTraining, 
     NeoXArgsParallelism,
     NeoXArgsLogging,
-    NeoXArgsOther
+    NeoXArgsOther,
+    NeoXArgsTextgen
     ):
     """
     data class containing all configurations
@@ -202,12 +204,15 @@ class NeoXArgs(
         """
         returns variables within megatron args
         """
-        return self.get_parent_class_value_dict(NeoXArgsModel, 
-                                        NeoXArgsTokenizer,
-                                        NeoXArgsTraining, 
-                                        NeoXArgsParallelism,
-                                        NeoXArgsLogging,
-                                        NeoXArgsOther)
+        return self.get_parent_class_value_dict(
+            NeoXArgsModel, 
+            NeoXArgsTokenizer,
+            NeoXArgsTraining, 
+            NeoXArgsParallelism,
+            NeoXArgsLogging,
+            NeoXArgsOther,
+            NeoXArgsTextgen
+            )
 
     def get_parent_class_value_dict(self, *parent_classes) -> dict:
         """
@@ -418,6 +423,7 @@ class NeoXArgs(
         # duplicated items
         self.update_value("precision", "fp16" if (self.fp16 or {}).get("enabled", False) else "fp32")
         self.update_value("gas", self.gradient_accumulation_steps)
+        self.update_value("clip_grad", self.gradient_clipping)
         
         # zero optimization
         if self.zero_optimization is None:
@@ -453,14 +459,13 @@ class NeoXArgs(
                     "total_num_steps": self.lr_decay_iters or self.train_iters
             }}
 
-        #TODO where is args.loss_scale coming from
+      
         # Fp16 loss scaling.
-        #if self.loss_scale is None:
-        #    self.update_value("dynamic_loss_scale", True)
-        #else:
-        #    self.update_value("dynamic_loss_scale", False)
+        if self.loss_scale is None:
+            self.update_value("dynamic_loss_scale", True)
+        else:
+            self.update_value("dynamic_loss_scale", False)
 
-        print("")
 
     ############################################################################################################################
     # start of validation functions

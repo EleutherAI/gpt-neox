@@ -211,3 +211,44 @@ class NeoXArgsTraining:
     gas: int = None
     """gradient_accumulation_steps""" #TODO this is a duplicate, remove?
 
+
+    clip_grad: float = None
+    """
+    Gradient clipping based on global L2 norm.
+    """
+
+    no_adamw: bool = False
+    """
+    Use default Adam instead of AdamW
+    """
+
+    sm3: bool = False
+    """
+    Enable sm3 optimizer
+    """
+
+    hysteresis: int = 2
+    """
+    hysteresis for dynamic loss scaling
+    """
+
+    dynamic_loss_scale: bool = None
+    """
+    flag indicating whether dynamic loss scale is used
+    """
+
+    loss_scale: float = None
+    """
+    Static loss scaling, positive power of 2
+    values can improve fp16 convergence. If None, dynamic loss scaling is used.
+    """
+
+    loss_scale_window: float = 1000.0
+    """
+    Window over which to raise/lower dynamic scale.
+    """
+
+    min_scale: float = 1.0
+    """
+    Minimum loss scale for dynamic loss scale.
+    """

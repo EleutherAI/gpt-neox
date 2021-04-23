@@ -224,7 +224,12 @@ class NeoXArgsModel:
     
     """
 
-    sm3: bool = None 
+    rotary_pct: float = 1.0 
     """
-    
+    pct of hidden dims to apply rotary positional embedding to
+    """
+
+    rotary_emb_base: int = 10000 
+    """
+    Base for rotary positional embedding
     """

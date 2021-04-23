@@ -82,3 +82,8 @@ class NeoXArgsOther:
     """
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#flops-profiler
     """
+
+    onnx_safe: bool = False
+    """
+    Use workarounds for known problems with Torch ONNX exporter
+    """
