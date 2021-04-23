@@ -9,7 +9,9 @@ from neox_arguments import NeoXArgs
 class ArgumentUsageTest(unittest.TestCase):
     
     def test_usage(self):
-        
+        """"
+        checks for code pieces of the pattern "args.*" and verifies that such used arg is defined in NeoXArgs
+        """
         # collect files
         files = [] 
         foldersToCheck = ['./megatron/'] 
