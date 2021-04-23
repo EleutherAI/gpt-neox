@@ -48,7 +48,7 @@ class ArgumentUsageTest(unittest.TestCase):
     def check_file(self, file):
         with open(file, 'r') as f:
             text = f.read()
-        matches = re.findall("(?<=args\.).{2,}?(?=[\s\n(){}+-/*;:,=])", text)
+        matches = re.findall(r"(?<=args\.).{2,}?(?=[\s\n(){}+-/*;:,=])", text)
         return list(dict.fromkeys(matches))
 
     def run_test(self, file):
