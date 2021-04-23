@@ -294,7 +294,7 @@ class NeoXArgs(
         """
         returns a dict containing variables within deepspeed config
         """
-        return self.get_parent_class_value_dict(NeoXArgsDeepspeedConfig)
+        return self.get_parent_class_value_dict(NeoXArgsDeepspeedConfig, only_non_defaults=True)
 
     @property
     def deepspeed_runner(self) -> dict:
