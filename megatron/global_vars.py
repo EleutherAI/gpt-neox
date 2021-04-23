@@ -69,8 +69,6 @@ def set_global_variables():
     """Set args, tokenizer, tensorboard-writer, adlr-autoresume, and timers."""
     from megatron.neox_arguments import NeoXArgs
     args = NeoXArgs.consume_megatron_args()
-    import pdb
-    pdb.set_trace()
 
     global _GLOBAL_ARGS
     _ensure_var_is_not_initialized(_GLOBAL_ARGS, 'args')

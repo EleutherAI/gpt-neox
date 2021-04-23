@@ -243,8 +243,7 @@ class NeoXArgs(
         parser.add_argument('--megatron_config', type=str, default=None,
                             help='json dict dumped as string in NeoXArgs.get_deepspeed_main_args()')
         
-        args = parser.parse_args()
-
+        args, _ = parser.parse_known_args()
 
         megatron_config = json.loads(args.megatron_config)
 
@@ -265,13 +264,16 @@ class NeoXArgs(
 
         args_list = list()
 
+        # add user script
+        args_list.append(self.user_script)
+
         # get deepspeed runner args
         default_deepspeed_runner_args = NeoXArgsDeepspeedRunner()
         for key in NeoXArgsDeepspeedRunner.__dataclass_fields__:
             configured_value = getattr(self, key)
             default_value = getattr(default_deepspeed_runner_args, key)
             if configured_value != default_value:
-                args_list.append(self.convert_key_value_to_command_line_arg(key, configured_value))
+                args_list.extend(self.convert_key_value_to_command_line_arg(key, configured_value))
         
         # get deepspeed_config
         args_list.append("--deepspeed_config")

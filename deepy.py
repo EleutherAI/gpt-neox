@@ -43,6 +43,7 @@ if wandb_token is not None:
 
 
 neox_args = NeoXArgs.consume_deepy_args()
+neox_args.print()
 deepspeed_main_args = neox_args.get_deepspeed_main_args()
 
 if __name__ == '__main__':
