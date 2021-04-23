@@ -24,7 +24,7 @@ class NeoXArgsDeepspeedConfig:
     fp16: dict = None
     """"""
 
-    gradient_clipping: float = 0
+    gradient_clipping: float = 0.0
     """
     Enable gradient clipping with provided value
     """

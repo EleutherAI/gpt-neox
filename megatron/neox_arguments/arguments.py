@@ -75,6 +75,11 @@ class NeoXArgs(
     NeoXArgs inherits from a number of small configuration classes
     """
 
+    only_default_arguments: bool = False
+    """
+    helper to be able to instantiate class with just default values, setting this to true omits calculations and checks
+    """
+
     ############################################################################################################################
     # start of instantiation
 
@@ -88,15 +93,19 @@ class NeoXArgs(
             raise ValueError(self.__class__.__name__+".__post_init__() NeoXArgs keys cannot be validated")
 
         self.enable_logging()
-        self.configure_distributed_args()
-        self.calculated_derived()
-        
-        if not self.validate_values():
-            raise ValueError(self.__class__.__name__+".__post_init__() NeoXArgs values cannot be validated")
+
+        if not self.only_default_arguments:
+            self.configure_distributed_args()
+            self.calculated_derived()
         
         if not self.validate_types():
             raise ValueError(self.__class__.__name__+".__post_init__() NeoXArgs types cannot be validated")
 
+        if not self.only_default_arguments:
+            if not self.validate_values():
+                raise ValueError(self.__class__.__name__+".__post_init__() NeoXArgs values cannot be validated")
+            
+        
         self.save_yml()
 
     @classmethod
@@ -204,6 +213,7 @@ class NeoXArgs(
         """
         takes a sequence of parent classes and returns corrosponding updates values
         """
+        #TODO no Nones or non-defaults
         result = dict()
         for parent in parent_classes:
             for key in parent.__dataclass_fields__:
