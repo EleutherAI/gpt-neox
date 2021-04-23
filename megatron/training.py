@@ -370,7 +370,7 @@ def train_step_pipe(model, data_iterator):
 
 
 def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
-                 loss_scale, report_memory_flag, skipped_iter, model):
+                 loss_scale, report_memory_flag, skipped_iter, model, optimizer):
     """Log training information such as losses, timing, ...."""
     args = get_args()
     timers = get_timers()
@@ -438,6 +438,28 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
             wandb.log({key: loss_dict[key]}, step=iteration)
         if args.fp16:
             wandb.log({'loss_scale': loss_scale}, step=iteration)
+
+        if get_use_wandb() and torch.distributed.get_rank() == 0:
+
+            # (optional) Log optimizer states to wandb
+
+            if args.log_optimizer_states:
+                for k, v in optimizer.state_dict()['optimizer_state_dict']['state'].items():
+                    for ki, vi in v.items(): # step, module
+                        if ki != 'step':
+                            i = torch.norm(vi) if hasattr(vi, 'dim') else vi
+                            wandb.log({f'optimizer_state_norms/{k}_{ki}': i}, step=iteration)
+
+            # (optional) Log grad/param norms to wandb
+
+            if args.log_grad_norm or args.log_param_norm:
+                for name, param in model.module.named_parameters():
+                    if args.log_grad_norm:  
+                        if param.grad is not None:
+                            grad_norm = torch.norm(param.grad)
+                            wandb.log({f'gradients/{name}': grad_norm}, step=iteration)
+                    if args.log_param_norm:
+                        wandb.log({f'norms/{name}': torch.norm(param)}, step=iteration)
 
     # Tensorboard values.
     if writer and torch.distributed.get_rank() == 0:
@@ -529,7 +551,7 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
         report_memory_flag = training_log(loss_dict, total_loss_dict,
                                           optimizer.param_groups[0]['lr'],
                                           iteration, loss_scale,
-                                          report_memory_flag, skipped_iter, model)
+                                          report_memory_flag, skipped_iter, model, optimizer)
 
         # Autoresume
         if args.adlr_autoresume and \
