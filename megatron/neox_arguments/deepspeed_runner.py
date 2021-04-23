@@ -1,21 +1,12 @@
 from dataclasses import dataclass
 
 @dataclass
-class NeoXArgsDeepspeedRunner:    
+class NeoXArgsDeepspeedRunner:   
+    """
+    args for deepspeed runner (deepspeed.launcher.runner). 
+    Every argument included here will be passed as command line argument to deepspeed.launcher.runner
+    """ 
     
-    deepscale: bool = False
-    """
-    Deprecated enable DeepSpeed (helper flag for user code, no impact on DeepSpeed backend)'
-    """
-
-    deepscale_config: str = None
-    """Deprecated deepscale json configuration file."""
-
-    deepspeed_mpi: bool = False
-    """
-    Run via MPI, this will attempt to discover the necessary variables to initialize torch distributed from the MPI environment
-    """
-
     hostfile: str = None
     """
     list of hostnames / ssh aliases and the number of GPUs per host

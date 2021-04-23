@@ -38,8 +38,7 @@ import inspect
 from deepspeed.utils import distributed
 
 
-def initialize_megatron(extra_args_provider=None, args_defaults={},
-                        ignore_unknown_args=False, allow_no_cuda=False, args=None):
+def initialize_megatron(allow_no_cuda=False):
     """Set global variables, initialize distributed, and
     set autoresume and random seeds.
     `allow_no_cuda` should not be set unless using megatron for cpu only 
@@ -55,11 +54,7 @@ def initialize_megatron(extra_args_provider=None, args_defaults={},
 
     # Parse args, build tokenizer, and set adlr-autoresume,
     # tensorboard-writer, and timers.
-    set_global_variables(extra_args_provider=extra_args_provider,
-                         args_defaults=args_defaults,
-                         ignore_unknown_args=ignore_unknown_args,
-                         args=args
-                         )
+    set_global_variables()
 
     args = get_args()
 

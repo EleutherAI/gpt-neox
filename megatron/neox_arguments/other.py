@@ -87,3 +87,21 @@ class NeoXArgsOther:
     """
     Use workarounds for known problems with Torch ONNX exporter
     """
+
+    deepscale: bool = False
+    """
+    Deprecated enable DeepSpeed (helper flag for user code, no impact on DeepSpeed backend)'
+    """
+
+    deepscale_config: str = None
+    """Deprecated deepscale json configuration file."""
+
+    deepspeed_mpi: bool = False
+    """
+    Run via MPI, this will attempt to discover the necessary variables to initialize torch distributed from the MPI environment
+    """
+    
+    user_script: str = None
+    """
+    user script to be run
+    """

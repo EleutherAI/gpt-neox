@@ -111,7 +111,7 @@ class NeoXArgs(
         self.save_yml()
 
     @classmethod
-    def from_ymls(cls, paths_to_yml_files: List[str]):
+    def from_ymls(cls, paths_to_yml_files: List[str], overwrite_values=None):
         """
         instantiates NeoXArgs while reading values from yml files
         """
@@ -137,10 +137,30 @@ class NeoXArgs(
                 config[conf_key_converted] = conf_value
 
         #TODO check for unspecified params?
+        # old code:
+        # # Configuration parameters not specified
+        # params_missing = [key for key in ds_runner_keys + megatron_keys + ds_config_keys + neox_config_keys
+        #                   if key not in conf]
+        # if len(params_missing) > 0:
+        #     log.debug(f'Configuration parameters not specified: {", ".join(params_missing)}')
+
+        if overwrite_values is not None:
+            for k, v in overwrite_values.items():
+                config[k] = v
 
         # instantiate class and return
         # duplicate values and unrecognized keys are again checked upon instantiation
         return cls(**config)
+
+    @classmethod
+    def from_dict(cls, args_dict: dict):
+        """
+        instantiates NeoXArgs while reading values from input dict
+        """
+
+        print(cls.__name__+".from_dict() ", flush=True)
+
+        return cls(**args_dict)
 
     def update_value(self, key: str, value):
         """
@@ -155,32 +175,114 @@ class NeoXArgs(
             logging.error(error_message)
             raise ValueError(error_message)
 
-    
     ############################################################################################################################
     # start of command line args interfase
 
-    def construct_arg_parser():
+    @classmethod
+    def consume_deepy_args(cls):
+        """
+        entry point for deepy.py configuring and consuming command line arguments
+        """
+
         parser = argparse.ArgumentParser(description='GPT-NeoX Configuration',
                                          allow_abbrev=False)
 
-        parser.add_argument("user_script",
+        group = parser.add_argument_group(title='Training Configuration')
+
+        group.add_argument("user_script",
                             type=str,
                             help="User script to launch, followed by any required "
                                  "arguments.")
 
-        parser.add_argument("--conf_dir", '-d',
+        group.add_argument("--conf_dir", '-d',
                             type=str,
                             default=None,
                             help="Directory to prefix to all configuration file paths")
 
-        parser.add_argument("conf_file",
+        group.add_argument("conf_file",
                             type=str,
                             nargs='+',
                             help="Configuration file path. Multiple files can be provided and will be merged.")
     
-    def consume_args(self, paths_to_yml_files: List[str]):
-        parser = self.construct_arg_parser()
+        group = parser.add_argument_group(title='Weights and Biases monitoring args')
+
+        group.add_argument('--wandb_group', type=str, default=None,
+                            help='Weights and Biases group name - used to group together "runs".')
+        group.add_argument('--wandb_team', type=str, default=None,
+                            help='Team name for Weights and Biases.')
+
         args = parser.parse_args()
+
+        
+        # Validate user_script exists
+        assert os.path.exists(args.user_script), f"User script could not be found: {args.user_script}"
+
+        # load config files
+        conf_files = args.conf_file
+        if args.conf_dir:
+            conf_files = [os.path.join(args.conf_dir, f) for f in conf_files]
+
+        # enables us to pass in `small` instead of `small.yml`
+        conf_files = [(cf if cf.endswith('.yml') else cf + ".yml") for cf in conf_files]
+
+        # load args
+        neox_args = cls.from_ymls(paths_to_yml_files=conf_files, overwrite_values={
+            "wandb_group": args.wandb_group,
+            "wandb_team": args.wandb_team,
+            "user_script": args.user_script
+        })
+
+        return neox_args
+
+    @classmethod
+    def consume_megatron_args(cls):
+
+        parser = argparse.ArgumentParser(description='GPT-NeoX Configuration',
+                                         allow_abbrev=False)
+
+        parser.add_argument('--megatron_config', type=str, default=None,
+                            help='json dict dumped as string in NeoXArgs.get_deepspeed_main_args()')
+        
+        args = parser.parse_args()
+
+
+        megatron_config = json.loads(args.megatron_config)
+
+        return cls.from_dict(args_dict=megatron_config)
+
+    @staticmethod
+    def convert_key_value_to_command_line_arg(k, v):
+        if isinstance(v, bool):
+            if v:
+                return [f'--{k}']
+            else:
+                return []
+        if v is None:
+            return []
+        return [f'--{k}', str(v)]
+
+    def get_deepspeed_main_args(self):
+
+        args_list = list()
+
+        # get deepspeed runner args
+        default_deepspeed_runner_args = NeoXArgsDeepspeedRunner()
+        for key in NeoXArgsDeepspeedRunner.__dataclass_fields__:
+            configured_value = getattr(self, key)
+            default_value = getattr(default_deepspeed_runner_args, key)
+            if configured_value != default_value:
+                args_list.append(self.convert_key_value_to_command_line_arg(key, configured_value))
+        
+        # get deepspeed_config
+        args_list.append("--deepspeed_config")
+        args_list.append(json.dumps(self.deepspeed_config))
+
+        # get all config values
+        args_list.append("--megatron_config")
+        megatron_args = self.get_parent_class_value_dict(*self.__class__.__bases__, only_non_defaults=True)
+        args_list.append(json.dumps(megatron_args))
+        
+        return args_list
 
     ############################################################################################################################
     # start of calculated properties
@@ -214,14 +316,19 @@ class NeoXArgs(
             NeoXArgsTextgen
             )
 
-    def get_parent_class_value_dict(self, *parent_classes) -> dict:
+    def get_parent_class_value_dict(self, *parent_classes, only_non_defaults=False) -> dict:
         """
         takes a sequence of parent classes and returns corrosponding updates values
         """
         #TODO no Nones or non-defaults
         result = dict()
         for parent in parent_classes:
+            default_values = parent()
             for key in parent.__dataclass_fields__:
+                if only_non_defaults:
+                    value = getattr(self, key)
+                    default_value = getattr(default_values, key)
+                    if value == default_value: continue
                 result[key] = getattr(self, key)
         return result
 

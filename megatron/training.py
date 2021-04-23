@@ -73,15 +73,11 @@ def pretrain(train_valid_test_dataset_provider, model_provider,
             the info we would like to monitor during training, for example
             `lm-loss: value`. We also require that this function add
             `batch generator` to the timers class.
-        extra_args_provider: a function that takes a parser and adds arguments
-            to it. It is used for programs to add their own arguments.
-        args_defaults: a dictionary from argument-name to argument-value. It
-            to set already parse arguments.
+        
     """
 
     # Initalize and get arguments, timers, and Tensorboard writer.
-    initialize_megatron(extra_args_provider=extra_args_provider,
-                        args_defaults=args_defaults)
+    initialize_megatron()
 
     args = get_args()
     timers = get_timers()
