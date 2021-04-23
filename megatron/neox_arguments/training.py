@@ -108,11 +108,6 @@ class NeoXArgsTraining:
     Dataloader number of workers.
     """
 
-    dump_state: bool = False
-    """
-    Print out state information of DeepSpeed object after initialization.
-    """
-
     exit_interval: int = None
     """
     Exit the program after the iteration is divisible by this value.

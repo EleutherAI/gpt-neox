@@ -58,31 +58,6 @@ class NeoXArgsOther:
     Random seed used for python, numpy, pytorch, and cuda.
     """
 
-    prescale_gradients: bool = False
-    """
-    Scale gradients before doing allreduce.
-    """
-
-    gradient_predivide_factor: float = 1.0
-    """
-    Before gradient averaging predivide gradients by a specified factor, can sometimes help with fp16 stability when scaling to large numbers of GPUs
-    """
-
-    sparse_gradients: bool = False
-    """
-    Enable sparse compression of torch.nn.Embedding gradients.
-    """
-
-    amp: dict = None
-    """
-    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#automatic-mixed-precision-amp-training-options
-    """
-
-    flops_profiler: dict = None
-    """
-    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#flops-profiler
-    """
-
     onnx_safe: bool = False
     """
     Use workarounds for known problems with Torch ONNX exporter

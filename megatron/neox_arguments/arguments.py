@@ -43,7 +43,7 @@ ZERO_DEFAULTS = {
     "cpu_offload": False
 }
 
-OPT_DEFAULT = "adam"
+OPT_DEFAULT = "Adam"
 OPT_PARAMS_DEFAULTS = {
     "lr": 0.001,
     "betas": [
@@ -533,7 +533,9 @@ class NeoXArgs(
         self.update_value("precision", "fp16" if (self.fp16 or {}).get("enabled", False) else "fp32")
         self.update_value("gas", self.gradient_accumulation_steps)
         self.update_value("clip_grad", self.gradient_clipping)
-        
+        self.update_value("deepspeed_activation_checkpointing", self.activation_checkpointing is not None)
+
+
         # zero optimization
         if self.zero_optimization is None:
             self.zero_optimization = copy.deepcopy(ZERO_DEFAULTS) # a dict is overwritten and not updated key by key
@@ -689,8 +691,6 @@ class NeoXArgs(
             return False
 
 
-        #TODO validate deepspeed dict values (all keys defined, right type, ...)
-
         return True
 
     def validate_types(self):
@@ -700,7 +700,40 @@ class NeoXArgs(
             if actual_value is None: continue # we allow for some values not to be configured
             actual_type = type(actual_value)
             if actual_type != field_def.type:
-                error_message = self.__class__.__name__+".validate_types() "+f"\t{field_name}: '{actual_type}' instead of '{field_def.type}'"
+                error_message = self.__class__.__name__+".validate_types() "+f"{field_name}: '{actual_type}' instead of '{field_def.type}'"
                 logging.error(error_message)
                 ret = False
+        
+        # validate deepspeed dicts
+        for field_name in ["optimizer", "scheduler"]:
+            value = getattr(self, field_name)
+            if isinstance(value, dict): # dict is checked above, only fields are checked here
+                if "type" in value:
+                    if not isinstance(value["type"], str):
+                        error_message = self.__class__.__name__+".validate_types() "+f"{field_name}: key 'type' must be a string"
+                        logging.error(error_message)
+                        ret = False    
+                else:
+                    error_message = self.__class__.__name__+".validate_types() "+f"{field_name}: must contain key 'type'"
+                    logging.error(error_message)
+                    ret = False
+                
+                if "params" in value:
+                    if not isinstance(value["params"], dict):
+                        error_message = self.__class__.__name__+".validate_types() "+f"{field_name}: key 'params' must be a dict"
+                        logging.error(error_message)
+                        ret = False    
+                else:
+                    error_message = self.__class__.__name__+".validate_types() "+f"{field_name}: must contain key 'params'"
+                    logging.error(error_message)
+                    ret = False
+        
+        for field_name in ["fp16", "amp", "flops_profiler"]:
+            value = getattr(self, field_name)
+            if isinstance(value, dict):
+                if not "enabled" in value:
+                    error_message = self.__class__.__name__+".validate_types() "+f"{field_name}: must contain key 'enabled'"
+                    logging.error(error_message)
+                    ret = False
+
         return ret
