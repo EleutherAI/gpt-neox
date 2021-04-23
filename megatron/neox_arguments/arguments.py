@@ -215,7 +215,7 @@ class NeoXArgs(
 
         
         # Validate user_script exists
-        assert os.path.exists(args.user_script), f"User script could not be found: {args.user_script}"
+        assert os.path.exists(args_parsed.user_script), f"User script could not be found: {args_parsed.user_script}"
 
         # load config files
         conf_files = args_parsed.conf_file
@@ -227,9 +227,9 @@ class NeoXArgs(
 
         # load args
         neox_args = cls.from_ymls(paths_to_yml_files=conf_files, overwrite_values={
-            "wandb_group": args.wandb_group,
-            "wandb_team": args.wandb_team,
-            "user_script": args.user_script
+            "wandb_group": args_parsed.wandb_group,
+            "wandb_team": args_parsed.wandb_team,
+            "user_script": args_parsed.user_script
         })
 
         return neox_args
