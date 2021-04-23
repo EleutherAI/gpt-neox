@@ -90,7 +90,13 @@ class NeoXArgs(
         self.enable_logging()
         self.configure_distributed_args()
         self.calculated_derived()
-        self.validate_values()
+        
+        if not self.validate_values():
+            raise ValueError(self.__class__.__name__+".__post_init__() NeoXArgs values cannot be validated")
+        
+        if not self.validate_types():
+            raise ValueError(self.__class__.__name__+".__post_init__() NeoXArgs types cannot be validated")
+
         self.save_yml()
 
     @classmethod
@@ -160,7 +166,6 @@ class NeoXArgs(
                             type=str,
                             nargs='+',
                             help="Configuration file path. Multiple files can be provided and will be merged.")
-
     
     def consume_args(self, paths_to_yml_files: List[str]):
         parser = self.construct_arg_parser()
@@ -311,6 +316,10 @@ class NeoXArgs(
 
     @staticmethod
     def check_batch_parameters(world_size, train_batch, micro_batch, grad_acc):
+        assert(isinstance(train_batch, int))
+        assert(isinstance(micro_batch, int))
+        assert(isinstance(grad_acc, int))
+        
         assert train_batch > 0, \
             f'Train batch size: {train_batch} has to be greater than 0'
 
@@ -379,7 +388,7 @@ class NeoXArgs(
 
         # Automatically derive train_batch_size = train_micro_batch_size_per_gpu*num_gpus*gradient_accumulation_steps
         train_batch_size, train_micro_batch_size_per_gpu, gradient_accumulation_steps = self.calculate_batch_parameters(
-            world_size=world_size, 
+            world_size=self.world_size, 
             train_batch=self.train_batch_size, 
             micro_batch=self.train_micro_batch_size_per_gpu, 
             grad_acc=self.gradient_accumulation_steps
@@ -550,3 +559,15 @@ class NeoXArgs(
             return False
 
         return True
+
+    def validate_types(self):
+        ret = True
+        for field_name, field_def in self.__dataclass_fields__.items():
+            actual_value = getattr(self, field_name)
+            if actual_value is None: continue # we allow for some values not to be configured
+            actual_type = type(actual_value)
+            if actual_type != field_def.type:
+                error_message = self.__class__.__name__+".validate_types() "+f"\t{field_name}: '{actual_type}' instead of '{field_def.type}'"
+                logging.error(error_message)
+                ret = False
+        return ret

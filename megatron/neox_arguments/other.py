@@ -18,7 +18,7 @@ class NeoXArgsOther:
     
     """
 
-    lazy_mpu_init: int = True
+    lazy_mpu_init: bool = True
     """
     If set to True, initialize_megatron() skips DDP initialization and returns function to complete it instead. Also turns on use-cpu-initialization flag. This is for external DDP manager.
     """
@@ -53,7 +53,7 @@ class NeoXArgsOther:
     Intervals over which check for auto-resume termination signal
     """
 
-    seed: bool = 1234
+    seed: int = 1234
     """
     Random seed used for python, numpy, pytorch, and cuda.
     """
