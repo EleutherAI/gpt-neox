@@ -211,16 +211,16 @@ class NeoXArgs(
         group.add_argument('--wandb_team', type=str, default=None,
                             help='Team name for Weights and Biases.')
 
-        args = parser.parse_args()
+        args_parsed = parser.parse_args()
 
         
         # Validate user_script exists
         assert os.path.exists(args.user_script), f"User script could not be found: {args.user_script}"
 
         # load config files
-        conf_files = args.conf_file
-        if args.conf_dir:
-            conf_files = [os.path.join(args.conf_dir, f) for f in conf_files]
+        conf_files = args_parsed.conf_file
+        if args_parsed.conf_dir:
+            conf_files = [os.path.join(args_parsed.conf_dir, f) for f in conf_files]
 
         # enables us to pass in `small` instead of `small.yml`
         conf_files = [(cf if cf.endswith('.yml') else cf + ".yml") for cf in conf_files]
@@ -243,9 +243,9 @@ class NeoXArgs(
         parser.add_argument('--megatron_config', type=str, default=None,
                             help='json dict dumped as string in NeoXArgs.get_deepspeed_main_args()')
         
-        args, _ = parser.parse_known_args()
+        args_parsed, _ = parser.parse_known_args()
 
-        megatron_config = json.loads(args.megatron_config)
+        megatron_config = json.loads(args_parsed.megatron_config)
 
         return cls.from_dict(args_dict=megatron_config)
 
@@ -687,6 +687,9 @@ class NeoXArgs(
             logging.error(error_message)
             raise ValueError(error_message)
             return False
+
+
+        #TODO validate deepspeed dict values (all keys defined, right type, ...)
 
         return True
 

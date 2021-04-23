@@ -26,7 +26,6 @@ import torch
 import wandb
 
 from megatron.tokenizer import build_tokenizer
-from .arguments import parse_args
 
 _GLOBAL_ARGS = None
 _GLOBAL_TOKENIZER = None

@@ -5,8 +5,6 @@ import unittest
 sys.path.append('./megatron/')
 from neox_arguments import NeoXArgs
 
-print('here')
-
 class DuplicateArgumentTest(unittest.TestCase):
     
     def test_duplicates(self):
