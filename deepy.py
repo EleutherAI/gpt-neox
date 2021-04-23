@@ -21,6 +21,8 @@ import subprocess
 import json
 
 from megatron.config_monster import ConfigMonster
+#from megatron.neox_arguments import NeoXArgs
+
 import logging
 
 from megatron.logging import Tee
@@ -39,7 +41,8 @@ def get_wandb_api_key():
         return wandb_token[1]
 
 
-#TODO remove here, function included in neox_arguments
+# TODO remove here, function included in neox_arguments
+# not sure we do yet
 def get_git_commit_hash():
     """ Gets the git commit hash of your current repo (if it exists) """
     try:
@@ -63,6 +66,7 @@ if wandb_token is not None:
 
 old_style_args, conf = ConfigMonster().consume_args(extra_conf=extra_conf)
 
+
 if 'log-dir' in conf:
     os.makedirs(conf['log-dir'], exist_ok=True)
     file_prefix = os.path.join(conf['log-dir'], '0-deepy')
@@ -74,6 +78,8 @@ if 'save' in conf:
     config_file = os.path.join(conf['save'], 'config.yml')
     with open(config_file, 'w') as f:
         json.dump(conf, f, indent=4)
+
+
 
 if __name__ == '__main__':
     main(old_style_args)

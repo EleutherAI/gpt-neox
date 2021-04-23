@@ -2,9 +2,7 @@ from dataclasses import dataclass
 
 @dataclass
 class NeoXArgsDeepspeedRunner:    
-    #TODO what is this?
-    #TODO 'launcher_args' # handle separately: 'user_script', 'user_args'
-
+    
     deepscale: bool = False
     """
     Deprecated enable DeepSpeed (helper flag for user code, no impact on DeepSpeed backend)'

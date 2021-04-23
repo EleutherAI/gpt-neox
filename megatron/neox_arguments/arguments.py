@@ -4,6 +4,7 @@ import json
 import logging
 import shortuuid
 
+import dataclasses
 from dataclasses import dataclass
 from typing import List
 from pathlib import Path
@@ -25,7 +26,10 @@ from .parallelism import NeoXArgsParallelism
 from .logging import NeoXArgsLogging
 from .other import NeoXArgsOther
 
+import argparse
 
+# ZERO defaults by deespeed
+# These values must not be changed without change defaults in deepspeed
 ZERO_DEFAULTS = {
     "stage": 0,
     "allgather_partitions": True,
@@ -37,8 +41,6 @@ ZERO_DEFAULTS = {
     "contiguous_gradients": False,
     "cpu_offload": False
 }
-
-GRADIENT_CLIPPING_DEFAULT = 1.0 #TODO this is different from the default value for deepspeed
 
 OPT_DEFAULT = "adam"
 OPT_PARAMS_DEFAULTS = {
@@ -89,8 +91,50 @@ class NeoXArgs(
         self.save_yml()
 
     @property
-    def deepspeed_config(self) -> str:
-        return "test"
+    def deepspeed_config(self):
+        """
+        returns variables within deepspeed config
+        """
+        return self.get_class_variables(NeoXArgsDeepspeedConfig)
+
+    @property
+    def deepspeed_runner(self):
+        """
+        returns variables within deepspeed runner
+        """
+        return self.get_class_variables(NeoXArgsDeepspeedRunner)
+
+    @property
+    def megatron_config(self):
+        """
+        returns variables within megatron args
+        """
+        return self.get_class_variables(NeoXArgsModel, 
+                                        NeoXArgsTokenizer,
+                                        NeoXArgsTraining, 
+                                        NeoXArgsParallelism,
+                                        NeoXArgsLogging,
+                                        NeoXArgsOther)
+
+    def get_class_variables(self, *parent_classes):
+        """
+        takes a sequence of parent classes and returns corrosponding updates values
+        """
+        result = dict()
+        for parent in parent_classes:
+            for key in parent.__dataclass_fields__:
+                result[key] = getattr(self, key)
+        return result
+
+    @property
+    def params_dtype(self):
+        """
+        returns the datatype on the basis of configured precision
+        """
+        if self.half_precision:
+            return torch.half
+        else:
+            return torch.float
 
     def get_deepspeed_args(self):
         pass
@@ -102,7 +146,6 @@ class NeoXArgs(
         Problem: a previously non-existing property can be added to the class instance without error. 
         """
         if hasattr(self, key):
-            # TODO make sure that only Nones are overwritten or warn
             setattr(self, key, value)
         else:
             error_message = self.__class__.__name__+".update_value() to be updated property "+str(key)+" does not exist"
@@ -132,7 +175,7 @@ class NeoXArgs(
                 if conf_key in config:
                     raise ValueError(f'Conf file {conf_file_name} has the following duplicate keys with previously loaded file: {conf_key}')
 
-                conf_key_converted = conf_key.replace("-", "_") #TODO remove replace and update configuration files?
+                conf_key_converted = conf_key.replace("-", "_")  #TODO remove replace and update configuration files?
                 config[conf_key_converted] = conf_value
 
         #TODO check for unspecified params?
@@ -161,6 +204,18 @@ class NeoXArgs(
             config_file = os.path.join(self.save, 'config.yml')
             with open(config_file, 'w') as f:
                 json.dump(vars(self), f, indent=4)
+
+    def print(self):
+        """Print arguments."""
+        if self.rank == 0:
+            print('-------------------- arguments --------------------', flush=True)
+            str_list = []
+            for arg in vars(self):
+                dots = '.' * (32 - len(arg))
+                str_list.append('  {} {} {}'.format(arg, dots, getattr(self, arg)))
+            for arg in sorted(str_list, key=lambda x: x.lower()):
+                print(arg, flush=True)
+            print('---------------- end of arguments ----------------', flush=True)
 
     def configure_distributed_args(self):
         if self.deepspeed_mpi:
@@ -271,7 +326,7 @@ class NeoXArgs(
         mp_size = mp_size if mp_size >= 1 else 1
                       
         # pp_size and mp_size are only used here to compute world_size and nowhere else. The way that these values actually get to deepspeed
-        # is through convert_to_old_args. The entire chain of how that happens:
+        # is through convert_to_old_args, The entire chain of how that happens:
         # https://github.com/EleutherAI/gpt-neox/blob/2ceefba0ef12b94eb35a518f7dea9f34fc43c9af/megatron/arguments.py#L430
         # https://github.com/EleutherAI/gpt-neox/blob/2ceefba0ef12b94eb35a518f7dea9f34fc43c9af/megatron/arguments.py#L45
         # https://github.com/EleutherAI/gpt-neox/blob/2ceefba0ef12b94eb35a518f7dea9f34fc43c9af/megatron/config_monster.py#L17
@@ -307,12 +362,10 @@ class NeoXArgs(
         # duplicated items
         self.update_value("half_precision", (self.fp16 or {}).get("enabled", False))
         self.update_value("gas", self.gradient_accumulation_steps)
-        self.update_value("clip_grad", self.gradient_clipping or GRADIENT_CLIPPING_DEFAULT)
-
+        
         # zero optimization
         if self.zero_optimization is None:
-            self.zero_optimization = ZERO_DEFAULTS # a dict is overwritten and not updated key by key
-        #TODO this could lead to an inconsistency as only part of zero optimization could be defined in input config
+            self.zero_optimization = copy.deepcopy(ZERO_DEFAULTS) # a dict is overwritten and not updated key by key
         self.update_value("zero_stage", self.zero_optimization.get('stage', ZERO_DEFAULTS['stage']))
         self.update_value("zero_reduce_scatter", self.zero_optimization.get('reduce_scatter', ZERO_DEFAULTS['reduce_scatter']))
         self.update_value("zero_contiguous_gradients", self.zero_optimization.get('contiguous_gradients', ZERO_DEFAULTS['contiguous_gradients']))
@@ -321,8 +374,6 @@ class NeoXArgs(
 
         # optimizer and scheduler
         opt_params = self.optimizer or {"type": OPT_DEFAULT, "params": OPT_PARAMS_DEFAULTS}
-        #TODO why is self.optimizer not updated if not defined?
-        #TODO this could lead to an inconsistency as only part of optimizater could be defined in input config
         self.update_value("lr", opt_params['params'].get('lr', OPT_PARAMS_DEFAULTS['lr']))
         self.update_value("adam_beta1", opt_params['params'].get('betas', OPT_PARAMS_DEFAULTS['betas'])[0])
         self.update_value("adam_beta2", opt_params['params'].get('betas', OPT_PARAMS_DEFAULTS['betas'])[1])
@@ -346,6 +397,7 @@ class NeoXArgs(
                     "total_num_steps": self.lr_decay_iters or self.train_iters
             }}
 
+        #TODO where is args.loss_scale coming from
         # Fp16 loss scaling.
         #if self.loss_scale is None:
         #    self.update_value("dynamic_loss_scale", True)
@@ -353,6 +405,29 @@ class NeoXArgs(
         #    self.update_value("dynamic_loss_scale", False)
 
         print("")
+
+    def construct_arg_parser():
+        parser = argparse.ArgumentParser(description='GPT-NeoX Configuration',
+                                         allow_abbrev=False)
+
+        parser.add_argument("user_script",
+                            type=str,
+                            help="User script to launch, followed by any required "
+                                 "arguments.")
+
+        parser.add_argument("--conf_dir", '-d',
+                            type=str,
+                            default=None,
+                            help="Directory to prefix to all configuration file paths")
+
+        parser.add_argument("conf_file",
+                            type=str,
+                            nargs='+',
+                            help="Configuration file path. Multiple files can be provided and will be merged.")
+
+    def consume_args(self, paths_to_yml_files: List[str]):
+        parser = self.construct_arg_parser()
+        args = parser.parse_args()
 
     @classmethod
     def validate_keys(cls):
@@ -378,17 +453,83 @@ class NeoXArgs(
         if not self.deepspeed:
             return False
 
+        # learning rate
         if self.lr is None:
             error_message = self.__class__.__name__+".validate_values() lr is None"
             logging.error(error_message)
             raise ValueError(error_message)
             return False
 
+        # optimizer
         if (self.optimizer or {}).get("type", "").lower() not in OPTIMIZER_OPTIONS:
             error_message = self.__class__.__name__+".validate_values() "+f'Optimizer type {opt_params["type"]} not recognized, please choose from: \n {OPTIMIZER_OPTIONS}'
             logging.error(error_message)
             raise ValueError(error_message)
             return False
 
+        # required arguments
+        required_args = ['num_layers', 'hidden_size', 'num_attention_heads', 'max_position_embeddings']
+        for req_arg in required_args:
+            if getattr(self, req_arg) is None:
+                error_message = self.__class__.__name__+".validate_values() "+req_arg+" is None." 
+                logging.error(error_message)
+                raise ValueError(error_message)
+                return False
+
+
+        # Checks.
+        if self.hidden_size % self.num_attention_heads != 0:
+            error_message = self.__class__.__name__+".validate_values() hidden_size must be divisable by num_attention_heads" 
+            logging.error(error_message)
+            raise ValueError(error_message)
+            return False
+
+        if self.seq_length is not None:
+            if not(self.max_position_embeddings >= self.seq_length):
+                error_message = self.__class__.__name__+".validate_values() max_position_embeddings must be bigger or equal seq_length" 
+                logging.error(error_message)
+                raise ValueError(error_message)
+                return False
+            
+        if not(self.min_lr <= self.lr):
+            error_message = self.__class__.__name__+".validate_values() min_lr must be smaller or equal lr" 
+            logging.error(error_message)
+            raise ValueError(error_message)
+            return False
+
+        if self.save is not None and self.save_interval is None:
+            error_message = self.__class__.__name__+".validate_values() save_interval must be defined if save is defined" 
+            logging.error(error_message)
+            raise ValueError(error_message)
+            return False
+
+        # Parameters sharing does not work with torch DDP.
+        if (self.num_unique_layers is not None) and (self.num_layers is not None):
+            
+            if not (self.num_unique_layers <= self.num_layers):
+                error_message = self.__class__.__name__+".validate_values() num-unique-layers must be smaller or equal num_layers" 
+                logging.error(error_message)
+                raise ValueError(error_message)
+                return False
+
+            if not (self.num_layers % self.num_unique_layers == 0):
+                error_message = self.__class__.__name__+".validate_values() num-layers should be divisible by num-unique-layers" 
+                logging.error(error_message)
+                raise ValueError(error_message)
+                return False
+
+        # Mixed precision checks.
+        if self.fp16_lm_cross_entropy and not self.half_precision:
+            error_message = self.__class__.__name__+".validate_values() lm cross entropy in fp16 only support in fp16 / half precision mode." 
+            logging.error(error_message)
+            raise ValueError(error_message)
+            return False
+
+        # Activation checkpointing.
+        if self.distribute_checkpointed_activations and not self.checkpoint_activations:
+            error_message = self.__class__.__name__+".validate_values() 'for distribute-checkpointed-activations to work you need to enable checkpoint-activations'" 
+            logging.error(error_message)
+            raise ValueError(error_message)
+            return False
 
         return True
