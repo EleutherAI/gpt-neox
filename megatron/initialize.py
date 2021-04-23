@@ -24,6 +24,7 @@ import os
 import numpy as np
 import torch
 
+from megatron import fused_kernels
 from megatron import get_adlr_autoresume
 from megatron import get_args
 from megatron import get_tensorboard_writer
@@ -60,6 +61,8 @@ def initialize_megatron(extra_args_provider=None, args_defaults={},
                          args=args
                          )
 
+    args = get_args()
+
     # torch.distributed initialization
     def finish_mpu_init():
         args = get_args()
@@ -71,7 +74,14 @@ def initialize_megatron(extra_args_provider=None, args_defaults={},
             print('> setting random seeds to {} ...'.format(args.seed))
         _set_random_seed(args.seed)
 
-    args = get_args()
+    # load scaled_upper_triang_masked_softmax_fusion kernel
+    if args.scaled_upper_triang_masked_softmax_fusion:
+        fused_kernels.load_scaled_upper_triang_masked_softmax_fusion_kernel()
+
+    # load scaled_masked_softmax_fusion kernel
+    if args.scaled_masked_softmax_fusion:
+        fused_kernels.load_scaled_masked_softmax_fusion_kernel()
+
     if args.lazy_mpu_init:
         args.use_cpu_initialization = True
         # delayed initialization of DDP-related stuff

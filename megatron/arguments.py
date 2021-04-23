@@ -148,13 +148,6 @@ def parse_args(extra_args_provider=None, defaults={},
             'for distribute-checkpointed-activations to work you ' \
             'need to enable checkpoint-activations'
 
-    # load scaled_upper_triang_masked_softmax_fusion kernel
-    if args.scaled_upper_triang_masked_softmax_fusion:
-        fused_kernels.load_scaled_upper_triang_masked_softmax_fusion_kernel()
-
-    # load scaled_masked_softmax_fusion kernel
-    if args.scaled_masked_softmax_fusion:
-        fused_kernels.load_scaled_masked_softmax_fusion_kernel()
 
     _print_args(args)
     return args
