@@ -48,6 +48,7 @@ def _get_parser(extra_args_provider=None):
     parser = _add_autoresume_args(parser)
     parser = _add_zero_args(parser)
     parser = _add_activation_checkpoint_args(parser)
+    parser = _add_text_generate_args(parser)
 
     # Custom arguments.
     if extra_args_provider is not None:
@@ -72,14 +73,14 @@ def configure_distributed_args(args):
 
 
 def parse_args(extra_args_provider=None, defaults={},
-               ignore_unknown_args=False):
+               ignore_unknown_args=False, args=None):
     """Parse all arguments."""
     parser = _get_parser(extra_args_provider)
     # Parse.
     if ignore_unknown_args:
-        args, _ = parser.parse_known_args()
+        args, _ = parser.parse_known_args(args=args)
     else:
-        args = parser.parse_args()
+        args = parser.parse_args(args=args)
 
     # Tee logs to file ASAP
     if args.log_dir:
@@ -288,6 +289,9 @@ def _add_training_args(parser):
     pos_emb_choices = ['learned', 'sinusoidal', 'rpe', 'rotary', 'none']
     group.add_argument('--pos-emb', type=str, choices=pos_emb_choices, default='learned',
                        help=f'Type of positional embedding to use - choose from {pos_emb_choices}')
+    group.add_argument('--rotary-pct', type=float, help='pct of hidden dims to apply rotary positional embedding to', default=1)
+    group.add_argument('--rotary-emb-base', type=int, default=10000,
+                       help=f'Base for rotary positional embedding')
     group.add_argument('--rpe-num-buckets', type=int, default=32,
                        help='T5 relative positional encoding number of buckets, default 32.')
     group.add_argument('--rpe-max-distance', type=int, default=128,
@@ -315,6 +319,7 @@ def _add_training_args(parser):
                        help='Use Torch Adam as optimizer on CPU.')
     group.add_argument('--onebitadam', action='store_true',
                        help='Enable one bit adam optimizer [MUST BE USING DEEPSPEED]')
+    group.add_argument('--no-adamw', action='store_true', help='Use default Adam instead of AdamW')
     group.add_argument('--sm3', action='store_true',
                        help='Enable sm3 optimizer')
     return parser
@@ -545,4 +550,37 @@ def _add_activation_checkpoint_args(parser):
                        help='does a synchronize at the beginning and end of each checkpointed layer.')
     group.add_argument('--profile-backward', action='store_true',
                        help='Enables backward pass profiling for checkpointed layers.')
+    return parser
+
+def _add_text_generate_args(parser):
+    """Text generation arguments. Only used for model sampling"""
+    group = parser.add_argument_group(title='text generation/model sampling')
+
+    group.add_argument("--text-gen-type", type=str, default=None,
+                       help='How to generate text/sample the model.'
+                            'Options: `unconditional`, `input-file`, `interactive`')
+    group.add_argument("--temperature", type=float, default=1.0,
+                       help='Sampling temperature.')
+    group.add_argument("--greedy", action='store_true', default=False,
+                       help='Use greedy sampling.')
+    group.add_argument("--top_p", type=float, default=0.0,
+                       help='Top p sampling.')
+    group.add_argument("--top_k", type=int, default=0,
+                       help='Top k sampling.')
+    group.add_argument("--out-seq-length", type=int, default=1024,
+                       help='Size of the output generated text.')
+    group.add_argument("--sample-input-file", type=str, default=None,
+                       help='Get input from file instead of interactive mode, '
+                       'each line is an input.')
+    group.add_argument("--sample-output-file", type=str, default=None,
+                       help='Output file got from --sample-input-file')
+    group.add_argument("--num-samples", type=int, default=0,
+                       help='Number of samples to generate unconditionally, '
+                       'defaults to 0 and interactive conditional sampling')
+    group.add_argument("--genfile", type=str,
+                       help='Output file when generating unconditionally')
+    group.add_argument("--recompute", action='store_true',
+                       help='During generation recompute all attention '
+                       'instead of using previously computed keys/values.')
+
     return parser

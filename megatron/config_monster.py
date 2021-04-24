@@ -22,6 +22,7 @@ from deepspeed.launcher.runner import DLTS_HOSTFILE
 from megatron.utils import obtain_resource_pool
 from megatron.arguments import _get_parser
 import torch
+import shortuuid
 
 log = logging.getLogger('ConfigMonster')
 
@@ -217,7 +218,7 @@ def _set_batch_parameters(world_size, train_batch=None, micro_batch=None, grad_a
     # either none of the three parameters are provided or just gradient_accumulation_step is provided
     else:
         assert False, 'Either train_batch_size or micro_batch_per_gpu needs to be provided'
-    return train_batch, micro_batch, grad_acc
+    return int(train_batch), int(micro_batch), int(grad_acc)
 
 
 def _configure_train_batch_size(world_size, train_batch=None, micro_batch=None, grad_acc=None):
@@ -238,7 +239,7 @@ class ConfigMonster:
 
     @staticmethod
     def construct_arg_parser():
-        parser = argparse.ArgumentParser(description='GPT-NEOX Configuration',
+        parser = argparse.ArgumentParser(description='GPT-NeoX Configuration',
                                          allow_abbrev=False)
 
         parser.add_argument("user_script",
@@ -259,7 +260,7 @@ class ConfigMonster:
         return parser
 
     @staticmethod
-    def parse_args(parser: argparse.ArgumentParser, args=None, extra_conf=None):
+    def parse_args(parser: argparse.ArgumentParser, args=None, extra_conf=None, default_conf=None):
         """
         Parse User Arguments
         """
@@ -291,7 +292,12 @@ class ConfigMonster:
                                                f'loaded file:  {key_intersection}'
 
             conf.update(conf_i)
-
+          
+        # make sure wandb_group is unique
+        if conf.get('wandb_group') is None:
+            conf['wandb_group'] = shortuuid.uuid()
+        else:
+            conf['wandb_group'] = str(conf['wandb_group']) + shortuuid.uuid()
         # Assert there are no keys that are not recognised
         unrecognised_keys = [key for key in conf.keys()
                              if key not in ds_runner_keys + megatron_keys + ds_config_keys + neox_config_keys]
@@ -330,6 +336,15 @@ class ConfigMonster:
         pp_size = pp_size if pp_size >= 1 else 1
         mp_size = conf.get('model-parallel-size', 0)
         mp_size = mp_size if mp_size >= 1 else 1
+                      
+        # pp_size and mp_size are only used here to compute world_size and nowhere else. The way that these values actually get to deepspeed
+        # is through convert_to_old_args. The entire chain of how that happens:
+        # https://github.com/EleutherAI/gpt-neox/blob/2ceefba0ef12b94eb35a518f7dea9f34fc43c9af/megatron/arguments.py#L430
+        # https://github.com/EleutherAI/gpt-neox/blob/2ceefba0ef12b94eb35a518f7dea9f34fc43c9af/megatron/arguments.py#L45
+        # https://github.com/EleutherAI/gpt-neox/blob/2ceefba0ef12b94eb35a518f7dea9f34fc43c9af/megatron/config_monster.py#L17
+        # https://github.com/EleutherAI/gpt-neox/blob/2ceefba0ef12b94eb35a518f7dea9f34fc43c9af/megatron/config_monster.py#L40
+        # https://github.com/EleutherAI/gpt-neox/blob/2ceefba0ef12b94eb35a518f7dea9f34fc43c9af/megatron/config_monster.py#L330
+
         world_size = ((num_gpus / pp_size) / mp_size)
         assert world_size % 1 == 0, f"(num_gpus / pp_size) / mp_size [({num_gpus} / {pp_size}) / {mp_size}] must be a whole number"
 
@@ -358,7 +373,7 @@ class ConfigMonster:
         return ds_runner_conf, megatron_conf, ds_config_conf
 
     @staticmethod
-    def convert_to_old_args(args, parsed_args, ds_runner_conf, megatron_conf, ds_config_conf):
+    def convert_to_old_args(parsed_args, ds_runner_conf, megatron_conf, ds_config_conf):
         """
         Split configuration into DS runner, megatron and DS conf file parts.
         Convert constituents into arguments which deepspeed and megatron expect.
@@ -382,16 +397,16 @@ class ConfigMonster:
 
         old_style_args = ds_runner_args + [parsed_args.user_script] + user_script_args
 
-        return old_style_args
+        return old_style_args, ds_runner_args, user_script_args
 
-    def consume_args(self, args=None, extra_conf=None):
+    def consume_args(self, args=None, extra_conf=None, default_conf=None):
         """
         Parse CLI args. Transform and derive other params.
         Convert to old style CLI args for deepspeed and megatron.
         """
         parser = self.construct_arg_parser()
-        parsed_args, conf = self.parse_args(parser, args, extra_conf)
+        parsed_args, conf = self.parse_args(parser, args, extra_conf, default_conf)
         ds_runner_conf, megatron_conf, ds_config_conf = self.derive_params_and_split(conf)
-        old_style_args = self.convert_to_old_args(args, parsed_args, ds_runner_conf, megatron_conf, ds_config_conf)
+        old_style_args, ds_runner_args, user_script_args = self.convert_to_old_args(parsed_args, ds_runner_conf, megatron_conf, ds_config_conf)
         log.info(f"GPT-NEOX config: {conf}")
         return old_style_args, conf

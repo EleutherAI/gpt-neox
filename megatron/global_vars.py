@@ -66,11 +66,13 @@ def get_timers():
 
 
 def set_global_variables(extra_args_provider=None, args_defaults={},
-                         ignore_unknown_args=False):
+                         ignore_unknown_args=False, args=None):
     """Set args, tokenizer, tensorboard-writer, adlr-autoresume, and timers."""
     args = _parse_args(extra_args_provider=extra_args_provider,
                        defaults=args_defaults,
-                       ignore_unknown_args=ignore_unknown_args)
+                       ignore_unknown_args=ignore_unknown_args,
+                       args=args
+                       )
     _ = _build_tokenizer(args)
     _set_tensorboard_writer(args)
     _set_adlr_autoresume(args)
@@ -78,13 +80,15 @@ def set_global_variables(extra_args_provider=None, args_defaults={},
 
 
 def _parse_args(extra_args_provider=None, defaults={},
-                ignore_unknown_args=False):
+                ignore_unknown_args=False, args=None):
     """Parse entire arguments."""
     global _GLOBAL_ARGS
     _ensure_var_is_not_initialized(_GLOBAL_ARGS, 'args')
     _GLOBAL_ARGS = parse_args(extra_args_provider=extra_args_provider,
                               defaults=defaults,
-                              ignore_unknown_args=ignore_unknown_args)
+                              ignore_unknown_args=ignore_unknown_args,
+                              args=args
+                              )
     return _GLOBAL_ARGS
 
 

@@ -38,7 +38,7 @@ import wandb
 import deepspeed
 
 
-def model_provider():
+def model_provider(use_wandb=True, inference=False, get_key_value=True):
     """Build the model."""
 
     args = get_args()

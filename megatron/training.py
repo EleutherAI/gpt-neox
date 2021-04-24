@@ -45,7 +45,6 @@ from megatron.fp16 import FP16_Optimizer
 from megatron.global_vars import get_use_wandb
 from megatron.initialize import initialize_megatron
 from megatron.learning_rates import AnnealingLR
-from megatron.model import DistributedDataParallel as LocalDDP
 from megatron.model import get_params_for_weight_decay_optimization
 from megatron.utils import check_adlr_autoresume_termination
 from megatron.utils import make_data_loader
@@ -144,9 +143,10 @@ def get_model(model_provider_func):
 def get_optimizer(model):
     """Set up the optimizer."""
     args = get_args()
-
+    if args.no_load_optim:
+        return None, None
     # Build parameter groups (weight decay and non-decay).
-    while isinstance(model, (torchDDP, LocalDDP, FP16_Module)):
+    while isinstance(model, (torchDDP, FP16_Module)):
         model = model.module
     param_groups = get_params_for_weight_decay_optimization(model, args)
 
@@ -184,7 +184,8 @@ def get_optimizer(model):
                          lr=args.lr,
                          weight_decay=args.weight_decay,
                          betas=(args.adam_beta1, args.adam_beta2),
-                         eps=args.adam_eps)
+                         eps=args.adam_eps,
+                         adam_w_mode=not args.no_adamw)
     if args.deepspeed:
         # fp16 wrapper is not required for DeepSpeed.
         return optimizer, param_groups
@@ -195,6 +196,9 @@ def get_optimizer(model):
 def get_learning_rate_scheduler(optimizer):
     """Build the learning rate scheduler."""
     args = get_args()
+    if args.no_load_optim:
+        # TODO: this should be configured as a separate arg
+        return None
     if args.deepspeed and args.onebitadam:
         print_rank_0("WARNING: onebitadam requires the lr scheduler be built by deepspeed - "
                      "Make sure one is added to your deepspeed config")
@@ -241,7 +245,7 @@ def setup_model_and_optimizer(model_provider_func):
                 deepspeed_json_conf = deepspeed_json_conf[1:-1]  # Remove shell quotes
             try:
                 deepspeed_conf = json.loads(deepspeed_json_conf)
-                args.deepspeed_config = None  # Pass directy as dictionary to deepspeed
+                args.deepspeed_config = None  # Pass directly as dictionary to deepspeed
             except JSONDecodeError:
                 # Not a path or a string
                 raise ValueError(
@@ -250,15 +254,23 @@ def setup_model_and_optimizer(model_provider_func):
 
     if args.deepspeed:
         print_rank_0("DeepSpeed is enabled.")
+        
+        if args.no_load_optim:
+            assert optimizer is None
+            _model_params = None
+            _lr_scheduler = None
+        else:
+            _model_params = param_groups if optimizer is None else None
+            _lr_scheduler = lr_scheduler
 
         model, optimizer, _, lr_scheduler = deepspeed.initialize(
             model=model,
             optimizer=optimizer,
             args=args,
-            lr_scheduler=lr_scheduler,
+            lr_scheduler=_lr_scheduler,
             mpu=mpu if args.pipe_parallel_size == 0 else None,
             dist_init_required=False,
-            model_parameters=param_groups if optimizer is None else None,
+            model_parameters=_model_params,
             config_params=deepspeed_conf,
         )
 
@@ -272,6 +284,7 @@ def setup_model_and_optimizer(model_provider_func):
 
     if args.load is not None:
         args.iteration = load_checkpoint(model, optimizer, lr_scheduler)
+        print(f'Loading checkpoint and starting from iteration {args.iteration}')
     else:
         args.iteration = 0
 

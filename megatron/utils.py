@@ -1,5 +1,6 @@
 # coding=utf-8
-# Copyright (c) 2021, EleutherAI contributors
+
+# Copyright (c) 2021 Josh Levy-Kramer <josh@levykramer.co.uk>.
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
@@ -32,6 +33,7 @@ from megatron import get_adlr_autoresume
 from megatron import mpu
 from megatron.data.samplers import DistributedBatchSampler
 from megatron.fp16 import FP16_Optimizer
+from deepspeed import PipelineEngine, DeepSpeedEngine
 
 
 def reduce_losses(losses):
@@ -192,6 +194,9 @@ def is_local_main():
     """ True if is the local main process """
     return local_rank() == 0
 
+def is_mp_rank_0():
+    """True if mp rank == 0"""
+    return mpu.get_model_parallel_rank() == 0
 
 def get_wandb_api_key():
     """ Get Weights and Biases API key from ENV or .netrc file. Otherwise return None """
@@ -234,8 +239,25 @@ def obtain_resource_pool(hostfile_path, include_arg, exclude_arg) -> Dict[str, L
                                                  exclude_arg)
     return active_resources
 
+
 def natural_sort(l):
     convert = lambda text: int(text) if text.isdigit() else text.lower()
     alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
     return sorted(l, key=alphanum_key)
 
+
+def pipe_to_normal(model_engine):
+    """
+    Takes in a deepspeed.PipelineEngine model and returns a deepspeed.DeepspeedEngine model with the same model weights
+    so we can directly access the .forward() function (for inference).
+
+    The returned model won't have an optimizer - we assume this function will only be used for inference.
+
+    """
+    assert isinstance(model_engine, PipelineEngine), f"model engine {model_engine} not a PipelineEngine instance"
+    return DeepSpeedEngine(
+        args=get_args(),
+        model=model_engine.module,
+        mpu=model_engine.module.mpu(),
+        dist_init_required=False,
+        config_params=model_engine.config_params)
