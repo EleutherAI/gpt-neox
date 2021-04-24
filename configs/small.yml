@@ -19,7 +19,7 @@
 
    # optimizer settings
    "optimizer": {
-     "type": "Adam",
+     "type": "Adafactor",
      "params": {
        "lr": 0.0006,
        "max_grad_norm": 1.0,
