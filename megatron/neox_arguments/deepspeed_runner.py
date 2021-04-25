@@ -58,4 +58,16 @@ class NeoXArgsDeepspeedRunner:
     If true, autodetects nvlink pairs and remaps cuda visible devices to place them next to each other. This is an Eleuther addition to deepspeed, and should speed up model parallel training on setups with nvlink pairs when mp=2.
     """
 
+    def defaults(self):
+        """
+        generator for getting default values.
+
+        Usage: 
+        ds_runner_args = NeoXArgsDeepspeedRunner()
+        for key, default_value in ds_runner_args.defaults():
+            print(key, default_value)
+        """
+        for key in self.__dataclass_fields__:
+            yield key, getattr(self, key)
+
     

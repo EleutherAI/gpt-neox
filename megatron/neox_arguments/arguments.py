@@ -267,14 +267,12 @@ class NeoXArgs(
         # add user script
         args_list.append(self.user_script)
 
-        # get deepspeed runner args
-        default_deepspeed_runner_args = NeoXArgsDeepspeedRunner()
-        for key in NeoXArgsDeepspeedRunner.__dataclass_fields__:
+        # get deepspeed runner args, and only pass them in to deepspeed launcher if they differ from defaults
+        for key, default_value in NeoXArgsDeepspeedRunner().defaults():
             configured_value = getattr(self, key)
-            default_value = getattr(default_deepspeed_runner_args, key)
             if configured_value != default_value:
                 args_list.extend(self.convert_key_value_to_command_line_arg(key, configured_value))
-        
+
         # get deepspeed_config
         args_list.append("--deepspeed_config")
         args_list.append(json.dumps(self.deepspeed_config))
