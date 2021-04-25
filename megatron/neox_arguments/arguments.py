@@ -108,7 +108,6 @@ class NeoXArgs(*BASE_CLASSES):
             if not self.validate_values():
                 raise ValueError(self.__class__.__name__+".__post_init__() NeoXArgs values cannot be validated")
             
-        
         self.save_yml()
 
     @classmethod
@@ -363,6 +362,9 @@ class NeoXArgs(*BASE_CLASSES):
     # start of calculations and derived values
 
     def configure_distributed_args(self):
+        """
+        Configures distributed training arguments from local variables set by deepspeed launcher.
+        """
         if self.deepspeed_mpi:
             from deepspeed.utils.distributed import mpi_discovery
             mpi_discovery()
@@ -535,10 +537,7 @@ class NeoXArgs(*BASE_CLASSES):
             }}
 
         # Fp16 loss scaling.
-        if self.loss_scale is None:
-            self.update_value("dynamic_loss_scale", True)
-        else:
-            self.update_value("dynamic_loss_scale", False)
+        self.update_value("dynamic_loss_scale", self.loss_scale is None)
 
 
     ############################################################################################################################

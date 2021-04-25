@@ -10,7 +10,7 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     """ 
 
     deepspeed: bool = True
-    """boolean flag to enable DeepSpeed"""
+    """boolean flag to enable DeepSpeed (Always True)"""
     
     train_batch_size: int = None
     """
@@ -105,6 +105,7 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
 
     zero_allow_untested_optimizer: bool = False
     """
+    Whether Deepspeed Zero Optimizer will allow an optimizer that hasn't been tested by the deepspeed team
     """
 
 @dataclass
