@@ -47,4 +47,7 @@ class Tee:
             pass
 
     def flush(self):
-        self.file.flush()
+        try:
+            self.file.flush()
+        except OSError:
+            pass
