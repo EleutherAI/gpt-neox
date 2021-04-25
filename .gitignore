@@ -135,3 +135,5 @@ wandb/
 data/
 checkpoints/
 .vscode/
+*.pt
+*.ckpt
