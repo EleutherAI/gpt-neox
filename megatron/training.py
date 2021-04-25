@@ -145,43 +145,39 @@ def get_optimizer(model):
     while isinstance(model, (torchDDP, FP16_Module)):
         model = model.module
     param_groups = get_params_for_weight_decay_optimization(model, args)
-
+    print_rank_0(f'Configuring Optimizer type: {args.optimizer_type} with params: {args.optimizer["params"]}')
     # Add model parallel attribute if it is not set.
     for param_group in param_groups:
         for param in param_group['params']:
             if not hasattr(param, 'model_parallel'):
                 param.model_parallel = False
 
-    if args.cpu_optimizer:
-        if args.cpu_torch_adam:
+    if args.optimizer_type.lower() in ["cpu_adam", "cpu_torch_adam"]:
+        if args.optimizer == "cpu_torch_adam":
             cpu_adam_optimizer = torch.optim.Adam
         else:
             from deepspeed.ops.adam import DeepSpeedCPUAdam
             cpu_adam_optimizer = DeepSpeedCPUAdam
         optimizer = cpu_adam_optimizer(param_groups,
-                                       lr=args.lr,
-                                       weight_decay=args.weight_decay)
-    elif args.onebitadam:
+                                       weight_decay=args.weight_decay,
+                                       **args.optimizer["params"])
+    elif args.optimizer_type.lower() == "onebitadam":
         assert args.deepspeed
         optimizer = None
         # onebitadam needs to be instantiated within the deepspeed engine to work :|
-    elif args.sm3:
+    elif args.optimizer_type.lower() == "sm3":
         from .optimizers import SM3
         optimizer = SM3(
             param_groups,
-            lr=args.lr,
-            momentum=args.momentum,
-            beta=args.adam_beta1,
-            eps=args.adam_eps,
-        )
-    else:
+            **args.optimizer["params"])
+    elif args.optimizer_type.lower() == "adam":
         # Use Adam
         optimizer = Adam(param_groups,
-                         lr=args.lr,
                          weight_decay=args.weight_decay,
-                         betas=(args.adam_beta1, args.adam_beta2),
-                         eps=args.adam_eps,
-                         adam_w_mode=not args.no_adamw)
+                         **args.optimizer["params"])
+    else:
+        raise ValueError(f"Optimizer type {args.optimizer_type} not recognized")
+
     if args.deepspeed:
         # fp16 wrapper is not required for DeepSpeed.
         return optimizer, param_groups
@@ -195,7 +191,7 @@ def get_learning_rate_scheduler(optimizer):
     if args.no_load_optim:
         # TODO: this should be configured as a separate arg
         return None
-    if args.deepspeed and args.onebitadam:
+    if args.deepspeed and args.optimizer_type.lower() == "onebitadam":
         print_rank_0("WARNING: onebitadam requires the lr scheduler be built by deepspeed - "
                      "Make sure one is added to your deepspeed config")
         return None
@@ -262,7 +258,7 @@ def setup_model_and_optimizer(model_provider_func):
 
     if args.load is not None:
         args.iteration = load_checkpoint(model, optimizer, lr_scheduler)
-        print(f'Loading checkpoint and starting from iteration {args.iteration}')
+        print_rank_0(f'Loading checkpoint and starting from iteration {args.iteration}')
     else:
         args.iteration = 0
 
