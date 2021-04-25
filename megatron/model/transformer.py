@@ -26,7 +26,6 @@ from .norms import LayerNorm, RMSNorm, ScaleNorm
 from megatron import get_args
 from megatron import mpu
 from megatron.module import MegatronModule
-from megatron.checkpointing import get_checkpoint_version
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
 from megatron.model.fused_bias_gelu import bias_gelu_impl
 from megatron.model.utils import openai_gelu, erf_gelu, exists
@@ -256,36 +255,6 @@ class ParallelSelfAttention(MegatronModule):
             get_cuda_rng_tracker = deepspeed.checkpointing.get_cuda_rng_tracker
             checkpoint = deepspeed.checkpointing.checkpoint
 
-    def _transpose_last_dim(self, mixed_layer, num_splits, num_splits_first):
-        input_shape = mixed_layer.size()
-        if num_splits_first:
-            """[s, b, num_splits * np * hn] 
-            -->(view) [s, b, num_splits, np, hn] 
-            -->(tranpose) [s, b, np, num_splits, hn] 
-            -->(view) [s, b, np * num_splits * hn] """
-
-            intermediate_shape = input_shape[:-1] + \
-                                 (num_splits, self.num_attention_heads_per_partition,
-                                  self.hidden_size_per_attention_head)
-
-            mixed_layer = mixed_layer.view(*intermediate_shape)
-            mixed_layer = mixed_layer.transpose(-2, -3).contiguous()
-        else:
-            """[s, b, np * hn * num_splits] 
-            -->(view) [s, b, np, hn, num_splits] 
-            -->(tranpose) [s, b, np, num_splits, hn] 
-            -->(view) [s, b, np * num_splits * hn] """
-
-            intermediate_shape = input_shape[:-1] + \
-                                 (self.num_attention_heads_per_partition,
-                                  self.hidden_size_per_attention_head, num_splits)
-
-            mixed_layer = mixed_layer.view(*intermediate_shape)
-            mixed_layer = mixed_layer.transpose(-1, -2).contiguous()
-        mixed_layer = mixed_layer.view(*input_shape)
-
-        return mixed_layer
-
     def forward(self, hidden_states, attention_mask, layer_past=None):
 
         # hidden_states: [sq, b, h]
@@ -296,15 +265,6 @@ class ParallelSelfAttention(MegatronModule):
 
         # Attention heads [sq, b, h] --> [sq, b, (np * 3 * hn)]
         mixed_x_layer, _ = self.query_key_value(hidden_states)
-
-        checkpoint_version = get_checkpoint_version()
-        if checkpoint_version is not None:
-            if checkpoint_version == 0:
-                # [s, b, (3 * np * hn)] --> [s, b, (np * 3 * hn)]
-                mixed_x_layer = self._transpose_last_dim(mixed_x_layer, 3, True)
-            elif checkpoint_version == 1.0:
-                # [s, b, (np * hn * 3)] --> [s, b, (np * 3 * hn)]
-                mixed_x_layer = self._transpose_last_dim(mixed_x_layer, 3, False)
 
         # [sq, b, (np * 3 * hn)] --> [sq, b, np, 3 * hn]
         new_tensor_shape = mixed_x_layer.size()[:-1] + \
