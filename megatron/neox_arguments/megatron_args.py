@@ -74,17 +74,17 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Normalization layer to use. Choose from "layernorm", "rmsnorm" and "scalenorm".
     """
 
-    layernorm_epsilon: float = 1e-5
+    layernorm_epsilon: float = 1.0e-5
     """
     Layer norm epsilon.
     """
 
-    rms_norm_epsilon: float = 1e-8
+    rms_norm_epsilon: float = 1.0e-8
     """
     Root mean squared norm epsilon
     """
 
-    scalenorm_epsilon: float = 1e-8
+    scalenorm_epsilon: float = 1.0e-8
     """
     Scalenorm epsilon
     """

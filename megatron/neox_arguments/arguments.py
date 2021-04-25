@@ -46,7 +46,7 @@ OPT_PARAMS_DEFAULTS = {
         0.9,
         0.999
     ],
-    "eps": 1e-8,
+    "eps": 1.0e-8,
     "weight_decay": 0,
     "freeze_step": 400,
     "momentum": 0.0,
