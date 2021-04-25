@@ -181,7 +181,9 @@ class NeoXArgs(
     @classmethod
     def consume_deepy_args(cls):
         """
-        entry point for deepy.py configuring and consuming command line arguments
+        entry point for deepy.py configuring and consuming command line arguments.
+        
+        We can use `--wandb_group` / `--wandb_team` to overwrite those args from the command line, otherwise the value from the config is taken.
         """
 
         parser = argparse.ArgumentParser(description='GPT-NeoX Configuration',
@@ -236,6 +238,14 @@ class NeoXArgs(
 
     @classmethod
     def consume_megatron_args(cls):
+        """
+        Deepspeed launcher needs to pass the arguments for `pretrain_gpt2.py` across to all machines.
+        
+        In order not to have any problems with different configs being mismatched across machines, we instead read the .yaml configuration file from the main rank,
+        then serialize the arguments to a dictionary, which the deepspeed launcher broadcasts to all machines (`--megatron_config`).
+        
+        We then instantiate a new NeoXArgs from the dictionary (`.from_dict`). This should ensure args are never inconsistent across machines.
+        """
 
         parser = argparse.ArgumentParser(description='GPT-NeoX Configuration',
                                          allow_abbrev=False)
