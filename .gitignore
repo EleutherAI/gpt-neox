@@ -133,3 +133,7 @@ wandb/
 
 # data files 
 data/
+
+# checkpoint files
+*.pt
+*.ckpt

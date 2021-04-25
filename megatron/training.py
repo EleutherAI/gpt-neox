@@ -49,6 +49,7 @@ from megatron.model import get_params_for_weight_decay_optimization
 from megatron.utils import check_adlr_autoresume_termination
 from megatron.utils import make_data_loader
 from megatron.utils import report_memory
+from megatron.utils import tb_wandb_log
 
 import deepspeed
 
@@ -371,10 +372,10 @@ def train_step_pipe(model, data_iterator):
 
 def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
                  loss_scale, report_memory_flag, skipped_iter, model, optimizer):
-    """Log training information such as losses, timing, ...."""
+    """Log training information such as losses, timing, etc."""
+
     args = get_args()
     timers = get_timers()
-    writer = get_tensorboard_writer()
 
     # Update losses.
     skipped_iters_key = 'skipped iterations'
@@ -412,6 +413,13 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         add_to_logging('backward-clip-grad')
         add_to_logging('optimizer')
         add_to_logging('batch generator')
+
+        # Log timer info to tensorboard and wandb
+        normalizer = iteration % args.log_interval
+        if normalizer == 0:
+            normalizer = args.log_interval
+        if torch.distributed.get_rank() == 0:
+            timers.write(names=timers_to_log, iteration=iteration, normalizer=normalizer)
     else:
         # with pipeline parallel, the megatron timers are overridden by the deepspeed ones.
         # Try to grab timer values from model engine. Only recently added to deeperspeed, so check that the engine
@@ -422,64 +430,44 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
                 # deepspeed already logs to tensorboard / prints values, so just log to wandb
                 if get_use_wandb() and torch.distributed.get_rank() == 0:
                     for key in timer_values:
-                        wandb.log({key: timer_values[key]}, step=iteration)
+                        tb_wandb_log(f"timers/{key}", timer_values[key], iteration)
 
-    # Log timer info to tensorboard and wandb
-    normalizer = iteration % args.log_interval
-    if normalizer == 0:
-        normalizer = args.log_interval
-    if torch.distributed.get_rank() == 0:
-        timers.write(names=timers_to_log, iteration=iteration, normalizer=normalizer)
 
-    # wandb writer
-    if get_use_wandb() and torch.distributed.get_rank() == 0:
-        wandb.log({'learning_rate': learning_rate}, step=iteration)
-        for key in loss_dict:
-            wandb.log({key: loss_dict[key]}, step=iteration)
-        if args.fp16:
-            wandb.log({'loss_scale': loss_scale}, step=iteration)
 
-        if get_use_wandb() and torch.distributed.get_rank() == 0:
+    # write losses, lr, etc. every step
+    tb_wandb_log('train/learning_rate', learning_rate, iteration)
+    for key in loss_dict:
+        tb_wandb_log(f'train/{key.replace(" ", "_")}', loss_dict[key], iteration)
+    if args.fp16:
+        tb_wandb_log(f'train/loss_scale', loss_scale, iteration)
 
-            # (optional) Log optimizer states to wandb
+    # (optional) Log optimizer states to wandb / tb every step
+    if args.log_optimizer_states:
+        for k, v in optimizer.state_dict()['optimizer_state_dict']['state'].items():
+            for ki, vi in v.items(): # step, module
+                if ki != 'step':
+                    opt_state_norm = torch.norm(vi) if hasattr(vi, 'dim') else vi
+                    tb_wandb_log(f'optimizer_state_norms/{k}_{ki}', opt_state_norm, iteration)
 
-            if args.log_optimizer_states:
-                for k, v in optimizer.state_dict()['optimizer_state_dict']['state'].items():
-                    for ki, vi in v.items(): # step, module
-                        if ki != 'step':
-                            i = torch.norm(vi) if hasattr(vi, 'dim') else vi
-                            wandb.log({f'optimizer_state_norms/{k}_{ki}': i}, step=iteration)
-
-            # (optional) Log grad/param norms to wandb
-
-            if args.log_grad_norm or args.log_param_norm:
-                for name, param in model.module.named_parameters():
-                    if args.log_grad_norm:  
-                        if param.grad is not None:
-                            grad_norm = torch.norm(param.grad)
-                            wandb.log({f'gradients/{name}': grad_norm}, step=iteration)
-                    if args.log_param_norm:
-                        wandb.log({f'norms/{name}': torch.norm(param)}, step=iteration)
-
-    # Tensorboard values.
-    if writer and torch.distributed.get_rank() == 0:
-        writer.add_scalar('learning_rate', learning_rate, iteration)
-        for key in loss_dict:
-            writer.add_scalar(key, loss_dict[key], iteration)
-        if args.fp16:
-            writer.add_scalar('loss_scale', loss_scale, iteration)
+    # (optional) Log grad/param norms to wandb / tb every step
+    if args.log_grad_norm or args.log_param_norm:
+        for name, param in model.module.named_parameters():
+            if args.log_grad_norm:  
+                if param.grad is not None:
+                    tb_wandb_log(f'gradient_norms/{name}', torch.norm(param.grad), iteration)
+            if args.log_param_norm:
+                tb_wandb_log(f'parameter_norms/{name}', torch.norm(param), iteration)
 
     if iteration % args.log_interval == 0:
+        # log other stuff every args.log_interval iters
+
+        # log samples/sec
         elapsed_time = timers('interval time').elapsed()
         iteration_time = elapsed_time / args.log_interval
         samples_per_sec = get_global_batch_size(args) / iteration_time
         log_string = ' samples/sec: {:.3f} |'.format(samples_per_sec)
-        if writer and torch.distributed.get_rank() == 0:
-            writer.add_scalar('samples/sec', samples_per_sec, iteration)
-            writer.add_scalar('iteration_time', iteration_time, iteration)
-        if get_use_wandb() and torch.distributed.get_rank() == 0:
-            wandb.log({'samples/sec': samples_per_sec}, step=iteration)
-            wandb.log({'iteration_time': iteration_time}, step=iteration)
+        tb_wandb_log('runtime/samples_per_sec', samples_per_sec, iteration)
+        tb_wandb_log('runtime/iteration_time', iteration_time, iteration)
         log_string += ' iteration {:8d}/{:8d} |'.format(iteration,
                                                        args.train_iters)
         log_string += ' elapsed time per iteration (ms): {:.1f} |'.format(
@@ -488,13 +476,10 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         num_iterations = max(
             1, args.log_interval - total_loss_dict[skipped_iters_key])
 
-        # calculate tflop / gpu
+        # log tflop / gpu
         flops_per_s_per_gpu = get_flops(model, iteration_time)
         log_string += f' approx flops per GPU: {human_readable_flops(flops_per_s_per_gpu)} |'
-        if writer and torch.distributed.get_rank() == 0:
-            writer.add_scalar('flops/s/gpu', flops_per_s_per_gpu, iteration)
-        if get_use_wandb() and torch.distributed.get_rank() == 0:
-            wandb.log({'flops/s/gpu': flops_per_s_per_gpu}, step=iteration)
+        tb_wandb_log('runtime/flops_per_sec_per_gpu', flops_per_s_per_gpu, iteration)
 
         for key in total_loss_dict:
             if key not in [skipped_iters_key, got_nan_key]:
@@ -502,6 +487,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
                 avg = v / float(num_iterations)
                 log_string += ' {}: {:.6E} |'.format(key, avg)
                 total_loss_dict[key] = 0.0
+
         if args.fp16:
             log_string += ' loss scale: {:.1f} |'.format(loss_scale)
         log_string += ' number of skipped iterations: {:3d} |'.format(
@@ -514,6 +500,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         if report_memory_flag:
             report_memory('after {} iterations'.format(iteration))
             report_memory_flag = False
+
         timers.log(timers_to_log, normalizer=args.log_interval)
 
     return report_memory_flag
@@ -626,7 +613,6 @@ def evaluate_and_print_results(prefix, forward_step_func,
                                data_iterator, model,
                                iteration, verbose=False):
     """Helper function to evaluate and dump results on screen."""
-    writer = get_tensorboard_writer()
 
     # Pipeline parallelism needs eval_batch() instead of a simple forward().
     args = get_args()
@@ -643,17 +629,8 @@ def evaluate_and_print_results(prefix, forward_step_func,
         string += '{} value: {:.6E} | '.format(key, total_loss_dict[key].item())
         ppl = math.exp(min(20, total_loss_dict[key].item()))
         string += '{} PPL: {:.6E} | '.format(key, ppl)
-        if writer and torch.distributed.get_rank() == 0:
-            writer.add_scalar('{} value'.format(key),
-                              total_loss_dict[key].item(),
-                              iteration)
-            writer.add_scalar('{} ppl'.format(key), ppl, iteration)
-
-        if get_use_wandb() and torch.distributed.get_rank() == 0:
-            wandb.log({
-                'validation {} value'.format(key): total_loss_dict[key].item(),
-                'validation {} ppl'.format(key): ppl
-            }, step=iteration)
+        tb_wandb_log(f"validation/{key.replace(' ', '_')}", total_loss_dict[key].item(), iteration)
+        tb_wandb_log(f"validation/{key.replace(' ', '_')}_ppl", ppl, iteration)
 
     length = len(string) + 1
     print_rank_0('-' * length)
@@ -778,9 +755,9 @@ def get_total_params(model):
 
 def human_readable_flops(num):
     for unit in ['', 'KFLOPS', 'MFLOPS', 'GFLOPS', 'TFLOPS', 'PFLOPS', 'EFLOPS', 'ZFLOPS']:
-        if abs(num) < 1024.0:
+        if abs(num) < 1000.0:
             return "%3.1f%s" % (num, unit)
-        num /= 1024.0
+        num /= 1000.0
     return "%.1f%s" % (num, 'Yi')
 
 

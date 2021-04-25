@@ -324,7 +324,7 @@ def _add_training_args(parser):
                        help='Enable sm3 optimizer')
     #             args.log_grad_norm, args.log_param_norm, args.log_optimizer_states = True, True, True
     group.add_argument('--log-grad-norm', action='store_true', help='log gradient norm to wandb (for debugging)')
-    group.add_argument('--log-parameter-norm', action='store_true', help='log norm of named parameters to wandb (for debugging)')
+    group.add_argument('--log-param-norm', action='store_true', help='log norm of named parameters to wandb (for debugging)')
     group.add_argument('--log-optimizer-states', action='store_true', help='log norm of gradient states to wandb (for debugging)')
 
     return parser

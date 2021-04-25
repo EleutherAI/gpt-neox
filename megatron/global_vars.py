@@ -227,10 +227,10 @@ class Timers:
 
             writer = get_tensorboard_writer()
             if writer:
-                writer.add_scalar(name + '_time', value, iteration)
+                writer.add_scalar(f"timers/{name}", value, iteration)
 
             if get_use_wandb():
-                wandb.log({name + '_time': value}, step=iteration)
+                wandb.log({f"timers/{name}": value}, step=iteration)
 
     def log(self, names, normalizer=1.0, reset=True):
         """Log a group of timers."""
