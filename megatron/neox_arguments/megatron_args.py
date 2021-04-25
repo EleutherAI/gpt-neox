@@ -89,9 +89,9 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Scalenorm epsilon
     """
 
-    pos_emb: Literal['learned', 'sinusoidal', 'rpe', 'none'] = "learned"
+    pos_emb: Literal['learned', 'rotary', 'sinusoidal', 'rpe', 'none'] = "learned"
     """
-    Type of positional embedding to use - choose from 'learned', 'sinusoidal', 'rpe', 'none'
+    Type of positional embedding to use - choose from 'learned', 'rotary', 'sinusoidal', 'rpe', 'none'
     """
 
     rpe_num_buckets: int = 32
