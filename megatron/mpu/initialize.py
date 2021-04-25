@@ -221,8 +221,16 @@ def get_data_parallel_src_rank():
     """Calculate the global rank corresponding to a local rank zero
     in the data parallel group."""
     global_rank = torch.distributed.get_rank()
-    local_world_size = get_data_parallel_world_size()
-    return (global_rank // local_world_size) * local_world_size
+    topo = get_topology()
+    if topo is None:
+        # we are just using model parallel
+        return global_rank % get_model_parallel_world_size()
+    else:
+        # We are using pipeline parallel
+        d = topo.get_axis_comm_lists('data')
+        for l in d:
+            if global_rank in l:
+                return l[0]
 
 
 def get_data_parallel_world_size():

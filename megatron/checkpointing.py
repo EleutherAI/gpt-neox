@@ -34,21 +34,6 @@ from megatron import get_args
 from megatron import print_rank_0
 from megatron.utils import natural_sort
 
-_CHECKPOINT_VERSION = None
-
-
-def set_checkpoint_version(value):
-    global _CHECKPOINT_VERSION
-    assert _CHECKPOINT_VERSION is None, \
-        "checkpoint version already set"
-    _CHECKPOINT_VERSION = value
-
-
-def get_checkpoint_version():
-    global _CHECKPOINT_VERSION
-    return _CHECKPOINT_VERSION
-
-
 def check_checkpoint_args(checkpoint_args):
     """Ensure fixed arguments for a model are the same for the input
     arguments and the one retreived frm checkpoint."""
@@ -148,7 +133,7 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
     if args.deepspeed:
         save_ds_checkpoint(iteration, model, args)
     else:
-        raise ValueError('Must be using DeepSpeed')
+        raise ValueError('Must be using deepspeed to use neox')
 
     # Wait so everyone is done (necessary)
     torch.distributed.barrier()
@@ -214,10 +199,7 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load'):
                 print("Unable to load checkpoint.")
             return iteration
     else:
-        raise ValueError('Must be using DeepSpeed')
-
-    # set checkpoint version
-    set_checkpoint_version(state_dict.get('checkpoint_version', 0))
+        raise ValueError('Must be using deepspeed to use neox')
 
     # Set iteration.
     if args.finetune or release:
