@@ -48,13 +48,14 @@ class GradientNoiseScale:
         self.n_batches = n_batches
         self.beta = beta
         self.model = model
-        self.model.store_gradients = True
         self.buffer = []
         self.ema_scale = None
         self.ema_noise = None
         self.noise_scale = None
         self.n_updates = 0
         self.cpu_offload = cpu_offload
+        self.model.store_gradients = True
+        self.model.store_gradients_cpu = cpu_offload
         self.args = args
         self.mpu = mpu
 
@@ -88,6 +89,7 @@ class GradientNoiseScale:
         return overflow
 
     def _update(self):
+
         grad = self.flatten_grads()
         is_overflow = self._sync_overflow(grad is None)
         if is_overflow:
@@ -102,8 +104,15 @@ class GradientNoiseScale:
             # calculate Gbig and Gsmall
             # this needs to be done in fp32 or it overflows
             if self.args.pipe_parallel_size > 1:
+
                 g_big = torch.square(torch.norm(grads.to(torch.float)))
                 g_small = torch.square(torch.norm(grad.to(torch.float)))
+
+                # we need to put the tensors back on gpu to do the allreduce
+                if self.cpu_offload:
+                    g_big = g_big.to(self.model.device)
+                    g_small = g_small.to(self.model.device)
+
                 # avg g_big / g_small across pipe parallel groups
                 torch.distributed.all_reduce(g_big,
                                  op=torch.distributed.ReduceOp.SUM,
@@ -113,9 +122,12 @@ class GradientNoiseScale:
                                  group=self.mpu.get_pipe_parallel_group())
                 g_big /= self.mpu.get_pipe_parallel_world_size()
                 g_small /= self.mpu.get_pipe_parallel_world_size()
+
             else:
                 g_big = torch.square(torch.norm(grads.to(torch.float)))
                 g_small = torch.square(torch.norm(grad.to(torch.float)))
+
+            # communicate any overflows
             is_overflow = (g_small.isinf().any() or g_small.isnan().any() or g_big.isinf().any() or g_big.isnan().any())
             is_overflow = self._sync_overflow(is_overflow)
             if is_overflow:
@@ -134,6 +146,7 @@ class GradientNoiseScale:
             scale = scale.item()
             noise = noise.item()
             self.noise_scale = (scale / noise)
+
         self.n_updates += 1
 
     def update(self):
