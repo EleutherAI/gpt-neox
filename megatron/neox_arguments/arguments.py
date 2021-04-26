@@ -133,6 +133,11 @@ class NeoXArgs(*BASE_CLASSES):
                 conf_key_converted = conf_key.replace("-", "_")  #TODO remove replace and update configuration files?
                 config[conf_key_converted] = conf_value
 
+        # Configuration parameters not specified
+        params_not_in_config = sorted(list(set(cls.__dataclass_fields__.keys()) -  set(config.keys())))
+        if len(params_not_in_config) > 0:
+            logging.debug(cls.__name__+".from_ymls() Configuration parameters not specified (using defaults): "+", ".join(params_not_in_config))
+
         if overwrite_values is not None:
             for k, v in overwrite_values.items():
                 config[k] = v
