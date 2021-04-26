@@ -89,8 +89,8 @@ class NeoXArgs(*BASE_CLASSES):
     def __post_init__(self):
         """
         after initialization of default or loaded values 
-        a number of function are performed in order to 
-        calculate values and  assert consistency
+        a number of functions are performed in order to 
+        calculate values, assert consistency and do typechecking.
         """
         if not NeoXArgs.validate_keys():
             raise ValueError(self.__class__.__name__+".__post_init__() NeoXArgs keys cannot be validated")
