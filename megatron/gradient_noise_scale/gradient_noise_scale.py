@@ -42,37 +42,55 @@ class GradientNoiseScale:
     TODO: currently only works with pp = 0 until we add a hook to get the gradients from deepspeed
     """
 
-    def __init__(self, model, batch_size_small, n_batches=10, beta=0.99, dtype=torch.float, cpu_offload=False):
+    def __init__(self, model, batch_size_small, n_batches=10, beta=0.99, cpu_offload=False, args=None, mpu=None):
         self.batch_size_small = batch_size_small
         self.batch_size_large = batch_size_small * n_batches
         self.n_batches = n_batches
         self.beta = beta
-        self.model = model.module
+        self.model = model
+        self.model.store_gradients = True
         self.buffer = []
         self.ema_scale = None
         self.ema_noise = None
         self.noise_scale = None
         self.n_updates = 0
-        self.dtype = dtype
         self.cpu_offload = cpu_offload
+        self.args = args
+        self.mpu = mpu
 
     def flatten_grads(self):
         grads = []
-        for param in self.model.parameters():
-            if param.grad is not None and not param.grad.isnan().any() and not param.grad.isinf().any():
-                p = param.grad.flatten().view(-1, 1).to(self.dtype)
-                if self.cpu_offload:
-                    p = p.cpu()
-                grads.append(p)
-            else:
+        assert hasattr(self.model, 'stored_gradients'), "You might need to update DeeperSpeed"
+        if self.model.stored_gradients is not None:
+            for g in self.model.stored_gradients:
+                if g is not None and not g.isnan().any() and not g.isinf().any():
+                    g = g.flatten().view(-1, 1)
+                    if self.cpu_offload:
+                        g = g.cpu()
+                    grads.append(g)
+                else:
+                    return None
+            if not grads:
                 return None
-        if not grads:
-            return None
-        return torch.cat(grads)
+            return torch.cat(grads)
+
+    def _sync_overflow(self, is_overflow):
+        if self.args.pipe_parallel_size > 1:
+            # Since each model parallel GPU carries only part of the model,
+            # make sure overflow flag is synced across all the pipe parallel GPUs
+            overflow_gpu = torch.cuda.ByteTensor([is_overflow])
+            torch.distributed.all_reduce(overflow_gpu,
+                                         op=torch.distributed.ReduceOp.MAX,
+                                         group=self.mpu.get_pipe_parallel_group())
+            overflow = overflow_gpu[0].item()
+        else:
+            overflow = is_overflow
+        return overflow
 
     def _update(self):
         grad = self.flatten_grads()
-        if grad is None:
+        is_overflow = self._sync_overflow(grad is None)
+        if is_overflow:
             return
         self.buffer.append(grad)
         if self.n_updates % self.n_batches == self.n_batches - 1:
@@ -82,11 +100,25 @@ class GradientNoiseScale:
             self.buffer = []
 
             # calculate Gbig and Gsmall
-            g_big = torch.square(torch.norm(grads))
-            g_small = torch.square(torch.norm(grad))
-            if g_small.isinf().any() or g_small.isnan().any():
-                return
-            elif g_big.isinf().any() or g_big.isnan().any():
+            # this needs to be done in fp32 or it overflows
+            if self.args.pipe_parallel_size > 1:
+                g_big = torch.square(torch.norm(grads.to(torch.float)))
+                g_small = torch.square(torch.norm(grad.to(torch.float)))
+                # avg g_big / g_small across pipe parallel groups
+                torch.distributed.all_reduce(g_big,
+                                 op=torch.distributed.ReduceOp.SUM,
+                                 group=self.mpu.get_pipe_parallel_group())
+                torch.distributed.all_reduce(g_small,
+                                 op=torch.distributed.ReduceOp.SUM,
+                                 group=self.mpu.get_pipe_parallel_group())
+                g_big /= self.mpu.get_pipe_parallel_world_size()
+                g_small /= self.mpu.get_pipe_parallel_world_size()
+            else:
+                g_big = torch.square(torch.norm(grads.to(torch.float)))
+                g_small = torch.square(torch.norm(grad.to(torch.float)))
+            is_overflow = (g_small.isinf().any() or g_small.isnan().any() or g_big.isinf().any() or g_big.isnan().any())
+            is_overflow = self._sync_overflow(is_overflow)
+            if is_overflow:
                 return
 
             # calculate noise / scale
@@ -105,7 +137,12 @@ class GradientNoiseScale:
         self.n_updates += 1
 
     def update(self):
-        if torch.distributed.get_rank() == 0:
-            # only update on 0th rank
+        if self.args.pipe_parallel_size > 1:
+            # update on all ranks
             self._update()
-        torch.distributed.barrier()
+        else:
+            # for mp / dp only, the grads will be the same across all ranks, so we can just do the process on a single rank
+            if torch.distributed.get_rank() == 0:
+                # only update on 0th rank
+                self._update()
+            torch.distributed.barrier()

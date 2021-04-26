@@ -224,7 +224,6 @@ def setup_model_and_optimizer(model_provider_func):
 
     if args.deepspeed:
         print_rank_0("DeepSpeed is enabled.")
-        
         if args.no_load_optim:
             assert optimizer is None
             _model_params = None
@@ -288,7 +287,7 @@ def backward_step(optimizer, model, loss):
 
 
 def train_step(forward_step_func, data_iterator,
-               model, optimizer, lr_scheduler, noise_scale_logger):
+               model, optimizer, lr_scheduler):
     """Single training step."""
     args = get_args()
     timers = get_timers()
@@ -306,11 +305,6 @@ def train_step(forward_step_func, data_iterator,
     timers('backward').start()
     backward_step(optimizer, model, loss)
     timers('backward').stop()
-
-    # update gradient noise scale logger
-    if args.log_gradient_noise_scale:
-        # TODO: also implement for pipeline parallel
-        noise_scale_logger.update()
 
     # Update parameters.
     skipped_iter = 0
@@ -336,7 +330,6 @@ def train_step_pipe(model, data_iterator):
         skipped_iter = 1
     else:
         skipped_iter = 0
-
     # Don't break Megatron's timers because we changed code paths.
     for t in ['forward', 'backward', 'allreduce', 'optimizer', 'batch generator',
               'data loader']:
@@ -406,8 +399,6 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
                     for key in timer_values:
                         tb_wandb_log(f"timers/{key}", timer_values[key], iteration)
 
-
-
     # write losses, lr, etc. every step
     tb_wandb_log('train/learning_rate', learning_rate, iteration)
     for key in loss_dict:
@@ -423,7 +414,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
     # (optional) Log optimizer states to wandb / tb every step
     if args.log_optimizer_states:
         for k, v in optimizer.state_dict()['optimizer_state_dict']['state'].items():
-            for ki, vi in v.items(): # step, module
+            for ki, vi in v.items():  # step, module
                 if ki != 'step':
                     opt_state_norm = torch.norm(vi) if hasattr(vi, 'dim') else vi
                     tb_wandb_log(f'optimizer_state_norms/{k}_{ki}', opt_state_norm, iteration)
@@ -446,7 +437,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         tb_wandb_log('runtime/samples_per_sec', samples_per_sec, iteration)
         tb_wandb_log('runtime/iteration_time', iteration_time, iteration)
         log_string += ' iteration {:8d}/{:8d} |'.format(iteration,
-                                                       args.train_iters)
+                                                        args.train_iters)
         log_string += ' elapsed time per iteration (ms): {:.1f} |'.format(
             elapsed_time * 1000.0 / args.log_interval)
         log_string += ' learning rate: {:.3E} |'.format(learning_rate)
@@ -501,16 +492,16 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
     report_memory_flag = True
 
     if args.log_gradient_noise_scale:
-        if args.pipe_parallel_size > 0:
-            raise NotImplementedError('Gradient Noise Scale logging does not currently work with pp_size > 0')
-        elif args.zero_stage >= 1:
+        if args.zero_stage >= 1:
             raise NotImplementedError('Gradient Noise Scale logging does not work with zero stage 2+, as the '
                                       'gradients are distributed across ranks.')
         noise_scale_logger = GradientNoiseScale(
             model=model,
             batch_size_small=args.train_batch_size,
             n_batches=args.gradient_noise_scale_n_batches,
-            cpu_offload=args.gradient_noise_scale_cpu_offload)
+            cpu_offload=args.gradient_noise_scale_cpu_offload,
+            args=args,
+            mpu=mpu)
     else:
         noise_scale_logger = None
 
@@ -519,10 +510,10 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
                                              train_data_iterator,
                                              model,
                                              optimizer,
-                                             lr_scheduler,
-                                             noise_scale_logger)
+                                             lr_scheduler)
         iteration += 1
-
+        if args.log_gradient_noise_scale:
+            noise_scale_logger.update()
         # Logging.
         loss_scale = None
         if args.precision == "fp16":
