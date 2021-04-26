@@ -10,21 +10,21 @@ if __name__ == "__main__":
 
 from megatron.neox_arguments import NeoXArgs
 from megatron.global_vars import set_global_variables, get_args
-from megatron.model import GPT2Model, GPT2ModelPipe
+from megatron.model import GPT2ModelPipe
 from megatron import initialize_megatron
 from megatron import mpu
 
 from tests.common import get_root_directory, get_configs_with_path
 
-class TestModelInitialization(unittest.TestCase):
-    def test_model_initialization(self):
-        return
+class TestModelInitializationPipeline(unittest.TestCase):
+ 
+    def test_model_initialization_pipeline(self):
 
         # intitially load config from files as would be the case in deepy.py
         yaml_list = get_configs_with_path(["small.yml", "local_setup.yml"])
         args_loaded = NeoXArgs.from_ymls(yaml_list)
         args_loaded.update_value("user_script", str(get_root_directory() / "pretrain_gpt2.py"))
-        args_loaded.update_value("pipe_parallel_size", 0) # overwrite pipeline parameter, config in small.yml may have changed!
+        args_loaded.update_value("pipe_parallel_size", 1) # overwrite pipeline parameter, config in small.yml may have changed!
         deepspeed_main_args = args_loaded.get_deepspeed_main_args()
 
         # patch sys.argv so that args can be access by set_global_variables within initialize_megatron
@@ -35,9 +35,9 @@ class TestModelInitialization(unittest.TestCase):
         args = get_args()
         assert(isinstance(args, NeoXArgs))
 
-        model = GPT2Model(num_tokentypes=0, parallel_output=True, inference=False, get_key_value=True)
+        model = GPT2ModelPipe(num_tokentypes=0, parallel_output=True, topology=mpu.get_topology(), inference=False, get_key_value=True)
         
-        assert isinstance(model, GPT2Model)
+        assert isinstance(model, GPT2ModelPipe)
 
 
 if __name__ == "__main__":
