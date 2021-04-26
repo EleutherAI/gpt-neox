@@ -26,7 +26,6 @@ import torch
 import wandb
 
 from megatron.tokenizer import build_tokenizer
-from .arguments import parse_args
 
 _GLOBAL_ARGS = None
 _GLOBAL_TOKENIZER = None
@@ -65,31 +64,19 @@ def get_timers():
     return _GLOBAL_TIMERS
 
 
-def set_global_variables(extra_args_provider=None, args_defaults={},
-                         ignore_unknown_args=False, args=None):
+def set_global_variables():
     """Set args, tokenizer, tensorboard-writer, adlr-autoresume, and timers."""
-    args = _parse_args(extra_args_provider=extra_args_provider,
-                       defaults=args_defaults,
-                       ignore_unknown_args=ignore_unknown_args,
-                       args=args
-                       )
+    from megatron.neox_arguments import NeoXArgs
+    args = NeoXArgs.consume_megatron_args()
+
+    global _GLOBAL_ARGS
+    _ensure_var_is_not_initialized(_GLOBAL_ARGS, 'args')
+    _GLOBAL_ARGS = args
+
     _ = _build_tokenizer(args)
     _set_tensorboard_writer(args)
     _set_adlr_autoresume(args)
     _set_timers()
-
-
-def _parse_args(extra_args_provider=None, defaults={},
-                ignore_unknown_args=False, args=None):
-    """Parse entire arguments."""
-    global _GLOBAL_ARGS
-    _ensure_var_is_not_initialized(_GLOBAL_ARGS, 'args')
-    _GLOBAL_ARGS = parse_args(extra_args_provider=extra_args_provider,
-                              defaults=defaults,
-                              ignore_unknown_args=ignore_unknown_args,
-                              args=args
-                              )
-    return _GLOBAL_ARGS
 
 
 def _build_tokenizer(args):

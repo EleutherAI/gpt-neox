@@ -245,6 +245,7 @@ def maybe_download_gpt2_tokenizer_data(tokenizer_type):
 
 
 DATA_DOWNLOADERS = {
+    "pass": "pass",
     "enron": Enron,
     "pile_subset": PileSubset,
     "pile": Pile,
@@ -279,6 +280,9 @@ def prepare_dataset(dataset_name: str, tokenizer_type: str = None, data_dir: str
     if DownloaderClass is None:
         raise NotImplementedError(
             f'Dataset "{dataset_name}" not recognized - please choose from {list(DATA_DOWNLOADERS.keys())}')
+    elif DownloaderClass == "pass":
+        # pass on building dataset (for unit tests)
+        pass
     else:
         d = DownloaderClass(tokenizer_type=tokenizer_type, vocab_file=vocab_file, merge_file=merge_file,
                             data_dir=data_dir, num_workers=num_workers)
