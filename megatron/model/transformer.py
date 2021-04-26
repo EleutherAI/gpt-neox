@@ -168,7 +168,7 @@ class ParallelSelfAttention(MegatronModule):
                  rpe=None, rotary=False, get_key_value=False):
         super(ParallelSelfAttention, self).__init__()
         args = get_args()
-        self.fp16 = args.fp16
+        self.fp16 = args.precision == "fp16"
         self.attention_mask_func = attention_mask_func
         self.apply_query_key_layer_scaling = args.apply_query_key_layer_scaling
         self.get_key_value = get_key_value

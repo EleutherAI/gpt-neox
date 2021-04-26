@@ -133,7 +133,7 @@ wandb/
 
 # data files 
 data/
-
-# checkpoint files
+checkpoints/
+.vscode/
 *.pt
 *.ckpt

@@ -30,7 +30,7 @@ from megatron.initialize import initialize_megatron
 from megatron.training import setup_model_and_optimizer
 from megatron.text_generation_utils import generate_and_write_samples_unconditional, generate_samples_input_from_file, \
     generate_samples_interactive
-from megatron.utils import neox_args, pipe_to_normal
+from megatron.utils import pipe_to_normal
 
 from deepspeed import PipelineEngine
 
@@ -77,4 +77,4 @@ def main(extra_args_provider=None, get_key_value=True):
         raise ValueError(f"`text-gen-type` either not specified or not recognised: {args.text_gen_type}")
 
 if __name__ == "__main__":
-    main(extra_args_provider=neox_args)
+    main()

@@ -11,19 +11,22 @@
    "num-attention-heads": 16,
    "seq-length": 2048,
    "max-position-embeddings": 2048,
-   "norm": "rmsnorm",
-   "pos-emb": "none",
+   "norm": "layernorm",
+   "pos-emb": "rotary",
    "no-weight-tying": true,
-    # this should provide some speedup but takes a while to build, set to true if desired
+
+   # these should provide some speedup but takes a while to build, set to true if desired
    "scaled-upper-triang-masked-softmax-fusion": false,
+   "bias-gelu-fusion": false,
+
    
    # optimizer settings
    "optimizer": {
      "type": "Adam",
      "params": {
        "lr": 0.00025,
-       "max_grad_norm": 1.0,
-       "betas": [0.9, 0.999]
+       "betas": [0.9, 0.999],
+       "eps": 1.0e-8,
      }
    },
    "zero_optimization": {

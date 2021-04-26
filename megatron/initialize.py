@@ -24,6 +24,7 @@ import os
 import numpy as np
 import torch
 
+from megatron import fused_kernels
 from megatron import get_adlr_autoresume
 from megatron import get_args
 from megatron import get_tensorboard_writer
@@ -37,8 +38,7 @@ import inspect
 from deepspeed.utils import distributed
 
 
-def initialize_megatron(extra_args_provider=None, args_defaults={},
-                        ignore_unknown_args=False, allow_no_cuda=False, args=None):
+def initialize_megatron(allow_no_cuda=False):
     """Set global variables, initialize distributed, and
     set autoresume and random seeds.
     `allow_no_cuda` should not be set unless using megatron for cpu only 
@@ -54,11 +54,9 @@ def initialize_megatron(extra_args_provider=None, args_defaults={},
 
     # Parse args, build tokenizer, and set adlr-autoresume,
     # tensorboard-writer, and timers.
-    set_global_variables(extra_args_provider=extra_args_provider,
-                         args_defaults=args_defaults,
-                         ignore_unknown_args=ignore_unknown_args,
-                         args=args
-                         )
+    set_global_variables()
+
+    args = get_args()
 
     # torch.distributed initialization
     def finish_mpu_init():
@@ -71,7 +69,14 @@ def initialize_megatron(extra_args_provider=None, args_defaults={},
             print('> setting random seeds to {} ...'.format(args.seed))
         _set_random_seed(args.seed)
 
-    args = get_args()
+    # load scaled_upper_triang_masked_softmax_fusion kernel
+    if args.scaled_upper_triang_masked_softmax_fusion:
+        fused_kernels.load_scaled_upper_triang_masked_softmax_fusion_kernel()
+
+    # load scaled_masked_softmax_fusion kernel
+    if args.scaled_masked_softmax_fusion:
+        fused_kernels.load_scaled_masked_softmax_fusion_kernel()
+
     if args.lazy_mpu_init:
         args.use_cpu_initialization = True
         # delayed initialization of DDP-related stuff
