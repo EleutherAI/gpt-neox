@@ -1,4 +1,8 @@
-from .test_argument_duplicates import DuplicateArgumentTest
-from .test_argument_usage import ArgumentUsageTest
-from .test_argument_validation import ValidateArgumentTest
-from .test_argument_loading import LoadArgumentTest
+"""
+Tests concerning NeoXArgs
+"""
+
+from .test_neoxargs_implementation import TestNeoXArgsImplementation
+from .test_neoxargs_usage import TestNeoXArgsArgumentUsage
+from .test_neoxargs_load import TestNeoXArgsLoad
+from .test_neoxargs_validation import TestNeoXArgsValidation
