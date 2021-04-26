@@ -78,11 +78,6 @@ class NeoXArgs(*BASE_CLASSES):
     NeoXArgs inherits from a number of small configuration classes
     """
 
-    only_default_arguments: bool = False
-    """
-    helper to be able to instantiate class with just default values, setting this to true omits calculations and checks
-    """
-
     ############################################################################################################################
     # start of instantiation
 
@@ -97,17 +92,15 @@ class NeoXArgs(*BASE_CLASSES):
 
         self.enable_logging()
 
-        if not self.only_default_arguments:
-            self.configure_distributed_args()
-            self.calculate_derived()
-        
+        self.configure_distributed_args()
+        self.calculate_derived()
+    
         if not self.validate_types():
             raise ValueError(self.__class__.__name__+".__post_init__() NeoXArgs types cannot be validated")
 
-        if not self.only_default_arguments:
-            if not self.validate_values():
-                raise ValueError(self.__class__.__name__+".__post_init__() NeoXArgs values cannot be validated")
-            
+        if not self.validate_values():
+            raise ValueError(self.__class__.__name__+".__post_init__() NeoXArgs values cannot be validated")
+        
         self.save_yml()
 
     @classmethod

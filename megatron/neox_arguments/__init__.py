@@ -15,7 +15,6 @@ NeoX Arguments manages all configuration arguments.
 **instantiation**
 NeoX args can be instantiated with the following options
 
-* NeoXArgs(only_default_arguments=True): do not load from any input; the attribute only_default_arguments needs to be set to true in order not to perform validations of values (otherwise an error would be raised because required attributes are undefined)
 * NeoXArgs.from_ymls(["path_to_yaml1", "path_to_yaml2", ...]): load yaml configuration files and instantiate with the values provided; checks for duplications and unknown arguments are performed
 * NeoXArgs.from_dict({"num_layers": 12, ...}): load attribute values from dict; checks unknown arguments are performed
 
