@@ -37,9 +37,7 @@ class GradientNoiseScale:
     and the gradients of the entire batch for Bbig.
     - Alternatively, we can just take Bsmall as a single batch, and Bbig as several sequential batches in a row.
     This is the option we've opted for in this implementation because a) it's easier to implement and b) also works in
-    single-gpu environments.
-
-    TODO: currently only works with pp = 0 until we add a hook to get the gradients from deepspeed
+    single-gpu environments. Unfortunately it does come with some memory overhead.
     """
 
     def __init__(self, model, batch_size_small, n_batches=10, beta=0.99, cpu_offload=False, args=None, mpu=None):
