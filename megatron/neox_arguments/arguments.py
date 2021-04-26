@@ -133,8 +133,6 @@ class NeoXArgs(*BASE_CLASSES):
                 conf_key_converted = conf_key.replace("-", "_")  #TODO remove replace and update configuration files?
                 config[conf_key_converted] = conf_value
 
-        #TODO check for unspecified params?
-
         if overwrite_values is not None:
             for k, v in overwrite_values.items():
                 config[k] = v
@@ -345,8 +343,20 @@ class NeoXArgs(*BASE_CLASSES):
             print('-------------------- arguments --------------------', flush=True)
             str_list = []
             for arg in vars(self):
+                
+                # add arg + value
                 dots = '.' * (32 - len(arg))
-                str_list.append('  {} {} {}'.format(arg, dots, getattr(self, arg)))
+                value = getattr(self, arg)
+                print_str = '  {} {} {}'.format(arg, dots, value)
+
+                # add info 'default or updated'
+                field_def = self.__dataclass_fields__[arg]
+                default_info = "default" if value == field_def.default else "updated"
+                dots = '.' * (64 - len(print_str))
+                print_str += dots + default_info
+
+
+                str_list.append(print_str)
             for arg in sorted(str_list, key=lambda x: x.lower()):
                 print(arg, flush=True)
             print('---------------- end of arguments ----------------', flush=True)
