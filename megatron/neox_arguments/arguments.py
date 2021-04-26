@@ -471,7 +471,7 @@ class NeoXArgs(*BASE_CLASSES):
                 num_gpus = torch.cuda.device_count()
         self.update_value("num_gpus", num_gpus)
 
-        logging.info(self.__class__.__name__+".calcule_derived() "+f"Total number of GPUs determined to be: {self.num_gpus}")
+        logging.info(self.__class__.__name__+".calculate_derived() "+f"Total number of GPUs determined to be: {self.num_gpus}")
 
         # get world size in the model/pipe parallel case, the actual `world size` deepspeed uses is the size of the
         # data-parallel group, or (num_gpus / mp_size) / pp_size
