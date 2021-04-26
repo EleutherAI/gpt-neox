@@ -198,7 +198,6 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load'):
             if mpu.get_data_parallel_rank() == 0:
                 print("Unable to load checkpoint.")
             return iteration
-
     else:
         raise ValueError('Must be using deepspeed to use neox')
 

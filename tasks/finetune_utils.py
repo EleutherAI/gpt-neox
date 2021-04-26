@@ -172,7 +172,7 @@ def _train(model, optimizer, lr_scheduler, forward_step,
             report_memory_flag = training_log(losses_dict, losses_dict_sum,
                                               optimizer.param_groups[0]['lr'],
                                               iteration, optimizer.loss_scale,
-                                              report_memory_flag, model)
+                                              report_memory_flag, model, optimizer)
 
             # Autoresume
             if args.adlr_autoresume and \

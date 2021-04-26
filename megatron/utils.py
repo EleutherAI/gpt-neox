@@ -25,6 +25,7 @@ from typing import Dict, List
 
 import requests
 import torch
+import wandb
 from deepspeed.launcher.runner import fetch_hostfile, parse_inclusion_exclusion
 
 from megatron import get_args
@@ -32,6 +33,7 @@ from megatron import print_rank_0
 from megatron import get_adlr_autoresume
 from megatron import mpu
 from megatron.data.samplers import DistributedBatchSampler
+from megatron.global_vars import get_use_wandb, get_tensorboard_writer
 from megatron.fp16 import FP16_Optimizer
 from deepspeed import PipelineEngine, DeepSpeedEngine
 
@@ -248,3 +250,12 @@ def pipe_to_normal(model_engine):
         mpu=model_engine.module.mpu(),
         dist_init_required=False,
         config_params=model_engine.config_params)
+
+def tb_wandb_log(key, value, iteration_no):
+    # logs to both tb and wandb (if present) from the zeroth rank
+    writer = get_tensorboard_writer()
+    if torch.distributed.get_rank() == 0:
+        if writer:
+            writer.add_scalar(key, value, iteration_no)
+        if get_use_wandb():
+            wandb.log({key: value}, step=iteration_no)

@@ -50,6 +50,7 @@ def build_train_valid_test_datasets(data_prefix, data_impl, splits_string,
         print_rank_0('     document indices in [{}, {}) total of {} '
                      'documents'.format(splits[index], splits[index + 1],
                                         splits[index + 1] - splits[index]))
+
     print_split_stats('train', 0)
     print_split_stats('validation', 1)
     print_split_stats('test', 2)
@@ -110,6 +111,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
         #    sample i --> [sample_idx[i], sample_idx[i+1])
         return self.sample_idx.shape[0] - 1
 
+
     def __getitem__(self, idx):
         # Get the shuffled index.
         idx = self.shuffle_idx[idx]
@@ -166,9 +168,8 @@ def _build_index_mappings(name, data_prefix, documents, sizes,
     # Build the indexed mapping if not exist.
     if torch.distributed.get_rank() == 0:
         if (not os.path.isfile(doc_idx_filename)) or \
-           (not os.path.isfile(sample_idx_filename)) or \
-           (not os.path.isfile(shuffle_idx_filename)):
-
+                (not os.path.isfile(sample_idx_filename)) or \
+                (not os.path.isfile(shuffle_idx_filename)):
             print_rank_0(' > WARNING: could not find index map files, building '
                          'the indices on rank 0 ...')
             # doc-idx.
