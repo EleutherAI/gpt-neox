@@ -5,9 +5,9 @@ import unittest
 
 from megatron.neox_arguments import NeoXArgs
 
-class ArgumentUsageTest(unittest.TestCase):
+class TestNeoXArgsArgumentUsage(unittest.TestCase):
     
-    def test_usage(self):
+    def test_neoxargs_usage(self):
         """"
         checks for code pieces of the pattern "args.*" and verifies that such used arg is defined in NeoXArgs
         """

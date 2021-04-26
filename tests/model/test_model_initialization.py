@@ -13,20 +13,15 @@ from megatron.global_vars import set_global_variables, get_args
 from megatron.model import GPT2Model
 from megatron import initialize_megatron
 
-class ModelInitializationTest(unittest.TestCase):
+from ..common import get_root_directory, get_configs_with_path
 
-    def setUp(self):
-        self.neox_directory = Path(__file__).parents[2]
-
-    def get_configs_with_path(self, configs):
-        return [str(self.neox_directory / "configs" / cfg) for cfg in configs]
-    
+class TestModelInitialization(unittest.TestCase):
     def test_model_initialization(self):
 
         # intitially load config from files as would be the case in deepy.py
-        yaml_list = self.get_configs_with_path(["small.yml", "local_setup.yml"])
+        yaml_list = get_configs_with_path(["small.yml", "local_setup.yml"])
         args_loaded = NeoXArgs.from_ymls(yaml_list)
-        args_loaded.update_value("user_script", str(self.neox_directory / "pretrain_gpt2.py"))
+        args_loaded.update_value("user_script", str(get_root_directory() / "pretrain_gpt2.py"))
         deepspeed_main_args = args_loaded.get_deepspeed_main_args()
 
         # patch sys.argv so that args can be access by set_global_variables within initialize_megatron
@@ -43,8 +38,6 @@ class ModelInitializationTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    #test = ModelInitializationTest()
-    #test.test_model_initialization()
     suite = unittest.TestSuite()
     suite.addTest(ModelInitializationTest("test_model_initialization"))
     unittest.TextTestRunner(failfast=True).run(suite)
