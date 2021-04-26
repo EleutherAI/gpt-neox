@@ -13,14 +13,15 @@
    "max-position-embeddings": 2048,
    "norm": "rmsnorm",
    "pos-emb": "none",
-   "no-weight-tying": true,
+   "no-weight-tying": false,
+   "fp16-lm-cross-entropy": true,
     # this should provide some speedup but takes a while to build, set to true if desired
    "scaled-upper-triang-masked-softmax-fusion": false,
 
    
    # optimizer settings
    "optimizer": {
-     "type": "Adam",
+     "type": "cpu_adam",
      "params": {
        "lr": 0.0003,
        "max_grad_norm": 1.0,
@@ -28,14 +29,17 @@
      }
    },
    "zero_optimization": {
-    "stage": 1,
-    "allgather_partitions": True,
-    "allgather_bucket_size": 500000000,
-    "overlap_comm": True,
-    "reduce_scatter": True,
-    "reduce_bucket_size": 500000000,
-    "contiguous_gradients": True,
-    "cpu_offload": False
+    "stage": 3,
+    "cpu_offload": true,
+    "cpu_offload_params": true,
+    "overlap_comm": true,
+    "contiguous_gradients": true,
+    "stage3_max_live_parameters": 6000000,
+    "stage3_max_reuse_distance": 100000000,
+    "stage3_prefetch_bucket_size": 200000,
+    "stage3_param_persitance_threshold": 100000,
+    "reduce_bucket_size": 3000000,
+    "sub_group_size": 1000000.0
   },
    # batch / data settings
    "train_micro_batch_size_per_gpu": 4,

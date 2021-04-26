@@ -37,8 +37,8 @@ from megatron.model.transformer import ParallelTransformerLayerPipe, NormPipe, R
 from .language_model import EmbeddingPipe, parallel_lm_logits
 from megatron import print_rank_0
 
+import deepspeed
 from deepspeed.pipe import PipelineModule, LayerSpec, TiedLayerSpec
-
 
 def gpt2_attention_mask_func(attention_scores, ltor_mask):
     attention_scores.masked_fill_(ltor_mask, -10000.0)
@@ -95,10 +95,8 @@ class GPT2Model(MegatronModule):
             attention_mask_func=gpt2_attention_mask_func,
             num_tokentypes=num_tokentypes,
             init_method=init_method_normal(args.init_method_std),
-            scaled_init_method=scaled_init_method_normal(args.init_method_std,
-                                                         args.num_layers),
-            get_key_value=self.get_key_value)
-
+            scaled_init_method=scaled_init_method_normal(args.init_method_std, args.num_layers)
+        deepspeed.zero.register_external_parameter(self,self.language_model.embedding.word_embeddings.weight)
 
     def forward(self, input_ids, position_ids, attention_mask, 
                 layer_past=None, tokentype_ids=None, forward_method_parallel_output=None, labels=None):
@@ -108,6 +106,8 @@ class GPT2Model(MegatronModule):
                                         position_ids,
                                         attention_mask,
                                         tokentype_ids=tokentype_ids,
+                                        layer_past=layer_past,
+                                        get_key_value=get_key_value)
                                         layer_past=layer_past)
 
         if self.get_key_value:
@@ -118,10 +118,7 @@ class GPT2Model(MegatronModule):
         if forward_method_parallel_output is not None:
             parallel_output = forward_method_parallel_output
         if self.weight_tying:
-            output = parallel_lm_logits(
-                lm_output,
-                self.language_model.embedding.word_embeddings.weight,
-                parallel_output)
+            output = parallel_lm_logits(lm_output, self.language_model.embedding.word_embeddings.weight, parallel_output)
         else:
             output, bias = self.final_linear(lm_output)
 
