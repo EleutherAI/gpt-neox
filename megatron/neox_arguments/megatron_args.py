@@ -299,6 +299,22 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Interval between logging.
     """
 
+    log_param_norm: bool = False
+    """
+    Log the frob norm of the parameters to wandb / tensorboard (useful for debugging).
+    """
+
+    log_grad_norm: bool = False
+    """
+    Log the frob norm of the gradients to wandb / tensorboard (useful for debugging).
+    (N.B - this will only work with pp = 0 for now, as we don't have access to the gradients of the model because 
+    deepspeed.)
+    """
+
+    log_optimizer_states: bool = False
+    """
+    Log the frob norm of the optimizer states to wandb / tensorboard (useful for debugging).
+    """
 
 @dataclass
 class NeoXArgsOther(NeoXArgsTemplate):
