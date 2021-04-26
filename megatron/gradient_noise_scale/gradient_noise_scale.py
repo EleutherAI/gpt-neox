@@ -66,38 +66,42 @@ class GradientNoiseScale:
             return None
         return torch.cat(grads)
 
+    def _update(self):
+        grad = self.flatten_grads()
+        if grad is None:
+            return
+        self.buffer.append(grad)
+        if self.n_updates % self.n_batches == self.n_batches - 1:
+            # average grads every n_batches iteration to get a simulation of Bbig
+            batches = torch.cat(self.buffer, dim=1)
+            grads = batches.mean(dim=1)
+            self.buffer = []
+
+            # calculate Gbig and Gsmall
+            g_big = torch.square(torch.norm(grads))
+            g_small = torch.square(torch.norm(grad))
+            if g_small.isinf().any() or g_small.isnan().any():
+                return
+            elif g_big.isinf().any() or g_big.isnan().any():
+                return
+
+            # calculate noise / scale
+            noise = 1 / (self.batch_size_large - self.batch_size_small) * (
+                    self.batch_size_large * g_big - self.batch_size_small * g_small)
+            scale = 1 / (1 / self.batch_size_small - 1 / self.batch_size_large) * (g_small - g_big)
+
+            # calculate running average
+            self.ema_noise, noise = ema(self.ema_noise, self.beta, noise, self.n_updates)
+            self.ema_scale, scale = ema(self.ema_scale, self.beta, scale, self.n_updates)
+
+            # calculate noise scale
+            scale = scale.item()
+            noise = noise.item()
+            self.noise_scale = (scale / noise)
+        self.n_updates += 1
+
     def update(self):
         if torch.distributed.get_rank() == 0:
-            grad = self.flatten_grads()
-            if grad is None:
-                return
-            self.buffer.append(grad)
-            if self.n_updates % self.n_batches == self.n_batches - 1:
-                # average grads every n_batches iteration to get a simulation of Bbig
-                batches = torch.cat(self.buffer, dim=1)
-                grads = batches.mean(dim=1)
-                self.buffer = []
-
-                # calculate Gbig and Gsmall
-                g_big = torch.square(torch.norm(grads))
-                g_small = torch.square(torch.norm(grad))
-                if g_small.isinf().any() or g_small.isnan().any():
-                    return None
-                elif g_big.isinf().any() or g_big.isnan().any():
-                    return None
-
-                # calculate noise / scale
-                noise = 1 / (self.batch_size_large - self.batch_size_small) * (
-                            self.batch_size_large * g_big - self.batch_size_small * g_small)
-                scale = 1 / (1 / self.batch_size_small - 1 / self.batch_size_large) * (g_small - g_big)
-
-                # calculate running average
-                self.ema_noise, noise = ema(self.ema_noise, self.beta, noise, self.n_updates)
-                self.ema_scale, scale = ema(self.ema_scale, self.beta, scale, self.n_updates)
-
-                # calculate noise scale
-                scale = scale.item()
-                noise = noise.item()
-                self.noise_scale = (scale / noise)
-            self.n_updates += 1
+            # only update on 0th rank
+            self._update()
         torch.distributed.barrier()

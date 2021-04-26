@@ -503,6 +503,9 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
     if args.log_gradient_noise_scale:
         if args.pipe_parallel_size > 0:
             raise NotImplementedError('Gradient Noise Scale logging does not currently work with pp_size > 0')
+        elif args.zero_stage >= 1:
+            raise NotImplementedError('Gradient Noise Scale logging does not work with zero stage 2+, as the '
+                                      'gradients are distributed across ranks.')
         noise_scale_logger = GradientNoiseScale(
             model=model,
             batch_size_small=args.train_batch_size,
