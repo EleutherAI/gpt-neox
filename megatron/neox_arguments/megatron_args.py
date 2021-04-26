@@ -316,6 +316,17 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Log the frob norm of the optimizer states to wandb / tensorboard (useful for debugging).
     """
 
+    log_gradient_noise_scale: bool = False
+    """
+    Whether to log the gradient noise scale when training (cf. https://arxiv.org/abs/1812.06162 for explanation) 
+    """
+
+    gradient_noise_scale_n_batches: int = 10
+    """
+    Number of batches to accumulate gradients for in the gradient noise scale logger.
+    """
+
+
 @dataclass
 class NeoXArgsOther(NeoXArgsTemplate):
 
