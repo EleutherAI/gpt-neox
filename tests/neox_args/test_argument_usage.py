@@ -3,8 +3,7 @@ import re
 import sys
 import unittest
 
-sys.path.append('./megatron/')
-from neox_arguments import NeoXArgs
+from megatron.neox_arguments import NeoXArgs
 
 class ArgumentUsageTest(unittest.TestCase):
     
@@ -32,7 +31,7 @@ class ArgumentUsageTest(unittest.TestCase):
         files.remove('./megatron/tokenizer/train_tokenizer.py')
 
         declared_all = True
-        exclude = ['params_dtype', 'deepspeed_config', 'get', 'pop']
+        exclude = ['params_dtype', 'deepspeed_config', 'get', 'pop', 'get_deepspeed_main_args', 'optimizer["params"]']
 
         for f in files:
             out = self.run_test(f)

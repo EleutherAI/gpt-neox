@@ -2,8 +2,7 @@ import os
 import sys
 import unittest
 
-sys.path.append('./megatron/')
-from neox_arguments import NeoXArgs
+from megatron.neox_arguments import NeoXArgs
 
 class DuplicateArgumentTest(unittest.TestCase):
     

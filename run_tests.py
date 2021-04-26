@@ -11,4 +11,7 @@ import unittest
 from tests import *
 
 if __name__ == "__main__":
-    unittest.TextTestRunner(failfast=True)
+    loader = unittest.TestLoader()
+    suite = loader.discover('tests')
+
+    unittest.TextTestRunner(failfast=True).run(suite)
