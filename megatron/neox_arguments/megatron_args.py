@@ -321,9 +321,14 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Whether to log the gradient noise scale when training (cf. https://arxiv.org/abs/1812.06162 for explanation) 
     """
 
-    gradient_noise_scale_n_batches: int = 10
+    gradient_noise_scale_n_batches: int = 5
     """
     Number of batches to accumulate gradients for in the gradient noise scale logger.
+    """
+
+    gradient_noise_scale_cpu_offload: bool = False
+    """
+    Whether to offload the buffered gradients to cpu when measuring gradient noise scale.
     """
 
 

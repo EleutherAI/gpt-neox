@@ -509,7 +509,8 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
         noise_scale_logger = GradientNoiseScale(
             model=model,
             batch_size_small=args.train_batch_size,
-            n_batches=args.gradient_noise_scale_n_batches)
+            n_batches=args.gradient_noise_scale_n_batches,
+            cpu_offload=args.gradient_noise_scale_cpu_offload)
     else:
         noise_scale_logger = None
 

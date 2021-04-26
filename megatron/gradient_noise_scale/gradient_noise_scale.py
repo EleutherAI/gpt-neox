@@ -42,7 +42,7 @@ class GradientNoiseScale:
     TODO: currently only works with pp = 0 until we add a hook to get the gradients from deepspeed
     """
 
-    def __init__(self, model, batch_size_small, n_batches=10, beta=0.99, dtype=torch.float):
+    def __init__(self, model, batch_size_small, n_batches=10, beta=0.99, dtype=torch.float, cpu_offload=False):
         self.batch_size_small = batch_size_small
         self.batch_size_large = batch_size_small * n_batches
         self.n_batches = n_batches
@@ -54,12 +54,16 @@ class GradientNoiseScale:
         self.noise_scale = None
         self.n_updates = 0
         self.dtype = dtype
+        self.cpu_offload = cpu_offload
 
     def flatten_grads(self):
         grads = []
         for param in self.model.parameters():
             if param.grad is not None and not param.grad.isnan().any() and not param.grad.isinf().any():
-                grads.append(param.grad.flatten().view(-1, 1).to(self.dtype))
+                p = param.grad.flatten().view(-1, 1).to(self.dtype)
+                if self.cpu_offload:
+                    p = p.cpu()
+                grads.append(p)
             else:
                 return None
         if not grads:
