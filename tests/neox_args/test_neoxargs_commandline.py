@@ -71,6 +71,9 @@ class TestNeoXArgsCommandLine(unittest.TestCase):
         self.assertTrue(args_loaded_yamls == args_loaded_consume)
 
     def test_neoxargs_consume_megatron_args(self):
+        """
+        verify megatron args are correctly consumed after sending via deepspeed
+        """
 
         # intitially load config from files as would be the case in deepy.py
         yaml_list = get_configs_with_path(["small.yml", "local_setup.yml"])

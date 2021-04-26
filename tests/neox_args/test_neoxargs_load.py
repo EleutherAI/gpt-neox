@@ -12,6 +12,9 @@ from megatron.neox_arguments import NeoXArgs
 from ..common import get_configs_with_path
 
 class TestNeoXArgsLoad(unittest.TestCase):
+    """
+    verify loading of yaml files
+    """
 
     def test_neoxargs_load_arguments_small_local_setup(self):
         """

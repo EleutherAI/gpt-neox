@@ -3,60 +3,49 @@ import re
 import sys
 import unittest
 
+if __name__ == "__main__":
+    sys.path.append(os.path.abspath(''))
+
 from megatron.neox_arguments import NeoXArgs
+from tests.common import get_root_directory
 
 class TestNeoXArgsArgumentUsage(unittest.TestCase):
+    """
+    plausibility checks on the usage of arguments within code
+    """
     
     def test_neoxargs_usage(self):
         """"
         checks for code pieces of the pattern "args.*" and verifies that such used arg is defined in NeoXArgs
         """
-        # collect files
-        files = [] 
-        foldersToCheck = ['./megatron/'] 
-        while (len(foldersToCheck) > 0): 
-            for (dirpath, dirnames, filenames) in os.walk(foldersToCheck[0]): 
-                while(len(dirnames) > 0): 
-                    foldersToCheck.append(foldersToCheck[0] + dirnames[0] + "/") 
-                    del dirnames[0] 
-                while(len(filenames) > 0): 
-                    if filenames[0].endswith('py'):
-                        files.append(foldersToCheck[0] + filenames[0]) 
-                    
-                    del filenames[0] 
-                del foldersToCheck[0] 
 
-        # remove files from test
-        files.remove('./megatron/text_generation_utils.py')
-        files.remove('./megatron/tokenizer/train_tokenizer.py')
-
+        
         declared_all = True
-        exclude = ['params_dtype', 'deepspeed_config', 'get', 'pop', 'get_deepspeed_main_args', 'optimizer["params"]']
+        neox_args_attributes = set(NeoXArgs.__dataclass_fields__.keys())
+        exclude = set(['params_dtype', 'deepspeed_config', 'get', 'pop', 'get_deepspeed_main_args', 'optimizer["params"]'])
 
-        for f in files:
-            out = self.run_test(f)
+        # test file by file
+        for filename in (get_root_directory() / "megatron").glob('**/*.py'):
+            if filename.name in ["text_generation_utils.py", "train_tokenizer.py"]: continue
 
-            for item in exclude:
-                if item in out:
-                    out.remove(item)
+            # load file
+            with open(filename, 'r') as f:
+                file_contents = f.read()
 
-            if out != []:
-                print(f"(arguments used not in neox args): {f}: {out}", flush=True)
-                declared_all = False
+            # find args matches
+            matches = list(re.findall(r"(?<=args\.).{2,}?(?=[\s\n(){}+-/*;:,=])", file_contents))
+            if len(matches) == 0: continue
+
+            # compare
+            for match in matches:
+                if match not in neox_args_attributes and match not in exclude:
+                    print(f"(arguments used not found in neox args): {filename.name}: {match}", flush=True)
+                    declared_all = False
 
         self.assertTrue(declared_all)
 
-    def check_file(self, file):
-        with open(file, 'r') as f:
-            text = f.read()
-        matches = re.findall(r"(?<=args\.).{2,}?(?=[\s\n(){}+-/*;:,=])", text)
-        return list(dict.fromkeys(matches))
 
-    def run_test(self, file):
-        neox_args = list(NeoXArgs.__dataclass_fields__)
-        missing = []
-        matches = self.check_file(file)
-        for match in matches:
-            if match not in neox_args:
-                missing.append(match)
-        return missing
+if __name__ == "__main__":
+    suite = unittest.TestSuite()
+    suite.addTest(TestNeoXArgsArgumentUsage("test_neoxargs_usage"))
+    unittest.TextTestRunner(failfast=True).run(suite)
