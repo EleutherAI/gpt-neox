@@ -46,7 +46,7 @@ class GradientNoiseScale:
         self.n_batches = n_batches
         self.beta = beta
         self.model = model
-        self.buffer = []
+        self.buffer = None
         self.ema_scale = None
         self.ema_noise = None
         self.noise_scale = None
@@ -92,12 +92,15 @@ class GradientNoiseScale:
         is_overflow = self._sync_overflow(grad is None)
         if is_overflow:
             return
-        self.buffer.append(grad)
+        if self.buffer is None:
+            self.buffer = grad
+        else:
+            self.buffer += grad
         if self.n_updates % self.n_batches == self.n_batches - 1:
             # average grads every n_batches iteration to get a simulation of Bbig
-            batches = torch.cat(self.buffer, dim=1)
-            grads = batches.mean(dim=1)
-            self.buffer = []
+            self.buffer /= self.n_batches
+            grads = self.buffer
+            self.buffer = None
 
             # calculate Gbig and Gsmall
             # this needs to be done in fp32 or it overflows
