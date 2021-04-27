@@ -51,6 +51,8 @@ class DataDownloader(ABC):
                 vocab_file = GPT2_VOCAB_FP
             elif tokenizer_type == "HFGPT2Tokenizer":
                 vocab_file = 'gpt2'
+            elif tokenizer_type == "CharLevelTokenizer":
+                pass
             else:
                 assert vocab_file is not None, 'No vocab file provided'
         if data_dir is None:
@@ -234,6 +236,10 @@ class C4(DataDownloader):
 class C4OpenWebText(DataDownloader):
     name = "c4_openwebtext"
     urls = [f"https://the-eye.eu/eleuther_staging/c4/realnewslike/c4-train.{i:05}-of-00512.json.gz" for i in range(512)]
+    
+class Enwik8(DataDownloader):
+    name = "enwik8"
+    urls = ["https://data.deepai.org/enwik8.zip"]
 
 
 def maybe_download_gpt2_tokenizer_data(tokenizer_type):
@@ -263,7 +269,8 @@ DATA_DOWNLOADERS = {
     "ubuntu_irc": UbuntuIRC,
     "youtube_subtitles": YoutubeSubtitles,
     "c4": C4,
-    "c4_openwebtext": C4OpenWebText
+    "c4_openwebtext": C4OpenWebText,
+    "enwik8": Enwik8
 }
 
 

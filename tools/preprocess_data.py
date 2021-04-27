@@ -115,7 +115,7 @@ def get_args():
     group = parser.add_argument_group(title='tokenizer')
     group.add_argument('--tokenizer-type', type=str, required=True,
                        choices=['HFGPT2Tokenizer', 'HFTokenizer',
-                                'GPT2BPETokenizer'],
+                                'GPT2BPETokenizer', 'CharLevelTokenizer'],
                        help='What type of tokenizer to use.')
     group.add_argument('--vocab-file', type=str, default=None,
                        help='Path to the vocab file')
@@ -163,8 +163,12 @@ def main():
 
     encoder = Encoder(args)
     tokenizer = build_tokenizer(args)
-    pool = multiprocessing.Pool(args.workers, initializer=encoder.initializer)
-    encoded_docs = pool.imap(encoder.encode, fin, 25)
+    if args.workers > 1:
+        pool = multiprocessing.Pool(args.workers, initializer=encoder.initializer)
+        encoded_docs = pool.imap(encoder.encode, fin, 25)
+    else:
+        encoder.initializer()
+        encoded_docs = (encoder.encode(doc) for doc in fin)
 
     level = "document"
     if args.split_sentences:

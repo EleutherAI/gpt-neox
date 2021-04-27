@@ -417,13 +417,12 @@ class NeoXArgsOther(NeoXArgsTemplate):
     Set during training
     """
 
-
 @dataclass
 class NeoXArgsTokenizer(NeoXArgsTemplate):
 
-    tokenizer_type: str = "GPT2BPETokenizer"
+    tokenizer_type: Literal["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "CharLevelTokenizer"] = "GPT2BPETokenizer"
     """
-    Type of tokenizer to use - should be one of ["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer"]
+    Type of tokenizer to use - should be one of ["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "CharLevelTokenizer"]
     """
 
     padded_vocab_size: int = None
