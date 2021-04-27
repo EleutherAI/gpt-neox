@@ -14,6 +14,7 @@
 # limitations under the License.
 import torch
 
+
 def print_rank_0(*message):
     """If distributed is initialized print only on rank 0."""
     if torch.distributed.is_initialized():
@@ -31,4 +32,3 @@ from .global_vars import get_timers
 from .initialize import initialize_megatron
 
 from .neox_arguments import NeoXArgs
-

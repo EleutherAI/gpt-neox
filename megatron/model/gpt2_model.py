@@ -28,15 +28,13 @@ from .utils import init_method_normal
 from .utils import scaled_init_method_normal
 from .norms import LayerNorm, RMSNorm, ScaleNorm
 
-# Pipeline parallelism
 from megatron import mpu
 from megatron.mpu import ParallelRelativePositionBias
-from megatron.model.language_model import SinusoidalPositionalEmbedding
 import megatron.fp16 as fp16
 from megatron.model.transformer import ParallelTransformerLayerPipe, NormPipe, RowParallelLinearPipe
-from .language_model import EmbeddingPipe, parallel_lm_logits
-from megatron import print_rank_0
-
+from megatron.model.language_model import parallel_lm_logits
+from megatron.model.word_embeddings import EmbeddingPipe
+# Pipeline parallelism
 from deepspeed.pipe import PipelineModule, LayerSpec, TiedLayerSpec
 
 

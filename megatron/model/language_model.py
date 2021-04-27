@@ -18,17 +18,14 @@
 
 """Transformer based language model."""
 
-import torch
 import torch.nn.functional as F
-from einops import rearrange, repeat
 
 from megatron import get_args
 from megatron import mpu
 from megatron.module import MegatronModule
-from megatron.model.transformer import ParallelTransformer, SinusoidalPositionalEmbedding, Embedding, EmbeddingPipe
-from megatron.model.utils import get_linear_layer
+from megatron.model.transformer import ParallelTransformer
+from megatron.model.word_embeddings import Embedding
 from megatron.model.utils import init_method_normal, scaled_init_method_normal
-from megatron.model.utils import identity
 
 
 def parallel_lm_logits(input_, word_embeddings_weight, parallel_output,
