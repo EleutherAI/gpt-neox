@@ -163,8 +163,12 @@ def main():
 
     encoder = Encoder(args)
     tokenizer = build_tokenizer(args)
-    pool = multiprocessing.Pool(args.workers, initializer=encoder.initializer)
-    encoded_docs = pool.imap(encoder.encode, fin, 25)
+    if args.workers > 1:
+        pool = multiprocessing.Pool(args.workers, initializer=encoder.initializer)
+        encoded_docs = pool.imap(encoder.encode, fin, 25)
+    else:
+        encoder.initializer()
+        encoded_docs = (encoder.encode(doc) for doc in fin)
 
     level = "document"
     if args.split_sentences:

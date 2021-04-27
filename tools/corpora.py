@@ -51,6 +51,8 @@ class DataDownloader(ABC):
                 vocab_file = GPT2_VOCAB_FP
             elif tokenizer_type == "HFGPT2Tokenizer":
                 vocab_file = 'gpt2'
+            elif tokenizer_type == "CharLevelTokenizer":
+                pass
             else:
                 assert vocab_file is not None, 'No vocab file provided'
         if data_dir is None:
