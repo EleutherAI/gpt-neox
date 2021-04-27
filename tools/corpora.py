@@ -234,6 +234,10 @@ class C4(DataDownloader):
 class C4OpenWebText(DataDownloader):
     name = "c4_openwebtext"
     urls = [f"https://the-eye.eu/eleuther_staging/c4/realnewslike/c4-train.{i:05}-of-00512.json.gz" for i in range(512)]
+    
+class Enwik8(DataDownloader):
+    name = "enwik8"
+    urls = ["https://data.deepai.org/enwik8.zip]
 
 
 def maybe_download_gpt2_tokenizer_data(tokenizer_type):
@@ -263,7 +267,8 @@ DATA_DOWNLOADERS = {
     "ubuntu_irc": UbuntuIRC,
     "youtube_subtitles": YoutubeSubtitles,
     "c4": C4,
-    "c4_openwebtext": C4OpenWebText
+    "c4_openwebtext": C4OpenWebText,
+    "enwik8": Enwik8
 }
 
 
