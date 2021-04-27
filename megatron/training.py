@@ -20,28 +20,22 @@
 #
 
 """Pretrain utilities."""
-import json
 from datetime import datetime
-from json import JSONDecodeError
 
 import math
 import sys
 
-import os
 import torch
-import wandb
 from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
 from apex.optimizers import FusedAdam as Adam
 
 from megatron import get_args
 from megatron import get_timers
-from megatron import get_tensorboard_writer
 from megatron import mpu
 from megatron import print_rank_0
 from megatron.checkpointing import load_checkpoint
 from megatron.checkpointing import save_checkpoint
 from megatron.fp16 import FP16_Module
-from megatron.fp16 import FP16_Optimizer
 from megatron.global_vars import get_use_wandb
 from megatron.initialize import initialize_megatron
 from megatron.learning_rates import AnnealingLR
@@ -50,6 +44,7 @@ from megatron.utils import check_adlr_autoresume_termination
 from megatron.utils import make_data_loader
 from megatron.utils import report_memory
 from megatron.utils import tb_wandb_log
+from megatron.gradient_noise_scale import GradientNoiseScale
 
 import deepspeed
 
@@ -229,7 +224,6 @@ def setup_model_and_optimizer(model_provider_func):
 
     if args.deepspeed:
         print_rank_0("DeepSpeed is enabled.")
-        
         if args.no_load_optim:
             assert optimizer is None
             _model_params = None
@@ -336,7 +330,6 @@ def train_step_pipe(model, data_iterator):
         skipped_iter = 1
     else:
         skipped_iter = 0
-
     # Don't break Megatron's timers because we changed code paths.
     for t in ['forward', 'backward', 'allreduce', 'optimizer', 'batch generator',
               'data loader']:
@@ -345,7 +338,7 @@ def train_step_pipe(model, data_iterator):
 
 
 def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
-                 loss_scale, report_memory_flag, skipped_iter, model, optimizer):
+                 loss_scale, report_memory_flag, skipped_iter, model, optimizer, noise_scale_logger):
     """Log training information such as losses, timing, etc."""
 
     args = get_args()
@@ -406,8 +399,6 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
                     for key in timer_values:
                         tb_wandb_log(f"timers/{key}", timer_values[key], iteration)
 
-
-
     # write losses, lr, etc. every step
     tb_wandb_log('train/learning_rate', learning_rate, iteration)
     for key in loss_dict:
@@ -415,10 +406,15 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
     if args.fp16:
         tb_wandb_log(f'train/loss_scale', loss_scale, iteration)
 
+    # log gradient noise scale
+    if args.log_gradient_noise_scale:
+        if noise_scale_logger.noise_scale is not None:
+            tb_wandb_log(f'train/noise_scale', noise_scale_logger.noise_scale, iteration)
+
     # (optional) Log optimizer states to wandb / tb every step
     if args.log_optimizer_states:
         for k, v in optimizer.state_dict()['optimizer_state_dict']['state'].items():
-            for ki, vi in v.items(): # step, module
+            for ki, vi in v.items():  # step, module
                 if ki != 'step':
                     opt_state_norm = torch.norm(vi) if hasattr(vi, 'dim') else vi
                     tb_wandb_log(f'optimizer_state_norms/{k}_{ki}', opt_state_norm, iteration)
@@ -441,7 +437,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         tb_wandb_log('runtime/samples_per_sec', samples_per_sec, iteration)
         tb_wandb_log('runtime/iteration_time', iteration_time, iteration)
         log_string += ' iteration {:8d}/{:8d} |'.format(iteration,
-                                                       args.train_iters)
+                                                        args.train_iters)
         log_string += ' elapsed time per iteration (ms): {:.1f} |'.format(
             elapsed_time * 1000.0 / args.log_interval)
         log_string += ' learning rate: {:.3E} |'.format(learning_rate)
@@ -494,6 +490,21 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
 
     timers('interval time').start()
     report_memory_flag = True
+
+    if args.log_gradient_noise_scale:
+        if args.zero_stage >= 1:
+            raise NotImplementedError('Gradient Noise Scale logging does not work with zero stage 2+, as the '
+                                      'gradients are distributed across ranks.')
+        noise_scale_logger = GradientNoiseScale(
+            model=model,
+            batch_size_small=args.train_batch_size,
+            n_batches=args.gradient_noise_scale_n_batches,
+            cpu_offload=args.gradient_noise_scale_cpu_offload,
+            args=args,
+            mpu=mpu)
+    else:
+        noise_scale_logger = None
+
     while iteration < args.train_iters:
         loss_dict, skipped_iter = train_step(forward_step_func,
                                              train_data_iterator,
@@ -501,7 +512,8 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
                                              optimizer,
                                              lr_scheduler)
         iteration += 1
-
+        if args.log_gradient_noise_scale:
+            noise_scale_logger.update()
         # Logging.
         loss_scale = None
         if args.precision == "fp16":
@@ -509,7 +521,10 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
         report_memory_flag = training_log(loss_dict, total_loss_dict,
                                           optimizer.param_groups[0]['lr'],
                                           iteration, loss_scale,
-                                          report_memory_flag, skipped_iter, model, optimizer)
+                                          report_memory_flag, skipped_iter,
+                                          model,
+                                          optimizer,
+                                          noise_scale_logger)
 
         # Autoresume
         if args.adlr_autoresume and \
