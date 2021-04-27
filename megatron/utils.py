@@ -259,3 +259,15 @@ def tb_wandb_log(key, value, iteration_no):
             writer.add_scalar(key, value, iteration_no)
         if get_use_wandb():
             wandb.log({key: value}, step=iteration_no)
+
+def ddb(rank=0):
+    """
+    Distributed Debugger that will insert a py debugger on rank `rank` and
+    pause all other distributed processes until debugging is complete.
+    :param rank:
+    """
+    if torch.distributed.get_rank() == rank:
+        from pdb import Pdb
+        pdb = Pdb(skip=["torch.distributed.*"])
+        pdb.set_trace(sys._getframe().f_back)
+    torch.distributed.barrier()
