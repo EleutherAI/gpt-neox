@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Processing data for pretraining."""
+"""Processing data for pretraining.""" 
 
 import argparse
 import json
@@ -38,25 +38,6 @@ except ImportError:
 from megatron.tokenizer import build_tokenizer
 from megatron.data import indexed_dataset
 
-
-# https://stackoverflow.com/questions/33139531/preserve-empty-lines-with-nltks-punkt-tokenizer
-class CustomLanguageVars(nltk.tokenize.punkt.PunktLanguageVars):
-    _period_context_fmt = r"""
-        \S*                          # some word material
-        %(SentEndChars)s             # a potential sentence ending
-        \s*                       #  <-- THIS is what I changed
-        (?=(?P<after_tok>
-            %(NonWord)s              # either other punctuation
-            |
-            (?P<next_tok>\S+)     #  <-- Normally you would have \s+ here
-        ))"""
-
-
-class IdentitySplitter(object):
-    def tokenize(self, *text):
-        return text
-
-
 class Encoder(object):
     def __init__(self, args):
         self.args = args
@@ -64,21 +45,6 @@ class Encoder(object):
     def initializer(self):
         # Use Encoder class as a container for global data
         Encoder.tokenizer = build_tokenizer(self.args)
-        if self.args.split_sentences:
-            if not nltk_available:
-                print("NLTK is not available to split sentences.")
-                exit()
-            splitter = nltk.load("tokenizers/punkt/english.pickle")
-            if self.args.keep_newlines:
-                # this prevents punkt from eating newlines after sentences
-                Encoder.splitter = nltk.tokenize.punkt.PunktSentenceTokenizer(
-                    train_text=splitter._params,
-                    lang_vars=CustomLanguageVars())
-            else:
-                Encoder.splitter = splitter
-
-        else:
-            Encoder.splitter = IdentitySplitter()
 
     def encode(self, json_line):
 
@@ -90,10 +56,9 @@ class Encoder(object):
         for key in self.args.json_keys:
             text = data[key]
             doc_ids = []
-            for sentence in Encoder.splitter.tokenize(text):
-                sentence_ids = Encoder.tokenizer.tokenize(sentence)
-                if len(sentence_ids) > 0:
-                    doc_ids.append(sentence_ids)
+            text_ids = Encoder.tokenizer.tokenize(text)
+            if len(text_ids) > 0:
+                doc_ids.append(text_ids)
             if self.args.append_eod:
                 doc_ids[-1].append(Encoder.tokenizer.eod)
             ids[key] = doc_ids
@@ -107,10 +72,6 @@ def get_args():
                        help='Path to input lmd archives')
     group.add_argument('--json-keys', nargs='+', default=['text'],
                        help='space separate listed of keys to extract from json')
-    group.add_argument('--split-sentences', action='store_true',
-                       help='Split documents into sentences.')
-    group.add_argument('--keep-newlines', action='store_true',
-                       help='Keep newlines between sentences when splitting.')
     group.add_argument('--num-docs', default=None, help='Number of documents in the input data (if known) for an accurate progress bar.', type=int)
     group = parser.add_argument_group(title='tokenizer')
     group.add_argument('--tokenizer-type', type=str, required=True,
@@ -158,7 +119,7 @@ def main():
     print("Opening", args.input)
     fin = _multi_lmd(args.input.split(","))
 
-    if nltk_available and args.split_sentences:
+    if nltk_available:
         nltk.download("punkt", quiet=True)
 
     encoder = Encoder(args)
@@ -171,14 +132,14 @@ def main():
         encoded_docs = (encoder.encode(doc) for doc in fin)
 
     level = "document"
-    if args.split_sentences:
-        level = "sentence"
 
     print(f"Vocab size: {tokenizer.vocab_size}")
     print(f"Output prefix: {args.output_prefix}")
     output_bin_files = {}
     output_idx_files = {}
     builders = {}
+    # make a builder for each key in args.json_keys
+    # each key will output to a different file beginning with args.output_prefix
     for key in args.json_keys:
         output_bin_files[key] = "{}_{}_{}.bin".format(args.output_prefix,
                                                       key, level)
