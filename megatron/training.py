@@ -164,7 +164,13 @@ def get_optimizer(model):
             **args.optimizer["params"])
     elif args.optimizer_type.lower() == "adam":
         # Use Adam
-        from apex.optimizers import FusedAdam as Adam
+        try:
+            # default to apex as it's slightly faster
+            from apex.optimizers import FusedAdam as Adam
+        except ImportError:
+            # if apex isn't installed, use deepspeed's FusedAdam
+            print("WARNING: APEX not installed - defaulting to deepspeed's fused adam")
+            from deepspeed.ops.adam import FusedAdam as Adam
         optimizer = Adam(param_groups,
                          weight_decay=args.weight_decay,
                          **args.optimizer["params"])
