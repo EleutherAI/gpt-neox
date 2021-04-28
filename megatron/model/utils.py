@@ -22,8 +22,6 @@ import math
 
 import torch
 
-from .transformer import LayerNorm, RMSNorm, ScaleNorm
-
 
 def init_method_normal(sigma):
     """Init method based on N(0, sigma)."""
@@ -42,15 +40,6 @@ def scaled_init_method_normal(sigma, num_layers):
         return torch.nn.init.normal_(tensor, mean=0.0, std=std)
 
     return init_
-
-
-def get_linear_layer(rows, columns, init_method):
-    """Simple linear layer with weight initialization."""
-    layer = torch.nn.Linear(rows, columns)
-    init_method(layer.weight)
-    with torch.no_grad():
-        layer.bias.zero_()
-    return layer
 
 
 @torch.jit.script
@@ -76,6 +65,7 @@ def get_params_for_weight_decay_optimization(module, args):
     """
     weight_decay_params = {'params': []}
     no_weight_decay_params = {'params': [], 'weight_decay': 0.0}
+    from .transformer import LayerNorm, RMSNorm, ScaleNorm
     for module_ in module.modules():
         if any([isinstance(module_, LayerNorm), isinstance(module_, RMSNorm), isinstance(module_, ScaleNorm)]) or \
                 (args.weight_decay == 0.0):  # also include all parameters here if no weight decay is being done
@@ -95,10 +85,6 @@ def get_params_for_weight_decay_optimization(module, args):
         # to avoid this, only use a single param group when weight decay is off.
         return [no_weight_decay_params]
     return weight_decay_params, no_weight_decay_params
-
-
-def identity(x, *args, **kwargs):
-    return x
 
 
 def exists(x):

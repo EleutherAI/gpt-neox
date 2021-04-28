@@ -24,7 +24,6 @@ from megatron import print_rank_0
 from megatron import get_tokenizer
 from megatron import mpu
 from megatron.checkpointing import load_checkpoint
-from megatron.model import GPT2Model
 from megatron.training import get_model
 from megatron.utils import get_ltor_masks_and_position_ids
 from tasks.finetune_utils import build_data_loader
@@ -48,9 +47,11 @@ def get_model_provider(eval_metric):
                                       'is not supported.'.format(eval_metric))
 
         print_rank_0('building GPT2 model ...')
-        model = GPT2Model(num_tokentypes=0, parallel_output=parallel_output)
+        # TODO: reimplement for pipe parallel
+        raise NotImplementedError
+        # model = GPT2Model(num_tokentypes=0, parallel_output=parallel_output)
 
-        return model
+        # return model
 
     return model_provider
 

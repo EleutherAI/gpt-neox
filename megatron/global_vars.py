@@ -34,6 +34,7 @@ _GLOBAL_ADLR_AUTORESUME = None
 _GLOBAL_TIMERS = None
 _GLOBAL_USE_WANDB = False
 
+
 def get_args():
     """Return arguments."""
     _ensure_var_is_initialized(_GLOBAL_ARGS, 'args')
@@ -100,7 +101,7 @@ def _set_tensorboard_writer(args):
                                    'tensorboard writer')
 
     if hasattr(args, 'tensorboard_dir') and \
-       args.tensorboard_dir and args.rank == 0:
+            args.tensorboard_dir and args.rank == 0:
         try:
             from torch.utils.tensorboard import SummaryWriter
             print('> setting tensorboard ...')
@@ -233,9 +234,11 @@ class Timers:
         else:
             print(string, flush=True)
 
+
 def get_use_wandb():
     global _GLOBAL_USE_WANDB
     return _GLOBAL_USE_WANDB
+
 
 def set_use_wandb(b: bool):
     global _GLOBAL_USE_WANDB

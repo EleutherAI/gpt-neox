@@ -34,6 +34,7 @@ from megatron import get_args
 from megatron import print_rank_0
 from megatron.utils import natural_sort
 
+
 def check_checkpoint_args(checkpoint_args):
     """Ensure fixed arguments for a model are the same for the input
     arguments and the one retreived frm checkpoint."""
@@ -114,14 +115,6 @@ def save_ds_checkpoint(iteration, model, args):
         sd['torch_rng_state'] = torch.get_rng_state()
         sd['cuda_rng_state'] = torch.cuda.get_rng_state()
         sd['rng_tracker_states'] = mpu.get_cuda_rng_tracker().get_states()
-
-    if args.pipe_parallel_size == 0:
-        # megatron model uses state_dict_for_save_checkpointing instead of the standard state_dict
-        # state_dict is used by deepspeed for module saving so it needs to point to the right function
-        model.module.state_dict = model.module.state_dict_for_save_checkpoint
-    else:
-        # Pipeline parallelism manages its own state_dict.
-        pass
 
     model.save_checkpoint(args.save, client_state=sd)
 

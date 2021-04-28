@@ -23,18 +23,17 @@ import torch
 from megatron import get_args
 from megatron.module import MegatronModule
 from functools import partial
-from .language_model import get_language_model
 from .utils import init_method_normal
 from .utils import scaled_init_method_normal
 from .norms import LayerNorm, RMSNorm, ScaleNorm
 
-# Pipeline parallelism
 from megatron import mpu
 from megatron.mpu import ParallelRelativePositionBias
 import megatron.fp16 as fp16
-from megatron.model.transformer import ParallelTransformerLayerPipe, NormPipe, ParallelLinearPipe, ParallelLinear
-from .language_model import EmbeddingPipe, parallel_lm_logits
+from megatron.model.transformer import ParallelTransformerLayerPipe, NormPipe, ParallelLinearPipe, parallel_lm_logits
+from megatron.model.word_embeddings import EmbeddingPipe
 
+# Pipeline parallelism
 from deepspeed.pipe import PipelineModule, LayerSpec, TiedLayerSpec
 
 
@@ -63,81 +62,6 @@ def cross_entropy(output, labels, _fp16=False):
     loss_mask = loss_mask.view(-1)
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
     return loss
-
-
-class GPT2Model(MegatronModule):
-    """GPT-2 Language model."""
-
-    def __init__(self, num_tokentypes=0, parallel_output=True, inference=False, get_key_value=True):
-        super(GPT2Model, self).__init__()
-        args = get_args()
-        self.parallel_output = parallel_output
-        self.weight_tying = not args.no_weight_tying
-        self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
-
-        self.inference = inference
-        self.get_key_value = get_key_value if inference else False
-
-        self.language_model, self._language_model_key = get_language_model(
-            attention_mask_func=gpt2_attention_mask_func,
-            num_tokentypes=num_tokentypes,
-            init_method=init_method_normal(args.init_method_std),
-            scaled_init_method=scaled_init_method_normal(args.init_method_std,
-                                                         args.num_layers),
-            get_key_value=self.get_key_value)
-        if not self.weight_tying:
-            self.final_linear = ParallelLinear(self.parallel_output)
-
-    def forward(self, input_ids, position_ids, attention_mask,
-                layer_past=None, tokentype_ids=None, forward_method_parallel_output=None, labels=None):
-
-        # Language model.
-        lm_output = self.language_model(input_ids,
-                                        position_ids,
-                                        attention_mask,
-                                        tokentype_ids=tokentype_ids,
-                                        layer_past=layer_past)
-
-        if self.get_key_value:
-            lm_output, presents = lm_output
-
-        # Output.
-        parallel_output = self.parallel_output
-        if forward_method_parallel_output is not None:
-            parallel_output = forward_method_parallel_output
-        if self.weight_tying:
-            output = parallel_lm_logits(
-                lm_output,
-                self.language_model.embedding.word_embeddings.weight,
-                parallel_output)
-        else:
-            output, bias = self.final_linear(lm_output)
-
-        if self.get_key_value:
-            output = [output, presents]
-
-        if labels is None:
-            return output
-        else:
-            if self.fp16_lm_cross_entropy:
-                assert output.dtype == torch.half
-                loss = mpu.vocab_parallel_cross_entropy(output, labels)
-            else:
-                loss = mpu.vocab_parallel_cross_entropy(output.float(), labels)
-            return loss
-
-    def state_dict_for_save_checkpoint(self, destination=None, prefix='',
-                                       keep_vars=False):
-        state_dict_ = {self._language_model_key: self.language_model.state_dict_for_save_checkpoint(
-            destination, prefix, keep_vars)}
-        return state_dict_
-
-    def load_state_dict(self, state_dict, strict=True):
-        """Customized load."""
-
-        if self._language_model_key in state_dict:
-            state_dict = state_dict[self._language_model_key]
-        self.language_model.load_state_dict(state_dict, strict=strict)
 
 
 class GPT2ModelPipe(PipelineModule, MegatronModule):

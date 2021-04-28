@@ -196,9 +196,11 @@ def is_local_main():
     """ True if is the local main process """
     return local_rank() == 0
 
+
 def is_mp_rank_0():
     """True if mp rank == 0"""
     return mpu.get_model_parallel_rank() == 0
+
 
 def get_wandb_api_key():
     """ Get Weights and Biases API key from ENV or .netrc file. Otherwise return None """
@@ -209,6 +211,7 @@ def get_wandb_api_key():
 
     if wandb_token is not None:
         return wandb_token[1]
+
 
 def obtain_resource_pool(hostfile_path, include_arg, exclude_arg) -> Dict[str, List[int]]:
     """
@@ -251,6 +254,7 @@ def pipe_to_normal(model_engine):
         dist_init_required=False,
         config_params=model_engine.config_params)
 
+
 def tb_wandb_log(key, value, iteration_no):
     # logs to both tb and wandb (if present) from the zeroth rank
     writer = get_tensorboard_writer()
@@ -259,6 +263,7 @@ def tb_wandb_log(key, value, iteration_no):
             writer.add_scalar(key, value, iteration_no)
         if get_use_wandb():
             wandb.log({key: value}, step=iteration_no)
+
 
 def ddb(rank=0):
     """

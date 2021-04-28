@@ -165,14 +165,13 @@ def forward_model(model, model_inputs):
     # we need to forward a pipe model by access model.module() instead of just model()
     args = get_args()
     torch.distributed.barrier()
-    if args.pipe_parallel_size == 1:
+    if args.pipe_parallel_size <= 1:
         return model.module(model_inputs)
-    elif args.pipe_parallel_size > 1:
+    else:
         data_iterator = iter([[model_inputs, torch.Tensor(1)]]) # we need to feed in fake labels bc deepspeed is only built for training
         x = model.inference_batch(data_iterator)
         return x
-    else:
-        return model(*model_inputs)
+
 
 
 def sample_sequence_batch(model, context_tokens, context_lengths,
