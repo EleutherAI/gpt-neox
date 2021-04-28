@@ -26,7 +26,6 @@ import sys
 import numpy as np
 
 import torch
-from torch.nn.parallel import DistributedDataParallel as torchDDP
 from glob import glob
 
 from megatron import mpu, get_args
@@ -145,17 +144,14 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
     torch.distributed.barrier()
 
 
-def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load'):
+def load_checkpoint(model, optimizer, lr_scheduler):
     """Load a model checkpoint and return the iteration."""
     args = get_args()
-    load_dir = getattr(args, load_arg)
 
-    if isinstance(model, torchDDP):
-        model = model.module
     # Read the tracker file and set the iteration.
-    tracker_filename = get_checkpoint_tracker_filename(load_dir)
+    tracker_filename = get_checkpoint_tracker_filename(args.load)
 
-    # If no tracker file, return iretation zero.
+    # If no tracker file, return iteration zero.
     if not os.path.isfile(tracker_filename):
         print_rank_0('WARNING: could not find the metadata file {} '.format(
             tracker_filename))
@@ -183,7 +179,7 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load'):
 
     if args.deepspeed:
         load_optim_and_scheduler = not args.no_load_optim  # TODO: These should be configured by separate args
-        checkpoint_name, state_dict = model.load_checkpoint(load_dir,
+        checkpoint_name, state_dict = model.load_checkpoint(args.load,
                                                             load_optimizer_states=load_optim_and_scheduler,
                                                             load_lr_scheduler_states=load_optim_and_scheduler)
 

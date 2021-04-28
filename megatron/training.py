@@ -242,7 +242,7 @@ def setup_model_and_optimizer(model_provider_func):
             dist_init_required=False,
             model_parameters=_model_params,
             config_params=args.deepspeed_config,
-            mpu=mpu if args.is_pipe_parallel else None
+            mpu=mpu if not args.is_pipe_parallel else None
         )
         model.total_params = get_total_params(model.module)
         print_rank_0(f' > total params: {"{:,}".format(model.total_params)}')
@@ -601,7 +601,7 @@ def evaluate_and_print_results(prefix, forward_step_func,
     # Pipeline parallelism needs eval_batch() instead of a simple forward().
     args = get_args()
     if args.is_pipe_parallel:
-        def _eval_helper(data_iter):
+        def _eval_helper(data_iter, _):
             loss = model.eval_batch(data_iter)
             return None, {'lm loss': loss}
         forward_step_func = _eval_helper
