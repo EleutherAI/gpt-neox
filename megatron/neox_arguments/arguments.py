@@ -15,7 +15,7 @@ from deepspeed.launcher.runner import DLTS_HOSTFILE
 from megatron.logging import Tee
 from megatron.utils import obtain_resource_pool
 from .deepspeed_args import NeoXArgsDeepspeedConfig, NeoXArgsDeepspeedRunner
-from .megatron_args import NeoXArgsModel, NeoXArgsTokenizer, NeoXArgsTraining, NeoXArgsParallelism, \
+from .neox_args import NeoXArgsModel, NeoXArgsTokenizer, NeoXArgsTraining, NeoXArgsParallelism, \
     NeoXArgsLogging, NeoXArgsOther, NeoXArgsTextgen, NeoXArgsOptimizer, NeoXArgsLRScheduler
 
 # ZERO defaults by deespeed
@@ -217,7 +217,7 @@ class NeoXArgs(*BASE_CLASSES):
         return neox_args
 
     @classmethod
-    def consume_megatron_args(cls):
+    def consume_neox_args(cls):
         """
         Deepspeed launcher needs to pass the arguments for `pretrain_gpt2.py` across to all machines.
         
@@ -266,8 +266,8 @@ class NeoXArgs(*BASE_CLASSES):
 
         # get all config values
         args_list.append("--megatron_config")
-        megatron_args = self.get_parent_class_value_dict(*self.__class__.__bases__, only_non_defaults=True)
-        args_list.append(json.dumps(megatron_args))
+        neox_args = self.get_parent_class_value_dict(*self.__class__.__bases__, only_non_defaults=True)
+        args_list.append(json.dumps(neox_args))
 
         return args_list
 
@@ -638,13 +638,6 @@ class NeoXArgs(*BASE_CLASSES):
 
         if self.fp16_lm_cross_entropy and self.precision != "fp16":
             error_message = self.__class__.__name__ + ".validate_values() lm cross entropy in fp16 only support in fp16 mode."
-            logging.error(error_message)
-            raise ValueError(error_message)
-            return False
-
-        # Activation checkpointing.
-        if self.distribute_checkpointed_activations and not self.checkpoint_activations:
-            error_message = self.__class__.__name__ + ".validate_values() 'for distribute-checkpointed-activations to work you need to enable checkpoint-activations'"
             logging.error(error_message)
             raise ValueError(error_message)
             return False
