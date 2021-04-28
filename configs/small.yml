@@ -4,9 +4,7 @@
    # across the node boundaries )
    "pipe-parallel-size": 1,
    "model-parallel-size": 1,
-   "deepspeed_activation_checkpointing": true,
-#   "log_param_norm": true,
-   "wandb_group": "test_pipe_convert",
+
    # model settings
    "num-layers": 12,
    "hidden-size": 768,
@@ -15,11 +13,12 @@
    "max-position-embeddings": 2048,
    "norm": "layernorm",
    "pos-emb": "rotary",
-   "no-weight-tying": false,
+   "no-weight-tying": true,
 
    # these should provide some speedup but takes a while to build, set to true if desired
    "scaled-upper-triang-masked-softmax-fusion": false,
    "bias-gelu-fusion": false,
+
 
    # optimizer settings
    "optimizer": {
@@ -73,7 +72,7 @@
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
-   "save-interval": 500,
+   "save-interval": 10000,
    "eval-interval": 1000,
    "eval-iters": 10,
 
