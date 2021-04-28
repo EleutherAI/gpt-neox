@@ -69,6 +69,13 @@ class TestModelInitialization(unittest.TestCase):
         # assert model output is a tensor
         self.assertTrue(isinstance(output, torch.Tensor))
 
+        for n, p in model.module.named_parameters():
+            if n == "final_linear.weight":
+                print(n, p, flush=True)
+
+        print(model.module.state_dict_for_save_checkpoint()["language_model"]["transformer"]["final_linear.weight"])
+        print(model.module.state_dict()["final_linear.weight"])
+        
         # save model checkpoint
         save_checkpoint(42, model, optimizer, lr_scheduler)
         
@@ -83,13 +90,17 @@ class TestModelInitialization(unittest.TestCase):
 
         reloaded_output = reloaded_model(tokens, position_ids, attention_mask)
 
-        print(output)
-        print(reloaded_output)  
-        print(torch.isclose(output, reloaded_output))    
+        #print(output)
+        #print(reloaded_output)  
+        #print(torch.isclose(output, reloaded_output))    
 
-        for idx, (m1, m2) in enumerate(zip(list(model.module.parameters()), list(reloaded_model.module.parameters()))):
+        for idx, ((n1, p1), (n2, p2)) in enumerate(zip(list(model.module.named_parameters()), list(reloaded_model.module.named_parameters()))):
             # It's the 'final linear layer' of the gpt2model, although not sure how to iterate through param group names
-            print(f"layer {idx} = {(m1 == m2).all().item()}")
+            self.assertTrue(n1 == n2)
+            params_equal = (p1 == p2).all().item()
+            if not params_equal:
+                print("")
+            self.assertTrue(params_equal, f"test_model_checkpoint() layer {idx} {n1} has same parameters after loading of checkpoint")
 
         self.assertTrue(torch.isclose(output, reloaded_output).all().item())
 
