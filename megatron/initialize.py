@@ -160,25 +160,22 @@ def _initialize_distributed():
         )
 
     # Setup 3D topology.
-    if args.pipe_parallel_size > 0:
-        pp = args.pipe_parallel_size
-        mp = args.model_parallel_size
-        assert args.world_size % (pp * mp) == 0, f'world_size={args.world_size}, pp={pp}, mp={mp}'
-        dp = args.world_size // (pp * mp)
+    pp = args.pipe_parallel_size if args.pipe_parallel_size >= 1 else 1
+    mp = args.model_parallel_size if args.model_parallel_size >= 1 else 1
+    assert args.world_size % (pp * mp) == 0, f'world_size={args.world_size}, pp={pp}, mp={mp}'
+    dp = args.world_size // (pp * mp)
 
-        from deepspeed.runtime.pipe.topology import PipeModelDataParallelTopology
-        # this does pipe on the most outside, then data, then model. 
-        # PipeModelDataParallelTopology is just a wrapper over ProcessTopology that predefines this order.
-        topo = PipeModelDataParallelTopology(num_pp=pp, num_mp=mp, num_dp=dp)
+    from deepspeed.runtime.pipe.topology import PipeModelDataParallelTopology
+    # this does pipe on the most outside, then data, then model.
+    # PipeModelDataParallelTopology is just a wrapper over ProcessTopology that predefines this order.
+    topo = PipeModelDataParallelTopology(num_pp=pp, num_mp=mp, num_dp=dp)
 
-        # Offset base seeds for the interior pipeline stages.
-        # TODO: adjust last stage too once IO is improved.
-        stage_id = topo.get_coord(rank=torch.distributed.get_rank()).pipe
-        if 0 < stage_id < topo.get_dim('pipe') - 1:
-            offset = args.seed + 1138
-            args.seed = offset + (stage_id * mp)
-    else:
-        topo = None
+    # Offset base seeds for the interior pipeline stages.
+    # TODO: adjust last stage too once IO is improved.
+    stage_id = topo.get_coord(rank=torch.distributed.get_rank()).pipe
+    if 0 < stage_id < topo.get_dim('pipe') - 1:
+        offset = args.seed + 1138
+        args.seed = offset + (stage_id * mp)
 
     # Set the model-parallel / data-parallel communicators.
     if device_count > 0:

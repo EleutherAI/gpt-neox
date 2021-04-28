@@ -476,8 +476,6 @@ class NeoXArgs(*BASE_CLASSES):
         # data-parallel group, or (num_gpus / mp_size) / pp_size
         pp_size = self.pipe_parallel_size
         pp_size = pp_size if pp_size >= 1 else 1
-        # default pipe parallel size to 1 to reduce the amount of codepaths
-        self.update_value("pipe_parallel_size", pp_size)
         mp_size = self.model_parallel_size
         mp_size = mp_size if mp_size >= 1 else 1
         self.update_value("model_parallel_size", mp_size)
@@ -551,6 +549,11 @@ class NeoXArgs(*BASE_CLASSES):
 
         # Fp16 loss scaling.
         self.update_value("dynamic_loss_scale", self.loss_scale is None)
+
+        # Update 'is pipe parallel' flag
+        # if we set pipe_parallel_size to 0 or 1, GPT2ModelPipe.to_sequential() is called, and we run training with
+        # the sequential model without the PipelineModule wrapper to avoid the overhead it incurs
+        self.update_value("is_pipe_parallel", self.pipe_parallel_size > 1)
 
     ############################################################################################################################
     # start of validation functions

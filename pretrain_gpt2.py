@@ -29,26 +29,14 @@ from megatron import mpu
 from megatron.data.gpt2_dataset import build_train_valid_test_datasets
 from megatron.global_vars import set_use_wandb
 from megatron.model import GPT2ModelPipe
+from megatron.model.gpt2_model import cross_entropy
 from megatron.training import pretrain
 from megatron.utils import get_ltor_masks_and_position_ids, is_local_main, local_rank, get_wandb_api_key
 from megatron.utils import reduce_losses
 from megatron.fp16 import fp32_to_fp16
 import wandb
 
-
-def model_provider(use_wandb=True, inference=False, get_key_value=True):
-    """Build the model."""
-
-    args = get_args()
-
-    print_rank_0('building GPT2 model ...')
-    model = GPT2ModelPipe(num_tokentypes=0, parallel_output=True, topology=mpu.get_topology(), inference=inference,
-                          get_key_value=get_key_value)
-
-    # This is a hack to give us a reference to get_batch_pipe from within training.py
-    # We need to call model.set_batch_fn after deepspeed.initialize
-    model._megatron_batch_fn = get_batch_pipe
-
+def init_wandb(use_wandb, args):
     # Wandb. (one worker per machine)
     use_wandb = is_local_main() and (get_wandb_api_key() is not None) and use_wandb
     set_use_wandb(use_wandb)
@@ -56,7 +44,6 @@ def model_provider(use_wandb=True, inference=False, get_key_value=True):
     if use_wandb:
         group_name = args_dict.get('wandb_group')
         name = f'{socket.gethostname()}-{local_rank()}' if group_name else None
-
         try:
             wandb.init(project="neox", group=group_name, name=name, save_code=False,
                        force=False, entity=args_dict.get('wandb_team'))
@@ -64,27 +51,29 @@ def model_provider(use_wandb=True, inference=False, get_key_value=True):
             set_use_wandb(False)
             print(e)
             print('Skipping wandb. Execute `wandb login` on local or main node machine to enable.')
-
-    if use_wandb:
         wandb.config.update(args_dict)
 
+
+def model_provider(use_wandb=True, inference=False, get_key_value=True):
+    """Build the model."""
+
+    args = get_args()
+    print_rank_0('building GPT2 model ...')
+    model = GPT2ModelPipe(num_tokentypes=0, parallel_output=True, topology=mpu.get_topology(), inference=inference,
+                          get_key_value=get_key_value)
+    if not args.is_pipe_parallel:
+        # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
+        model = model.to_sequential()
+    else:
+        # This is a hack to give us a reference to get_batch_pipe from within training.py
+        # We need to call model.set_batch_fn after deepspeed.initialize
+        model._megatron_batch_fn = get_batch_pipe
+    init_wandb(use_wandb, args)
     return model
 
 
-def get_batch(data_iterator):
-    """Generate a batch"""
-    args = get_args()
-    tokenizer = get_tokenizer()
-
-    # Items and their type.
-    keys = ['text']
-    datatype = torch.int64
-
-    # Broadcast data.
-    if data_iterator is not None:
-        data = next(data_iterator)
-    else:
-        data = None
+def _get_batch(args, tokenizer, keys, data, datatype):
+    """Support function for get_batch / get_batch pipe (to avoid code repetition)"""
     data_b = mpu.broadcast_data(keys, data, datatype)
 
     # Unpack.
@@ -103,6 +92,23 @@ def get_batch(data_iterator):
     return tokens, labels, loss_mask, attention_mask, position_ids
 
 
+def get_batch(data_iterator):
+    """Generate a batch"""
+    args = get_args()
+    tokenizer = get_tokenizer()
+
+    # Items and their type.
+    keys = ['text']
+    datatype = torch.int64
+
+    # Broadcast data.
+    if data_iterator is not None:
+        data = next(data_iterator)
+    else:
+        data = None
+    return _get_batch(args, tokenizer, keys, data, datatype)
+
+
 def get_batch_pipe(data):
     """A modification of get_batch() to work with the latest batch instead of an iterator. """
     args = get_args()
@@ -112,22 +118,7 @@ def get_batch_pipe(data):
     keys = ['text']
     datatype = torch.int64
 
-    # Broadcast data.
-    data_b = mpu.broadcast_data(keys, data, datatype)
-
-    # Unpack.
-    tokens_ = data_b['text'].long()
-    labels = tokens_[:, 1:].contiguous()
-    tokens = tokens_[:, :-1].contiguous()
-
-    # Get the masks and postition ids.
-    attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
-        tokens,
-        tokenizer.eod,
-        args.reset_position_ids,
-        args.reset_attention_mask,
-        args.eod_mask_loss)
-
+    tokens, labels, loss_mask, attention_mask, position_ids = _get_batch(args, tokenizer, keys, data, datatype)
     # unpack data
     if args.precision == "fp16":
         # cast to fp16 because pipeline parallelism skips the FP16 wrapper.
@@ -146,10 +137,9 @@ def forward_step(data_iterator, model):
     tokens, labels, loss_mask, attention_mask, position_ids = get_batch(
         data_iterator)
     timers('batch generator').stop()
-    # Forward model.
-    losses = model(tokens, position_ids, attention_mask, labels=labels)
-    loss_mask = loss_mask.view(-1)
-    loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
+
+    outputs = model((tokens, position_ids, attention_mask))
+    loss = cross_entropy(outputs, (labels, loss_mask), _fp16=args.fp16_lm_cross_entropy)
 
     # Reduce loss for logging.
     reduced_loss = reduce_losses([loss])

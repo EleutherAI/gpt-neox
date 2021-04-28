@@ -74,7 +74,7 @@ class GradientNoiseScale:
             return torch.cat(grads)
 
     def _sync_overflow(self, is_overflow):
-        if self.args.pipe_parallel_size > 1:
+        if self.args.is_pipe_parallel:
             # Since each model parallel GPU carries only part of the model,
             # make sure overflow flag is synced across all the pipe parallel GPUs
             overflow_gpu = torch.cuda.ByteTensor([is_overflow])
@@ -104,7 +104,7 @@ class GradientNoiseScale:
 
             # calculate Gbig and Gsmall
             # this needs to be done in fp32 or it overflows
-            if self.args.pipe_parallel_size > 1:
+            if self.args.is_pipe_parallel:
 
                 g_big = torch.square(torch.norm(grads.to(torch.float)))
                 g_small = torch.square(torch.norm(grad.to(torch.float)))
@@ -151,7 +151,7 @@ class GradientNoiseScale:
         self.n_updates += 1
 
     def update(self):
-        if self.args.pipe_parallel_size > 1:
+        if self.args.is_pipe_parallel:
             # update on all ranks
             self._update()
         else:

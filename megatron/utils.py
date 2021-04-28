@@ -43,7 +43,6 @@ def reduce_losses(losses):
         [loss.clone().detach().view(1) for loss in losses])
     torch.distributed.all_reduce(reduced_losses)
     reduced_losses = reduced_losses / torch.distributed.get_world_size()
-
     return reduced_losses
 
 
@@ -217,7 +216,7 @@ def natural_sort(l):
     return sorted(l, key=alphanum_key)
 
 
-def pipe_to_normal(model_engine):
+def pipe_to_normal(model_engine, **kwargs):
     """
     Takes in a deepspeed.PipelineEngine model and returns a deepspeed.DeepspeedEngine model with the same model weights
     so we can directly access the .forward() function (for inference).
@@ -226,12 +225,16 @@ def pipe_to_normal(model_engine):
 
     """
     assert isinstance(model_engine, PipelineEngine), f"model engine {model_engine} not a PipelineEngine instance"
-    return DeepSpeedEngine(
+    ret = DeepSpeedEngine(
         args=get_args(),
         model=model_engine.module,
         mpu=model_engine.module.mpu(),
         dist_init_required=False,
-        config_params=model_engine.config_params)
+        config_params=model_engine.config_params,
+        optimizer=model_engine.optimizer,
+        lr_scheduler=model_engine.lr_scheduler,
+        **kwargs)
+    return ret
 
 
 def tb_wandb_log(key, value, iteration_no):
