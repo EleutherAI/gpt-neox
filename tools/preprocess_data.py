@@ -1,7 +1,4 @@
 # coding=utf-8
-# Copyright (c) 2021, EleutherAI contributors
-# This file is based on code by the authors denoted below and has been modified from its original version.
-#
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,6 +26,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
 import time
 import tqdm
 import torch
+import ftfy
 
 from megatron.tokenizer import build_tokenizer
 from megatron.data import indexed_dataset
@@ -43,6 +41,8 @@ class Encoder(object):
         Encoder.tokenizer = build_tokenizer(self.args)
 
     def encode(self, text):
+        if self.args.ftfy:
+            text = ftfy.fix_text(text)
         ids = {}
         for key in self.args.json_keys:
             doc_ids = []
@@ -60,7 +60,7 @@ def get_args():
     group = parser.add_argument_group(title='input data')
     group.add_argument('--input', type=str, required=True,
                        help='Path to input lmd archive(s) - if using multiple archives, put them in a comma separated '
-                            'list') 
+                            'list')
     group.add_argument('--json-keys', nargs='+', default=['text'],
                        help='space separate listed of keys to extract from json')
     group.add_argument('--num-docs', default=None,
@@ -76,7 +76,8 @@ def get_args():
                        help='Path to the BPE merge file (if necessary).')
     group.add_argument('--append-eod', action='store_true',
                        help='Append an <eod> token to the end of a document.')
-
+    group.add_argument('--ftfy', action='store_true',
+                       help='Use ftfy to clean text')
     group = parser.add_argument_group(title='output data')
     group.add_argument('--output-prefix', type=str, required=True,
                        help='Path to binary output file without suffix')
