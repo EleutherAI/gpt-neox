@@ -105,8 +105,7 @@ def delete_old_checkpoints(save_dir, n_to_keep):
 def save_ds_checkpoint(iteration, model, args):
     """Save a model checkpoint."""
 
-    sd = {}
-    sd['iteration'] = iteration
+    sd = {'iteration': iteration}
     # rng states.
     if not args.no_save_rng:
         sd['random_rng_state'] = random.getstate()
@@ -114,6 +113,12 @@ def save_ds_checkpoint(iteration, model, args):
         sd['torch_rng_state'] = torch.get_rng_state()
         sd['cuda_rng_state'] = torch.cuda.get_rng_state()
         sd['rng_tracker_states'] = mpu.get_cuda_rng_tracker().get_states()
+
+    if not args.is_pipe_parallel:
+        # megatron model uses state_dict_for_save_checkpointing instead of the standard state_dict
+        # state_dict is used by deepspeed for module saving so it needs to point to the right function
+        model.module.state_dict = model.module.state_dict_for_save_checkpoint
+    # Pipeline parallelism manages its own state dict
 
     model.save_checkpoint(args.save, client_state=sd)
 
