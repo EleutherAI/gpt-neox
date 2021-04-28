@@ -27,8 +27,8 @@ from megatron import get_timers
 from megatron import get_tokenizer
 from megatron import mpu
 from megatron.data.gpt2_dataset import build_train_valid_test_datasets
-from megatron.global_vars import set_use_wandb, get_use_wandb
-from megatron.model import GPT2Model, GPT2ModelPipe
+from megatron.global_vars import set_use_wandb
+from megatron.model import GPT2ModelPipe
 from megatron.training import pretrain
 from megatron.utils import get_ltor_masks_and_position_ids, is_local_main, local_rank, get_wandb_api_key
 from megatron.utils import reduce_losses
@@ -42,16 +42,15 @@ def model_provider(use_wandb=True, inference=False, get_key_value=True):
     args = get_args()
 
     print_rank_0('building GPT2 model ...')
-    if args.pipe_parallel_size == 0:
-        model = GPT2Model(num_tokentypes=0, parallel_output=True, inference=inference, get_key_value=get_key_value)
-    else:
-        model = GPT2ModelPipe(num_tokentypes=0, parallel_output=True, topology=mpu.get_topology(), inference=inference, get_key_value=get_key_value)
-        # This is a hack to give us a reference to get_batch_pipe from within training.py
-        # We need to call model.set_batch_fn after deepspeed.initialize
-        model._megatron_batch_fn = get_batch_pipe
+    model = GPT2ModelPipe(num_tokentypes=0, parallel_output=True, topology=mpu.get_topology(), inference=inference,
+                          get_key_value=get_key_value)
 
-    ## Wandb. (one worker per machine)
-    use_wandb = is_local_main() and (get_wandb_api_key() is not None) 
+    # This is a hack to give us a reference to get_batch_pipe from within training.py
+    # We need to call model.set_batch_fn after deepspeed.initialize
+    model._megatron_batch_fn = get_batch_pipe
+
+    # Wandb. (one worker per machine)
+    use_wandb = is_local_main() and (get_wandb_api_key() is not None) and use_wandb
     set_use_wandb(use_wandb)
     args_dict = vars(args)
     if use_wandb:
