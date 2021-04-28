@@ -27,7 +27,6 @@ import sys
 
 import torch
 from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
-from apex.optimizers import FusedAdam as Adam
 
 from megatron import get_args
 from megatron import get_timers
@@ -35,7 +34,6 @@ from megatron import mpu
 from megatron import print_rank_0
 from megatron.checkpointing import load_checkpoint
 from megatron.checkpointing import save_checkpoint
-from megatron.fp16 import FP16_Module
 from megatron.global_vars import get_use_wandb
 from megatron.initialize import initialize_megatron
 from megatron.learning_rates import AnnealingLR
@@ -138,8 +136,6 @@ def get_optimizer(model):
     if args.no_load_optim:
         return None, None
     # Build parameter groups (weight decay and non-decay).
-    while isinstance(model, (torchDDP, FP16_Module)):
-        model = model.module
     param_groups = get_params_for_weight_decay_optimization(model, args)
     print_rank_0(f'Configuring Optimizer type: {args.optimizer_type} with params: {args.optimizer["params"]}')
     # Add model parallel attribute if it is not set.
@@ -168,6 +164,7 @@ def get_optimizer(model):
             **args.optimizer["params"])
     elif args.optimizer_type.lower() == "adam":
         # Use Adam
+        from apex.optimizers import FusedAdam as Adam
         optimizer = Adam(param_groups,
                          weight_decay=args.weight_decay,
                          **args.optimizer["params"])
