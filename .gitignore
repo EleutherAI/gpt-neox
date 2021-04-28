@@ -137,3 +137,7 @@ checkpoints/
 .vscode/
 *.pt
 *.ckpt
+
+#test logs
+test_checkpoint/
+logs/

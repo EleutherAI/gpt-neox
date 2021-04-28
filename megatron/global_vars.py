@@ -79,6 +79,24 @@ def set_global_variables():
     _set_adlr_autoresume(args)
     _set_timers()
 
+def reset_global_variables():
+    global _GLOBAL_ARGS
+    _GLOBAL_ARGS = None
+
+    global _GLOBAL_TOKENIZER
+    _GLOBAL_TOKENIZER = None
+
+    global _GLOBAL_TENSORBOARD_WRITER
+    _GLOBAL_TENSORBOARD_WRITER = None
+
+    global _GLOBAL_ADLR_AUTORESUME
+    _GLOBAL_ADLR_AUTORESUME = None
+    
+    global _GLOBAL_TIMERS
+    _GLOBAL_TIMERS = None
+
+    global _GLOBAL_USE_WANDB
+    _GLOBAL_USE_WANDB = False
 
 def _build_tokenizer(args):
     """Initialize tokenizer."""
