@@ -311,7 +311,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
         else:
             self.specs.append(
                 LayerSpec(
-                    ParallelLinear,
+                    ParallelLinearPipe,
                     parallel_output=self.parallel_output
                 )
             )
