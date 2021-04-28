@@ -62,6 +62,7 @@ torch._C._jit_override_can_fuse_on_gpu(True)
                                      unmaksed-attention-scores, attention-mask)
 """
 
+
 class GEGLU(MegatronModule):
 
     def __init__(self):
@@ -154,6 +155,27 @@ class ParallelMLP(MegatronModule):
         # [s, b, h]
         output, output_bias = self.dense_4h_to_h(intermediate_parallel)
         return output, output_bias
+
+
+class ParallelLinear(MegatronModule):
+    """
+    A Parallel Linear Layer transforming the transformer outputs from hidden_size -> vocab_size
+    """
+
+    def __init__(self, parallel_output=True, init_method=torch.nn.init.xavier_normal_):
+        super(ParallelLinear, self).__init__()
+        args = get_args()
+        self.final_linear = mpu.RowParallelLinear(
+            args.hidden_size,
+            args.padded_vocab_size,
+            bias=False,
+            input_is_parallel=False,
+            init_method=init_method,
+            parallel_output=parallel_output,
+            skip_bias_add=False)
+
+    def forward(self, hidden_states):
+        return self.final_linear(hidden_states)
 
 
 class ParallelSelfAttention(MegatronModule):
@@ -289,7 +311,7 @@ class ParallelSelfAttention(MegatronModule):
                 query_rot, key_rot = query_layer, key_layer
 
             query_layer, key_layer = apply_rotary_pos_emb(query_rot, key_rot, cos, sin)
-           
+
             if exists(self.rotary_ndims):
                 query_layer = torch.cat((query_layer, query_pass), dim=-1)
                 key_layer = torch.cat((key_layer, key_pass), dim=-1)
@@ -502,7 +524,7 @@ class ParallelTransformerLayer(MegatronModule):
                                                rpe=rpe,
                                                get_key_value=self.get_key_value,
                                                rotary=rotary)
-          
+
         self.hidden_dropout = args.hidden_dropout
         self.bias_dropout_fusion = args.bias_dropout_fusion
 
@@ -580,7 +602,7 @@ class ParallelTransformerLayer(MegatronModule):
 
         return output
 
-      
+
 class ParallelTransformer(MegatronModule):
     """Transformer class."""
 
@@ -605,8 +627,8 @@ class ParallelTransformer(MegatronModule):
 
         if args.pos_emb == 'rpe':
             rpe_emb = ParallelRelativePositionBias(causal=True, num_buckets=args.rpe_num_buckets,
-                                                        max_distance=args.rpe_max_distance,
-                                                        heads=args.num_attention_heads)
+                                                   max_distance=args.rpe_max_distance,
+                                                   heads=args.num_attention_heads)
 
         # Transformer layers.
         sparsity = args.sparsity
@@ -622,8 +644,8 @@ class ParallelTransformer(MegatronModule):
                 raise ValueError(f'Sparsity type {sparsity} not recognized')
             return ParallelTransformerLayer(
                 attention_mask_func, init_method,
-                output_layer_init_method, layer_number, sparse=sparse, 
-                rpe=rpe_emb if args.pos_emb == 'rpe' else None, 
+                output_layer_init_method, layer_number, sparse=sparse,
+                rpe=rpe_emb if args.pos_emb == 'rpe' else None,
                 get_key_value=get_key_value,
                 rotary=args.pos_emb == 'rotary')
 
@@ -693,8 +715,7 @@ class ParallelTransformer(MegatronModule):
 
         return hidden_states
 
-
-    def forward(self, hidden_states, attention_mask, layer_past=None,):
+    def forward(self, hidden_states, attention_mask, layer_past=None, ):
         # Checks
         if layer_past is not None and layer_past.numel() > 0:
             assert self.get_key_value, \
@@ -739,14 +760,13 @@ class ParallelTransformer(MegatronModule):
 
         return output
 
+
 class ParallelTransformerLayerPipe(ParallelTransformerLayer):
     """Extends ParallelTransformerLayer to forward attention_mask through the pipeline. """
 
     def forward(self, args):
-        in_inference = len(args) in [4,5] # length of the args in inference can either be 4 (no rotary pos emb) or 5
-        in_train = len(args) in [2,3] # length of the args in training can either be 2 (no rotary pos emb) or 3
-        has_rotary_pos_emb = len(args) in [3, 5] # if we're passing around a rotary pos emb, length of args will either be 3 or 5
-
+        in_inference = len(args) == 4  # length of the args in inference == 4
+        in_train = len(args) == 2  # length of the args in training == 2
         if in_train:
             hidden_states, attention_mask = args
             # we are returning just [hidden_states, mask]
@@ -770,7 +790,8 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
                 hidden_states = outputs
             return hidden_states, layer_past, presents, attention_mask
         else:
-            raise ValueError(f'In layer {self.layer_number} - Incorrect number of arguments ({len(args)}) for {self.__class__.__name__}')
+            raise ValueError(
+                f'In layer {self.layer_number} - Incorrect number of arguments ({len(args)}) for {self.__class__.__name__}')
 
 
 class NormPipe(MegatronModule):
@@ -792,6 +813,7 @@ class NormPipe(MegatronModule):
             return hidden_state, presents
         else:
             raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
+
 
 class Embedding(MegatronModule):
     """Language model embeddings.
@@ -948,8 +970,9 @@ class Embedding(MegatronModule):
             else:
                 print('***WARNING*** expected tokentype embeddings in the '
                       'checkpoint but could not find it', flush=True)
-                        
-class RowParallelLinearPipe(mpu.RowParallelLinear):
+
+
+class ParallelLinearPipe(ParallelLinear):
     """Another helper class to pass presents through to the output when doing inference with a Pipe Parallel model"""
 
     def forward(self, args):
@@ -976,7 +999,7 @@ class EmbeddingPipe(Embedding):
         return self.word_embeddings.weight
 
     def forward(self, args):
-        in_inference = len(args) == 4 # if the length of the args is 4, we're in inference :|
+        in_inference = len(args) == 4  # if the length of the args is 4, we're in inference :|
         in_train = len(args) == 3
 
         input_ids = args[0]
@@ -994,4 +1017,3 @@ class EmbeddingPipe(Embedding):
             return embeddings, layer_past, attention_mask
         else:
             return embeddings, attention_mask
-

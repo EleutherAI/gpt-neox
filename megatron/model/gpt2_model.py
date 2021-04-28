@@ -31,11 +31,9 @@ from .norms import LayerNorm, RMSNorm, ScaleNorm
 # Pipeline parallelism
 from megatron import mpu
 from megatron.mpu import ParallelRelativePositionBias
-from megatron.model.language_model import SinusoidalPositionalEmbedding
 import megatron.fp16 as fp16
-from megatron.model.transformer import ParallelTransformerLayerPipe, NormPipe, RowParallelLinearPipe
+from megatron.model.transformer import ParallelTransformerLayerPipe, NormPipe, ParallelLinearPipe, ParallelLinear
 from .language_model import EmbeddingPipe, parallel_lm_logits
-from megatron import print_rank_0
 
 from deepspeed.pipe import PipelineModule, LayerSpec, TiedLayerSpec
 
@@ -75,17 +73,6 @@ class GPT2Model(MegatronModule):
         args = get_args()
         self.parallel_output = parallel_output
         self.weight_tying = not args.no_weight_tying
-        if not self.weight_tying:
-            # TODO: not sure whether to use RowParallelLinear's default scatter to mp region here, or copy, which is
-            # the default of parallel_lm_logits. Should investigate benefits of both
-            self.final_linear = mpu.RowParallelLinear(
-                args.hidden_size,
-                args.padded_vocab_size,
-                bias=False,
-                input_is_parallel=False,
-                skip_bias_add=False,
-                parallel_output=self.parallel_output)
-
         self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
 
         self.inference = inference
@@ -98,9 +85,10 @@ class GPT2Model(MegatronModule):
             scaled_init_method=scaled_init_method_normal(args.init_method_std,
                                                          args.num_layers),
             get_key_value=self.get_key_value)
+        if not self.weight_tying:
+            self.final_linear = ParallelLinear(self.parallel_output)
 
-
-    def forward(self, input_ids, position_ids, attention_mask, 
+    def forward(self, input_ids, position_ids, attention_mask,
                 layer_past=None, tokentype_ids=None, forward_method_parallel_output=None, labels=None):
 
         # Language model.
@@ -140,11 +128,8 @@ class GPT2Model(MegatronModule):
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='',
                                        keep_vars=False):
-
-        state_dict_ = {}
-        state_dict_[self._language_model_key] \
-            = self.language_model.state_dict_for_save_checkpoint(
-            destination, prefix, keep_vars)
+        state_dict_ = {self._language_model_key: self.language_model.state_dict_for_save_checkpoint(
+            destination, prefix, keep_vars)}
         return state_dict_
 
     def load_state_dict(self, state_dict, strict=True):
@@ -224,7 +209,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                                         args.hidden_dropout,
                                         self.init_method,
                                         self.num_tokentypes))
-            
+
         # NB: in inference, the attention mask always needs to be the *last* item in the args when being passed from 
         # one stage to the next, because deepspeed is hacks on top of hacks.
         #
@@ -240,7 +225,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
             self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), x[1], torch.Tensor(), *x[2:]))
         else:
             self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), *x[1:]))
-            
+
         # Transformer layers
         for x in range(args.num_layers):
             if args.sparsity == 'none':
@@ -259,7 +244,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                           rpe=rpe_emb if args.pos_emb == 'rpe' else None,
                           get_key_value=self.get_key_value,
                           rotary=args.pos_emb == 'rotary'))
-                          
+
         if self._inference:
             # we can get rid of the mask / pasts / (?rotary_pos_emb) now
             # from (hidden_states, layer_past, presents, (maybe rotary_pos_emb), attention_mask)
@@ -298,16 +283,17 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
             """Just a wrapper to massage inputs/outputs from pipeline. """
             if self._inference and len(lm_output) == 2:
                 hidden_states, presents = lm_output
-                output = parallel_lm_logits(
+                logits = parallel_lm_logits(
                     hidden_states,
                     embedding.word_embeddings_weight,
                     self.parallel_output)
-                return hidden_states, presents
+                return logits, presents
             else:
-                return parallel_lm_logits(
+                logits = parallel_lm_logits(
                     lm_output,
                     embedding.word_embeddings_weight,
                     self.parallel_output)
+                return logits
 
         if weight_tying:
             self.specs.append(
@@ -323,19 +309,11 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                               tied_weight_attr='word_embeddings_weight')
             )
         else:
-            # TODO: not sure whether to use RowParallelLinear's default scatter to mp region here, or copy, which is
-            # the default of parallel_lm_logits. Should investigate benefits of both
             self.specs.append(
                 LayerSpec(
-                    RowParallelLinearPipe,
-                    args.hidden_size,
-                    args.padded_vocab_size,
-                    bias=False,
-                    input_is_parallel=False,
-                    parallel_output=self.parallel_output,
-                    skip_bias_add=False
+                    ParallelLinear,
+                    parallel_output=self.parallel_output
                 )
             )
         # so output in training should just be logits
         # in inference it will be (logits, presents) (assuming get_key_value) is true
-
