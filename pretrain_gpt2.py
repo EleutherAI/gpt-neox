@@ -51,7 +51,8 @@ def model_provider(use_wandb=True, inference=False, get_key_value=True):
         model._megatron_batch_fn = get_batch_pipe
 
     ## Wandb. (one worker per machine)
-    use_wandb = is_local_main() and (get_wandb_api_key() is not None) 
+    # I think it should be like this it use the use_wandb input
+    use_wandb = is_local_main() and (get_wandb_api_key() is not None) and use_wandb
     set_use_wandb(use_wandb)
     args_dict = vars(args)
     if use_wandb:
