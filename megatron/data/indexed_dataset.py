@@ -342,8 +342,12 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
                 def __enter__(self):
                     self._file = open(path, 'wb')
 
+                    # Write Magic string so we can check the file format then opening it again.
                     self._file.write(cls._HDR_MAGIC)
+                    # Write version number
+                    # Little endian unsigned 64 Bit integer
                     self._file.write(struct.pack('<Q', 1))
+                    # Little endian unsigned 8 Bit integer
                     self._file.write(struct.pack('<B', code(dtype)))
 
                     return self
@@ -363,7 +367,9 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
                 def write(self, sizes, doc_idx):
                     pointers = self._get_pointers(sizes)
 
+                    # Little endian unsigned 64 Bit integer
                     self._file.write(struct.pack('<Q', len(sizes)))
+                    # Little endian unsigned 64 Bit integer
                     self._file.write(struct.pack('<Q', len(doc_idx)))
 
                     sizes = np.array(sizes, dtype=np.int32)
@@ -389,9 +395,11 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
                     'Index file doesn\'t match expected format. '
                     'Make sure that --dataset-impl is configured properly.'
                 )
+                # Little endian unsigned 64 Bit integer
                 version = struct.unpack('<Q', stream.read(8))
                 assert (1,) == version
 
+                # Little endian unsigned 8 Bit integer
                 dtype_code, = struct.unpack('<B', stream.read(1))
                 self._dtype = dtypes[dtype_code]
                 self._dtype_size = self._dtype().itemsize
