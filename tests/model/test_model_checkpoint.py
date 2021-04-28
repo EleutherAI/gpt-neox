@@ -14,27 +14,31 @@ from megatron.global_vars import set_global_variables, get_args, reset_global_va
 from megatron.model import GPT2Model, GPT2ModelPipe
 from megatron import initialize_megatron
 from megatron import mpu
-from megatron.text_generation_utils import get_batch
+from megatron.text_generation_utils import get_batch, forward_model
 from megatron.training import setup_model_and_optimizer
 
 from megatron.checkpointing import load_checkpoint
 from megatron.checkpointing import save_checkpoint
 from pretrain_gpt2 import model_provider
-from megatron.utils import get_ltor_masks_and_position_ids
+from megatron.utils import get_ltor_masks_and_position_ids, pipe_to_normal
+from deepspeed import PipelineEngine
 
 from tests.common import get_root_directory, get_configs_with_path
 import torch
 
-class TestModelInitialization(unittest.TestCase):
+class TestModelCheckpoint(unittest.TestCase):
 
-    def test_model_initialization(self):
+    #def test_model_checkpoint(self):
+    #    self.assertTrue(self.run_test_model_checkpoint(pipe_parallel_size=1))
+
+    def test_model_checkpoint(self):
         reset_global_variables()
 
         # intitially load config from files as would be the case in deepy.py
         yaml_list = get_configs_with_path(["small.yml", "local_setup.yml"])
         args_loaded = NeoXArgs.from_ymls(yaml_list)
         args_loaded.update_value("user_script", str(get_root_directory() / "pretrain_gpt2.py"))
-        args_loaded.update_value("pipe_parallel_size", 0) # overwrite pipeline parameter, config in small.yml may have changed!
+        args_loaded.update_value("pipe_parallel_size", 1) # overwrite pipeline parameter, config in small.yml may have changed!
         args_loaded.update_value("num_unique_layers", 4)
         args_loaded.update_value("use_cpu_initialization", True)
         #args_loaded.update_value("batch_size", 8)
@@ -53,15 +57,19 @@ class TestModelInitialization(unittest.TestCase):
 
         # remove any existing checkpoints if they exist
         path = os.path.join(get_root_directory(), args.load)
-
         shutil.rmtree(path)
 
+        # Initialize new model model
         model, optimizer, lr_scheduler = setup_model_and_optimizer(lambda: model_provider(use_wandb=False))
+        if args.pipe_parallel_size == 1 and isinstance(model, PipelineEngine):
+            # if it's a pipe parallel model but not actually doing parallelism, convert it to a normal deepspeed model
+            model = pipe_to_normal(model)
         model.eval()
         
-        context_tokens_tensor = torch.cuda.LongTensor([[1,2,3,4,5],[1,2,3,4,5],[1,2,3,4,5],[1,2,3,4,5]])
+        context_tokens_tensor = torch.cuda.LongTensor([[1,2,3,4,5],[1,2,3,4,5],[6,7,8,9,10],[1,2,3,4,100]])
+
         tokens, attention_mask, position_ids = get_batch(context_tokens_tensor)
-        output = model(tokens, position_ids, attention_mask)
+        output = forward_model(model, (tokens, position_ids, attention_mask))
 
         # assert outputs are the right shape
         self.assertEqual(output.size(0), args.batch_size)
@@ -69,46 +77,42 @@ class TestModelInitialization(unittest.TestCase):
         # assert model output is a tensor
         self.assertTrue(isinstance(output, torch.Tensor))
 
-        for n, p in model.module.named_parameters():
-            if n == "final_linear.weight":
-                print(n, p, flush=True)
-
-        print(model.module.state_dict_for_save_checkpoint()["language_model"]["transformer"]["final_linear.weight"])
-        print(model.module.state_dict()["final_linear.weight"])
+        # assert correct behaviour
+        self.assertTrue(torch.isclose(output[0], output[1]).all().item())
+        self.assertFalse(torch.isclose(output[1], output[2]).all().item())
+        self.assertTrue(torch.isclose(output[1, 3], output[3, 3]).all().item())
         
         # save model checkpoint
         save_checkpoint(42, model, optimizer, lr_scheduler)
         
-        # reload model and test forward pass
+        # reload model from checkpoint
         reloaded_model, optimizer, lr_scheduler = setup_model_and_optimizer(lambda: model_provider(use_wandb=False))
+        if args.pipe_parallel_size == 1 and isinstance(model, PipelineEngine):
+            # if it's a pipe parallel model but not actually doing parallelism, convert it to a normal deepspeed model
+            model = pipe_to_normal(model)
         iteration = load_checkpoint(reloaded_model, optimizer, lr_scheduler)
+        reloaded_model.eval()
 
         #ensure same checkpoint is loaded
         self.assertEqual(iteration, 42)
 
-        reloaded_model.eval()
-
-        reloaded_output = reloaded_model(tokens, position_ids, attention_mask)
-
-        #print(output)
-        #print(reloaded_output)  
-        #print(torch.isclose(output, reloaded_output))    
+        reloaded_output = forward_model(model, (tokens, position_ids, attention_mask))
 
         for idx, ((n1, p1), (n2, p2)) in enumerate(zip(list(model.module.named_parameters()), list(reloaded_model.module.named_parameters()))):
-            # It's the 'final linear layer' of the gpt2model, although not sure how to iterate through param group names
             self.assertTrue(n1 == n2)
             params_equal = (p1 == p2).all().item()
+            self.assertTrue(params_equal)
             if not params_equal:
-                print("")
-            self.assertTrue(params_equal, f"test_model_checkpoint() layer {idx} {n1} has same parameters after loading of checkpoint")
+                print(f"test_model_checkpoint() layer {idx} {n1} has same parameters after loading of checkpoint", flush=True)
 
         self.assertTrue(torch.isclose(output, reloaded_output).all().item())
 
+        shutil.rmtree(path)
+
         #TODO test changing batch size, because i had some weird experience with this last time
-        
 
 
 if __name__ == "__main__":
     suite = unittest.TestSuite()
-    suite.addTest(TestModelInitialization("test_model_initialization"))
-    unittest.TextTestRunner(failfast=True).run(suite)
+    suite.addTest(TestModelCheckpoint("test_model_checkpoint"))
+    unittest.TextTestRunner(failfast=False).run(suite)
