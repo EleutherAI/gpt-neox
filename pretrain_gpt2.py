@@ -19,22 +19,23 @@
 import socket
 
 import torch
+import wandb
 from wandb import UsageError
 
 from megatron import get_args
-from megatron import print_rank_0
 from megatron import get_timers
 from megatron import get_tokenizer
 from megatron import mpu
+from megatron import print_rank_0
 from megatron.data.gpt2_dataset import build_train_valid_test_datasets
+from megatron.fp16 import fp32_to_fp16
 from megatron.global_vars import set_use_wandb
 from megatron.model import GPT2ModelPipe
 from megatron.model.gpt2_model import cross_entropy
 from megatron.training import pretrain
 from megatron.utils import get_ltor_masks_and_position_ids, is_local_main, local_rank, get_wandb_api_key
 from megatron.utils import reduce_losses
-from megatron.fp16 import fp32_to_fp16
-import wandb
+
 
 def init_wandb(use_wandb, args):
     # Wandb. (one worker per machine)

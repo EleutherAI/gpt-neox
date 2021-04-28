@@ -20,6 +20,7 @@
 
 import os
 import sys
+
 from pretrain_gpt2 import model_provider
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
@@ -30,9 +31,7 @@ from megatron.initialize import initialize_megatron
 from megatron.training import setup_model_and_optimizer
 from megatron.text_generation_utils import generate_and_write_samples_unconditional, generate_samples_input_from_file, \
     generate_samples_interactive
-from megatron.utils import pipe_to_normal
 
-from deepspeed import PipelineEngine
 
 def main(extra_args_provider=None, get_key_value=True):
     """

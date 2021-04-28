@@ -1,26 +1,22 @@
 import os
-import re
-import sys
 import shutil
+import sys
 import unittest
 from unittest.mock import patch
-from pathlib import Path
 
 if __name__ == "__main__":
     sys.path.append(os.path.abspath(''))
 
 from megatron.neox_arguments import NeoXArgs
-from megatron.global_vars import set_global_variables, get_args, reset_global_variables
-from megatron.model import GPT2Model, GPT2ModelPipe
+from megatron.global_vars import get_args, reset_global_variables
 from megatron import initialize_megatron
-from megatron import mpu
 from megatron.text_generation_utils import get_batch, forward_model
 from megatron.training import setup_model_and_optimizer
 
 from megatron.checkpointing import load_checkpoint
 from megatron.checkpointing import save_checkpoint
 from pretrain_gpt2 import model_provider
-from megatron.utils import get_ltor_masks_and_position_ids, pipe_to_normal
+from megatron.utils import pipe_to_normal
 from deepspeed import PipelineEngine
 
 from tests.common import get_root_directory, get_configs_with_path

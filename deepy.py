@@ -13,11 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import deepspeed
-from deepspeed.launcher.runner import main
-import requests
 import logging
+import os
+
+import deepspeed
+import requests
+from deepspeed.launcher.runner import main
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 

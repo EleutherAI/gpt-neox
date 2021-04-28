@@ -1,15 +1,13 @@
 import os
-import re
 import sys
 import unittest
 from unittest.mock import patch
-from pathlib import Path
 
 if __name__ == "__main__":
     sys.path.append(os.path.abspath(''))
 
 from megatron.neox_arguments import NeoXArgs
-from megatron.global_vars import set_global_variables, get_args, reset_global_variables
+from megatron.global_vars import get_args, reset_global_variables
 from megatron.model import GPT2ModelPipe
 from megatron import initialize_megatron
 from megatron import mpu
