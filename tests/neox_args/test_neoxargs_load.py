@@ -8,7 +8,7 @@ if __name__ == "__main__":
 from megatron.neox_arguments import NeoXArgs
 
 
-from ..common import get_configs_with_path
+from tests.common import get_configs_with_path
 
 class TestNeoXArgsLoad(unittest.TestCase):
     """
