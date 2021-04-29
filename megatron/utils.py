@@ -28,6 +28,8 @@ from typing import Dict, List
 import requests
 import torch
 import wandb
+from wandb import UsageError
+
 from deepspeed.launcher.runner import fetch_hostfile, parse_inclusion_exclusion
 
 from megatron import get_args
