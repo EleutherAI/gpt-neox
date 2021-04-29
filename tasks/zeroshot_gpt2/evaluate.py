@@ -57,7 +57,7 @@ def get_model_provider(eval_metric):
 
 def process_batch(batch):
     """Process batch and produce inputs for the model."""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     tokenizer = get_tokenizer()
 
     loss_mask = batch['pad_mask'].long().cuda().contiguous().byte()
@@ -108,7 +108,7 @@ def forward_step(batch, model, eval_metric):
 
 def evaluate(data_loader, model, eval_metric):
     """Evaluation."""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
 
     # Turn on evaluation mode which disables dropout.
     model.eval()
@@ -169,7 +169,7 @@ def evaluate_and_print_results(task, data_loader, model, eval_metric):
 
 def main():
     """Main program."""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
 
     if args.task == 'LAMBADA':
         eval_metric = 'accuracy'

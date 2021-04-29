@@ -46,8 +46,7 @@ from megatron.gradient_noise_scale import GradientNoiseScale
 import deepspeed
 
 
-def pretrain(train_valid_test_dataset_provider, model_provider,
-             forward_step_func, extra_args_provider=None, args_defaults={}):
+def pretrain(train_valid_test_dataset_provider, model_provider, forward_step_func, neox_args):
     """Main training program.
 
     This function will run the followings in the order provided:
@@ -66,13 +65,15 @@ def pretrain(train_valid_test_dataset_provider, model_provider,
             the info we would like to monitor during training, for example
             `lm-loss: value`. We also require that this function add
             `batch generator` to the timers class.
+        neox_args: an instance of NeoXArgs containing the configuration for pretrain
 
     """
 
     # Initalize and get arguments, timers, and Tensorboard writer.
     initialize_megatron()
 
-    args = get_args()
+
+    args = get_args() # TODO remove_global_vars
     timers = get_timers()
 
     # Model, optimizer, and learning rate.
@@ -117,7 +118,7 @@ def pretrain(train_valid_test_dataset_provider, model_provider,
 
 def get_model(model_provider_func):
     """Build the model."""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
 
     # Build model on cpu.
     model = model_provider_func()
@@ -131,7 +132,7 @@ def get_model(model_provider_func):
 
 def get_optimizer(model):
     """Set up the optimizer."""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     if args.no_load_optim:
         return None, None
     # Build parameter groups (weight decay and non-decay).
@@ -185,7 +186,7 @@ def get_optimizer(model):
 
 def get_learning_rate_scheduler(optimizer):
     """Build the learning rate scheduler."""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     if args.no_load_optim:
         # TODO: this should be configured as a separate arg
         return None
@@ -218,7 +219,7 @@ def get_learning_rate_scheduler(optimizer):
 
 def setup_model_and_optimizer(model_provider_func):
     """Setup model and optimizer."""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
 
     model = get_model(model_provider_func)
     optimizer, param_groups = get_optimizer(model)
@@ -263,7 +264,7 @@ def setup_model_and_optimizer(model_provider_func):
 
 def backward_step(optimizer, model, loss):
     """Backward step."""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     timers = get_timers()
 
     # Backward pass.
@@ -285,7 +286,7 @@ def backward_step(optimizer, model, loss):
 def train_step(forward_step_func, data_iterator,
                model, optimizer, lr_scheduler):
     """Single training step."""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     timers = get_timers()
 
     # Pipeline parallelism schedules forward/backward/step
@@ -318,7 +319,7 @@ def train_step(forward_step_func, data_iterator,
 
 def train_step_pipe(model, data_iterator):
     """Single training step with DeepSpeed's pipeline parallel engine. """
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     timers = get_timers()
 
     assert args.deepspeed
@@ -339,7 +340,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
                  loss_scale, report_memory_flag, skipped_iter, model, optimizer, noise_scale_logger):
     """Log training information such as losses, timing, etc."""
 
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     timers = get_timers()
 
     # Update losses.
@@ -474,7 +475,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
 def train(forward_step_func, model, optimizer, lr_scheduler,
           train_data_iterator, valid_data_iterator):
     """Train the model function."""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     timers = get_timers()
 
     # Turn on training mode which enables dropout.
@@ -556,7 +557,7 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
 
 def evaluate(forward_step_func, data_iterator, model, verbose=False):
     """Evaluation."""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
 
     # Turn on evaluation mode which disables dropout.
     model.eval()
@@ -599,7 +600,7 @@ def evaluate_and_print_results(prefix, forward_step_func,
     """Helper function to evaluate and dump results on screen."""
 
     # Pipeline parallelism needs eval_batch() instead of a simple forward().
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     if args.is_pipe_parallel:
         def _eval_helper(data_iter, _):
             loss = model.eval_batch(data_iter)
@@ -624,7 +625,7 @@ def evaluate_and_print_results(prefix, forward_step_func,
 def build_train_valid_test_data_iterators(
         build_train_valid_test_datasets_provider):
     """XXX"""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
 
     (train_dataloader, valid_dataloader, test_dataloader) = (None, None, None)
 
@@ -749,7 +750,7 @@ def get_global_batch_size(args):
 
 
 def get_flops(model, iter_time_s):
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
 
     world_size = torch.distributed.get_world_size()
     global_batch_size = get_global_batch_size(args)

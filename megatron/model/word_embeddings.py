@@ -26,7 +26,7 @@ class Embedding(torch.nn.Module):
                  init_method,
                  num_tokentypes=0):
         super(Embedding, self).__init__()
-        args = get_args()
+        args = get_args() # TODO remove_global_vars
         self.hidden_size = hidden_size
         self.init_method = init_method
         self.num_tokentypes = num_tokentypes

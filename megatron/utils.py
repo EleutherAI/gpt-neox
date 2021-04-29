@@ -65,7 +65,7 @@ def check_adlr_autoresume_termination(iteration, model,
     """Check for autoresume signal and exit if it is received."""
     # to prevent circular import
     from megatron.checkpointing import save_checkpoint
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     autoresume = get_adlr_autoresume()
     # Add barrier to ensure consistnecy.
     torch.distributed.barrier()
@@ -83,7 +83,7 @@ def make_data_loader(dataset):
     """Buld dataloader given an input dataset."""
     if dataset is None:
         return None
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
 
     # Data parallel arguments.
     world_size = mpu.get_data_parallel_world_size()
@@ -226,7 +226,7 @@ def pipe_to_normal(model_engine, **kwargs):
     """
     assert isinstance(model_engine, PipelineEngine), f"model engine {model_engine} not a PipelineEngine instance"
     ret = DeepSpeedEngine(
-        args=get_args(),
+        args=get_args(), # TODO remove_global_vars
         model=model_engine.module,
         mpu=model_engine.module.mpu(),
         dist_init_required=False,

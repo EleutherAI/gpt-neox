@@ -22,7 +22,7 @@ import torch
 import wandb
 from wandb import UsageError
 
-from megatron import get_args
+from megatron.neox_arguments import NeoXArgs
 from megatron import get_timers
 from megatron import get_tokenizer
 from megatron import mpu
@@ -58,7 +58,7 @@ def init_wandb(use_wandb, args):
 def model_provider(use_wandb=True, inference=False, get_key_value=True):
     """Build the model."""
 
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     print_rank_0('building GPT2 model ...')
     model = GPT2ModelPipe(num_tokentypes=0, parallel_output=True, topology=mpu.get_topology(), inference=inference,
                           get_key_value=get_key_value)
@@ -95,7 +95,7 @@ def _get_batch(args, tokenizer, keys, data, datatype):
 
 def get_batch(data_iterator):
     """Generate a batch"""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     tokenizer = get_tokenizer()
 
     # Items and their type.
@@ -112,7 +112,7 @@ def get_batch(data_iterator):
 
 def get_batch_pipe(data):
     """A modification of get_batch() to work with the latest batch instead of an iterator. """
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     tokenizer = get_tokenizer()
 
     # Items and their type.
@@ -130,7 +130,7 @@ def get_batch_pipe(data):
 
 def forward_step(data_iterator, model):
     """Forward step."""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     timers = get_timers()
 
     # Get the batch.
@@ -150,7 +150,7 @@ def forward_step(data_iterator, model):
 
 def train_valid_test_datasets_provider(train_val_test_num_samples):
     """Build train, valid, and test datasets."""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
 
     print_rank_0('> building train, validation, and test datasets '
                  'for GPT2 ...')
@@ -168,5 +168,6 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
 
 
 if __name__ == "__main__":
-    pretrain(train_valid_test_datasets_provider, model_provider, forward_step,
-             args_defaults={'tokenizer_type': 'GPT2BPETokenizer'})
+    # TODO remove_global_vars get NeoXArgs from command line
+    neox_args = NeoXArgs.from_ymls(["configs/small.yml", "configs/local_setup.yml"])
+    pretrain(train_valid_test_dataset_provider=train_valid_test_datasets_provider, model_provider=model_provider, forward_step_func=forward_step, neox_args=neox_args)

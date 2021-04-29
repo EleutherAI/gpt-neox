@@ -31,7 +31,7 @@ class TestModelInitialization(unittest.TestCase):
             initialize_megatron()
 
         # load args from global variables
-        args = get_args()
+        args = get_args() # TODO remove_global_vars
         self.assertTrue(isinstance(args, NeoXArgs))
 
         print("topology", mpu.get_topology(), flush=True)

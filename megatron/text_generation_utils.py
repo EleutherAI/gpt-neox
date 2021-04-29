@@ -34,7 +34,7 @@ from megatron.utils import get_ltor_masks_and_position_ids, is_mp_rank_0
 
 def get_batch(context_tokens):
     """Generate batch from context tokens."""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     tokenizer = get_tokenizer()
 
     # Move to GPU.
@@ -115,7 +115,7 @@ def get_token_stream(model, context_tokens):
     model: a Megatron model.
     context_tokens: the prompt to complete.
     """
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     tokenizer = get_tokenizer()
 
     context_tokens, context_lengths = pad_batch(context_tokens,
@@ -163,7 +163,7 @@ def forward_model(model, model_inputs):
     """
     # because someone at deepspeed decided pipeline modules couldn't use kwargs,
     # we need to forward a pipe model by access model.module() instead of just model()
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     torch.distributed.barrier()
     if args.pipe_parallel_size <= 1:
         return model.module(model_inputs)
@@ -197,7 +197,7 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
 
     yields: tokens (completions from model), and lengths (lengths of completions)
     """
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     tokenizer = get_tokenizer()
 
     model.eval()
@@ -291,7 +291,7 @@ def generate_samples_from_prompt(model, text: Union[List[str], str]):
         - 'text' (the completion) 
         - 'length' (the length of the completion)
     """
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     tokenizer = get_tokenizer()
 
     # type check
@@ -367,7 +367,7 @@ def generate_samples_input_from_file(model):
 
     model: a Megatron model
     """
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     tokenizer = get_tokenizer()
     # Read the sample file and open the output file.
     assert args.sample_input_file is not None, \
@@ -395,7 +395,7 @@ def generate_samples_interactive(model, print_frequency=24):
     model: a Megatron model
     print_frequency: int, how often (in tokens) to print the output.
     """
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     tokenizer = get_tokenizer()
 
     context_count = 0
@@ -470,7 +470,7 @@ def generate_samples_unconditional(model):
         - 'text' (the completion) 
         - 'length' (the length of the completion)
     """
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     tokenizer = get_tokenizer()
 
     num_samples = args.num_samples
@@ -517,7 +517,7 @@ def generate_and_write_samples_unconditional(model):
     model: a Megatron model
 
     """
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     assert args.genfile is not None
     genfile = args.genfile
 

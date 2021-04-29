@@ -51,7 +51,7 @@ class TestModelCheckpoint(unittest.TestCase):
             initialize_megatron()
 
         # load args from global variables
-        args = get_args()
+        args = get_args() # TODO remove_global_vars
 
         # remove any existing checkpoints if they exist
         path = os.path.join(get_root_directory(), args.load)

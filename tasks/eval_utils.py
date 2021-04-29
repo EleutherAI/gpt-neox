@@ -29,7 +29,7 @@ from tasks.finetune_utils import process_batch
 
 def accuracy_func_provider(single_dataset_provider):
     """Provide function that calculates accuracies."""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
 
     # Build dataloaders.
     datapaths = args.valid_data

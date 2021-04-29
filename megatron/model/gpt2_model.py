@@ -70,7 +70,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
     """
 
     def __init__(self, num_tokentypes=0, parallel_output=True, topology=None, inference=False, get_key_value=True):
-        args = get_args()
+        args = get_args() # TODO remove_global_vars
 
         self._inference = inference
         self.get_key_value = get_key_value if inference else False

@@ -40,7 +40,7 @@ def main(extra_args_provider=None, get_key_value=True):
 
     initialize_megatron(args_defaults={'tokenizer_type': 'GPT2BPETokenizer'}, extra_args_provider=extra_args_provider)
 
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
 
     if args.load is None:
         raise ValueError("`load` parameter must be supplied to load a model`")
