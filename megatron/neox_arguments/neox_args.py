@@ -279,6 +279,10 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsLogging(NeoXArgsTemplate):
+
+    use_wandb: bool = None
+    """Flag indicating if wandb is to be used."""
+
     wandb_group: str = None
     """Weights and Biases group name - used to group together "runs"."""
 
@@ -449,6 +453,11 @@ class NeoXArgsTokenizer(NeoXArgsTemplate):
     """
     Total (padded) vocabulary size of tokenizer. Configured after launching of training, 
     as it's dependent on the parallelism size.
+    """
+
+    tokenizer =  None
+    """
+    tokenizer object loaded into memory and accesible by other functions
     """
 
 

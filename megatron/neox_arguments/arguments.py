@@ -13,6 +13,7 @@ from socket import gethostname
 from typing import Literal, Dict
 from deepspeed.launcher.runner import DLTS_HOSTFILE
 from megatron.logging import Tee
+from megatron.tokenizer import build_tokenizer
 from megatron.utils import obtain_resource_pool
 from .deepspeed_args import NeoXArgsDeepspeedConfig, NeoXArgsDeepspeedRunner
 from .neox_args import NeoXArgsModel, NeoXArgsTokenizer, NeoXArgsTraining, NeoXArgsParallelism, \
@@ -97,6 +98,9 @@ class NeoXArgs(*BASE_CLASSES):
             raise ValueError(self.__class__.__name__ + ".__post_init__() NeoXArgs values cannot be validated")
 
         self.save_yml()
+
+    def build_tokenizer(self):
+        self.tokenizer = build_tokenizer(self)
 
     @classmethod
     def from_ymls(cls, paths_to_yml_files: List[str], overwrite_values: Dict = None):
@@ -303,6 +307,8 @@ class NeoXArgs(*BASE_CLASSES):
         result = dict()
         for parent in parent_classes:
             for key, default_value in parent().defaults():
+                if key == "tokenizer": 
+                    continue
                 if only_non_defaults:
                     value = getattr(self, key)
                     if value == default_value: continue
