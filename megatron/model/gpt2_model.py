@@ -21,7 +21,6 @@
 import torch
 
 from megatron import get_args
-from megatron.module import MegatronModule
 from functools import partial
 from megatron.model.utils import init_method_normal, scaled_init_method_normal, Lambda
 from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
@@ -63,7 +62,7 @@ def cross_entropy(output, labels, _fp16=False):
     return loss
 
 
-class GPT2ModelPipe(PipelineModule, MegatronModule):
+class GPT2ModelPipe(PipelineModule, torch.nn.Module):
     """GPT2Model adapted for pipeline parallelism.
 
     The largest change is flattening the GPTModel class so we can express it as a

@@ -2,11 +2,10 @@ import torch
 
 from megatron import get_args
 from megatron import mpu
-from megatron.module import MegatronModule
 from megatron.model.positional_embeddings import SinusoidalPositionalEmbedding
 
 
-class Embedding(MegatronModule):
+class Embedding(torch.nn.Module):
     """Language model embeddings.
     Arguments:
         hidden_size: hidden size
@@ -97,70 +96,6 @@ class Embedding(MegatronModule):
         # Dropout.
         embeddings = self.embedding_dropout(embeddings)
         return embeddings
-
-    def state_dict_for_save_checkpoint(self, destination=None, prefix='',
-                                       keep_vars=False):
-        """For easy load."""
-
-        state_dict_ = {}
-        state_dict_[self._word_embeddings_key] \
-            = self.word_embeddings.state_dict(destination, prefix, keep_vars)
-        if self.embedding_type == "learned":
-            state_dict_[self._position_embeddings_key] \
-                = self.position_embeddings.state_dict(
-                destination, prefix, keep_vars)
-        if self.num_tokentypes > 0:
-            state_dict_[self._tokentype_embeddings_key] \
-                = self.tokentype_embeddings.state_dict(
-                destination, prefix, keep_vars)
-
-        return state_dict_
-
-    def load_state_dict(self, state_dict, strict=True):
-        """Customized load."""
-
-        # Word embedding.
-        if self._word_embeddings_key in state_dict:
-            state_dict_ = state_dict[self._word_embeddings_key]
-        else:
-            # for backward compatibility.
-            state_dict_ = {}
-            for key in state_dict.keys():
-                if 'word_embeddings' in key:
-                    state_dict_[key.split('word_embeddings.')[1]] \
-                        = state_dict[key]
-        self.word_embeddings.load_state_dict(state_dict_, strict=strict)
-
-        # Position embedding.
-        if self.embedding_type == "learned":
-            if self._position_embeddings_key in state_dict:
-                state_dict_ = state_dict[self._position_embeddings_key]
-            else:
-                # for backward compatibility.
-                state_dict_ = {}
-                for key in state_dict.keys():
-                    if 'position_embeddings' in key:
-                        state_dict_[key.split('position_embeddings.')[1]] \
-                            = state_dict[key]
-            self.position_embeddings.load_state_dict(state_dict_, strict=strict)
-
-        # Tokentype embedding.
-        if self.num_tokentypes > 0:
-            state_dict_ = {}
-            if self._tokentype_embeddings_key in state_dict:
-                state_dict_ = state_dict[self._tokentype_embeddings_key]
-            else:
-                # for backward compatibility.
-                for key in state_dict.keys():
-                    if 'tokentype_embeddings' in key:
-                        state_dict_[key.split('tokentype_embeddings.')[1]] \
-                            = state_dict[key]
-            if len(state_dict_.keys()) > 0:
-                self.tokentype_embeddings.load_state_dict(state_dict_,
-                                                          strict=strict)
-            else:
-                print('***WARNING*** expected tokentype embeddings in the '
-                      'checkpoint but could not find it', flush=True)
 
 
 class EmbeddingPipe(Embedding):

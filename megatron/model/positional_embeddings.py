@@ -1,8 +1,7 @@
 import torch
-from megatron.module import MegatronModule
 
 
-class SinusoidalPositionalEmbedding(MegatronModule):
+class SinusoidalPositionalEmbedding(torch.nn.Module):
 
     def __init__(self, dim, base=10000):
         super().__init__()
@@ -16,7 +15,7 @@ class SinusoidalPositionalEmbedding(MegatronModule):
         return emb[None, :, :]
 
 
-class RotaryEmbedding(MegatronModule):
+class RotaryEmbedding(torch.nn.Module):
     
     def __init__(self, dim, base=10000):
         super().__init__()

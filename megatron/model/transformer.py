@@ -25,7 +25,6 @@ import torch.nn.functional as F
 from .norms import LayerNorm, RMSNorm, ScaleNorm
 from megatron import get_args
 from megatron import mpu
-from megatron.module import MegatronModule
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
 from megatron.model.fused_bias_gelu import bias_gelu_impl
 from megatron.model.utils import openai_gelu, erf_gelu, exists
@@ -63,7 +62,7 @@ torch._C._jit_override_can_fuse_on_gpu(True)
 """
 
 
-class GEGLU(MegatronModule):
+class GEGLU(torch.nn.Module):
 
     def __init__(self):
         super(GEGLU, self).__init__()
@@ -91,7 +90,7 @@ class GEGLU(MegatronModule):
         return intermediate_parallel * x
 
 
-class ParallelMLP(MegatronModule):
+class ParallelMLP(torch.nn.Module):
     """MLP.
 
     MLP will take the input with h hidden state, project it to 4*h
@@ -157,7 +156,7 @@ class ParallelMLP(MegatronModule):
         return output, output_bias
 
 
-class ParallelLinear(MegatronModule):
+class ParallelLinear(torch.nn.Module):
     """
     A Parallel Linear Layer transforming the transformer outputs from hidden_size -> vocab_size
     """
@@ -178,7 +177,7 @@ class ParallelLinear(MegatronModule):
         return self.final_linear(hidden_states)
 
 
-class ParallelSelfAttention(MegatronModule):
+class ParallelSelfAttention(torch.nn.Module):
     """Parallel self-attention layer abstract class.
 
     Self-attention layer takes input with size [b, s, h]
@@ -456,7 +455,7 @@ class ParallelSelfAttention(MegatronModule):
         return output, bias
 
 
-class ParallelTransformerLayer(MegatronModule):
+class ParallelTransformerLayer(torch.nn.Module):
     """A single transformer layer.
 
     Transformer layer takes input with size [b, s, h] and returns an
@@ -628,7 +627,7 @@ class ParallelLinearPipe(ParallelLinear):
             raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
 
 
-class NormPipe(MegatronModule):
+class NormPipe(torch.nn.Module):
     """Just a helper class to pass presents through to the output when doing inference with a Pipe Parallel model"""
 
     def __init__(self, norm_class, hidden_size, eps):
