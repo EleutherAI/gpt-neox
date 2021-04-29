@@ -70,7 +70,7 @@ class TestNeoXArgsCommandLine(unittest.TestCase):
 
         self.assertTrue(args_loaded_yamls == args_loaded_consume)
 
-    def test_neoxargs_consume_megatron_args(self):
+    def test_neoxargs_consume_neox_args(self):
         """
         verify megatron args are correctly consumed after sending via deepspeed
         """
@@ -83,7 +83,7 @@ class TestNeoXArgsCommandLine(unittest.TestCase):
 
         # patch sys.argv so that args can be access by set_global_variables within initialize_megatron
         with patch('sys.argv', deepspeed_main_args):
-            args_loaded = NeoXArgs.consume_megatron_args()
+            args_loaded = NeoXArgs.consume_neox_args()
 
         #TODO is the wandb group really to be changed?
         args_loaded.wandb_group = args_baseline.wandb_group

@@ -14,9 +14,9 @@ from megatron import mpu
 
 from tests.common import get_root_directory, get_configs_with_path
 
-class TestModelInitializationPipeline(unittest.TestCase):
+class TestModelInitialization(unittest.TestCase):
  
-    def test_model_initialization_pipeline(self):
+    def test_model_initialization(self):
         reset_global_variables()
 
         # intitially load config from files as would be the case in deepy.py
