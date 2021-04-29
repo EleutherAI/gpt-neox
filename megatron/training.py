@@ -26,7 +26,6 @@ import math
 import sys
 
 import torch
-from torch.nn.parallel.distributed import DistributedDataParallel as torchDDP
 
 from megatron import get_args
 from megatron import get_timers
@@ -240,16 +239,15 @@ def setup_model_and_optimizer(model_provider_func):
             optimizer=optimizer,
             args=args,
             lr_scheduler=_lr_scheduler,
-            mpu=mpu if args.pipe_parallel_size == 0 else None,
             dist_init_required=False,
             model_parameters=_model_params,
             config_params=args.deepspeed_config,
+            mpu=mpu if not args.is_pipe_parallel else None
         )
-
         model.total_params = get_total_params(model.module)
         print_rank_0(f' > total params: {"{:,}".format(model.total_params)}')
 
-        if args.pipe_parallel_size > 0:
+        if args.is_pipe_parallel:
             model.set_batch_fn(model.module._megatron_batch_fn)
     else:
         raise ValueError("Must be using deepspeed to run neox")
@@ -259,11 +257,6 @@ def setup_model_and_optimizer(model_provider_func):
         print_rank_0(f'Loading checkpoint and starting from iteration {args.iteration}')
     else:
         args.iteration = 0
-
-    # get model without FP16 and/or TorchDDP wrappers
-    unwrapped_model = model
-    while hasattr(unwrapped_model, 'module'):
-        unwrapped_model = unwrapped_model.module
 
     return model, optimizer, lr_scheduler
 
@@ -296,7 +289,7 @@ def train_step(forward_step_func, data_iterator,
     timers = get_timers()
 
     # Pipeline parallelism schedules forward/backward/step
-    if args.pipe_parallel_size > 0:
+    if args.is_pipe_parallel:
         return train_step_pipe(model, data_iterator)
 
     # TODO: Dead code (?)
@@ -376,9 +369,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         if name in timers.timers:
             timers_to_log.append(name)
 
-    if args.pipe_parallel_size == 0:
-        # TODO: Dead code?
-
+    if not args.is_pipe_parallel:
         add_to_logging('forward')
         add_to_logging('backward')
         add_to_logging('backward-backward')
@@ -563,7 +554,6 @@ def train(forward_step_func, model, optimizer, lr_scheduler,
     return iteration
 
 
-
 def evaluate(forward_step_func, data_iterator, model, verbose=False):
     """Evaluation."""
     args = get_args()
@@ -610,11 +600,10 @@ def evaluate_and_print_results(prefix, forward_step_func,
 
     # Pipeline parallelism needs eval_batch() instead of a simple forward().
     args = get_args()
-    if args.pipe_parallel_size > 0:
-        def _eval_helper(data_iter, pipe_model):
+    if args.is_pipe_parallel:
+        def _eval_helper(data_iter, _):
             loss = model.eval_batch(data_iter)
             return None, {'lm loss': loss}
-
         forward_step_func = _eval_helper
 
     total_loss_dict = evaluate(forward_step_func, data_iterator, model, verbose)
@@ -642,7 +631,7 @@ def build_train_valid_test_data_iterators(
     print_rank_0('> building train, validation, and test datasets ...')
 
     # Ensure only the first/last pipeline stages have data loaders
-    if args.pipe_parallel_size > 0:
+    if args.is_pipe_parallel:
         is_first_stage = mpu.get_pipe_parallel_rank() == 0
         is_last_stage = mpu.get_pipe_parallel_rank() == mpu.get_pipe_parallel_world_size() - 1
         pipe_load = is_first_stage or is_last_stage
@@ -687,7 +676,7 @@ def build_train_valid_test_data_iterators(
         flags = torch.cuda.LongTensor([0, 0, 0])
 
     # Broadcast num tokens.
-    if args.pipe_parallel_size > 0:
+    if args.is_pipe_parallel:
         # Only first/last pipeline stages have data loaders, so pipeline parallelism should
         # broadcast globally instead of just the model parallel group.
         torch.distributed.broadcast(flags, src=0)

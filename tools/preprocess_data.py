@@ -19,6 +19,7 @@ import argparse
 import multiprocessing
 import os
 import sys
+
 import lm_dataformat as lmd
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),

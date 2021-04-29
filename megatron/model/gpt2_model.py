@@ -23,9 +23,8 @@ import torch
 from megatron import get_args
 from megatron.module import MegatronModule
 from functools import partial
-from .utils import init_method_normal
-from .utils import scaled_init_method_normal
-from .norms import LayerNorm, RMSNorm, ScaleNorm
+from megatron.model.utils import init_method_normal, scaled_init_method_normal, Lambda
+from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
 
 from megatron import mpu
 from megatron.mpu import ParallelRelativePositionBias
@@ -241,3 +240,33 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
             )
         # so output in training should just be logits
         # in inference it will be (logits, presents) (assuming get_key_value) is true
+
+    def to_sequential(self):
+        """
+        Transforms the PipelineModule to a plain nn.Sequential module
+        :return:
+        """
+        layers = []
+        from collections import defaultdict
+        tied_layers = defaultdict(list)
+        for n, spec in enumerate(self.specs):
+            if isinstance(spec, TiedLayerSpec):
+                if spec.key in tied_layers:
+                    # receiver
+                    layers.append(Lambda(lambda x: spec.forward_fn(tied_layers[spec.key][0], x)))
+                else:
+                    # owner
+                    module = spec.build(log=False)
+                    layers.append(module)
+                    tied_layers[spec.key].append(module)
+            elif isinstance(spec, LayerSpec):
+                layers.append(spec.build(log=False))
+            else:
+                # check that it's a lambda function
+                LAMBDA = lambda:0
+                if isinstance(spec, type(LAMBDA)) and spec.__name__ == LAMBDA.__name__:
+                    # we assume it is a lambda function
+                    layers.append(Lambda(spec))
+                else:
+                    raise ValueError(f'Layer number {n} ({spec}) Not recognized')
+        return torch.nn.Sequential(*layers)

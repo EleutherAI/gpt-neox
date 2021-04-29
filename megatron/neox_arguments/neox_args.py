@@ -36,6 +36,12 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     Total world size (i.e number of gpus in cluster). Configured post-launch using distributed launcher
     """
 
+    is_pipe_parallel: bool = False
+    """
+    flag to determine whether pipeline parallelism is on - shouldn't be set by user, is automatically determined 
+    according to pipeline parallel size.
+    """
+
 
 @dataclass
 class NeoXArgsModel(NeoXArgsTemplate):

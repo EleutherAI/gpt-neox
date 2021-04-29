@@ -20,14 +20,13 @@ import math
 import torch
 
 from megatron import get_args
-from megatron import print_rank_0
 from megatron import get_tokenizer
 from megatron import mpu
+from megatron import print_rank_0
 from megatron.checkpointing import load_checkpoint
 from megatron.training import get_model
 from megatron.utils import get_ltor_masks_and_position_ids
 from tasks.finetune_utils import build_data_loader
-
 from .datasets import build_dataset
 
 

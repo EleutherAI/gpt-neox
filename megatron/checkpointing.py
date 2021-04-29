@@ -26,7 +26,6 @@ import sys
 import numpy as np
 
 import torch
-from torch.nn.parallel import DistributedDataParallel as torchDDP
 from glob import glob
 
 from megatron import mpu, get_args
@@ -106,8 +105,7 @@ def delete_old_checkpoints(save_dir, n_to_keep):
 def save_ds_checkpoint(iteration, model, args):
     """Save a model checkpoint."""
 
-    sd = {}
-    sd['iteration'] = iteration
+    sd = {'iteration': iteration}
     # rng states.
     if not args.no_save_rng:
         sd['random_rng_state'] = random.getstate()
@@ -115,6 +113,12 @@ def save_ds_checkpoint(iteration, model, args):
         sd['torch_rng_state'] = torch.get_rng_state()
         sd['cuda_rng_state'] = torch.cuda.get_rng_state()
         sd['rng_tracker_states'] = mpu.get_cuda_rng_tracker().get_states()
+
+    if not args.is_pipe_parallel:
+        # megatron model uses state_dict_for_save_checkpointing instead of the standard state_dict
+        # state_dict is used by deepspeed for module saving so it needs to point to the right function
+        model.module.state_dict = model.module.state_dict_for_save_checkpoint
+    # Pipeline parallelism manages its own state dict
 
     model.save_checkpoint(args.save, client_state=sd)
 
@@ -145,17 +149,14 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
     torch.distributed.barrier()
 
 
-def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load'):
+def load_checkpoint(model, optimizer, lr_scheduler):
     """Load a model checkpoint and return the iteration."""
     args = get_args()
-    load_dir = getattr(args, load_arg)
 
-    if isinstance(model, torchDDP):
-        model = model.module
     # Read the tracker file and set the iteration.
-    tracker_filename = get_checkpoint_tracker_filename(load_dir)
+    tracker_filename = get_checkpoint_tracker_filename(args.load)
 
-    # If no tracker file, return iretation zero.
+    # If no tracker file, return iteration zero.
     if not os.path.isfile(tracker_filename):
         print_rank_0('WARNING: could not find the metadata file {} '.format(
             tracker_filename))
@@ -183,7 +184,7 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load'):
 
     if args.deepspeed:
         load_optim_and_scheduler = not args.no_load_optim  # TODO: These should be configured by separate args
-        checkpoint_name, state_dict = model.load_checkpoint(load_dir,
+        checkpoint_name, state_dict = model.load_checkpoint(args.load,
                                                             load_optimizer_states=load_optim_and_scheduler,
                                                             load_lr_scheduler_states=load_optim_and_scheduler)
 

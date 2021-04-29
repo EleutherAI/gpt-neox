@@ -89,3 +89,13 @@ def get_params_for_weight_decay_optimization(module, args):
 
 def exists(x):
     return x is not None
+
+
+class Lambda(torch.nn.Module):
+    def __init__(self, func):
+        super().__init__()
+        self.func = func
+
+    def forward(self, x):
+        return self.func(x)
+
