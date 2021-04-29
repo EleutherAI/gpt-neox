@@ -2,8 +2,8 @@
 {
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
-   "pipe-parallel-size": 1,
-   "model-parallel-size": 1,
+   "pipe-parallel-size": 0,
+   "model-parallel-size": 2,
 
    # model settings
    "num-layers": 12,
@@ -41,7 +41,7 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 4,
+   "train_micro_batch_size_per_gpu": 8,
    "data-impl": "mmap",
    "split": "949,50,1",
 

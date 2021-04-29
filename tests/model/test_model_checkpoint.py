@@ -65,9 +65,10 @@ class TestModelCheckpoint(unittest.TestCase):
         # save model checkpoint
         save_checkpoint(42, model, optimizer, lr_scheduler)
 
-        if args.pipe_parallel_size == 1 and isinstance(model, PipelineEngine):
-            # if it's a pipe parallel model but not actually doing parallelism, convert it to a normal deepspeed model
-            model = pipe_to_normal(model)
+        #if args.pipe_parallel_size == 1 and isinstance(model, PipelineEngine):
+        #    # if it's a pipe parallel model but not actually doing parallelism, convert it to a normal deepspeed model
+        #    model = pipe_to_normal(model)
+        #model.to_sequential()
         model.eval()
         
         context_tokens_tensor = torch.cuda.LongTensor([[1,2,3,4,5],[1,2,3,4,5],[6,7,8,9,10],[1,2,3,4,100]])
