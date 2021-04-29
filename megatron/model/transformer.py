@@ -66,7 +66,7 @@ class GEGLU(torch.nn.Module):
 
     def __init__(self):
         super(GEGLU, self).__init__()
-        args = get_args()
+        args = get_args() # TODO remove_global_vars
         self.bias_gelu_fusion = args.bias_gelu_fusion
         self.activation_func = F.gelu
         if args.openai_gelu:
@@ -101,7 +101,7 @@ class ParallelMLP(torch.nn.Module):
 
     def __init__(self, init_method, output_layer_init_method):
         super(ParallelMLP, self).__init__()
-        args = get_args()
+        args = get_args() # TODO remove_global_vars
 
         if args.geglu:
             self.activation_type = "geglu"
@@ -163,7 +163,7 @@ class ParallelLinear(torch.nn.Module):
 
     def __init__(self, parallel_output=True, init_method=torch.nn.init.xavier_normal_):
         super(ParallelLinear, self).__init__()
-        args = get_args()
+        args = get_args() # TODO remove_global_vars
         self.final_linear = mpu.RowParallelLinear(
             args.hidden_size,
             args.padded_vocab_size,
@@ -188,7 +188,7 @@ class ParallelSelfAttention(torch.nn.Module):
                  output_layer_init_method, layer_number, sparse=False,
                  rpe=None, rotary=False, get_key_value=False):
         super(ParallelSelfAttention, self).__init__()
-        args = get_args()
+        args = get_args() # TODO remove_global_vars
         self.fp16 = args.precision == "fp16"
         self.attention_mask_func = attention_mask_func
         self.apply_query_key_layer_scaling = args.apply_query_key_layer_scaling
@@ -465,7 +465,7 @@ class ParallelTransformerLayer(torch.nn.Module):
     def __init__(self, attention_mask_func, init_method,
                  output_layer_init_method, layer_number, sparse=False, rpe=None, rotary=False, get_key_value=False):
 
-        args = get_args()
+        args = get_args() # TODO remove_global_vars
 
         super(ParallelTransformerLayer, self).__init__()
         self.layer_number = layer_number

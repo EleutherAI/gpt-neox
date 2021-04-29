@@ -36,7 +36,7 @@ from megatron.utils import reduce_losses
 
 def process_batch(batch):
     """Process batch and produce inputs for the model."""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
 
     tokens = batch['text'].long().cuda().contiguous()
     types = batch['types'].long().cuda().contiguous()
@@ -108,7 +108,7 @@ def _build_infinite_size_dataloader(dataloader):
 
 def _build_train_valid_dataloaders(train_dataset, valid_dataset):
     """Traing and validation dataloaders."""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
 
     print_rank_0('building train and validation dataloaders ...')
     # Training dataset.
@@ -129,7 +129,7 @@ def _build_train_valid_dataloaders(train_dataset, valid_dataset):
 def _train(model, optimizer, lr_scheduler, forward_step,
            train_dataloader, valid_dataloader, end_of_epoch_callback):
     """Train the model."""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     timers = get_timers()
 
     # Turn on training mode which enables dropout.
@@ -205,7 +205,7 @@ def finetune(train_valid_datasets_provider, model_provider,
              forward_step=_cross_entropy_forward_step,
              end_of_epoch_callback_provider=None):
     """Main finetune function used across all tasks."""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     timers = get_timers()
 
     # Train and validation data loaders.

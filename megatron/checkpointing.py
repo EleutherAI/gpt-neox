@@ -37,7 +37,7 @@ from megatron.utils import natural_sort
 def check_checkpoint_args(checkpoint_args):
     """Ensure fixed arguments for a model are the same for the input
     arguments and the one retreived frm checkpoint."""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
 
     def _compare(arg_name):
         checkpoint_value = getattr(checkpoint_args, arg_name)
@@ -117,7 +117,7 @@ def save_ds_checkpoint(iteration, model, args):
 
 def save_checkpoint(iteration, model, optimizer, lr_scheduler):
     """Save a model checkpoint."""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
 
     if args.deepspeed:
         save_ds_checkpoint(iteration, model, args)
@@ -143,7 +143,7 @@ def save_checkpoint(iteration, model, optimizer, lr_scheduler):
 
 def load_checkpoint(model, optimizer, lr_scheduler):
     """Load a model checkpoint and return the iteration."""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
 
     # Read the tracker file and set the iteration.
     tracker_filename = get_checkpoint_tracker_filename(args.load)

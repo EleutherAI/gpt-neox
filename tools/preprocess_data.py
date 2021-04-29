@@ -113,7 +113,7 @@ def _multi_lmd(fnames: list):
 
 
 def main():
-    args = get_args()
+    args = get_args() 
     startup_start = time.time()
 
     # use multiprocessing to iterate over input documents

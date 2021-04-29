@@ -54,7 +54,7 @@ class TestModelCheckpoint(unittest.TestCase):
             self.__class__.__name__ + ".run_checkpoint_test() " + "initializing megatron")
 
         # load args from global variables
-        args = get_args()
+        args = get_args() # TODO remove_global_vars
 
         # remove any existing checkpoints if they exist
         path = os.path.join(get_root_directory(), args.load)

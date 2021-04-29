@@ -58,7 +58,7 @@ if __name__ == '__main__':
 
     initialize_megatron(extra_args_provider=get_tasks_args)
 
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     if args.task in ['LAMBADA', 'WIKITEXT103']:
         from zeroshot_gpt2.evaluate import main
     else:
