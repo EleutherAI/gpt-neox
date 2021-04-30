@@ -21,6 +21,7 @@
 
 """Pretrain utilities."""
 from datetime import datetime
+from functools import partial
 
 import math
 import sys
@@ -52,7 +53,6 @@ from megatron.utils import reduce_losses
 
 import deepspeed
 
-_GLOBAL_NEOX_ARGS = None #TODO remove_global_vars set for now for batch_fn in deepspeed
 
 def pretrain(neox_args):
     """Main training program.
@@ -125,7 +125,7 @@ def pretrain(neox_args):
             forward_step_func=forward_step,
             data_iterator=test_data_iterator, 
             model=model, 
-            iteration=0, #TODO remove_global_vars why iteration == 0?
+            iteration=0, # iteration 0 in order to always use full test data
             verbose=True
             )
 
@@ -163,11 +163,8 @@ def get_batch(neox_args, data_iterator):
         data = None
     return _get_batch(neox_args=neox_args, tokenizer=neox_args.tokenizer, keys=keys, data=data, datatype=datatype)
 
-def get_batch_pipe(data):
+def get_batch_pipe(data, neox_args):
     """A modification of get_batch() to work with the latest batch instead of an iterator. """
-
-    global _GLOBAL_NEOX_ARGS #TODO remove_global_vars
-    neox_args = _GLOBAL_NEOX_ARGS
     
     # Items and their type.
     keys = ['text']
@@ -211,7 +208,7 @@ def get_model(neox_args, inference=False, get_key_value=True):
     else:
         # This is a hack to give us a reference to get_batch_pipe from within training.py
         # We need to call model.set_batch_fn after deepspeed.initialize
-        model._megatron_batch_fn = get_batch_pipe #TODO remove_global_vars, this function needs neox_args
+        model._megatron_batch_fn = partial(get_batch_pipe, neox_args=neox_args) 
 
     if neox_args.deepspeed:
         # DeepSpeed handles CUDA, FP16, and DDP components.
@@ -373,8 +370,6 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
     # Pipeline parallelism schedules forward/backward/step
     if neox_args.is_pipe_parallel:
         return train_step_pipe(neox_args=neox_args, timers=timers, model=model, data_iterator=data_iterator)
-
-    # TODO: Dead code (?)
 
     # Forward model for one step.
     timers('forward').start()
@@ -576,8 +571,6 @@ def train(neox_args, timers, model, optimizer, lr_scheduler,
     else:
         noise_scale_logger = None
 
-    global _GLOBAL_NEOX_ARGS #TODO remove_global_vars
-    _GLOBAL_NEOX_ARGS = neox_args
     while iteration < neox_args.train_iters:
         loss_dict, skipped_iter = train_step(
             neox_args=neox_args, 
