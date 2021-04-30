@@ -22,7 +22,7 @@ import os
 import sys
 
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))) # TODO remove_global_vars why?
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir)))
 
 from megatron.neox_arguments import NeoXArgs
 from megatron import print_rank_0
@@ -36,11 +36,9 @@ def main():
     Generate text/sample model
     """
 
-    neox_args = NeoXArgs.from_ymls(["configs/small.yml", "configs/local_setup.yml", "configs/text_generation.yml"])
+    neox_args = NeoXArgs.consume_neox_args()
     neox_args.build_tokenizer()
-    # TODO remove_global_vars initialized from command line args
-    #neox_args = NeoXArgs.consume_neox_args()
-
+    
     # Force checkpoint activations, don't load optimizer states
     # neox_args.update_value is used in order to assert that the attributes to be set are existing (no typos here)
     neox_args.update_value("checkpoint_activations", False)
