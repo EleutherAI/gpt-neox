@@ -26,7 +26,6 @@ import torch
 
 from megatron import fused_kernels
 from megatron import mpu
-from megatron.global_vars import set_global_variables
 from megatron.mpu import set_model_parallel_rank, set_model_parallel_world_size
 
 import deepspeed
