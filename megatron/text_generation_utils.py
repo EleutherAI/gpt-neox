@@ -47,16 +47,16 @@ def get_batch(neox_args, context_tokens):
 
 
 def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
-    """ 
+    """
     Filters the logits using top_k / top_p, filling any filtered vocab items with filter_value (defaults to -inf).
 
     This function has been mostly taken from huggingface conversational ai code at
     https://medium.com/huggingface/how-to-build-a-state-of-the-art-conversational-ai-with-transfer-learning-2d818ac26313
-    
+
     logits: torch.Tensor -> logits of megatron model.
-    top_k: integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token. 
-    top_p: float -> Top-p (nucles) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p. 
-    
+    top_k: integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
+    top_p: float -> Top-p (nucles) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+
     returns: (filtered) logits"""
 
     if top_k > 0:
@@ -185,7 +185,7 @@ def sample_sequence_batch(neox_args, model, context_tokens, context_lengths,
 
     model: a Megatron model.
     context_tokens: the prompt to complete.
-    context_lengths: lengths of context tokens. 
+    context_lengths: lengths of context tokens.
     attention_mask: attention mask for megatron model.
     position_ids: position ids for positional encoding.
 
@@ -278,9 +278,9 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str]):
     model: a Megatron model
     text: either a single prompt (str) or a list of prompts (List[str]).
 
-    returns: List[dict] -> a list of dicts containing the following fields: 
-        - 'context' (the input) 
-        - 'text' (the completion) 
+    returns: List[dict] -> a list of dicts containing the following fields:
+        - 'context' (the input)
+        - 'text' (the completion)
         - 'length' (the length of the completion)
     """
 
@@ -452,8 +452,8 @@ def generate_samples_unconditional(neox_args, model):
 
     model: a Megatron model
 
-    yields: Dict -> a dict containing the following fields: 
-        - 'text' (the completion) 
+    yields: Dict -> a dict containing the following fields:
+        - 'text' (the completion)
         - 'length' (the length of the completion)
     """
 
