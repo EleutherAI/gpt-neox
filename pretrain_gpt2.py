@@ -23,4 +23,6 @@ if __name__ == "__main__":
     # TODO remove_global_vars get NeoXArgs from command line
     neox_args = NeoXArgs.from_ymls(["configs/small.yml", "configs/local_setup.yml"])
     neox_args.build_tokenizer() #TODO remove global vars shall we initialize here?
+    neox_args.initialize_tensorboard_writer()  #TODO remove global vars shall we initialize here?
+    neox_args.print()
     pretrain(neox_args=neox_args)
