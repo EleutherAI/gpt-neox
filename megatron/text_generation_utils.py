@@ -211,7 +211,7 @@ def sample_sequence_batch(neox_args, model, context_tokens, context_lengths,
 
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
 
-        while context_length <= (maxlen):
+        while context_length <= maxlen:
             if neox_args.recompute:
                 # we need to use neox_args instead of kwargs here because deepspeed :|
                 model_inputs = (tokens,
@@ -219,7 +219,7 @@ def sample_sequence_batch(neox_args, model, context_tokens, context_lengths,
                                 attention_mask,
                                 torch.Tensor(),
                                 )
-                logits = forward_model(neox_args, model, model_inputs)
+                logits, _ = forward_model(neox_args, model, model_inputs)
                 logits = logits[:, context_length - 1, :]
             else:
                 if counter == 0:
@@ -230,17 +230,18 @@ def sample_sequence_batch(neox_args, model, context_tokens, context_lengths,
                         batch_size, -1)
                     positions2use = position_ids[:, context_length - 1].view(
                         batch_size, -1)
-            # we have to use neox_args instead of kwargs here because deepspeed :|
-            model_inputs = (tokens2use,  # input_ids
-                            positions2use,  # position_ids
-                            attention_mask,  # attention_mask
-                            layer_past,  # layer_past
-                            )
+                # we have to use neox_args instead of kwargs here because deepspeed :|
+                model_inputs = (tokens2use,  # input_ids
+                                positions2use,  # position_ids
+                                attention_mask,  # attention_mask
+                                layer_past,  # layer_past
+                                )
 
-            logits, layer_past = forward_model(neox_args, model, model_inputs)
+                logits, layer_past = forward_model(neox_args, model, model_inputs)
+                # TODO: we are replicating computation across all machines here, which is really unecessary,
+                #  we should probably just do it on one then communicate the results?
+                logits = logits[:, -1].view(batch_size, -1).contiguous()
 
-            # TODO: we are replicating computation across all machines here, which is really unecessary, we should probably just do it on one then communicate the results
-            logits = logits[:, -1].view(batch_size, -1).contiguous()
             if neox_args.greedy:
                 prev = torch.argmax(logits, dim=-1).view(-1)
             else:
