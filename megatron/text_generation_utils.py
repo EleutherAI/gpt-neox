@@ -26,26 +26,23 @@ from typing import List, Union
 import torch
 import torch.nn.functional as F
 
-from megatron import get_args, print_rank_0
-from megatron import get_tokenizer
+from megatron import print_rank_0
 from megatron import mpu
 from megatron.utils import get_ltor_masks_and_position_ids, is_mp_rank_0
 
 
-def get_batch(context_tokens):
+def get_batch(neox_args, context_tokens):
     """Generate batch from context tokens."""
-    args = get_args() # TODO remove_global_vars
-    tokenizer = get_tokenizer()
-
+ 
     # Move to GPU.
-    tokens = context_tokens.view(args.batch_size, -1).contiguous().cuda()
+    tokens = context_tokens.view(neox_args.batch_size, -1).contiguous().cuda()
     # Get the attention mask and postition ids.
     attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
         tokens,
-        tokenizer.eod,
-        args.reset_position_ids,
-        args.reset_attention_mask,
-        args.eod_mask_loss)
+        neox_args.tokenizer.eod,
+        neox_args.reset_position_ids,
+        neox_args.reset_attention_mask,
+        neox_args.eod_mask_loss)
     return tokens, attention_mask, position_ids
 
 
@@ -89,37 +86,34 @@ def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
     return logits
 
 
-def pad_batch(batch, pad_id, args):
+def pad_batch(batch, pad_id, neox_args):
     """
-    pads context lengths in batch with pad_id to equal args.seq_length,
+    pads context lengths in batch with pad_id to equal neox_args.seq_length,
     and returns the padded batch and the new lengths.
 
     batch: torch.Tensor of tokens
     pad_id: int, integer to use as padding token
-    args: global args
+    neox_args: neox_args
     """
 
     context_lengths = []
     for tokens in batch:
         context_length = len(tokens)
-        if context_length < args.seq_length:
-            tokens.extend([pad_id] * (args.seq_length - context_length))
+        if context_length < neox_args.seq_length:
+            tokens.extend([pad_id] * (neox_args.seq_length - context_length))
         context_lengths.append(context_length)
     return batch, context_lengths
 
 
-def get_token_stream(model, context_tokens):
+def get_token_stream(neox_args, model, context_tokens):
     """
     yields completions from a model as an iterator.
 
     model: a Megatron model.
     context_tokens: the prompt to complete.
     """
-    args = get_args() # TODO remove_global_vars
-    tokenizer = get_tokenizer()
 
-    context_tokens, context_lengths = pad_batch(context_tokens,
-                                                tokenizer.eod, args)
+    context_tokens, context_lengths = pad_batch(context_tokens, neox_args.tokenizer.eod, neox_args)
 
     context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
     context_length_tensor = torch.cuda.LongTensor(context_lengths)
@@ -132,9 +126,9 @@ def get_token_stream(model, context_tokens):
                                 group=mpu.get_model_parallel_group())
 
     context_length = context_length_tensor.min().item()
-    tokens, attention_mask, position_ids = get_batch(context_tokens_tensor)
+    tokens, attention_mask, position_ids = get_batch(neox_args, context_tokens_tensor)
 
-    batch_token_iterator = sample_sequence_batch(model, context_tokens_tensor,
+    batch_token_iterator = sample_sequence_batch(neox_args, model, context_tokens_tensor,
                                                  context_length_tensor,
                                                  attention_mask, position_ids)
     for tokens, lengths in batch_token_iterator:
@@ -150,7 +144,7 @@ def switch(val1, val2, boolean):
     return (1 - boolean) * val1 + boolean * val2
 
 
-def forward_model(model, model_inputs):
+def forward_model(neox_args, model, model_inputs):
     """
     Runs model.forward(model_inputs)
 
@@ -163,9 +157,9 @@ def forward_model(model, model_inputs):
     """
     # because someone at deepspeed decided pipeline modules couldn't use kwargs,
     # we need to forward a pipe model by access model.module() instead of just model()
-    args = get_args() # TODO remove_global_vars
+
     torch.distributed.barrier()
-    if args.pipe_parallel_size <= 1:
+    if neox_args.pipe_parallel_size <= 1:
         return model.module(model_inputs)
     else:
         data_iterator = iter(
@@ -183,7 +177,7 @@ def broadcast_terminate_signal(terminate_runs: int):
     return terminate_runs_tensor[0].item()
 
 
-def sample_sequence_batch(model, context_tokens, context_lengths,
+def sample_sequence_batch(neox_args, model, context_tokens, context_lengths,
                           attention_mask, position_ids,
                           maxlen=None):
     """
@@ -197,13 +191,11 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
 
     yields: tokens (completions from model), and lengths (lengths of completions)
     """
-    args = get_args() # TODO remove_global_vars
-    tokenizer = get_tokenizer()
 
     model.eval()
     with torch.no_grad():
         context_length = context_lengths.min().item()
-        eos_id = tokenizer.eod
+        eos_id = neox_args.tokenizer.eod
 
         counter = 0
         org_context_length = context_length
@@ -213,21 +205,21 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
         layer_past = torch.Tensor().cuda()
 
         if maxlen is None:
-            maxlen = args.seq_length - 1
-            if maxlen > (org_context_length + args.out_seq_length):
-                maxlen = org_context_length + args.out_seq_length
+            maxlen = neox_args.seq_length - 1
+            if maxlen > (org_context_length + neox_args.out_seq_length):
+                maxlen = org_context_length + neox_args.out_seq_length
 
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
 
         while context_length <= (maxlen):
-            if args.recompute:
-                # we need to use args instead of kwargs here because deepspeed :|
+            if neox_args.recompute:
+                # we need to use neox_args instead of kwargs here because deepspeed :|
                 model_inputs = (tokens,
                                 position_ids,
                                 attention_mask,
                                 torch.Tensor(),
                                 )
-                logits = forward_model(model, model_inputs)
+                logits = forward_model(neox_args, model, model_inputs)
                 logits = logits[:, context_length - 1, :]
             else:
                 if counter == 0:
@@ -238,24 +230,24 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
                         batch_size, -1)
                     positions2use = position_ids[:, context_length - 1].view(
                         batch_size, -1)
-            # we have to use args instead of kwargs here because deepspeed :|
+            # we have to use neox_args instead of kwargs here because deepspeed :|
             model_inputs = (tokens2use,  # input_ids
                             positions2use,  # position_ids
                             attention_mask,  # attention_mask
                             layer_past,  # layer_past
                             )
 
-            logits, layer_past = forward_model(model, model_inputs)
+            logits, layer_past = forward_model(neox_args, model, model_inputs)
 
             # TODO: we are replicating computation across all machines here, which is really unecessary, we should probably just do it on one then communicate the results
             logits = logits[:, -1].view(batch_size, -1).contiguous()
-            if args.greedy:
+            if neox_args.greedy:
                 prev = torch.argmax(logits, dim=-1).view(-1)
             else:
                 logits = logits.float()
-                logits /= args.temperature
-                logits = top_k_logits(logits, top_k=args.top_k,
-                                      top_p=args.top_p)
+                logits /= neox_args.temperature
+                logits = top_k_logits(logits, top_k=neox_args.top_k,
+                                      top_p=neox_args.top_p)
                 log_probs = F.softmax(logits, dim=-1)
                 prev = torch.multinomial(log_probs, num_samples=1).view(-1)
 
@@ -278,7 +270,7 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
                 break
 
 
-def generate_samples_from_prompt(model, text: Union[List[str], str]):
+def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str]):
     """
     Generates samples from raw text and returns them in a dictionary.
 
@@ -291,8 +283,6 @@ def generate_samples_from_prompt(model, text: Union[List[str], str]):
         - 'text' (the completion) 
         - 'length' (the length of the completion)
     """
-    args = get_args() # TODO remove_global_vars
-    tokenizer = get_tokenizer()
 
     # type check
     assert any([isinstance(text, str), isinstance(text, list)]), "Text should be in string or list form"
@@ -318,85 +308,81 @@ def generate_samples_from_prompt(model, text: Union[List[str], str]):
                 raw_text = text[input_pos]
                 input_pos += 1
 
-                context_tokens = tokenizer.tokenize(raw_text)
+                context_tokens = neox_args.tokenizer.tokenize(raw_text)
                 context_length = len(context_tokens)
 
-                if context_length >= (args.seq_length // 2):
+                if context_length >= (neox_args.seq_length // 2):
                     print_rank_0("\nContext length", context_length,
                                  "\nPlease give smaller context (half of the "
                                  "sequence length)!", flush=True)
                     continue
         else:
-            context_tokens = tokenizer.tokenize("EMPTY TEXT")
+            context_tokens = neox_args.tokenizer.tokenize("EMPTY TEXT")
             context_length = len(context_tokens)
 
         terminate_runs = broadcast_terminate_signal(terminate_runs)
         if terminate_runs == 1:
             return generated_texts
 
-        for token_stream in get_token_stream(model, copy.deepcopy([context_tokens])):
+        for token_stream in get_token_stream(neox_args, model, copy.deepcopy([context_tokens])):
             pass
         token_batch = token_stream[0].cpu().numpy().tolist()
         length_batch = token_stream[1].cpu().numpy().tolist()
         for tokens, length in zip(token_batch, length_batch):
             tokens = tokens[1:length - 1]
             try:
-                text = tokenizer.detokenize(tokens)
+                text = neox_args.tokenizer.detokenize(tokens)
             except KeyError:
                 print_rank_0("WARNING: generated token which doesn't exist. Skipping")
                 continue
-            is_finished = length < args.seq_length - 1
+            is_finished = length < neox_args.seq_length - 1
 
             if is_mp_rank_0():
                 data = {'context': raw_text, 'text': text, 'length': length - 1, 'finished': is_finished}
                 generated_texts.append(data)
-                if iterations % args.log_interval == 0:
+                if iterations % neox_args.log_interval == 0:
                     print_rank_0('Avg s/batch:',
-                                 (time.time() - start_time) / min(args.log_interval, iterations + 1))
+                                 (time.time() - start_time) / min(neox_args.log_interval, iterations + 1))
                     start_time = time.time()
                 iterations += 1
 
     return generated_texts
 
 
-def generate_samples_input_from_file(model):
+def generate_samples_input_from_file(neox_args, model):
     """
     Generates samples from an input file and writes them to an output file.
 
-    Reads prompts from args.sample_input_file and writes completions to args.sample_output_file
+    Reads prompts from neox_args.sample_input_file and writes completions to neox_args.sample_output_file
 
     model: a Megatron model
     """
-    args = get_args() # TODO remove_global_vars
-    tokenizer = get_tokenizer()
     # Read the sample file and open the output file.
-    assert args.sample_input_file is not None, \
+    assert neox_args.sample_input_file is not None, \
         'sample input file is not provided.'
-    with open(args.sample_input_file, "r") as f:
+    with open(neox_args.sample_input_file, "r") as f:
         prompts = f.readlines()
     if is_mp_rank_0():
-        if args.sample_output_file is None:
-            sample_output_file = args.sample_input_file + ".out"
+        if neox_args.sample_output_file is None:
+            sample_output_file = neox_args.sample_input_file + ".out"
             print_rank_0('could not find `sample-output-file`, setting '
                          'it to {}'.format(sample_output_file))
         else:
-            sample_output_file = args.sample_output_file
+            sample_output_file = neox_args.sample_output_file
         f_out = open(sample_output_file, "w+")
-    generated_texts = generate_samples_from_prompt(model, prompts)
+    generated_texts = generate_samples_from_prompt(neox_args=neox_args, model=model, text=prompts)
     if is_mp_rank_0():
         for item in generated_texts:
             f_out.write(json.dumps(item) + '\n')
 
 
-def generate_samples_interactive(model, print_frequency=24):
+def generate_samples_interactive(neox_args, model, print_frequency=24):
     """
     Generates samples interactively in the terminal.
 
     model: a Megatron model
     print_frequency: int, how often (in tokens) to print the output.
     """
-    args = get_args() # TODO remove_global_vars
-    tokenizer = get_tokenizer()
 
     context_count = 0
     model.eval()
@@ -415,23 +401,23 @@ def generate_samples_interactive(model, print_frequency=24):
                 if "stop" in raw_text:
                     terminate_runs = 1
                 else:
-                    context_tokens = tokenizer.tokenize(raw_text)
+                    context_tokens = neox_args.tokenizer.tokenize(raw_text)
                     context_length = len(context_tokens)
 
-                    if context_length >= (args.seq_length // 2):
+                    if context_length >= (neox_args.seq_length // 2):
                         print_rank_0("\nContext length", context_length,
                                      "\nPlease give smaller context (half of the "
                                      "sequence length)!", flush=True)
                         continue
             else:
-                context_tokens = tokenizer.tokenize("EMPTY TEXT")
+                context_tokens = neox_args.tokenizer.tokenize("EMPTY TEXT")
                 context_length = len(context_tokens)
 
             terminate_runs = broadcast_terminate_signal(terminate_runs)
             if terminate_runs == 1:
                 return
 
-            token_stream = get_token_stream(model, [context_tokens])
+            token_stream = get_token_stream(neox_args, model, [context_tokens])
             for counter, decode_tokens in enumerate(token_stream):
                 decode_tokens, _ = decode_tokens
                 decode_tokens = decode_tokens[0].cpu().numpy().tolist()
@@ -440,14 +426,14 @@ def generate_samples_interactive(model, print_frequency=24):
                         counter % print_frequency == 0:
                     os.system('clear')
                     print_rank_0("\nContext:", raw_text, flush=True)
-                    trim_decode_tokens = tokenizer.detokenize(
+                    trim_decode_tokens = neox_args.tokenizer.detokenize(
                         decode_tokens)[len(raw_text):]
                     print_rank_0("\nMegatron-LM:", trim_decode_tokens, flush=True)
 
             if is_mp_rank_0():
                 os.system('clear')
                 print_rank_0("\nContext:", raw_text, flush=True)
-                trim_decode_tokens = tokenizer.detokenize(
+                trim_decode_tokens = neox_args.tokenizer.detokenize(
                     decode_tokens)[len(raw_text):]
                 print_rank_0("\nMegatron-LM:", trim_decode_tokens, flush=True)
 
@@ -459,7 +445,7 @@ def generate_samples_interactive(model, print_frequency=24):
                 input("\nPress any key to continue >>>")
 
 
-def generate_samples_unconditional(model):
+def generate_samples_unconditional(neox_args, model):
     """
     Generates samples unconditionially (no prompt) and yields them in a dictionary.
 
@@ -470,24 +456,22 @@ def generate_samples_unconditional(model):
         - 'text' (the completion) 
         - 'length' (the length of the completion)
     """
-    args = get_args() # TODO remove_global_vars
-    tokenizer = get_tokenizer()
 
-    num_samples = args.num_samples
-    context_tokens = [[tokenizer.eod]
-                      for _ in range(args.batch_size)]
+    num_samples = neox_args.num_samples
+    context_tokens = [[neox_args.tokenizer.eod]
+                      for _ in range(neox_args.batch_size)]
     ctr = 0
     while True:
         start_time = time.time()
         token_stream = None
 
-        for token_stream in get_token_stream(model, copy.deepcopy(context_tokens)):
+        for token_stream in get_token_stream(neox_args, model, copy.deepcopy(context_tokens)):
             ' print(token_stream) -> 1, 1,2, 1,2,3'
             pass
         if token_stream is None: break
-        if ctr % args.log_interval == 0:
+        if ctr % neox_args.log_interval == 0:
             print_rank_0('Avg s/batch:',
-                         (time.time() - start_time) / min(args.log_interval, ctr + 1))
+                         (time.time() - start_time) / min(neox_args.log_interval, ctr + 1))
             start_time = time.time()
         length = len(token_stream)
         token_batch = token_stream[0].cpu().numpy().tolist()
@@ -496,11 +480,11 @@ def generate_samples_unconditional(model):
         for tokens, length in zip(token_batch, length_batch):
             tokens = tokens[1:length - 1]
             try:
-                text = tokenizer.detokenize(tokens)
+                text = neox_args.tokenizer.detokenize(tokens)
             except KeyError:
                 print_rank_0("WARNING: generated token which doesn't exist. Skipping")
                 continue
-            is_finished = length < args.seq_length - 1
+            is_finished = length < neox_args.seq_length - 1
             datum = {'text': text, 'length': length - 1, 'finished': is_finished}
             yield datum
             ctr += 1
@@ -510,23 +494,22 @@ def generate_samples_unconditional(model):
             break
 
 
-def generate_and_write_samples_unconditional(model):
+def generate_and_write_samples_unconditional(neox_args, model):
     """
-    Generates samples unconditionially (no prompt) and writes them to an output file at args.genfile
+    Generates samples unconditionially (no prompt) and writes them to an output file at neox_args.genfile
 
     model: a Megatron model
 
     """
-    args = get_args() # TODO remove_global_vars
-    assert args.genfile is not None
-    genfile = args.genfile
+    assert neox_args.genfile is not None
+    genfile = neox_args.genfile
 
     # Create directory
     genfile_dir = os.path.dirname(genfile)
     os.makedirs(genfile_dir, exist_ok=True)
 
     with open(genfile, 'w') as f:
-        for n, datum in enumerate(generate_samples_unconditional(model), 1):
+        for n, datum in enumerate(generate_samples_unconditional(neox_args=neox_args, model=model), 1):
             f.write(json.dumps(datum) + '\n')
-            if n != 0 and n % args.log_interval:
+            if n != 0 and n % neox_args.log_interval:
                 print_rank_0(f"Text generated and written: {n}")
