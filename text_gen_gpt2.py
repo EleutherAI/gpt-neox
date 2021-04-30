@@ -36,9 +36,9 @@ def main():
     Generate text/sample model
     """
 
-    neox_args = NeoXArgs.from_ymls(["configs/small.yml", "configs/local_setup.yml", "configs/text_generation.yml"]) #TODO remove_global_vars could also load from checkpoint here
-    neox_args.build_tokenizer() #TODO remove global vars shall we initialize here?
-    # TODO remove_global_vars initialized from command linea args?
+    neox_args = NeoXArgs.from_ymls(["configs/small.yml", "configs/local_setup.yml", "configs/text_generation.yml"])
+    neox_args.build_tokenizer()
+    # TODO remove_global_vars initialized from command line args
     #neox_args = NeoXArgs.consume_neox_args()
 
     # Force checkpoint activations, don't load optimizer states
