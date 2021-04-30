@@ -35,8 +35,7 @@ from deepspeed.utils import distributed
 
 
 def initialize_megatron(neox_args, allow_no_cuda=False):
-    """Set global variables, initialize distributed, and
-    set autoresume and random seeds.
+    """Set initialize distributed and set autoresume and random seeds.
     `allow_no_cuda` should not be set unless using megatron for cpu only 
     data processing. In general this arg should not be set unless you know 
     what you are doing.
