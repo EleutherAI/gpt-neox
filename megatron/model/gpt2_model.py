@@ -19,10 +19,11 @@
 """GPT-2 model."""
 
 import torch
+from collections import defaultdict
 
 from megatron import get_args
 from functools import partial
-from megatron.model.utils import init_method_normal, scaled_init_method_normal, Lambda
+from megatron.model.utils import init_method_normal, scaled_init_method_normal, Lambda, SequentialWrapper
 from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
 
 from megatron import mpu
@@ -246,7 +247,6 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         :return:
         """
         layers = []
-        from collections import defaultdict
         tied_layers = defaultdict(list)
         for n, spec in enumerate(self.specs):
             if isinstance(spec, TiedLayerSpec):
@@ -260,12 +260,14 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                     tied_layers[spec.key].append(module)
             elif isinstance(spec, LayerSpec):
                 layers.append(spec.build(log=False))
+            elif hasattr(spec, '__call__'):
+                # check that it's a callable function
+                layers.append(Lambda(spec))
             else:
-                # check that it's a lambda function
-                LAMBDA = lambda:0
-                if isinstance(spec, type(LAMBDA)) and spec.__name__ == LAMBDA.__name__:
-                    # we assume it is a lambda function
-                    layers.append(Lambda(spec))
-                else:
-                    raise ValueError(f'Layer number {n} ({spec}) Not recognized')
-        return torch.nn.Sequential(*layers)
+                raise ValueError(f'Layer number {n} ({spec}) Not recognized')
+        model = SequentialWrapper(layers,
+                                  self.activation_checkpoint_interval,
+                                  self.activation_checkpoint_func,
+                                  parent_class_name=self.__class__.__name__)
+        return model
+
