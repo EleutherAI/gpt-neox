@@ -50,16 +50,16 @@ def get_batch(context_tokens):
 
 
 def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
-    """ 
+    """
     Filters the logits using top_k / top_p, filling any filtered vocab items with filter_value (defaults to -inf).
 
     This function has been mostly taken from huggingface conversational ai code at
     https://medium.com/huggingface/how-to-build-a-state-of-the-art-conversational-ai-with-transfer-learning-2d818ac26313
-    
+
     logits: torch.Tensor -> logits of megatron model.
-    top_k: integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token. 
-    top_p: float -> Top-p (nucles) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p. 
-    
+    top_k: integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
+    top_p: float -> Top-p (nucles) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+
     returns: (filtered) logits"""
 
     if top_k > 0:
@@ -191,7 +191,7 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
 
     model: a Megatron model.
     context_tokens: the prompt to complete.
-    context_lengths: lengths of context tokens. 
+    context_lengths: lengths of context tokens.
     attention_mask: attention mask for megatron model.
     position_ids: position ids for positional encoding.
 
@@ -222,12 +222,13 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
         while context_length <= (maxlen):
             if args.recompute:
                 # we need to use args instead of kwargs here because deepspeed :|
-                model_inputs = (tokens,
-                                position_ids,
-                                attention_mask,
-                                torch.Tensor(),
-                                )
-                logits = forward_model(model, model_inputs)
+                model_inputs = (
+                    tokens,
+                    position_ids,
+                    attention_mask,
+                    torch.Tensor(),
+                )
+                logits, _ = forward_model(model, model_inputs)
                 logits = logits[:, context_length - 1, :]
             else:
                 if counter == 0:
@@ -238,17 +239,17 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
                         batch_size, -1)
                     positions2use = position_ids[:, context_length - 1].view(
                         batch_size, -1)
-            # we have to use args instead of kwargs here because deepspeed :|
-            model_inputs = (tokens2use,  # input_ids
-                            positions2use,  # position_ids
-                            attention_mask,  # attention_mask
-                            layer_past,  # layer_past
-                            )
+                # we have to use args instead of kwargs here because deepspeed :|
+                model_inputs = (
+                    tokens2use, # input_ids
+                    positions2use, # position_ids
+                    attention_mask, # attention_mask
+                    layer_past, # layer_past
+                )
+                logits, layer_past = forward_model(model, model_inputs)
+                # TODO: we are replicating computation across all machines here, which is really unecessary, we should probably just do it on one then communicate the results
+                logits = logits[:, -1].view(batch_size, -1).contiguous()
 
-            logits, layer_past = forward_model(model, model_inputs)
-
-            # TODO: we are replicating computation across all machines here, which is really unecessary, we should probably just do it on one then communicate the results
-            logits = logits[:, -1].view(batch_size, -1).contiguous()
             if args.greedy:
                 prev = torch.argmax(logits, dim=-1).view(-1)
             else:
@@ -286,9 +287,9 @@ def generate_samples_from_prompt(model, text: Union[List[str], str]):
     model: a Megatron model
     text: either a single prompt (str) or a list of prompts (List[str]).
 
-    returns: List[dict] -> a list of dicts containing the following fields: 
-        - 'context' (the input) 
-        - 'text' (the completion) 
+    returns: List[dict] -> a list of dicts containing the following fields:
+        - 'context' (the input)
+        - 'text' (the completion)
         - 'length' (the length of the completion)
     """
     args = get_args()
@@ -466,8 +467,8 @@ def generate_samples_unconditional(model):
 
     model: a Megatron model
 
-    yields: Dict -> a dict containing the following fields: 
-        - 'text' (the completion) 
+    yields: Dict -> a dict containing the following fields:
+        - 'text' (the completion)
         - 'length' (the length of the completion)
     """
     args = get_args()
