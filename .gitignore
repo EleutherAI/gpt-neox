@@ -140,5 +140,6 @@ checkpoints/
 
 #test logs
 test_checkpoint/
+test_logs/
 logs/
 tensorboard/

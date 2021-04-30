@@ -3,7 +3,6 @@ import sys
 import shutil
 import unittest
 import logging
-from unittest.mock import patch
 from pathlib import Path
 
 if __name__ == "__main__":
@@ -17,20 +16,21 @@ from megatron.mpu import destroy_model_parallel
 
 from megatron.checkpointing import load_checkpoint
 from megatron.checkpointing import save_checkpoint
-from deepspeed import PipelineEngine
 
-from tests.common import get_root_directory, get_configs_with_path
+from tests.common import get_root_directory, get_configs_with_path, get_test_configs_with_path, clear_test_dirs, TEST_CHECKPOINT_DIR, TEST_LOG_DIR
+
 import torch
-
-TEST_CHECKPOINT_DIR = "test_checkpoint"
 
 class TestModelCheckpoint(unittest.TestCase):
 
+    def setUp(self):
+        clear_test_dirs()
+
+    def tearDown(self):
+        clear_test_dirs()
+
     def run_checkpoint_test(self, yaml_list):
         destroy_model_parallel() # mpu model parallel contains remaining global vars
-
-        tests_directory = Path(__file__).parent / "test_configs"
-        yaml_list = [str((tests_directory / cfg).absolute()) for cfg in yaml_list]
 
         # intitially load config from files as would be the case in deepy.py
  
@@ -40,10 +40,9 @@ class TestModelCheckpoint(unittest.TestCase):
         args_loaded.build_tokenizer()
         args_loaded.update_value("user_script", str(get_root_directory() / "pretrain_gpt2.py"))
         args_loaded.update_value("use_cpu_initialization", True)
-
-        # remove any existing checkpoints if they exist
-        checkpoint_dir = os.path.join(get_root_directory(), args_loaded.load)
-        shutil.rmtree(checkpoint_dir)
+        args_loaded.update_value("save", TEST_CHECKPOINT_DIR)
+        args_loaded.update_value("load", TEST_CHECKPOINT_DIR)
+        args_loaded.update_value("log_dir", TEST_LOG_DIR)
        
         logging.debug(self.__class__.__name__ + ".run_checkpoint_test() initializing megatron")
         initialize_megatron(neox_args=args_loaded)
@@ -77,6 +76,9 @@ class TestModelCheckpoint(unittest.TestCase):
         args_reloaded.build_tokenizer()
         args_reloaded.update_value("user_script", str(get_root_directory() / "pretrain_gpt2.py"))
         args_reloaded.update_value("use_cpu_initialization", True)
+        args_reloaded.update_value("save", TEST_CHECKPOINT_DIR)
+        args_reloaded.update_value("load", TEST_CHECKPOINT_DIR)
+        args_reloaded.update_value("log_dir", TEST_LOG_DIR)
 
         reloaded_model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=args_reloaded, inference=False, get_key_value=True)
         iteration = load_checkpoint(neox_args=args_reloaded, model=reloaded_model, optimizer=optimizer, lr_scheduler=lr_scheduler)
@@ -98,21 +100,23 @@ class TestModelCheckpoint(unittest.TestCase):
             if not params_equal:
                 logging.error(self.__class__.__name__ + ".run_checkpoint_test() " + f"layer {idx} {n1} has same different after loading of checkpoint")
 
-        #clear up checkpoint folder
-        logging.debug( self.__class__.__name__ + ".run_checkpoint_test() " + "cleaning checkpoint")
-        shutil.rmtree(checkpoint_dir)
-
     def test_model_small(self):
-        self.run_checkpoint_test(["local_setup.yml", "small.yml"])
+        self.run_checkpoint_test(get_configs_with_path(["local_setup.yml", "small.yml"]))
 
     def test_model_medium(self):
-        self.run_checkpoint_test(["local_setup.yml", "medium.yml"])
+        self.run_checkpoint_test(get_configs_with_path(["local_setup.yml", "medium.yml"]))
+
+    def test_model_small(self):
+        self.run_checkpoint_test(get_test_configs_with_path(["test_local_setup.yml", "test_small.yml"]))
+
+    def test_model_medium(self):
+        self.run_checkpoint_test(get_test_configs_with_path(["test_local_setup.yml", "test_medium.yml"]))
 
 if __name__ == "__main__":
     suite = unittest.TestSuite()
 
     #Run all required tests
     suite.addTest(TestModelCheckpoint("test_model_small"))
-    suite.addTest(TestModelCheckpoint("test_model_medium"))
+    #suite.addTest(TestModelCheckpoint("test_model_medium"))
 
     unittest.TextTestRunner(failfast=False).run(suite)
