@@ -392,6 +392,11 @@ class NeoXArgsOther(NeoXArgsTemplate):
     Enable auto-resume on adlr cluster.
     """
 
+    adlr_autoresume_object = None
+    """
+    imported autoresume
+    """
+
     adlr_autoresume_interval: int = 1000
     """
     Intervals over which check for auto-resume termination signal

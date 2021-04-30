@@ -69,7 +69,7 @@ def pretrain(neox_args):
     """
     # setup logging and timers
     init_wandb(neox_args=neox_args)
-    timers = Timers(use_wandb=neox_args.use_wandb)
+    timers = Timers(use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
 
     # Initalize and get arguments, timers, and Tensorboard writer.
     initialize_megatron(neox_args=neox_args)
@@ -471,19 +471,19 @@ def training_log(neox_args, timers, loss_dict, total_loss_dict, learning_rate, i
                 # deepspeed already logs to tensorboard / prints values, so just log to wandb
                 if neox_args.use_wandb and torch.distributed.get_rank() == 0:
                     for key in timer_values:
-                        tb_wandb_log(f"timers/{key}", timer_values[key], iteration, use_wandb=neox_args.use_wandb)
+                        tb_wandb_log(f"timers/{key}", timer_values[key], iteration, use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
 
     # write losses, lr, etc. every step
-    tb_wandb_log('train/learning_rate', learning_rate, iteration, use_wandb=neox_args.use_wandb)
+    tb_wandb_log('train/learning_rate', learning_rate, iteration, use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
     for key in loss_dict:
-        tb_wandb_log(f'train/{key.replace(" ", "_")}', loss_dict[key], iteration, use_wandb=neox_args.use_wandb)
+        tb_wandb_log(f'train/{key.replace(" ", "_")}', loss_dict[key], iteration, use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
     if neox_args.fp16:
-        tb_wandb_log(f'train/loss_scale', loss_scale, iteration, use_wandb=neox_args.use_wandb)
+        tb_wandb_log(f'train/loss_scale', loss_scale, iteration, use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
 
     # log gradient noise scale
     if neox_args.log_gradient_noise_scale:
         if noise_scale_logger.noise_scale is not None:
-            tb_wandb_log(f'train/noise_scale', noise_scale_logger.noise_scale, iteration, use_wandb=neox_args.use_wandb)
+            tb_wandb_log(f'train/noise_scale', noise_scale_logger.noise_scale, iteration, use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
 
     # (optional) Log optimizer states to wandb / tb every step
     if neox_args.log_optimizer_states:
@@ -491,16 +491,16 @@ def training_log(neox_args, timers, loss_dict, total_loss_dict, learning_rate, i
             for ki, vi in v.items():  # step, module
                 if ki != 'step':
                     opt_state_norm = torch.norm(vi) if hasattr(vi, 'dim') else vi
-                    tb_wandb_log(f'optimizer_state_norms/{k}_{ki}', opt_state_norm, iteration, use_wandb=neox_args.use_wandb)
+                    tb_wandb_log(f'optimizer_state_norms/{k}_{ki}', opt_state_norm, iteration, use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
 
     # (optional) Log grad/param norms to wandb / tb every step
     if neox_args.log_grad_norm or neox_args.log_param_norm:
         for name, param in model.module.named_parameters():
             if neox_args.log_grad_norm:
                 if param.grad is not None:
-                    tb_wandb_log(f'gradient_norms/{name}', torch.norm(param.grad), iteration, use_wandb=neox_args.use_wandb)
+                    tb_wandb_log(f'gradient_norms/{name}', torch.norm(param.grad), iteration, use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
             if neox_args.log_param_norm:
-                tb_wandb_log(f'parameter_norms/{name}', torch.norm(param), iteration, use_wandb=neox_args.use_wandb)
+                tb_wandb_log(f'parameter_norms/{name}', torch.norm(param), iteration, use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
 
     if iteration % neox_args.log_interval == 0:
         # log other stuff every neox_args.log_interval iters
@@ -508,8 +508,8 @@ def training_log(neox_args, timers, loss_dict, total_loss_dict, learning_rate, i
         iteration_time = elapsed_time / neox_args.log_interval
         samples_per_sec = get_global_batch_size(neox_args) / iteration_time
         log_string = ' samples/sec: {:.3f} |'.format(samples_per_sec)
-        tb_wandb_log('runtime/samples_per_sec', samples_per_sec, iteration, use_wandb=neox_args.use_wandb)
-        tb_wandb_log('runtime/iteration_time', iteration_time, iteration, use_wandb=neox_args.use_wandb)
+        tb_wandb_log('runtime/samples_per_sec', samples_per_sec, iteration, use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
+        tb_wandb_log('runtime/iteration_time', iteration_time, iteration, use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
         log_string += ' iteration {:8d}/{:8d} |'.format(iteration, neox_args.train_iters)
         log_string += ' elapsed time per iteration (ms): {:.1f} |'.format(
             elapsed_time * 1000.0 / neox_args.log_interval)
@@ -520,7 +520,7 @@ def training_log(neox_args, timers, loss_dict, total_loss_dict, learning_rate, i
         # log tflop / gpu
         flops_per_s_per_gpu = get_flops(neox_args=neox_args, model=model, iter_time_s=iteration_time)
         log_string += f' approx flops per GPU: {human_readable_flops(flops_per_s_per_gpu)} |'
-        tb_wandb_log('runtime/flops_per_sec_per_gpu', flops_per_s_per_gpu, iteration, use_wandb=neox_args.use_wandb)
+        tb_wandb_log('runtime/flops_per_sec_per_gpu', flops_per_s_per_gpu, iteration, use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
 
         for key in total_loss_dict:
             if key not in [skipped_iters_key, got_nan_key]:
@@ -693,8 +693,8 @@ def evaluate_and_print_results(neox_args, prefix, forward_step_func, data_iterat
         string += '{} value: {:.6E} | '.format(key, total_loss_dict[key].item())
         ppl = math.exp(min(20, total_loss_dict[key].item()))
         string += '{} PPL: {:.6E} | '.format(key, ppl)
-        tb_wandb_log(f"validation/{key.replace(' ', '_')}", total_loss_dict[key].item(), iteration, use_wandb=neox_args.use_wandb)
-        tb_wandb_log(f"validation/{key.replace(' ', '_')}_ppl", ppl, iteration, use_wandb=neox_args.use_wandb)
+        tb_wandb_log(f"validation/{key.replace(' ', '_')}", total_loss_dict[key].item(), iteration, use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
+        tb_wandb_log(f"validation/{key.replace(' ', '_')}_ppl", ppl, iteration, use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
 
     length = len(string) + 1
     print_rank_0('-' * length)
