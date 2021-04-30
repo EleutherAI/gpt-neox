@@ -13,6 +13,7 @@ from megatron.neox_arguments import NeoXArgs
 from megatron import initialize_megatron
 from megatron.text_generation_utils import get_batch, forward_model
 from megatron.training import setup_model_and_optimizer
+from megatron.mpu import destroy_model_parallel
 
 from megatron.checkpointing import load_checkpoint
 from megatron.checkpointing import save_checkpoint
@@ -26,6 +27,8 @@ TEST_CHECKPOINT_DIR = "test_checkpoint"
 class TestModelCheckpoint(unittest.TestCase):
 
     def run_checkpoint_test(self, yaml_list):
+        destroy_model_parallel() # mpu model parallel contains remaining global vars
+
         tests_directory = Path(__file__).parent / "test_configs"
         yaml_list = [str((tests_directory / cfg).absolute()) for cfg in yaml_list]
 
