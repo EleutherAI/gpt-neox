@@ -378,11 +378,11 @@ class NeoXArgs(*BASE_CLASSES):
                 else:
                     default_info = ""
                 dots = '.' * (64 - len(print_str))
-                print_str += dots + default_info
-
-                str_list.append(print_str)
-            for arg in sorted(str_list, key=lambda x: x.lower()):
-                print(arg, flush=True)
+                print_str += dots 
+                str_list.append({"print_str": print_str, "default_info": default_info})
+            
+            for arg in sorted(sorted(str_list, key=lambda x: x["print_str"].lower()), key=lambda x: x["default_info"], reverse=True):
+                print(arg["print_str"]+arg["default_info"], flush=True)
             print('---------------- end of arguments ----------------', flush=True)
 
     ############################################################################################################################
