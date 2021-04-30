@@ -25,7 +25,6 @@ import numpy as np
 import torch
 
 from megatron import mpu, print_rank_0
-from megatron.data.dataset_utils import get_train_valid_test_split_
 from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
 
 
@@ -50,6 +49,7 @@ def build_train_valid_test_datasets(data_prefix, data_impl, splits_string,
         print_rank_0('     document indices in [{}, {}) total of {} '
                      'documents'.format(splits[index], splits[index + 1],
                                         splits[index + 1] - splits[index]))
+
     print_split_stats('train', 0)
     print_split_stats('validation', 1)
     print_split_stats('test', 2)
@@ -166,9 +166,8 @@ def _build_index_mappings(name, data_prefix, documents, sizes,
     # Build the indexed mapping if not exist.
     if torch.distributed.get_rank() == 0:
         if (not os.path.isfile(doc_idx_filename)) or \
-           (not os.path.isfile(sample_idx_filename)) or \
-           (not os.path.isfile(shuffle_idx_filename)):
-
+                (not os.path.isfile(sample_idx_filename)) or \
+                (not os.path.isfile(shuffle_idx_filename)):
             print_rank_0(' > WARNING: could not find index map files, building '
                          'the indices on rank 0 ...')
             # doc-idx.
@@ -181,7 +180,6 @@ def _build_index_mappings(name, data_prefix, documents, sizes,
             start_time = time.time()
             # Use C++ implementation for speed.
             # First compile and then import.
-            from megatron.data.dataset_utils import compile_helper
             compile_helper()
             from megatron.data import helpers
             assert doc_idx.dtype == np.int32
@@ -318,3 +316,44 @@ def _build_shuffle_idx(size, np_rng):
     shuffle_idx = np.arange(start=0, stop=size, step=1, dtype=dtype_)
     np_rng.shuffle(shuffle_idx)
     return shuffle_idx
+
+
+def compile_helper():
+    """Compile helper function ar runtime. Make sure this
+    is invoked on a single process."""
+    import os
+    import subprocess
+    path = os.path.abspath(os.path.dirname(__file__))
+    ret = subprocess.run(['make', '-C', path])
+    if ret.returncode != 0:
+        print("Making C++ dataset helpers module failed, exiting.")
+        import sys
+        sys.exit(1)
+
+
+def get_train_valid_test_split_(splits_string, size):
+    """ Get dataset splits from comma or '/' separated string list."""
+
+    splits = []
+    if splits_string.find(',') != -1:
+        splits = [float(s) for s in splits_string.split(',')]
+    elif splits_string.find('/') != -1:
+        splits = [float(s) for s in splits_string.split('/')]
+    else:
+        splits = [float(splits_string)]
+    while len(splits) < 3:
+        splits.append(0.)
+    splits = splits[:3]
+    splits_sum = sum(splits)
+    assert splits_sum > 0.0
+    splits = [split / splits_sum for split in splits]
+    splits_index = [0]
+    for index, split in enumerate(splits):
+        splits_index.append(splits_index[index] +
+                            int(round(split * float(size))))
+    diff = splits_index[-1] - size
+    for index in range(1, len(splits_index)):
+        splits_index[index] -= diff
+    assert len(splits_index) == 4
+    assert splits_index[-1] == size
+    return splits_index

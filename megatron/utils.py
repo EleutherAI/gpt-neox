@@ -25,6 +25,7 @@ from typing import Dict, List
 
 import requests
 import torch
+import wandb
 from deepspeed.launcher.runner import fetch_hostfile, parse_inclusion_exclusion
 
 from megatron import get_args
@@ -32,7 +33,7 @@ from megatron import print_rank_0
 from megatron import get_adlr_autoresume
 from megatron import mpu
 from megatron.data.samplers import DistributedBatchSampler
-from megatron.fp16 import FP16_Optimizer
+from megatron.global_vars import get_use_wandb, get_tensorboard_writer
 from deepspeed import PipelineEngine, DeepSpeedEngine
 
 
@@ -42,7 +43,6 @@ def reduce_losses(losses):
         [loss.clone().detach().view(1) for loss in losses])
     torch.distributed.all_reduce(reduced_losses)
     reduced_losses = reduced_losses / torch.distributed.get_world_size()
-
     return reduced_losses
 
 
@@ -58,26 +58,6 @@ def report_memory(name):
     string += ' | max reserved: {}'.format(
         torch.cuda.max_memory_reserved() / mega_bytes)
     print_rank_0(string)
-
-
-def print_params_min_max_norm(optimizer, iteration):
-    """Print min, max, and norm of all parameters."""
-    index = 0
-    rank = torch.distributed.get_rank()
-    string = 'iteration, rank, index, model-parallel,min, max, norm\n'
-    optimizer_ = optimizer
-    if isinstance(optimizer, FP16_Optimizer):
-        optimizer_ = optimizer.optimizer
-    for param_group in optimizer_.param_groups:
-        for param in param_group['params']:
-            index += 1
-            min_ = param.data.min()
-            max_ = param.data.max()
-            norm = param.data.norm()
-            string += '{:7d}, {:4d}, {:4d}, {:2d}, '.format(
-                iteration, rank, index, int(param.model_parallel))
-            string += '{:.6E}, {:.6E}, {:.6E}\n'.format(min_, max_, norm)
-    print(string, flush=True)
 
 
 def check_adlr_autoresume_termination(iteration, model,
@@ -194,9 +174,11 @@ def is_local_main():
     """ True if is the local main process """
     return local_rank() == 0
 
+
 def is_mp_rank_0():
     """True if mp rank == 0"""
     return mpu.get_model_parallel_rank() == 0
+
 
 def get_wandb_api_key():
     """ Get Weights and Biases API key from ENV or .netrc file. Otherwise return None """
@@ -207,18 +189,6 @@ def get_wandb_api_key():
 
     if wandb_token is not None:
         return wandb_token[1]
-
-
-def neox_args(parser):
-    group = parser.add_argument_group(title='Weights and Biases monitoring args')
-
-    group.add_argument('--wandb_group', type=str, default=None,
-                       help='Weights and Biases group name - used to group together "runs".')
-    group.add_argument('--wandb_team', type=str, default=None,
-                       help='Team name for Weights and Biases.')
-    group.add_argument('--git_hash', type=str, default=None,
-                       help='current git hash of repository')
-    return parser
 
 
 def obtain_resource_pool(hostfile_path, include_arg, exclude_arg) -> Dict[str, List[int]]:
@@ -246,7 +216,7 @@ def natural_sort(l):
     return sorted(l, key=alphanum_key)
 
 
-def pipe_to_normal(model_engine):
+def pipe_to_normal(model_engine, **kwargs):
     """
     Takes in a deepspeed.PipelineEngine model and returns a deepspeed.DeepspeedEngine model with the same model weights
     so we can directly access the .forward() function (for inference).
@@ -255,9 +225,36 @@ def pipe_to_normal(model_engine):
 
     """
     assert isinstance(model_engine, PipelineEngine), f"model engine {model_engine} not a PipelineEngine instance"
-    return DeepSpeedEngine(
+    ret = DeepSpeedEngine(
         args=get_args(),
         model=model_engine.module,
         mpu=model_engine.module.mpu(),
         dist_init_required=False,
-        config_params=model_engine.config_params)
+        config_params=model_engine.config_params,
+        optimizer=model_engine.optimizer,
+        lr_scheduler=model_engine.lr_scheduler,
+        **kwargs)
+    return ret
+
+
+def tb_wandb_log(key, value, iteration_no):
+    # logs to both tb and wandb (if present) from the zeroth rank
+    writer = get_tensorboard_writer()
+    if torch.distributed.get_rank() == 0:
+        if writer:
+            writer.add_scalar(key, value, iteration_no)
+        if get_use_wandb():
+            wandb.log({key: value}, step=iteration_no)
+
+
+def ddb(rank=0):
+    """
+    Distributed Debugger that will insert a py debugger on rank `rank` and
+    pause all other distributed processes until debugging is complete.
+    :param rank:
+    """
+    if torch.distributed.get_rank() == rank:
+        from pdb import Pdb
+        pdb = Pdb(skip=["torch.distributed.*"])
+        pdb.set_trace(sys._getframe().f_back)
+    torch.distributed.barrier()

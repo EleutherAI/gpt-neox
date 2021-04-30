@@ -26,7 +26,6 @@ import torch
 import wandb
 
 from megatron.tokenizer import build_tokenizer
-from .arguments import parse_args
 
 _GLOBAL_ARGS = None
 _GLOBAL_TOKENIZER = None
@@ -34,6 +33,7 @@ _GLOBAL_TENSORBOARD_WRITER = None
 _GLOBAL_ADLR_AUTORESUME = None
 _GLOBAL_TIMERS = None
 _GLOBAL_USE_WANDB = False
+
 
 def get_args():
     """Return arguments."""
@@ -65,32 +65,38 @@ def get_timers():
     return _GLOBAL_TIMERS
 
 
-def set_global_variables(extra_args_provider=None, args_defaults={},
-                         ignore_unknown_args=False, args=None):
+def set_global_variables():
     """Set args, tokenizer, tensorboard-writer, adlr-autoresume, and timers."""
-    args = _parse_args(extra_args_provider=extra_args_provider,
-                       defaults=args_defaults,
-                       ignore_unknown_args=ignore_unknown_args,
-                       args=args
-                       )
+    from megatron.neox_arguments import NeoXArgs
+    args = NeoXArgs.consume_neox_args()
+
+    global _GLOBAL_ARGS
+    _ensure_var_is_not_initialized(_GLOBAL_ARGS, 'args')
+    _GLOBAL_ARGS = args
+
     _ = _build_tokenizer(args)
     _set_tensorboard_writer(args)
     _set_adlr_autoresume(args)
     _set_timers()
 
-
-def _parse_args(extra_args_provider=None, defaults={},
-                ignore_unknown_args=False, args=None):
-    """Parse entire arguments."""
+def reset_global_variables():
     global _GLOBAL_ARGS
-    _ensure_var_is_not_initialized(_GLOBAL_ARGS, 'args')
-    _GLOBAL_ARGS = parse_args(extra_args_provider=extra_args_provider,
-                              defaults=defaults,
-                              ignore_unknown_args=ignore_unknown_args,
-                              args=args
-                              )
-    return _GLOBAL_ARGS
+    _GLOBAL_ARGS = None
 
+    global _GLOBAL_TOKENIZER
+    _GLOBAL_TOKENIZER = None
+
+    global _GLOBAL_TENSORBOARD_WRITER
+    _GLOBAL_TENSORBOARD_WRITER = None
+
+    global _GLOBAL_ADLR_AUTORESUME
+    _GLOBAL_ADLR_AUTORESUME = None
+    
+    global _GLOBAL_TIMERS
+    _GLOBAL_TIMERS = None
+
+    global _GLOBAL_USE_WANDB
+    _GLOBAL_USE_WANDB = False
 
 def _build_tokenizer(args):
     """Initialize tokenizer."""
@@ -113,7 +119,7 @@ def _set_tensorboard_writer(args):
                                    'tensorboard writer')
 
     if hasattr(args, 'tensorboard_dir') and \
-       args.tensorboard_dir and args.rank == 0:
+            args.tensorboard_dir and args.rank == 0:
         try:
             from torch.utils.tensorboard import SummaryWriter
             print('> setting tensorboard ...')
@@ -227,10 +233,10 @@ class Timers:
 
             writer = get_tensorboard_writer()
             if writer:
-                writer.add_scalar(name + '_time', value, iteration)
+                writer.add_scalar(f"timers/{name}", value, iteration)
 
             if get_use_wandb():
-                wandb.log({name + '_time': value}, step=iteration)
+                wandb.log({f"timers/{name}": value}, step=iteration)
 
     def log(self, names, normalizer=1.0, reset=True):
         """Log a group of timers."""
@@ -246,9 +252,11 @@ class Timers:
         else:
             print(string, flush=True)
 
+
 def get_use_wandb():
     global _GLOBAL_USE_WANDB
     return _GLOBAL_USE_WANDB
+
 
 def set_use_wandb(b: bool):
     global _GLOBAL_USE_WANDB

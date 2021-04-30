@@ -51,7 +51,7 @@ We offer a choice of layernorm, scalenorm and RMSNorm easily configured by chang
 ## Getting Started
 
 Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), our fork of the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library with some added changes. 
-We strongly recommend using Anaconda, a virtual machine, or some other form of environment isolation before installing from `requirements.txt`. Failure to do so may cause other repositories that rely on DeepSpeed to break.
+We strongly recommend using Anaconda, a virtual machine, or some other form of environment isolation before installing from `requirements.txt`. Failure to do so may cause other repositories that rely on DeepSpeed to break. Python 3.8 or later is required.
 
 First make sure you are in an environment with `torch>=1.7.1` installed. Then run `pip install -r requirements.txt`. 
 You may need to change the version of `cupy-cudaxxx` to match your machine's cuda version.

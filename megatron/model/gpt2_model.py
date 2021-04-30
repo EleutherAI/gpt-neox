@@ -21,22 +21,17 @@
 import torch
 
 from megatron import get_args
-from megatron.module import MegatronModule
 from functools import partial
-from .language_model import get_language_model
-from .utils import init_method_normal
-from .utils import scaled_init_method_normal
-from .norms import LayerNorm, RMSNorm, ScaleNorm
+from megatron.model.utils import init_method_normal, scaled_init_method_normal, Lambda
+from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
 
-# Pipeline parallelism
 from megatron import mpu
 from megatron.mpu import ParallelRelativePositionBias
-from megatron.model.language_model import SinusoidalPositionalEmbedding
 import megatron.fp16 as fp16
-from megatron.model.transformer import ParallelTransformerLayerPipe, NormPipe, RowParallelLinearPipe
-from .language_model import EmbeddingPipe, parallel_lm_logits
-from megatron import print_rank_0
+from megatron.model.transformer import ParallelTransformerLayerPipe, NormPipe, ParallelLinearPipe, parallel_lm_logits
+from megatron.model.word_embeddings import EmbeddingPipe
 
+# Pipeline parallelism
 from deepspeed.pipe import PipelineModule, LayerSpec, TiedLayerSpec
 
 
@@ -67,95 +62,7 @@ def cross_entropy(output, labels, _fp16=False):
     return loss
 
 
-class GPT2Model(MegatronModule):
-    """GPT-2 Language model."""
-
-    def __init__(self, num_tokentypes=0, parallel_output=True, inference=False, get_key_value=True):
-        super(GPT2Model, self).__init__()
-        args = get_args()
-        self.parallel_output = parallel_output
-        self.weight_tying = not args.no_weight_tying
-        if not self.weight_tying:
-            # TODO: not sure whether to use RowParallelLinear's default scatter to mp region here, or copy, which is
-            # the default of parallel_lm_logits. Should investigate benefits of both
-            self.final_linear = mpu.RowParallelLinear(
-                args.hidden_size,
-                args.padded_vocab_size,
-                bias=False,
-                input_is_parallel=False,
-                skip_bias_add=False,
-                parallel_output=self.parallel_output)
-
-        self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
-
-        self.inference = inference
-        self.get_key_value = get_key_value if inference else False
-
-        self.language_model, self._language_model_key = get_language_model(
-            attention_mask_func=gpt2_attention_mask_func,
-            num_tokentypes=num_tokentypes,
-            init_method=init_method_normal(args.init_method_std),
-            scaled_init_method=scaled_init_method_normal(args.init_method_std,
-                                                         args.num_layers),
-            get_key_value=self.get_key_value)
-
-
-    def forward(self, input_ids, position_ids, attention_mask, 
-                layer_past=None, tokentype_ids=None, forward_method_parallel_output=None, labels=None):
-
-        # Language model.
-        lm_output = self.language_model(input_ids,
-                                        position_ids,
-                                        attention_mask,
-                                        tokentype_ids=tokentype_ids,
-                                        layer_past=layer_past)
-
-        if self.get_key_value:
-            lm_output, presents = lm_output
-
-        # Output.
-        parallel_output = self.parallel_output
-        if forward_method_parallel_output is not None:
-            parallel_output = forward_method_parallel_output
-        if self.weight_tying:
-            output = parallel_lm_logits(
-                lm_output,
-                self.language_model.embedding.word_embeddings.weight,
-                parallel_output)
-        else:
-            output, bias = self.final_linear(lm_output)
-
-        if self.get_key_value:
-            output = [output, presents]
-
-        if labels is None:
-            return output
-        else:
-            if self.fp16_lm_cross_entropy:
-                assert output.dtype == torch.half
-                loss = mpu.vocab_parallel_cross_entropy(output, labels)
-            else:
-                loss = mpu.vocab_parallel_cross_entropy(output.float(), labels)
-            return loss
-
-    def state_dict_for_save_checkpoint(self, destination=None, prefix='',
-                                       keep_vars=False):
-
-        state_dict_ = {}
-        state_dict_[self._language_model_key] \
-            = self.language_model.state_dict_for_save_checkpoint(
-            destination, prefix, keep_vars)
-        return state_dict_
-
-    def load_state_dict(self, state_dict, strict=True):
-        """Customized load."""
-
-        if self._language_model_key in state_dict:
-            state_dict = state_dict[self._language_model_key]
-        self.language_model.load_state_dict(state_dict, strict=strict)
-
-
-class GPT2ModelPipe(PipelineModule, MegatronModule):
+class GPT2ModelPipe(PipelineModule, torch.nn.Module):
     """GPT2Model adapted for pipeline parallelism.
 
     The largest change is flattening the GPTModel class so we can express it as a
@@ -224,7 +131,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                                         args.hidden_dropout,
                                         self.init_method,
                                         self.num_tokentypes))
-            
+
         # NB: in inference, the attention mask always needs to be the *last* item in the args when being passed from 
         # one stage to the next, because deepspeed is hacks on top of hacks.
         #
@@ -240,7 +147,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
             self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), x[1], torch.Tensor(), *x[2:]))
         else:
             self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), *x[1:]))
-            
+
         # Transformer layers
         for x in range(args.num_layers):
             if args.sparsity == 'none':
@@ -259,7 +166,7 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                           rpe=rpe_emb if args.pos_emb == 'rpe' else None,
                           get_key_value=self.get_key_value,
                           rotary=args.pos_emb == 'rotary'))
-                          
+
         if self._inference:
             # we can get rid of the mask / pasts / (?rotary_pos_emb) now
             # from (hidden_states, layer_past, presents, (maybe rotary_pos_emb), attention_mask)
@@ -298,16 +205,17 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
             """Just a wrapper to massage inputs/outputs from pipeline. """
             if self._inference and len(lm_output) == 2:
                 hidden_states, presents = lm_output
-                output = parallel_lm_logits(
+                logits = parallel_lm_logits(
                     hidden_states,
                     embedding.word_embeddings_weight,
                     self.parallel_output)
-                return hidden_states, presents
+                return logits, presents
             else:
-                return parallel_lm_logits(
+                logits = parallel_lm_logits(
                     lm_output,
                     embedding.word_embeddings_weight,
                     self.parallel_output)
+                return logits
 
         if weight_tying:
             self.specs.append(
@@ -323,19 +231,41 @@ class GPT2ModelPipe(PipelineModule, MegatronModule):
                               tied_weight_attr='word_embeddings_weight')
             )
         else:
-            # TODO: not sure whether to use RowParallelLinear's default scatter to mp region here, or copy, which is
-            # the default of parallel_lm_logits. Should investigate benefits of both
             self.specs.append(
                 LayerSpec(
-                    RowParallelLinearPipe,
-                    args.hidden_size,
-                    args.padded_vocab_size,
-                    bias=False,
-                    input_is_parallel=False,
-                    parallel_output=self.parallel_output,
-                    skip_bias_add=False
+                    ParallelLinearPipe,
+                    parallel_output=self.parallel_output
                 )
             )
         # so output in training should just be logits
         # in inference it will be (logits, presents) (assuming get_key_value) is true
 
+    def to_sequential(self):
+        """
+        Transforms the PipelineModule to a plain nn.Sequential module
+        :return:
+        """
+        layers = []
+        from collections import defaultdict
+        tied_layers = defaultdict(list)
+        for n, spec in enumerate(self.specs):
+            if isinstance(spec, TiedLayerSpec):
+                if spec.key in tied_layers:
+                    # receiver
+                    layers.append(Lambda(lambda x: spec.forward_fn(tied_layers[spec.key][0], x)))
+                else:
+                    # owner
+                    module = spec.build(log=False)
+                    layers.append(module)
+                    tied_layers[spec.key].append(module)
+            elif isinstance(spec, LayerSpec):
+                layers.append(spec.build(log=False))
+            else:
+                # check that it's a lambda function
+                LAMBDA = lambda:0
+                if isinstance(spec, type(LAMBDA)) and spec.__name__ == LAMBDA.__name__:
+                    # we assume it is a lambda function
+                    layers.append(Lambda(spec))
+                else:
+                    raise ValueError(f'Layer number {n} ({spec}) Not recognized')
+        return torch.nn.Sequential(*layers)

@@ -21,9 +21,9 @@
 import torch
 
 from megatron import get_args
-from megatron import print_rank_0
 from megatron import get_timers
 from megatron import mpu
+from megatron import print_rank_0
 from megatron.checkpointing import load_checkpoint
 from megatron.checkpointing import save_checkpoint
 from megatron.training import evaluate_and_print_results
@@ -42,7 +42,7 @@ def process_batch(batch):
     types = batch['types'].long().cuda().contiguous()
     labels = batch['label'].long().cuda().contiguous()
     attention_mask = batch['padding_mask'].float().cuda().contiguous()
-    if args.fp16:
+    if args.precision == "fp16":
         attention_mask = attention_mask.half()
 
     return tokens, types, labels, attention_mask
@@ -172,7 +172,7 @@ def _train(model, optimizer, lr_scheduler, forward_step,
             report_memory_flag = training_log(losses_dict, losses_dict_sum,
                                               optimizer.param_groups[0]['lr'],
                                               iteration, optimizer.loss_scale,
-                                              report_memory_flag, model)
+                                              report_memory_flag, model, optimizer)
 
             # Autoresume
             if args.adlr_autoresume and \
@@ -239,7 +239,7 @@ def finetune(train_valid_datasets_provider, model_provider,
         args.load = original_load
         # This is critical when only model is loaded. We should make sure
         # master parameters are also updated.
-        if args.fp16:
+        if args.precision == "fp16":
             optimizer._model_params_to_master_params()
     timers('pretrained checkpoint').stop()
 

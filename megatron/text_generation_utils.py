@@ -21,6 +21,7 @@ import copy
 import json
 import os
 import time
+from typing import List, Union
 
 import torch
 import torch.nn.functional as F
@@ -29,8 +30,7 @@ from megatron import get_args, print_rank_0
 from megatron import get_tokenizer
 from megatron import mpu
 from megatron.utils import get_ltor_masks_and_position_ids, is_mp_rank_0
-from megatron.fp16 import fp32_to_fp16
-from typing import List, Union
+
 
 def get_batch(context_tokens):
     """Generate batch from context tokens."""
@@ -165,14 +165,22 @@ def forward_model(model, model_inputs):
     # we need to forward a pipe model by access model.module() instead of just model()
     args = get_args()
     torch.distributed.barrier()
-    if args.pipe_parallel_size == 1:
+    if args.pipe_parallel_size <= 1:
         return model.module(model_inputs)
-    elif args.pipe_parallel_size > 1:
-        data_iterator = iter([[model_inputs, torch.Tensor(1)]]) # we need to feed in fake labels bc deepspeed is only built for training
+    else:
+        data_iterator = iter(
+            [[model_inputs, torch.Tensor(1)]])  # we need to feed in fake labels bc deepspeed is only built for training
         x = model.inference_batch(data_iterator)
         return x
-    else:
-        return model(*model_inputs)
+
+
+def broadcast_terminate_signal(terminate_runs: int):
+    """Send signal to all workers to terminate if we've finished the process"""
+    terminate_runs_tensor = torch.cuda.LongTensor([terminate_runs])
+    torch.distributed.broadcast(terminate_runs_tensor,
+                                mpu.get_model_parallel_src_rank(),
+                                group=mpu.get_model_parallel_group())
+    return terminate_runs_tensor[0].item()
 
 
 def sample_sequence_batch(model, context_tokens, context_lengths,
@@ -248,14 +256,14 @@ def sample_sequence_batch(model, context_tokens, context_lengths,
                 logits = logits.float()
                 logits /= args.temperature
                 logits = top_k_logits(logits, top_k=args.top_k,
-                                    top_p=args.top_p)
+                                      top_p=args.top_p)
                 log_probs = F.softmax(logits, dim=-1)
                 prev = torch.multinomial(log_probs, num_samples=1).view(-1)
 
             print_logits = []
             for p in prev:
                 print_logits.append([logits[i, p].item()
-                                    for i in range(batch_size)])
+                                     for i in range(batch_size)])
             started = context_lengths <= context_length
             tokens[:, context_length] = switch(
                 tokens[:, context_length].view(-1), prev, started)
@@ -316,19 +324,14 @@ def generate_samples_from_prompt(model, text: Union[List[str], str]):
 
                 if context_length >= (args.seq_length // 2):
                     print_rank_0("\nContext length", context_length,
-                        "\nPlease give smaller context (half of the "
-                        "sequence length)!", flush=True)
+                                 "\nPlease give smaller context (half of the "
+                                 "sequence length)!", flush=True)
                     continue
         else:
             context_tokens = tokenizer.tokenize("EMPTY TEXT")
             context_length = len(context_tokens)
 
-        # Send signal to all workers to terminate if we've finished the process
-        terminate_runs_tensor = torch.cuda.LongTensor([terminate_runs])
-        torch.distributed.broadcast(terminate_runs_tensor,
-                                    mpu.get_model_parallel_src_rank(),
-                                    group=mpu.get_model_parallel_group())
-        terminate_runs = terminate_runs_tensor[0].item()
+        terminate_runs = broadcast_terminate_signal(terminate_runs)
         if terminate_runs == 1:
             return generated_texts
 
@@ -350,7 +353,7 @@ def generate_samples_from_prompt(model, text: Union[List[str], str]):
                 generated_texts.append(data)
                 if iterations % args.log_interval == 0:
                     print_rank_0('Avg s/batch:',
-                          (time.time() - start_time) / min(args.log_interval, iterations + 1))
+                                 (time.time() - start_time) / min(args.log_interval, iterations + 1))
                     start_time = time.time()
                 iterations += 1
 
@@ -376,7 +379,7 @@ def generate_samples_input_from_file(model):
         if args.sample_output_file is None:
             sample_output_file = args.sample_input_file + ".out"
             print_rank_0('could not find `sample-output-file`, setting '
-                  'it to {}'.format(sample_output_file))
+                         'it to {}'.format(sample_output_file))
         else:
             sample_output_file = args.sample_output_file
         f_out = open(sample_output_file, "w+")
@@ -418,19 +421,14 @@ def generate_samples_interactive(model, print_frequency=24):
 
                     if context_length >= (args.seq_length // 2):
                         print_rank_0("\nContext length", context_length,
-                              "\nPlease give smaller context (half of the "
-                              "sequence length)!", flush=True)
+                                     "\nPlease give smaller context (half of the "
+                                     "sequence length)!", flush=True)
                         continue
             else:
                 context_tokens = tokenizer.tokenize("EMPTY TEXT")
                 context_length = len(context_tokens)
 
-            terminate_runs_tensor = torch.cuda.LongTensor([terminate_runs])
-            torch.distributed.broadcast(terminate_runs_tensor,
-                                        mpu.get_model_parallel_src_rank(),
-                                        group=mpu.get_model_parallel_group())
-            terminate_runs = terminate_runs_tensor[0].item()
-
+            terminate_runs = broadcast_terminate_signal(terminate_runs)
             if terminate_runs == 1:
                 return
 
@@ -440,7 +438,7 @@ def generate_samples_interactive(model, print_frequency=24):
                 decode_tokens = decode_tokens[0].cpu().numpy().tolist()
 
                 if mpu.get_model_parallel_rank() == 0 and \
-                   counter % print_frequency == 0:
+                        counter % print_frequency == 0:
                     os.system('clear')
                     print_rank_0("\nContext:", raw_text, flush=True)
                     trim_decode_tokens = tokenizer.detokenize(
@@ -490,7 +488,7 @@ def generate_samples_unconditional(model):
         if token_stream is None: break
         if ctr % args.log_interval == 0:
             print_rank_0('Avg s/batch:',
-                  (time.time() - start_time) / min(args.log_interval, ctr + 1))
+                         (time.time() - start_time) / min(args.log_interval, ctr + 1))
             start_time = time.time()
         length = len(token_stream)
         token_batch = token_stream[0].cpu().numpy().tolist()
