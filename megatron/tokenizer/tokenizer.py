@@ -31,8 +31,7 @@ from .gpt2_tokenization import GPT2Tokenizer
 def build_tokenizer(args):
     """Initialize tokenizer."""
     if args.rank == 0:
-        print('> building {} tokenizer ...'.format(args.tokenizer_type),
-              flush=True)
+        print('> building {} tokenizer ...'.format(args.tokenizer_type), flush=True)
 
     # Select and instantiate the tokenizer.
     if args.tokenizer_type.lower() == 'GPT2BPETokenizer'.lower():

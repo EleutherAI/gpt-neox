@@ -25,11 +25,7 @@ import numpy as np
 import torch
 
 from megatron import fused_kernels
-from megatron import get_adlr_autoresume
-from megatron import get_args
-from megatron import get_tensorboard_writer
 from megatron import mpu
-from megatron.global_vars import set_global_variables
 from megatron.mpu import set_model_parallel_rank, set_model_parallel_world_size
 
 import deepspeed
@@ -38,9 +34,8 @@ import inspect
 from deepspeed.utils import distributed
 
 
-def initialize_megatron(allow_no_cuda=False):
-    """Set global variables, initialize distributed, and
-    set autoresume and random seeds.
+def initialize_megatron(neox_args, allow_no_cuda=False):
+    """Set initialize distributed and set autoresume and random seeds.
     `allow_no_cuda` should not be set unless using megatron for cpu only 
     data processing. In general this arg should not be set unless you know 
     what you are doing.
@@ -52,53 +47,46 @@ def initialize_megatron(allow_no_cuda=False):
         # Make sure cuda is available.
         assert torch.cuda.is_available(), 'Megatron requires CUDA.'
 
-    # Parse args, build tokenizer, and set adlr-autoresume,
-    # tensorboard-writer, and timers.
-    set_global_variables()
-
-    args = get_args()
-
     # torch.distributed initialization
     def finish_mpu_init():
-        args = get_args()
         # Pytorch distributed.
-        _initialize_distributed()
+        _initialize_distributed(neox_args=neox_args)
 
         # Random seeds for reproducibility.
-        if args.rank == 0:
-            print('> setting random seeds to {} ...'.format(args.seed))
-        _set_random_seed(args.seed)
+        if neox_args.rank == 0:
+            print('> setting random seeds to {} ...'.format(neox_args.seed))
+        _set_random_seed(neox_args.seed)
 
     # load scaled_upper_triang_masked_softmax_fusion kernel
-    if args.scaled_upper_triang_masked_softmax_fusion:
+    if neox_args.scaled_upper_triang_masked_softmax_fusion:
         fused_kernels.load_scaled_upper_triang_masked_softmax_fusion_kernel()
 
     # load scaled_masked_softmax_fusion kernel
-    if args.scaled_masked_softmax_fusion:
+    if neox_args.scaled_masked_softmax_fusion:
         fused_kernels.load_scaled_masked_softmax_fusion_kernel()
 
-    if args.lazy_mpu_init:
-        args.use_cpu_initialization = True
+    if neox_args.lazy_mpu_init:
+        neox_args.use_cpu_initialization = True
         # delayed initialization of DDP-related stuff
         # We only set basic DDP globals    
-        set_model_parallel_world_size(args.model_parallel_size)
+        set_model_parallel_world_size(neox_args.model_parallel_size)
         # and return function for external DDP manager to call when it has DDP initialized
-        set_model_parallel_rank(args.rank)
+        set_model_parallel_rank(neox_args.rank)
         return finish_mpu_init
     else:
         # Megatron's MPU is the master. Complete initialization right away.
         finish_mpu_init()
 
         # Autoresume.
-        _init_autoresume()
+        _init_autoresume(neox_args)
 
         # Write arguments to tensorboard.
-        _write_args_to_tensorboard()
+        _write_args_to_tensorboard(neox_args=neox_args)
         # No continuation function
         return None
 
 
-def setup_deepspeed_random_and_activation_checkpointing(args):
+def setup_deepspeed_random_and_activation_checkpointing(neox_args):
     '''Optional DeepSpeed Activation Checkpointing features.
     Gives access to partition activations, contiguous memory optimizations
     and cpu checkpointing.
@@ -112,58 +100,57 @@ def setup_deepspeed_random_and_activation_checkpointing(args):
 
     This must be called before all the calls to mpu.model_parallel_cuda_manual_seed
     '''
-    num_layers = args.num_layers // args.checkpoint_num_layers
-    num_layers = num_layers if args.num_layers % args.checkpoint_num_layers == 0 else num_layers + 1
+    num_layers = neox_args.num_layers // neox_args.checkpoint_num_layers
+    num_layers = num_layers if neox_args.num_layers % neox_args.checkpoint_num_layers == 0 else num_layers + 1
 
     deepspeed.checkpointing.configure(
         mpu,
-        partition_activations=args.partition_activations,
-        contiguous_checkpointing=args.contiguous_checkpointing,
+        partition_activations=neox_args.partition_activations,
+        contiguous_checkpointing=neox_args.contiguous_checkpointing,
         num_checkpoints=num_layers,
-        checkpoint_in_cpu=args.checkpoint_in_cpu,
-        synchronize=args.synchronize_each_layer,
-        profile=args.profile_backward)
+        checkpoint_in_cpu=neox_args.checkpoint_in_cpu,
+        synchronize=neox_args.synchronize_each_layer,
+        profile=neox_args.profile_backward)
 
 
-def _initialize_distributed():
+def _initialize_distributed(neox_args):
     """Initialize torch.distributed and mpu."""
-    args = get_args()
 
     device_count = torch.cuda.device_count()
     if torch.distributed.is_initialized():
 
-        if args.rank == 0:
+        if neox_args.rank == 0:
             print('torch distributed is already initialized, '
                   'skipping initialization ...', flush=True)
-        args.rank = torch.distributed.get_rank()
-        args.world_size = torch.distributed.get_world_size()
+        neox_args.rank = torch.distributed.get_rank()
+        neox_args.world_size = torch.distributed.get_world_size()
 
     else:
 
-        if args.rank == 0:
+        if neox_args.rank == 0:
             print('> initializing torch distributed ...', flush=True)
         # Manually set the device ids.
         if device_count > 0:
-            device = args.rank % device_count
-            if args.local_rank is not None:
-                assert args.local_rank == device, \
+            device = neox_args.rank % device_count
+            if neox_args.local_rank is not None:
+                assert neox_args.local_rank == device, \
                     'expected local-rank to be the same as rank % device-count.'
             else:
-                args.local_rank = device
+                neox_args.local_rank = device
             torch.cuda.set_device(device)
 
         distributed.init_distributed(
-            dist_backend=args.distributed_backend,
+            dist_backend=neox_args.distributed_backend,
             auto_mpi_discovery=True,
             distributed_port=os.getenv('MASTER_PORT', '6000'),
             verbose=True,
         )
 
     # Setup 3D topology.
-    pp = args.pipe_parallel_size if args.pipe_parallel_size >= 1 else 1
-    mp = args.model_parallel_size if args.model_parallel_size >= 1 else 1
-    assert args.world_size % (pp * mp) == 0, f'world_size={args.world_size}, pp={pp}, mp={mp}'
-    dp = args.world_size // (pp * mp)
+    pp = neox_args.pipe_parallel_size if neox_args.pipe_parallel_size >= 1 else 1
+    mp = neox_args.model_parallel_size if neox_args.model_parallel_size >= 1 else 1
+    assert neox_args.world_size % (pp * mp) == 0, f'world_size={neox_args.world_size}, pp={pp}, mp={mp}'
+    dp = neox_args.world_size // (pp * mp)
 
     from deepspeed.runtime.pipe.topology import PipeModelDataParallelTopology
     # this does pipe on the most outside, then data, then model.
@@ -174,26 +161,36 @@ def _initialize_distributed():
     # TODO: adjust last stage too once IO is improved.
     stage_id = topo.get_coord(rank=torch.distributed.get_rank()).pipe
     if 0 < stage_id < topo.get_dim('pipe') - 1:
-        offset = args.seed + 1138
-        args.seed = offset + (stage_id * mp)
+        offset = neox_args.seed + 1138
+        neox_args.seed = offset + (stage_id * mp)
 
     # Set the model-parallel / data-parallel communicators.
     if device_count > 0:
         if mpu.model_parallel_is_initialized():
-            print('model parallel is already initialized')
+            print('_initialize_distributed() model parallel is already initialized', flush=True)
         else:
-            mpu.initialize_model_parallel(args.model_parallel_size, topology=topo)
+            mpu.initialize_model_parallel(neox_args.model_parallel_size, topology=topo)
 
     # Init DeepSpeed Activation Checkpointing Features
-    setup_deepspeed_random_and_activation_checkpointing(args)
+    setup_deepspeed_random_and_activation_checkpointing(neox_args=neox_args)
 
 
-def _init_autoresume():
+def _init_autoresume(neox_args):
     """Set autoresume start time."""
-    autoresume = get_adlr_autoresume()
-    if autoresume:
+
+    if neox_args.adlr_autoresume:
+        print_rank_0('> enabling autoresume ...')
+        sys.path.append(os.environ.get('SUBMIT_SCRIPTS', '.'))
+        try:
+            from userlib.auto_resume import AutoResume
+        except BaseException:
+            print('> ADLR autoresume is not available, exiting ...', flush=True)
+            sys.exit()
+        neox_args.adlr_autoresume_object = AutoResume
+
+    if neox_args.adlr_autoresume_object:
         torch.distributed.barrier()
-        autoresume.init()
+        neox_args.adlr_autoresume_object.init()
         torch.distributed.barrier()
 
 
@@ -209,10 +206,9 @@ def _set_random_seed(seed):
         raise ValueError('Seed ({}) should be a positive integer.'.format(seed))
 
 
-def _write_args_to_tensorboard():
+def _write_args_to_tensorboard(neox_args):
+
     """Write arguments to tensorboard."""
-    args = get_args()
-    writer = get_tensorboard_writer()
-    if writer:
-        for arg in vars(args):
-            writer.add_text(arg, str(getattr(args, arg)))
+    if neox_args.tensorboard_writer:
+        for arg_name in vars(neox_args):
+            neox_args.tensorboard_writer.add_text(arg_name, str(getattr(neox_args, arg_name)))

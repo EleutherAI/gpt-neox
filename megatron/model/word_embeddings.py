@@ -1,6 +1,5 @@
 import torch
 
-from megatron import get_args
 from megatron import mpu
 from megatron.model.positional_embeddings import SinusoidalPositionalEmbedding
 
@@ -19,6 +18,7 @@ class Embedding(torch.nn.Module):
     """
 
     def __init__(self,
+                 neox_args,
                  hidden_size,
                  vocab_size,
                  max_sequence_length,
@@ -26,18 +26,22 @@ class Embedding(torch.nn.Module):
                  init_method,
                  num_tokentypes=0):
         super(Embedding, self).__init__()
-        args = get_args()
+        
         self.hidden_size = hidden_size
         self.init_method = init_method
         self.num_tokentypes = num_tokentypes
 
         # Word embeddings (parallel).
         self.word_embeddings = mpu.VocabParallelEmbedding(
-            vocab_size, self.hidden_size, init_method=self.init_method)
+            neox_args=neox_args, 
+            num_embeddings=vocab_size, 
+            embedding_dim=self.hidden_size, 
+            init_method=self.init_method
+            )
         self._word_embeddings_key = 'word_embeddings'
 
         # Position embedding (serial).
-        self.embedding_type = args.pos_emb
+        self.embedding_type = neox_args.pos_emb
         if self.embedding_type == "learned":
             self.position_embeddings = torch.nn.Embedding(
                 max_sequence_length, self.hidden_size)

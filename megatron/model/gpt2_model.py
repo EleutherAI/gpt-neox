@@ -21,7 +21,6 @@
 import torch
 from collections import defaultdict
 
-from megatron import get_args
 from functools import partial
 from megatron.model.utils import init_method_normal, scaled_init_method_normal, Lambda, SequentialWrapper
 from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
@@ -70,27 +69,27 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
     sequence of layers including embedding, transformer layers, and output.
     """
 
-    def __init__(self, num_tokentypes=0, parallel_output=True, topology=None, inference=False, get_key_value=True):
-        args = get_args()
+    def __init__(self, neox_args, num_tokentypes=0, parallel_output=True, topology=None, inference=False, get_key_value=True):
+        self.neox_args = neox_args
 
         self._inference = inference
         self.get_key_value = get_key_value if inference else False
         self.parallel_output = parallel_output
-        self.hidden_size = args.hidden_size
+        self.hidden_size = self.neox_args.hidden_size
         self.num_tokentypes = num_tokentypes
-        self.init_method = init_method_normal(args.init_method_std)
-        self.output_layer_init_method = scaled_init_method_normal(args.init_method_std, args.num_layers)
-        self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
-        self.embedding_type = args.pos_emb
+        self.init_method = init_method_normal(self.neox_args.init_method_std)
+        self.output_layer_init_method = scaled_init_method_normal(self.neox_args.init_method_std, self.neox_args.num_layers)
+        self.fp16_lm_cross_entropy = self.neox_args.fp16_lm_cross_entropy
+        self.embedding_type = self.neox_args.pos_emb
 
         #
         # forward() prototype
         # 
         self.specs = []
-        self.init_specs(args)
+        self.init_specs()
         loss_fn = partial(cross_entropy, _fp16=self.fp16_lm_cross_entropy)
-        if args.checkpoint_activations:
-            interval = args.checkpoint_num_layers
+        if self.neox_args.checkpoint_activations:
+            interval = self.neox_args.checkpoint_num_layers
         else:
             interval = 0
         super().__init__(layers=self.specs,
@@ -99,13 +98,13 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                          activation_checkpoint_interval=interval,
                          partition_method='type:transformer')
 
-    def init_specs(self, args):
-        weight_tying = not args.no_weight_tying
+    def init_specs(self):
+        weight_tying = not self.neox_args.no_weight_tying
         if self.embedding_type == 'rpe':
-            rpe_emb = ParallelRelativePositionBias(causal=True, num_buckets=args.rpe_num_buckets,
-                                                   max_distance=args.rpe_max_distance,
-                                                   heads=args.num_attention_heads)
-        self.fp16_lm_cross_entropy = args.fp16_lm_cross_entropy
+            rpe_emb = ParallelRelativePositionBias(neox_args=self.neox_args, causal=True, num_buckets=self.neox_args.rpe_num_buckets,
+                                                   max_distance=self.neox_args.rpe_max_distance,
+                                                   heads=self.neox_args.num_attention_heads)
+        self.fp16_lm_cross_entropy = self.neox_args.fp16_lm_cross_entropy
 
         #
         # forward() prototype
@@ -117,19 +116,21 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         if weight_tying:
             self.specs.append(TiedLayerSpec('embed',
                                             EmbeddingPipe,
+                                            self.neox_args,
                                             self.hidden_size,
-                                            args.padded_vocab_size,
-                                            args.max_position_embeddings,
-                                            args.hidden_dropout,
+                                            self.neox_args.padded_vocab_size,
+                                            self.neox_args.max_position_embeddings,
+                                            self.neox_args.hidden_dropout,
                                             self.init_method,
                                             self.num_tokentypes,
                                             tied_weight_attr='word_embeddings_weight'))
         else:
             self.specs.append(LayerSpec(EmbeddingPipe,
+                                        self.neox_args,
                                         self.hidden_size,
-                                        args.padded_vocab_size,
-                                        args.max_position_embeddings,
-                                        args.hidden_dropout,
+                                        self.neox_args.padded_vocab_size,
+                                        self.neox_args.max_position_embeddings,
+                                        self.neox_args.hidden_dropout,
                                         self.init_method,
                                         self.num_tokentypes))
 
@@ -150,23 +151,27 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), *x[1:]))
 
         # Transformer layers
-        for x in range(args.num_layers):
-            if args.sparsity == 'none':
+        for x in range(self.neox_args.num_layers):
+            if self.neox_args.sparsity == 'none':
                 sparse = False
-            elif args.sparsity == 'all':
+            elif self.neox_args.sparsity == 'all':
                 sparse = True
-            elif args.sparsity == 'interspersed':
+            elif self.neox_args.sparsity == 'interspersed':
                 sparse = not x % 2 == 0
             self.specs.append(
-                LayerSpec(ParallelTransformerLayerPipe,
-                          attention_mask_func=gpt2_attention_mask_func,
-                          init_method=self.init_method,
-                          output_layer_init_method=self.output_layer_init_method,
-                          layer_number=x,
-                          sparse=sparse,
-                          rpe=rpe_emb if args.pos_emb == 'rpe' else None,
-                          get_key_value=self.get_key_value,
-                          rotary=args.pos_emb == 'rotary'))
+                LayerSpec(
+                    ParallelTransformerLayerPipe,
+                    neox_args=self.neox_args,
+                    attention_mask_func=gpt2_attention_mask_func,
+                    init_method=self.init_method,
+                    output_layer_init_method=self.output_layer_init_method,
+                    layer_number=x,
+                    sparse=sparse,
+                    rpe=rpe_emb if self.neox_args.pos_emb == 'rpe' else None,
+                    rotary=self.neox_args.pos_emb == 'rotary',
+                    get_key_value=self.get_key_value
+                    )
+                )
 
         if self._inference:
             # we can get rid of the mask / pasts / (?rotary_pos_emb) now
@@ -178,21 +183,21 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             self.specs.append(lambda x: x[0].transpose(0, 1).contiguous())
 
         # Final layernorm after transformer layers
-        if args.norm == "rmsnorm":
+        if self.neox_args.norm == "rmsnorm":
             norm = RMSNorm
-            eps = args.rms_norm_epsilon
-        elif args.norm == "layernorm":
-            eps = args.layernorm_epsilon
+            eps = self.neox_args.rms_norm_epsilon
+        elif self.neox_args.norm == "layernorm":
+            eps = self.neox_args.layernorm_epsilon
             norm = LayerNorm
-        elif args.norm == "scalenorm":
-            eps = args.scalenorm_epsilon
+        elif self.neox_args.norm == "scalenorm":
+            eps = self.neox_args.scalenorm_epsilon
             norm = ScaleNorm
 
         # NormPipe is a helper class to pass presents through to the output when doing inference
         self.specs.append(
             LayerSpec(NormPipe,
                       norm,
-                      args.hidden_size,
+                      self.neox_args.hidden_size,
                       eps=eps))
 
         # outputs are now
@@ -222,10 +227,11 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             self.specs.append(
                 TiedLayerSpec('embed',
                               EmbeddingPipe,
+                              self.neox_args,
                               self.hidden_size,
-                              args.padded_vocab_size,
-                              args.max_position_embeddings,
-                              args.hidden_dropout,
+                              self.neox_args.padded_vocab_size,
+                              self.neox_args.max_position_embeddings,
+                              self.neox_args.hidden_dropout,
                               self.init_method,
                               self.num_tokentypes,
                               forward_fn=_logits_helper,
@@ -235,6 +241,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             self.specs.append(
                 LayerSpec(
                     ParallelLinearPipe,
+                    neox_args=self.neox_args,
                     parallel_output=self.parallel_output
                 )
             )

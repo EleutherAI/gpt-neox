@@ -279,6 +279,10 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsLogging(NeoXArgsTemplate):
+
+    use_wandb: bool = None
+    """Flag indicating if wandb is to be used."""
+
     wandb_group: str = None
     """Weights and Biases group name - used to group together "runs"."""
 
@@ -291,6 +295,11 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     log_dir: str = None
     """
     Directory to save logs to.
+    """
+
+    tensorboard_writer = None
+    """
+    initialized tensorboard writer
     """
 
     tensorboard_dir: str = None
@@ -383,6 +392,11 @@ class NeoXArgsOther(NeoXArgsTemplate):
     Enable auto-resume on adlr cluster.
     """
 
+    adlr_autoresume_object = None
+    """
+    imported autoresume
+    """
+
     adlr_autoresume_interval: int = 1000
     """
     Intervals over which check for auto-resume termination signal
@@ -449,6 +463,11 @@ class NeoXArgsTokenizer(NeoXArgsTemplate):
     """
     Total (padded) vocabulary size of tokenizer. Configured after launching of training, 
     as it's dependent on the parallelism size.
+    """
+
+    tokenizer =  None
+    """
+    tokenizer object loaded into memory and accesible by other functions
     """
 
 

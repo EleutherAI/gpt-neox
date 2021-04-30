@@ -40,7 +40,7 @@ class GradientNoiseScale:
     single-gpu environments. Unfortunately it does come with some memory overhead.
     """
 
-    def __init__(self, model, batch_size_small, n_batches=10, beta=0.99, cpu_offload=False, args=None, mpu=None):
+    def __init__(self, model, batch_size_small, n_batches=10, beta=0.99, cpu_offload=False, neox_args=None, mpu=None):
         self.batch_size_small = batch_size_small
         self.batch_size_large = batch_size_small * n_batches
         self.n_batches = n_batches
@@ -54,7 +54,7 @@ class GradientNoiseScale:
         self.cpu_offload = cpu_offload
         self.model.store_gradients = True
         self.model.store_gradients_cpu = cpu_offload
-        self.args = args
+        self.neox_args = neox_args
         self.mpu = mpu
 
     def flatten_grads(self):
@@ -74,7 +74,7 @@ class GradientNoiseScale:
             return torch.cat(grads)
 
     def _sync_overflow(self, is_overflow):
-        if self.args.is_pipe_parallel:
+        if self.neox_args.is_pipe_parallel:
             # Since each model parallel GPU carries only part of the model,
             # make sure overflow flag is synced across all the pipe parallel GPUs
             overflow_gpu = torch.cuda.ByteTensor([is_overflow])
@@ -104,7 +104,7 @@ class GradientNoiseScale:
 
             # calculate Gbig and Gsmall
             # this needs to be done in fp32 or it overflows
-            if self.args.is_pipe_parallel:
+            if self.neox_args.is_pipe_parallel:
 
                 g_big = torch.square(torch.norm(grads.to(torch.float)))
                 g_small = torch.square(torch.norm(grad.to(torch.float)))
@@ -151,7 +151,7 @@ class GradientNoiseScale:
         self.n_updates += 1
 
     def update(self):
-        if self.args.is_pipe_parallel:
+        if self.neox_args.is_pipe_parallel:
             # update on all ranks
             self._update()
         else:
