@@ -208,7 +208,7 @@ def init_wandb(neox_args):
             neox_args.update_value("use_wandb", False)
             print(e)
             print('Skipping wandb. Execute `wandb login` on local or main node machine to enable.', flush=True)
-        wandb.config.update(vars(neox_args))
+        wandb.config.update(neox_args.all_config)
 
 def obtain_resource_pool(hostfile_path, include_arg, exclude_arg) -> Dict[str, List[int]]:
     """

@@ -310,6 +310,13 @@ class NeoXArgs(*BASE_CLASSES):
         """
         return self.get_parent_class_value_dict(*NEOX_ARG_CLASSES)
 
+    @property
+    def all_config(self) -> dict:
+        """
+        returns variables of all args
+        """
+        return self.get_parent_class_value_dict(*BASE_CLASSES)
+
     def get_parent_class_value_dict(self, *parent_classes, only_non_defaults=False) -> dict:
         """
         takes a sequence of parent classes and returns corresponding values (with defaults set)
@@ -318,7 +325,7 @@ class NeoXArgs(*BASE_CLASSES):
         result = dict()
         for parent in parent_classes:
             for key, default_value in parent().defaults():
-                if key == "tokenizer" or key == "tensorboard_writer" or key == "adlr_autoresume_object": 
+                if key in ["tokenizer", "tensorboard_writer", "adlr_autoresume_object"]: 
                     continue
                 if only_non_defaults:
                     value = getattr(self, key)
@@ -358,7 +365,7 @@ class NeoXArgs(*BASE_CLASSES):
             os.makedirs(self.save, exist_ok=True)
             config_file = os.path.join(self.save, 'config.yml')
             with open(config_file, 'w') as f:
-                json.dump(vars(self), f, indent=4)
+                json.dump(self.all_config, f, indent=4)
 
     def print(self):
         """Print arguments."""
