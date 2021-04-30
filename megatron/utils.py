@@ -26,18 +26,16 @@ import socket
 from typing import Dict, List
 
 import requests
-import torch
 import wandb
 from wandb import UsageError
 
+import torch
+
 from deepspeed.launcher.runner import fetch_hostfile, parse_inclusion_exclusion
 
-from megatron import get_args
 from megatron import print_rank_0
-from megatron import get_adlr_autoresume
 from megatron import mpu
 from megatron.data.samplers import DistributedBatchSampler
-from megatron.global_vars import get_use_wandb, get_tensorboard_writer
 from deepspeed import PipelineEngine, DeepSpeedEngine
 
 
@@ -64,21 +62,19 @@ def report_memory(name):
     print_rank_0(string)
 
 
-def check_adlr_autoresume_termination(iteration, model,
-                                      optimizer, lr_scheduler):
+def check_adlr_autoresume_termination(neox_args, iteration, model, optimizer, lr_scheduler):
     """Check for autoresume signal and exit if it is received."""
     # to prevent circular import
     from megatron.checkpointing import save_checkpoint
-    args = get_args() # TODO remove_global_vars
-    autoresume = get_adlr_autoresume()
+
     # Add barrier to ensure consistnecy.
     torch.distributed.barrier()
-    if autoresume.termination_requested():
-        if args.save:
-            save_checkpoint(iteration, model, optimizer, lr_scheduler)
+    if neox_args.adlr_autoresume_object.termination_requested():
+        if neox_args.save:
+            save_checkpoint(neox_args=neox_args, iteration=iteration, model=model, optimizer=optimizer, lr_scheduler=lr_scheduler)
         print_rank_0(">>> autoresume termination request found!")
         if torch.distributed.get_rank() == 0:
-            autoresume.request_resume()
+            neox_args.adlr_autoresume_object.request_resume()
         print_rank_0(">>> training terminated. Returning")
         sys.exit(0)
 
@@ -239,34 +235,12 @@ def natural_sort(l):
     return sorted(l, key=alphanum_key)
 
 
-def pipe_to_normal(model_engine, **kwargs):
-    """
-    Takes in a deepspeed.PipelineEngine model and returns a deepspeed.DeepspeedEngine model with the same model weights
-    so we can directly access the .forward() function (for inference).
-
-    The returned model won't have an optimizer - we assume this function will only be used for inference.
-
-    """
-    assert isinstance(model_engine, PipelineEngine), f"model engine {model_engine} not a PipelineEngine instance"
-    ret = DeepSpeedEngine(
-        args=get_args(), # TODO remove_global_vars
-        model=model_engine.module,
-        mpu=model_engine.module.mpu(),
-        dist_init_required=False,
-        config_params=model_engine.config_params,
-        optimizer=model_engine.optimizer,
-        lr_scheduler=model_engine.lr_scheduler,
-        **kwargs)
-    return ret
-
-
-def tb_wandb_log(key, value, iteration_no):
+def tb_wandb_log(key, value, iteration_no, use_wandb, tensorboard_writer=None):
     # logs to both tb and wandb (if present) from the zeroth rank
-    writer = get_tensorboard_writer()
     if torch.distributed.get_rank() == 0:
-        if writer:
-            writer.add_scalar(key, value, iteration_no)
-        if get_use_wandb():
+        if tensorboard_writer:
+            tensorboard_writer.add_scalar(key, value, iteration_no)
+        if use_wandb:
             wandb.log({key: value}, step=iteration_no)
 
 
@@ -332,8 +306,10 @@ class Timer:
 class Timers:
     """Group of timers."""
 
-    def __init__(self):
+    def __init__(self, use_wandb, tensorboard_writer):
         self.timers = {}
+        self.use_wandb = use_wandb
+        self.tensorboard_writer = tensorboard_writer
 
     def __call__(self, name):
         if name not in self.timers:
@@ -349,11 +325,10 @@ class Timers:
         for name in names:
             value = self.timers[name].elapsed(reset=reset) / normalizer
 
-            writer = get_tensorboard_writer() #TODO remove_gloabal_vars
-            if writer:
-                writer.add_scalar(f"timers/{name}", value, iteration)
+            if self.tensorboard_writer:
+                self.tensorboard_writer.add_scalar(f"timers/{name}", value, iteration)
 
-            if get_use_wandb():
+            if self.use_wandb:
                 wandb.log({f"timers/{name}": value}, step=iteration)
 
     def log(self, names, normalizer=1.0, reset=True):
