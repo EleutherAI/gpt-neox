@@ -141,3 +141,4 @@ checkpoints/
 #test logs
 test_checkpoint/
 logs/
+tensorboard/

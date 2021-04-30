@@ -297,6 +297,11 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Directory to save logs to.
     """
 
+    tensorboard_writer = None
+    """
+    initialized tensorboard writer
+    """
+
     tensorboard_dir: str = None
     """
     Write TensorBoard logs to this directory.

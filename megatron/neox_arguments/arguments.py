@@ -102,6 +102,17 @@ class NeoXArgs(*BASE_CLASSES):
     def build_tokenizer(self):
         self.tokenizer = build_tokenizer(self)
 
+    def initialize_tensorboard_writer(self):
+        if self.tensorboard_dir and self.rank == 0:
+            try:
+                from torch.utils.tensorboard import SummaryWriter
+                print('> setting tensorboard ...')
+                self.tensorboard_writer = SummaryWriter(log_dir=self.tensorboard_dir)
+            except ModuleNotFoundError:
+                print('WARNING: TensorBoard writing requested but is not '
+                    'available (are you using PyTorch 1.1.0 or later and do you have tensorboard installed?), '
+                    'no TensorBoard logs will be written.', flush=True)
+
     @classmethod
     def from_ymls(cls, paths_to_yml_files: List[str], overwrite_values: Dict = None):
         """
@@ -307,7 +318,7 @@ class NeoXArgs(*BASE_CLASSES):
         result = dict()
         for parent in parent_classes:
             for key, default_value in parent().defaults():
-                if key == "tokenizer": 
+                if key == "tokenizer" or key == "tensorboard_writer": 
                     continue
                 if only_non_defaults:
                     value = getattr(self, key)
@@ -361,8 +372,11 @@ class NeoXArgs(*BASE_CLASSES):
                 print_str = '  {} {} {}'.format(arg, dots, value)
 
                 # add info 'default or updated'
-                field_def = self.__dataclass_fields__[arg]
-                default_info = "default" if value == field_def.default else "updated"
+                field_def = self.__dataclass_fields__.get(arg)
+                if field_def is not None:
+                    default_info = "default" if value == field_def.default else "updated"
+                else:
+                    default_info = ""
                 dots = '.' * (64 - len(print_str))
                 print_str += dots + default_info
 
