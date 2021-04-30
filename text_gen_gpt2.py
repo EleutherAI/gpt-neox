@@ -20,6 +20,7 @@
 
 import os
 import sys
+
 from pretrain_gpt2 import model_provider
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
@@ -30,9 +31,7 @@ from megatron.initialize import initialize_megatron
 from megatron.training import setup_model_and_optimizer
 from megatron.text_generation_utils import generate_and_write_samples_unconditional, generate_samples_input_from_file, \
     generate_samples_interactive
-from megatron.utils import pipe_to_normal
 
-from deepspeed import PipelineEngine
 
 def main(extra_args_provider=None, get_key_value=True):
     """
@@ -53,9 +52,6 @@ def main(extra_args_provider=None, get_key_value=True):
 
     # Set up model and load checkpoint.
     model, _, _ = setup_model_and_optimizer(lambda: model_provider(use_wandb=False, inference=True, get_key_value=get_key_value))
-    if args.pipe_parallel_size == 1 and isinstance(model, PipelineEngine):
-        # if it's a pipe parallel model but not actually doing parallelism, convert it to a normal deepspeed model
-        model = pipe_to_normal(model)
     print_rank_0('Finished loading model')
 
     if args.text_gen_type == 'unconditional':

@@ -1,8 +1,7 @@
-import os
-import sys
 import unittest
 
 from megatron.neox_arguments import NeoXArgs
+
 
 class TestNeoXArgsValidation(unittest.TestCase):
     """

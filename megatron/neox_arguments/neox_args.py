@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from .template import NeoXArgsTemplate
 from typing import Literal
 
+
 def get_git_commit_hash():
     """ Gets the git commit hash of your current repo (if it exists) """
     try:
@@ -12,14 +13,14 @@ def get_git_commit_hash():
         git_hash = None
     return git_hash
 
+
 @dataclass
 class NeoXArgsParallelism(NeoXArgsTemplate):
-    
     pipe_parallel_size: int = 0
     """
     Number of pipeline parallel stages. Disable with 0.
     """
-    
+
     model_parallel_size: int = 1
     """
     Size of the model parallelism.
@@ -35,11 +36,16 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     Total world size (i.e number of gpus in cluster). Configured post-launch using distributed launcher
     """
 
+    is_pipe_parallel: bool = False
+    """
+    flag to determine whether pipeline parallelism is on - shouldn't be set by user, is automatically determined 
+    according to pipeline parallel size.
+    """
+
 
 @dataclass
 class NeoXArgsModel(NeoXArgsTemplate):
-
-    precision: Literal["fp16", "fp32"] = None 
+    precision: Literal["fp16", "fp32"] = None
     """
     description of the used precision, either one of fp16 or fp32 (and in the future bf16).
     """
@@ -188,13 +194,13 @@ class NeoXArgsModel(NeoXArgsTemplate):
     """
     Run attention masking and softmax in fp32.
     """
-    
-    rotary_pct: float = 1.0 
+
+    rotary_pct: float = 1.0
     """
     pct of hidden dims to apply rotary positional embedding to
     """
 
-    rotary_emb_base: int = 10000 
+    rotary_emb_base: int = 10000
     """
     Base for rotary positional embedding
     """
@@ -202,7 +208,6 @@ class NeoXArgsModel(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):
-
     optimizer_type: Literal['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3'] = "adam"
     """
     Type of optimizer to use. Choose from ['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3']
@@ -212,28 +217,28 @@ class NeoXArgsOptimizer(NeoXArgsTemplate):
     """
     Zero Optimizer stage
     """
-    
+
     zero_reduce_scatter: bool = None
     """
     Zero: Uses reduce or reduce scatter instead of allreduce to average gradients
     """
-    
+
     zero_contiguous_gradients: bool = None
     """
     Zero: Copies the gradients to a contiguous buffer as they are produced. Avoids memory fragmentation during backward pass. Only useful when running very large models.
     """
-    
+
     zero_reduce_bucket_size: int = None
     """
     Zero: Number of elements reduced/allreduced at a time. Limits the memory required for the allgather for large model sizes
     """
-    
+
     zero_allgather_bucket_size: int = None
     """
     Zero: Number of elements allgathered at a time. Limits the memory required for the allgather for large model sizes
     """
 
-    lr: float = None 
+    lr: float = None
     """
     Max Learning rate during training
     """
@@ -274,7 +279,6 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsLogging(NeoXArgsTemplate):
-
     wandb_group: str = None
     """Weights and Biases group name - used to group together "runs"."""
 
@@ -334,7 +338,6 @@ class NeoXArgsLogging(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsOther(NeoXArgsTemplate):
-
     distributed_backend: str = "nccl"
     """
     Which backend to use for distributed training.
@@ -407,7 +410,7 @@ class NeoXArgsOther(NeoXArgsTemplate):
     """
     Run via MPI, this will attempt to discover the necessary variables to initialize torch distributed from the MPI environment
     """
-    
+
     user_script: str = None
     """
     user script to be run
@@ -433,10 +436,11 @@ class NeoXArgsOther(NeoXArgsTemplate):
     Set during training
     """
 
+
 @dataclass
 class NeoXArgsTokenizer(NeoXArgsTemplate):
-
-    tokenizer_type: Literal["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "CharLevelTokenizer"] = "GPT2BPETokenizer"
+    tokenizer_type: Literal[
+        "GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "CharLevelTokenizer"] = "GPT2BPETokenizer"
     """
     Type of tokenizer to use - should be one of ["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "CharLevelTokenizer"]
     """
@@ -450,7 +454,6 @@ class NeoXArgsTokenizer(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsTextgen(NeoXArgsTemplate):
-
     text_gen_type: str = None
     """
     How to generate text/sample the model.
@@ -510,7 +513,6 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsTraining(NeoXArgsTemplate):
-
     data_path: str = None
     """
     Path to combined dataset to split.
@@ -641,44 +643,39 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Chunk size (number of layers) for checkpointing.
     """
 
-    distribute_checkpointed_activations: bool = False
+    deepspeed_activation_checkpointing: bool = True
     """
-    If set, distribute checkpointed activations across model parallel group.
-    """
-
-    deepspeed_activation_checkpointing: bool = False
-    """
+    DEPRECATED - TODO: remove
     Uses activation checkpointing from deepspeed
     """
-    
+
     contiguous_checkpointing: bool = False
     """
     Contiguous memory checkpointing for activations.
     """
-    
+
     checkpoint_in_cpu: bool = False
     """
     Move the activation checkpoints to CPU.
     """
-    
+
     synchronize_each_layer: bool = False
     """
     does a synchronize at the beginning and end of each checkpointed layer.
     """
-    
+
     profile_backward: bool = False
     """
     Enables backward pass profiling for checkpointed layers.
     """
-    
+
     partition_activations: bool = False
     """
     Partition Activations across GPUs before checkpointing.
     """
 
     gas: int = None
-    """gradient_accumulation_steps""" #TODO this is a duplicate, remove?
-
+    """gradient_accumulation_steps"""  # TODO this is a duplicate, remove?
 
     clip_grad: float = None
     """

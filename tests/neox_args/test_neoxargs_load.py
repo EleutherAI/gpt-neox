@@ -1,7 +1,6 @@
 import os
 import sys
 import unittest
-from unittest.mock import patch
 
 if __name__ == "__main__":
     sys.path.append(os.path.abspath(''))

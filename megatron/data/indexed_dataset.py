@@ -10,14 +10,15 @@
 # Added document index to index file and made it accessible.
 #    An empty sentence no longer separates documents.
 
-from functools import lru_cache
 import os
 import shutil
 import struct
+from functools import lru_cache
 from itertools import accumulate
 
 import numpy as np
 import torch
+
 from megatron import print_rank_0
 
 
@@ -26,10 +27,6 @@ def __best_fitting_dtype(vocab_size=None):
         return np.uint16
     else:
         return np.int32
-
-
-def get_available_dataset_impl():
-    return ['lazy', 'cached', 'mmap']
 
 
 def infer_dataset_impl(path):
@@ -200,7 +197,7 @@ class IndexedDataset(torch.utils.data.Dataset):
     @staticmethod
     def exists(path):
         return (
-            os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
+                os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
         )
 
     @property
@@ -540,7 +537,7 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
     @staticmethod
     def exists(path):
         return (
-            os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
+                os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
         )
 
 

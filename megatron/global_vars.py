@@ -34,6 +34,7 @@ _GLOBAL_ADLR_AUTORESUME = None
 _GLOBAL_TIMERS = None
 _GLOBAL_USE_WANDB = False
 
+
 def get_args():
     """Return arguments."""
     _ensure_var_is_initialized(_GLOBAL_ARGS, 'args')
@@ -67,7 +68,7 @@ def get_timers():
 def set_global_variables():
     """Set args, tokenizer, tensorboard-writer, adlr-autoresume, and timers."""
     from megatron.neox_arguments import NeoXArgs
-    args = NeoXArgs.consume_megatron_args()
+    args = NeoXArgs.consume_neox_args()
 
     global _GLOBAL_ARGS
     _ensure_var_is_not_initialized(_GLOBAL_ARGS, 'args')
@@ -118,7 +119,7 @@ def _set_tensorboard_writer(args):
                                    'tensorboard writer')
 
     if hasattr(args, 'tensorboard_dir') and \
-       args.tensorboard_dir and args.rank == 0:
+            args.tensorboard_dir and args.rank == 0:
         try:
             from torch.utils.tensorboard import SummaryWriter
             print('> setting tensorboard ...')
@@ -251,9 +252,11 @@ class Timers:
         else:
             print(string, flush=True)
 
+
 def get_use_wandb():
     global _GLOBAL_USE_WANDB
     return _GLOBAL_USE_WANDB
+
 
 def set_use_wandb(b: bool):
     global _GLOBAL_USE_WANDB

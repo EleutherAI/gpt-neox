@@ -1,13 +1,14 @@
 # Adapted from https://github.com/awaelchli/pytorch-lightning-snippets/blob/master/checkpoint/peek.py
 
 import code
+import os
+import re
 from argparse import ArgumentParser, Namespace
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-import pdb
+
 import torch
-import os
-import re
+
 
 class COLORS:
     BLUE = "\033[94m"

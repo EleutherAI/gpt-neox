@@ -1,24 +1,22 @@
 #!/usr/bin/env python
 
-import json
 import argparse
+import dataclasses
+import json
 import sys
+from dataclasses import dataclass
 from io import StringIO
 from typing import Any
-import dataclasses
-import pandas as pd
 
 import deepspeed
-from dataclasses import dataclass
+import pandas as pd
 from deepspeed.constants import TORCH_DISTRIBUTED_DEFAULT_PORT
 from deepspeed.launcher.constants import PDSH_LAUNCHER
 from deepspeed.launcher.runner import DLTS_HOSTFILE
-
 from megatron.arguments import _add_network_size_args, _add_regularization_args, _add_training_args, \
     _add_initialization_args, _add_learning_rate_args, _add_checkpointing_args, _add_mixed_precision_args, \
     _add_distributed_args, _add_validation_args, _add_data_args, _add_autoresume_args, _add_zero_args, \
     _add_activation_checkpoint_args
-
 from megatron.config_monster import megatron_keys_exclude, ds_config_keys
 
 

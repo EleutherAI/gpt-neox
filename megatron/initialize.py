@@ -89,9 +89,6 @@ def initialize_megatron(allow_no_cuda=False):
         # Megatron's MPU is the master. Complete initialization right away.
         finish_mpu_init()
 
-        # Initialize memory buffers.
-        _initialize_mem_buffs()
-
         # Autoresume.
         _init_autoresume()
 
@@ -127,10 +124,6 @@ def setup_deepspeed_random_and_activation_checkpointing(args):
         synchronize=args.synchronize_each_layer,
         profile=args.profile_backward)
 
-    mpu.checkpoint = deepspeed.checkpointing.checkpoint
-    mpu.get_cuda_rng_tracker = deepspeed.checkpointing.get_cuda_rng_tracker
-    mpu.model_parallel_cuda_manual_seed = deepspeed.checkpointing.model_parallel_cuda_manual_seed
-
 
 def _initialize_distributed():
     """Initialize torch.distributed and mpu."""
@@ -158,7 +151,7 @@ def _initialize_distributed():
             else:
                 args.local_rank = device
             torch.cuda.set_device(device)
-            
+
         distributed.init_distributed(
             dist_backend=args.distributed_backend,
             auto_mpi_discovery=True,
@@ -167,25 +160,22 @@ def _initialize_distributed():
         )
 
     # Setup 3D topology.
-    if args.pipe_parallel_size > 0:
-        pp = args.pipe_parallel_size
-        mp = args.model_parallel_size
-        assert args.world_size % (pp * mp) == 0, f'world_size={args.world_size}, pp={pp}, mp={mp}'
-        dp = args.world_size // (pp * mp)
+    pp = args.pipe_parallel_size if args.pipe_parallel_size >= 1 else 1
+    mp = args.model_parallel_size if args.model_parallel_size >= 1 else 1
+    assert args.world_size % (pp * mp) == 0, f'world_size={args.world_size}, pp={pp}, mp={mp}'
+    dp = args.world_size // (pp * mp)
 
-        from deepspeed.runtime.pipe.topology import PipeModelDataParallelTopology
-        # this does pipe on the most outside, then data, then model. 
-        # PipeModelDataParallelTopology is just a wrapper over ProcessTopology that predefines this order.
-        topo = PipeModelDataParallelTopology(num_pp=pp, num_mp=mp, num_dp=dp)
+    from deepspeed.runtime.pipe.topology import PipeModelDataParallelTopology
+    # this does pipe on the most outside, then data, then model.
+    # PipeModelDataParallelTopology is just a wrapper over ProcessTopology that predefines this order.
+    topo = PipeModelDataParallelTopology(num_pp=pp, num_mp=mp, num_dp=dp)
 
-        # Offset base seeds for the interior pipeline stages.
-        # TODO: adjust last stage too once IO is improved.
-        stage_id = topo.get_coord(rank=torch.distributed.get_rank()).pipe
-        if 0 < stage_id < topo.get_dim('pipe') - 1:
-            offset = args.seed + 1138
-            args.seed = offset + (stage_id * mp)
-    else:
-        topo = None
+    # Offset base seeds for the interior pipeline stages.
+    # TODO: adjust last stage too once IO is improved.
+    stage_id = topo.get_coord(rank=torch.distributed.get_rank()).pipe
+    if 0 < stage_id < topo.get_dim('pipe') - 1:
+        offset = args.seed + 1138
+        args.seed = offset + (stage_id * mp)
 
     # Set the model-parallel / data-parallel communicators.
     if device_count > 0:
@@ -194,10 +184,8 @@ def _initialize_distributed():
         else:
             mpu.initialize_model_parallel(args.model_parallel_size, topology=topo)
 
-    # Optional DeepSpeed Activation Checkpointing Features
-    #
-    if args.deepspeed and args.deepspeed_activation_checkpointing:
-        setup_deepspeed_random_and_activation_checkpointing(args)
+    # Init DeepSpeed Activation Checkpointing Features
+    setup_deepspeed_random_and_activation_checkpointing(args)
 
 
 def _init_autoresume():
@@ -228,12 +216,3 @@ def _write_args_to_tensorboard():
     if writer:
         for arg in vars(args):
             writer.add_text(arg, str(getattr(args, arg)))
-
-
-def _initialize_mem_buffs():
-    """Initialize manually allocated static memory."""
-    args = get_args()
-
-    # Initialize memory for checkpointed activations.
-    if args.distribute_checkpointed_activations:
-        mpu.init_checkpointed_activations_memory_buffer()
