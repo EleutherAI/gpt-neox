@@ -274,11 +274,6 @@ class ParallelSelfAttention(torch.nn.Module):
             init_method=output_layer_init_method,
             skip_bias_add=True)
 
-        if deepspeed.checkpointing.is_configured():
-            global get_cuda_rng_tracker, checkpoint
-            get_cuda_rng_tracker = deepspeed.checkpointing.get_cuda_rng_tracker
-            checkpoint = deepspeed.checkpointing.checkpoint
-
     def forward(self, hidden_states, attention_mask, layer_past=None):
 
         # hidden_states: [sq, b, h]
