@@ -76,7 +76,7 @@ def pretrain(neox_args):
 
     # Model, optimizer, and learning rate.
     timers('model and optimizer').start()
-    model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=neox_args)
+    model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=neox_args, inference=False, get_key_value=True)
     timers('model and optimizer').stop()
 
     # Data stuff.
@@ -198,13 +198,13 @@ def forward_step(neox_args, timers, data_iterator, model):
 
     return loss, {'lm loss': reduced_loss[0]}
 
-def get_model(neox_args):
+def get_model(neox_args, inference=False, get_key_value=True):
     """Build the model."""
 
     print_rank_0('building GPT2 model ...')
 
     # Build model on cpu.
-    model = GPT2ModelPipe(neox_args=neox_args, num_tokentypes=0, parallel_output=True, topology=mpu.get_topology(), inference=False, get_key_value=True)
+    model = GPT2ModelPipe(neox_args=neox_args, num_tokentypes=0, parallel_output=True, topology=mpu.get_topology(), inference=inference, get_key_value=get_key_value)
     if not neox_args.is_pipe_parallel:
         # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
         model = model.to_sequential()
@@ -305,9 +305,9 @@ def get_learning_rate_scheduler(optimizer, neox_args):
     return lr_scheduler
 
 
-def setup_model_and_optimizer(neox_args):
+def setup_model_and_optimizer(neox_args, inference=False, get_key_value=True):
     """Setup model and optimizer."""
-    model = get_model(neox_args=neox_args)
+    model = get_model(neox_args=neox_args, inference=inference, get_key_value=get_key_value)
     optimizer, param_groups = get_optimizer(model=model, neox_args=neox_args)
     lr_scheduler = get_learning_rate_scheduler(optimizer=optimizer, neox_args=neox_args)
 
