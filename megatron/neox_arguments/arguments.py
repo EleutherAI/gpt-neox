@@ -318,7 +318,7 @@ class NeoXArgs(*BASE_CLASSES):
         result = dict()
         for parent in parent_classes:
             for key, default_value in parent().defaults():
-                if key == "tokenizer" or key == "tensorboard_writer": 
+                if key == "tokenizer" or key == "tensorboard_writer" or key == "adlr_autoresume_object": 
                     continue
                 if only_non_defaults:
                     value = getattr(self, key)

@@ -23,12 +23,6 @@ def print_rank_0(*message):
         print(*message, flush=True)
 
 
-from .global_vars import get_args
-from .global_vars import get_tokenizer
-from .global_vars import get_tensorboard_writer
-from .global_vars import get_adlr_autoresume
-from .global_vars import get_timers
 from .initialize import initialize_megatron
-
 from .neox_arguments import NeoXArgs
 

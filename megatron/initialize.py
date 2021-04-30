@@ -25,8 +25,6 @@ import numpy as np
 import torch
 
 from megatron import fused_kernels
-from megatron import get_adlr_autoresume
-from megatron import get_tensorboard_writer
 from megatron import mpu
 from megatron.global_vars import set_global_variables
 from megatron.mpu import set_model_parallel_rank, set_model_parallel_world_size
@@ -82,7 +80,7 @@ def initialize_megatron(neox_args, allow_no_cuda=False):
         finish_mpu_init()
 
         # Autoresume.
-        _init_autoresume()
+        _init_autoresume(neox_args)
 
         # Write arguments to tensorboard.
         _write_args_to_tensorboard(neox_args=neox_args)
@@ -179,12 +177,22 @@ def _initialize_distributed(neox_args):
     setup_deepspeed_random_and_activation_checkpointing(neox_args=neox_args)
 
 
-def _init_autoresume():
+def _init_autoresume(neox_args):
     """Set autoresume start time."""
-    autoresume = get_adlr_autoresume()
-    if autoresume:
+
+    if neox_args.adlr_autoresume:
+        print_rank_0('> enabling autoresume ...')
+        sys.path.append(os.environ.get('SUBMIT_SCRIPTS', '.'))
+        try:
+            from userlib.auto_resume import AutoResume
+        except BaseException:
+            print('> ADLR autoresume is not available, exiting ...', flush=True)
+            sys.exit()
+        neox_args.adlr_autoresume_object = AutoResume
+
+    if neox_args.adlr_autoresume_object:
         torch.distributed.barrier()
-        autoresume.init()
+        neox_args.adlr_autoresume_object.init()
         torch.distributed.barrier()
 
 
@@ -201,8 +209,8 @@ def _set_random_seed(seed):
 
 
 def _write_args_to_tensorboard(neox_args):
+
     """Write arguments to tensorboard."""
-    writer = get_tensorboard_writer()
-    if writer:
+    if neox_args.tensorboard_writer:
         for arg_name in vars(neox_args):
-            writer.add_text(arg_name, str(getattr(neox_args, arg_name)))
+            neox_args.tensorboard_writer.add_text(arg_name, str(getattr(neox_args, arg_name)))
