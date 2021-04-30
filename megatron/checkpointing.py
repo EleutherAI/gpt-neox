@@ -136,7 +136,7 @@ def save_checkpoint(neox_args, iteration, model, optimizer, lr_scheduler):
     torch.distributed.barrier()
 
 
-def load_checkpoint(model, optimizer, lr_scheduler, neox_args):
+def load_checkpoint(neox_args, model, optimizer, lr_scheduler):
     """Load a model checkpoint and return the iteration."""
 
     # Read the tracker file and set the iteration.
