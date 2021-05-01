@@ -150,12 +150,8 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Note that since neox is autoregressive, attention is always "unidirectional" and `horizontal_global_attention` is 
     always false.
     
-    There are two main differences between our sparsity config and deepspeed's: 
-    
-        - Unless specified, `num_random_blocks` in `bigbird` defaults to 1 - since that is the core thesis of the paper,
-          but in `variable` it defaults to 0.
-    
-        - `mode` is ignored - since it is instead specified in the attention config defining each layer.
+    The main difference between our sparsity config and deepspeed's is that `mode` is ignored - since it is instead 
+    specified in attention_config defining each layer.
     
     An example config is given below:
           "sparse_attention": {
