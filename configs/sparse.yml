@@ -1,0 +1,13 @@
+# Add this to your config for sparse attention every other layer
+{
+  "attention_config": [[["global", "sparse_variable"], "all"]],
+  # sparse attention config (these are the defaults, training will work without this here, but it's left in for
+  # illustrative purposes)
+  "sparsity_config": {
+    "block": 16, # block size
+    "different_layout_per_head": false,
+    "num_global_blocks": 1, # "local" in the attention config defaults this to zero - otherwise the value here is respected
+    "num_local_blocks": 4, # number of local blocks. If local attention only, local window size = block * num_local_blocks
+    "num_random_blocks": 1, # 0 = no randomness
+  }
+}

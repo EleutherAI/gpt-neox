@@ -3,8 +3,7 @@ from dataclasses import dataclass
 from .template import NeoXArgsTemplate
 from typing import Literal
 
-ATTENTION_TYPE_CHOICES = ['global', 'local', 'sparse_fixed', 'sparse_variable',
-                          'bigbird', 'bslongformer']
+ATTENTION_TYPE_CHOICES = ['global', 'local', 'sparse_fixed', 'sparse_variable']
 
 
 def get_git_commit_hash():
@@ -131,8 +130,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     The first item in the list specifies the attention type(s), and should be a list of strings. The second item 
     specifies the number of times to repeat those attention types in the full list.
     
-    attention type choices:  [global, local (`sparse_fixed` with no global tokens), sparse_fixed, sparse_variable, 
-                                bigbird, bslongformer]
+    attention type choices:  [global, local (`sparse_fixed` with no global tokens), sparse_fixed, sparse_variable]
                                 
     So a 12 layer network with only global attention could be specified like:
         [[[`global`], 12]]

@@ -349,7 +349,7 @@ class Timers:
             print(string, flush=True)
 
 
-def expand_attention_types(attention_config):
+def expand_attention_types(attention_config, num_layers):
     """
     Expands an `attention_config` list in the following format:
 
@@ -367,6 +367,11 @@ def expand_attention_types(attention_config):
         return attention_config
     newlist = []
     for item in attention_config:
+        # instead of specifying a number - we can specify 'all' to extend this pattern across all layers
+        if item[1] == "all":
+            assert num_layers % len(item[0]) == 0, f"Number of layers ({num_layers}) is not divisible by the length " \
+                                                   f"of pattern: {item[0]}"
+            return item[0] * (num_layers // len(item[0]))
         for _ in range(item[1]):
             newlist.extend(item[0])
     return newlist

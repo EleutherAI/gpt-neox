@@ -585,10 +585,15 @@ class NeoXArgs(*BASE_CLASSES):
         # Attention config
         if self.attention_config is None:
             self.update_value("attention_config", [[["global"], self.num_layers]])
-        self.update_value("attention_config", expand_attention_types(self.attention_config))
+        self.update_value("attention_config", expand_attention_types(self.attention_config, self.num_layers))
         assert len(self.attention_config) == self.num_layers, "Length of attention config list must equal num_layers"
         for item in self.attention_config:
             assert item in ATTENTION_TYPE_CHOICES, f"Attention type {item} not recognized"
+
+        # Sparsity config
+        if self.sparsity_config is None:
+            # Can't have a default value as an empty dict so need to set it here
+            self.update_value("sparsity_config", {})
 
     ############################################################################################################################
     # start of validation functions
