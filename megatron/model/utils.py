@@ -22,7 +22,7 @@ import math
 
 import torch
 from deepspeed.ops.sparse_attention import SparseSelfAttention, VariableSparsityConfig, \
-    FixedSparsityConfig
+    FixedSparsityConfig, LocalSlidingWindowSparsityConfig
 
 
 def init_method_normal(sigma):
@@ -166,10 +166,7 @@ class SequentialWrapper(torch.nn.Module):
 
 
 def configure_sparse_attention(neox_args, attention_type, num_attention_heads, mpu):
-    if attention_type in ["sparse_fixed", "local"]:
-        # local attention = FixedSparsityConfig with no global blocks
-        num_global_blocks = neox_args.sparsity_config.get("num_global_blocks", 1) if \
-            attention_type == "sparse_fixed" else 0
+    if attention_type == "sparse_fixed":
         # you can think of local window size as `block_size` * `num_local_blocks`.
         # so if you wanted to set a local window size of 256, set block size to 16 and `num_local_blocks` to 16
         sparsity_config = FixedSparsityConfig(
@@ -177,7 +174,7 @@ def configure_sparse_attention(neox_args, attention_type, num_attention_heads, m
             block=neox_args.sparsity_config.get("block", 16),
             different_layout_per_head=neox_args.sparsity_config.get("different_layout_per_head", False),
             num_local_blocks=neox_args.sparsity_config.get("num_local_blocks", 4),
-            num_global_blocks=num_global_blocks,
+            num_global_blocks=neox_args.sparsity_config.get("num_global_blocks", 1),
             num_different_global_patterns=neox_args.sparsity_config.get("num_different_global_patterns", 1),
             attention='unidirectional',
             horizontal_global_attention=False,
@@ -193,6 +190,13 @@ def configure_sparse_attention(neox_args, attention_type, num_attention_heads, m
             global_block_end_indices=neox_args.sparsity_config.get("global_block_end_indices", None),
             attention="unidirectional",
             horizontal_global_attention=False,
+        )
+    elif attention_type == "local":
+        sparsity_config = LocalSlidingWindowSparsityConfig(
+            num_heads=num_attention_heads,
+            block=neox_args.sparsity_config.get("block", 16),
+            num_sliding_window_blocks=neox_args.sparsity_config.get("num_local_blocks", 4),
+            attention='unidirectional'
         )
     else:
         raise ValueError(f"Attention type {attention_type} not recognized")

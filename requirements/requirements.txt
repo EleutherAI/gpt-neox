@@ -2,7 +2,7 @@ pybind11==2.6.2
 six
 regex
 numpy==1.20.2
--e git+git://github.com/EleutherAI/DeeperSpeed.git@311de8b82456da81998c14f33a07d73436cf11be#egg=deepspeed
+-e git+git://github.com/EleutherAI/DeeperSpeed.git@73dfe6b1ae6209a4195defcc271866986337e95b#egg=deepspeed
 mpi4py==3.0.3
 wandb==0.10.28
 einops==0.3.0
