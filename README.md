@@ -160,7 +160,7 @@ You can also optionally pass in a config prefix, which will assume all your conf
 Example usage:
 
 ```bash
-./deepy.py pretrain_gpt2.py -d configs small_1.yml local_setup.yml
+./deepy.py pretrain_gpt2.py -d configs small.yml local_setup.yml
 ```
 
 This will deploy the `pretrain_gpt2.py` script on all nodes with one process per GPU. The worker nodes and number of GPUs are specified in the `/job/hostfile` file (see [parameter documentation](configs)), or can simply be passed in as the `num_gpus` arg if running on a single node setup.
