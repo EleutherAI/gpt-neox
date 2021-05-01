@@ -152,12 +152,6 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
 
         # Transformer layers
         for x in range(self.neox_args.num_layers):
-            if self.neox_args.sparsity == 'none':
-                sparse = False
-            elif self.neox_args.sparsity == 'all':
-                sparse = True
-            elif self.neox_args.sparsity == 'interspersed':
-                sparse = not x % 2 == 0
             self.specs.append(
                 LayerSpec(
                     ParallelTransformerLayerPipe,
@@ -166,7 +160,6 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                     init_method=self.init_method,
                     output_layer_init_method=self.output_layer_init_method,
                     layer_number=x,
-                    sparse=sparse,
                     rpe=rpe_emb if self.neox_args.pos_emb == 'rpe' else None,
                     rotary=self.neox_args.pos_emb == 'rotary',
                     get_key_value=self.get_key_value

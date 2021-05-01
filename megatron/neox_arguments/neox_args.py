@@ -3,6 +3,9 @@ from dataclasses import dataclass
 from .template import NeoXArgsTemplate
 from typing import Literal
 
+ATTENTION_TYPE_CHOICES = ['global', 'local', 'sparse_fixed', 'sparse_variable',
+                          'bigbird', 'bslongformer']
+
 
 def get_git_commit_hash():
     """ Gets the git commit hash of your current repo (if it exists) """
@@ -120,9 +123,55 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Enable geglu activation function (WARNING: will increase memory usage, adjust embd dims accordingly)
     """
 
-    sparsity: Literal['all', 'interspersed', 'none'] = "none"
+    attention_config: list = None
+
     """
-    Sparse attention layer configuration: none = all regular attn, all = all sparse attn, interspersed = sparse on odd layers, dense on even.
+    Attention configuration for gpt-neox
+    
+    The first item in the list specifies the attention type(s), and should be a list of strings. The second item 
+    specifies the number of times to repeat those attention types in the full list.
+    
+    attention type choices:  [global, local (`sparse_fixed` with no global tokens), sparse_fixed, sparse_variable, 
+                                bigbird, bslongformer]
+                                
+    So a 12 layer network with only global attention could be specified like:
+        [[[`global`], 12]]
+        
+    or a 12 layer network with alternating global / local like:
+        [[[`global`, `local`], 6]]
+        
+    If none is specified, this defaults to
+        [[[`global`], n_layers]]
+    """
+
+    sparsity_config: dict = None
+
+    """
+    Sparsity configuration dict as defined in https://www.deepspeed.ai/docs/config-json/#sparse-attention
+    
+    Note that since neox is autoregressive, attention is always "unidirectional" and `horizontal_global_attention` is 
+    always false.
+    
+    There are two main differences between our sparsity config and deepspeed's: 
+    
+        - Unless specified, `num_random_blocks` in `bigbird` defaults to 1 - since that is the core thesis of the paper,
+          but in `variable` it defaults to 0.
+    
+        - `mode` is ignored - since it is instead specified in the attention config defining each layer.
+    
+    An example config is given below:
+          "sparse_attention": {
+            "block": 16,
+            "different_layout_per_head": true,
+            "num_local_blocks": 4,
+            "num_global_blocks": 1,
+            "num_different_global_patterns": 4,
+            "num_random_blocks": 0,
+            "local_window_blocks": [4],
+            "global_block_indices": [0],
+            "global_block_end_indices": None,
+            "num_sliding_window_blocks": 3
+          }
     """
 
     num_unique_layers: int = None
@@ -279,7 +328,6 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsLogging(NeoXArgsTemplate):
-
     use_wandb: bool = None
     """Flag indicating if wandb is to be used."""
 
@@ -465,7 +513,7 @@ class NeoXArgsTokenizer(NeoXArgsTemplate):
     as it's dependent on the parallelism size.
     """
 
-    tokenizer =  None
+    tokenizer = None
     """
     tokenizer object loaded into memory and accesible by other functions
     """
