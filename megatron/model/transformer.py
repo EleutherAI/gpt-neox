@@ -30,8 +30,7 @@ from megatron.model.utils import openai_gelu, erf_gelu, exists
 from megatron.model.positional_embeddings import RotaryEmbedding, apply_rotary_pos_emb
 from megatron.model.fused_bias_dropout import get_bias_dropout_add, bias_dropout_add_fused_train, \
     bias_dropout_add_fused_inference
-import deepspeed
-from deepspeed.ops.sparse_attention import SparseSelfAttention, VariableSparsityConfig
+from megatron.model.utils import configure_sparse_attention
 
 # flags required to enable jit fusion kernels
 torch._C._jit_set_profiling_mode(False)
@@ -65,7 +64,7 @@ class GEGLU(torch.nn.Module):
 
     def __init__(self, neox_args):
         super(GEGLU, self).__init__()
-        
+
         self.bias_gelu_fusion = neox_args.bias_gelu_fusion
         self.activation_func = F.gelu
         if neox_args.openai_gelu:
@@ -123,7 +122,7 @@ class ParallelMLP(torch.nn.Module):
             gather_output=False,
             init_method=init_method,
             skip_bias_add=True
-            )
+        )
 
         # Project back to h.
         self.dense_4h_to_h = mpu.RowParallelLinear(
@@ -186,7 +185,7 @@ class ParallelSelfAttention(torch.nn.Module):
     """
 
     def __init__(self, neox_args, attention_mask_func, init_method,
-                 output_layer_init_method, layer_number, sparse=False,
+                 output_layer_init_method, layer_number,
                  rpe=None, rotary=False, get_key_value=False):
         super(ParallelSelfAttention, self).__init__()
 
@@ -197,7 +196,7 @@ class ParallelSelfAttention(torch.nn.Module):
         self.attention_softmax_in_fp32 = neox_args.attention_softmax_in_fp32
         if self.apply_query_key_layer_scaling:
             self.attention_softmax_in_fp32 = True
-        self.layer_number = max(1, layer_number)  # TODO: why do we start from 1 here?
+        self.layer_number = layer_number
         # Per attention head and per partition values.
         world_size = mpu.get_model_parallel_world_size()
         self.hidden_size_per_partition = mpu.divide(neox_args.hidden_size,
@@ -218,7 +217,7 @@ class ParallelSelfAttention(torch.nn.Module):
         coeff = None
         self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
         if self.apply_query_key_layer_scaling:
-            coeff = self.layer_number
+            coeff = max(1, self.layer_number)
             self.norm_factor *= coeff
 
         self.rpe = rpe
@@ -233,24 +232,13 @@ class ParallelSelfAttention(torch.nn.Module):
             self.rotary_emb = RotaryEmbedding(dim, base=neox_args.rotary_emb_base)
         else:
             self.rotary_emb = None
-        self.sparse = sparse
+
+        self.attention_type = neox_args.attention_config[layer_number]
+        self.sparse = self.attention_type != 'global'
         if self.sparse:
-            sparsity_config = VariableSparsityConfig(
-                num_heads=self.num_attention_heads_per_partition,
-                attention="unidirectional"
-            )
-            try:
-                self.sparse_attn = SparseSelfAttention(
-                    sparsity_config=sparsity_config,
-                    max_seq_length=neox_args.seq_length,
-                    attn_mask_mode='add',
-                    mpu=mpu)
-            except TypeError:
-                # older versions don't have the mpu arg
-                self.sparse_attn = SparseSelfAttention(
-                    sparsity_config=sparsity_config,
-                    max_seq_length=neox_args.seq_length,
-                    attn_mask_mode='add')
+            self.sparse_attn = configure_sparse_attention(neox_args, self.attention_type,
+                                                          self.num_attention_heads_per_partition,
+                                                          mpu=mpu)
         else:
             self.scale_mask_softmax = FusedScaleMaskSoftmax(
                 self.fp16,
@@ -274,6 +262,102 @@ class ParallelSelfAttention(torch.nn.Module):
             init_method=output_layer_init_method,
             skip_bias_add=True)
 
+    def attention(self, query_layer, key_layer, value_layer, layer_past, attention_mask):
+        # ===================================
+        # Raw attention scores. [b, np, s, s]
+        # ===================================
+
+        # [b, np, sq, sk]
+        output_size = (query_layer.size(1), query_layer.size(2), query_layer.size(0), key_layer.size(0))
+
+        # [sq, b, np, hn] -> [sq, b * np, hn]
+        query_layer = query_layer.view(output_size[2], output_size[0] * output_size[1], -1)
+        key_layer = key_layer.view(output_size[3], output_size[0] * output_size[1], -1)
+
+        # preallocating result tensor: [b * np, sq, sk]
+        matmul_result = torch.empty(output_size[0] * output_size[1], output_size[2], output_size[3],
+                                    dtype=query_layer.dtype, device=torch.cuda.current_device())
+
+        # Raw attention scores. [b * np, sq, sk]
+        matmul_result = torch.baddbmm(matmul_result,
+                                      query_layer.transpose(0, 1),  # [b * np, sq, hn]
+                                      key_layer.transpose(0, 1).transpose(1, 2),  # [b * np, hn, sk]
+                                      beta=0.0, alpha=(1.0 / self.norm_factor))
+
+        # change view to [b, np, sq, sk]
+        attention_scores = matmul_result.view(*output_size)
+
+        # ==================================================
+        # Update attention mask for inference. [b, np, sq, sk]
+        # ==================================================
+
+        if self.get_key_value:
+            with torch.no_grad():
+                if layer_past is not None and layer_past.numel() > 0:
+                    attention_mask = attention_mask[
+                                     ...,
+                                     attention_scores.size(3) - 1,
+                                     :attention_scores.size(3)].unsqueeze(2)
+                else:
+                    attention_mask = attention_mask[
+                                     ...,
+                                     :attention_scores.size(3),
+                                     :attention_scores.size(3)]
+
+        # ===========================
+        # Attention probs and dropout
+        # ===========================
+
+        if exists(self.rpe):
+            rpe = self.rpe(query_layer.size(0), key_layer.size(0))
+            attention_scores += rpe  # [1, np, sq, sk]
+
+        # attention scores and attention mask [b, np, sq, sk]
+        attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
+
+        # This is actually dropping out entire tokens to attend to, which might
+        # seem a bit unusual, but is taken from the original Transformer paper.
+        with mpu.get_cuda_rng_tracker().fork():
+            attention_probs = self.attention_dropout(attention_probs)
+
+        # =========================
+        # Context layer. [sq, b, hp]
+        # =========================
+
+        # value_layer -> context layer.
+        # [sk, b, np, hn] --> [b, np, sq, hn]
+
+        # context layer shape: [b, np, sq, hn]
+        output_size = (value_layer.size(1), value_layer.size(2), query_layer.size(0), value_layer.size(3))
+
+        # change view [sk, b * np, hn]
+        value_layer = value_layer.view(value_layer.size(0), output_size[0] * output_size[1], -1)
+
+        # change view [b * np, sq, sk]
+        attention_probs = attention_probs.view(output_size[0] * output_size[1], output_size[2], -1)
+
+        # matmul: [b * np, sq, hn]
+        context_layer = torch.bmm(attention_probs, value_layer.transpose(0, 1))
+
+        # change view [b, np, sq, hn]
+        context_layer = context_layer.view(*output_size)
+        return context_layer
+
+    def sparse_attention(self, query_layer, key_layer, value_layer, attention_mask):
+        # TODO: sparse attn dropout?
+        # TODO: pad to block size
+        # shape of q/k/v is [sq, b, np, hn] and needs to be transposed to [b, np, sq, hn]
+        query_layer, key_layer, value_layer = map(lambda t: t.permute(1, 2, 0, 3).contiguous(),
+                                                  (query_layer, key_layer,
+                                                   value_layer))
+        # output shape [b, np(heads), sq, hn]
+        attn_mask = attention_mask.to(query_layer.dtype) * -10000
+        if exists(self.rpe):
+            rpe = self.rpe(query_layer.size(0), key_layer.size(0))
+        else:
+            rpe = None
+        return self.sparse_attn(query_layer, key_layer, value_layer, attn_mask=attn_mask, rpe=rpe)
+
     def forward(self, hidden_states, attention_mask, layer_past=None):
 
         # hidden_states: [sq, b, h]
@@ -286,15 +370,12 @@ class ParallelSelfAttention(torch.nn.Module):
         mixed_x_layer, _ = self.query_key_value(hidden_states)
 
         # [sq, b, (np * 3 * hn)] --> [sq, b, np, 3 * hn]
-        new_tensor_shape = mixed_x_layer.size()[:-1] + \
-                           (self.num_attention_heads_per_partition,
-                            3 * self.hidden_size_per_attention_head)
+        new_tensor_shape = mixed_x_layer.size()[:-1] + (self.num_attention_heads_per_partition,
+                                                        3 * self.hidden_size_per_attention_head)
         mixed_x_layer = mixed_x_layer.view(*new_tensor_shape)
 
         # [sq, b, np, 3 * hn] --> 3 [sq, b, np, hn]
-        (query_layer,
-         key_layer,
-         value_layer) = mpu.split_tensor_along_last_dim(mixed_x_layer, 3)
+        (query_layer, key_layer, value_layer) = mpu.split_tensor_along_last_dim(mixed_x_layer, 3)
 
         if exists(self.rotary_emb):
             if exists(self.rotary_ndims):
@@ -327,111 +408,9 @@ class ParallelSelfAttention(torch.nn.Module):
             present = torch.stack((key_layer, value_layer))
 
         if not self.sparse:
-            # ===================================
-            # Raw attention scores. [b, np, s, s]
-            # ===================================
-
-            # [b, np, sq, sk]
-            output_size = (query_layer.size(1),
-                           query_layer.size(2),
-                           query_layer.size(0),
-                           key_layer.size(0))
-
-            # [sq, b, np, hn] -> [sq, b * np, hn]
-            query_layer = query_layer.view(output_size[2],
-                                           output_size[0] * output_size[1], -1)
-            key_layer = key_layer.view(output_size[3],
-                                       output_size[0] * output_size[1], -1)
-
-            # preallocating result tensor: [b * np, sq, sk]
-            matmul_result = torch.empty(
-                output_size[0] * output_size[1],
-                output_size[2],
-                output_size[3],
-                dtype=query_layer.dtype,
-                device=torch.cuda.current_device())
-
-            # Raw attention scores. [b * np, sq, sk]
-            matmul_result = torch.baddbmm(matmul_result,
-                                          query_layer.transpose(0, 1),  # [b * np, sq, hn]
-                                          key_layer.transpose(0, 1).transpose(1, 2),  # [b * np, hn, sk]
-                                          beta=0.0, alpha=(1.0 / self.norm_factor))
-
-            # change view to [b, np, sq, sk]
-            attention_scores = matmul_result.view(*output_size)
-
-            # ==================================================
-            # Update attention mask for inference. [b, np, sq, sk]
-            # ==================================================
-
-            if self.get_key_value:
-                with torch.no_grad():
-                    if layer_past is not None and layer_past.numel() > 0:
-                        attention_mask = attention_mask[
-                                         ...,
-                                         attention_scores.size(3) - 1,
-                                         :attention_scores.size(3)].unsqueeze(2)
-                    else:
-                        attention_mask = attention_mask[
-                                         ...,
-                                         :attention_scores.size(3),
-                                         :attention_scores.size(3)]
-
-            # ===========================
-            # Attention probs and dropout
-            # ===========================
-
-            if exists(self.rpe):
-                rpe = self.rpe(query_layer.size(0), key_layer.size(0))
-                attention_scores += rpe  # [1, np, sq, sk]
-
-            # attention scores and attention mask [b, np, sq, sk]
-            attention_probs = self.scale_mask_softmax(attention_scores,
-                                                      attention_mask)
-
-            # This is actually dropping out entire tokens to attend to, which might
-            # seem a bit unusual, but is taken from the original Transformer paper.
-            with mpu.get_cuda_rng_tracker().fork():
-                attention_probs = self.attention_dropout(attention_probs)
-
-            # =========================
-            # Context layer. [sq, b, hp]
-            # =========================
-
-            # value_layer -> context layer.
-            # [sk, b, np, hn] --> [b, np, sq, hn]
-
-            # context layer shape: [b, np, sq, hn]
-            output_size = (value_layer.size(1),
-                           value_layer.size(2),
-                           query_layer.size(0),
-                           value_layer.size(3))
-
-            # change view [sk, b * np, hn]
-            value_layer = value_layer.view(value_layer.size(0),
-                                           output_size[0] * output_size[1], -1)
-
-            # change view [b * np, sq, sk]
-            attention_probs = attention_probs.view(output_size[0] * output_size[1],
-                                                   output_size[2], -1)
-
-            # matmul: [b * np, sq, hn]
-            context_layer = torch.bmm(attention_probs, value_layer.transpose(0, 1))
-
-            # change view [b, np, sq, hn]
-            context_layer = context_layer.view(*output_size)
+            context_layer = self.attention(query_layer, key_layer, value_layer, layer_past, attention_mask)
         else:
-            # shape of q/k/v is [sq, b, np, hn] and needs to be transposed to [b, np, sq, hn]
-            query_layer, key_layer, value_layer = map(lambda t: t.permute(1, 2, 0, 3).contiguous(),
-                                                      (query_layer, key_layer,
-                                                       value_layer))
-            # output shape [b, np(heads), sq, hn]
-            attn_mask = attention_mask.to(query_layer.dtype) * -10000
-            if exists(self.rpe):
-                rpe = self.rpe(query_layer.size(0), key_layer.size(0))
-            else:
-                rpe = None
-            context_layer = self.sparse_attn(query_layer, key_layer, value_layer, attn_mask=attn_mask, rpe=rpe)
+            context_layer = self.sparse_attention(query_layer, key_layer, value_layer, attention_mask)
 
         # [b, np, sq, hn] --> [sq, b, np, hn]
         context_layer = context_layer.permute(2, 0, 1, 3).contiguous()
@@ -461,7 +440,7 @@ class ParallelTransformerLayer(torch.nn.Module):
     """
 
     def __init__(self, neox_args, attention_mask_func, init_method,
-                 output_layer_init_method, layer_number, sparse=False, rpe=None, rotary=False, get_key_value=False):
+                 output_layer_init_method, layer_number, rpe=None, rotary=False, get_key_value=False):
 
         super(ParallelTransformerLayer, self).__init__()
         self.layer_number = layer_number
@@ -484,16 +463,15 @@ class ParallelTransformerLayer(torch.nn.Module):
 
         # Self attention.
         self.attention = ParallelSelfAttention(
-            neox_args=neox_args, 
-            attention_mask_func=attention_mask_func, 
+            neox_args=neox_args,
+            attention_mask_func=attention_mask_func,
             init_method=init_method,
             output_layer_init_method=output_layer_init_method,
             layer_number=layer_number,
-            sparse=sparse,
             rpe=rpe,
             get_key_value=self.get_key_value,
             rotary=rotary
-            )
+        )
 
         self.hidden_dropout = neox_args.hidden_dropout
         self.bias_dropout_fusion = neox_args.bias_dropout_fusion
@@ -506,9 +484,9 @@ class ParallelTransformerLayer(torch.nn.Module):
         # MLP
         self.mlp = ParallelMLP(
             neox_args=neox_args,
-            init_method=init_method, 
+            init_method=init_method,
             output_layer_init_method=output_layer_init_method
-            )
+        )
 
     def forward(self, hidden_states, attention_mask, layer_past=None):
         # hidden_states: [b, s, h]

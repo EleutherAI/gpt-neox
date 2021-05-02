@@ -14,10 +14,10 @@ from typing import Literal, Dict
 from deepspeed.launcher.runner import DLTS_HOSTFILE
 from megatron.logging import Tee
 from megatron.tokenizer import build_tokenizer
-from megatron.utils import obtain_resource_pool
+from megatron.utils import obtain_resource_pool, expand_attention_types
 from .deepspeed_args import NeoXArgsDeepspeedConfig, NeoXArgsDeepspeedRunner
 from .neox_args import NeoXArgsModel, NeoXArgsTokenizer, NeoXArgsTraining, NeoXArgsParallelism, \
-    NeoXArgsLogging, NeoXArgsOther, NeoXArgsTextgen, NeoXArgsOptimizer, NeoXArgsLRScheduler
+    NeoXArgsLogging, NeoXArgsOther, NeoXArgsTextgen, NeoXArgsOptimizer, NeoXArgsLRScheduler, ATTENTION_TYPE_CHOICES
 
 # ZERO defaults by deespeed
 # These values should not be changed unless defaults in deepspeed are changed
@@ -581,6 +581,19 @@ class NeoXArgs(*BASE_CLASSES):
         # if we set pipe_parallel_size to 0 or 1, GPT2ModelPipe.to_sequential() is called, and we run training with
         # the sequential model without the PipelineModule wrapper to avoid the overhead it incurs
         self.update_value("is_pipe_parallel", self.pipe_parallel_size >= 1)
+
+        # Attention config
+        if self.attention_config is None:
+            self.update_value("attention_config", [[["global"], self.num_layers]])
+        self.update_value("attention_config", expand_attention_types(self.attention_config, self.num_layers))
+        assert len(self.attention_config) == self.num_layers, "Length of attention config list must equal num_layers"
+        for item in self.attention_config:
+            assert item in ATTENTION_TYPE_CHOICES, f"Attention type {item} not recognized"
+
+        # Sparsity config
+        if self.sparsity_config is None:
+            # Can't have a default value as an empty dict so need to set it here
+            self.update_value("sparsity_config", {})
 
     ############################################################################################################################
     # start of validation functions

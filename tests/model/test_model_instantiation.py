@@ -60,8 +60,10 @@ class TestModelInstantiation(unittest.TestCase):
     def test_model_instantiation_medium_test(self):
         self.run_instantiation_test(get_test_configs_with_path(["test_local_setup.yml", "test_medium.yml"]), DeepSpeedEngine)
 
+    def test_model_instantiation_small_sparse_test(self):
+        self.run_instantiation_test(get_test_configs_with_path(["test_local_setup.yml", "test_small.yml", "test_sparse.yml"]), DeepSpeedEngine)
+
 if __name__ == "__main__":
     suite = unittest.TestSuite()
-    suite.addTest(TestModelInstantiation("test_model_instantiation_small_test"))
-    suite.addTest(TestModelInstantiation("test_model_instantiation_medium_test"))
+    suite.addTest(TestModelInstantiation("test_model_instantiation_small_sparse_test"))
     unittest.TextTestRunner(failfast=True).run(suite)

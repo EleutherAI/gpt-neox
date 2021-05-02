@@ -71,7 +71,8 @@ def check_adlr_autoresume_termination(neox_args, iteration, model, optimizer, lr
     torch.distributed.barrier()
     if neox_args.adlr_autoresume_object.termination_requested():
         if neox_args.save:
-            save_checkpoint(neox_args=neox_args, iteration=iteration, model=model, optimizer=optimizer, lr_scheduler=lr_scheduler)
+            save_checkpoint(neox_args=neox_args, iteration=iteration, model=model, optimizer=optimizer,
+                            lr_scheduler=lr_scheduler)
         print_rank_0(">>> autoresume termination request found!")
         if torch.distributed.get_rank() == 0:
             neox_args.adlr_autoresume_object.request_resume()
@@ -171,6 +172,7 @@ def local_rank():
         local_rank = 0
     return int(local_rank)
 
+
 def is_local_main():
     """ True if is the local main process """
     return local_rank() == 0
@@ -191,11 +193,12 @@ def get_wandb_api_key():
     if wandb_token is not None:
         return wandb_token[1]
 
+
 def init_wandb(neox_args):
     # Wandb. (one worker per machine)
     if neox_args.use_wandb == False:
         return
-    
+
     use_wandb = is_local_main() and (get_wandb_api_key() is not None)
     neox_args.update_value("use_wandb", use_wandb)
     if neox_args.use_wandb:
@@ -209,6 +212,7 @@ def init_wandb(neox_args):
             print(e)
             print('Skipping wandb. Execute `wandb login` on local or main node machine to enable.', flush=True)
         wandb.config.update(neox_args.all_config)
+
 
 def obtain_resource_pool(hostfile_path, include_arg, exclude_arg) -> Dict[str, List[int]]:
     """
@@ -255,7 +259,6 @@ def ddb(rank=0):
         pdb = Pdb(skip=["torch.distributed.*"])
         pdb.set_trace(sys._getframe().f_back)
     torch.distributed.barrier()
-
 
 
 class Timer:
@@ -345,3 +348,30 @@ class Timers:
         else:
             print(string, flush=True)
 
+
+def expand_attention_types(attention_config, num_layers):
+    """
+    Expands an `attention_config` list in the following format:
+
+        [
+        [['attention_type_1', ..., `attention_type_n`], 12]
+        ]
+
+    to a flattened list of length `num_layers`.
+
+    :param params_list:
+    :return:
+    """
+    # if only strings are found in the config, we assume it's already expanded
+    if all([isinstance(i, str) for i in attention_config]):
+        return attention_config
+    newlist = []
+    for item in attention_config:
+        # instead of specifying a number - we can specify 'all' to extend this pattern across all layers
+        if item[1] == "all":
+            assert num_layers % len(item[0]) == 0, f"Number of layers ({num_layers}) is not divisible by the length " \
+                                                   f"of pattern: {item[0]}"
+            return item[0] * (num_layers // len(item[0]))
+        for _ in range(item[1]):
+            newlist.extend(item[0])
+    return newlist
