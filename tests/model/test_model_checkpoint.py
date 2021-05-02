@@ -17,7 +17,7 @@ from megatron.mpu import destroy_model_parallel
 from megatron.checkpointing import load_checkpoint
 from megatron.checkpointing import save_checkpoint
 
-from tests.common import get_root_directory, get_configs_with_path, get_test_configs_with_path, clear_test_dirs, TEST_CHECKPOINT_DIR, TEST_LOG_DIR
+from tests.common import get_root_directory, get_configs_with_path, get_test_configs_with_path, clear_test_dirs, TEST_CHECKPOINT_DIR, TEST_LOG_DIR, TEST_TENSORBOARD_DIR
 
 import torch
 
@@ -43,6 +43,7 @@ class TestModelCheckpoint(unittest.TestCase):
         args_loaded.update_value("save", TEST_CHECKPOINT_DIR)
         args_loaded.update_value("load", TEST_CHECKPOINT_DIR)
         args_loaded.update_value("log_dir", TEST_LOG_DIR)
+        args_loaded.update_value("tensorboard_dir", TEST_TENSORBOARD_DIR)
        
         logging.debug(self.__class__.__name__ + ".run_checkpoint_test() initializing megatron")
         initialize_megatron(neox_args=args_loaded)
@@ -79,6 +80,7 @@ class TestModelCheckpoint(unittest.TestCase):
         args_reloaded.update_value("save", TEST_CHECKPOINT_DIR)
         args_reloaded.update_value("load", TEST_CHECKPOINT_DIR)
         args_reloaded.update_value("log_dir", TEST_LOG_DIR)
+        args_reloaded.update_value("tensorboard_dir", TEST_TENSORBOARD_DIR)
 
         reloaded_model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=args_reloaded, inference=False, get_key_value=True)
         iteration = load_checkpoint(neox_args=args_reloaded, model=reloaded_model, optimizer=optimizer, lr_scheduler=lr_scheduler)

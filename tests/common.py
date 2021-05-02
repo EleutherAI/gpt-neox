@@ -8,6 +8,7 @@ from pathlib import Path
 
 TEST_CHECKPOINT_DIR = "test_checkpoint"
 TEST_LOG_DIR = "test_logs"
+TEST_TENSORBOARD_DIR = "test_tensorboard"
 
 def get_root_directory():
     return Path(__file__).parents[1]
@@ -30,3 +31,8 @@ def clear_test_dirs():
     checkpoint_dir = os.path.join(get_root_directory(), TEST_CHECKPOINT_DIR)
     if os.path.isdir(checkpoint_dir):
         shutil.rmtree(checkpoint_dir)
+
+    tensorboard_dir = os.path.join(get_root_directory(), TEST_TENSORBOARD_DIR)
+    if os.path.isdir(tensorboard_dir):
+        shutil.rmtree(tensorboard_dir)
+    

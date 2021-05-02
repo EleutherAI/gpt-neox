@@ -15,7 +15,7 @@ from megatron import initialize_megatron
 from megatron.training import setup_model_and_optimizer
 from megatron.mpu import destroy_model_parallel
 
-from tests.common import get_root_directory, get_configs_with_path, get_test_configs_with_path, clear_test_dirs, TEST_CHECKPOINT_DIR, TEST_LOG_DIR
+from tests.common import get_root_directory, get_configs_with_path, get_test_configs_with_path, clear_test_dirs, TEST_CHECKPOINT_DIR, TEST_LOG_DIR, TEST_TENSORBOARD_DIR
 
 class TestModelInstantiation(unittest.TestCase):
  
@@ -39,6 +39,7 @@ class TestModelInstantiation(unittest.TestCase):
         args_loaded.update_value("save", TEST_CHECKPOINT_DIR)
         args_loaded.update_value("load", TEST_CHECKPOINT_DIR)
         args_loaded.update_value("log_dir", TEST_LOG_DIR)
+        args_loaded.update_value("tensorboard_dir", TEST_TENSORBOARD_DIR)
        
         logging.debug(self.__class__.__name__ + ".run_instantiation_test() initializing megatron")
         initialize_megatron(neox_args=args_loaded)
