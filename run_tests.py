@@ -3,6 +3,10 @@ run with
 
 ```python
 pytest run_tests.py
+
+# or with coverage report
+
+pytest --cov-report term --cov=megatron run_tests.py
 ```
 """
 
