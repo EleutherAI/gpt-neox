@@ -21,8 +21,8 @@
 import math
 
 import torch
-from deepspeed.ops.sparse_attention import SparseSelfAttention, VariableSparsityConfig, \
-    FixedSparsityConfig, LocalSlidingWindowSparsityConfig
+from deepspeed.ops.sparse_attention import SparseSelfAttention, VariableSparsityConfig, FixedSparsityConfig
+from deepspeed.ops.sparse_attention.sparsity_config import LocalSlidingWindowSparsityConfig
 
 
 def init_method_normal(sigma):
