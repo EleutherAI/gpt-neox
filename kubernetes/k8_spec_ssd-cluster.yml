@@ -1,7 +1,7 @@
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
-  name: eleuther-ssd-0
+  name: eleuther-ssd-cluster
   namespace: tenant-eleutherai
 spec:
   accessModes:
@@ -9,5 +9,5 @@ spec:
   resources:
     requests:
       storage: 500Gi
-  storageClassName: sharedfs-ssd-replicated
+  storageClassName: shared-nvme-ord1
   volumeMode: Filesystem

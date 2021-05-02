@@ -9,5 +9,5 @@ spec:
   resources:
     requests:
       storage: 500Gi
-  storageClassName: sharedfs-ssd-replicated
+  storageClassName: shared-nvme-ord1
   volumeMode: Filesystem
