@@ -1,6 +1,6 @@
 # Add this to your config for sparse attention every other layer
 {
-  "attention_config": [[["local"], "all"]],
+  "attention_config": [[["local", "global"], "all"]],
 
   # sparsity config:
   # (these are the defaults for local sliding window sparsity, training will work without this here, but it's left in for
