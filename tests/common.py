@@ -4,6 +4,7 @@ collection of reusable functions in the context of testing
 
 import os
 import shutil
+import itertools
 from pathlib import Path
 
 TEST_CHECKPOINT_DIR = "test_checkpoint"
@@ -22,6 +23,20 @@ def get_configs_with_path(configs):
 def get_test_configs_with_path(configs):
     test_config_dir = Path(__file__).parent / "model" / "test_configs"
     return [str((test_config_dir / cfg).absolute()) for cfg in configs]
+
+def iterate_all_test_configs_with_path():
+    test_config_dir = Path(__file__).parent / "model" / "test_configs"
+
+    model_configs = list((test_config_dir / "model").glob("*.yml"))
+    sparsity_configs = list((test_config_dir / "sparsity").glob("*.yml"))
+
+    for model_config, sparsity_config in itertools.product(model_configs, sparsity_configs):
+
+        yield [
+            str(test_config_dir / "test_local_setup.yml"),
+            str(model_config),
+            str(sparsity_config)
+        ]
 
 def clear_test_dirs():
     log_dir = os.path.join(get_root_directory(),TEST_LOG_DIR)
