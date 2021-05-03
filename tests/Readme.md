@@ -12,6 +12,7 @@ Tests can be run using pytest.
 
 * The argument --forked needs to be provided
 * A coverage report can be created using the optional arguments --cov-report and --cov (see pytest documentation)
+* A subset of tests can be selected by pointing to the module within tests
 
 ```bash
 # run all tests, output coverage report of megatron module in terminal
