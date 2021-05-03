@@ -55,7 +55,9 @@ class TestModelInstantiation(unittest.TestCase):
     def test_model_instantiation(self):
         for config_list in iterate_all_test_configs_with_path():
             with self.subTest(msg="test_model_instantiation", config_list=config_list):
+                clear_test_dirs()
                 self.run_instantiation_test(config_list)
+                clear_test_dirs()
 
 
 if __name__ == "__main__":
