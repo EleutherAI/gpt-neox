@@ -249,9 +249,10 @@ def get_optimizer(model, neox_args):
             param_groups,
             **neox_args.optimizer["params"])
     elif neox_args.optimizer_type.lower() == "madgrad_wd":
-            from .optimizers import madgrad_wd
+        from .optimizers import madgrad_wd
         optimizer = madgrad_wd(
             param_groups,
+            weight_decay=neox_args.weight_decay,
             **neox_args.optimizer["params"])
     elif neox_args.optimizer_type.lower() == "adam":
         # Use Adam
