@@ -1,3 +1,6 @@
+"""
+verify parsing and handover of command line arguments
+"""
 
 import sys
 from unittest.mock import patch

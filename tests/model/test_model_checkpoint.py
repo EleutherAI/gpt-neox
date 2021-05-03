@@ -1,3 +1,10 @@
+"""
+instantiate models, save checkpoints, load checkpoints, compare loaded parameters to saved parameters and compare forward pass outputs
+
+This tests contain a relatively large number of functions. They are not split into separate tests because a lot of boilerplate (e.g. instantiate model) needs
+to run in order to perform follow up tests. Joining in one test reduces runtime at the expense of decreased transparency of test results in case of failures.
+"""
+
 import os
 from pathlib import Path
 
@@ -7,13 +14,28 @@ from ..common import distributed_test, get_root_directory, get_test_configs_with
 import torch
 
 @distributed_test(world_size=1)
-def test_model_checkpoint_small():
-    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small.yml"])
+def test_model_checkpoint_small_0():
+    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_0.yml"])
     run_checkpoint_test(yaml_list, do_forward_pass=False)
 
 @distributed_test(world_size=2)
-def test_model_checkpoint_small_pp():
-    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_pp.yml"])
+def test_model_checkpoint_small_1():
+    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_1.yml"])
+    run_checkpoint_test(yaml_list, do_forward_pass=False)
+
+@distributed_test(world_size=1)
+def test_model_checkpoint_small_2():
+    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_2.yml"])
+    run_checkpoint_test(yaml_list, do_forward_pass=False)
+
+@distributed_test(world_size=1)
+def test_model_checkpoint_small_3():
+    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_3.yml"])
+    run_checkpoint_test(yaml_list, do_forward_pass=False)
+
+@distributed_test(world_size=2)
+def test_model_checkpoint_small_4():
+    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_4.yml"])
     run_checkpoint_test(yaml_list, do_forward_pass=False)
 
 def run_checkpoint_test(yaml_list, do_forward_pass=False):

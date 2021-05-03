@@ -1,3 +1,7 @@
+"""
+instantiate models with different configurations as a first possible point of failure
+"""
+
 import pytest
 
 import torch
@@ -6,13 +10,30 @@ from ..common import TEST_CHECKPOINT_DIR, TEST_LOG_DIR, TEST_TENSORBOARD_DIR
 from ..common import distributed_test, get_test_configs_with_path, get_root_directory, clear_test_dirs
 
 @distributed_test(world_size=1)
-def test_model_instantiation_small():
-    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small.yml"])
+def test_model_instantiation_small_0():
+    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_0.yml"])
+    run_test_model_instantiation(yaml_list)
+
+@distributed_test(world_size=1)
+def test_model_instantiation_small_1():
+    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_1.yml"])
     run_test_model_instantiation(yaml_list)
 
 @distributed_test(world_size=2)
-def test_model_instantiation_small_pp():
-    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_pp.yml"])
+def test_model_instantiation_small_2():
+    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_2.yml"])
+    run_test_model_instantiation(yaml_list)
+
+
+@distributed_test(world_size=1)
+def test_model_instantiation_small_3():
+    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_3.yml"])
+    run_test_model_instantiation(yaml_list)
+
+
+@distributed_test(world_size=2)
+def test_model_instantiation_small_4():
+    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_4.yml"])
     run_test_model_instantiation(yaml_list)
 
 def run_test_model_instantiation(yaml_list):

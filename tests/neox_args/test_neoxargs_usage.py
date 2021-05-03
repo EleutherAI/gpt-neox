@@ -1,3 +1,7 @@
+"""
+plausibility check for the usage of neox_args in the megatron codebase
+"""
+
 import re
 from ..common import get_root_directory
 
