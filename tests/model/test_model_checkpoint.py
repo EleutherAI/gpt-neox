@@ -11,10 +11,10 @@ def test_model_checkpoint_small():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small.yml"])
     run_checkpoint_test(yaml_list)
 
-# @distributed_test(world_size=2)
-# def test_model_checkpoint_small_pp():
-#     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_pp.yml"])
-#     run_checkpoint_test(yaml_list)
+@distributed_test(world_size=2)
+def test_model_checkpoint_small_pp():
+    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_pp.yml"])
+    run_checkpoint_test(yaml_list)
 
 def run_checkpoint_test(yaml_list):
     from megatron.neox_arguments import NeoXArgs
@@ -27,7 +27,6 @@ def run_checkpoint_test(yaml_list):
     from megatron.checkpointing import save_checkpoint
 
     destroy_model_parallel() # mpu model parallel contains remaining global vars
-    clear_test_dirs()
 
     # intitially load config from files as would be the case in deepy.py
     args_loaded = NeoXArgs.from_ymls(yaml_list)
@@ -38,6 +37,8 @@ def run_checkpoint_test(yaml_list):
     args_loaded.update_value("load", TEST_CHECKPOINT_DIR)
     args_loaded.update_value("log_dir", TEST_LOG_DIR)
     args_loaded.update_value("tensorboard_dir", TEST_TENSORBOARD_DIR)
+    if torch.distributed.get_world_size() == 1 or torch.distributed.get_rank() == 0:
+        clear_test_dirs()
     
     initialize_megatron(neox_args=args_loaded)
 
@@ -58,8 +59,6 @@ def run_checkpoint_test(yaml_list):
     args_reloaded.update_value("log_dir", TEST_LOG_DIR)
     args_reloaded.update_value("tensorboard_dir", TEST_TENSORBOARD_DIR)
 
-    raise ValueError("TEST_CHECKPOINT_DIR: "+str(TEST_CHECKPOINT_DIR))
-
     reloaded_model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=args_reloaded, inference=False, get_key_value=True)
     iteration = load_checkpoint(neox_args=args_reloaded, model=reloaded_model, optimizer=optimizer, lr_scheduler=lr_scheduler)
     reloaded_model.eval()
@@ -73,4 +72,5 @@ def run_checkpoint_test(yaml_list):
         params_equal = (p1 == p2).all().item()
         assert params_equal, "run_checkpoint_test() params equal: "+str(n1)
 
-    clear_test_dirs()
+    if torch.distributed.get_world_size() == 1 or torch.distributed.get_rank() == 0:
+        clear_test_dirs()

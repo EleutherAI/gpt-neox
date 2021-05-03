@@ -1,4 +1,7 @@
 import pytest
+
+import torch
+
 from ..common import TEST_CHECKPOINT_DIR, TEST_LOG_DIR, TEST_TENSORBOARD_DIR
 from ..common import distributed_test, get_test_configs_with_path, get_root_directory, clear_test_dirs
 
@@ -21,7 +24,8 @@ def run_test_model_instantiation(yaml_list):
     from megatron.training import setup_model_and_optimizer
 
     destroy_model_parallel() # mpu model parallel contains remaining global vars
-    clear_test_dirs()
+    if torch.distributed.get_world_size() == 1 or torch.distributed.get_rank() == 0:
+        clear_test_dirs()
 
     args_loaded = NeoXArgs.from_ymls(yaml_list)
     args_loaded.build_tokenizer()
@@ -41,3 +45,5 @@ def run_test_model_instantiation(yaml_list):
     else:
         assert isinstance(model, PipelineEngine), "test model instantiation "+str(yaml_list)
 
+    if torch.distributed.get_world_size() == 1 or torch.distributed.get_rank() == 0:
+        clear_test_dirs()
