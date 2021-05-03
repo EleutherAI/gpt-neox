@@ -24,6 +24,5 @@ pytest --forked --cov-report html --cov=megatron tests/model
 If a html coverage report has been created a simple http server can be run to serve static files.
 
 ```bash
-cd htmlcov
-python -m http.server 8000
+python -m http.server --directory htmlcov 8000
 ```
