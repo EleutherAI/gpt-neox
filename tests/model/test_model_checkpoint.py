@@ -18,12 +18,12 @@ def test_model_checkpoint_small_0():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_0.yml"])
     run_checkpoint_test(yaml_list, do_forward_pass=False)
 
-@distributed_test(world_size=2)
+@distributed_test(world_size=1)
 def test_model_checkpoint_small_1():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_1.yml"])
     run_checkpoint_test(yaml_list, do_forward_pass=False)
 
-@distributed_test(world_size=1)
+@distributed_test(world_size=2)
 def test_model_checkpoint_small_2():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_2.yml"])
     run_checkpoint_test(yaml_list, do_forward_pass=False)
@@ -50,17 +50,20 @@ def run_checkpoint_test(yaml_list, do_forward_pass=False):
 
     destroy_model_parallel() # mpu model parallel contains remaining global vars
 
-    # intitially load config from files as would be the case in deepy.py
-    args_loaded = NeoXArgs.from_ymls(yaml_list)
-    args_loaded.build_tokenizer()
-    args_loaded.update_value("user_script", str(get_root_directory() / "pretrain_gpt2.py"))
-    args_loaded.update_value("use_cpu_initialization", True)
-    args_loaded.update_value("save", TEST_CHECKPOINT_DIR)
-    args_loaded.update_value("load", TEST_CHECKPOINT_DIR)
-    args_loaded.update_value("log_dir", TEST_LOG_DIR)
-    args_loaded.update_value("tensorboard_dir", TEST_TENSORBOARD_DIR)
     if torch.distributed.get_world_size() == 1 or torch.distributed.get_rank() == 0:
         clear_test_dirs()
+
+
+    # intitially load config from files as would be the case in deepy.py
+    args_loaded = NeoXArgs.from_ymls(yaml_list, overwrite_values={
+        "user_script": str(get_root_directory() / "pretrain_gpt2.py"),
+        "use_cpu_initialization": True,
+        "save": TEST_CHECKPOINT_DIR,
+        "load": TEST_CHECKPOINT_DIR,
+        "log_dir": TEST_LOG_DIR,
+        "tensorboard_dir": TEST_TENSORBOARD_DIR,
+    })
+    args_loaded.build_tokenizer()
     
     initialize_megatron(neox_args=args_loaded)
 
@@ -88,16 +91,16 @@ def run_checkpoint_test(yaml_list, do_forward_pass=False):
         assert not torch.isclose(logits[1], logits[2]).all().item(), "run_checkpoint_test() forward produced different outputs for different inputs"
         assert torch.isclose(logits[1, 3], logits[3, 3]).all().item(), "run_checkpoint_test() forward masks right side tokens"
 
-
     # reload model from checkpoint
-    args_reloaded = NeoXArgs.from_ymls(yaml_list)
+    args_reloaded = NeoXArgs.from_ymls(yaml_list, overwrite_values={
+        "user_script": str(get_root_directory() / "pretrain_gpt2.py"),
+        "use_cpu_initialization": True,
+        "save": TEST_CHECKPOINT_DIR,
+        "load": TEST_CHECKPOINT_DIR,
+        "log_dir": TEST_LOG_DIR,
+        "tensorboard_dir": TEST_TENSORBOARD_DIR,
+    })
     args_reloaded.build_tokenizer()
-    args_reloaded.update_value("user_script", str(get_root_directory() / "pretrain_gpt2.py"))
-    args_reloaded.update_value("use_cpu_initialization", True)
-    args_reloaded.update_value("save", TEST_CHECKPOINT_DIR)
-    args_reloaded.update_value("load", TEST_CHECKPOINT_DIR)
-    args_reloaded.update_value("log_dir", TEST_LOG_DIR)
-    args_reloaded.update_value("tensorboard_dir", TEST_TENSORBOARD_DIR)
 
     reloaded_model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=args_reloaded, inference=True, get_key_value=True)
     iteration = load_checkpoint(neox_args=args_reloaded, model=reloaded_model, optimizer=optimizer, lr_scheduler=lr_scheduler)
