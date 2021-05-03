@@ -105,9 +105,11 @@ class TestModelCheckpoint(unittest.TestCase):
     def test_model_checkpoint(self):
         for config_list in iterate_all_test_configs_with_path():
             with self.subTest(msg="test_model_checkpoint", config_list=config_list):
+                clear_test_dirs()
                 print("*"*100, flush=True)
                 print(self.__class__.__name__ + ".run_checkpoint_test() ", config_list, flush=True)
                 self.run_checkpoint_test(config_list[:2])
+                clear_test_dirs()
 
 
 
