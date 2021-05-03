@@ -19,6 +19,7 @@
    "scaled-upper-triang-masked-softmax-fusion": false,
    "bias-gelu-fusion": false,
 
+   "geglu": true,
 
    # optimizer settings
    "optimizer": {

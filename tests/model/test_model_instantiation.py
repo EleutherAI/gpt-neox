@@ -24,12 +24,10 @@ def test_model_instantiation_small_2():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_2.yml"])
     run_test_model_instantiation(yaml_list)
 
-
 @distributed_test(world_size=1)
 def test_model_instantiation_small_3():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_3.yml"])
     run_test_model_instantiation(yaml_list)
-
 
 @distributed_test(world_size=2)
 def test_model_instantiation_small_4():
