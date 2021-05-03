@@ -53,18 +53,18 @@ def run_checkpoint_test(yaml_list, do_forward_pass=False):
     if do_forward_pass:
         context_tokens_tensor = torch.cuda.LongTensor([[1,2,3,4,5],[1,2,3,4,5],[6,7,8,9,10],[1,2,3,4,100]])
         tokens, attention_mask, position_ids = get_batch(args_loaded, context_tokens_tensor)
-        output = forward_model(args_loaded, model, (tokens, position_ids, attention_mask))
+        logits, layer_past = forward_model(args_loaded, model, (tokens, position_ids, attention_mask, torch.Tensor()))
         
 
-        # assert outputs are the right shape
-        assert torch.is_tensor(output), "run_checkpoint_test() forward output is tensor"
-        assert output.size(0) == context_tokens_tensor.size(0), "run_checkpoint_test() batch size correct"
-        assert output.size(1) == context_tokens_tensor.size(1), "run_checkpoint_test() context size correct"
+        # assert logits are the right shape
+        assert torch.is_tensor(logits), "run_checkpoint_test() forward output is tensor"
+        assert logits.size(0) == context_tokens_tensor.size(0), "run_checkpoint_test() batch size correct"
+        assert logits.size(1) == context_tokens_tensor.size(1), "run_checkpoint_test() context size correct"
     
         # assert correct behaviour
-        assert torch.isclose(output[0], output[1]).all().item(), "run_checkpoint_test() forward independent of batch index"
-        assert not torch.isclose(output[1], output[2]).all().item(), "run_checkpoint_test() forward produced different outputs for different inputs"
-        assert torch.isclose(output[1, 3], output[3, 3]).all().item(), "run_checkpoint_test() forward masks right side tokens"
+        assert torch.isclose(logits[0], logits[1]).all().item(), "run_checkpoint_test() forward independent of batch index"
+        assert not torch.isclose(logits[1], logits[2]).all().item(), "run_checkpoint_test() forward produced different outputs for different inputs"
+        assert torch.isclose(logits[1, 3], logits[3, 3]).all().item(), "run_checkpoint_test() forward masks right side tokens"
 
 
     # reload model from checkpoint
@@ -86,8 +86,8 @@ def run_checkpoint_test(yaml_list, do_forward_pass=False):
 
     if do_forward_pass:
         #check re-loaded model returns the same results
-        reloaded_output = forward_model(args_reloaded, model, (tokens, position_ids, attention_mask))
-        assert torch.isclose(output, reloaded_output).all().item(), "run_checkpoint_test() forward output after reloading checkpoint unchanged"
+        logits_reloaded, layer_past = forward_model(args_reloaded, model, (tokens, position_ids, attention_mask))
+        assert torch.isclose(logits, logits_reloaded).all().item(), "run_checkpoint_test() forward output after reloading checkpoint unchanged"
 
     #check all weight groups are the same
     for idx, ((n1, p1), (n2, p2)) in enumerate(zip(list(model.module.named_parameters()), list(reloaded_model.module.named_parameters()))):
