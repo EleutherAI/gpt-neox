@@ -1,15 +1,7 @@
-import unittest
+from megatron import NeoXArgs
 
-from megatron.neox_arguments import NeoXArgs
-
-
-class TestNeoXArgsImplementation(unittest.TestCase):
+def test_neoxargs_duplicates():
     """
-    verify code implementation of NeoXArgs 
+    tests that there are no duplicates among parent classes of NeoXArgs
     """
-    
-    def test_neoxargs_duplicates(self):
-        """
-        tests that there are no duplicates among parent classes of NeoXArgs
-        """
-        self.assertTrue(NeoXArgs.validate_keys())
+    assert NeoXArgs.validate_keys(), "test_neoxargs_duplicates"
