@@ -1,14 +1,11 @@
 import re
-
-from megatron.neox_arguments import NeoXArgs
 from ..common import get_root_directory
-
 
 def test_neoxargs_usage():
     """"
     checks for code pieces of the pattern "args.*" and verifies that such used arg is defined in NeoXArgs
     """
-
+    from megatron.neox_arguments import NeoXArgs
     
     declared_all = True
     neox_args_attributes = set(NeoXArgs.__dataclass_fields__.keys())

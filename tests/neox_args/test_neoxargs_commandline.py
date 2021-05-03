@@ -2,15 +2,14 @@
 import sys
 from unittest.mock import patch
 
-
-from megatron.neox_arguments import NeoXArgs
 from ..common import get_root_directory, get_config_directory, get_configs_with_path
-
 
 def test_neoxargs_consume_deepy_args_with_config_dir():
     """
     verify consume_deepy_args processes command line arguments without config dir
     """
+
+    from megatron.neox_arguments import NeoXArgs
 
     # load neox args with command line
     with patch('sys.argv', [str(get_root_directory() / "deepy.py"), "pretrain_gpt2.py"] + get_configs_with_path(["small.yml", "local_setup.yml"])):
@@ -31,6 +30,8 @@ def test_neoxargs_consume_deepy_args_without_yml_suffix():
     verify consume_deepy_args processes command line arguments without yaml suffix
     """
 
+    from megatron.neox_arguments import NeoXArgs
+
     # load neox args with command line
     with patch('sys.argv', [str(get_root_directory() / "deepy.py"), "pretrain_gpt2.py"] + get_configs_with_path(["small", "local_setup"])):
         args_loaded_consume = NeoXArgs.consume_deepy_args()
@@ -50,6 +51,8 @@ def test_neoxargs_consume_deepy_args_with_config_dir():
     verify consume_deepy_args processes command line arguments including config dir
     """
 
+    from megatron.neox_arguments import NeoXArgs
+
     # load neox args with command line
     with patch('sys.argv', [str(get_root_directory() / "deepy.py"), "pretrain_gpt2.py", '-d', str(get_config_directory())] + ["small.yml", "local_setup.yml"]):
         args_loaded_consume = NeoXArgs.consume_deepy_args()
@@ -68,7 +71,8 @@ def test_neoxargs_consume_neox_args():
     """
     verify megatron args are correctly consumed after sending via deepspeed
     """
-
+    from megatron.neox_arguments import NeoXArgs
+    
     # intitially load config from files as would be the case in deepy.py
     yaml_list = get_configs_with_path(["small.yml", "local_setup.yml"])
     args_baseline = NeoXArgs.from_ymls(yaml_list)
