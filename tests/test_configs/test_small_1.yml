@@ -2,18 +2,18 @@
 {
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
-   "pipe-parallel-size": 2,
+   "pipe-parallel-size": 1,
    "model-parallel-size": 1,
 
    # model settings
-   "num-layers": 12,
+   "num-layers": 6,
    "hidden-size": 768,
-   "num-attention-heads": 12,
-   "seq-length": 2048,
-   "max-position-embeddings": 2048,
-   "norm": "layernorm",
-   "pos-emb": "rotary",
-   "no-weight-tying": true,
+   "num-attention-heads": 6,
+   "seq-length": 1024,
+   "max-position-embeddings": 1024,
+   "norm": "rmsnorm",
+   "pos-emb": "learned",
+   "no-weight-tying": false,
 
    # these should provide some speedup but takes a while to build, set to true if desired
    "scaled-upper-triang-masked-softmax-fusion": false,
