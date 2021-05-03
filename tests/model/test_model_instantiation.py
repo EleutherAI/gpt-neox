@@ -48,14 +48,15 @@ def run_test_model_instantiation(yaml_list):
     if torch.distributed.get_world_size() == 1 or torch.distributed.get_rank() == 0:
         clear_test_dirs()
 
-    args_loaded = NeoXArgs.from_ymls(yaml_list)
+    args_loaded = NeoXArgs.from_ymls(yaml_list, overwrite_values={
+        "user_script": str(get_root_directory() / "pretrain_gpt2.py"),
+        "use_cpu_initialization": True,
+        "save": TEST_CHECKPOINT_DIR,
+        "load": TEST_CHECKPOINT_DIR,
+        "log_dir": TEST_LOG_DIR,
+        "tensorboard_dir": TEST_TENSORBOARD_DIR,
+    })
     args_loaded.build_tokenizer()
-    args_loaded.update_value("user_script", str(get_root_directory() / "pretrain_gpt2.py"))
-    args_loaded.update_value("use_cpu_initialization", True)
-    args_loaded.update_value("save", TEST_CHECKPOINT_DIR)
-    args_loaded.update_value("load", TEST_CHECKPOINT_DIR)
-    args_loaded.update_value("log_dir", TEST_LOG_DIR)
-    args_loaded.update_value("tensorboard_dir", TEST_TENSORBOARD_DIR)
 
     initialize_megatron(neox_args=args_loaded)
     model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=args_loaded, inference=False, get_key_value=True)
