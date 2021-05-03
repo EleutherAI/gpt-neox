@@ -1,3 +1,7 @@
+"""
+load all confings in neox/configs in order to perform validations implemented in NeoXArgs 
+"""
+
 from ..common import get_configs_with_path
 
 def test_neoxargs_load_arguments_small_local_setup():
