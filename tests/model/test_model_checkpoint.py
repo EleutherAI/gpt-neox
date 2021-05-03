@@ -16,29 +16,29 @@ import torch
 @distributed_test(world_size=1)
 def test_model_checkpoint_small_0():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_0.yml"])
-    run_checkpoint_test(yaml_list, do_forward_pass=False)
+    run_checkpoint_test(yaml_list, do_forward_pass=False, cpu=True)
 
 @distributed_test(world_size=1)
 def test_model_checkpoint_small_1():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_1.yml"])
-    run_checkpoint_test(yaml_list, do_forward_pass=False)
+    run_checkpoint_test(yaml_list, do_forward_pass=False, cpu=True)
 
 @distributed_test(world_size=2)
 def test_model_checkpoint_small_2():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_2.yml"])
-    run_checkpoint_test(yaml_list, do_forward_pass=False)
+    run_checkpoint_test(yaml_list, do_forward_pass=False, cpu=False)
 
 @distributed_test(world_size=1)
 def test_model_checkpoint_small_3():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_3.yml"])
-    run_checkpoint_test(yaml_list, do_forward_pass=False)
+    run_checkpoint_test(yaml_list, do_forward_pass=False, cpu=False)
 
 @distributed_test(world_size=2)
 def test_model_checkpoint_small_4():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_4.yml"])
-    run_checkpoint_test(yaml_list, do_forward_pass=False)
+    run_checkpoint_test(yaml_list, do_forward_pass=False, cpu=False)
 
-def run_checkpoint_test(yaml_list, do_forward_pass=False):
+def run_checkpoint_test(yaml_list, do_forward_pass=False, cpu=False):
     from megatron.neox_arguments import NeoXArgs
     from megatron import initialize_megatron
     from megatron.text_generation_utils import get_batch, forward_model
@@ -57,7 +57,7 @@ def run_checkpoint_test(yaml_list, do_forward_pass=False):
     # intitially load config from files as would be the case in deepy.py
     args_loaded = NeoXArgs.from_ymls(yaml_list, overwrite_values={
         "user_script": str(get_root_directory() / "pretrain_gpt2.py"),
-        "use_cpu_initialization": True,
+        "use_cpu_initialization": cpu,
         "save": TEST_CHECKPOINT_DIR,
         "load": TEST_CHECKPOINT_DIR,
         "log_dir": TEST_LOG_DIR,
@@ -94,7 +94,7 @@ def run_checkpoint_test(yaml_list, do_forward_pass=False):
     # reload model from checkpoint
     args_reloaded = NeoXArgs.from_ymls(yaml_list, overwrite_values={
         "user_script": str(get_root_directory() / "pretrain_gpt2.py"),
-        "use_cpu_initialization": True,
+        "use_cpu_initialization": cpu,
         "save": TEST_CHECKPOINT_DIR,
         "load": TEST_CHECKPOINT_DIR,
         "log_dir": TEST_LOG_DIR,
