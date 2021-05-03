@@ -15,7 +15,7 @@ from megatron import initialize_megatron
 from megatron.training import setup_model_and_optimizer
 from megatron.mpu import destroy_model_parallel
 
-from tests.common import get_root_directory, get_configs_with_path, get_test_configs_with_path, clear_test_dirs, TEST_CHECKPOINT_DIR, TEST_LOG_DIR, TEST_TENSORBOARD_DIR
+from tests.common import get_root_directory, iterate_all_test_configs_with_path, clear_test_dirs, TEST_CHECKPOINT_DIR, TEST_LOG_DIR, TEST_TENSORBOARD_DIR
 
 class TestModelInstantiation(unittest.TestCase):
  
@@ -25,7 +25,7 @@ class TestModelInstantiation(unittest.TestCase):
     def tearDown(self):
         clear_test_dirs()
 
-    def run_instantiation_test(self, yaml_list, model_class_expected):
+    def run_instantiation_test(self, yaml_list):
         destroy_model_parallel() # mpu model parallel contains remaining global vars
 
         # intitially load config from files as would be the case in deepy.py
@@ -47,24 +47,18 @@ class TestModelInstantiation(unittest.TestCase):
         logging.debug(self.__class__.__name__ + ".run_instantiation_test() initializing model")
         model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=args_loaded, inference=False, get_key_value=True)
         
-        self.assertTrue(isinstance(model, model_class_expected)) 
+        if args_loaded.pipe_parallel_size < 2:
+            self.assertTrue(isinstance(model, DeepSpeedEngine), "test model instantiation "+str(yaml_list))
+        else:
+            self.assertTrue(isinstance(model, PipelineEngine), "test model instantiation "+str(yaml_list))
 
-    def test_model_instantiation_small(self):
-        self.run_instantiation_test(get_configs_with_path(["local_setup.yml", "small.yml"]), PipelineEngine)
+    def test_model_instantiation(self):
+        for config_list in iterate_all_test_configs_with_path():
+            with self.subTest(msg="test_model_instantiation", config_list=config_list):
+                self.run_instantiation_test(config_list)
 
-    def test_model_instantiation_medium(self):
-        self.run_instantiation_test(get_configs_with_path(["local_setup.yml", "medium.yml"]), PipelineEngine)
-        
-    def test_model_instantiation_small_test(self):
-        self.run_instantiation_test(get_test_configs_with_path(["test_local_setup.yml", "test_small.yml"]), DeepSpeedEngine)
-
-    def test_model_instantiation_medium_test(self):
-        self.run_instantiation_test(get_test_configs_with_path(["test_local_setup.yml", "test_medium.yml"]), DeepSpeedEngine)
-
-    def test_model_instantiation_small_sparse_test(self):
-        self.run_instantiation_test(get_test_configs_with_path(["test_local_setup.yml", "test_small.yml", "test_sparse.yml"]), DeepSpeedEngine)
 
 if __name__ == "__main__":
     suite = unittest.TestSuite()
-    suite.addTest(TestModelInstantiation("test_model_instantiation_small_sparse_test"))
-    unittest.TextTestRunner(failfast=True).run(suite)
+    suite.addTest(TestModelInstantiation("test_model_instantiation"))
+    unittest.TextTestRunner(failfast=False).run(suite)

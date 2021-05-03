@@ -17,7 +17,7 @@ from megatron.mpu import destroy_model_parallel
 from megatron.checkpointing import load_checkpoint
 from megatron.checkpointing import save_checkpoint
 
-from tests.common import get_root_directory, get_configs_with_path, get_test_configs_with_path, clear_test_dirs, TEST_CHECKPOINT_DIR, TEST_LOG_DIR, TEST_TENSORBOARD_DIR
+from tests.common import get_root_directory, iterate_all_test_configs_with_path, clear_test_dirs, TEST_CHECKPOINT_DIR, TEST_LOG_DIR, TEST_TENSORBOARD_DIR
 
 import torch
 
@@ -62,14 +62,14 @@ class TestModelCheckpoint(unittest.TestCase):
         output = forward_model(args_loaded, model, (tokens, position_ids, attention_mask))
 
         # assert outputs are the right shape
-        self.assertEqual(output.size(0), 4)
-        self.assertEqual(output.size(1), context_tokens_tensor.size(1))
-        self.assertTrue(isinstance(output, torch.Tensor))
+        self.assertEqual(output.size(0), 4, self.__class__.__name__ + ".run_checkpoint_test() batch size correct")
+        self.assertEqual(output.size(1), context_tokens_tensor.size(1), self.__class__.__name__ + ".run_checkpoint_test() context size correct")
+        self.assertTrue(isinstance(output, torch.Tensor), self.__class__.__name__ + ".run_checkpoint_test() forward output is tensor")
 
         # assert correct behaviour
-        self.assertTrue(torch.isclose(output[0], output[1]).all().item())
-        self.assertFalse(torch.isclose(output[1], output[2]).all().item())
-        self.assertTrue(torch.isclose(output[1, 3], output[3, 3]).all().item())
+        self.assertTrue(torch.isclose(output[0], output[1]).all().item(), self.__class__.__name__ + ".run_checkpoint_test() forward results in same value of output")
+        self.assertFalse(torch.isclose(output[1], output[2]).all().item(), self.__class__.__name__ + ".run_checkpoint_test() forward of different inputs result in different outputs")
+        self.assertTrue(torch.isclose(output[1, 3], output[3, 3]).all().item(), self.__class__.__name__ + ".run_checkpoint_test() left sided attention plausible")
         
         # reload model from checkpoint
         logging.debug(self.__class__.__name__ + ".run_checkpoint_test() reloading checkpoint")
@@ -98,27 +98,23 @@ class TestModelCheckpoint(unittest.TestCase):
         for idx, ((n1, p1), (n2, p2)) in enumerate(zip(list(model.module.named_parameters()), list(reloaded_model.module.named_parameters()))):
             self.assertTrue(n1 == n2)
             params_equal = (p1 == p2).all().item()
-            self.assertTrue(params_equal)
+            self.assertTrue(params_equal, self.__class__.__name__ + ".run_checkpoint_test() params equal: "+str(n1))
             if not params_equal:
                 logging.error(self.__class__.__name__ + ".run_checkpoint_test() " + f"layer {idx} {n1} has same different after loading of checkpoint")
 
-    def test_model_small(self):
-        self.run_checkpoint_test(get_configs_with_path(["local_setup.yml", "small.yml"]))
+    def test_model_checkpoint(self):
+        for config_list in iterate_all_test_configs_with_path():
+            with self.subTest(msg="test_model_checkpoint", config_list=config_list):
+                print("*"*100, flush=True)
+                print(self.__class__.__name__ + ".run_checkpoint_test() ", config_list, flush=True)
+                self.run_checkpoint_test(config_list[:2])
 
-    def test_model_medium(self):
-        self.run_checkpoint_test(get_configs_with_path(["local_setup.yml", "medium.yml"]))
 
-    def test_model_small(self):
-        self.run_checkpoint_test(get_test_configs_with_path(["test_local_setup.yml", "test_small.yml"]))
-
-    def test_model_medium(self):
-        self.run_checkpoint_test(get_test_configs_with_path(["test_local_setup.yml", "test_medium.yml"]))
 
 if __name__ == "__main__":
     suite = unittest.TestSuite()
 
     #Run all required tests
-    suite.addTest(TestModelCheckpoint("test_model_small"))
-    #suite.addTest(TestModelCheckpoint("test_model_medium"))
+    suite.addTest(TestModelCheckpoint("test_model_checkpoint"))
 
     unittest.TextTestRunner(failfast=False).run(suite)
