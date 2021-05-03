@@ -3,8 +3,8 @@
   "data-path": "data/enron/enron_text_document",
   "vocab-file": "data/gpt2-vocab.json",
   "merge-file": "data/gpt2-merges.txt",
-  "save": "checkpoints",
-  "load": "checkpoints",
-  "tensorboard-dir": "tensorboard",
-  "log-dir": "logs",
+  "save": "test_checkpoint",
+  "load": "test_checkpoint",
+  "tensorboard-dir": "test_tensorboard",
+  "log-dir": "test_logs",
 }

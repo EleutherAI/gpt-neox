@@ -9,14 +9,14 @@ import torch
 @distributed_test(world_size=1)
 def test_model_checkpoint_small():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small.yml"])
-    run_checkpoint_test(yaml_list)
+    run_checkpoint_test(yaml_list, do_forward_pass=False)
 
 @distributed_test(world_size=2)
 def test_model_checkpoint_small_pp():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_pp.yml"])
-    run_checkpoint_test(yaml_list)
+    run_checkpoint_test(yaml_list, do_forward_pass=False)
 
-def run_checkpoint_test(yaml_list):
+def run_checkpoint_test(yaml_list, do_forward_pass=False):
     from megatron.neox_arguments import NeoXArgs
     from megatron import initialize_megatron
     from megatron.text_generation_utils import get_batch, forward_model
@@ -42,12 +42,30 @@ def run_checkpoint_test(yaml_list):
     
     initialize_megatron(neox_args=args_loaded)
 
-    model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=args_loaded, inference=False, get_key_value=True)
+    model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=args_loaded, inference=True, get_key_value=True)
     model.eval()
 
     # save model checkpoint
     save_checkpoint(neox_args=args_loaded, iteration=42, model=model, optimizer=optimizer, lr_scheduler=lr_scheduler)
     
+    
+    # forward
+    if do_forward_pass:
+        context_tokens_tensor = torch.cuda.LongTensor([[1,2,3,4,5],[1,2,3,4,5],[6,7,8,9,10],[1,2,3,4,100]])
+        tokens, attention_mask, position_ids = get_batch(args_loaded, context_tokens_tensor)
+        output = forward_model(args_loaded, model, (tokens, position_ids, attention_mask))
+        
+
+        # assert outputs are the right shape
+        assert torch.is_tensor(output), "run_checkpoint_test() forward output is tensor"
+        assert output.size(0) == context_tokens_tensor.size(0), "run_checkpoint_test() batch size correct"
+        assert output.size(1) == context_tokens_tensor.size(1), "run_checkpoint_test() context size correct"
+    
+        # assert correct behaviour
+        assert torch.isclose(output[0], output[1]).all().item(), "run_checkpoint_test() forward independent of batch index"
+        assert not torch.isclose(output[1], output[2]).all().item(), "run_checkpoint_test() forward produced different outputs for different inputs"
+        assert torch.isclose(output[1, 3], output[3, 3]).all().item(), "run_checkpoint_test() forward masks right side tokens"
+
 
     # reload model from checkpoint
     args_reloaded = NeoXArgs.from_ymls(yaml_list)
@@ -59,12 +77,17 @@ def run_checkpoint_test(yaml_list):
     args_reloaded.update_value("log_dir", TEST_LOG_DIR)
     args_reloaded.update_value("tensorboard_dir", TEST_TENSORBOARD_DIR)
 
-    reloaded_model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=args_reloaded, inference=False, get_key_value=True)
+    reloaded_model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=args_reloaded, inference=True, get_key_value=True)
     iteration = load_checkpoint(neox_args=args_reloaded, model=reloaded_model, optimizer=optimizer, lr_scheduler=lr_scheduler)
     reloaded_model.eval()
 
     #ensure same checkpoint is loaded
     assert iteration == 42, "run_checkpoint_test() iteration loaded from checkpoint correct"
+
+    if do_forward_pass:
+        #check re-loaded model returns the same results
+        reloaded_output = forward_model(args_reloaded, model, (tokens, position_ids, attention_mask))
+        assert torch.isclose(output, reloaded_output).all().item(), "run_checkpoint_test() forward output after reloading checkpoint unchanged"
 
     #check all weight groups are the same
     for idx, ((n1, p1), (n2, p2)) in enumerate(zip(list(model.module.named_parameters()), list(reloaded_model.module.named_parameters()))):
