@@ -200,7 +200,9 @@ Available optimizer types are:
     
 - `"CPU_Adam"`/`"CPU_torch_adam"`: Adam optimizer on CPU. Either megatron's version ("CPU_Adam") or torch's ("CPU_torch_adam") 
 - `"SM3"`: SM3 or [Memory adaptive efficient optimization optimizer](https://arxiv.org/pdf/1901.11150.pdf). We have found this doesn't work well with fp16 training.
-
+- `"madgrad_wd"`: MADGRAD or [A Momentumized, Adaptive, Dual Averaged Gradient Method for Stochastic
+    Optimizer] weight decay has been implemented AdamW style instead of the original madgrad Adam style. https://arxiv.org/abs/2101.11075 
+    
 ### ZeRO Optimization:
 
 ```yaml

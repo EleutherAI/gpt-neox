@@ -36,7 +36,7 @@ We offer a choice of layernorm, scalenorm and RMSNorm easily configured by chang
 
 ### Optimizers
 
-- NeoX supports Adam, CPUAdam, 1-Bit Adam and SM3 optimizers, as well as Deepspeed's [Zero Redundancy Optimizer](https://www.deepspeed.ai/features/#the-zero-redundancy-optimizer).
+- NeoX supports Adam, CPUAdam, 1-Bit Adam, SM3 and madgrad_wd optimizers, as well as Deepspeed's [Zero Redundancy Optimizer](https://www.deepspeed.ai/features/#the-zero-redundancy-optimizer).
 
 - **Zero Redundancy Optimizer (ZeRO):** 
 
