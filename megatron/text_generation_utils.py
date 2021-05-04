@@ -507,7 +507,8 @@ def generate_and_write_samples_unconditional(neox_args, model):
 
     # Create directory
     genfile_dir = os.path.dirname(genfile)
-    os.makedirs(genfile_dir, exist_ok=True)
+    if genfile_dir != "":
+        os.makedirs(genfile_dir, exist_ok=True)
 
     with open(genfile, 'w') as f:
         for n, datum in enumerate(generate_samples_unconditional(neox_args=neox_args, model=model), 1):
