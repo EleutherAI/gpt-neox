@@ -22,10 +22,9 @@
 
    # optimizer settings
    "optimizer": {
-     "type": "Adam",
+     "type": "madgrad_wd",
      "params": {
        "lr": 0.0006,
-       "betas": [0.9, 0.999],
        "eps": 1.0e-8,
      }
    },
