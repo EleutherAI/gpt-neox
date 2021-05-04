@@ -76,7 +76,7 @@ def run_train_test(yaml_list):
     
     # generate some random data on which we can overfit
     data_list = list()
-    context_tokens_tensor = torch.randint(0, max_steps, (4, args_loaded.seq_length)).to(torch.int64) 
+    context_tokens_tensor = torch.randint(0, args_loaded.padded_vocab_size, (4, args_loaded.seq_length)).to(torch.int64) 
     for i in range(max_steps):
         data_list.append({ "text": context_tokens_tensor.clone() })
     data_iterator = iter(data_list)
