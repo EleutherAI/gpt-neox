@@ -14,29 +14,29 @@ from ..common import distributed_test, get_root_directory, get_test_configs_with
 import torch
 
 @distributed_test(world_size=1)
-def test_model_checkpoint_small_0():
+def test_model_train_small_0():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_0.yml"])
     run_train_test(yaml_list)
 
 @distributed_test(world_size=1)
-def test_model_checkpoint_small_1():
+def test_model_train_small_1():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_1.yml"])
     run_train_test(yaml_list)
 
 # for some reason this testcase is running way to long
 # potentially the optimizer problem?
-# @distributed_test(world_size=2)
-# def test_model_checkpoint_small_2():
-#     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_2.yml"])
-#     run_train_test(yaml_list)
+@distributed_test(world_size=2)
+def test_model_train_small_2():
+    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_2.yml"])
+    run_train_test(yaml_list)
 
 @distributed_test(world_size=1)
-def test_model_checkpoint_small_3():
+def test_model_train_small_3():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_3.yml"])
     run_train_test(yaml_list)
 
 @distributed_test(world_size=2)
-def test_model_checkpoint_small_4():
+def test_model_train_small_4():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_4.yml"])
     run_train_test(yaml_list)
 
@@ -75,8 +75,9 @@ def run_train_test(yaml_list):
     timers = Timers(use_wandb=False, tensorboard_writer=None)
     
     # generate some random data on which we can overfit
+    # context size of data is model seq_len + 1 in order to compute loss
     data_list = list()
-    context_tokens_tensor = torch.randint(0, args_loaded.padded_vocab_size, (4, args_loaded.seq_length)).to(torch.int64) 
+    context_tokens_tensor = torch.randint(0, args_loaded.padded_vocab_size, (4, args_loaded.seq_length + 1 )).to(torch.int64) 
     for i in range(max_steps):
         data_list.append({ "text": context_tokens_tensor.clone() })
     data_iterator = iter(data_list)
@@ -92,12 +93,15 @@ def run_train_test(yaml_list):
             optimizer=optimizer, 
             lr_scheduler=lr_scheduler
             )
-        losses.append(loss_dict["lm loss"].item())
-        if losses[-1] < losses[0]:
-            return # all good
-   
+        losses.append(loss_dict["lm loss"])
+        if len(losses) >= 2:
+            if torch.isnan(losses[-1]): continue
+            if torch.isnan(losses[-2]): continue
+            if losses[-1] < losses[-2]:
+                return # all good
+    
     # loss should have decreased by now (otherwise increasing the max_steps parameter could have the testcase pass)
-    assert losses[-1] < losses[0], "run_train_test() loss going down within "+str(max_steps)+" steps"
+    assert losses[-1] < losses[-2], "run_train_test() loss going down within "+str(max_steps)+" steps"
 
     if torch.distributed.get_world_size() == 1 or torch.distributed.get_rank() == 0:
-        clear_test_dirs()
+       clear_test_dirs()
