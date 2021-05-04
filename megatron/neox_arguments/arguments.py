@@ -340,6 +340,8 @@ class NeoXArgs(*BASE_CLASSES):
         """
         if self.precision == "fp16":
             return torch.half
+        elif self.precision == "bfloat16":
+            return torch.bfloat16
         else:
             return torch.float
 
