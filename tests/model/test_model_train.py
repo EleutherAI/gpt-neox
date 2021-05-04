@@ -16,31 +16,32 @@ import torch
 @distributed_test(world_size=1)
 def test_model_train_small_0():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_0.yml"])
-    run_train_test(yaml_list)
+    run_train_test(yaml_list=yaml_list)
 
 @distributed_test(world_size=1)
 def test_model_train_small_1():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_1.yml"])
-    run_train_test(yaml_list)
+    run_train_test(yaml_list=yaml_list)
 
 # for some reason this testcase is running way to long
 # potentially the optimizer problem?
 # @distributed_test(world_size=2)
 # def test_model_train_small_2():
 #     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_2.yml"])
-#     run_train_test(yaml_list)
+#     run_train_test(yaml_list=yaml_list)
 
 @distributed_test(world_size=1)
 def test_model_train_small_3():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_3.yml"])
-    run_train_test(yaml_list)
+    run_train_test(yaml_list=yaml_list)
 
 @distributed_test(world_size=2)
 def test_model_train_small_4():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_4.yml"])
-    run_train_test(yaml_list)
+    run_train_test(yaml_list=yaml_list)
 
-def run_train_test(yaml_list):
+def run_train_test(yaml_list=None, param_dict=None):
+
     from megatron.neox_arguments import NeoXArgs
     from megatron import initialize_megatron
     from megatron.training import setup_model_and_optimizer, train_step
@@ -56,14 +57,25 @@ def run_train_test(yaml_list):
         clear_test_dirs()
 
 
-    # intitially load config from files as would be the case in deepy.py
-    args_loaded = NeoXArgs.from_ymls(yaml_list, overwrite_values={
+    overwrite_values = {
         "user_script": str(get_root_directory() / "pretrain_gpt2.py"),
         "save": TEST_CHECKPOINT_DIR,
         "load": TEST_CHECKPOINT_DIR,
         "log_dir": TEST_LOG_DIR,
         "tensorboard_dir": TEST_TENSORBOARD_DIR,
-    })
+    }
+
+    # should not both be none
+    assert yaml_list is not None or param_dict is not None
+
+    # intitially load config from files as would be the case in deepy.py
+    if yaml_list is not None:
+        args_loaded = NeoXArgs.from_ymls(yaml_list, overwrite_values=overwrite_values)
+    else:
+        p_dict = param_dict.copy()
+        p_dict.update(overwrite_values)
+        args_loaded = NeoXArgs.from_dict(p_dict)
+    
     args_loaded.build_tokenizer()
     
     initialize_megatron(neox_args=args_loaded)

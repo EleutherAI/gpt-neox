@@ -16,29 +16,29 @@ import torch
 @distributed_test(world_size=1)
 def test_model_checkpoint_small_0():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_0.yml"])
-    run_checkpoint_test(yaml_list, do_forward_pass=False, cpu=True)
+    run_checkpoint_test(yaml_list=yaml_list, do_forward_pass=False, cpu=True)
 
 @distributed_test(world_size=1)
 def test_model_checkpoint_small_1():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_1.yml"])
-    run_checkpoint_test(yaml_list, do_forward_pass=False, cpu=True)
+    run_checkpoint_test(yaml_list=yaml_list, do_forward_pass=False, cpu=True)
 
 @distributed_test(world_size=2)
 def test_model_checkpoint_small_2():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_2.yml"])
-    run_checkpoint_test(yaml_list, do_forward_pass=False, cpu=False)
+    run_checkpoint_test(yaml_list=yaml_list, do_forward_pass=False, cpu=False)
 
 @distributed_test(world_size=1)
 def test_model_checkpoint_small_3():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_3.yml"])
-    run_checkpoint_test(yaml_list, do_forward_pass=False, cpu=False)
+    run_checkpoint_test(yaml_list=yaml_list, do_forward_pass=False, cpu=False)
 
 @distributed_test(world_size=2)
 def test_model_checkpoint_small_4():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_4.yml"])
-    run_checkpoint_test(yaml_list, do_forward_pass=False, cpu=False)
+    run_checkpoint_test(yaml_list=yaml_list, do_forward_pass=False, cpu=False)
 
-def run_checkpoint_test(yaml_list, do_forward_pass=False, cpu=False):
+def run_checkpoint_test(yaml_list=None, param_dict=None, do_forward_pass=False, cpu=False):
     from megatron.neox_arguments import NeoXArgs
     from megatron import initialize_megatron
     from megatron.text_generation_utils import get_batch, forward_model
@@ -54,15 +54,25 @@ def run_checkpoint_test(yaml_list, do_forward_pass=False, cpu=False):
         clear_test_dirs()
 
 
-    # intitially load config from files as would be the case in deepy.py
-    args_loaded = NeoXArgs.from_ymls(yaml_list, overwrite_values={
+    overwrite_values = {
         "user_script": str(get_root_directory() / "pretrain_gpt2.py"),
-        "use_cpu_initialization": cpu,
         "save": TEST_CHECKPOINT_DIR,
         "load": TEST_CHECKPOINT_DIR,
         "log_dir": TEST_LOG_DIR,
         "tensorboard_dir": TEST_TENSORBOARD_DIR,
-    })
+    }
+
+    # should not both be none
+    assert yaml_list is not None or param_dict is not None
+
+    # intitially load config from files as would be the case in deepy.py
+    if yaml_list is not None:
+        args_loaded = NeoXArgs.from_ymls(yaml_list, overwrite_values=overwrite_values)
+    else:
+        p_dict = param_dict.copy()
+        p_dict.update(overwrite_values)
+        args_loaded = NeoXArgs.from_dict(p_dict)
+
     args_loaded.build_tokenizer()
     
     initialize_megatron(neox_args=args_loaded)
@@ -92,14 +102,13 @@ def run_checkpoint_test(yaml_list, do_forward_pass=False, cpu=False):
         assert torch.isclose(logits[1, 3], logits[3, 3]).all().item(), "run_checkpoint_test() forward masks right side tokens"
 
     # reload model from checkpoint
-    args_reloaded = NeoXArgs.from_ymls(yaml_list, overwrite_values={
-        "user_script": str(get_root_directory() / "pretrain_gpt2.py"),
-        "use_cpu_initialization": cpu,
-        "save": TEST_CHECKPOINT_DIR,
-        "load": TEST_CHECKPOINT_DIR,
-        "log_dir": TEST_LOG_DIR,
-        "tensorboard_dir": TEST_TENSORBOARD_DIR,
-    })
+    if yaml_list is not None:
+        args_reloaded = NeoXArgs.from_ymls(yaml_list, overwrite_values=overwrite_values)
+    else:
+        p_dict = param_dict.copy()
+        p_dict.update(overwrite_values)
+        args_reloaded = NeoXArgs.from_dict(p_dict)
+
     args_reloaded.build_tokenizer()
 
     reloaded_model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=args_reloaded, inference=True, get_key_value=True)
