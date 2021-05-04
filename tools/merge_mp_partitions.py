@@ -258,9 +258,7 @@ def main():
     # Save the model.
     args.model_parallel_size = 1
     mpu.initialize.set_model_parallel_rank(0)
-    sd = {}
-    sd['model'] = merged_model.state_dict_for_save_checkpoint()
-    sd['iteration'] = iteration
+    sd = {'model': merged_model.state_dict(), 'iteration': iteration}
     merged_path = os.path.join(args.load, 'merged')
     checkpoint_name = get_checkpoint_name(merged_path, iteration)
     ensure_directory_exists(checkpoint_name)

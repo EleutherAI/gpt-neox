@@ -1,0 +1,15 @@
+# Add this to your config for sparse attention every other layer
+{
+  "attention_config": [[["local", "global"], "all"]],
+
+  # sparsity config:
+  # (these are the defaults for local sliding window sparsity, training will work without this here, but it's left in for
+  # illustrative purposes)
+  # see https://www.deepspeed.ai/tutorials/sparse-attention/#how-to-config-sparsity-structures for
+  # more detailed config instructions and available parameters
+
+  "sparsity_config": {
+    "block": 16, # block size
+    "num_local_blocks": 32,
+  }
+}

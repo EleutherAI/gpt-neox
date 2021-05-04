@@ -17,6 +17,28 @@
 
 import torch
 from torch.utils import data
+from megatron import mpu
+
+
+def make_data_loader(dataset, neox_args, consumed_samples):
+    """Buld dataloader given an input dataset."""
+    if dataset is None:
+        return None
+
+    # Megatron sampler
+    batch_sampler = MegatronPretrainingSampler(
+        total_samples=len(dataset),
+        consumed_samples=consumed_samples,
+        micro_batch_size=neox_args.batch_size,
+        data_parallel_rank=mpu.get_model_parallel_rank(),
+        data_parallel_size=mpu.get_data_parallel_world_size()
+    )
+
+    # Torch dataloader.
+    return torch.utils.data.DataLoader(dataset,
+                                       batch_sampler=batch_sampler,
+                                       num_workers=neox_args.num_workers,
+                                       pin_memory=True)
 
 
 class RandomSampler(data.sampler.Sampler):
@@ -46,7 +68,7 @@ class RandomSampler(data.sampler.Sampler):
         if not isinstance(self.num_samples, int) or self.num_samples <= 0:
             raise ValueError("num_samples should be a positive integer "
                              "value, but got num_samples={}".format(
-                                 self.num_samples))
+                self.num_samples))
         if not isinstance(self.replacement, bool):
             raise ValueError("replacement should be a boolean value, but got "
                              "replacement={}".format(self.replacement))
@@ -148,81 +170,53 @@ class DistributedBatchSampler(data.sampler.BatchSampler):
         return batch[start:end]
 
 
-class DistributedBatchSamplerScheduled(data.sampler.BatchSampler):
-    """Similar to normal implementation of distributed sampler, except
-    implementation is at the batch sampler level, instead of just the
-    sampler level. This allows wrapping of arbitrary data samplers
-    (sequential, random, WeightedRandomSampler, etc.) with this batch
-    sampler.
+class MegatronPretrainingSampler:
+    """
+    Taken from https://github.com/NVIDIA/Megatron-LM/blob/aed2f75e209e525c842aec7c044af7acae2a4614/megatron/data/data_samplers.py#L57
+    """
 
-    The `interleave` argument specifies how to distribute a batch. A value
-    of True combined with the above random sampler is equivalent to pytorch's
-    torch.utils.data.distributed.DistributedSampler.
+    def __init__(self, total_samples, consumed_samples, micro_batch_size,
+                 data_parallel_rank, data_parallel_size, drop_last=True):
+        # Keep a copy of input params for later use.
+        self.total_samples = total_samples
+        self.consumed_samples = consumed_samples
+        self.micro_batch_size = micro_batch_size
+        self.data_parallel_rank = data_parallel_rank
+        self.micro_batch_times_data_parallel_size = \
+            self.micro_batch_size * data_parallel_size
+        self.drop_last = drop_last
 
-    For the following batch [0,1,2,3,4,5,6,7] and data parallelism of 2
-    specifying True will result in the following samples for each gpu:
-        GPU0: [0,2,4,6] GPU1: [1,3,5,7]
-    specifying False will result in the following samples:
-        GPU0: [0,1,2,3] GPU1: [4,5,6,7]"""
+        # Sanity checks.
+        assert self.total_samples > 0, \
+            'no sample to consume: {}'.format(self.total_samples)
+        assert self.consumed_samples < self.total_samples, \
+            'no samples left to consume: {}, {}'.format(self.consumed_samples,
+                                                        self.total_samples)
+        assert self.micro_batch_size > 0
+        assert data_parallel_size > 0
+        assert self.data_parallel_rank < data_parallel_size, \
+            'data_parallel_rank should be smaller than data size: {}, ' \
+            '{}'.format(self.data_parallel_rank, data_parallel_size)
 
-    def __init__(self, sampler, batch_size, drop_last, rank=-1,
-                 world_size=2, wrap_last=False, interleave=False, batch_size_scheduler=None):
-        super(DistributedBatchSamplerScheduled, self).__init__(sampler, batch_size,
-                                                      drop_last)
-        if rank == -1:
-            assert False, 'should not be here'
-            rank = torch.distributed.get_rank()
-        self.rank = rank
-        self.world_size = world_size
-        self.sampler.wrap_around = 0
-        self.wrap_around = 0
-        self.wrap_last = wrap_last
-        self.start_iter = 0
-        self.interleave = interleave
-        self.batch_size_scheduler = batch_size_scheduler
+    def __len__(self):
+        return self.total_samples
+
+    def get_start_end_idx(self):
+        start_idx = self.data_parallel_rank * self.micro_batch_size
+        end_idx = start_idx + self.micro_batch_size
+        return start_idx, end_idx
 
     def __iter__(self):
         batch = []
-        i = 0
-        for idx in self.data_iterator(self.sampler, wrap_around=False):
+        # Last batch will be dropped if drop_last is not set False
+        for idx in range(self.consumed_samples, self.total_samples):
             batch.append(idx)
-            # self.batch_size = self.batch_size if self.batch_size_scheduler is None else self.batch_size_scheduler.get_current_batch_size()
-            # self.batch_size = self.batch_size if self.batch_size_scheduler is None else self.batch_size_scheduler.get_current_batch_size()
-
-            if len(batch) == self.batch_size:
-                tbatch = self._batch(batch)
-                if i >= self.start_iter:
-                    input(f'YIELDING T BATCH OF LEN: {len(tbatch)}')
-                    yield tbatch
-                    self.start_iter = 0
-                i += 1
-                if self.batch_size_scheduler is not None:
-                    self.batch_size_scheduler.step()
+            if len(batch) == self.micro_batch_times_data_parallel_size:
+                start_idx, end_idx = self.get_start_end_idx()
+                yield batch[start_idx:end_idx]
                 batch = []
-        batch_len = len(batch)
-        if batch_len > 0 and not self.drop_last:
-            if self.wrap_last:
-                self.sampler.wrap_around -= self.batch_size
-                self.wrap_around += (len(batch))
-                self.wrap_around %= self.batch_size
-            yield self._batch(batch)
-        if self.wrap_last:
-            self.sampler.wrap_around += self.batch_size
 
-    def data_iterator(self, _iter, wrap_around=False):
-        """iterates through data and handles wrap around"""
-        for i, idx in enumerate(_iter):
-            if i < self.wrap_around % self.batch_size:
-                continue
-            if wrap_around:
-                self.wrap_around += 1
-                self.wrap_around %= self.batch_size
-            yield idx
-
-    def _batch(self, batch):
-        """extracts samples only pertaining to this worker's batch"""
-        if self.interleave:
-            return batch[self.rank:self.batch_size:self.world_size]
-        start = self.rank * self.batch_size // self.world_size
-        end = (self.rank + 1) * self.batch_size // self.world_size
-        return batch[start:end]
+        # Check the last partial batch and see drop_last is set
+        if len(batch) > 0 and not self.drop_last:
+            start_idx, end_idx = self.get_start_end_idx()
+            yield batch[start_idx:end_idx]

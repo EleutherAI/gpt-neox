@@ -51,6 +51,8 @@ class DataDownloader(ABC):
                 vocab_file = GPT2_VOCAB_FP
             elif tokenizer_type == "HFGPT2Tokenizer":
                 vocab_file = 'gpt2'
+            elif tokenizer_type == "CharLevelTokenizer":
+                pass
             else:
                 assert vocab_file is not None, 'No vocab file provided'
         if data_dir is None:
@@ -105,6 +107,11 @@ class DataDownloader(ABC):
         """Number of documents in the dataset (if known)"""
         return None
 
+    @property
+    def ftfy(self):
+        """Use ftfy (https://github.com/LuminosoInsight/python-ftfy) to fix text encodings"""
+        return False
+
     def exists(self):
         """Checks if the dataset is present"""
         return os.path.isdir(f"{self.base_dir}/{self.name}")
@@ -134,7 +141,10 @@ class DataDownloader(ABC):
             --workers {self.num_workers} "
 
         if self.num_docs is not None:
-            cmd += f"--num-docs {self.num_docs}"
+            cmd += f"--num-docs {self.num_docs} "
+
+        if self.ftfy:
+            cmd += f"--ftfy "
 
         os.system(cmd)
 
@@ -167,7 +177,8 @@ class Github(DataDownloader):
 
 class ArXiv(DataDownloader):
     name = "arxiv"
-    urls = ["https://the-eye.eu/public/AI/pile_preliminary_components/2020-09-08-arxiv-extracts-nofallback-until-2007-068.tar.gz"]
+    urls = [
+        "https://the-eye.eu/public/AI/pile_preliminary_components/2020-09-08-arxiv-extracts-nofallback-until-2007-068.tar.gz"]
 
 
 class EuroParl(DataDownloader):
@@ -236,6 +247,11 @@ class C4OpenWebText(DataDownloader):
     urls = [f"https://the-eye.eu/eleuther_staging/c4/realnewslike/c4-train.{i:05}-of-00512.json.gz" for i in range(512)]
 
 
+class Enwik8(DataDownloader):
+    name = "enwik8"
+    urls = ["https://data.deepai.org/enwik8.zip"]
+
+
 def maybe_download_gpt2_tokenizer_data(tokenizer_type):
     if tokenizer_type is None or tokenizer_type == DEFAULT_TOKENIZER_TYPE:
         if not os.path.isfile(GPT2_VOCAB_FP):
@@ -245,6 +261,7 @@ def maybe_download_gpt2_tokenizer_data(tokenizer_type):
 
 
 DATA_DOWNLOADERS = {
+    "pass": "pass",
     "enron": Enron,
     "pile_subset": PileSubset,
     "pile": Pile,
@@ -262,7 +279,8 @@ DATA_DOWNLOADERS = {
     "ubuntu_irc": UbuntuIRC,
     "youtube_subtitles": YoutubeSubtitles,
     "c4": C4,
-    "c4_openwebtext": C4OpenWebText
+    "c4_openwebtext": C4OpenWebText,
+    "enwik8": Enwik8
 }
 
 
@@ -279,7 +297,11 @@ def prepare_dataset(dataset_name: str, tokenizer_type: str = None, data_dir: str
     if DownloaderClass is None:
         raise NotImplementedError(
             f'Dataset "{dataset_name}" not recognized - please choose from {list(DATA_DOWNLOADERS.keys())}')
+    elif DownloaderClass == "pass":
+        # pass on building dataset (for unit tests)
+        pass
     else:
+        num_workers = 1 if dataset_name == "enwik8" else num_workers
         d = DownloaderClass(tokenizer_type=tokenizer_type, vocab_file=vocab_file, merge_file=merge_file,
                             data_dir=data_dir, num_workers=num_workers)
         d.prepare()

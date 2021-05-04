@@ -10,14 +10,15 @@
 # Added document index to index file and made it accessible.
 #    An empty sentence no longer separates documents.
 
-from functools import lru_cache
 import os
 import shutil
 import struct
+from functools import lru_cache
 from itertools import accumulate
 
 import numpy as np
 import torch
+
 from megatron import print_rank_0
 
 
@@ -26,10 +27,6 @@ def __best_fitting_dtype(vocab_size=None):
         return np.uint16
     else:
         return np.int32
-
-
-def get_available_dataset_impl():
-    return ['lazy', 'cached', 'mmap']
 
 
 def infer_dataset_impl(path):
@@ -200,7 +197,7 @@ class IndexedDataset(torch.utils.data.Dataset):
     @staticmethod
     def exists(path):
         return (
-            os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
+                os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
         )
 
     @property
@@ -342,8 +339,12 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
                 def __enter__(self):
                     self._file = open(path, 'wb')
 
+                    # Write Magic string so we can check the file format then opening it again.
                     self._file.write(cls._HDR_MAGIC)
+                    # Write version number
+                    # Little endian unsigned 64 Bit integer
                     self._file.write(struct.pack('<Q', 1))
+                    # Little endian unsigned 8 Bit integer
                     self._file.write(struct.pack('<B', code(dtype)))
 
                     return self
@@ -363,7 +364,9 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
                 def write(self, sizes, doc_idx):
                     pointers = self._get_pointers(sizes)
 
+                    # Little endian unsigned 64 Bit integer
                     self._file.write(struct.pack('<Q', len(sizes)))
+                    # Little endian unsigned 64 Bit integer
                     self._file.write(struct.pack('<Q', len(doc_idx)))
 
                     sizes = np.array(sizes, dtype=np.int32)
@@ -389,9 +392,11 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
                     'Index file doesn\'t match expected format. '
                     'Make sure that --dataset-impl is configured properly.'
                 )
+                # Little endian unsigned 64 Bit integer
                 version = struct.unpack('<Q', stream.read(8))
                 assert (1,) == version
 
+                # Little endian unsigned 8 Bit integer
                 dtype_code, = struct.unpack('<B', stream.read(1))
                 self._dtype = dtypes[dtype_code]
                 self._dtype_size = self._dtype().itemsize
@@ -532,7 +537,7 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
     @staticmethod
     def exists(path):
         return (
-            os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
+                os.path.exists(index_file_path(path)) and os.path.exists(data_file_path(path))
         )
 
 

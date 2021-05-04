@@ -20,18 +20,21 @@
 import os
 import sys
 import re
+import time
+import socket
 from typing import Dict, List
 
 import requests
+import wandb
+from wandb import UsageError
+
 import torch
+
 from deepspeed.launcher.runner import fetch_hostfile, parse_inclusion_exclusion
 
-from megatron import get_args
 from megatron import print_rank_0
-from megatron import get_adlr_autoresume
 from megatron import mpu
-from megatron.data.samplers import DistributedBatchSampler, DistributedBatchSamplerScheduled
-from megatron.fp16 import FP16_Optimizer
+from megatron.data.samplers import DistributedBatchSampler
 
 
 def reduce_losses(losses):
@@ -40,7 +43,6 @@ def reduce_losses(losses):
         [loss.clone().detach().view(1) for loss in losses])
     torch.distributed.all_reduce(reduced_losses)
     reduced_losses = reduced_losses / torch.distributed.get_world_size()
-
     return reduced_losses
 
 
@@ -58,82 +60,23 @@ def report_memory(name):
     print_rank_0(string)
 
 
-def print_params_min_max_norm(optimizer, iteration):
-    """Print min, max, and norm of all parameters."""
-    index = 0
-    rank = torch.distributed.get_rank()
-    string = 'iteration, rank, index, model-parallel,min, max, norm\n'
-    optimizer_ = optimizer
-    if isinstance(optimizer, FP16_Optimizer):
-        optimizer_ = optimizer.optimizer
-    for param_group in optimizer_.param_groups:
-        for param in param_group['params']:
-            index += 1
-            min_ = param.data.min()
-            max_ = param.data.max()
-            norm = param.data.norm()
-            string += '{:7d}, {:4d}, {:4d}, {:2d}, '.format(
-                iteration, rank, index, int(param.model_parallel))
-            string += '{:.6E}, {:.6E}, {:.6E}\n'.format(min_, max_, norm)
-    print(string, flush=True)
-
-
-def check_adlr_autoresume_termination(iteration, model,
-                                      optimizer, lr_scheduler):
+def check_adlr_autoresume_termination(neox_args, iteration, model, optimizer, lr_scheduler):
     """Check for autoresume signal and exit if it is received."""
     # to prevent circular import
     from megatron.checkpointing import save_checkpoint
-    args = get_args()
-    autoresume = get_adlr_autoresume()
+
     # Add barrier to ensure consistnecy.
     torch.distributed.barrier()
-    if autoresume.termination_requested():
-        if args.save:
-            save_checkpoint(iteration, model, optimizer, lr_scheduler)
+    if neox_args.adlr_autoresume_object.termination_requested():
+        if neox_args.save:
+            save_checkpoint(neox_args=neox_args, iteration=iteration, model=model, optimizer=optimizer,
+                            lr_scheduler=lr_scheduler)
         print_rank_0(">>> autoresume termination request found!")
         if torch.distributed.get_rank() == 0:
-            autoresume.request_resume()
+            neox_args.adlr_autoresume_object.request_resume()
         print_rank_0(">>> training terminated. Returning")
         sys.exit(0)
 
-
-def make_data_loader(dataset, scheduler=None):
-    # HERE IS KEY PART FOR SCHEDULING BS
-    # i can modify the batch samplers batch size with dataloader.batch_sampler.batch_size
-    """Buld dataloader given an input dataset."""
-    if dataset is None:
-        return None
-    args = get_args()
-
-    # Data parallel arguments.
-    world_size = mpu.get_data_parallel_world_size()
-    rank = mpu.get_data_parallel_rank()
-    global_batch_size = args.batch_size * world_size
-    num_workers = args.num_workers
-
-    # Use a simple sampler with distributed batch sampler.
-    sampler = torch.utils.data.SequentialSampler(dataset)
-    if scheduler is not None:
-        print('MAKING SCHEDULER')
-        batch_sampler = DistributedBatchSamplerScheduled(sampler=sampler,
-                                                batch_size=global_batch_size,
-                                                drop_last=True,
-                                                rank=rank,
-                                                world_size=world_size,
-                                                batch_size_scheduler=scheduler)
-        print(f'CURRENT BATCH SIZE: {scheduler.get_current_batch_size()}')
-    else:
-        batch_sampler = DistributedBatchSampler(sampler=sampler,
-                                                batch_size=int(global_batch_size),
-                                                drop_last=True,
-                                                rank=rank,
-                                                world_size=world_size)
-    # Torch dataloader.
-    data_loader = torch.utils.data.DataLoader(dataset,
-                                       batch_sampler=batch_sampler,
-                                       num_workers=num_workers,
-                                       pin_memory=True)
-    return data_loader
 
 
 def get_ltor_masks_and_position_ids(data,
@@ -198,12 +141,21 @@ def get_ltor_masks_and_position_ids(data,
 
 def local_rank():
     """ Local rank of process """
-    return int(os.environ["LOCAL_RANK"])
+    local_rank = os.environ.get("LOCAL_RANK")
+    if local_rank is None:
+        print("utils.local_rank() environment variable LOCAL_RANK not set, defaulting to 0", flush=True)
+        local_rank = 0
+    return int(local_rank)
 
 
 def is_local_main():
     """ True if is the local main process """
     return local_rank() == 0
+
+
+def is_mp_rank_0():
+    """True if mp rank == 0"""
+    return mpu.get_model_parallel_rank() == 0
 
 
 def get_wandb_api_key():
@@ -217,16 +169,24 @@ def get_wandb_api_key():
         return wandb_token[1]
 
 
-def neox_args(parser):
-    group = parser.add_argument_group(title='Weights and Biases monitoring args')
+def init_wandb(neox_args):
+    # Wandb. (one worker per machine)
+    if neox_args.use_wandb == False:
+        return
 
-    group.add_argument('--wandb_group', type=str, default=None,
-                       help='Weights and Biases group name - used to group together "runs".')
-    group.add_argument('--wandb_team', type=str, default=None,
-                       help='Team name for Weights and Biases.')
-    group.add_argument('--git_hash', type=str, default=None,
-                       help='current git hash of repository')
-    return parser
+    use_wandb = is_local_main() and (get_wandb_api_key() is not None)
+    neox_args.update_value("use_wandb", use_wandb)
+    if neox_args.use_wandb:
+        group_name = neox_args.wandb_group
+        name = f'{socket.gethostname()}-{local_rank()}' if group_name else None
+        try:
+            wandb.init(project="neox", group=group_name, name=name, save_code=False,
+                       force=False, entity=neox_args.wandb_team)
+        except UsageError as e:
+            neox_args.update_value("use_wandb", False)
+            print(e)
+            print('Skipping wandb. Execute `wandb login` on local or main node machine to enable.', flush=True)
+        wandb.config.update(neox_args.all_config)
 
 
 def obtain_resource_pool(hostfile_path, include_arg, exclude_arg) -> Dict[str, List[int]]:
@@ -252,3 +212,141 @@ def natural_sort(l):
     convert = lambda text: int(text) if text.isdigit() else text.lower()
     alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
     return sorted(l, key=alphanum_key)
+
+
+def tb_wandb_log(key, value, iteration_no, use_wandb, tensorboard_writer=None):
+    # logs to both tb and wandb (if present) from the zeroth rank
+    if torch.distributed.get_rank() == 0:
+        if tensorboard_writer:
+            tensorboard_writer.add_scalar(key, value, iteration_no)
+        if use_wandb:
+            wandb.log({key: value}, step=iteration_no)
+
+
+def ddb(rank=0):
+    """
+    Distributed Debugger that will insert a py debugger on rank `rank` and
+    pause all other distributed processes until debugging is complete.
+    :param rank:
+    """
+    if torch.distributed.get_rank() == rank:
+        from pdb import Pdb
+        pdb = Pdb(skip=["torch.distributed.*"])
+        pdb.set_trace(sys._getframe().f_back)
+    torch.distributed.barrier()
+
+
+class Timer:
+    """Timer."""
+
+    def __init__(self, name):
+        self.name_ = name
+        self.elapsed_ = 0.0
+        self.started_ = False
+        self.start_time = time.time()
+
+    def start(self):
+        """Start the timer."""
+        assert not self.started_, 'timer has already been started'
+        torch.cuda.synchronize()
+        self.start_time = time.time()
+        self.started_ = True
+
+    def stop(self):
+        """Stop the timer."""
+        assert self.started_, 'timer is not started'
+        torch.cuda.synchronize()
+        self.elapsed_ += (time.time() - self.start_time)
+        self.started_ = False
+
+    def reset(self):
+        """Reset timer."""
+        self.elapsed_ = 0.0
+        self.started_ = False
+
+    def elapsed(self, reset=True):
+        """Calculate the elapsed time."""
+        started_ = self.started_
+        # If the timing in progress, end it first.
+        if self.started_:
+            self.stop()
+        # Get the elapsed time.
+        elapsed_ = self.elapsed_
+        # Reset the elapsed time
+        if reset:
+            self.reset()
+        # If timing was in progress, set it back.
+        if started_:
+            self.start()
+        return elapsed_
+
+
+class Timers:
+    """Group of timers."""
+
+    def __init__(self, use_wandb, tensorboard_writer):
+        self.timers = {}
+        self.use_wandb = use_wandb
+        self.tensorboard_writer = tensorboard_writer
+
+    def __call__(self, name):
+        if name not in self.timers:
+            self.timers[name] = Timer(name)
+        return self.timers[name]
+
+    def write(self, names, iteration, normalizer=1.0, reset=False):
+        """Write timers to a tensorboard writer"""
+        # currently when using add_scalars,
+        # torch.utils.add_scalars makes each timer its own run, which
+        # polutes the runs list, so we just add each as a scalar
+        assert normalizer > 0.0
+        for name in names:
+            value = self.timers[name].elapsed(reset=reset) / normalizer
+
+            if self.tensorboard_writer:
+                self.tensorboard_writer.add_scalar(f"timers/{name}", value, iteration)
+
+            if self.use_wandb:
+                wandb.log({f"timers/{name}": value}, step=iteration)
+
+    def log(self, names, normalizer=1.0, reset=True):
+        """Log a group of timers."""
+        assert normalizer > 0.0
+        string = 'time (ms)'
+        for name in names:
+            elapsed_time = self.timers[name].elapsed(
+                reset=reset) * 1000.0 / normalizer
+            string += ' | {}: {:.2f}'.format(name, elapsed_time)
+        if torch.distributed.is_initialized():
+            if torch.distributed.get_rank() == 0:
+                print(string, flush=True)
+        else:
+            print(string, flush=True)
+
+
+def expand_attention_types(attention_config, num_layers):
+    """
+    Expands an `attention_config` list in the following format:
+
+        [
+        [['attention_type_1', ..., `attention_type_n`], 12]
+        ]
+
+    to a flattened list of length `num_layers`.
+
+    :param params_list:
+    :return:
+    """
+    # if only strings are found in the config, we assume it's already expanded
+    if all([isinstance(i, str) for i in attention_config]):
+        return attention_config
+    newlist = []
+    for item in attention_config:
+        # instead of specifying a number - we can specify 'all' to extend this pattern across all layers
+        if item[1] == "all":
+            assert num_layers % len(item[0]) == 0, f"Number of layers ({num_layers}) is not divisible by the length " \
+                                                   f"of pattern: {item[0]}"
+            return item[0] * (num_layers // len(item[0]))
+        for _ in range(item[1]):
+            newlist.extend(item[0])
+    return newlist

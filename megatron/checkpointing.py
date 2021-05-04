@@ -26,40 +26,21 @@ import sys
 import numpy as np
 
 import torch
-from torch.nn.parallel import DistributedDataParallel as torchDDP
 from glob import glob
 
-from megatron import mpu, get_args
-from megatron import get_args
+from megatron import mpu
 from megatron import print_rank_0
 from megatron.utils import natural_sort
 
-_CHECKPOINT_VERSION = None
 
-
-def set_checkpoint_version(value):
-    global _CHECKPOINT_VERSION
-    assert _CHECKPOINT_VERSION is None, \
-        "checkpoint version already set"
-    _CHECKPOINT_VERSION = value
-
-
-def get_checkpoint_version():
-    global _CHECKPOINT_VERSION
-    return _CHECKPOINT_VERSION
-
-
-def check_checkpoint_args(checkpoint_args):
+def check_checkpoint_args(neox_args, checkpoint_args):
     """Ensure fixed arguments for a model are the same for the input
     arguments and the one retreived frm checkpoint."""
-    args = get_args()
 
     def _compare(arg_name):
         checkpoint_value = getattr(checkpoint_args, arg_name)
-        args_value = getattr(args, arg_name)
-        error_message = '{} value from checkpoint ({}) is not equal to the ' \
-                        'input argument value ({}).'.format(
-            arg_name, checkpoint_value, args_value)
+        args_value = getattr(neox_args, arg_name)
+        error_message = '{} value from checkpoint ({}) is not equal to the input argument value ({}).'.format(arg_name, checkpoint_value, args_value)
         assert checkpoint_value == args_value, error_message
 
     _compare('num_layers')
@@ -117,102 +98,51 @@ def delete_old_checkpoints(save_dir, n_to_keep):
                     pass
 
 
-def save_ds_checkpoint(iteration, model, args):
+def save_ds_checkpoint(iteration, model, neox_args):
     """Save a model checkpoint."""
-
-    sd = {}
-    sd['iteration'] = iteration
+    sd = {'iteration': iteration}
     # rng states.
-    if not args.no_save_rng:
+    if not neox_args.no_save_rng:
         sd['random_rng_state'] = random.getstate()
         sd['np_rng_state'] = np.random.get_state()
         sd['torch_rng_state'] = torch.get_rng_state()
         sd['cuda_rng_state'] = torch.cuda.get_rng_state()
         sd['rng_tracker_states'] = mpu.get_cuda_rng_tracker().get_states()
-
-    if args.pipe_parallel_size == 0:
-        # megatron model uses state_dict_for_save_checkpointing instead of the standard state_dict
-        # state_dict is used by deepspeed for module saving so it needs to point to the right function
-        model.module.state_dict = model.module.state_dict_for_save_checkpoint
-    else:
-        # Pipeline parallelism manages its own state_dict.
-        pass
-
-    model.save_checkpoint(args.save, client_state=sd)
+    model.save_checkpoint(neox_args.save, client_state=sd)
 
 
-def save_checkpoint(iteration, model, optimizer, lr_scheduler):
+def save_checkpoint(neox_args, iteration, model, optimizer, lr_scheduler):
     """Save a model checkpoint."""
-    args = get_args()
 
-    if args.deepspeed:
-        save_ds_checkpoint(iteration, model, args)
+    if neox_args.deepspeed:
+        save_ds_checkpoint(iteration, model, neox_args)
     else:
-        # Only rank zero of the data parallel writes to the disk.
-        if isinstance(model, torchDDP):
-            model = model.module
-        if mpu.get_data_parallel_rank() == 0:
-
-            # Arguments, iteration, and model.
-            state_dict = {}
-            state_dict['args'] = args
-            state_dict['checkpoint_version'] = 2.0
-            state_dict['iteration'] = iteration
-            state_dict['model'] = model.state_dict_for_save_checkpoint()
-
-            # Optimizer stuff.
-            if not args.no_save_optim:
-                if optimizer is not None:
-                    state_dict['optimizer'] = optimizer.state_dict()
-                if lr_scheduler is not None:
-                    state_dict['lr_scheduler'] = lr_scheduler.state_dict()
-
-            # RNG states.
-            if not args.no_save_rng:
-                state_dict['random_rng_state'] = random.getstate()
-                state_dict['np_rng_state'] = np.random.get_state()
-                state_dict['torch_rng_state'] = torch.get_rng_state()
-                state_dict['cuda_rng_state'] = torch.cuda.get_rng_state()
-                state_dict['rng_tracker_states'] \
-                    = mpu.get_cuda_rng_tracker().get_states()
-
-            # Save.
-            checkpoint_name = get_checkpoint_name(args.save, iteration)
-            print('global rank {} is saving checkpoint at iteration {:7d} to {}'.
-                  format(torch.distributed.get_rank(), iteration,
-                         checkpoint_name))
-            ensure_directory_exists(checkpoint_name)
-            torch.save(state_dict, checkpoint_name)
-            print('  successfully saved {}'.format(checkpoint_name))
+        raise ValueError('Must be using deepspeed to use neox')
 
     # Wait so everyone is done (necessary)
     torch.distributed.barrier()
     # And update the latest iteration
     if torch.distributed.get_rank() == 0:
-        tracker_filename = get_checkpoint_tracker_filename(args.save)
+        tracker_filename = get_checkpoint_tracker_filename(neox_args.save)
         with open(tracker_filename, 'w') as f:
             f.write(str(iteration))
 
     # Wait so everyone is done (necessary)
     torch.distributed.barrier()
-    if args.keep_last_n_checkpoints is not None:
-        delete_old_checkpoints(args.save, args.keep_last_n_checkpoints)
+    if neox_args.keep_last_n_checkpoints is not None:
+        delete_old_checkpoints(neox_args.save, neox_args.keep_last_n_checkpoints)
 
     # Wait so everyone is done (not necessary)
     torch.distributed.barrier()
 
 
-def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load'):
+def load_checkpoint(neox_args, model, optimizer, lr_scheduler):
     """Load a model checkpoint and return the iteration."""
-    args = get_args()
-    load_dir = getattr(args, load_arg)
 
-    if isinstance(model, torchDDP):
-        model = model.module
     # Read the tracker file and set the iteration.
-    tracker_filename = get_checkpoint_tracker_filename(load_dir)
+    tracker_filename = get_checkpoint_tracker_filename(neox_args.load)
 
-    # If no tracker file, return iretation zero.
+    # If no tracker file, return iteration zero.
     if not os.path.isfile(tracker_filename):
         print_rank_0('WARNING: could not find the metadata file {} '.format(
             tracker_filename))
@@ -238,58 +168,21 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load'):
     assert iteration > 0 or release, 'error parsing metadata file {}'.format(
         tracker_filename)
 
-    if args.deepspeed:
-        checkpoint_name, state_dict = model.load_checkpoint(load_dir)
+    if neox_args.deepspeed:
+        load_optim_and_scheduler = not neox_args.no_load_optim  # TODO: These should be configured by separate args
+        checkpoint_name, state_dict = model.load_checkpoint(neox_args.load,
+                                                            load_optimizer_states=load_optim_and_scheduler,
+                                                            load_lr_scheduler_states=load_optim_and_scheduler)
 
         if checkpoint_name is None:
             if mpu.get_data_parallel_rank() == 0:
                 print("Unable to load checkpoint.")
             return iteration
-
     else:
-        # Checkpoint.
-        checkpoint_name = get_checkpoint_name(load_dir, iteration, release)
-        if mpu.get_data_parallel_rank() == 0:
-            print('global rank {} is loading checkpoint {}'.format(
-                torch.distributed.get_rank(), checkpoint_name))
-
-        # Load the checkpoint.
-        try:
-            state_dict = torch.load(checkpoint_name, map_location='cpu')
-        except ModuleNotFoundError:
-            # For backward compatibility.
-            print_rank_0(' > deserializing using the old code structure ...')
-            sys.modules['fp16.loss_scaler'] = sys.modules[
-                'megatron.fp16.loss_scaler']
-            state_dict = torch.load(checkpoint_name, map_location='cpu')
-            sys.modules.pop('fp16.loss_scaler', None)
-        except BaseException:
-            print_rank_0('could not load the checkpoint')
-            sys.exit()
-            # Model.
-
-        model.load_state_dict(state_dict['model'])
-
-        # Optimizer.
-        if not release and not args.finetune and not args.no_load_optim:
-            try:
-                if optimizer is not None:
-                    optimizer.load_state_dict(state_dict['optimizer'])
-                if lr_scheduler is not None:
-                    lr_scheduler.load_state_dict(state_dict['lr_scheduler'])
-            except KeyError:
-                print_rank_0(
-                    'Unable to load optimizer from checkpoint {}. '
-                    'Specify --no-load-optim or --finetune to prevent '
-                    'attempting to load the optimizer state, '
-                    'exiting ...'.format(checkpoint_name))
-                sys.exit()
-
-    # set checkpoint version
-    set_checkpoint_version(state_dict.get('checkpoint_version', 0))
+        raise ValueError('Must be using deepspeed to use neox')
 
     # Set iteration.
-    if args.finetune or release:
+    if neox_args.finetune or release:
         iteration = 0
     else:
         try:
@@ -306,12 +199,12 @@ def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load'):
     # Check arguments.
     if 'args' in state_dict:
         checkpoint_args = state_dict['args']
-        check_checkpoint_args(checkpoint_args)
+        check_checkpoint_args(neox_args=neox_args, checkpoint_args=checkpoint_args)
     else:
         print_rank_0('could not find arguments in the checkpoint ...')
 
     # rng states.
-    if not release and not args.finetune and not args.no_load_rng:
+    if not release and not neox_args.finetune and not neox_args.no_load_rng:
         try:
             random.setstate(state_dict['random_rng_state'])
             np.random.set_state(state_dict['np_rng_state'])
