@@ -31,11 +31,17 @@ from megatron import mpu
 from megatron.utils import get_ltor_masks_and_position_ids, is_mp_rank_0
 
 
-def get_batch(neox_args, context_tokens):
-    """Generate batch from context tokens."""
+def get_batch(neox_args, context_tokens: torch.Tensor):
+    """
+    Generate batch from context tokens. Attention mask and position ids are created. Returned tensors will be on CUDA.
+    
+    context_tokens: torch tensor with dimensions [batch, context_size]
+
+    returns: tuple of torch tensors (tokens, attention_mask, position_ids) on CUDA
+    """
  
     # Move to GPU.
-    tokens = context_tokens.view(neox_args.batch_size, -1).contiguous().cuda()
+    tokens = context_tokens.contiguous().cuda()
     # Get the attention mask and postition ids.
     attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
         tokens,
@@ -113,7 +119,7 @@ def get_token_stream(neox_args, model, context_tokens):
     context_tokens: the prompt to complete.
     """
 
-    context_tokens, context_lengths = pad_batch(context_tokens, neox_args.tokenizer.eod, neox_args)
+    context_tokens, context_lengths = pad_batch(context_tokens, neox_args.tokenizer.eod, neox_args) 
 
     context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
     context_length_tensor = torch.cuda.LongTensor(context_lengths)
