@@ -52,23 +52,27 @@ def get_batch(neox_args, context_tokens: torch.Tensor):
         neox_args.eod_mask_loss)
     return tokens, attention_mask, position_ids
 
-def pad_batch(batch, pad_id, neox_args):
+def pad_batch(context_tokens: List[List[int]], pad_id: int, pad_len: int):
     """
-    pads context lengths in batch with pad_id to equal neox_args.seq_length,
+    pads context lengths in context_tokens with pad_id to equal neox_args.seq_length,
     and returns the padded batch and the new lengths.
 
-    batch: torch.Tensor of tokens
+    context_tokens: list of lists of tokens
     pad_id: int, integer to use as padding token
-    neox_args: neox_args
+    pad_len: int, context length to be padded; all batch items will be padded to the same length
+
+    returns: tuple of padded context tokens and a list of unpadded token count
     """
 
     context_lengths = []
-    for tokens in batch:
+    for tokens in context_tokens:
         context_length = len(tokens)
-        if context_length < neox_args.seq_length:
-            tokens.extend([pad_id] * (neox_args.seq_length - context_length))
+        if context_length < pad_len:
+            tokens.extend([pad_id] * (pad_len - context_length))
+        elif context_length > pad_len:
+            raise ValueError("context_length is bigger than to be padded length")
         context_lengths.append(context_length)
-    return batch, context_lengths
+    return context_tokens, context_lengths
 
 def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
     """
@@ -117,7 +121,7 @@ def get_token_stream(neox_args, model, context_tokens):
     context_tokens: the prompt to complete.
     """
 
-    context_tokens, context_lengths = pad_batch(context_tokens, pad_id=neox_args.tokenizer.eod, neox_args=neox_args) 
+    context_tokens, context_lengths = pad_batch(context_tokens, pad_id=neox_args.tokenizer.eod, pad_len=neox_args.seq_length) 
 
     context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
     context_length_tensor = torch.cuda.LongTensor(context_lengths)
