@@ -108,16 +108,31 @@ def get_token_stream(neox_args, model, context_tokens: List[List[int]]):
     # determine the smallest context length at which first output is produced
     context_length = context_length_tensor.min().item()
     
+    # determine the maximum possible completion
+    max_input_len = context_length_tensor.max().item()
+    max_tokens = min(neox_args.out_seq_length or neox_args.seq_length, (neox_args.seq_length - max_input_len))
+
     # iterate
-    batch_token_iterator = sample_sequence_batch(neox_args, model, context_tokens_tensor,
-                                                 context_length_tensor,
-                                                 attention_mask, position_ids)
+    batch_token_iterator = sample_sequence_batch(
+        neox_args=neox_args, 
+        model=model,
+        context_tokens=context_tokens_tensor,
+        context_lengths=context_length_tensor,
+        attention_mask=attention_mask, 
+        position_ids=position_ids,
+        eos_token_id=neox_args.tokenizer.eod,
+        max_tokens=max_tokens,
+        recompute=neox_args.recompute,
+        greedy=neox_args.greedy,
+        temperature=neox_args.temperature,
+        top_k=neox_args.top_k,
+        top_p=neox_args.top_p
+        )
     for tokens, lengths in batch_token_iterator:
         context_length += 1
         yield tokens[:, :context_length], lengths
 
-
-def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
+def filter_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
     """
     Filters the logits using top_k / top_p, filling any filtered vocab items with filter_value (defaults to -inf).
 
@@ -138,17 +153,14 @@ def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
 
     if top_p > 0.0:
         # convert to 1D
-        sorted_logits, sorted_indices = torch.sort(
-            logits, descending=True, dim=-1)
-        cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1),
-                                        dim=-1)
+        sorted_logits, sorted_indices = torch.sort(logits, descending=True, dim=-1)
+        cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
 
         # Remove tokens with cumulative probability above the threshold
         sorted_indices_to_remove = cumulative_probs > top_p
         # Shift the indices to the right to keep also the first token
         # above the threshold
-        sorted_indices_to_remove[..., 1:] \
-            = sorted_indices_to_remove[..., :-1].clone()
+        sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
         sorted_indices_to_remove[..., 0] = 0
         for i in range(sorted_indices.size(0)):
             indices_to_remove = sorted_indices[i][sorted_indices_to_remove[i]]
@@ -156,14 +168,12 @@ def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
 
     return logits
 
-
 def switch(val1, val2, boolean):
     """
     replaces items in val1 with items in val2 where boolean = True
     """
     boolean = boolean.type_as(val1)
     return (1 - boolean) * val1 + boolean * val2
-
 
 def forward_model(neox_args, model, model_inputs):
     """
@@ -188,7 +198,6 @@ def forward_model(neox_args, model, model_inputs):
         x = model.inference_batch(data_iterator)
         return x
 
-
 def broadcast_terminate_signal(terminate_runs: int):
     """Send signal to all workers to terminate if we've finished the process"""
     terminate_runs_tensor = torch.cuda.LongTensor([terminate_runs])
@@ -197,8 +206,7 @@ def broadcast_terminate_signal(terminate_runs: int):
                                 group=mpu.get_model_parallel_group())
     return terminate_runs_tensor[0].item()
 
-
-def sample_sequence_batch(neox_args, model, context_tokens: torch.Tensor, context_lengths: torch.Tensor, attention_mask: torch.Tensor, position_ids: torch.Tensor, maxlen: int = None):
+def sample_sequence_batch(neox_args, model, context_tokens: torch.Tensor, context_lengths: torch.Tensor, attention_mask: torch.Tensor, position_ids: torch.Tensor, eos_token_id: int = None, max_tokens: int = None, recompute: bool = False, greedy: bool = True, temperature: float = 1.0, top_k : int = 0, top_p : float = 0.0):
     """
     yields completions from a model as an iterator.
 
@@ -209,86 +217,89 @@ def sample_sequence_batch(neox_args, model, context_tokens: torch.Tensor, contex
     attention_mask: attention mask for megatron model.
     position_ids: position ids for positional encoding.
 
+    eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
+    max_tokens: maximum number of tokens to be generated
+
+    recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
+
+    greedy: greedy decoding (true) or applying top k / top p (false)
+    top_k: integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
+    top_p: float -> Top-p (nucles) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+
     yields: tokens (completions from model), and lengths (lengths of completions)
     """
 
     model.eval()
+
+    # set variables
+    eos_token_id = eos_token_id or neox_args.tokenizer.eod
+    max_tokens = max_tokens or (neox_args.seq_length - context_lengths.min().item() - 1)
+
+    batch_size = context_tokens.size(0)
+
+    # get the context_index at which generation is to start
+    # we start generation at the position where the smallest context ends
+    token_index_to_generate = context_lengths.min().item()
+    first_token_index_to_generate = token_index_to_generate
+    last_token_index_to_generate = min(
+        neox_args.seq_length - 1, # never generate more than the model's sequence length
+        token_index_to_generate + max_tokens -1
+    )
+
     with torch.no_grad():
-        context_length = context_lengths.min().item()
-        eos_id = neox_args.tokenizer.eod
-
-        counter = 0
-        org_context_length = context_length
-        batch_size = context_tokens.size(0)
-        is_done = torch.zeros([batch_size]).byte().cuda()
-        tokens = context_tokens
+        # initialize generation variables
+        state_is_done = torch.zeros([batch_size]).byte().cuda()
         layer_past = torch.Tensor().cuda()
+        lengths = torch.ones([batch_size]).long().cuda() * last_token_index_to_generate
 
-        if maxlen is None:
-            maxlen = neox_args.seq_length - 1
-            if maxlen > (org_context_length + neox_args.out_seq_length):
-                maxlen = org_context_length + neox_args.out_seq_length
-
-        lengths = torch.ones([batch_size]).long().cuda() * maxlen
-
-        while context_length <= maxlen:
-            if neox_args.recompute:
-                # we need to use neox_args instead of kwargs here because deepspeed :|
-                model_inputs = (tokens,
-                                position_ids,
-                                attention_mask,
-                                torch.Tensor(),
-                                )
-                logits, _ = forward_model(neox_args, model, model_inputs)
-                logits = logits[:, context_length - 1, :]
+        while token_index_to_generate <= last_token_index_to_generate:
+            if recompute or (token_index_to_generate == first_token_index_to_generate):
+                # when recomputing or at first iteration all tokens are forwarded
+                tokens_to_use = context_tokens[:, :token_index_to_generate]
+                positions_to_use = position_ids[:, :token_index_to_generate]
             else:
-                if counter == 0:
-                    tokens2use = tokens[:, :context_length]
-                    positions2use = position_ids[:, :context_length]
-                else:
-                    tokens2use = tokens[:, context_length - 1].view(
-                        batch_size, -1)
-                    positions2use = position_ids[:, context_length - 1].view(
-                        batch_size, -1)
-                # we have to use neox_args instead of kwargs here because deepspeed :|
-                model_inputs = (tokens2use,  # input_ids
-                                positions2use,  # position_ids
-                                attention_mask,  # attention_mask
-                                layer_past,  # layer_past
-                                )
+                # otherwise only the last tokens are forwarded and layer past is used for other tokens
+                tokens_to_use = context_tokens[:, token_index_to_generate - 1].view(batch_size, -1) # view applied to keep dimensions
+                positions_to_use = position_ids[:, token_index_to_generate - 1].view(batch_size, -1)
+            
+            # we have to use a tuple instead of kwargs here because deepspeed :|
+            model_inputs = (
+                tokens_to_use,
+                positions_to_use,
+                attention_mask,
+                layer_past,
+                )
 
-                logits, layer_past = forward_model(neox_args, model, model_inputs)
-                # TODO: we are replicating computation across all machines here, which is really unecessary,
-                #  we should probably just do it on one then communicate the results?
-                logits = logits[:, -1].view(batch_size, -1).contiguous()
-
-            if neox_args.greedy:
-                prev = torch.argmax(logits, dim=-1).view(-1)
+            logits, layer_past = forward_model(neox_args, model, model_inputs)
+            
+            # TODO: we are replicating computation across all machines here, which is really unecessary,
+            #  we should probably just do it on one then communicate the results?
+            
+            # sample token id of the to be generated token
+            generated_token_logits = logits[:, -1].view(batch_size, -1).contiguous()
+            if greedy:
+                generated_tokens = torch.argmax(generated_token_logits, dim=-1).view(-1)
             else:
-                logits = logits.float()
-                logits /= neox_args.temperature
-                logits = top_k_logits(logits, top_k=neox_args.top_k,
-                                      top_p=neox_args.top_p)
-                log_probs = F.softmax(logits, dim=-1)
-                prev = torch.multinomial(log_probs, num_samples=1).view(-1)
+                generated_token_logits = generated_token_logits.float()
+                generated_token_logits /= temperature #TODO ?
+                generated_token_logits = filter_logits(generated_token_logits, top_k=top_k, top_p=top_p)
+                next_token_log_probs = F.softmax(generated_token_logits, dim=-1)
+                generated_tokens = torch.multinomial(next_token_log_probs, num_samples=1).view(-1)
 
-            print_logits = []
-            for p in prev:
-                print_logits.append([logits[i, p].item()
-                                     for i in range(batch_size)])
-            started = context_lengths <= context_length
-            tokens[:, context_length] = switch(
-                tokens[:, context_length].view(-1), prev, started)
-            context_length += 1
-            counter += 1
-            done_token = (prev == eos_id).byte() & started.byte()
-            just_finished = (done_token & ~is_done).bool()
-            lengths[just_finished.view(-1)] = context_length
-            is_done = is_done | done_token
-            done = torch.all(is_done)
-            yield tokens, lengths
-            if done:
-                break
+        	# determine state for each batch item
+            state_started = context_lengths <= token_index_to_generate # check which batch items have been started
+            state_done = (generated_tokens == eos_token_id).byte() & state_started.byte() # check which batch items produce an eos_token in the current iteration
+            state_just_finished = (state_done & ~state_is_done).bool()
+            state_is_done = state_is_done | state_done
+
+            # switch out only padding tokens (the batch items that have been started)
+            context_tokens[:, token_index_to_generate] = switch(context_tokens[:, token_index_to_generate].view(-1), generated_tokens, state_started) 
+            
+            token_index_to_generate += 1
+            lengths[state_just_finished.view(-1)] = token_index_to_generate
+            
+            yield context_tokens, lengths
+            if torch.all(state_is_done): break
 
 
 def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str]):
