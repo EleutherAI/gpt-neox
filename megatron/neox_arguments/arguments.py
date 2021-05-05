@@ -17,7 +17,7 @@ from megatron.tokenizer import build_tokenizer
 from megatron.utils import obtain_resource_pool, expand_attention_types
 from .deepspeed_args import NeoXArgsDeepspeedConfig, NeoXArgsDeepspeedRunner
 from .neox_args import NeoXArgsModel, NeoXArgsTokenizer, NeoXArgsTraining, NeoXArgsParallelism, \
-    NeoXArgsLogging, NeoXArgsOther, NeoXArgsOptimizer, NeoXArgsLRScheduler, ATTENTION_TYPE_CHOICES
+    NeoXArgsLogging, NeoXArgsOther, NeoXArgsTextgen, NeoXArgsOptimizer, NeoXArgsLRScheduler, ATTENTION_TYPE_CHOICES
 
 # ZERO defaults by deespeed
 # These values should not be changed unless defaults in deepspeed are changed
@@ -58,6 +58,7 @@ BASE_CLASSES = [
     NeoXArgsTraining,
     NeoXArgsParallelism,
     NeoXArgsLogging,
+    NeoXArgsTextgen,
     NeoXArgsOther
 ]
 
@@ -231,7 +232,7 @@ class NeoXArgs(*BASE_CLASSES):
         return neox_args
 
     @classmethod
-    def consume_neox_args(cls):
+    def consume_neox_args(cls, overwrite_values=None):
         """
         Deepspeed launcher needs to pass the arguments for `pretrain_gpt2.py` across to all machines.
         
@@ -248,6 +249,8 @@ class NeoXArgs(*BASE_CLASSES):
 
         args_parsed, _ = parser.parse_known_args()
         megatron_config = json.loads(args_parsed.megatron_config)
+        if overwrite_values is not None:
+            megatron_config.update(overwrite_values)
         return cls.from_dict(args_dict=megatron_config)
 
     @staticmethod

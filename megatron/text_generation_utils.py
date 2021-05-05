@@ -83,7 +83,7 @@ def filter_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
 
     logits: torch.Tensor -> logits of megatron model.
     top_k: integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
-    top_p: float -> Top-p (nucles) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+    top_p: float -> Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
 
     returns: (filtered) logits"""
 
@@ -167,7 +167,7 @@ def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_i
 
     temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
     top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
-    top_p (default 0.0): float -> Top-p (nucles) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+    top_p (default 0.0): float -> Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
     
     note: greedy decoding is used if temperature is 0.0, top_k is 0 and top_p is 0.0
 
@@ -285,7 +285,7 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], 
 
     temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
     top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
-    top_p (default 0.0): float -> Top-p (nucles) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+    top_p (default 0.0): float -> Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
     
     note: greedy decoding is used if temperature is 0.0, top_k is 0 and top_p is 0.0
 
@@ -395,7 +395,7 @@ def generate_samples_input_from_file(neox_args, model, input_file, output_file=N
 
     temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
     top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
-    top_p (default 0.0): float -> Top-p (nucles) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+    top_p (default 0.0): float -> Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
     
     note: greedy decoding is used if temperature is 0.0, top_k is 0 and top_p is 0.0
     
@@ -449,7 +449,7 @@ def generate_samples_unconditional(neox_args, model, number_of_samples: int = 10
 
     temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
     top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
-    top_p (default 0.0): float -> Top-p (nucles) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+    top_p (default 0.0): float -> Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
     
     note: greedy decoding is used if temperature is 0.0, top_k is 0 and top_p is 0.0
 
@@ -489,7 +489,7 @@ def generate_samples_interactive(neox_args, model, max_tokens: int = 64, eos_tok
 
     temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
     top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
-    top_p (default 0.0): float -> Top-p (nucles) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+    top_p (default 0.0): float -> Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
     
     note: greedy decoding is used if temperature is 0.0, top_k is 0 and top_p is 0.0
 
