@@ -17,7 +17,7 @@ from megatron.tokenizer import build_tokenizer
 from megatron.utils import obtain_resource_pool, expand_attention_types
 from .deepspeed_args import NeoXArgsDeepspeedConfig, NeoXArgsDeepspeedRunner
 from .neox_args import NeoXArgsModel, NeoXArgsTokenizer, NeoXArgsTraining, NeoXArgsParallelism, \
-    NeoXArgsLogging, NeoXArgsOther, NeoXArgsTextgen, NeoXArgsOptimizer, NeoXArgsLRScheduler, ATTENTION_TYPE_CHOICES
+    NeoXArgsLogging, NeoXArgsOther, NeoXArgsOptimizer, NeoXArgsLRScheduler, ATTENTION_TYPE_CHOICES
 
 # ZERO defaults by deespeed
 # These values should not be changed unless defaults in deepspeed are changed
@@ -58,8 +58,7 @@ BASE_CLASSES = [
     NeoXArgsTraining,
     NeoXArgsParallelism,
     NeoXArgsLogging,
-    NeoXArgsOther,
-    NeoXArgsTextgen
+    NeoXArgsOther
 ]
 
 DEEPSPEED_ARG_CLASSES = [NeoXArgsDeepspeedRunner, NeoXArgsDeepspeedConfig]

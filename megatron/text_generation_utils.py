@@ -148,7 +148,7 @@ def broadcast_terminate_signal(terminate_runs: int):
                                 group=mpu.get_model_parallel_group())
     return terminate_runs_tensor[0].item()
 
-def get_token_stream(neox_args, model, context_tokens: List[List[int]], eos_token_id: int = None, max_tokens: int = None, recompute: bool = False, temperature: float = 0.0, top_k : int = 0, top_p : float = 0.0):
+def get_token_stream(neox_args, model, context_tokens: List[List[int]], eos_token_id: int = None, max_tokens: int = None, recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0):
     """
     iterator producing text completions
 
@@ -165,9 +165,9 @@ def get_token_stream(neox_args, model, context_tokens: List[List[int]], eos_toke
 
     recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
 
-    temperature: exponential scaling output distribution ("higher == more risk")
-    top_k: integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
-    top_p: float -> Top-p (nucles) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+    temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
+    top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
+    top_p (default 0.0): float -> Top-p (nucles) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
     
     note: greedy decoding is used if temperature is 0.0, top_k is 0 and top_p is 0.0
 
@@ -270,8 +270,7 @@ def get_token_stream(neox_args, model, context_tokens: List[List[int]], eos_toke
             yield context_tokens, token_generation_start_index, token_generation_end_index
             if torch.all(state_is_done): break
 
-
-def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str]):
+def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], eos_token_id: int = None, max_tokens: int = 64, recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0):
     """
     Generates samples from raw text and returns them in a dictionary.
 
@@ -279,10 +278,25 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str]):
     model: a Megatron model
     text: either a single prompt (str) or a list of prompts (List[str]).
 
+    eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
+    max_tokens: maximum number of tokens to be generated; careful! if a batch input is provided max_tokens specifies the maximum number of forwards. longer batch items get less generated tokens.
+
+    recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
+
+    temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
+    top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
+    top_p (default 0.0): float -> Top-p (nucles) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+    
+    note: greedy decoding is used if temperature is 0.0, top_k is 0 and top_p is 0.0
+
     returns: List[dict] -> a list of dicts containing the following fields:
         - 'context' (the input)
         - 'text' (the completion)
-        - 'length' (the length of the completion)
+        - 'length' (the length of the completion in number of tokens)
+        - 'finished': 
+        - 'message': a messaged associated with the generation procedure, can be a warning or error
+        - 'duration_seconds': duration of the generation in seconds 
+        
     """
 
     # type check
@@ -329,11 +343,11 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str]):
             model=model,
             context_tokens=[context_tokens],
             eos_token_id=neox_args.tokenizer.eod,
-            max_tokens=neox_args.out_seq_length,
-            recompute=neox_args.recompute,
-            temperature=neox_args.temperature,
-            top_k=neox_args.top_k,
-            top_p=neox_args.top_p
+            max_tokens=max_tokens,
+            recompute=recompute,
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p
             ):
             pass # finish generation and use all results below
 
