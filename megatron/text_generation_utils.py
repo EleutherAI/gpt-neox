@@ -506,23 +506,16 @@ def generate_samples_interactive(neox_args, model, max_tokens: int = 64, eos_tok
         torch.distributed.barrier(group=mpu.get_model_parallel_group())
         terminate_runs = 0
 
-        if is_mp_rank_0():
+        if torch.distributed.is_initialized() and  torch.distributed.get_rank() == 0:
             os.system('clear')
-            raw_text = input("Context prompt ('stop' to exit) >>> ")
-            #while not raw_text:
-            #    #print_rank_0('Prompt should not be empty!')
-            #    raw_text = input("\nContext prompt (stop to exit) >>> ")
-
-            if raw_text == "stop":
+            raw_text = input("Context prompt >>> ")
+            context_tokens = neox_args.tokenizer.tokenize(raw_text)
+            if len(context_tokens) == 0:
+                context_tokens = [neox_args.tokenizer.eod_id]
+            context_length = len(context_tokens)
+            if context_length >= (neox_args.seq_length - 1):
+                print_rank_0("\nContext length"+str(context_length)+"\nReached max sequence length!")
                 terminate_runs = 1
-            else:
-                context_tokens = neox_args.tokenizer.tokenize(raw_text)
-                if len(context_tokens) == 0:
-                    context_tokens = [neox_args.tokenizer.eod_id]
-                context_length = len(context_tokens)
-                if context_length >= (neox_args.seq_length - 1):
-                    print_rank_0("\nContext length"+str(context_length)+"\nReached max sequence length!")
-                    terminate_runs = 1
         else:
             context_tokens = neox_args.tokenizer.tokenize("EMPTY TEXT")
             context_length = len(context_tokens)
@@ -531,7 +524,6 @@ def generate_samples_interactive(neox_args, model, max_tokens: int = 64, eos_tok
         terminate_runs = broadcast_terminate_signal(terminate_runs)
         if terminate_runs == 1:
             return
-
         for batch_context_tokens, batch_token_generation_start_index, batch_token_generation_end_index in stream_tokens(
             neox_args=neox_args, 
             model=model,
@@ -546,9 +538,9 @@ def generate_samples_interactive(neox_args, model, max_tokens: int = 64, eos_tok
              if mpu.get_model_parallel_rank() == 0:
                 generated_tokens = batch_context_tokens[0].cpu().numpy().tolist()[batch_token_generation_start_index[0].item():batch_token_generation_end_index[0].item()]
                 generated_text = neox_args.tokenizer.detokenize(generated_tokens)
-                os.system('clear')
-                print_rank_0("Context prompt ('stop' to exit) >>> "+raw_text)
-                print_rank_0("Generated Text: "+generated_text)
-        _ = input("\n<press enter to continue>")
+        
+        print_rank_0("Generated Text: "+generated_text)
+        if torch.distributed.is_initialized() and  torch.distributed.get_rank() == 0:
+            _ = input("\n<press enter to continue>")
 
 
