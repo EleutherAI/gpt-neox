@@ -161,7 +161,7 @@ def get_token_stream(neox_args, model, context_tokens: List[List[int]], eos_toke
     position_ids: position ids for positional encoding.
 
     eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
-    max_tokens: maximum number of tokens to be generated
+    max_tokens: maximum number of tokens to be generated; careful! if a batch input is provided max_tokens specifies the maximum number of forwards. longer batch items get less generated tokens.
 
     recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
 
