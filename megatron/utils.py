@@ -37,7 +37,7 @@ from megatron import print_rank_0
 from megatron import mpu
 from megatron.data.samplers import DistributedBatchSampler
 from deepspeed import PipelineEngine, DeepSpeedEngine
-
+from collections import deque
 
 def reduce_losses(losses):
     """Reduce a tensor of losses across all GPUs."""
@@ -60,24 +60,6 @@ def report_memory(name):
     string += ' | max reserved: {}'.format(
         torch.cuda.max_memory_reserved() / mega_bytes)
     print_rank_0(string)
-
-
-def check_adlr_autoresume_termination(neox_args, iteration, model, optimizer, lr_scheduler):
-    """Check for autoresume signal and exit if it is received."""
-    # to prevent circular import
-    from megatron.checkpointing import save_checkpoint
-
-    # Add barrier to ensure consistnecy.
-    torch.distributed.barrier()
-    if neox_args.adlr_autoresume_object.termination_requested():
-        if neox_args.save:
-            save_checkpoint(neox_args=neox_args, iteration=iteration, model=model, optimizer=optimizer,
-                            lr_scheduler=lr_scheduler)
-        print_rank_0(">>> autoresume termination request found!")
-        if torch.distributed.get_rank() == 0:
-            neox_args.adlr_autoresume_object.request_resume()
-        print_rank_0(">>> training terminated. Returning")
-        sys.exit(0)
 
 
 def make_data_loader(dataset, neox_args):
@@ -239,15 +221,6 @@ def natural_sort(l):
     return sorted(l, key=alphanum_key)
 
 
-def tb_wandb_log(key, value, iteration_no, use_wandb, tensorboard_writer=None):
-    # logs to both tb and wandb (if present) from the zeroth rank
-    if torch.distributed.get_rank() == 0:
-        if tensorboard_writer:
-            tensorboard_writer.add_scalar(key, value, iteration_no)
-        if use_wandb:
-            wandb.log({key: value}, step=iteration_no)
-
-
 def ddb(rank=0):
     """
     Distributed Debugger that will insert a py debugger on rank `rank` and
@@ -375,3 +348,51 @@ def expand_attention_types(attention_config, num_layers):
         for _ in range(item[1]):
             newlist.extend(item[0])
     return newlist
+
+class OverflowMonitor:
+
+    """
+    Checks if the past n iterations have been skipped due to overflow, and exits 
+    training if that happens.
+    """
+
+    def __init__(self, optimizer, n=50):
+        self.optimizer = optimizer
+        self.n = n
+        self.history = deque(maxlen=n)
+
+    def check(self, skipped):
+        self.history.append(skipped)
+        if self.optimizer.overflow and len(self.history) == self.n and all(self.history):
+            raise Exception(f'Skipped {self.n} iterations in a row due to Overflow - Exiting training.')
+
+
+def get_noise_scale_logger(neox_args):
+    if neox_args.log_gradient_noise_scale:
+        if neox_args.zero_stage >= 1:
+            raise NotImplementedError('Gradient Noise Scale logging does not work with zero stage 2+, as the '
+                                      'gradients are distributed across ranks.')
+        noise_scale_logger = GradientNoiseScale(
+            model=model,
+            batch_size_small=neox_args.train_batch_size,
+            n_batches=neox_args.gradient_noise_scale_n_batches,
+            cpu_offload=neox_args.gradient_noise_scale_cpu_offload,
+            neox_args=neox_args,
+            mpu=mpu)
+    else:
+        noise_scale_logger = None
+    return noise_scale_logger
+
+def get_total_params(model):
+    # Print number of parameters.
+    if mpu.get_data_parallel_rank() == 0:
+        params = sum([p.nelement() for p in model.parameters()])
+        print(' > number of parameters on model parallel rank {}: {}'.format(
+            mpu.get_model_parallel_rank(), params), flush=True)
+    else:
+        params = 0
+
+    total_n_parameters = torch.tensor([params]).cuda(torch.cuda.current_device())
+    torch.distributed.all_reduce(total_n_parameters)
+    total_n_parameters = total_n_parameters.item()
+    return total_n_parameters
