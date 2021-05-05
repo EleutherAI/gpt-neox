@@ -74,6 +74,49 @@ def pad_batch(context_tokens: List[List[int]], pad_id: int, pad_len: int):
         context_lengths.append(context_length)
     return context_tokens, context_lengths
 
+def get_token_stream(neox_args, model, context_tokens: List[List[int]]):
+    """
+    iterator producing text completions
+
+    neox_args: instantiated NeoXArgs with instantiated tokenizer
+    model: a Megatron model.
+    context_tokens: the prompt to complete; unpadded list of lists of tokens ids
+
+    yields: yields context tokens and related completions from a model
+            * each iteration adds a generated token to the context_tokens
+            * output contains both context_tokens from input and generated tokens
+            * if batch items have different lengths, the iterator will start at the first completion and return the unchanged input context token otherwise
+    """
+
+    # pad batch in order to allow conversion to tensor
+    context_tokens, context_lengths = pad_batch(context_tokens, pad_id=neox_args.tokenizer.eod, pad_len=neox_args.seq_length) 
+
+    # convert to tensor and broadcast
+    context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
+    context_length_tensor = torch.cuda.LongTensor(context_lengths)
+
+    torch.distributed.broadcast(context_tokens_tensor,
+                                mpu.get_model_parallel_src_rank(),
+                                group=mpu.get_model_parallel_group())
+    torch.distributed.broadcast(context_length_tensor,
+                                mpu.get_model_parallel_src_rank(),
+                                group=mpu.get_model_parallel_group())
+    
+    # produce batch relevant attention_mask and position_ids
+    tokens, attention_mask, position_ids = get_batch(neox_args, context_tokens_tensor)
+
+    # determine the smallest context length at which first output is produced
+    context_length = context_length_tensor.min().item()
+    
+    # iterate
+    batch_token_iterator = sample_sequence_batch(neox_args, model, context_tokens_tensor,
+                                                 context_length_tensor,
+                                                 attention_mask, position_ids)
+    for tokens, lengths in batch_token_iterator:
+        context_length += 1
+        yield tokens[:, :context_length], lengths
+
+
 def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
     """
     Filters the logits using top_k / top_p, filling any filtered vocab items with filter_value (defaults to -inf).
@@ -112,37 +155,6 @@ def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
             logits[i][indices_to_remove] = filter_value
 
     return logits
-
-def get_token_stream(neox_args, model, context_tokens):
-    """
-    yields completions from a model as an iterator.
-
-    model: a Megatron model.
-    context_tokens: the prompt to complete.
-    """
-
-    context_tokens, context_lengths = pad_batch(context_tokens, pad_id=neox_args.tokenizer.eod, pad_len=neox_args.seq_length) 
-
-    context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
-    context_length_tensor = torch.cuda.LongTensor(context_lengths)
-
-    torch.distributed.broadcast(context_tokens_tensor,
-                                mpu.get_model_parallel_src_rank(),
-                                group=mpu.get_model_parallel_group())
-    torch.distributed.broadcast(context_length_tensor,
-                                mpu.get_model_parallel_src_rank(),
-                                group=mpu.get_model_parallel_group())
-    
-    context_length = context_length_tensor.min().item()
-    tokens, attention_mask, position_ids = get_batch(neox_args, context_tokens_tensor)
-
-    batch_token_iterator = sample_sequence_batch(neox_args, model, context_tokens_tensor,
-                                                 context_length_tensor,
-                                                 attention_mask, position_ids)
-    
-    for tokens, lengths in batch_token_iterator:
-        context_length += 1
-        yield tokens[:, :context_length], lengths
 
 
 def switch(val1, val2, boolean):
