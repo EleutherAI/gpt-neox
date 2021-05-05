@@ -46,7 +46,7 @@ def get_batch(neox_args, context_tokens: torch.Tensor):
     # Get the attention mask and postition ids.
     attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
         tokens,
-        neox_args.tokenizer.eod,
+        neox_args.tokenizer.eod_id,
         neox_args.reset_position_ids,
         neox_args.reset_attention_mask,
         neox_args.eod_mask_loss)
@@ -180,7 +180,7 @@ def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_i
     model.eval()
 
     # pad batch in order to allow conversion to tensor
-    context_tokens, context_lengths = pad_batch(copy.deepcopy(context_tokens), pad_id=neox_args.tokenizer.eod, pad_len=neox_args.seq_length) 
+    context_tokens, context_lengths = pad_batch(copy.deepcopy(context_tokens), pad_id=neox_args.tokenizer.eod_id, pad_len=neox_args.seq_length) 
 
     # convert to tensor and broadcast
     context_tokens = torch.cuda.LongTensor(context_tokens)
@@ -200,7 +200,7 @@ def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_i
     context_length = token_generation_start_index.min().item()
 
     # set variables
-    eos_token_id = eos_token_id or neox_args.tokenizer.eod
+    eos_token_id = eos_token_id or neox_args.tokenizer.eod_id
     max_tokens = max_tokens or (neox_args.seq_length - token_generation_start_index.max().item() - 1)
     batch_size = context_tokens.size(0)
 
@@ -298,7 +298,7 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], 
         - 'duration_seconds': duration of the generation in seconds 
         
     """
-    eos_token_id = eos_token_id or neox_args.tokenizer.eod
+    eos_token_id = eos_token_id or neox_args.tokenizer.eod_id
 
     # type check
     assert any([isinstance(text, str), isinstance(text, list)]), "Text should be in string or list form"
@@ -473,71 +473,82 @@ def generate_samples_unconditional(neox_args, model, number_of_samples: int = 10
     print_rank_0('generate_samples_unconditional() done')
     return generated_texts
 
-def generate_samples_interactive(neox_args, model, print_frequency=24):
+def generate_samples_interactive(neox_args, model, max_tokens: int = 64, eos_token_id: int = None, recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0):
     """
-    Generates samples interactively in the terminal.
+    Generates samples unconditionially (no prompt) and yields them in a dictionary.
 
+    neox_args: instantiated NeoXArgs with instantiated tokenizer 
     model: a Megatron model
-    print_frequency: int, how often (in tokens) to print the output.
+
+    max_tokens: maximum number of tokens to be generated; careful! if a batch input is provided max_tokens specifies the maximum number of forwards. longer batch items get less generated tokens.
+
+    eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
+    max_tokens: maximum number of tokens to be generated; careful! if a batch input is provided max_tokens specifies the maximum number of forwards. longer batch items get less generated tokens.
+
+    recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
+
+    temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
+    top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
+    top_p (default 0.0): float -> Top-p (nucles) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+    
+    note: greedy decoding is used if temperature is 0.0, top_k is 0 and top_p is 0.0
+
+    yields: dict containing the following fields:
+        - 'context' (the input)
+        - 'text' (the completion)
+        - 'length' (the length of the completion in number of tokens)
+        - 'finished': 
+        - 'message': a messaged associated with the generation procedure, can be a warning or error
+        - 'duration_seconds': duration of the generation in seconds 
     """
+   
+    while True:
+        torch.distributed.barrier(group=mpu.get_model_parallel_group())
+        terminate_runs = 0
 
-    context_count = 0
-    model.eval()
-    with torch.no_grad():
-        while True:
-            torch.distributed.barrier(group=mpu.get_model_parallel_group())
-            terminate_runs = 0
+        if is_mp_rank_0():
+            os.system('clear')
+            raw_text = input("Context prompt ('stop' to exit) >>> ")
+            #while not raw_text:
+            #    #print_rank_0('Prompt should not be empty!')
+            #    raw_text = input("\nContext prompt (stop to exit) >>> ")
 
-            if is_mp_rank_0():
-                os.system('clear')
-                raw_text = input("\nContext prompt (stop to exit) >>> ")
-                while not raw_text:
-                    print_rank_0('Prompt should not be empty!')
-                    raw_text = input("\nContext prompt (stop to exit) >>> ")
-
-                if "stop" in raw_text:
-                    terminate_runs = 1
-                else:
-                    context_tokens = neox_args.tokenizer.tokenize(raw_text)
-                    context_length = len(context_tokens)
-
-                    if context_length >= (neox_args.seq_length // 2):
-                        print_rank_0("\nContext length", context_length,
-                                     "\nPlease give smaller context (half of the "
-                                     "sequence length)!", flush=True)
-                        continue
+            if raw_text == "stop":
+                terminate_runs = 1
             else:
-                context_tokens = neox_args.tokenizer.tokenize("EMPTY TEXT")
+                context_tokens = neox_args.tokenizer.tokenize(raw_text)
+                if len(context_tokens) == 0:
+                    context_tokens = [neox_args.tokenizer.eod_id]
                 context_length = len(context_tokens)
+                if context_length >= (neox_args.seq_length - 1):
+                    print_rank_0("\nContext length"+str(context_length)+"\nReached max sequence length!")
+                    terminate_runs = 1
+        else:
+            context_tokens = neox_args.tokenizer.tokenize("EMPTY TEXT")
+            context_length = len(context_tokens)
 
-            terminate_runs = broadcast_terminate_signal(terminate_runs)
-            if terminate_runs == 1:
-                return
+        
+        terminate_runs = broadcast_terminate_signal(terminate_runs)
+        if terminate_runs == 1:
+            return
 
-            token_stream = stream_tokens(neox_args, model, [context_tokens])
-            for counter, decode_tokens in enumerate(token_stream):
-                decode_tokens, _ = decode_tokens
-                decode_tokens = decode_tokens[0].cpu().numpy().tolist()
-
-                if mpu.get_model_parallel_rank() == 0 and \
-                        counter % print_frequency == 0:
-                    os.system('clear')
-                    print_rank_0("\nContext:", raw_text, flush=True)
-                    trim_decode_tokens = neox_args.tokenizer.detokenize(
-                        decode_tokens)[len(raw_text):]
-                    print_rank_0("\nMegatron-LM:", trim_decode_tokens, flush=True)
-
-            if is_mp_rank_0():
+        for batch_context_tokens, batch_token_generation_start_index, batch_token_generation_end_index in stream_tokens(
+            neox_args=neox_args, 
+            model=model,
+            context_tokens=[context_tokens],
+            eos_token_id=eos_token_id,
+            max_tokens=max_tokens,
+            recompute=recompute,
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p
+            ):
+             if mpu.get_model_parallel_rank() == 0:
+                generated_tokens = batch_context_tokens[0].cpu().numpy().tolist()[batch_token_generation_start_index[0].item():batch_token_generation_end_index[0].item()]
+                generated_text = neox_args.tokenizer.detokenize(generated_tokens)
                 os.system('clear')
-                print_rank_0("\nContext:", raw_text, flush=True)
-                trim_decode_tokens = neox_args.tokenizer.detokenize(
-                    decode_tokens)[len(raw_text):]
-                print_rank_0("\nMegatron-LM:", trim_decode_tokens, flush=True)
+                print_rank_0("Context prompt ('stop' to exit) >>> "+raw_text)
+                print_rank_0("Generated Text: "+generated_text)
+        _ = input("\n<press enter to continue>")
 
-            raw_text = None
-            torch.distributed.barrier(group=mpu.get_model_parallel_group())
-            context_count += 1
-
-            if is_mp_rank_0():
-                input("\nPress any key to continue >>>")
 
