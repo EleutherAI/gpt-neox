@@ -74,64 +74,6 @@ def pad_batch(context_tokens: List[List[int]], pad_id: int, pad_len: int):
         context_lengths.append(context_length)
     return context_tokens, context_lengths
 
-def get_token_stream(neox_args, model, context_tokens: List[List[int]]):
-    """
-    iterator producing text completions
-
-    neox_args: instantiated NeoXArgs with instantiated tokenizer
-    model: a Megatron model.
-    context_tokens: the prompt to complete; unpadded list of lists of tokens ids
-
-    yields: yields context tokens and related completions from a model
-            * each iteration adds a generated token to the context_tokens
-            * output contains both context_tokens from input and generated tokens
-            * if batch items have different lengths, the iterator will start at the first completion and return the unchanged input context token otherwise
-    """
-
-    # pad batch in order to allow conversion to tensor
-    context_tokens, context_lengths = pad_batch(context_tokens, pad_id=neox_args.tokenizer.eod, pad_len=neox_args.seq_length) 
-
-    # convert to tensor and broadcast
-    context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
-    context_length_tensor = torch.cuda.LongTensor(context_lengths)
-
-    torch.distributed.broadcast(context_tokens_tensor,
-                                mpu.get_model_parallel_src_rank(),
-                                group=mpu.get_model_parallel_group())
-    torch.distributed.broadcast(context_length_tensor,
-                                mpu.get_model_parallel_src_rank(),
-                                group=mpu.get_model_parallel_group())
-    
-    # produce batch relevant attention_mask and position_ids
-    tokens, attention_mask, position_ids = get_batch(neox_args, context_tokens_tensor)
-
-    # determine the smallest context length at which first output is produced
-    context_length = context_length_tensor.min().item()
-    
-    # determine the maximum possible completion
-    max_input_len = context_length_tensor.max().item()
-    max_tokens = min(neox_args.out_seq_length or neox_args.seq_length, (neox_args.seq_length - max_input_len))
-
-    # iterate
-    batch_token_iterator = sample_sequence_batch(
-        neox_args=neox_args, 
-        model=model,
-        context_tokens=context_tokens_tensor,
-        context_lengths=context_length_tensor,
-        attention_mask=attention_mask, 
-        position_ids=position_ids,
-        eos_token_id=neox_args.tokenizer.eod,
-        max_tokens=max_tokens,
-        recompute=neox_args.recompute,
-        greedy=neox_args.greedy,
-        temperature=neox_args.temperature,
-        top_k=neox_args.top_k,
-        top_p=neox_args.top_p
-        )
-    for tokens, lengths in batch_token_iterator:
-        context_length += 1
-        yield tokens[:, :context_length], lengths
-
 def filter_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
     """
     Filters the logits using top_k / top_p, filling any filtered vocab items with filter_value (defaults to -inf).
@@ -206,13 +148,14 @@ def broadcast_terminate_signal(terminate_runs: int):
                                 group=mpu.get_model_parallel_group())
     return terminate_runs_tensor[0].item()
 
-def sample_sequence_batch(neox_args, model, context_tokens: torch.Tensor, context_lengths: torch.Tensor, attention_mask: torch.Tensor, position_ids: torch.Tensor, eos_token_id: int = None, max_tokens: int = None, recompute: bool = False, greedy: bool = True, temperature: float = 1.0, top_k : int = 0, top_p : float = 0.0):
+def get_token_stream(neox_args, model, context_tokens: List[List[int]], eos_token_id: int = None, max_tokens: int = None, recompute: bool = False, greedy: bool = True, temperature: float = 1.0, top_k : int = 0, top_p : float = 0.0):
     """
-    yields completions from a model as an iterator.
+    iterator producing text completions
 
     neox_args: instantiated NeoXArgs with instantiated tokenizer 
     model: a Megatron model.
-    context_tokens: the prompt to complete of dimenstions [batch, max_seq_len]; context tokens are expected to be padded to the right to full context length over the full batch
+    context_tokens: the prompt to complete; unpadded list of lists of tokens ids
+
     context_lengths: lengths of context tokens of dimension [batch]; the context length records for each bach item how many non-padded tokens are provided
     attention_mask: attention mask for megatron model.
     position_ids: position ids for positional encoding.
@@ -226,20 +169,42 @@ def sample_sequence_batch(neox_args, model, context_tokens: torch.Tensor, contex
     top_k: integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
     top_p: float -> Top-p (nucles) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
 
-    yields: tokens (completions from model), and lengths (lengths of completions)
+    yields: tokens (completions from model), token_generation_start_index (token index per batch item for the first generated token), token_generation_end_index (token index per batch item for the last generated token)
+            * each iteration adds a generated token to the context_tokens
+            * output contains both context_tokens from input and generated tokens
+            * if batch items have different lengths, the iterator will start at the first completion and return the unchanged input context token otherwise
     """
 
     model.eval()
 
+    # pad batch in order to allow conversion to tensor
+    context_tokens, context_lengths = pad_batch(copy.deepcopy(context_tokens), pad_id=neox_args.tokenizer.eod, pad_len=neox_args.seq_length) 
+
+    # convert to tensor and broadcast
+    context_tokens = torch.cuda.LongTensor(context_tokens)
+    token_generation_start_index = torch.cuda.LongTensor(context_lengths)
+
+    torch.distributed.broadcast(context_tokens,
+                                mpu.get_model_parallel_src_rank(),
+                                group=mpu.get_model_parallel_group())
+    torch.distributed.broadcast(token_generation_start_index,
+                                mpu.get_model_parallel_src_rank(),
+                                group=mpu.get_model_parallel_group())
+    
+    # produce batch relevant attention_mask and position_ids
+    tokens, attention_mask, position_ids = get_batch(neox_args, context_tokens)
+
+    # determine the smallest context length at which first output is produced
+    context_length = token_generation_start_index.min().item()
+
     # set variables
     eos_token_id = eos_token_id or neox_args.tokenizer.eod
-    max_tokens = max_tokens or (neox_args.seq_length - context_lengths.min().item() - 1)
-
+    max_tokens = max_tokens or (neox_args.seq_length - token_generation_start_index.max().item() - 1)
     batch_size = context_tokens.size(0)
 
     # get the context_index at which generation is to start
     # we start generation at the position where the smallest context ends
-    token_index_to_generate = context_lengths.min().item()
+    token_index_to_generate = token_generation_start_index.min().item()
     first_token_index_to_generate = token_index_to_generate
     last_token_index_to_generate = min(
         neox_args.seq_length - 1, # never generate more than the model's sequence length
@@ -250,7 +215,7 @@ def sample_sequence_batch(neox_args, model, context_tokens: torch.Tensor, contex
         # initialize generation variables
         state_is_done = torch.zeros([batch_size]).byte().cuda()
         layer_past = torch.Tensor().cuda()
-        lengths = torch.ones([batch_size]).long().cuda() * last_token_index_to_generate
+        token_generation_end_index = torch.ones([batch_size]).long().cuda() * (-1)
 
         while token_index_to_generate <= last_token_index_to_generate:
             if recompute or (token_index_to_generate == first_token_index_to_generate):
@@ -287,18 +252,19 @@ def sample_sequence_batch(neox_args, model, context_tokens: torch.Tensor, contex
                 generated_tokens = torch.multinomial(next_token_log_probs, num_samples=1).view(-1)
 
         	# determine state for each batch item
-            state_started = context_lengths <= token_index_to_generate # check which batch items have been started
+            state_started = token_generation_start_index <= token_index_to_generate # check which batch items have been started
             state_done = (generated_tokens == eos_token_id).byte() & state_started.byte() # check which batch items produce an eos_token in the current iteration
             state_just_finished = (state_done & ~state_is_done).bool()
             state_is_done = state_is_done | state_done
+            token_generation_end_index[state_started.byte() & ~state_is_done] = token_index_to_generate
 
             # switch out only padding tokens (the batch items that have been started)
             context_tokens[:, token_index_to_generate] = switch(context_tokens[:, token_index_to_generate].view(-1), generated_tokens, state_started) 
             
             token_index_to_generate += 1
-            lengths[state_just_finished.view(-1)] = token_index_to_generate
             
-            yield context_tokens, lengths
+            
+            yield context_tokens, token_generation_start_index, token_generation_end_index
             if torch.all(state_is_done): break
 
 
@@ -356,7 +322,18 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str]):
         if terminate_runs == 1:
             return generated_texts
 
-        for token_stream in get_token_stream(neox_args, model, copy.deepcopy([context_tokens])):
+        for context_tokens, token_generation_start_index, token_generation_end_index in get_token_stream(
+            neox_args=neox_args, 
+            model=model,
+            context_tokens=[context_tokens, context_tokens[0:1]],
+            eos_token_id=neox_args.tokenizer.eod,
+            max_tokens=neox_args.out_seq_length,
+            recompute=neox_args.recompute,
+            greedy=neox_args.greedy,
+            temperature=neox_args.temperature,
+            top_k=neox_args.top_k,
+            top_p=neox_args.top_p
+            ):
             pass
         token_batch = token_stream[0].cpu().numpy().tolist()
         length_batch = token_stream[1].cpu().numpy().tolist()
