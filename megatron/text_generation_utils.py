@@ -274,7 +274,7 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], 
     """
     Generates samples from raw text and returns them in a dictionary.
 
-
+    neox_args: instantiated NeoXArgs with instantiated tokenizer 
     model: a Megatron model
     text: either a single prompt (str) or a list of prompts (List[str]).
 
@@ -342,7 +342,7 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], 
             neox_args=neox_args, 
             model=model,
             context_tokens=[context_tokens],
-            eos_token_id=neox_args.tokenizer.eod,
+            eos_token_id=eos_token_id or neox_args.tokenizer.eod,
             max_tokens=max_tokens,
             recompute=recompute,
             temperature=temperature,
@@ -373,33 +373,50 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], 
                 
     return generated_texts
 
-
-def generate_samples_input_from_file(neox_args, model):
+def generate_samples_input_from_file(neox_args, model, input_file, output_file=None, eos_token_id: int = None, max_tokens: int = 64, recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0):
     """
     Generates samples from an input file and writes them to an output file.
 
     Reads prompts from neox_args.sample_input_file and writes completions to neox_args.sample_output_file
 
+    neox_args: instantiated NeoXArgs with instantiated tokenizer 
     model: a Megatron model
-    """
-    # Read the sample file and open the output file.
-    assert neox_args.sample_input_file is not None, \
-        'sample input file is not provided.'
-    with open(neox_args.sample_input_file, "r") as f:
-        prompts = f.readlines()
-    if is_mp_rank_0():
-        if neox_args.sample_output_file is None:
-            sample_output_file = neox_args.sample_input_file + ".out"
-            print_rank_0('could not find `sample-output-file`, setting '
-                         'it to {}'.format(sample_output_file))
-        else:
-            sample_output_file = neox_args.sample_output_file
-        f_out = open(sample_output_file, "w+")
-    generated_texts = generate_samples_from_prompt(neox_args=neox_args, model=model, text=prompts)
-    if is_mp_rank_0():
-        for item in generated_texts:
-            f_out.write(json.dumps(item) + '\n')
 
+    input_file: path to input file. Each line in the input file will be treated as separate prompt. The line break at the end of the line is not included in the prompt.
+    output_file: file where generation results are to be stored in jsonl format. defaults to input_file+'.output.jsonl' if not defined
+
+    eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
+    max_tokens: maximum number of tokens to be generated; careful! if a batch input is provided max_tokens specifies the maximum number of forwards. longer batch items get less generated tokens.
+
+    recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
+
+    temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
+    top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
+    top_p (default 0.0): float -> Top-p (nucles) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+    
+    note: greedy decoding is used if temperature is 0.0, top_k is 0 and top_p is 0.0
+    """
+    # Read the sample file
+    print_rank_0('generate_samples_input_from_file() loading input from {}'.format(input_file))
+    with open(input_file, "r") as f:
+        prompts = f.readlines()
+    prompts = [p.strip() for p in prompts]
+    prompts = [p for p in prompts if len(p) > 0]
+    print_rank_0('generate_samples_input_from_file() prompts loaded: {}'.format(len(prompts)))
+    
+    if is_mp_rank_0():
+        if output_file is None:
+            output_file = str(input_file) + ".output.jsonl"
+            print_rank_0('generate_samples_input_from_file() setting default output file to {}'.format(output_file))
+        
+    print_rank_0('generate_samples_input_from_file() generating...')
+    generated_texts = generate_samples_from_prompt(neox_args=neox_args, model=model, text=prompts, eos_token_id=eos_token_id, max_tokens=max_tokens, recompute=recompute, temperature=temperature, top_k=top_k, top_p=top_p)
+    
+    if is_mp_rank_0():
+        with open(output_file, "w") as f_out:
+            for item in generated_texts:
+                f_out.write(json.dumps(item) + '\n')
+    print_rank_0('generate_samples_input_from_file() done')
 
 def generate_samples_interactive(neox_args, model, print_frequency=24):
     """
@@ -517,7 +534,6 @@ def generate_samples_unconditional(neox_args, model):
                 break
         if ctr >= num_samples:
             break
-
 
 def generate_and_write_samples_unconditional(neox_args, model):
     """
