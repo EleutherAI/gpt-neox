@@ -242,11 +242,11 @@ def get_token_stream(neox_args, model, context_tokens: List[List[int]], eos_toke
             
             # sample token id of the to be generated token
             generated_token_logits = logits[:, -1].view(batch_size, -1).contiguous()
-            if greedy:
+            if greedy: #TODO default to greedy if others are not set, especially when temperature == 0
                 generated_tokens = torch.argmax(generated_token_logits, dim=-1).view(-1)
             else:
                 generated_token_logits = generated_token_logits.float()
-                generated_token_logits /= temperature #TODO ?
+                generated_token_logits /= temperature #TODO really this way?
                 generated_token_logits = filter_logits(generated_token_logits, top_k=top_k, top_p=top_p)
                 next_token_log_probs = F.softmax(generated_token_logits, dim=-1)
                 generated_tokens = torch.multinomial(next_token_log_probs, num_samples=1).view(-1)
@@ -256,7 +256,7 @@ def get_token_stream(neox_args, model, context_tokens: List[List[int]], eos_toke
             state_done = (generated_tokens == eos_token_id).byte() & state_started.byte() # check which batch items produce an eos_token in the current iteration
             state_just_finished = (state_done & ~state_is_done).bool()
             state_is_done = state_is_done | state_done
-            token_generation_end_index[state_started.byte() & ~state_is_done] = token_index_to_generate
+            token_generation_end_index[(state_started.byte() & ~state_is_done).bool()] = token_index_to_generate
 
             # switch out only padding tokens (the batch items that have been started)
             context_tokens[:, token_index_to_generate] = switch(context_tokens[:, token_index_to_generate].view(-1), generated_tokens, state_started) 
@@ -292,11 +292,10 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str]):
         input_pos = 0
 
     # generate completions
-    iterations = 0
     generated_texts = []
     while True:
+        
         start_time = time.time()
-
         # Tokenize text, and check whether we should terminate process
         terminate_runs = 0
         if is_mp_rank_0():
@@ -322,10 +321,10 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str]):
         if terminate_runs == 1:
             return generated_texts
 
-        for context_tokens, token_generation_start_index, token_generation_end_index in get_token_stream(
+        for batch_context_tokens, batch_token_generation_start_index, batch_token_generation_end_index in get_token_stream(
             neox_args=neox_args, 
             model=model,
-            context_tokens=[context_tokens, context_tokens[0:1]],
+            context_tokens=[context_tokens],
             eos_token_id=neox_args.tokenizer.eod,
             max_tokens=neox_args.out_seq_length,
             recompute=neox_args.recompute,
@@ -334,27 +333,28 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str]):
             top_k=neox_args.top_k,
             top_p=neox_args.top_p
             ):
-            pass
-        token_batch = token_stream[0].cpu().numpy().tolist()
-        length_batch = token_stream[1].cpu().numpy().tolist()
-        for tokens, length in zip(token_batch, length_batch):
-            tokens = tokens[1:length - 1]
-            try:
-                text = neox_args.tokenizer.detokenize(tokens)
-            except KeyError:
-                print_rank_0("WARNING: generated token which doesn't exist. Skipping")
-                continue
-            is_finished = length < neox_args.seq_length - 1
+            pass # finish generation and use all results below
 
+        batch_context_tokens = batch_context_tokens.cpu().numpy().tolist()
+        batch_token_generation_start_index = batch_token_generation_start_index.cpu().numpy().tolist()
+        batch_token_generation_end_index = batch_token_generation_end_index.cpu().numpy().tolist()
+        for tokens, start_index, end_index in zip(batch_context_tokens, batch_token_generation_start_index, batch_token_generation_end_index):
+            if end_index >= start_index:
+                generated_tokens = tokens[start_index:end_index + 1]
+                try:
+                    generated_text = neox_args.tokenizer.detokenize(generated_tokens)
+                    message = None
+                except KeyError:
+                    generated_text = None
+                    message = "WARNING: generated token which doesn't exist."
+            else:
+                generated_tokens = list()
+                message = "WARNING: text generation did not start; try different batching or adjust parameters"
+            is_finished = (end_index < neox_args.seq_length - 1) and end_index > -1
             if is_mp_rank_0():
-                data = {'context': raw_text, 'text': text, 'length': length - 1, 'finished': is_finished}
+                data = {'context': raw_text, 'text': generated_text, 'length': len(generated_tokens), 'finished': is_finished, 'message': message, 'duration_seconds': float(time.time() - start_time)}
                 generated_texts.append(data)
-                if iterations % neox_args.log_interval == 0:
-                    print_rank_0('Avg s/batch:',
-                                 (time.time() - start_time) / min(neox_args.log_interval, iterations + 1))
-                    start_time = time.time()
-                iterations += 1
-
+                
     return generated_texts
 
 
