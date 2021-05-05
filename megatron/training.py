@@ -49,6 +49,7 @@ from megatron.gradient_noise_scale import GradientNoiseScale
 from megatron.model.gpt2_model import cross_entropy
 from megatron.utils import get_ltor_masks_and_position_ids
 from megatron.utils import reduce_losses
+from megatron.fp16 import fp32_to_fp16
 
 import deepspeed
 
