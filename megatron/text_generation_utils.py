@@ -35,6 +35,7 @@ def get_batch(neox_args, context_tokens: torch.Tensor):
     """
     Generate batch from context tokens. Attention mask and position ids are created. Returned tensors will be on CUDA.
     
+    neox_args: instantiated NeoXArgs with tokenizer instantiated and reset_position_ids, reset_attention_mask and eod_mask_loss defined
     context_tokens: torch tensor with dimensions [batch, context_size]
 
     returns: tuple of torch tensors (tokens, attention_mask, position_ids) on CUDA
@@ -51,6 +52,23 @@ def get_batch(neox_args, context_tokens: torch.Tensor):
         neox_args.eod_mask_loss)
     return tokens, attention_mask, position_ids
 
+def pad_batch(batch, pad_id, neox_args):
+    """
+    pads context lengths in batch with pad_id to equal neox_args.seq_length,
+    and returns the padded batch and the new lengths.
+
+    batch: torch.Tensor of tokens
+    pad_id: int, integer to use as padding token
+    neox_args: neox_args
+    """
+
+    context_lengths = []
+    for tokens in batch:
+        context_length = len(tokens)
+        if context_length < neox_args.seq_length:
+            tokens.extend([pad_id] * (neox_args.seq_length - context_length))
+        context_lengths.append(context_length)
+    return batch, context_lengths
 
 def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
     """
@@ -91,26 +109,6 @@ def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
 
     return logits
 
-
-def pad_batch(batch, pad_id, neox_args):
-    """
-    pads context lengths in batch with pad_id to equal neox_args.seq_length,
-    and returns the padded batch and the new lengths.
-
-    batch: torch.Tensor of tokens
-    pad_id: int, integer to use as padding token
-    neox_args: neox_args
-    """
-
-    context_lengths = []
-    for tokens in batch:
-        context_length = len(tokens)
-        if context_length < neox_args.seq_length:
-            tokens.extend([pad_id] * (neox_args.seq_length - context_length))
-        context_lengths.append(context_length)
-    return batch, context_lengths
-
-
 def get_token_stream(neox_args, model, context_tokens):
     """
     yields completions from a model as an iterator.
@@ -119,24 +117,25 @@ def get_token_stream(neox_args, model, context_tokens):
     context_tokens: the prompt to complete.
     """
 
-    context_tokens, context_lengths = pad_batch(context_tokens, neox_args.tokenizer.eod, neox_args) 
+    context_tokens, context_lengths = pad_batch(context_tokens, pad_id=neox_args.tokenizer.eod, neox_args=neox_args) 
 
     context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
     context_length_tensor = torch.cuda.LongTensor(context_lengths)
 
-    torch.distributed.broadcast(context_length_tensor,
-                                mpu.get_model_parallel_src_rank(),
-                                group=mpu.get_model_parallel_group())
     torch.distributed.broadcast(context_tokens_tensor,
                                 mpu.get_model_parallel_src_rank(),
                                 group=mpu.get_model_parallel_group())
-
+    torch.distributed.broadcast(context_length_tensor,
+                                mpu.get_model_parallel_src_rank(),
+                                group=mpu.get_model_parallel_group())
+    
     context_length = context_length_tensor.min().item()
     tokens, attention_mask, position_ids = get_batch(neox_args, context_tokens_tensor)
 
     batch_token_iterator = sample_sequence_batch(neox_args, model, context_tokens_tensor,
                                                  context_length_tensor,
                                                  attention_mask, position_ids)
+    
     for tokens, lengths in batch_token_iterator:
         context_length += 1
         yield tokens[:, :context_length], lengths
@@ -183,15 +182,14 @@ def broadcast_terminate_signal(terminate_runs: int):
     return terminate_runs_tensor[0].item()
 
 
-def sample_sequence_batch(neox_args, model, context_tokens, context_lengths,
-                          attention_mask, position_ids,
-                          maxlen=None):
+def sample_sequence_batch(neox_args, model, context_tokens: torch.Tensor, context_lengths: torch.Tensor, attention_mask: torch.Tensor, position_ids: torch.Tensor, maxlen: int = None):
     """
     yields completions from a model as an iterator.
 
+    neox_args: instantiated NeoXArgs with instantiated tokenizer 
     model: a Megatron model.
-    context_tokens: the prompt to complete.
-    context_lengths: lengths of context tokens.
+    context_tokens: the prompt to complete of dimenstions [batch, max_seq_len]; context tokens are expected to be padded to the right to full context length over the full batch
+    context_lengths: lengths of context tokens of dimension [batch]; the context length records for each bach item how many non-padded tokens are provided
     attention_mask: attention mask for megatron model.
     position_ids: position ids for positional encoding.
 
