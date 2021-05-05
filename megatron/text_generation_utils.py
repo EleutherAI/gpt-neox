@@ -148,7 +148,7 @@ def broadcast_terminate_signal(terminate_runs: int):
                                 group=mpu.get_model_parallel_group())
     return terminate_runs_tensor[0].item()
 
-def get_token_stream(neox_args, model, context_tokens: List[List[int]], eos_token_id: int = None, max_tokens: int = None, recompute: bool = False, greedy: bool = True, temperature: float = 1.0, top_k : int = 0, top_p : float = 0.0):
+def get_token_stream(neox_args, model, context_tokens: List[List[int]], eos_token_id: int = None, max_tokens: int = None, recompute: bool = False, temperature: float = 0.0, top_k : int = 0, top_p : float = 0.0):
     """
     iterator producing text completions
 
@@ -165,9 +165,11 @@ def get_token_stream(neox_args, model, context_tokens: List[List[int]], eos_toke
 
     recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
 
-    greedy: greedy decoding (true) or applying top k / top p (false)
+    temperature: exponential scaling output distribution ("higher == more risk")
     top_k: integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
     top_p: float -> Top-p (nucles) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+    
+    note: greedy decoding is used if temperature is 0.0, top_k is 0 and top_p is 0.0
 
     yields: tokens (completions from model), token_generation_start_index (token index per batch item for the first generated token), token_generation_end_index (token index per batch item for the last generated token)
             * each iteration adds a generated token to the context_tokens
@@ -242,11 +244,12 @@ def get_token_stream(neox_args, model, context_tokens: List[List[int]], eos_toke
             
             # sample token id of the to be generated token
             generated_token_logits = logits[:, -1].view(batch_size, -1).contiguous()
-            if greedy: #TODO default to greedy if others are not set, especially when temperature == 0
+            if temperature == 0.0 and top_k == 0 and top_p == 0.0:
                 generated_tokens = torch.argmax(generated_token_logits, dim=-1).view(-1)
             else:
                 generated_token_logits = generated_token_logits.float()
-                generated_token_logits /= temperature #TODO really this way?
+                if temperature > 0.0:
+                    generated_token_logits /= temperature
                 generated_token_logits = filter_logits(generated_token_logits, top_k=top_k, top_p=top_p)
                 next_token_log_probs = F.softmax(generated_token_logits, dim=-1)
                 generated_tokens = torch.multinomial(next_token_log_probs, num_samples=1).view(-1)
@@ -328,7 +331,6 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str]):
             eos_token_id=neox_args.tokenizer.eod,
             max_tokens=neox_args.out_seq_length,
             recompute=neox_args.recompute,
-            greedy=neox_args.greedy,
             temperature=neox_args.temperature,
             top_k=neox_args.top_k,
             top_p=neox_args.top_p

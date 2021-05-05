@@ -526,11 +526,6 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     Sampling temperature.
     """
 
-    greedy: bool = False
-    """
-    Use greedy sampling.
-    """
-
     top_p: float = 0.0
     """
     Top p sampling.
