@@ -148,7 +148,7 @@ def broadcast_terminate_signal(terminate_runs: int):
                                 group=mpu.get_model_parallel_group())
     return terminate_runs_tensor[0].item()
 
-def get_token_stream(neox_args, model, context_tokens: List[List[int]], eos_token_id: int = None, max_tokens: int = None, recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0):
+def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_id: int = None, max_tokens: int = None, recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0):
     """
     iterator producing text completions
 
@@ -298,6 +298,7 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], 
         - 'duration_seconds': duration of the generation in seconds 
         
     """
+    eos_token_id = eos_token_id or neox_args.tokenizer.eod
 
     # type check
     assert any([isinstance(text, str), isinstance(text, list)]), "Text should be in string or list form"
@@ -322,14 +323,16 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], 
                 raw_text = text[input_pos]
                 input_pos += 1
 
-                context_tokens = neox_args.tokenizer.tokenize(raw_text)
+                if raw_text == "":
+                    context_tokens = [eos_token_id]
+                else:
+                    context_tokens = neox_args.tokenizer.tokenize(raw_text)
                 context_length = len(context_tokens)
 
                 if context_length >= (neox_args.seq_length // 2):
-                    print_rank_0("\nContext length", context_length,
-                                 "\nPlease give smaller context (half of the "
-                                 "sequence length)!", flush=True)
-                    continue
+                    print_rank_0("\nWarning! Context length", context_length,
+                                 "\nPlease give smaller context (e.g. half of the "
+                                 "max sequence length)!", flush=True)
         else:
             context_tokens = neox_args.tokenizer.tokenize("EMPTY TEXT")
             context_length = len(context_tokens)
@@ -338,11 +341,11 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], 
         if terminate_runs == 1:
             return generated_texts
 
-        for batch_context_tokens, batch_token_generation_start_index, batch_token_generation_end_index in get_token_stream(
+        for batch_context_tokens, batch_token_generation_start_index, batch_token_generation_end_index in stream_tokens(
             neox_args=neox_args, 
             model=model,
             context_tokens=[context_tokens],
-            eos_token_id=eos_token_id or neox_args.tokenizer.eod,
+            eos_token_id=eos_token_id,
             max_tokens=max_tokens,
             recompute=recompute,
             temperature=temperature,
@@ -395,6 +398,15 @@ def generate_samples_input_from_file(neox_args, model, input_file, output_file=N
     top_p (default 0.0): float -> Top-p (nucles) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
     
     note: greedy decoding is used if temperature is 0.0, top_k is 0 and top_p is 0.0
+    
+    
+    returns: List[dict] -> a list of dicts containing the following fields:
+        - 'context' (the input)
+        - 'text' (the completion)
+        - 'length' (the length of the completion in number of tokens)
+        - 'finished': 
+        - 'message': a messaged associated with the generation procedure, can be a warning or error
+        - 'duration_seconds': duration of the generation in seconds 
     """
     # Read the sample file
     print_rank_0('generate_samples_input_from_file() loading input from {}'.format(input_file))
@@ -417,6 +429,49 @@ def generate_samples_input_from_file(neox_args, model, input_file, output_file=N
             for item in generated_texts:
                 f_out.write(json.dumps(item) + '\n')
     print_rank_0('generate_samples_input_from_file() done')
+    return generated_texts
+
+def generate_samples_unconditional(neox_args, model, number_of_samples: int = 10, output_file=None, eos_token_id: int = None, max_tokens: int = 64, recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0):
+    """
+    Generates samples unconditionially (no prompt) and yields them in a dictionary.
+
+    neox_args: instantiated NeoXArgs with instantiated tokenizer 
+    model: a Megatron model
+
+    number_of_samples (default 10): number of unconditional samples to be generated
+    
+    output_file: file where generation results are to be stored in jsonl format. no file will be stored if ommitted
+
+    eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
+    max_tokens: maximum number of tokens to be generated; careful! if a batch input is provided max_tokens specifies the maximum number of forwards. longer batch items get less generated tokens.
+
+    recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
+
+    temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
+    top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
+    top_p (default 0.0): float -> Top-p (nucles) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+    
+    note: greedy decoding is used if temperature is 0.0, top_k is 0 and top_p is 0.0
+
+    yields: dict containing the following fields:
+        - 'context' (the input)
+        - 'text' (the completion)
+        - 'length' (the length of the completion in number of tokens)
+        - 'finished': 
+        - 'message': a messaged associated with the generation procedure, can be a warning or error
+        - 'duration_seconds': duration of the generation in seconds 
+    """
+   
+    print_rank_0('generate_samples_unconditional() generating...')
+    generated_texts = generate_samples_from_prompt(neox_args=neox_args, model=model, text=["" for _ in range(number_of_samples)], eos_token_id=eos_token_id, max_tokens=max_tokens, recompute=recompute, temperature=temperature, top_k=top_k, top_p=top_p)
+    
+    if is_mp_rank_0():
+        if output_file is not None:
+            with open(output_file, "w") as f_out:
+                for item in generated_texts:
+                    f_out.write(json.dumps(item) + '\n')
+    print_rank_0('generate_samples_unconditional() done')
+    return generated_texts
 
 def generate_samples_interactive(neox_args, model, print_frequency=24):
     """
@@ -459,7 +514,7 @@ def generate_samples_interactive(neox_args, model, print_frequency=24):
             if terminate_runs == 1:
                 return
 
-            token_stream = get_token_stream(neox_args, model, [context_tokens])
+            token_stream = stream_tokens(neox_args, model, [context_tokens])
             for counter, decode_tokens in enumerate(token_stream):
                 decode_tokens, _ = decode_tokens
                 decode_tokens = decode_tokens[0].cpu().numpy().tolist()
@@ -486,71 +541,3 @@ def generate_samples_interactive(neox_args, model, print_frequency=24):
             if is_mp_rank_0():
                 input("\nPress any key to continue >>>")
 
-
-def generate_samples_unconditional(neox_args, model):
-    """
-    Generates samples unconditionially (no prompt) and yields them in a dictionary.
-
-
-    model: a Megatron model
-
-    yields: Dict -> a dict containing the following fields:
-        - 'text' (the completion)
-        - 'length' (the length of the completion)
-    """
-
-    num_samples = neox_args.num_samples
-    context_tokens = [[neox_args.tokenizer.eod]
-                      for _ in range(neox_args.batch_size)]
-    ctr = 0
-    while True:
-        start_time = time.time()
-        token_stream = None
-
-        for token_stream in get_token_stream(neox_args, model, copy.deepcopy(context_tokens)):
-            ' print(token_stream) -> 1, 1,2, 1,2,3'
-            pass
-        if token_stream is None: break
-        if ctr % neox_args.log_interval == 0:
-            print_rank_0('Avg s/batch:',
-                         (time.time() - start_time) / min(neox_args.log_interval, ctr + 1))
-            start_time = time.time()
-        length = len(token_stream)
-        token_batch = token_stream[0].cpu().numpy().tolist()
-        length_batch = token_stream[1].cpu().numpy().tolist()
-
-        for tokens, length in zip(token_batch, length_batch):
-            tokens = tokens[1:length - 1]
-            try:
-                text = neox_args.tokenizer.detokenize(tokens)
-            except KeyError:
-                print_rank_0("WARNING: generated token which doesn't exist. Skipping")
-                continue
-            is_finished = length < neox_args.seq_length - 1
-            datum = {'text': text, 'length': length - 1, 'finished': is_finished}
-            yield datum
-            ctr += 1
-            if ctr >= num_samples:
-                break
-        if ctr >= num_samples:
-            break
-
-def generate_and_write_samples_unconditional(neox_args, model):
-    """
-    Generates samples unconditionially (no prompt) and writes them to an output file at neox_args.genfile
-
-    model: a Megatron model
-
-    """
-    assert neox_args.genfile is not None
-    genfile = neox_args.genfile
-
-    # Create directory
-    genfile_dir = os.path.dirname(genfile)
-    os.makedirs(genfile_dir, exist_ok=True)
-
-    with open(genfile, 'w') as f:
-        for n, datum in enumerate(generate_samples_unconditional(neox_args=neox_args, model=model), 1):
-            f.write(json.dumps(datum) + '\n')
-            if n != 0 and n % neox_args.log_interval:
-                print_rank_0(f"Text generated and written: {n}")
