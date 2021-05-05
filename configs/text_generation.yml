@@ -10,7 +10,6 @@
   "top_p": 0.0,
   "top_k": 0,
   #"recompute": false,
-  #"greedy": flase,
 
   # `unconditional`: output file
   "num-samples": 10,
