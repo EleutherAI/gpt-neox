@@ -46,7 +46,6 @@ from megatron.utils import report_memory
 from megatron.utils import tb_wandb_log
 from megatron.gradient_noise_scale import GradientNoiseScale
 
-from megatron.fp16 import fp32_to_fp16
 from megatron.model.gpt2_model import cross_entropy
 from megatron.utils import get_ltor_masks_and_position_ids
 from megatron.utils import reduce_losses
@@ -496,10 +495,15 @@ def training_log(neox_args, timers, loss_dict, total_loss_dict, learning_rate, i
 
     # (optional) Log grad/param norms to wandb / tb every step
     if neox_args.log_grad_norm or neox_args.log_param_norm:
-        for name, param in model.module.named_parameters():
+        if neox_args.log_grad_norm:
+            model.store_gradients = True  # start storing gradients
+        for i, (name, param) in enumerate(model.module.named_parameters()):
             if neox_args.log_grad_norm:
-                if param.grad is not None:
-                    tb_wandb_log(f'gradient_norms/{name}', torch.norm(param.grad), iteration, use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
+                if hasattr(model, 'stored_gradients') and model.stored_gradients is not None:
+                    grad = model.stored_gradients[i]
+                    if grad is not None:
+                        tb_wandb_log(f'gradient_norms/{name}', torch.norm(grad), iteration,
+                                     use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
             if neox_args.log_param_norm:
                 tb_wandb_log(f'parameter_norms/{name}', torch.norm(param), iteration, use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
 
@@ -666,7 +670,7 @@ def evaluate(neox_args, forward_step_fn, data_iterator, model, verbose=False):
             # Reduce across processes.
             for key in loss_dict:
                 total_loss_dict[key] = total_loss_dict.get(key, 0.) + loss_dict[key]
-    
+
     # Move model back to the train mode.
     model.train()
 
@@ -837,7 +841,6 @@ def get_global_batch_size(neox_args):
 
 
 def get_flops(neox_args, model, iter_time_s):
-
     world_size = torch.distributed.get_world_size()
     global_batch_size = get_global_batch_size(neox_args)
 
