@@ -35,7 +35,7 @@ def get_batch(neox_args, context_tokens: torch.Tensor):
     """
     Generate batch from context tokens. Attention mask and position ids are created. Returned tensors will be on CUDA.
     
-    neox_args: instantiated NeoXArgs with tokenizer instantiated and reset_position_ids, reset_attention_mask and eod_mask_loss defined
+    neox_args: NeoXArgs with tokenizer, reset_position_ids, reset_attention_mask and eod_mask_loss
     context_tokens: torch tensor with dimensions [batch, context_size]
 
     returns: tuple of torch tensors (tokens, attention_mask, position_ids) on CUDA
@@ -152,7 +152,7 @@ def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_i
     """
     iterator producing text completions
 
-    neox_args: instantiated NeoXArgs with instantiated tokenizer 
+    neox_args: NeoXArgs with tokenizer, reset_position_ids, reset_attention_mask and eod_mask_loss
     model: a Megatron model.
     context_tokens: the prompt to complete; unpadded list of lists of tokens ids
 
@@ -274,13 +274,13 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], 
     """
     Generates samples from raw text and returns them in a dictionary.
 
-    neox_args: instantiated NeoXArgs with instantiated tokenizer 
+    neox_args: NeoXArgs with tokenizer, reset_position_ids, reset_attention_mask and eod_mask_loss
     model: a Megatron model
     text: either a single prompt (str) or a list of prompts (List[str]).
 
     eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
     maximum_tokens: maximum number of tokens to be generated
-    
+
     recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
 
     temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
@@ -382,7 +382,7 @@ def generate_samples_input_from_file(neox_args, model, input_file, output_file=N
 
     Reads prompts from neox_args.sample_input_file and writes completions to neox_args.sample_output_file
 
-    neox_args: instantiated NeoXArgs with instantiated tokenizer 
+    neox_args: NeoXArgs with tokenizer, reset_position_ids, reset_attention_mask and eod_mask_loss
     model: a Megatron model
 
     input_file: path to input file. Each line in the input file will be treated as separate prompt. The line break at the end of the line is not included in the prompt.
@@ -435,7 +435,7 @@ def generate_samples_unconditional(neox_args, model, number_of_samples: int = 10
     """
     Generates samples unconditionially (no prompt) and yields them in a dictionary.
 
-    neox_args: instantiated NeoXArgs with instantiated tokenizer 
+    neox_args: NeoXArgs with tokenizer, reset_position_ids, reset_attention_mask and eod_mask_loss
     model: a Megatron model
 
     number_of_samples (default 10): number of unconditional samples to be generated
@@ -477,7 +477,7 @@ def generate_samples_interactive(neox_args, model, maximum_tokens: int = 64, eos
     """
     Generates samples unconditionially (no prompt) and yields them in a dictionary.
 
-    neox_args: instantiated NeoXArgs with instantiated tokenizer 
+    neox_args: NeoXArgs with tokenizer, reset_position_ids, reset_attention_mask and eod_mask_loss
     model: a Megatron model
 
     maximum_tokens: maximum number of tokens to be generated
