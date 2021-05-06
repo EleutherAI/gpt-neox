@@ -46,7 +46,7 @@ def get_batch(neox_args, context_tokens: torch.Tensor):
     # Get the attention mask and postition ids.
     attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
         tokens,
-        neox_args.tokenizer.eod_id,
+        neox_args.tokenizer.eod,
         neox_args.reset_position_ids,
         neox_args.reset_attention_mask,
         neox_args.eod_mask_loss)
@@ -180,7 +180,7 @@ def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_i
     model.eval()
 
     # pad batch in order to allow conversion to tensor
-    context_tokens, context_lengths = pad_batch(copy.deepcopy(context_tokens), pad_id=neox_args.tokenizer.eod_id, pad_len=neox_args.seq_length) 
+    context_tokens, context_lengths = pad_batch(copy.deepcopy(context_tokens), pad_id=neox_args.tokenizer.eod, pad_len=neox_args.seq_length) 
 
     # convert to tensor and broadcast
     context_tokens = torch.cuda.LongTensor(context_tokens)
@@ -200,7 +200,7 @@ def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_i
     context_length = token_generation_start_index.min().item()
 
     # set variables
-    eos_token_id = eos_token_id or neox_args.tokenizer.eod_id
+    eos_token_id = eos_token_id or neox_args.tokenizer.eod
     maximum_tokens = maximum_tokens or (neox_args.seq_length - token_generation_start_index.max().item() - 1)
     batch_size = context_tokens.size(0)
 
@@ -298,7 +298,7 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], 
         - 'duration_seconds': duration of the generation in seconds 
         
     """
-    eos_token_id = eos_token_id or neox_args.tokenizer.eod_id
+    eos_token_id = eos_token_id or neox_args.tokenizer.eod
 
     # type check
     assert any([isinstance(text, str), isinstance(text, list)]), "Text should be in string or list form"
@@ -509,7 +509,7 @@ def generate_samples_interactive(neox_args, model, maximum_tokens: int = 64, eos
             raw_text = input("Context prompt >>> ")
             context_tokens = neox_args.tokenizer.tokenize(raw_text)
             if len(context_tokens) == 0:
-                context_tokens = [neox_args.tokenizer.eod_id]
+                context_tokens = [neox_args.tokenizer.eod]
             context_length = len(context_tokens)
             if context_length >= (neox_args.seq_length - 1):
                 print_rank_0("\nContext length"+str(context_length)+"\nReached max sequence length!")
