@@ -231,36 +231,42 @@ def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_i
         token_generation_end_index = torch.ones([batch_size]).long().cuda() * (-1)
 
         while token_index_to_generate <= last_token_index_to_generate:
-            if recompute or (token_index_to_generate == first_token_index_to_generate):
-                # when recomputing or at first iteration all tokens are forwarded
-                tokens_to_use = context_tokens[:, :token_index_to_generate]
-                positions_to_use = position_ids[:, :token_index_to_generate]
-                layer_past = torch.Tensor().cuda()
+            if neox_args.recompute:
+                # recompute is needed for sparse attention at the moment
+                # because we can only forward multiples of the block size
+                # TODO The full padded context_tokens would not need to be forwarded, adjust to multiples of block size
+                # we need to use neox_args instead of kwargs here because deepspeed :|
+                model_inputs = (context_tokens,
+                                position_ids,
+                                attention_mask,
+                                torch.Tensor(),
+                                )
+                logits, _ = forward_model(neox_args, model, model_inputs)
+                generated_token_logits = logits[:, token_index_to_generate - 1, :]
             else:
-                # otherwise only the last tokens are forwarded and layer past is used for other tokens
-                tokens_to_use = context_tokens[:, token_index_to_generate - 1].view(batch_size, -1) # view applied to keep dimensions
-                positions_to_use = position_ids[:, token_index_to_generate - 1].view(batch_size, -1)
-            
-            # we have to use a tuple instead of kwargs here because deepspeed :|
-            model_inputs = (
-                tokens_to_use,
-                positions_to_use,
-                attention_mask,
-                layer_past,
-                )
+                # not choosing recompute assumes that any number of tokens can be forwarded
+                # this is not the case for sparse attention
+                if token_index_to_generate == first_token_index_to_generate:
+                    tokens_to_use = tokens[:, :token_index_to_generate]
+                    positions_to_use = position_ids[:, :token_index_to_generate]
+                else:
+                    tokens_to_use = tokens[:, token_index_to_generate - 1].view(
+                        batch_size, -1)
+                    positions_to_use = position_ids[:, token_index_to_generate - 1].view(
+                        batch_size, -1)
+                # we have to use neox_args instead of kwargs here because deepspeed :|
+                model_inputs = (tokens_to_use,  # input_ids
+                                positions_to_use,  # position_ids
+                                attention_mask,  # attention_mask
+                                layer_past,  # layer_past
+                                )
 
-            logits, layer_past = forward_model(neox_args, model, model_inputs)
-            
-            if recompute or (token_index_to_generate == first_token_index_to_generate):
-                all_logits[:, :token_index_to_generate, :] = logits[:, :token_index_to_generate, :]         
-            else:
-                all_logits[:, token_index_to_generate - 1, :] = logits[:, 0, :] # only one token will is computed
-
-            # TODO: we are replicating computation across all machines here, which is really unecessary,
-            #  we should probably just do it on one then communicate the results?
-            
+                logits, layer_past = forward_model(neox_args, model, model_inputs)
+                # TODO: we are replicating computation across all machines here, which is really unecessary,
+                #  we should probably just do it on one then communicate the results?
+                generated_token_logits = logits[:, -1].view(batch_size, -1).contiguous()
+                
             # sample token id of the to be generated token
-            generated_token_logits = logits[:, -1].view(batch_size, -1).contiguous()
             if temperature == 0.0 and top_k == 0 and top_p == 0.0:
                 generated_tokens = torch.argmax(generated_token_logits, dim=-1).view(-1)
             else:

@@ -755,4 +755,5 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     recompute: bool = False
     """
     During generation recompute all attention instead of using previously computed keys/values.
+    Should be set to true for sparse attention models
     """
