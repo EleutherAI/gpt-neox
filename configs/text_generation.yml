@@ -5,7 +5,7 @@
   "text-gen-type": "interactive",
  
   # Params for all
-  "max_tokens": 102,
+  "maximum_tokens": 102,
   "temperature": 0.5,
   "top_p": 0.0,
   "top_k": 0,

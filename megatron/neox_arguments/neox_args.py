@@ -732,9 +732,9 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
     """
 
-    max_tokens: int = 64
+    maximum_tokens: int = 64
     """
-    aximum number of tokens to be generated
+    maximum number of tokens to be generated
     """
 
     sample_input_file: str = None
