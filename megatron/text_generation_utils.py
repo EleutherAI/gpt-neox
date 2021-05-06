@@ -243,6 +243,7 @@ def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_i
                                 )
                 logits, _ = forward_model(neox_args, model, model_inputs)
                 generated_token_logits = logits[:, token_index_to_generate - 1, :]
+                all_logits = logits
             else:
                 # not choosing recompute assumes that any number of tokens can be forwarded
                 # this is not the case for sparse attention
@@ -266,6 +267,11 @@ def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_i
                 #  we should probably just do it on one then communicate the results?
                 generated_token_logits = logits[:, -1].view(batch_size, -1).contiguous()
                 
+                if token_index_to_generate == first_token_index_to_generate:
+                    all_logits[:, :token_index_to_generate, :] = logits[:, :token_index_to_generate, :]         
+                else:
+                    all_logits[:, token_index_to_generate - 1, :] = logits[:, 0, :] # only one token will is computed
+
             # sample token id of the to be generated token
             if temperature == 0.0 and top_k == 0 and top_p == 0.0:
                 generated_tokens = torch.argmax(generated_token_logits, dim=-1).view(-1)
