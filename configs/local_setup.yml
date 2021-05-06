@@ -7,4 +7,5 @@
   "load": "checkpoints",
   "tensorboard-dir": "tensorboard",
   "log-dir": "logs",
+  "use_wandb": False
 }
