@@ -148,7 +148,8 @@ def broadcast_terminate_signal(terminate_runs: int):
                                 group=mpu.get_model_parallel_group())
     return terminate_runs_tensor[0].item()
 
-def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_id: int = None, maximum_tokens: int = None, recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0):
+def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_id: int = None, 
+                    maximum_tokens: int = None, recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0):
     """
     iterator producing text completions
 
@@ -161,7 +162,8 @@ def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_i
     position_ids: position ids for positional encoding.
 
     eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
-    maximum_tokens: maximum number of tokens to be generated; careful! if a batch input is provided maximum_tokens specifies the maximum number of forwards. longer batch items get less generated tokens.
+    maximum_tokens: maximum number of tokens to be generated; careful! if a batch input is provided maximum_tokens specifies the maximum number of forwards. 
+                    longer batch items get less generated tokens.
 
     recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
 
@@ -270,7 +272,8 @@ def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_i
             yield context_tokens, token_generation_start_index, token_generation_end_index
             if torch.all(state_is_done): break
 
-def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], eos_token_id: int = None, maximum_tokens: int = 64, recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0):
+def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], eos_token_id: int = None, 
+                                    maximum_tokens: int = 64, recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0):
     """
     Generates samples from raw text and returns them in a dictionary.
 
@@ -371,12 +374,20 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], 
                 message = "WARNING: text generation did not start; try different batching or adjust parameters"
             is_finished = (end_index < neox_args.seq_length - 1) and end_index > -1
             if is_mp_rank_0():
-                data = {'context': raw_text, 'text': generated_text, 'length': len(generated_tokens), 'finished': is_finished, 'message': message, 'duration_seconds': float(time.time() - start_time)}
+                data = {
+                    'context': raw_text, 
+                    'text': generated_text, 
+                    'length': len(generated_tokens), 
+                    'finished': is_finished, 
+                    'message': message, 
+                    'duration_seconds': float(time.time() - start_time)
+                    }
                 generated_texts.append(data)
                 
     return generated_texts
 
-def generate_samples_input_from_file(neox_args, model, input_file, output_file=None, eos_token_id: int = None, maximum_tokens: int = 64, recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0):
+def generate_samples_input_from_file(neox_args, model, input_file, output_file=None, eos_token_id: int = None, 
+                                        maximum_tokens: int = 64, recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0):
     """
     Generates samples from an input file and writes them to an output file.
 
@@ -422,7 +433,17 @@ def generate_samples_input_from_file(neox_args, model, input_file, output_file=N
             print_rank_0('generate_samples_input_from_file() setting default output file to {}'.format(output_file))
         
     print_rank_0('generate_samples_input_from_file() generating...')
-    generated_texts = generate_samples_from_prompt(neox_args=neox_args, model=model, text=prompts, eos_token_id=eos_token_id, maximum_tokens=maximum_tokens, recompute=recompute, temperature=temperature, top_k=top_k, top_p=top_p)
+    generated_texts = generate_samples_from_prompt(
+        neox_args=neox_args, 
+        model=model, 
+        text=prompts, 
+        eos_token_id=eos_token_id, 
+        maximum_tokens=maximum_tokens,
+        recompute=recompute, 
+        temperature=temperature, 
+        top_k=top_k, 
+        top_p=top_p
+        )
     
     if is_mp_rank_0():
         with open(output_file, "w") as f_out:
@@ -431,7 +452,8 @@ def generate_samples_input_from_file(neox_args, model, input_file, output_file=N
     print_rank_0('generate_samples_input_from_file() done')
     return generated_texts
 
-def generate_samples_unconditional(neox_args, model, number_of_samples: int = 10, output_file=None, eos_token_id: int = None, maximum_tokens: int = 64, recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0):
+def generate_samples_unconditional(neox_args, model, number_of_samples: int = 10, output_file=None, eos_token_id: int = None, 
+                                        maximum_tokens: int = 64, recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0):
     """
     Generates samples unconditionially (no prompt) and yields them in a dictionary.
 
@@ -463,7 +485,17 @@ def generate_samples_unconditional(neox_args, model, number_of_samples: int = 10
     """
    
     print_rank_0('generate_samples_unconditional() generating...')
-    generated_texts = generate_samples_from_prompt(neox_args=neox_args, model=model, text=["" for _ in range(number_of_samples)], eos_token_id=eos_token_id, maximum_tokens=maximum_tokens, recompute=recompute, temperature=temperature, top_k=top_k, top_p=top_p)
+    generated_texts = generate_samples_from_prompt(
+        neox_args=neox_args, 
+        model=model, 
+        text=["" for _ in range(number_of_samples)], 
+        eos_token_id=eos_token_id, 
+        maximum_tokens=maximum_tokens, 
+        recompute=recompute, 
+        temperature=temperature, 
+        top_k=top_k, 
+        top_p=top_p
+        )
     
     if is_mp_rank_0():
         if output_file is not None:
@@ -473,7 +505,8 @@ def generate_samples_unconditional(neox_args, model, number_of_samples: int = 10
     print_rank_0('generate_samples_unconditional() done')
     return generated_texts
 
-def generate_samples_interactive(neox_args, model, maximum_tokens: int = 64, eos_token_id: int = None, recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0):
+def generate_samples_interactive(neox_args, model, maximum_tokens: int = 64, eos_token_id: int = None, 
+                                    recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0):
     """
     Generates samples unconditionially (no prompt) and yields them in a dictionary.
 
