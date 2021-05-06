@@ -29,7 +29,6 @@ if __name__ == "__main__":
     """
 
     neox_args = NeoXArgs.consume_neox_args(overwrite_values={
-        "user_script": "text_gen_gpt2.py",
         "checkpoint_activations": False,
         "partition_activations": False,
         "no_load_optim": True,
