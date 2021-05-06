@@ -226,6 +226,7 @@ def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_i
                 # when recomputing or at first iteration all tokens are forwarded
                 tokens_to_use = context_tokens[:, :token_index_to_generate]
                 positions_to_use = position_ids[:, :token_index_to_generate]
+                layer_past = torch.Tensor().cuda()
             else:
                 # otherwise only the last tokens are forwarded and layer past is used for other tokens
                 tokens_to_use = context_tokens[:, token_index_to_generate - 1].view(batch_size, -1) # view applied to keep dimensions
