@@ -7,5 +7,7 @@
   "load": "checkpoints",
   "tensorboard-dir": "tensorboard",
   "log-dir": "logs",
-  "use_wandb": False
+  "use_wandb": False,
+  "wand_host": "https://api.wandb.ai",
+  "wand_project": "neox"
 }

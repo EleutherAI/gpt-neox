@@ -331,6 +331,12 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     wandb_team: str = None
     """Team name for Weights and Biases."""
 
+    wandb_project: str = "neox"
+    """wandb project name"""
+
+    wandb_host: str = "https://api.wandb.ai"
+    """url of the wandb host"""
+
     git_hash: str = get_git_commit_hash()
     """current git hash of repository"""
 

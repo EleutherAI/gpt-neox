@@ -183,12 +183,12 @@ def is_mp_rank_0():
     return mpu.get_model_parallel_rank() == 0
 
 
-def get_wandb_api_key():
+def get_wandb_api_key(neox_args):
     """ Get Weights and Biases API key from ENV or .netrc file. Otherwise return None """
     if 'WANDB_API_KEY' in os.environ:
         return os.environ['WANDB_API_KEY']
 
-    wandb_token = requests.utils.get_netrc_auth('https://api.wandb.ai')
+    wandb_token = requests.utils.get_netrc_auth(neox_args.wandb_host)
 
     if wandb_token is not None:
         return wandb_token[1]
@@ -199,13 +199,13 @@ def init_wandb(neox_args):
     if neox_args.use_wandb == False:
         return
 
-    use_wandb = is_local_main() and (get_wandb_api_key() is not None)
+    use_wandb = is_local_main() and (get_wandb_api_key(neox_args=neox_args) is not None)
     neox_args.update_value("use_wandb", use_wandb)
     if neox_args.use_wandb:
         group_name = neox_args.wandb_group
         name = f'{socket.gethostname()}-{local_rank()}' if group_name else None
         try:
-            wandb.init(project="neox", group=group_name, name=name, save_code=False,
+            wandb.init(project=neox_args.wandb_project, group=group_name, name=name, save_code=False,
                        force=False, entity=neox_args.wandb_team)
         except UsageError as e:
             neox_args.update_value("use_wandb", False)
