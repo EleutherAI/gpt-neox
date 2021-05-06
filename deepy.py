@@ -20,20 +20,11 @@ import deepspeed
 import requests
 from deepspeed.launcher.runner import main
 
+
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 
 from megatron.neox_arguments import NeoXArgs
-
-def get_wandb_api_key():
-    """ Get Weights and Biases API key from ENV or .netrc file. Otherwise return None """
-    if 'WANDB_API_KEY' in os.environ:
-        return os.environ['WANDB_API_KEY']
-
-    wandb_token = requests.utils.get_netrc_auth('https://api.wandb.ai')
-
-    if wandb_token is not None:
-        return wandb_token[1]
-
+from megatron.utils import get_wandb_api_key
 
 # Extract wandb API key and inject into worker environments
 wandb_token = get_wandb_api_key()
