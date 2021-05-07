@@ -245,6 +245,9 @@ Our global batch size configuration follows deepspeed's and can be configured in
    "split": "949,50,1",
    # Suggested data paths when using GPT-NeoX locally
    "data-path": "data/enron/enron_text_document",
+   #"train-data-path": "data/train/train_text_document",
+   #"test-data-path": "data/test/test_text_document",
+   #"valid-data-path": "data/valid/valid_text_document",
    "vocab-file": "data/gpt2-vocab.json",
    "merge-file": "data/gpt2-merges.txt",
    "save": "checkpoints",

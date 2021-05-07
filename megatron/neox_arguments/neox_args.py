@@ -525,6 +525,21 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Path to combined dataset to split.
     """
 
+    train_data_path: str = None
+    """
+    Path to train dataset.
+    """
+
+    test_data_path: str = None
+    """
+    Path to test dataset.
+    """
+
+    valid_data_path: str = None
+    """
+    Path to validation dataset.
+    """
+
     data_impl: str = 'infer'
     """
     Implementation of indexed datasets.
