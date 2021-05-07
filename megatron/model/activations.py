@@ -98,7 +98,7 @@ def erf_gelu(x):
 
 @torch.jit.script
 def swish(x, beta: float = 1.0):
-    return x * F.sigmoid(beta * x)
+    return x * torch.sigmoid(beta * x)
 
 @torch.jit.script
 def mish(input):
