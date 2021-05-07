@@ -116,12 +116,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     """
     Disables weight tying between embedding weights and final Linear layer
     """
-
-    geglu: bool = False
-    """
-    Enable geglu activation function (WARNING: will increase memory usage, adjust embd dims accordingly)
-    """
-
+    
     attention_config: list = None
 
     """
@@ -188,9 +183,10 @@ class NeoXArgsModel(NeoXArgsTemplate):
     If set, use original BERT residual connection ordering.
     """
 
-    openai_gelu: bool = False
+    activation : Literal["gelu", "geglu", "relu", "softsign", "swish", "mish"] = "gelu"
     """
-    Use OpenAIs GeLU implementation. This option should not be used unless for backward compatibility reasons.
+    Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish"]
+    (WARNING: Enabling geglu activation function will increase parameter count - multiply hidden dim by 2/3 to keep parameters equal.)
     """
 
     scaled_upper_triang_masked_softmax_fusion: bool = False
