@@ -525,7 +525,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Path to combined dataset to split.
     """
 
-    data_impl: str = 'infer'
+    data_impl: str = 'infer' #TODO which options are allowed?
     """
     Implementation of indexed datasets.
     """
