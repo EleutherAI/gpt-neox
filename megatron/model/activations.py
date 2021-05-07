@@ -101,8 +101,8 @@ def swish(x, beta: float = 1.0):
     return x * torch.sigmoid(beta * x)
 
 @torch.jit.script
-def mish(input):
-    return input * torch.tanh(F.softplus(input))
+def mish(x):
+    return x * torch.tanh(F.softplus(x))
 
 class GEGLU(torch.nn.Module):
 
