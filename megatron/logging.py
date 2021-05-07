@@ -16,7 +16,8 @@
 
 import sys
 import torch
-from megatron import mpu
+from megatron import mpu, print_rank_0
+from megatron.utils import report_memory
 
 class Tee:
     """ Duplicate output to both stdout/err and file """
