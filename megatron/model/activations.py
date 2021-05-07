@@ -23,10 +23,8 @@ torch._C._jit_override_can_fuse_on_gpu(True)
 
 
 def get_activation(neox_args):
-
-    # choices = [geglu, gelu, openai_gelu, onnx_safe_gelu, relu]
+    """retrieves the activation function specified in neox_args"""
     ff_mult = 4
-
     if neox_args.activation == "geglu":
         ff_mult = 8
         activation_func = GEGLU(neox_args=neox_args)
@@ -112,7 +110,6 @@ class GEGLU(torch.nn.Module):
             self.activation_func = erf_gelu
         else:
             self.activation_func = F.gelu
-
 
     def forward(self, x):
         x, gate = x.chunk(2, dim=-1)
