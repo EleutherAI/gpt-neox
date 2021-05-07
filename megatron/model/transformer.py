@@ -75,21 +75,24 @@ class ParallelMLP(torch.nn.Module):
         self.activation_func = get_activation(neox_args)
         self.activation_type = neox_args.activation
         self.bias_gelu_fusion = neox_args.bias_gelu_fusion
-        ff_mult = 8 if self.activation_type == "geglu" else 4
-        # Project to ff_mult * h.
+
+        # auto scale so geglu has equal parameters
+        ff_mult = 4*2/3 if self.activation_type == "geglu" else 4
+        ff_dim = int(ff_mult * neox_args.hidden_size * 2) if self.activation_type == "geglu" \
+            else ff_mult * neox_args.hidden_size
         self.dense_h_to_4h = mpu.ColumnParallelLinear(
             neox_args=neox_args,
             input_size=neox_args.hidden_size,
-            output_size=ff_mult * neox_args.hidden_size,
+            output_size=ff_dim,
             gather_output=False,
             init_method=init_method,
             skip_bias_add=True
         )
-
+        ff_dim_in = ff_dim // 2 if self.activation_type == "geglu" else ff_dim
         # Project back to h.
         self.dense_4h_to_h = mpu.RowParallelLinear(
             neox_args=neox_args,
-            input_size=4 * neox_args.hidden_size,
+            input_size=ff_dim_in,
             output_size=neox_args.hidden_size,
             input_is_parallel=True,
             init_method=output_layer_init_method,
@@ -100,7 +103,7 @@ class ParallelMLP(torch.nn.Module):
         # [s, b, 4hp]
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
 
-        if self.activation_type == "gelu" and self.bias_gelu_fusion:
+        if (self.activation_type == "gelu" and self.bias_gelu_fusion) or self.activation_type == "geglu":
             intermediate_parallel = self.activation_func(intermediate_parallel, bias_parallel)
         else:
             intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel)

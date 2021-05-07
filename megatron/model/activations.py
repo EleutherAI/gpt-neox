@@ -47,6 +47,7 @@ def get_activation(neox_args):
         raise ValueError(f"Activation function {neox_args.activation_func} not recognized")
     return activation_func
 
+
 ###### BIAS GELU FUSION/ NO AUTOGRAD ################
 # 1/sqrt(2*pi)-> 0.3989423
 # 1/sqrt(2)   -> 0.70710678
@@ -58,7 +59,8 @@ def get_activation(neox_args):
 @torch.jit.script
 def bias_gelu(bias, y):
     x = bias + y
-    return  x * 0.5 * (1.0 + torch.tanh(0.79788456 * x * (1 + 0.044715 * x * x)))
+    return x * 0.5 * (1.0 + torch.tanh(0.79788456 * x * (1 + 0.044715 * x * x)))
+
 
 # gradient of tanh approximation of gelu
 # gradient of actual gelu is:
@@ -69,7 +71,8 @@ def bias_gelu_back(g, bias, y):
     tanh_out = torch.tanh(0.79788456 * x * (1 + 0.044715 * x * x))
     # sqrt(2/pi) * 3 * 0.044715 -> 0.1070322243
     ff = 0.5 * x * ((1 - tanh_out * tanh_out) * (0.79788456 + 0.1070322243 * x * x)) + 0.5 * (1 + tanh_out)
-    return ff*g
+    return ff * g
+
 
 class GeLUFunction(torch.autograd.Function):
     @staticmethod
@@ -84,6 +87,7 @@ class GeLUFunction(torch.autograd.Function):
         tmp = bias_gelu_back(grad_output, bias, input)
         return tmp, tmp
 
+
 bias_gelu_impl = GeLUFunction.apply
 
 
@@ -92,13 +96,16 @@ bias_gelu_impl = GeLUFunction.apply
 def erf_gelu(x):
     return x * 0.5 * (torch.erf(x / 1.41421).to(dtype=x.dtype) + torch.ones_like(x).to(dtype=x.dtype))
 
+
 @torch.jit.script
 def swish(x, beta: float = 1.0):
     return x * torch.sigmoid(beta * x)
 
+
 @torch.jit.script
 def mish(x):
     return x * torch.tanh(F.softplus(x))
+
 
 class GEGLU(torch.nn.Module):
 
@@ -109,7 +116,11 @@ class GEGLU(torch.nn.Module):
         else:
             self.activation_func = F.gelu
 
-    def forward(self, x):
+    def forward(self, x, bias=None):
         x, gate = x.chunk(2, dim=-1)
+        if bias is not None:
+            bias_1, bias_2 = bias.chunk(2, dim=-1)
+            x = x + bias_1
+            gate = gate + bias_2
         intermediate_parallel = self.activation_func(gate)
         return intermediate_parallel * x
