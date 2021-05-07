@@ -326,6 +326,12 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     wandb_team: str = None
     """Team name for Weights and Biases."""
 
+    wandb_project: str = "neox"
+    """wandb project name"""
+
+    wandb_host: str = "https://api.wandb.ai"
+    """url of the wandb host"""
+
     git_hash: str = get_git_commit_hash()
     """current git hash of repository"""
 
@@ -506,66 +512,6 @@ class NeoXArgsTokenizer(NeoXArgsTemplate):
     """
     tokenizer object loaded into memory and accesible by other functions
     """
-
-
-@dataclass
-class NeoXArgsTextgen(NeoXArgsTemplate):
-    text_gen_type: str = None
-    """
-    How to generate text/sample the model.
-    Options: `unconditional`, `input-file`, `interactive`
-    """
-
-    temperature: float = 1.0
-    """
-    Sampling temperature.
-    """
-
-    greedy: bool = False
-    """
-    Use greedy sampling.
-    """
-
-    top_p: float = 0.0
-    """
-    Top p sampling.
-    """
-
-    top_k: int = 0
-    """
-    Top k sampling.
-    """
-
-    out_seq_length: int = 1024
-    """
-    Size of the output generated text.'
-    """
-
-    sample_input_file: str = None
-    """
-    Get input from file instead of interactive mode, each line is an input.
-    """
-
-    sample_output_file: str = None
-    """
-    Output file got from --sample-input-file
-    """
-
-    num_samples: int = 0
-    """
-    Number of samples to generate unconditionally, defaults to 0 and interactive conditional sampling
-    """
-
-    genfile: str = None
-    """
-    Output file when generating unconditionally
-    """
-
-    recompute: bool = False
-    """
-    During generation recompute all attention instead of using previously computed keys/values.
-    """
-
 
 @dataclass
 class NeoXArgsTraining(NeoXArgsTemplate):
@@ -762,4 +708,53 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     min_scale: float = 1.0
     """
     Minimum loss scale for dynamic loss scale.
+    """
+
+@dataclass
+class NeoXArgsTextgen(NeoXArgsTemplate):
+    text_gen_type: str = None
+    """
+    How to generate text/sample the model.
+    Options: `unconditional`, `input-file`, `interactive`
+    """
+
+    temperature: float = 0.0
+    """
+    exponential scaling output distribution ("higher == more risk")
+    """
+
+    top_p: float = 0.0
+    """
+    Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+    """
+
+    top_k: int = 0
+    """
+    integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
+    """
+
+    maximum_tokens: int = 64
+    """
+    maximum number of tokens to be generated
+    """
+
+    sample_input_file: str = None
+    """
+    Get input from file instead of interactive mode, each line is an input.
+    """
+
+    sample_output_file: str = None
+    """
+    Output file 
+    """
+
+    num_samples: int = 0
+    """
+    Number of samples to generate unconditionally, defaults to 0 and interactive conditional sampling
+    """
+
+    recompute: bool = False
+    """
+    During generation recompute all attention instead of using previously computed keys/values.
+    Should be set to true for sparse attention models
     """

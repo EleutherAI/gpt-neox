@@ -3,20 +3,18 @@
 {
   # Text gen type: `input-file`, `unconditional` or `interactive`
   "text-gen-type": "unconditional",
-
+ 
   # Params for all
-  "out-seq-length": 102,
+  "maximum_tokens": 102,
   "temperature": 1.0,
   "top_p": 0.0,
   "top_k": 0,
-  #"recompute": false,
-  #"greedy": flase,
-
-  # `unconditional`: output file
+  "recompute": false,
+  
+  # `unconditional`: samples
   "num-samples": 10,
-  "genfile": "/mnt/ssd-cluster/output/text_generation.txt",
 
-  # `input-file`: input/output file
-  "sample-input-file": "/mnt/ssd-cluster/output/sample_input.txt",
-  "sample-output-file": "/mnt/ssd-cluster/output/sample_output.txt",
+  # input/output file
+  "sample-input-file": "sample_input.txt",
+  "sample-output-file": "sample_output.txt",
 }
