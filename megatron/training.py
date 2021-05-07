@@ -41,7 +41,6 @@ from megatron.initialize import initialize_megatron
 from megatron.learning_rates import AnnealingLR
 from megatron.model import get_params_for_weight_decay_optimization
 from megatron.utils import make_data_loader
-from megatron.utils import report_memory
 from megatron.logging import tb_wandb_log
 from megatron.utils import OverflowMonitor, get_noise_scale_logger
 from megatron.utils import get_total_params
