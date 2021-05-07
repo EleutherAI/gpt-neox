@@ -76,7 +76,7 @@ class ParallelMLP(torch.nn.Module):
         self.activation_type = neox_args.activation
         self.bias_gelu_fusion = neox_args.bias_gelu_fusion
         ff_mult = 8 if self.activation_type == "geglu" else 4
-        # Project to 4h.
+        # Project to ff_mult * h.
         self.dense_h_to_4h = mpu.ColumnParallelLinear(
             neox_args=neox_args,
             input_size=neox_args.hidden_size,
