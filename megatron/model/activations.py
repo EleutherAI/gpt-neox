@@ -24,9 +24,7 @@ torch._C._jit_override_can_fuse_on_gpu(True)
 
 def get_activation(neox_args):
     """retrieves the activation function specified in neox_args"""
-    ff_mult = 4
     if neox_args.activation == "geglu":
-        ff_mult = 8
         activation_func = GEGLU(neox_args=neox_args)
     elif neox_args.activation == "gelu":
         if neox_args.onnx_safe and neox_args.bias_gelu_fusion:
@@ -47,7 +45,7 @@ def get_activation(neox_args):
         activation_func = mish
     else:
         raise ValueError(f"Activation function {neox_args.activation_func} not recognized")
-    return activation_func, ff_mult
+    return activation_func
 
 ###### BIAS GELU FUSION/ NO AUTOGRAD ################
 # 1/sqrt(2*pi)-> 0.3989423
