@@ -766,8 +766,8 @@ def build_train_valid_test_data_iterators(neox_args):
                     seed=neox_args.seed,
                     skip_warmup=(not neox_args.mmap_warmup)
                     )
-                train_ds, valid_ds, test_ds = [all_ds[name] 
-                                               for name in ["train", "valid", "test"]]
+            train_ds, valid_ds, test_ds = [all_ds[name] 
+                                            for name in ["train", "valid", "test"]]
         else:
             #when data_path is provided
             #split dataset into train, valid and test from data_path
