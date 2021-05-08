@@ -93,24 +93,24 @@ def pretrain(neox_args):
     iteration = 0
     if neox_args.do_train and neox_args.train_iters > 0:
         iteration = train(
-            neox_args=neox_args, 
+            neox_args=neox_args,
             timers=timers,
-            model=model, 
-            optimizer=optimizer, 
+            model=model,
+            optimizer=optimizer,
             lr_scheduler=lr_scheduler,
-            train_data_iterator=train_data_iterator, 
+            train_data_iterator=train_data_iterator,
             valid_data_iterator=valid_data_iterator
             )
 
     if neox_args.do_valid:
         prefix = 'the end of training for val data'
         evaluate_and_print_results(
-            neox_args=neox_args, 
-            prefix=prefix, 
+            neox_args=neox_args,
+            prefix=prefix,
             forward_step_func=forward_step,
-            data_iterator=valid_data_iterator, 
-            model=model, 
-            iteration=iteration, 
+            data_iterator=valid_data_iterator,
+            model=model,
+            iteration=iteration,
             verbose=False
             )
 
@@ -121,11 +121,11 @@ def pretrain(neox_args):
         # Run on test data.
         prefix = 'the end of training for test data'
         evaluate_and_print_results(
-            neox_args=neox_args, 
-            prefix=prefix, 
+            neox_args=neox_args,
+            prefix=prefix,
             forward_step_func=forward_step,
-            data_iterator=test_data_iterator, 
-            model=model, 
+            data_iterator=test_data_iterator,
+            model=model,
             iteration=0, # iteration 0 in order to always use full test data
             verbose=True
             )
@@ -168,7 +168,7 @@ def get_batch(neox_args, data_iterator):
 
 def get_batch_pipe(data, neox_args):
     """A modification of get_batch() to work with the latest batch instead of an iterator. """
-    
+
     # Items and their type.
     keys = ['text']
     datatype = torch.int64
@@ -212,7 +212,7 @@ def get_model(neox_args, inference=False, get_key_value=True):
     else:
         # This is a hack to give us a reference to get_batch_pipe from within training.py
         # We need to call model.set_batch_fn after deepspeed.initialize
-        model._megatron_batch_fn = partial(get_batch_pipe, neox_args=neox_args) 
+        model._megatron_batch_fn = partial(get_batch_pipe, neox_args=neox_args)
 
     if neox_args.deepspeed:
         # DeepSpeed handles CUDA, FP16, and DDP components.
@@ -445,11 +445,11 @@ def train(neox_args, timers, model, optimizer, lr_scheduler,
 
     while iteration < neox_args.train_iters:
         loss_dict, skipped_iter = train_step(
-            neox_args=neox_args, 
+            neox_args=neox_args,
             timers=timers,
             data_iterator=train_data_iterator,
-            model=model, 
-            optimizer=optimizer, 
+            model=model,
+            optimizer=optimizer,
             lr_scheduler=lr_scheduler
             )
 
@@ -461,17 +461,17 @@ def train(neox_args, timers, model, optimizer, lr_scheduler,
 
         # Logging.
         report_memory_flag = training_log(
-            neox_args=neox_args, 
-            timers=timers, 
-            loss_dict=loss_dict, 
-            total_loss_dict=total_loss_dict, 
-            learning_rate=optimizer.param_groups[0]['lr'], 
+            neox_args=neox_args,
+            timers=timers,
+            loss_dict=loss_dict,
+            total_loss_dict=total_loss_dict,
+            learning_rate=optimizer.param_groups[0]['lr'],
             iteration=iteration,
-            loss_scale=optimizer.cur_scale if neox_args.precision == "fp16" else None, 
-            report_memory_flag=report_memory_flag, 
-            skipped_iter=skipped_iter, 
-            model=model, 
-            optimizer=optimizer, 
+            loss_scale=optimizer.cur_scale if neox_args.precision == "fp16" else None,
+            report_memory_flag=report_memory_flag,
+            skipped_iter=skipped_iter,
+            model=model,
+            optimizer=optimizer,
             noise_scale_logger=noise_scale_logger
             )
 
@@ -484,12 +484,12 @@ def train(neox_args, timers, model, optimizer, lr_scheduler,
         if neox_args.eval_interval and iteration % neox_args.eval_interval == 0 and neox_args.do_valid:
             prefix = 'iteration {}'.format(iteration)
             evaluate_and_print_results(
-                neox_args=neox_args, 
-                prefix=prefix, 
+                neox_args=neox_args,
+                prefix=prefix,
                 forward_step_func=forward_step,
-                data_iterator=valid_data_iterator, 
-                model=model, 
-                iteration=iteration, 
+                data_iterator=valid_data_iterator,
+                model=model,
+                iteration=iteration,
                 verbose=False
                 )
 
@@ -641,7 +641,7 @@ def build_train_valid_test_data_iterators(neox_args):
 
     # Shift the start iterations.
     if train_dataloader is not None:
-        train_dataloader.batch_sampler.start_iter = neox_args.iteration % \
+        train_dataloader.batch_sampler.start_iter = (neox_args.iteration * neox_args.gas) % \
                                                     len(train_dataloader)
         print_rank_0('setting training data start iteration to {}'.
                      format(train_dataloader.batch_sampler.start_iter))
