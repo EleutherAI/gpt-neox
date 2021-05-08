@@ -605,14 +605,7 @@ def build_train_valid_test_data_iterators(neox_args):
                           ('valid', neox_args.valid_data_path),
                           ('test', neox_args.test_data_path)]
 
-        # assert that if one of train/test/valid_data_path are provided, all should be
-        has_separate_path = [data_path is not None for name, data_path in all_data_paths]
-        assert_error_mess = "One of train/valid/test data_path is not provided\n"
-        assert_error_mess += "\n".join(
-            [f"{name}_data_path:{data_path}," for name, data_path in all_data_paths])
-        assert any(has_separate_path) == all(has_separate_path), assert_error_mess
-
-        if all(has_separate_path):
+        if neox_args.train_data_path:
             # when train_data_path, test_data_path, test_data_path provided
             all_ds = []
             for name, data_path in all_data_paths:
