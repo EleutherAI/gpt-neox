@@ -36,6 +36,7 @@ from megatron import mpu
 from megatron.model import GPT2ModelPipe
 from megatron.checkpointing import load_checkpoint, save_checkpoint
 from megatron.data.gpt2_dataset import build_train_valid_test_datasets
+from megatron.data.gpt2_dataset import build_the_dataset
 
 from megatron.initialize import initialize_megatron
 from megatron.learning_rates import AnnealingLR
@@ -598,16 +599,37 @@ def build_train_valid_test_data_iterators(neox_args):
         print_rank_0('    test:       {}'.format(train_val_test_num_samples[2]))
 
         # Build the datasets.
-
         print_rank_0('> building train, validation, and test datasets for GPT2 ...')
-        train_ds, valid_ds, test_ds = build_train_valid_test_datasets(
-            data_prefix=neox_args.data_path,
-            data_impl=neox_args.data_impl,
-            splits_string=neox_args.split,
-            train_valid_test_num_samples=train_val_test_num_samples,
-            seq_length=neox_args.seq_length,
-            seed=neox_args.seed,
-            skip_warmup=(not neox_args.mmap_warmup)
+
+        all_data_paths = [('train', neox_args.train_data_path),
+                          ('valid', neox_args.valid_data_path),
+                          ('test', neox_args.test_data_path)]
+
+        if neox_args.train_data_path:
+            # when train_data_path, test_data_path, test_data_path provided
+            all_ds = []
+            for name, data_path in all_data_paths:
+                all_ds.append(build_the_dataset(
+                    data_prefix=data_path,
+                    name=name,
+                    data_impl=neox_args.data_impl,
+                    train_valid_test_num_samples=train_val_test_num_samples,
+                    seq_length=neox_args.seq_length,
+                    seed=neox_args.seed,
+                    skip_warmup=(not neox_args.mmap_warmup)
+                ))
+            train_ds, valid_ds, test_ds = all_ds
+        else:
+            # when data_path is provided
+            # split dataset into train, valid and test from data_path
+            train_ds, valid_ds, test_ds = build_train_valid_test_datasets(
+                data_prefix=neox_args.data_path,
+                data_impl=neox_args.data_impl,
+                splits_string=neox_args.split,
+                train_valid_test_num_samples=train_val_test_num_samples,
+                seq_length=neox_args.seq_length,
+                seed=neox_args.seed,
+                skip_warmup=(not neox_args.mmap_warmup)
             )
         print_rank_0("> finished creating GPT2 datasets ...")
 

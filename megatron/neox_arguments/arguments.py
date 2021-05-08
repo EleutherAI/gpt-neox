@@ -687,6 +687,22 @@ class NeoXArgs(*BASE_CLASSES):
             raise ValueError(error_message)
             return False
 
+        # assert that if one of train/test/valid_data_path are provided, data_path should not be
+        has_separate_path = [data_path is not None for data_path in [self.train_data_path,
+                                                                     self.valid_data_path,
+                                                                     self.test_data_path]]
+        if all(has_separate_path):
+            assert self.data_path is None, "Please provide *either* `data_path` or `train/valid/test_data_path` " \
+                                                "in args "
+
+        # assert that if one of train/test/valid_data_path are provided, all should be
+        assert_error_mess = "One of train/valid/test data_path is not provided\n"
+        assert_error_mess += "\n".join(
+            [f"{name}_data_path:{data_path}," for name, data_path in [self.train_data_path,
+                                                                     self.valid_data_path,
+                                                                     self.test_data_path]])
+        assert any(has_separate_path) == all(has_separate_path), assert_error_mess
+
         return True
 
     def validate_types(self):

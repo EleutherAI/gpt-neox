@@ -27,7 +27,29 @@ import torch
 from megatron import mpu, print_rank_0
 from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
 
+def build_the_dataset(data_prefix, name, data_impl,
+                      train_valid_test_num_samples,
+                      seq_length, seed, skip_warmup):
+    """Build train/valid/test datasets."""
+    
+    indexed_dataset = get_indexed_dataset_(data_prefix,
+                                           data_impl,
+                                           skip_warmup)
 
+    total_num_of_documents = indexed_dataset.sizes.shape[0]    
+    print_rank_0('    {}:'.format(name))
+    print_rank_0('     no. of documents:{}'.format(total_num_of_documents))    
+    
+    dataset = None
+    indexing = {'train': 0, 'valid': 1, 'test': 2}
+    documents = np.arange(start=0, stop=total_num_of_documents,
+                          step=1, dtype=np.int32)
+    dataset = GPT2Dataset(name, data_prefix,
+                          documents, indexed_dataset,
+                          train_valid_test_num_samples[indexing[name]],
+                          seq_length, seed)
+    return dataset
+    
 def build_train_valid_test_datasets(data_prefix, data_impl, splits_string,
                                     train_valid_test_num_samples,
                                     seq_length, seed, skip_warmup):
