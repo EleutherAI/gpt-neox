@@ -600,35 +600,35 @@ def build_train_valid_test_data_iterators(neox_args):
 
         # Build the datasets.
         print_rank_0('> building train, validation, and test datasets for GPT2 ...')
-        
-        all_data_paths = {"train": neox_args.train_data_path, 
-                          "test": neox_args.test_data_path, 
-                          "valid": neox_args.valid_data_path}
-        has_separate_path = [data_path is not None 
-                             for data_path in list(all_data_paths.values())]
-        
-        assert_error_mess = "\n".join([f"{name}_data_path:{all_data_paths[name]}," 
-                                       for name in all_data_paths])
+
+        all_data_paths = [('train', neox_args.train_data_path),
+                          ('valid', neox_args.valid_data_path),
+                          ('test', neox_args.test_data_path)]
+
+        # assert that if one of train/test/valid_data_path are provided, all should be
+        has_separate_path = [data_path is not None for name, data_path in all_data_paths]
+        assert_error_mess = "One of train/valid/test data_path is not provided\n"
+        assert_error_mess += "\n".join(
+            [f"{name}_data_path:{data_path}," for name, data_path in all_data_paths])
         assert any(has_separate_path) == all(has_separate_path), assert_error_mess
-        
+
         if all(has_separate_path):
-            #when train_data_path, test_data_path, test_data_path provided
-            all_ds = {}
-            for name in all_data_paths:
-                all_ds[name] = build_the_dataset(
-                    data_prefix=all_data_paths[name],
+            # when train_data_path, test_data_path, test_data_path provided
+            all_ds = []
+            for name, data_path in all_data_paths:
+                all_ds.append(build_the_dataset(
+                    data_prefix=data_path,
                     name=name,
                     data_impl=neox_args.data_impl,
                     train_valid_test_num_samples=train_val_test_num_samples,
                     seq_length=neox_args.seq_length,
                     seed=neox_args.seed,
                     skip_warmup=(not neox_args.mmap_warmup)
-                    )
-            train_ds, valid_ds, test_ds = [all_ds[name] 
-                                            for name in ["train", "valid", "test"]]
+                ))
+            train_ds, valid_ds, test_ds = all_ds
         else:
-            #when data_path is provided
-            #split dataset into train, valid and test from data_path
+            # when data_path is provided
+            # split dataset into train, valid and test from data_path
             train_ds, valid_ds, test_ds = build_train_valid_test_datasets(
                 data_prefix=neox_args.data_path,
                 data_impl=neox_args.data_impl,
@@ -637,7 +637,7 @@ def build_train_valid_test_data_iterators(neox_args):
                 seq_length=neox_args.seq_length,
                 seed=neox_args.seed,
                 skip_warmup=(not neox_args.mmap_warmup)
-                )
+            )
         print_rank_0("> finished creating GPT2 datasets ...")
 
         # Build dataloders.
