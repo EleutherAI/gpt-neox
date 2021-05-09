@@ -700,7 +700,7 @@ class NeoXArgs(*BASE_CLASSES):
         assert_error_mess += "\n\t".join(
             [f"{name}_data_path: {data_path}," for name, data_path in [['train', self.train_data_path],
                                                                      ['valid', self.valid_data_path],
-                                                                     ['test', self.test_data_path]]]
+                                                                     ['test', self.test_data_path]]])
         assert any(has_separate_path) == all(has_separate_path), assert_error_mess
 
         return True
