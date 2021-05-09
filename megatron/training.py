@@ -388,11 +388,14 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
         losses = []
         for _ in range(neox_args.gradient_accumulation_steps):
             # Forward model for one step.
+            timers('forward').start()
             loss = forward_step(neox_args=neox_args, timers=timers, data_iterator=data_iterator, model=model)
+            timers('forward').stop()
             losses.append(loss)
             # Calculate gradients, reduce across processes, and clip.
+            timers('backward').start()
             backward_step(neox_args=neox_args, timers=timers, optimizer=optimizer, model=model, loss=loss)
-
+            timers('backward').stop()
             # Update parameters.
             timers('optimizer').start()
             if neox_args.deepspeed:
@@ -454,7 +457,7 @@ def train(neox_args, timers, model, optimizer, lr_scheduler,
         )
 
         iteration += 1
-        
+
         overflow_monitor.check(skipped_iter)  # check for repeated overflow
         if neox_args.log_gradient_noise_scale:  # log noise scale if applicable
             noise_scale_logger.update()
