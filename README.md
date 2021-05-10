@@ -185,10 +185,6 @@ We also support using Tensorboard via the `tensorboard-dir` argument. To use ten
 
 [WIP]
 
-## Eleuther Cluster
-
-We run our experiments on a Kubernetes cluster generously provided by [CoreWeave](https://coreweave.com/).
-
 ## Licensing
 
 This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright (c) 2021, EleutherAI contributors (in alphabetical order): Alex Andonian, Stella Biderman, Sid Black, Preetham Gali, Leo Gao, Eric Hallahan, Josh Levy-Kramer, Connor Leahy, Michael Pieler, Shivanshu Purohit, Phil Wang, Samuel Weinbach. Licensed under the Apache License:
@@ -208,3 +204,7 @@ This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyri
 This repository is based off code written by NVIDIA that is licensed under the Apache License, Version 2.0. In accordance with the Apache License, all files that are modifications of code originally written by NVIDIA maintain a NVIDIA copyright header. All files that do not contain such a header are original to EleutherAI contributors. When the NVIDIA code has been modified from its original version, that fact is noted in the copyright header. All derivative works of this repository must preserve these headers under the terms of the Apache License.
 
 For full terms, see the `LICENSE` file. If you have any questions, comments, or concerns about licensing please email us at contact@eleuther.ai.
+
+## Acknowledgements
+
+We run our experiments on a Kubernetes cluster generously provided by [CoreWeave](https://coreweave.com/).
