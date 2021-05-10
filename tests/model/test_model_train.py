@@ -23,12 +23,10 @@ def test_model_train_small_1():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_1.yml"])
     run_train_test(yaml_list=yaml_list)
 
-# for some reason this testcase is running way to long
-# potentially the optimizer problem?
-# @distributed_test(world_size=2)
-# def test_model_train_small_2():
-#     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_2.yml"])
-#     run_train_test(yaml_list=yaml_list)
+@distributed_test(world_size=2)
+def test_model_train_small_2():
+    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_2.yml"])
+    run_train_test(yaml_list=yaml_list)
 
 @distributed_test(world_size=1)
 def test_model_train_small_3():
@@ -55,7 +53,6 @@ def run_train_test(yaml_list=None, param_dict=None):
 
     if torch.distributed.get_world_size() == 1 or torch.distributed.get_rank() == 0:
         clear_test_dirs()
-
 
     overwrite_values = {
         "user_script": str(get_root_directory() / "pretrain_gpt2.py"),
