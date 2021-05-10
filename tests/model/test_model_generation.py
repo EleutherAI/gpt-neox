@@ -37,54 +37,31 @@ def test_model_generation_unconditional_small_0_2():
     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_0.yml", "text_generation_2.yml"])
     run_generate_uncondional_test(yaml_list, greedy=False)
 
-# @distributed_test(world_size=1)
-# def test_model_generation_unconditional_small_1():
-#     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_1.yml"])
-#     run_generate_uncondional_test(yaml_list)
-
-# # # @distributed_test(world_size=2)
-# # # def test_model_generation_unconditional_small_2():
-# # #     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_2.yml"])
-# # #     run_generate_uncondional_test(yaml_list)
-
-# @distributed_test(world_size=1)
-# def test_model_generation_unconditional_small_3():
-#     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_3.yml"])
-#     run_generate_uncondional_test(yaml_list)
+@distributed_test(world_size=1)
+def test_model_generation_unconditional_small_1():
+    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_1.yml", "text_generation_greedy.yml"])
+    run_generate_uncondional_test(yaml_list, greedy=True)
 
 # @distributed_test(world_size=2)
-# def test_model_generation_unconditional_small_4():
-#     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_4.yml"])
-#     run_generate_uncondional_test(yaml_list)
+# def test_model_generation_unconditional_small_2():
+#     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_2.yml", "text_generation_greedy.yml"])
+#     run_generate_uncondional_test(yaml_list, greedy=True)
+
+@distributed_test(world_size=1)
+def test_model_generation_unconditional_small_3():
+    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_3.yml", "text_generation_greedy.yml"])
+    run_generate_uncondional_test(yaml_list, greedy=True)
+
+@distributed_test(world_size=2)
+def test_model_generation_unconditional_small_4():
+    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_4.yml", "text_generation_greedy.yml"])
+    run_generate_uncondional_test(yaml_list, greedy=True)
 
 
-# @distributed_test(world_size=1)
-# def test_model_generation_input_file_small_0():
-#     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_0.yml"])
-#     run_generate_input_file_test(yaml_list)
-
-# @distributed_test(world_size=1)
-# def test_model_generation_input_file_small_1():
-#     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_1.yml"])
-#     run_generate_input_file_test(yaml_list)
-
-# # for some reason this testcase is running way to long
-# # potentially the optimizer problem?
-# # @distributed_test(world_size=2)
-# # def test_model_generation_input_file_small_2():
-# #     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_2.yml"])
-# #     run_generate_input_file_test(yaml_list)
-
-# @distributed_test(world_size=1)
-# def test_model_generation_input_file_small_3():
-#     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_3.yml"])
-#     run_generate_input_file_test(yaml_list)
-
-# @distributed_test(world_size=2)
-# def test_model_generation_input_file_small_4():
-#     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_4.yml"])
-#     run_generate_input_file_test(yaml_list)
-
+@distributed_test(world_size=1)
+def test_model_generation_input_file_small_0():
+    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_0.yml"])
+    run_generate_input_file_test(yaml_list)
 
 def run_generate_uncondional_test(yaml_list, greedy=False):
     from megatron.neox_arguments import NeoXArgs
