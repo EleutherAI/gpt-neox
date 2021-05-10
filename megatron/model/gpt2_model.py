@@ -22,7 +22,7 @@ import torch
 from collections import defaultdict
 
 from functools import partial
-from megatron.model.utils import init_method_normal, scaled_init_method_normal, Lambda, SequentialWrapper
+from megatron.model.utils import get_init_methods, Lambda, SequentialWrapper
 from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
 
 from megatron import mpu
@@ -77,8 +77,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         self.parallel_output = parallel_output
         self.hidden_size = self.neox_args.hidden_size
         self.num_tokentypes = num_tokentypes
-        self.init_method = init_method_normal(self.neox_args.init_method_std)
-        self.output_layer_init_method = scaled_init_method_normal(self.neox_args.init_method_std, self.neox_args.num_layers)
+        self.init_method, self.output_layer_init_method = get_init_methods(self.neox_args)
         self.fp16_lm_cross_entropy = self.neox_args.fp16_lm_cross_entropy
         self.embedding_type = self.neox_args.pos_emb
 
