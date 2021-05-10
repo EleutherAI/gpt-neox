@@ -25,8 +25,8 @@ import torch.nn.functional as F
 from .norms import LayerNorm, RMSNorm, ScaleNorm
 from megatron import mpu
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
-from megatron.model.fused_bias_gelu import bias_gelu_impl
-from megatron.model.utils import openai_gelu, erf_gelu, exists
+from megatron.model.activations import get_activation
+from megatron.model.utils import exists
 from megatron.model.positional_embeddings import RotaryEmbedding, apply_rotary_pos_emb
 from megatron.model.fused_bias_dropout import get_bias_dropout_add, bias_dropout_add_fused_train, \
     bias_dropout_add_fused_inference
@@ -60,34 +60,6 @@ torch._C._jit_override_can_fuse_on_gpu(True)
 """
 
 
-class GEGLU(torch.nn.Module):
-
-    def __init__(self, neox_args):
-        super(GEGLU, self).__init__()
-
-        self.bias_gelu_fusion = neox_args.bias_gelu_fusion
-        self.activation_func = F.gelu
-        if neox_args.openai_gelu:
-            self.activation_func = openai_gelu
-        elif neox_args.onnx_safe:
-            self.activation_func = erf_gelu
-
-    def forward(self, x, bias=None):
-        x, gate = x.chunk(2, dim=-1)
-        if bias is not None:
-            bias_1, bias_2 = bias.chunk(2, dim=-1)
-            x = x + bias_1
-        else:
-            bias_1 = bias_2 = 0
-        if self.bias_gelu_fusion:
-            intermediate_parallel = \
-                bias_gelu_impl(gate, bias_2)
-        else:
-            intermediate_parallel = \
-                self.activation_func(gate + bias_2)
-        return intermediate_parallel * x
-
-
 class ParallelMLP(torch.nn.Module):
     """MLP.
 
@@ -100,34 +72,27 @@ class ParallelMLP(torch.nn.Module):
     def __init__(self, neox_args, init_method, output_layer_init_method):
         super(ParallelMLP, self).__init__()
 
-        if neox_args.geglu:
-            self.activation_type = "geglu"
-            mult = 8
-            self.activation_func = GEGLU(neox_args=neox_args)
-        else:
-            self.activation_type = "gelu"
-            mult = 4
-            self.bias_gelu_fusion = neox_args.bias_gelu_fusion
-            self.activation_func = F.gelu
-            if neox_args.openai_gelu:
-                self.activation_func = openai_gelu
-            elif neox_args.onnx_safe:
-                self.activation_func = erf_gelu
+        self.activation_func = get_activation(neox_args)
+        self.activation_type = neox_args.activation
+        self.bias_gelu_fusion = neox_args.bias_gelu_fusion
 
-        # Project to 4h.
+        # auto scale so geglu has equal parameters
+        ff_mult = 4*2/3 if self.activation_type == "geglu" else 4
+        ff_dim = int(ff_mult * neox_args.hidden_size * 2) if self.activation_type == "geglu" \
+            else ff_mult * neox_args.hidden_size
         self.dense_h_to_4h = mpu.ColumnParallelLinear(
             neox_args=neox_args,
             input_size=neox_args.hidden_size,
-            output_size=mult * neox_args.hidden_size,
+            output_size=ff_dim,
             gather_output=False,
             init_method=init_method,
             skip_bias_add=True
         )
-
+        ff_dim_in = ff_dim // 2 if self.activation_type == "geglu" else ff_dim
         # Project back to h.
         self.dense_4h_to_h = mpu.RowParallelLinear(
             neox_args=neox_args,
-            input_size=4 * neox_args.hidden_size,
+            input_size=ff_dim_in,
             output_size=neox_args.hidden_size,
             input_is_parallel=True,
             init_method=output_layer_init_method,
@@ -138,18 +103,10 @@ class ParallelMLP(torch.nn.Module):
         # [s, b, 4hp]
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
 
-        if self.activation_type == "gelu":
-            if self.bias_gelu_fusion:
-                intermediate_parallel = \
-                    bias_gelu_impl(intermediate_parallel, bias_parallel)
-            else:
-                intermediate_parallel = \
-                    self.activation_func(intermediate_parallel + bias_parallel)
-        elif self.activation_type == "geglu":
-            intermediate_parallel = \
-                self.activation_func(intermediate_parallel)
+        if (self.activation_type == "gelu" and self.bias_gelu_fusion) or self.activation_type == "geglu":
+            intermediate_parallel = self.activation_func(intermediate_parallel, bias_parallel)
         else:
-            raise ValueError(f'Activation type {self.activation_type} not recognized')
+            intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel)
 
         # [s, b, h]
         output, output_bias = self.dense_4h_to_h(intermediate_parallel)

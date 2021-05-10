@@ -31,6 +31,7 @@ import ftfy
 
 from megatron.tokenizer import build_tokenizer
 from megatron.data import indexed_dataset
+from threading import Semaphore
 
 
 class Encoder(object):
@@ -101,34 +102,46 @@ def get_args():
     return args
 
 
-def _multi_lmd(fnames: list):
+def yield_from_files(fnames: list, semaphore):
     """
     Iterator over input documents using lm_dataformat. Should be able to handle jsons / texts /
     other compressed formats. Also filters out empty documents.
 
     :param fnames: list of filenames
     """
+
+    def yielder(fname, semaphore):
+        for f in filter(lambda x: x, lmd.Reader(fname).stream_data()):
+            semaphore.acquire()
+            yield f
+
     for fname in fnames:
-        yield from filter(lambda x: x, lmd.Reader(fname).stream_data())
+        semaphore.acquire()
+
+        yield from yielder(fname, semaphore)
 
 
 def main():
-    args = get_args() 
-    startup_start = time.time()
-
-    # use multiprocessing to iterate over input documents
-    fin = _multi_lmd(args.input.split(","))
+    args = get_args()
     encoder = Encoder(args)
     tokenizer = build_tokenizer(args)
+    print(f"Vocab size: {tokenizer.vocab_size}")
+    print(f"Output prefix: {args.output_prefix}")
+
+    # build a semaphore object to stop `yield_from_files` from getting ahead of encoder.encode and
+    # hence building up memory
+    semaphore = Semaphore(100 + args.workers)
+
+    # use multiprocessing to iterate over input documents
+    fin = yield_from_files(args.input.split(","), semaphore)
+
     if args.workers > 1:
         pool = multiprocessing.Pool(args.workers, initializer=encoder.initializer)
-        encoded_docs = pool.imap(encoder.encode, fin, 25)
+        encoded_docs = pool.imap(encoder.encode, fin, chunksize=25)
     else:
         encoder.initializer()
         encoded_docs = (encoder.encode(doc) for doc in fin)
 
-    print(f"Vocab size: {tokenizer.vocab_size}")
-    print(f"Output prefix: {args.output_prefix}")
     # make a dataset builder for each key in args.json_keys
     # each key will output to a different file beginning with args.output_prefix
     output_bin_files = {}
@@ -142,8 +155,6 @@ def main():
         builders[key] = indexed_dataset.make_builder(output_bin_files[key],
                                                      impl=args.dataset_impl,
                                                      vocab_size=tokenizer.vocab_size)
-    startup_end = time.time()
-    print("Time to startup:", startup_end - startup_start)
 
     # actually do tokenization
     proc_start = time.time()
@@ -151,6 +162,10 @@ def main():
     pbar = tqdm.tqdm()
     for i, (doc, bytes_processed) in enumerate(encoded_docs, start=1):
         total_bytes_processed += bytes_processed
+
+        # release semaphore so `yield_from_files` can add another file to the buffer
+        semaphore.release()
+
         # add each tokenized document / sentence
         for key, sentences in doc.items():
             for sentence in sentences:
@@ -168,6 +183,7 @@ def main():
             if i != 0:
                 pbar.update(args.log_interval)
 
+    # save output file
     for key in args.json_keys:
         builders[key].finalize(output_idx_files[key])
 

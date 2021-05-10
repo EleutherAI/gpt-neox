@@ -58,8 +58,8 @@ BASE_CLASSES = [
     NeoXArgsTraining,
     NeoXArgsParallelism,
     NeoXArgsLogging,
-    NeoXArgsOther,
-    NeoXArgsTextgen
+    NeoXArgsTextgen,
+    NeoXArgsOther
 ]
 
 DEEPSPEED_ARG_CLASSES = [NeoXArgsDeepspeedRunner, NeoXArgsDeepspeedConfig]
@@ -232,7 +232,7 @@ class NeoXArgs(*BASE_CLASSES):
         return neox_args
 
     @classmethod
-    def consume_neox_args(cls):
+    def consume_neox_args(cls, overwrite_values=None):
         """
         Deepspeed launcher needs to pass the arguments for `pretrain_gpt2.py` across to all machines.
         
@@ -249,6 +249,8 @@ class NeoXArgs(*BASE_CLASSES):
 
         args_parsed, _ = parser.parse_known_args()
         megatron_config = json.loads(args_parsed.megatron_config)
+        if overwrite_values is not None:
+            megatron_config.update(overwrite_values)
         return cls.from_dict(args_dict=megatron_config)
 
     @staticmethod
@@ -686,6 +688,22 @@ class NeoXArgs(*BASE_CLASSES):
             logging.error(error_message)
             raise ValueError(error_message)
             return False
+
+        # assert that if one of train/test/valid_data_path are provided, data_path should not be
+        has_separate_path = [data_path is not None for data_path in [self.train_data_path,
+                                                                     self.valid_data_path,
+                                                                     self.test_data_path]]
+        if all(has_separate_path):
+            assert self.data_path is None, "Please provide *either* `data_path` or `train/valid/test_data_path` " \
+                                                "in args "
+
+        # assert that if one of train/test/valid_data_path are provided, all should be
+        assert_error_mess = "One or more of train/valid/test data_path are not provided:\n\t"
+        assert_error_mess += "\n\t".join(
+            [f"{name}_data_path: {data_path}," for name, data_path in [['train', self.train_data_path],
+                                                                     ['valid', self.valid_data_path],
+                                                                     ['test', self.test_data_path]]])
+        assert any(has_separate_path) == all(has_separate_path), assert_error_mess
 
         return True
 
