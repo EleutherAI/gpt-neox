@@ -18,29 +18,44 @@ from tests.common import distributed_test, get_root_directory, get_test_configs_
 import torch
 
 @distributed_test(world_size=1)
-def test_model_generation_unconditional_small_0():
-    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_0.yml"])
-    run_generate_uncondional_test(yaml_list)
+def test_model_generation_unconditional_small_0_greedy():
+    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_0.yml", "text_generation_greedy.yml"])
+    run_generate_uncondional_test(yaml_list, greedy=True)
 
 @distributed_test(world_size=1)
-def test_model_generation_unconditional_small_1():
-    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_1.yml"])
-    run_generate_uncondional_test(yaml_list)
-
-# # @distributed_test(world_size=2)
-# # def test_model_generation_unconditional_small_2():
-# #     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_2.yml"])
-# #     run_generate_uncondional_test(yaml_list)
+def test_model_generation_unconditional_small_0_0():
+    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_0.yml", "text_generation_0.yml"])
+    run_generate_uncondional_test(yaml_list, greedy=False)
 
 @distributed_test(world_size=1)
-def test_model_generation_unconditional_small_3():
-    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_3.yml"])
-    run_generate_uncondional_test(yaml_list)
+def test_model_generation_unconditional_small_0_1():
+    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_0.yml", "text_generation_1.yml"])
+    run_generate_uncondional_test(yaml_list, greedy=False)
 
-@distributed_test(world_size=2)
-def test_model_generation_unconditional_small_4():
-    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_4.yml"])
-    run_generate_uncondional_test(yaml_list)
+@distributed_test(world_size=1)
+def test_model_generation_unconditional_small_0_2():
+    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_0.yml", "text_generation_2.yml"])
+    run_generate_uncondional_test(yaml_list, greedy=False)
+
+# @distributed_test(world_size=1)
+# def test_model_generation_unconditional_small_1():
+#     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_1.yml"])
+#     run_generate_uncondional_test(yaml_list)
+
+# # # @distributed_test(world_size=2)
+# # # def test_model_generation_unconditional_small_2():
+# # #     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_2.yml"])
+# # #     run_generate_uncondional_test(yaml_list)
+
+# @distributed_test(world_size=1)
+# def test_model_generation_unconditional_small_3():
+#     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_3.yml"])
+#     run_generate_uncondional_test(yaml_list)
+
+# @distributed_test(world_size=2)
+# def test_model_generation_unconditional_small_4():
+#     yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_4.yml"])
+#     run_generate_uncondional_test(yaml_list)
 
 
 # @distributed_test(world_size=1)
@@ -71,7 +86,7 @@ def test_model_generation_unconditional_small_4():
 #     run_generate_input_file_test(yaml_list)
 
 
-def run_generate_uncondional_test(yaml_list):
+def run_generate_uncondional_test(yaml_list, greedy=False):
     from megatron.neox_arguments import NeoXArgs
     from megatron import initialize_megatron
     from megatron.training import setup_model_and_optimizer
@@ -122,16 +137,23 @@ def run_generate_uncondional_test(yaml_list):
             top_k = args_loaded.top_k, 
             top_p = args_loaded.top_p
     )
-    torch.distributed.barrier()
+    torch.distributed.barrier() # torch distributed barrier is necessary here, otherwise process writing output file may not be done when calling the next checks
 
     assert Path(sample_output_file).is_file(), "unconditional samples generated"
     
     sample_count = 0
+    last_sample = None
     with open(sample_output_file, "r") as f:
         for sample_src in f:
             if sample_src == "": continue
             sample_count += 1
             loaded = json.loads(sample_src)
+            if last_sample is not None:
+                if greedy:
+                    assert last_sample == loaded["text"], "unconditional greedy generation always returning same sample"
+                else:
+                    assert last_sample != loaded["text"], "unconditional generation (non greedy) never returning same sample twice"
+            last_sample = loaded["text"]
 
     assert sample_count == num_samples, "generated the right number of unconditional samples"
 
@@ -191,7 +213,7 @@ def run_generate_input_file_test(yaml_list):
             top_k = args_loaded.top_k, 
             top_p = args_loaded.top_p
     )
-    torch.distributed.barrier()
+    torch.distributed.barrier() # torch distributed barrier is necessary here, otherwise process writing output file may not be done when calling the next checks
 
     assert Path(sample_output_file).is_file(), "unconditional samples generated"
 
@@ -204,8 +226,9 @@ def run_generate_input_file_test(yaml_list):
 
     assert sample_count == 2, "generated the right number of unconditional samples"
 
-    Path(sample_input_file).unlink()
-    Path(sample_output_file).unlink()
+    if not torch.distributed.is_initialized() or torch.distributed.get_world_size() == 1 or torch.distributed.get_rank() == 0:
+        Path(sample_input_file).unlink()
+        Path(sample_output_file).unlink()
 
 
 if __name__ == "__main__":

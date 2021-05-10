@@ -20,6 +20,9 @@ pytest --forked --cov-report term --cov=megatron tests
 
 # run tests in tests/model, output coverage report of megatron module as html
 pytest --forked --cov-report html --cov=megatron tests/model
+
+# run tests in tests/model/test_model_generation.py, don't output coverage report
+pytest --forked tests/model/test_model_generation.py
 ```
 
 If a html coverage report has been created a simple http server can be run to serve static files.
