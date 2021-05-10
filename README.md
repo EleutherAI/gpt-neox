@@ -50,10 +50,9 @@ We offer a choice of layernorm, scalenorm and RMSNorm easily configured by chang
 
 ## Getting Started
 
-Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), our fork of the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library with some added changes. 
-We strongly recommend using Anaconda, a virtual machine, or some other form of environment isolation before installing from `requirements/requirements.txt`. Failure to do so may cause other repositories that rely on DeepSpeed to break. Python 3.8 or later is required.
+Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), our fork of the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library with some added changes. We strongly recommend using Anaconda, a virtual machine, or some other form of environment isolation before installing from `requirements/requirements.txt`. Failure to do so may cause other repositories that rely on DeepSpeed to break. Python 3.8 or later is required.
 
-First make sure you are in an environment with `torch>=1.7.1` installed. Then run `pip install -r requirements.txt`. 
+First make sure you are in an environment with `torch>=1.7.1` installed. Then run `pip install -r requirements/requirements.txt`. 
 You may need to change the version of `cupy-cudaxxx` to match your machine's cuda version.
 
 Finally, certain features rely on apex, which you can install with the command below:
@@ -187,7 +186,7 @@ We also support using Tensorboard via the `tensorboard-dir` argument. To use ten
 
 ## Licensing
 
-This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright (c) 2021, EleutherAI contributors (in alphabetical order): Alex Andonian, Stella Biderman, Sid Black, Preetham Gali, Leo Gao, Eric Hallahan, Josh Levy-Kramer, Connor Leahy, Michael Pieler, Shivanshu Purohit, Phil Wang, Samuel Weinbach. Licensed under the Apache License:
+This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright (c) 2021, EleutherAI contributors (in alphabetical order): Alex Andonian, Stella Biderman, Sid Black, Preetham Gali, Leo Gao, Eric Hallahan, Josh Levy-Kramer, Connor Leahy, Kip Parker, Michael Pieler, Shivanshu Purohit, Phil Wang, Samuel Weinbach. Licensed under the Apache License:
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
