@@ -147,6 +147,7 @@ class ParallelSelfAttention(torch.nn.Module):
         super(ParallelSelfAttention, self).__init__()
 
         self.fp16 = neox_args.precision == "fp16"
+        self.bf16 = neox_args.precision == "bfloat16"
         self.attention_mask_func = attention_mask_func
         self.apply_query_key_layer_scaling = neox_args.apply_query_key_layer_scaling
         self.get_key_value = get_key_value
@@ -198,12 +199,13 @@ class ParallelSelfAttention(torch.nn.Module):
                                                           mpu=mpu)
         else:
             self.scale_mask_softmax = FusedScaleMaskSoftmax(
-                self.fp16,
-                neox_args.scaled_upper_triang_masked_softmax_fusion,
-                neox_args.scaled_masked_softmax_fusion,
-                self.attention_mask_func,
-                self.attention_softmax_in_fp32,
-                coeff)
+                input_in_fp16=self.fp16,
+                input_in_bf16=self.bf16,
+                upper_triang_mask_fusion=neox_args.scaled_upper_triang_masked_softmax_fusion,
+                general_mask_fusion=neox_args.scaled_masked_softmax_fusion,
+                mask_func=self.attention_mask_func,
+                softmax_in_fp32=self.attention_softmax_in_fp32,
+                scale=coeff)
 
             # Dropout. Note that for a single iteration, this layer will generate
             # different outputs on different number of parallel partitions but

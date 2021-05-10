@@ -134,7 +134,6 @@ def pretrain(neox_args):
             timers=timers
         )
 
-
 def _get_batch(neox_args, tokenizer, keys, data, datatype):
     """Support function for get_batch / get_batch pipe (to avoid code repetition)"""
     data_b = mpu.broadcast_data(keys, data, datatype)
@@ -180,9 +179,10 @@ def get_batch_pipe(data, neox_args):
     tokens, labels, loss_mask, attention_mask, position_ids = _get_batch(neox_args, neox_args.tokenizer, keys, data,
                                                                          datatype)
     # unpack data
-    if neox_args.precision == "fp16":
-        # cast to fp16 because pipeline parallelism skips the FP16 wrapper.
-        return fp32_to_fp16((tokens, position_ids, attention_mask)), fp32_to_fp16((labels, loss_mask))
+    if neox_args.precision in ["fp16", "bfloat16"]:
+        # cast to fp16 / bf16 because pipeline parallelism skips the FP16 wrapper.
+        convert = lambda x: x.to(neox_args.params_dtype())
+        return map(convert, (tokens, position_ids, attention_mask)), map(convert, (labels, loss_mask))
     else:
         return (tokens, position_ids, attention_mask), (labels, loss_mask)
 
@@ -199,6 +199,7 @@ def forward_step(data_iterator, model, neox_args, timers):
     outputs = model((tokens, position_ids, attention_mask))
     loss = cross_entropy(outputs, (labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy)
     return loss
+
 
 
 def get_model(neox_args, inference=False, get_key_value=True):
@@ -455,7 +456,6 @@ def train(neox_args, timers, model, optimizer, lr_scheduler,
             optimizer=optimizer,
             lr_scheduler=lr_scheduler
         )
-
         iteration += 1
 
         overflow_monitor.check(skipped_iter)  # check for repeated overflow

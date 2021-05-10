@@ -27,7 +27,6 @@ from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
 
 from megatron import mpu
 from megatron.mpu import ParallelRelativePositionBias
-import megatron.fp16 as fp16
 from megatron.model.transformer import ParallelTransformerLayerPipe, NormPipe, ParallelLinearPipe, parallel_lm_logits
 from megatron.model.word_embeddings import EmbeddingPipe
 
@@ -55,8 +54,7 @@ def cross_entropy(output, labels, _fp16=False):
         assert (output.dtype == torch.half and loss_mask.dtype == torch.half)
         losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels)
     else:
-        output = fp16.fp16_to_fp32(output)
-        losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels)
+        losses = mpu.vocab_parallel_cross_entropy(output.float().contiguous(), labels)
     loss_mask = loss_mask.view(-1)
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
     return loss
