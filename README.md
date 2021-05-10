@@ -171,7 +171,17 @@ This will deploy the `pretrain_gpt2.py` script on all nodes with one process per
 
 EleutherAI is currently using [Weights & Biases to record experiments](https://wandb.ai/eleutherai/neox). If you are logged into Weights & Biases on your machine - you can do this by executing `wandb login` - your runs will automatically be recorded. Additionally, set the config parameter `wandb_team` if you would like the run to be added to an organisation/team account.
 
+We also support using Tensorboard via the `tensorboard-dir` argument. To use tensorboard, install the optional packages found at `requirements/requirements-tensorboard.txt`
+
 ## Inference
+
+[WIP]
+
+## Evaluation
+
+[WIP]
+
+## Distilling
 
 [WIP]
 
@@ -181,7 +191,7 @@ We run our experiments on a Kubernetes cluster generously provided by [CoreWeave
 
 ## Licensing
 
-This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright (c) 2021, EleutherAI contributors (in alphabetical order): Stella Biderman, Sid Black, Preetham Gali, Eric Hallahan, Josh Levy-Kramer, Connor Leahy, Michael Pieler, Shivanshu Purohit. Licensed under the Apache License:
+This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright (c) 2021, EleutherAI contributors (in alphabetical order): Alex Andonian, Stella Biderman, Sid Black, Preetham Gali, Leo Gao, Eric Hallahan, Josh Levy-Kramer, Connor Leahy, Michael Pieler, Shivanshu Purohit, Phil Wang, Samuel Weinbach. Licensed under the Apache License:
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
