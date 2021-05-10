@@ -17,13 +17,13 @@ GPT-NeoX is under active development.
 
 ### 3D Parallelism 
 
-- GPTNeoX offers full 3D parallelism (data, model and pipeline parallel) using deepspeed, allowing you to scale model training to hundreds of billions of parameters across multiple GPUs.
+- GPTNeoX offers full 3D parallelism (data, model and pipeline parallel) using DeepSpeed, allowing you to scale model training to hundreds of billions of parameters across multiple GPUs.
 
 ### Model Structure
 
 - **Positional Encodings:** 
 
-    - Choose between T5 RPE style positional encodings, a learned encoding added to the input (GPT2-style), Sinusoidal positional encoding, and no positional encodings at all (which [recent](https://arxiv.org/abs/1905.04226) [research](https://arxiv.org/abs/2102.11174) has found to even outperform other positional encodings in autoregressive models).
+    - Choose between T5 RPE style positional encodings, a learned encoding added to the input (GPT2-style), Sinusoidal positional encoding, rotary positional encodings, and no positional encodings at all (which [recent](https://arxiv.org/abs/1905.04226) [research](https://arxiv.org/abs/2102.11174) has found to even outperform other positional encodings in autoregressive models).
 
 - **Sparsity:** 
 
@@ -40,18 +40,18 @@ We offer a choice of layernorm, scalenorm and RMSNorm easily configured by chang
 
 - **Zero Redundancy Optimizer (ZeRO):** 
 
-    - ZeRO stage 1 works seamlessly with NeoX, while ZeRO stage 2 requires pipeline parallelism be set to 0. We are additionally working on integrating ZeRO 3 into the codebase.
+    - ZeRO stage 1 works seamlessly with NeoX, while ZeRO stage 2 requires pipeline parallelism be set to 0, as ZeRO performs pipeline parallelism internally. We are additionally working on integrating ZeRO 3 into the codebase.
     Turning on ZeRO is as simple as adding one field to your configuration file.
 
 ### Straightforward configuration
 
-- Other libraries such as Megatron-LM require you configure them using command line arguments, which can often be difficult to work with and iterate upon. We offer straightforward configuration using .yaml files, which enables you to launch training runs across 100s of GPUs with a single line bash script. 
+- Other libraries such as Megatron-LM require you configure them using command line arguments and global variables, which can often be difficult to work with and iterate upon. We offer straightforward configuration using .yaml files, which enables you to launch training runs across 100s of GPUs with a single line bash script. 
 - Additionally, we hope to make data preparation easier on the user by providing scripts to automatically download and pretokenize a number of large-scale datasets.
 
 ## Getting Started
 
 Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), our fork of the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library with some added changes. 
-We strongly recommend using Anaconda, a virtual machine, or some other form of environment isolation before installing from `requirements.txt`. Failure to do so may cause other repositories that rely on DeepSpeed to break. Python 3.8 or later is required.
+We strongly recommend using Anaconda, a virtual machine, or some other form of environment isolation before installing from `requirements/requirements.txt`. Failure to do so may cause other repositories that rely on DeepSpeed to break. Python 3.8 or later is required.
 
 First make sure you are in an environment with `torch>=1.7.1` installed. Then run `pip install -r requirements.txt`. 
 You may need to change the version of `cupy-cudaxxx` to match your machine's cuda version.
@@ -177,11 +177,11 @@ EleutherAI is currently using [Weights & Biases to record experiments](https://w
 
 ## Eleuther Cluster
 
-We run our experiments on a Kubernetes cluster generously provided by [CoreWeave](https://coreweave.com/). The `/kubernetes/` directory contains code designed to facilitate work on our server. If you are an EleutherAI member, see the [corresponding read-me](kubernetes) for information about how to use our cluster.
+We run our experiments on a Kubernetes cluster generously provided by [CoreWeave](https://coreweave.com/).
 
 ## Licensing
 
-This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright (c) 2021, EleutherAI contributors (in alphabetical order): Stella Biderman, Sid Black, Eric Hallahan, Josh Levy-Kramer, Michael Pieler, Shivanshu Purohit. Licensed under the Apache License:
+This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright (c) 2021, EleutherAI contributors (in alphabetical order): Stella Biderman, Sid Black, Preetham Gali, Eric Hallahan, Josh Levy-Kramer, Connor Leahy, Michael Pieler, Shivanshu Purohit. Licensed under the Apache License:
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
