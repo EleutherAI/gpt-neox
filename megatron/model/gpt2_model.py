@@ -22,8 +22,9 @@ import torch
 from collections import defaultdict
 
 from functools import partial
-from megatron.model.utils import get_init_methods, Lambda, SequentialWrapper
+from megatron.model.utils import Lambda, SequentialWrapper
 from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
+from megatron.model.init_functions import get_init_methods
 
 from megatron import mpu
 from megatron.mpu import ParallelRelativePositionBias
