@@ -508,8 +508,7 @@ class NeoXArgsOther(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsTokenizer(NeoXArgsTemplate):
-    tokenizer_type: Literal[
-        "GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "CharLevelTokenizer"] = "GPT2BPETokenizer"
+    tokenizer_type: Literal["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "CharLevelTokenizer"] = "GPT2BPETokenizer"
     """
     Type of tokenizer to use - should be one of ["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "CharLevelTokenizer"]
     """
@@ -532,19 +531,37 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Path to combined dataset to split.
     """
 
-    train_data_path: str = None
+    train_data_paths: list = None
     """
-    Path to train dataset.
-    """
-
-    test_data_path: str = None
-    """
-    Path to test dataset.
+    List of paths to train datasets.
     """
 
-    valid_data_path: str = None
+    test_data_paths: list = None
     """
-    Path to validation dataset.
+    List of paths to test datasets.
+    """
+
+    valid_data_paths: list = None
+    """
+    List of paths to validation datasets.
+    """
+
+    train_data_weights: list = None
+    """
+    List of 'weights' that decide how often to sample from each training dataset when blending datasets. If None, defaults to equal weighting.
+    Should be a list the same length as `train_data_paths`
+    """
+
+    valid_data_weights: list = None
+    """
+    List of 'weights' that decide how often to sample from each validation dataset when blending datasets. If None, defaults to equal weighting.
+    Should be a list the same length as `valid_data_paths`
+    """
+
+    test_data_weights: list = None
+    """
+    List of 'weights' that decide how often to sample from each test dataset when blending datasets. If None, defaults to equal weighting.
+    Should be a list the same length as `test_data_paths`
     """
 
     data_impl: str = 'infer'
