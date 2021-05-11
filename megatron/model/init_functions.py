@@ -79,6 +79,8 @@ def xavier_normal_init_method():
     return init_
 
 def small_init_init_method(dim):
+    """Fills the input Tensor with values according to the method described in Transformers without Tears: Improving 
+    the Normalization of Self-Attention - Nguyen, T. & Salazar, J. (2010), using a normal distribution."""
     std = math.sqrt(2 / (5 * dim))
 
     def init_(tensor):
