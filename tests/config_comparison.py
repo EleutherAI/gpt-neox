@@ -27,6 +27,8 @@ def compare_configs():
     }
     base_args_loaded = NeoXArgs.from_ymls(base_yaml_list, overwrite_values=overwrite_values)
     new_args_loaded = NeoXArgs.from_ymls(new_yaml_list, overwrite_values=overwrite_values)
+
+    #run_train_test(param_dict=new_args_loaded.all_config)
     
     #changed_args_loaded.all_config
     diff = {}
@@ -36,21 +38,27 @@ def compare_configs():
             print(f'key: {key} original: {value}, updated: {new_args_loaded.all_config[key]}')
 
     # Iterate through changes and run test
-    for key, value in diff.items():
-        param_dict = base_args_loaded.all_config
-        param_dict[key] = value
-        print(f'running setup = key: {key} original: {base_args_loaded.all_config[key]}, updated: {value}')
-
-        # Change desired test here
-        run_train_test(param_dict=param_dict)
-
-        print(f'run setup = key: {key} original: {base_args_loaded.all_config[key]}, updated: {value}')
+    #for key, value in diff.items():
+    #    param_dict = base_args_loaded.all_config
+    #    param_dict[key] = value
+    #    print(f'running setup = key: {key} original: {base_args_loaded.all_config[key]}, updated: {value}')
+    #
+    #    # Change desired test here
+    #    run_train_test(param_dict=param_dict)
+    #
+    #    print(f'run setup = key: {key} original: {base_args_loaded.all_config[key]}, updated: {value}')
 
     # Iterate through pair's of changes to find what causes issue
-    #perms = list(combinations(diff.items(), 2))
-    #for x1, x2 in perms:
-    #    param_dict = base_args_loaded.all_config
-    #    param_dict[x1[0]] = x1[1]
-    #    param_dict[x2[0]] = x2[1]
-    #    run_test_model_instantiation(param_dict=base_args_loaded.all_config)
-    #    print(f'run setup = key: {x1[0]} original: {base_args_loaded.all_config[x1[0]]}, updated: {x1[1]}')
+    perms = list(combinations(diff.items(), 2))
+    for items in perms:
+        param_dict = base_args_loaded.all_config
+        print('running setup with:')
+        for item in items:
+            param_dict[item[0]] = item[1]
+            print(f'key: {item[0]} original: {base_args_loaded.all_config[item[0]]}, updated: {item[1]}')
+
+        run_train_test(param_dict=param_dict)
+
+        print('finished running setup with:')
+        for item in items:
+            print(f'key: {item[0]} original: {base_args_loaded.all_config[item[0]]}, updated: {item[1]}')
