@@ -10,6 +10,11 @@
   # "test-data-weights": [2., 1.],
   # "valid-data-weights": [0.5, 0.4],
 
+  # If weight_by_num_documents is True, Builds dataset weights from a multinomial distribution over groups of data according to the number of documents in each group. 
+  # WARNING: setting this to True will override any user provided weights
+  # "weight_by_num_documents": false,
+  # "weighted_sampler_alpha": 0.3,
+
   "vocab-file": "data/gpt2-vocab.json",
   "merge-file": "data/gpt2-merges.txt",
   "save": "checkpoints",
