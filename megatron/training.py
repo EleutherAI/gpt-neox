@@ -171,7 +171,6 @@ def get_batch(neox_args, data_iterator):
 
 def get_batch_pipe(data, neox_args):
     """A modification of get_batch() to work with the latest batch instead of an iterator. """
-
     # Items and their type.
     keys = ['text']
     datatype = torch.int64
@@ -579,11 +578,16 @@ def evaluate_and_print_results(neox_args, prefix, forward_step_func, data_iterat
 
 
 def run_eval_harness(model, forward_step_fn, neox_args, timers):
-    dummy_data_iterator = [{'text': np.random.randint(0, 1000, size=neox_args.max_position_embeddings)} \
-                           for _ in range(100)]
-    for i in range(len(dummy_data_iterator)):
+    print_rank_0('Running evaluation harness...')
+
+    # you should feed in a data iterator where each item is (args.batch_size, seq_len + 1).
+    # this is transformed into inputs / labels internally
+    dummy_data_shape = (neox_args.batch_size, neox_args.max_position_embeddings + 1)
+    dummy_data_iterator = ({'text': torch.randint(0, 1000, size=dummy_data_shape)} for _ in range(100))
+    for _ in dummy_data_iterator:
         loss, logits = forward_step_fn(model=model, data_iterator=dummy_data_iterator, return_logits=True,
                                        neox_args=neox_args, timers=timers)
+
         if neox_args.is_pipe_parallel:
             if model.is_last_stage():
                 # logits will only be present on the last stage of pipe parallel
@@ -592,5 +596,6 @@ def run_eval_harness(model, forward_step_fn, neox_args, timers):
         else:
             # do things with logits ...
             pass
+
     eval_harness_results = None
     return eval_harness_results
