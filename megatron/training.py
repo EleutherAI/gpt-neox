@@ -441,7 +441,7 @@ def train(neox_args, timers, model, optimizer, lr_scheduler,
     timers('interval time').start()
     report_memory_flag = True
 
-    # get noise scale logger (if args.log_noise_scale is True)
+    # get noise scale logger (if neox_args.log_gradient_noise_scale is True)
     noise_scale_logger = get_noise_scale_logger(neox_args)
 
     # to monitor if we've skipped many iterations in a row and trigger an early exit
