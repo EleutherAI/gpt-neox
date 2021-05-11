@@ -214,6 +214,7 @@ class Books3(DataDownloader):
 class HackerNews(DataDownloader):
     name = "hackernews"
     urls = ["https://the-eye.eu/public/AI/pile_preliminary_components/hn.tar.gz"]
+    num_docs = 373000
 
 
 class OpenWebText2(DataDownloader):

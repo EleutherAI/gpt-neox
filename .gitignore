@@ -132,7 +132,13 @@ dmypy.json
 wandb/
 
 # data files 
-data/
+data/**/*.idx
+data/**/*.bin
+data/**/*.json*
+data/**/*.txt
+data/**/*.gz
+data/**/*.np*
+data/**/*.npy
 checkpoints/
 .vscode/
 *.pt
