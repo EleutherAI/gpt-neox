@@ -78,6 +78,22 @@ def xavier_normal_init_method():
 
     return init_
 
+def small_init_init_method(dim):
+    std = math.sqrt(2 / 5 * dim)
+
+    def init_(tensor):
+        return torch.nn.init.normal_(tensor, mean=0.0, std=std)
+
+    return init_
+
+def wang_init_method(n_layers, dim):
+    std = 2 / n_layers / math.sqrt(dim)
+
+    def init_(tensor):
+        return torch.nn.init.normal_(tensor, mean=0.0, std=std)
+
+    return init_
+
 def get_init_methods(args):
     def _get(name):
         if name == "normal": 
@@ -90,6 +106,10 @@ def get_init_methods(args):
             return xavier_uniform_init_method()
         elif name == "xavier_normal":
             return xavier_normal_init_method()
+        elif name == "wang_init":
+            return wang_init_method(args.num_layers, args.hidden_size)
+        elif name == "small_init":
+            return small_init_init_method(args.hidden_size)
         else:
             raise NotImplementedError(f"Unkown init method {name}")
     
