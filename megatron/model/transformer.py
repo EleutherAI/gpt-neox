@@ -187,7 +187,7 @@ class ParallelSelfAttention(torch.nn.Module):
                 assert neox_args.rotary_pct < 1
                 self.rotary_ndims = int(self.hidden_size_per_attention_head * neox_args.rotary_pct)
             dim = self.rotary_ndims if self.rotary_ndims is not None else self.hidden_size_per_attention_head
-            self.rotary_emb = RotaryEmbedding(dim, base=neox_args.rotary_emb_base)
+            self.rotary_emb = RotaryEmbedding(dim, base=neox_args.rotary_emb_base, precision=neox_args.params_dtype)
         else:
             self.rotary_emb = None
 

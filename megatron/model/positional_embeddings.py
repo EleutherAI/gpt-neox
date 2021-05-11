@@ -17,13 +17,16 @@ class SinusoidalPositionalEmbedding(torch.nn.Module):
 
 class RotaryEmbedding(torch.nn.Module):
     
-    def __init__(self, dim, base=10000):
+    def __init__(self, dim, base=10000, precision=torch.half):
         super().__init__()
         inv_freq = 1. / (base ** (torch.arange(0, dim, 2).float() / dim))
         self.register_buffer('inv_freq', inv_freq)
         self.seq_len_cached = None
         self.cos_cached = None
         self.sin_cached = None
+        self.precision = precision
+        if self.precision == torch.bfloat16:
+            raise NotImplementedError
 
     def forward(self, x, seq_dim=1):
         seq_len = x.shape[seq_dim]

@@ -26,7 +26,6 @@ from torch.utils import cpp_extension
 # extra_cuda_cflags below
 os.environ["TORCH_CUDA_ARCH_LIST"] = ""
 
-
 def load_fused_kernels(neox_args):
     # Check if cuda 11 is installed for compute capability 8.0
     cc_flag = []
@@ -80,16 +79,15 @@ def load_fused_kernels(neox_args):
         scaled_masked_softmax_cuda = _cpp_extention_load_helper(
             "scaled_masked_softmax_cuda", sources, extra_cuda_flags)
 
-    # Neox isn't using this yet - but for when we do:
-    # # =================================
-    # # Mixed precision fused layer norm.
-    # # =================================
-    # print('Loading fused layer norm...')
-    # extra_cuda_flags = ['-maxrregcount=50']
-    # sources = [srcpath / 'layer_norm_cuda.cpp',
-    #            srcpath / 'layer_norm_cuda_kernel.cu']
-    # fused_mix_prec_layer_norm_cuda = _cpp_extention_load_helper(
-    #     "fused_mix_prec_layer_norm_cuda", sources, extra_cuda_flags)
+    # =================================
+    # Mixed precision fused layer norm.
+    # =================================
+    print('Loading fused layer norm...')
+    extra_cuda_flags = ['-maxrregcount=50']
+    sources = [srcpath / 'layer_norm_cuda.cpp',
+               srcpath / 'layer_norm_cuda_kernel.cu']
+    fused_mix_prec_layer_norm_cuda = _cpp_extention_load_helper(
+        "fused_mix_prec_layer_norm_cuda", sources, extra_cuda_flags)
 
 
 def _get_cuda_bare_metal_version(cuda_dir):

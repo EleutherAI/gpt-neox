@@ -50,7 +50,6 @@ from megatron.logging import training_log
 from megatron.model.gpt2_model import cross_entropy
 from megatron.utils import get_ltor_masks_and_position_ids
 from megatron.utils import reduce_losses
-from megatron.fp16 import fp32_to_fp16
 
 import deepspeed
 
@@ -179,12 +178,7 @@ def get_batch_pipe(data, neox_args):
     tokens, labels, loss_mask, attention_mask, position_ids = _get_batch(neox_args, neox_args.tokenizer, keys, data,
                                                                          datatype)
     # unpack data
-    if neox_args.precision in ["fp16", "bfloat16"]:
-        # cast to fp16 / bf16 because pipeline parallelism skips the FP16 wrapper.
-        convert = lambda x: x.to(neox_args.params_dtype())
-        return map(convert, (tokens, position_ids, attention_mask)), map(convert, (labels, loss_mask))
-    else:
-        return (tokens, position_ids, attention_mask), (labels, loss_mask)
+    return (tokens, position_ids, attention_mask), (labels, loss_mask)
 
 
 def forward_step(data_iterator, model, neox_args, timers):

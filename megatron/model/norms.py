@@ -1,17 +1,6 @@
 import torch
 
-# default to FusedLayerNorm
-try:
-    from apex.normalization.fused_layer_norm import FusedLayerNorm as LayerNorm
-
-    # Try to use FusedLayerNorm from Apex - this will trigger an error.
-    _ = LayerNorm(8, eps=1e-5)
-
-except Exception as e:
-    print('WARNING: APEX is not installed, using torch.nn.LayerNorm '
-          'instead of apex.normalization.FusedLayerNorm!')
-    from torch.nn import LayerNorm
-
+from .fused_layer_norm import MixedFusedLayerNorm as LayerNorm
 
 class RMSNorm(torch.nn.Module):
     def __init__(self, dim, p=-1., eps=1e-8, bias=False):

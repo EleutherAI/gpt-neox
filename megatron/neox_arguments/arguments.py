@@ -544,6 +544,9 @@ class NeoXArgs(*BASE_CLASSES):
             "clip_grad": self.gradient_clipping,
 
         })
+        
+        if (self.fp16 or {}).get("type", self.precision) == "bfloat16":
+            self.update_value("precision", "bfloat16")
 
         # zero optimization
         if self.zero_optimization is None:
