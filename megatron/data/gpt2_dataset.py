@@ -29,7 +29,7 @@ from megatron import mpu, print_rank_0
 class GPT2Dataset(torch.utils.data.Dataset):
 
     def __init__(self, name, data_prefix, documents, indexed_dataset,
-                 num_samples, seq_length, seed):
+                 num_samples, seq_length, seed, build_index_mappings=True):
 
         self.name = name
         self.indexed_dataset = indexed_dataset
@@ -38,10 +38,11 @@ class GPT2Dataset(torch.utils.data.Dataset):
         assert np.min(documents) >= 0
         assert np.max(documents) < indexed_dataset.sizes.shape[0]
 
-        # Build index mappings.
-        self.doc_idx, self.sample_idx, self.shuffle_idx = _build_index_mappings(
-            self.name, data_prefix, documents, self.indexed_dataset.sizes,
-            num_samples, seq_length, seed)
+        if build_index_mappings:
+            # Build index mappings.
+            self.doc_idx, self.sample_idx, self.shuffle_idx = _build_index_mappings(
+                self.name, data_prefix, documents, self.indexed_dataset.sizes,
+                num_samples, seq_length, seed)
 
     def __len__(self):
         # -1 is due to data structure used to retieve the index:

@@ -564,6 +564,30 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Should be a list the same length as `test_data_paths`
     """
 
+    weight_by_num_documents: bool = False
+    """
+    If True, Builds dataset weights from a multinomial distribution over groups of data according to the number of
+    documents in each group. 
+
+    WARNING: setting this to True will override any user provided weights
+
+    We sample from a group according to the probability p(L) ∝ |L| ** α,
+    where p(L) is the probability of sampling from a given group,
+          |L| is the number of examples in that datapoint,
+          and α is a coefficient that acts to upsample data from underrepresented groups
+
+    Hence α (`alpha`) allows us to control how much to 'boost' the probability of training on low-resource groups.
+    """
+
+    weighted_sampler_alpha: float = 0.3
+    """
+    Alpha value for `weight_by_num_documents`. Only has an effect if `weight_by_num_documents` = True.
+
+    when alpha = 1, the probability of sampling from a given group = n_samples / total_samples
+    as alpha -> 0, the probability of sampling from all groups becomes equal, and number of documents has no effect
+    as alpha -> inf, the probability of sampling from the groups with *the most samples* -> 1
+    """
+
     data_impl: str = 'infer'
     """
     Implementation of indexed datasets.

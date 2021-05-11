@@ -3,6 +3,7 @@ import torch
 import numpy as np
 from typing import List, Tuple
 from itertools import zip_longest 
+from functools import partial 
 
 from megatron import mpu, print_rank_0
 from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
@@ -37,7 +38,7 @@ def make_data_loader(dataset, neox_args):
 
 def build_the_dataset(data_prefix, name, data_impl,
                       num_samples,
-                      seq_length, seed, skip_warmup):
+                      seq_length, seed, skip_warmup, build_index_mappings=True):
     """Build train/valid/test datasets."""
 
     indexed_dataset = make_indexed_dataset(data_prefix,
@@ -53,7 +54,8 @@ def build_the_dataset(data_prefix, name, data_impl,
     dataset = GPT2Dataset(name, data_prefix,
                           documents, indexed_dataset,
                           num_samples,
-                          seq_length, seed)
+                          seq_length, seed,
+                          build_index_mappings=build_index_mappings)
     return dataset
 
 
@@ -143,6 +145,81 @@ def get_normalized_weights_and_num_samples(data_paths: List[str], weights: List[
         weighted_num_samples.append(int(math.ceil(num_samples * weight * 1.005)))
     return weights, weighted_num_samples
 
+def build_weighted_datasets(neox_args, train_num_samples, valid_num_samples, test_num_samples, train_weights, valid_weights, test_weights, build_index_mappings=True):
+    # build individual datasets
+    train_datasets, valid_datasets, test_datasets = [], [], []
+    for i, (train_path, valid_path, test_path) in enumerate(zip_longest(neox_args.train_data_paths, neox_args.valid_data_paths, neox_args.test_data_paths)):
+        if train_path:
+            train_datasets.append(build_the_dataset(
+                                data_prefix=train_path,
+                                name=f'train_{i}',
+                                data_impl=neox_args.data_impl,
+                                num_samples=train_num_samples[i],
+                                seq_length=neox_args.seq_length,
+                                seed=neox_args.seed,
+                                skip_warmup=(not neox_args.mmap_warmup),
+                                build_index_mappings=build_index_mappings
+                            ))
+
+        if valid_path:
+            valid_datasets.append(build_the_dataset(
+                                data_prefix=valid_path,
+                                name=f'valid_{i}',
+                                data_impl=neox_args.data_impl,
+                                num_samples=valid_num_samples[i],
+                                seq_length=neox_args.seq_length,
+                                seed=neox_args.seed,
+                                skip_warmup=(not neox_args.mmap_warmup),
+                                build_index_mappings=build_index_mappings
+                            ))
+
+        if test_path:
+            test_datasets.append(build_the_dataset(
+                                data_prefix=test_path,
+                                name=f'test_{i}',
+                                data_impl=neox_args.data_impl,
+                                num_samples=test_num_samples[i],
+                                seq_length=neox_args.seq_length,
+                                seed=neox_args.seed,
+                                skip_warmup=(not neox_args.mmap_warmup),
+                                build_index_mappings=build_index_mappings
+                            ))  
+    return train_datasets, valid_datasets, test_datasets
+
+
+def weights_by_num_docs(l, alpha=0.3):
+    """
+    Builds weights from a multinomial distribution over groups of data according to the number of
+    samples in each group.
+
+    We sample from a group according to the probability p(L) ∝ |L| ** α,
+    where p(L) is the probability of sampling from a given group,
+          |L| is the number of examples in that datapoint,
+          and α is a coefficient that acts to upsample data from underrepresented groups
+
+    Hence α (`alpha`) allows us to control how much to 'boost' the probability of training on low-resource groups.
+
+    """
+    total_n_docs = sum(l)
+    unbiased_sample_probs = [i / total_n_docs for i in l]
+
+    probs = [i ** alpha for i in unbiased_sample_probs]
+
+    # normalize
+    total = sum(probs)
+    probs = [i / total for i in probs]
+
+    # weights should be the inverse of the number of samples
+    unbiased_sample_probs_inverse = [1 - p for p in unbiased_sample_probs]
+    weights = [p * p2 for p, p2 in zip(probs, unbiased_sample_probs_inverse)]
+
+    # normalize
+    total = sum(weights)
+    weights = [i / total for i in weights]
+
+    return weights
+
+
 
 def build_train_valid_test_data_iterators(neox_args):
     """XXX"""
@@ -169,51 +246,34 @@ def build_train_valid_test_data_iterators(neox_args):
                                       eval_iters * neox_args.train_batch_size,
                                       test_iters * neox_args.train_batch_size]
 
-
         if neox_args.train_data_paths:
             # when individual train / valid / test data paths are provided
-
             # normalize weight values and get num samples for each dataset
             train_weights, train_num_samples = get_normalized_weights_and_num_samples(neox_args.train_data_paths, neox_args.train_data_weights, train_val_test_num_samples[0])
             valid_weights, valid_num_samples = get_normalized_weights_and_num_samples(neox_args.valid_data_paths, neox_args.valid_data_weights, train_val_test_num_samples[1])
             test_weights, test_num_samples = get_normalized_weights_and_num_samples(neox_args.test_data_paths, neox_args.test_data_weights, train_val_test_num_samples[2])
 
             # build individual datasets
-            train_datasets, valid_datasets, test_datasets = [], [], []
-            for i, (train_path, valid_path, test_path) in enumerate(zip_longest(neox_args.train_data_paths, neox_args.valid_data_paths, neox_args.test_data_paths)):
-                if train_path:
-                    train_datasets.append(build_the_dataset(
-                                        data_prefix=train_path,
-                                        name=f'train_{i}',
-                                        data_impl=neox_args.data_impl,
-                                        num_samples=train_num_samples[i],
-                                        seq_length=neox_args.seq_length,
-                                        seed=neox_args.seed,
-                                        skip_warmup=(not neox_args.mmap_warmup)
-                                    ))
-
-                if valid_path:
-                    valid_datasets.append(build_the_dataset(
-                                        data_prefix=valid_path,
-                                        name=f'valid_{i}',
-                                        data_impl=neox_args.data_impl,
-                                        num_samples=valid_num_samples[i],
-                                        seq_length=neox_args.seq_length,
-                                        seed=neox_args.seed,
-                                        skip_warmup=(not neox_args.mmap_warmup)
-                                    ))
-
-                if test_path:
-                    test_datasets.append(build_the_dataset(
-                                        data_prefix=test_path,
-                                        name=f'test_{i}',
-                                        data_impl=neox_args.data_impl,
-                                        num_samples=test_num_samples[i],
-                                        seq_length=neox_args.seq_length,
-                                        seed=neox_args.seed,
-                                        skip_warmup=(not neox_args.mmap_warmup)
-                                    ))  
-
+            train_datasets, valid_datasets, test_datasets = build_weighted_datasets(neox_args, train_num_samples, valid_num_samples, test_num_samples, train_weights, valid_weights, test_weights, \
+                                                                                    build_index_mappings=not neox_args.weight_by_num_documents)
+            
+            if neox_args.weight_by_num_documents:
+                
+                # gets the number of documents in each datapath
+                get_num_docs_list = lambda datasets: [dataset.indexed_dataset.sizes.shape[0] for dataset in datasets]
+                train_num_docs, valid_num_docs, test_num_docs = get_num_docs_list(train_datasets), get_num_docs_list(valid_datasets), get_num_docs_list(test_datasets)
+                
+                # builds weights according to alpha + the number of docs
+                fn = partial(weights_by_num_docs, alpha=neox_args.weighted_sampler_alpha)
+                train_weights, valid_weights, test_weights = fn(train_num_docs), fn(valid_num_docs), fn(test_num_docs)
+                train_weights, train_num_samples = get_normalized_weights_and_num_samples(neox_args.train_data_paths, train_weights, train_val_test_num_samples[0])
+                valid_weights, valid_num_samples = get_normalized_weights_and_num_samples(neox_args.valid_data_paths, valid_weights, train_val_test_num_samples[1])
+                test_weights, test_num_samples = get_normalized_weights_and_num_samples(neox_args.test_data_paths, test_weights, train_val_test_num_samples[2])
+                
+                # rebuild datasets weighted according to new weights
+                train_datasets, valid_datasets, test_datasets = build_weighted_datasets(neox_args, train_num_samples, valid_num_samples, test_num_samples, train_weights, valid_weights, test_weights)
+            
+            
             if train_datasets:
                 train_ds = BlendableDataset(train_datasets, train_weights)
             if valid_datasets:
