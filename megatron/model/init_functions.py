@@ -79,7 +79,7 @@ def xavier_normal_init_method():
     return init_
 
 def small_init_init_method(dim):
-    std = math.sqrt(2 / 5 * dim)
+    std = math.sqrt(2 / (5 * dim))
 
     def init_(tensor):
         return torch.nn.init.normal_(tensor, mean=0.0, std=std)
