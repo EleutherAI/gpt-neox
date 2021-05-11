@@ -199,6 +199,7 @@ def weights_by_num_docs(l, alpha=0.3):
 
     Hence α (`alpha`) allows us to control how much to 'boost' the probability of training on low-resource groups.
 
+    See https://arxiv.org/abs/1911.02116 for more details
     """
     total_n_docs = sum(l)
     unbiased_sample_probs = [i / total_n_docs for i in l]

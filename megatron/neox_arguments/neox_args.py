@@ -577,6 +577,8 @@ class NeoXArgsTraining(NeoXArgsTemplate):
           and α is a coefficient that acts to upsample data from underrepresented groups
 
     Hence α (`alpha`) allows us to control how much to 'boost' the probability of training on low-resource groups.
+
+    See https://arxiv.org/abs/1911.02116 for more details
     """
 
     weighted_sampler_alpha: float = 0.3
