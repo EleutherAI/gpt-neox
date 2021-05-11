@@ -418,7 +418,7 @@ def train_step_pipe(neox_args, timers, model, data_iterator):
 
     assert neox_args.deepspeed
     loss = model.train_batch(data_iter=data_iterator)
-    loss_dict = {'lm loss': loss}
+    loss_dict = {'lm_loss': loss}
     # Don't break Megatron's timers because we changed code paths.
     for t in ['forward', 'backward', 'allreduce', 'optimizer', 'batch generator', 'data loader']:
         timers(t).reset()
