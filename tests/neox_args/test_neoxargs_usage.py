@@ -15,7 +15,7 @@ def test_neoxargs_usage():
     neox_args_attributes = set(NeoXArgs.__dataclass_fields__.keys())
 
     # we exlude a number of properties (implemented with the @property decorator) or functions that we know exists
-    exclude = set(['params_dtype', 'deepspeed_config', 'get', 'pop', 'get_deepspeed_main_args', 'optimizer["params"]', 'attention_config[layer_number]', 'adlr_autoresume_object', 'update_value', 'all_config', 'tensorboard_writer', 'tokenizer', 'train_batch_size'])
+    exclude = set(['params_dtype', 'deepspeed_config', 'get', 'pop', 'get_deepspeed_main_args', 'optimizer["params"]', 'attention_config[layer_number]', 'adlr_autoresume_object', 'update_value', 'all_config', 'tensorboard_writer', 'tokenizer', 'train_batch_size]'])
 
     # test file by file
     for filename in (get_root_directory() / "megatron").glob('**/*.py'):
