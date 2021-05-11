@@ -132,7 +132,7 @@ def get_train_valid_test_split_(splits_string, size):
     return splits_index
 
 
-def get_normalized_weights_and_num_samples(data_paths: List[str], weights: List[float], num_samples: int) -> Tuple[List[float], List[int]]:
+def get_normalized_weights_and_num_samples(weights: List[float], num_samples: int) -> Tuple[List[float], List[int]]:
     # Normalize weights
     weight_sum = sum(weights)
     assert weight_sum > 0.0
@@ -250,9 +250,9 @@ def build_train_valid_test_data_iterators(neox_args):
         if neox_args.train_data_paths:
             # when individual train / valid / test data paths are provided
             # normalize weight values and get num samples for each dataset
-            train_weights, train_num_samples = get_normalized_weights_and_num_samples(neox_args.train_data_paths, neox_args.train_data_weights, train_val_test_num_samples[0])
-            valid_weights, valid_num_samples = get_normalized_weights_and_num_samples(neox_args.valid_data_paths, neox_args.valid_data_weights, train_val_test_num_samples[1])
-            test_weights, test_num_samples = get_normalized_weights_and_num_samples(neox_args.test_data_paths, neox_args.test_data_weights, train_val_test_num_samples[2])
+            train_weights, train_num_samples = get_normalized_weights_and_num_samples(neox_args.train_data_weights, train_val_test_num_samples[0])
+            valid_weights, valid_num_samples = get_normalized_weights_and_num_samples(neox_args.valid_data_weights, train_val_test_num_samples[1])
+            test_weights, test_num_samples = get_normalized_weights_and_num_samples(neox_args.test_data_weights, train_val_test_num_samples[2])
 
             # build individual datasets
             train_datasets, valid_datasets, test_datasets = build_weighted_datasets(neox_args, train_num_samples, valid_num_samples, test_num_samples, train_weights, valid_weights, test_weights, \
@@ -267,9 +267,9 @@ def build_train_valid_test_data_iterators(neox_args):
                 # builds weights according to alpha + the number of docs
                 fn = partial(weights_by_num_docs, alpha=neox_args.weighted_sampler_alpha)
                 train_weights, valid_weights, test_weights = fn(train_num_docs), fn(valid_num_docs), fn(test_num_docs)
-                train_weights, train_num_samples = get_normalized_weights_and_num_samples(neox_args.train_data_paths, train_weights, train_val_test_num_samples[0])
-                valid_weights, valid_num_samples = get_normalized_weights_and_num_samples(neox_args.valid_data_paths, valid_weights, train_val_test_num_samples[1])
-                test_weights, test_num_samples = get_normalized_weights_and_num_samples(neox_args.test_data_paths, test_weights, train_val_test_num_samples[2])
+                train_weights, train_num_samples = get_normalized_weights_and_num_samples(train_weights, train_val_test_num_samples[0])
+                valid_weights, valid_num_samples = get_normalized_weights_and_num_samples(valid_weights, train_val_test_num_samples[1])
+                test_weights, test_num_samples = get_normalized_weights_and_num_samples(test_weights, train_val_test_num_samples[2])
                 
                 # rebuild datasets weighted according to new weights
                 train_datasets, valid_datasets, test_datasets = build_weighted_datasets(neox_args, train_num_samples, valid_num_samples, test_num_samples, train_weights, valid_weights, test_weights)
