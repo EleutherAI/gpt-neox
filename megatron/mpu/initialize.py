@@ -45,7 +45,7 @@ def is_unitialized():
     return _DATA_PARALLEL_GROUP is None
 
 
-def initialize_model_parallel(model_parallel_size_, topology=None):
+def initialize_model_parallel(model_parallel_size, topology=None):
     """
     Initialize model data parallel groups.
 
@@ -66,11 +66,12 @@ def initialize_model_parallel(model_parallel_size_, topology=None):
     """
     if torch.distributed.get_rank() == 0:
         print('> initializing model parallel with size {}'.format(
-            model_parallel_size_))
+            model_parallel_size))
     # Get world size and rank. Ensure some consistencies.
     assert torch.distributed.is_initialized()
     world_size = torch.distributed.get_world_size()
-    model_parallel_size = min(model_parallel_size_, world_size)
+    if world_size < model_parallel_size:
+        raise ValueError("world size cannot be smaller than model parallel size")
     ensure_divisibility(world_size, model_parallel_size)
     rank = torch.distributed.get_rank()
 
