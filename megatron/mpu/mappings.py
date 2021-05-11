@@ -26,9 +26,18 @@ def _reduce(input_):
     if get_model_parallel_world_size()==1:
         return input_
 
+    # Bf16 convert
+    dt = input_.dtype
+    if dt == torch.bfloat16:
+        input_ = input_.float()
+
     # All-reduce.
     torch.distributed.all_reduce(input_, group=get_model_parallel_group())
 
+    # Bf16 convert
+    if dt == torch.bfloat16:
+        input_ = input_.bfloat16()
+    
     return input_
 
 
@@ -41,12 +50,22 @@ def _split(input_):
     if world_size==1:
         return input_
 
+    # Bf16 convert
+    dt = input_.dtype
+    if dt == torch.bfloat16:
+        input_ = input_.float()
+
+
     # Split along last dimension.
     input_list = split_tensor_along_last_dim(input_, world_size)
 
     # Note: torch.split does not create contiguous tensors by default.
     rank = get_model_parallel_rank()
     output = input_list[rank].contiguous()
+
+    # Bf16 convert
+    if dt == torch.bfloat16:
+        output = output.bfloat16()
 
     return output
 
@@ -59,6 +78,11 @@ def _gather(input_):
     if world_size==1:
         return input_
 
+    # Bf16 convert
+    dt = input_.dtype
+    if dt == torch.bfloat16:
+        input_ = input_.float()
+
     # Size and dimension.
     last_dim = input_.dim() - 1
     rank = get_model_parallel_rank()
@@ -69,6 +93,10 @@ def _gather(input_):
 
     # Note: torch.cat already creates a contiguous tensor.
     output = torch.cat(tensor_list, dim=last_dim).contiguous()
+
+    # Bf16 convert
+    if dt == torch.bfloat16:
+        output = output.bfloat16()
 
     return output
 
