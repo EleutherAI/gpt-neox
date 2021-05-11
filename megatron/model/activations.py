@@ -44,7 +44,7 @@ def get_activation(neox_args):
     elif neox_args.activation == "mish":
         activation_func = mish
     else:
-        raise ValueError(f"Activation function {neox_args.activation_func} not recognized")
+        raise ValueError(f"Activation function {neox_args.activation} not recognized")
     return activation_func
 
 
