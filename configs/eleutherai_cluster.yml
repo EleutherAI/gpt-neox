@@ -1,6 +1,9 @@
 # Data paths and options when using EleutherAI cluster
 {
   "data-path": "/mnt/ssd-cluster/data/enron/enron_text_document",
+  #"train-data-path": "/mnt/ssd-cluster/data/train/train_text_document",
+  #"test-data-path": "/mnt/ssd-cluster/data/test/test_text_document",
+  #"valid-data-path": "/mnt/ssd-cluster/data/valid/valid_text_document",
   "vocab-file": "/mnt/ssd-cluster/data/gpt2-vocab.json",
   "merge-file": "/mnt/ssd-cluster/data/gpt2-merges.txt",
   "save": "/mnt/ssd-cluster/checkpoints",

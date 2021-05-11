@@ -235,6 +235,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                 LayerSpec(
                     ParallelLinearPipe,
                     neox_args=self.neox_args,
+                    init_method=self.init_method,
                     parallel_output=self.parallel_output
                 )
             )
