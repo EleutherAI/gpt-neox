@@ -28,6 +28,8 @@ import numpy as np
 import torch
 from glob import glob
 
+from torch._C import Value
+
 from megatron import mpu
 from megatron import print_rank_0
 from megatron.utils import natural_sort
@@ -73,13 +75,6 @@ def get_checkpoint_name(checkpoints_path, iteration,
                             else mp_rank),
                         'model_optim_rng.pt')
 
-
-def get_checkpoint_tracker_filename(checkpoints_path):
-    """Tracker file rescords the latest chckpoint during
-    training to restart from."""
-    return os.path.join(checkpoints_path, 'latest_checkpointed_iteration.txt')
-
-
 def delete_old_checkpoints(save_dir, n_to_keep):
     if torch.distributed.get_rank() == 0:
         ckpt_dir_regex = r'global_step[\d]*'
@@ -121,14 +116,6 @@ def save_checkpoint(neox_args, iteration, model, optimizer, lr_scheduler):
 
     # Wait so everyone is done (necessary)
     torch.distributed.barrier()
-    # And update the latest iteration
-    if torch.distributed.get_rank() == 0:
-        tracker_filename = get_checkpoint_tracker_filename(neox_args.save)
-        with open(tracker_filename, 'w') as f:
-            f.write(str(iteration))
-
-    # Wait so everyone is done (necessary)
-    torch.distributed.barrier()
     if neox_args.keep_last_n_checkpoints is not None:
         delete_old_checkpoints(neox_args.save, neox_args.keep_last_n_checkpoints)
 
@@ -139,35 +126,6 @@ def save_checkpoint(neox_args, iteration, model, optimizer, lr_scheduler):
 def load_checkpoint(neox_args, model, optimizer, lr_scheduler):
     """Load a model checkpoint and return the iteration."""
 
-    # Read the tracker file and set the iteration.
-    tracker_filename = get_checkpoint_tracker_filename(neox_args.load)
-
-    # If no tracker file, return iteration zero.
-    if not os.path.isfile(tracker_filename):
-        print_rank_0('WARNING: could not find the metadata file {} '.format(
-            tracker_filename))
-        print_rank_0('    will not load any checkpoints and will start from '
-                     'random')
-        return 0
-
-    # Otherwise, read the tracker file and either set the iteration or
-    # mark it as a release checkpoint.
-    iteration = 0
-    release = False
-    with open(tracker_filename, 'r') as f:
-        metastring = f.read().strip()
-        try:
-            iteration = int(metastring)
-        except ValueError:
-            release = metastring == 'release'
-            if not release:
-                print_rank_0('ERROR: Invalid metadata file {}. Exiting'.format(
-                    tracker_filename))
-                sys.exit()
-
-    assert iteration > 0 or release, 'error parsing metadata file {}'.format(
-        tracker_filename)
-
     if neox_args.deepspeed:
         load_optim_and_scheduler = not neox_args.no_load_optim  # TODO: These should be configured by separate args
         checkpoint_name, state_dict = model.load_checkpoint(neox_args.load,
@@ -177,24 +135,17 @@ def load_checkpoint(neox_args, model, optimizer, lr_scheduler):
         if checkpoint_name is None:
             if mpu.get_data_parallel_rank() == 0:
                 print("Unable to load checkpoint.")
-            return iteration
+            return 0 # iteration 0, if not checkpoint loaded
     else:
         raise ValueError('Must be using deepspeed to use neox')
 
     # Set iteration.
-    if neox_args.finetune or release:
+    if neox_args.finetune:
         iteration = 0
     else:
-        try:
-            iteration = state_dict['iteration']
-        except KeyError:
-            try:  # Backward compatible with older checkpoints
-                iteration = state_dict['total_iters']
-            except KeyError:
-                print_rank_0('A metadata file exists but unable to load '
-                             'iteration from checkpoint {}, exiting'.format(
-                    checkpoint_name))
-                sys.exit()
+        iteration = state_dict.get('iteration') or state_dict.get("total_iters") # total_iters backward compatible with older checkpoints
+        if iteration is None:
+            raise ValueError('Unable to load iteration from checkpoint {}, exiting'.format(checkpoint_name))
 
     # Check arguments.
     if 'args' in state_dict:
@@ -204,7 +155,7 @@ def load_checkpoint(neox_args, model, optimizer, lr_scheduler):
         print_rank_0('could not find arguments in the checkpoint ...')
 
     # rng states.
-    if not release and not neox_args.finetune and not neox_args.no_load_rng:
+    if not neox_args.finetune and not neox_args.no_load_rng:
         try:
             random.setstate(state_dict['random_rng_state'])
             np.random.set_state(state_dict['np_rng_state'])
