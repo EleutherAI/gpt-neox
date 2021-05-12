@@ -28,8 +28,6 @@ import numpy as np
 import torch
 from glob import glob
 
-from torch._C import Value
-
 from megatron import mpu
 from megatron import print_rank_0
 from megatron.utils import natural_sort
@@ -97,8 +95,7 @@ def save_ds_checkpoint(iteration, model, neox_args):
             'make_vocab_size_divisible_by': neox_args.make_vocab_size_divisible_by,
             'padded_vocab_size': neox_args.padded_vocab_size,
             'tokenizer_type': neox_args.tokenizer_type,
-            'model_parallel_size': neox_args.model_parallel_size,
-            'pipe_parallel_size': neox_args.pipe_parallel_size
+            'model_parallel_size': neox_args.model_parallel_size
             }
         }
     # rng states.
@@ -123,13 +120,12 @@ def save_ds_checkpoint(iteration, model, neox_args):
             model_inputs = (tokens, position_ids, attention_mask, torch.Tensor())
             logits, _ = forward_model(neox_args, model, model_inputs)
         else:
-            model_inputs = (tokens, position_ids, attention_mask)
             #TODO add capabilities for pipeline parallel
             #if neox_args.pipe_parallel_size <= 1:
-            logits = forward_model(neox_args, model, model_inputs)
+            model_inputs = (tokens, position_ids, attention_mask)
             #else:
-            #    data_iterator = iter( [[model_inputs, torch.Tensor(1)]])  # we need to feed in fake labels bc deepspeed is only built for training
-            #    logits = model.train_batch(data_iterator)
+            #    model_inputs = (tokens, position_ids, attention_mask, (torch.Tensor(1), torch.Tensor(1)))
+            logits = forward_model(neox_args, model, model_inputs)
         torch.distributed.barrier()
 
         # add info to state
@@ -163,6 +159,7 @@ def validate_checkpoint_forward(neox_args, model, checkpoint_context_token_tenso
         model_inputs = (tokens, position_ids, attention_mask, torch.Tensor())
         logits, _ = forward_model(neox_args, model, model_inputs)
     else:
+        #TODO add capabilities for pipeline parallel
         model_inputs = (tokens, position_ids, attention_mask)
         logits = forward_model(neox_args, model, model_inputs)
     torch.distributed.barrier()
