@@ -6,7 +6,7 @@
    "model-parallel-size": 1,
 
    # model settings
-   "num-layers": 1,
+   "num-layers": 4,
    "hidden-size": 768,
    "num-attention-heads": 12,
    "seq-length": 2048,
@@ -46,7 +46,7 @@
    "split": "949,50,1",
 
    # activation checkpointing
-   "checkpoint-activations": true,
+   "checkpoint-activations": false,
    "checkpoint-num-layers": 1,
    "partition-activations": true,
    "synchronize-each-layer": true,
@@ -73,7 +73,7 @@
    "lr-decay-style": "cosine",
    "warmup": 0.01,
    "save-interval": 10000,
-   "eval-interval": 20,
+   "eval-interval": 1000,
    "eval-iters": 10,
 
    # logging

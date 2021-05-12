@@ -17,4 +17,5 @@
 # limitations under the License.
 
 from .gpt2_model import GPT2ModelPipe
+from .momentum_gpt2 import GPT2Momentum
 from .utils import get_params_for_weight_decay_optimization

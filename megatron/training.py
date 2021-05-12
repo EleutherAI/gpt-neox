@@ -33,7 +33,7 @@ from megatron import print_rank_0
 
 from megatron import mpu
 
-from megatron.model import GPT2ModelPipe
+from megatron.model import GPT2ModelPipe, GPT2Momentum
 from megatron.checkpointing import load_checkpoint, save_checkpoint
 from megatron.data.data_utils import build_train_valid_test_data_iterators
 
