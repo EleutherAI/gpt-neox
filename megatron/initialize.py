@@ -164,7 +164,8 @@ def _initialize_distributed(neox_args):
         if mpu.model_parallel_is_initialized():
             print('_initialize_distributed() model parallel is already initialized', flush=True)
         else:
-            mpu.initialize_model_parallel(neox_args.model_parallel_size, topology=topo)
+            mpu.initialize_model_parallel(neox_args.model_parallel_size, topology=topo,
+                                          fp32_allreduce=neox_args.fp32_allreduce)
 
     # Init DeepSpeed Activation Checkpointing Features
     setup_deepspeed_random_and_activation_checkpointing(neox_args=neox_args)
