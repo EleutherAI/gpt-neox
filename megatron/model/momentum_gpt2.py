@@ -109,11 +109,8 @@ class GPT2Momentum(torch.nn.Module):
             # Undo data format change and drop mask
             x = x[0].transpose(0, 1).contiguous()
         x = self.final_layernorm(x)
-        logits = self.to_logits(x)
-        if self._inference:
-            logits, presents = logits
-            return logits
-        return logits
+        outputs = self.to_logits(x)
+        return outputs
 
     @property
     def transformer_layers(self):
