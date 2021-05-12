@@ -51,20 +51,10 @@ def _orthogonal(tensor, gain=1):
         tensor.mul_(gain)
     return tensor
 
-def orthogonal_init_method():
+def orthogonal_init_method(n_layers=1):
     """Fills the input Tensor with a (semi) orthogonal matrix, as described in 
-    Exact solutions to the nonlinear dynamics of learning in deep linear neural networks - Saxe, A. et al. (2013)"""
-
-    def init_(tensor):
-        return _orthogonal(tensor, math.sqrt(2))
-
-    return init_
-
-def nestler_orthogonal_init_method(n_layers):
-    """
-    Orthogonal but divided by sqrt(layers), just like in gpt3 paper. More stability, especially with weird configs
-    at the cost of slower convergence in some cases.
-    """
+    Exact solutions to the nonlinear dynamics of learning in deep linear neural networks - Saxe, A. et al. (2013)
+    Optionally scaling by number of layers possible, as introduced in OBST - Nestler et. al. (2021, to be released) """
 
     def init_(tensor):
         return _orthogonal(tensor, math.sqrt(2 / n_layers))
@@ -116,7 +106,7 @@ def get_init_methods(args):
         elif name == "orthogonal":
             return orthogonal_init_method()
         elif name == "nestler_orthogonal":
-            return nestler_orthogonal_init_method(args.num_layers)
+            return orthogonal_init_method(args.num_layers)
         elif name == "xavier_uniform":
             return xavier_uniform_init_method()
         elif name == "xavier_normal":
