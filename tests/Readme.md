@@ -25,6 +25,12 @@ pytest --forked --cov-report html --cov=megatron tests/model
 pytest --forked tests/model/test_model_generation.py
 ```
 
+Some tests can run on cpu only. These are marked with the decorator @pytest.mark.cpu.
+The test cases for cpu can be run with:
+````
+pytest tests -m cpu
+```
+
 If a html coverage report has been created a simple http server can be run to serve static files.
 
 ```bash
