@@ -39,20 +39,11 @@ def check_checkpoint_args(neox_args, checkpoint_args):
     """Ensure fixed arguments for a model are the same for the input
     arguments and the one retreived frm checkpoint."""
 
-    def _compare(arg_name):
-        checkpoint_value = getattr(checkpoint_args, arg_name)
-        args_value = getattr(neox_args, arg_name)
-        error_message = '{} value from checkpoint ({}) is not equal to the input argument value ({}).'.format(arg_name, checkpoint_value, args_value)
-        assert checkpoint_value == args_value, error_message
-
-    _compare('num_layers')
-    _compare('hidden_size')
-    _compare('num_attention_heads')
-    _compare('max_position_embeddings')
-    _compare('make_vocab_size_divisible_by')
-    _compare('padded_vocab_size')
-    _compare('tokenizer_type')
-    _compare('model_parallel_size')
+    assert isinstance(checkpoint_args, dict), "args stored in checkpoint is a dict"
+    for checkpoint_arg_name, checkpoint_arg_value in checkpoint_args.items():
+        args_value = getattr(neox_args, checkpoint_arg_name)
+        error_message = '{} value from checkpoint ({}) is not equal to the currently set argument value ({}).'.format(checkpoint_arg_name, checkpoint_arg_value, args_value)
+        assert checkpoint_arg_value == args_value, error_message
 
 
 def ensure_directory_exists(filename):
@@ -95,7 +86,20 @@ def delete_old_checkpoints(save_dir, n_to_keep):
 
 def save_ds_checkpoint(iteration, model, neox_args):
     """Save a model checkpoint."""
-    sd = {'iteration': iteration}
+    sd = {
+        'iteration': iteration,
+        'args': {
+            'num_layers': neox_args.num_layers,
+            'hidden_size': neox_args.hidden_size,
+            'num_attention_heads': neox_args.num_attention_heads,
+            'max_position_embeddings': neox_args.max_position_embeddings,
+            'make_vocab_size_divisible_by': neox_args.make_vocab_size_divisible_by,
+            'padded_vocab_size': neox_args.padded_vocab_size,
+            'tokenizer_type': neox_args.tokenizer_type,
+            'model_parallel_size': neox_args.model_parallel_size,
+            'pipe_parallel_size': neox_args.pipe_parallel_size
+            }
+        }
     # rng states.
     if not neox_args.no_save_rng:
         sd['random_rng_state'] = random.getstate()
@@ -151,8 +155,9 @@ def load_checkpoint(neox_args, model, optimizer, lr_scheduler):
     if 'args' in state_dict:
         checkpoint_args = state_dict['args']
         check_checkpoint_args(neox_args=neox_args, checkpoint_args=checkpoint_args)
+        print_rank_0(' > validated currently set args with arguments in the checkpoint ...')
     else:
-        print_rank_0('could not find arguments in the checkpoint ...')
+        print_rank_0(' > could not find arguments in the checkpoint for validation...')
 
     # rng states.
     if not neox_args.finetune and not neox_args.no_load_rng:
