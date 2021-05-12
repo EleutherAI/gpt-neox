@@ -600,11 +600,6 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Warm up mmap files.
     """
 
-    setup_model_for_inference: bool = False
-    """
-    model setup is dependent on train vs. inference; this parameter chooses one or the other
-    """
-
     save: str = None
     """
     Output directory to save checkpoints to.
@@ -613,11 +608,6 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     load: str = None
     """
     Directory containing a model checkpoint.
-    """
-
-    checkpoint_validation_with_forward_pass: bool = False
-    """
-    save input and output of a forward pass with the checkpoint and validate after load
     """
 
     save_interval: int = None

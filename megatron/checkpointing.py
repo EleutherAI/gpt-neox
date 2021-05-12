@@ -34,7 +34,6 @@ from megatron import mpu
 from megatron import print_rank_0
 from megatron.utils import natural_sort
 
-from megatron.text_generation_utils import get_batch, forward_model
 
 def check_checkpoint_args(neox_args, checkpoint_args):
     """Ensure fixed arguments for a model are the same for the input
@@ -108,79 +107,8 @@ def save_ds_checkpoint(iteration, model, neox_args):
         sd['torch_rng_state'] = torch.get_rng_state()
         sd['cuda_rng_state'] = torch.cuda.get_rng_state()
         sd['rng_tracker_states'] = mpu.get_cuda_rng_tracker().get_states()
-    
-    if neox_args.checkpoint_validation_with_forward_pass:
-        torch.distributed.barrier()
-
-        # set to eval mode
-        model_was_in_train = model.training
-        model.eval()
-
-        # forward
-        context_tokens_tensor = torch.randint(0, neox_args.padded_vocab_size, (4, neox_args.seq_length + 1 )).to(torch.int64) 
-        tokens, attention_mask, position_ids = get_batch(neox_args, context_tokens_tensor)
-        if neox_args.setup_model_for_inference:
-            model_inputs = (tokens, position_ids, attention_mask, torch.Tensor())
-            logits, _ = forward_model(neox_args, model, model_inputs)
-        else:
-            model_inputs = (tokens, position_ids, attention_mask)
-            #TODO add capabilities for pipeline parallel
-            #if neox_args.pipe_parallel_size <= 1:
-            logits = forward_model(neox_args, model, model_inputs)
-            #else:
-            #    data_iterator = iter( [[model_inputs, torch.Tensor(1)]])  # we need to feed in fake labels bc deepspeed is only built for training
-            #    logits = model.train_batch(data_iterator)
-        torch.distributed.barrier()
-
-        # add info to state
-        sd["checkpoint_validation"] = {
-            "context_token_tensor": context_tokens_tensor,
-            "logits": logits.detach().cpu(),
-        }
-        
-        # reset to train mode, if model was in training before
-        if model_was_in_train:
-            model.train()
-
-        torch.distributed.barrier()
-
-    
     model.save_checkpoint(neox_args.save, client_state=sd)
 
-def validate_checkpoint_forward(neox_args, model, checkpoint_context_token_tensor, checkpoint_logits_tensor):
-    torch.distributed.barrier()
-
-    assert torch.is_tensor(checkpoint_context_token_tensor), "validate_checkpoint_forward() input checkpoint_context_token_tensor is tensor"
-    assert torch.is_tensor(checkpoint_logits_tensor), "validate_checkpoint_forward() input checkpoint_logits_tensor is tensor"
-
-    # set to eval mode
-    model_was_in_train = model.training
-    model.eval()
-
-    # forward
-    tokens, attention_mask, position_ids = get_batch(neox_args, checkpoint_context_token_tensor)
-    if neox_args.setup_model_for_inference:
-        model_inputs = (tokens, position_ids, attention_mask, torch.Tensor())
-        logits, _ = forward_model(neox_args, model, model_inputs)
-    else:
-        model_inputs = (tokens, position_ids, attention_mask)
-        logits = forward_model(neox_args, model, model_inputs)
-    torch.distributed.barrier()
-
-    # check
-    logits = logits.detach().cpu()
-    is_exactly_equal = (logits == checkpoint_logits_tensor).all().item()
-    is_close = torch.isclose(logits, checkpoint_logits_tensor).all().item()
-    if not is_exactly_equal:
-        if mpu.get_data_parallel_rank() == 0:
-                print(" > WARNING: validate_checkpoint_forward() forward after load of checkpoint does not yield exactly same result")
-        assert is_close, "validate_checkpoint_forward() forward after load of checkpoint does not yield a close result"
-
-    # reset to train mode, if model was in training before
-    if model_was_in_train:
-        model.train()
-
-    torch.distributed.barrier()
 
 def save_checkpoint(neox_args, iteration, model, optimizer, lr_scheduler):
     """Save a model checkpoint."""
@@ -246,23 +174,6 @@ def load_checkpoint(neox_args, model, optimizer, lr_scheduler):
                          'attempting to load the optimizer state, '
                          'exiting ...'.format(checkpoint_name))
             sys.exit()
-    
-    
-    torch.distributed.barrier()
-    if neox_args.checkpoint_validation_with_forward_pass:
-        if "checkpoint_validation" in state_dict:
-            validate_checkpoint_forward(
-                neox_args=neox_args, 
-                model=model, 
-                checkpoint_context_token_tensor=state_dict["checkpoint_validation"]["context_token_tensor"], 
-                checkpoint_logits_tensor=state_dict["checkpoint_validation"]["logits"], 
-                )
-            print_rank_0(' > validated loaded checkpoint with forward pass ...')
-        else:
-            if mpu.get_data_parallel_rank() == 0:
-                print(' > WARNING: checkpoint_validation_with_forward_pass is configured but no checkpoint validation data available in checkpoint {}'.format(checkpoint_name))
-
-
 
     torch.distributed.barrier()
     if mpu.get_data_parallel_rank() == 0:

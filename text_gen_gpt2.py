@@ -32,7 +32,6 @@ if __name__ == "__main__":
         "checkpoint_activations": False,
         "partition_activations": False,
         "no_load_optim": True,
-        "setup_model_for_inference": True
     })
     neox_args.configure_distributed_args()
     neox_args.build_tokenizer()
@@ -44,7 +43,7 @@ if __name__ == "__main__":
     initialize_megatron(neox_args)
 
     # set up model and load checkpoint.
-    model, _, _ = setup_model_and_optimizer(neox_args=neox_args, get_key_value=True) # we use setup_model_and_optimizer instead of get_model in order to initialize deepspeed
+    model, _, _ = setup_model_and_optimizer(neox_args=neox_args, inference=True, get_key_value=True) # we use setup_model_and_optimizer instead of get_model in order to initialize deepspeed
     print_rank_0('Finished loading model')
 
     if neox_args.text_gen_type == 'unconditional':
