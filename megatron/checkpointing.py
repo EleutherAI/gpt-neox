@@ -28,8 +28,6 @@ import numpy as np
 import torch
 from glob import glob
 
-from torch._C import Value
-
 from megatron import mpu
 from megatron import print_rank_0
 from megatron.utils import natural_sort
@@ -96,8 +94,7 @@ def save_ds_checkpoint(iteration, model, neox_args):
             'make_vocab_size_divisible_by': neox_args.make_vocab_size_divisible_by,
             'padded_vocab_size': neox_args.padded_vocab_size,
             'tokenizer_type': neox_args.tokenizer_type,
-            'model_parallel_size': neox_args.model_parallel_size,
-            'pipe_parallel_size': neox_args.pipe_parallel_size
+            'model_parallel_size': neox_args.model_parallel_size
             }
         }
     # rng states.
