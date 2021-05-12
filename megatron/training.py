@@ -53,7 +53,7 @@ from megatron.fp16 import fp32_to_fp16
 import deepspeed
 
 
-def pretrain(neox_args):
+def pretrain(neox_args, model_provider=None):
     """Main training program.
 
     This function will run the followings in the order provided:
@@ -66,6 +66,8 @@ def pretrain(neox_args):
         neox_args: an instance of NeoXArgs containing the configuration for pretrain
 
     """
+    if model_provider is None:
+        model_provider = get_model
     # setup logging and timers
     init_wandb(neox_args=neox_args)
     timers = Timers(use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
@@ -75,7 +77,10 @@ def pretrain(neox_args):
 
     # Model, optimizer, and learning rate.
     timers('model and optimizer').start()
-    model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=neox_args, inference=False, get_key_value=True)
+    model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=neox_args,
+                                                               inference=False,
+                                                               get_key_value=True,
+                                                               model_provider=model_provider)
     timers('model and optimizer').stop()
 
     # Data stuff.
@@ -222,6 +227,24 @@ def get_model(neox_args, inference=False, get_key_value=True):
         raise ValueError("Must be using deepspeed to run neox")
 
 
+def get_momentum_model(neox_args, inference=False, get_key_value=True):
+    """Build momentum model."""
+
+    print_rank_0('building GPT2Momentum model ...')
+
+    # Build model on cpu.
+    model = GPT2Momentum(neox_args=neox_args, num_tokentypes=0, parallel_output=True, topology=mpu.get_topology(),
+                          inference=inference, get_key_value=get_key_value)
+    if neox_args.is_pipe_parallel:
+        raise NotImplementedError
+
+    if neox_args.deepspeed:
+        # DeepSpeed handles CUDA, FP16, and DDP components.
+        return model
+    else:
+        raise ValueError("Must be using deepspeed to run neox")
+
+
 def get_optimizer(model, neox_args):
     """Set up the optimizer."""
     if neox_args.no_load_optim:
@@ -313,9 +336,9 @@ def get_learning_rate_scheduler(optimizer, neox_args):
     return lr_scheduler
 
 
-def setup_model_and_optimizer(neox_args, inference=False, get_key_value=True):
+def setup_model_and_optimizer(neox_args, inference=False, get_key_value=True, model_provider=get_model):
     """Setup model and optimizer."""
-    model = get_model(neox_args=neox_args, inference=inference, get_key_value=get_key_value)
+    model = model_provider(neox_args=neox_args, inference=inference, get_key_value=get_key_value)
     optimizer, param_groups = get_optimizer(model=model, neox_args=neox_args)
     lr_scheduler = get_learning_rate_scheduler(optimizer=optimizer, neox_args=neox_args)
 
@@ -568,4 +591,3 @@ def evaluate_and_print_results(neox_args, prefix, forward_step_func, data_iterat
     print_rank_0('-' * length)
     print_rank_0(string)
     print_rank_0('-' * length)
-
