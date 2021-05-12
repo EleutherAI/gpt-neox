@@ -33,6 +33,7 @@ if __name__ == "__main__":
         "partition_activations": False,
         "no_load_optim": True,
     })
+    neox_args.configure_distributed_args()
     neox_args.build_tokenizer()
     
     if neox_args.load is None:

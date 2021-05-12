@@ -88,7 +88,6 @@ class NeoXArgs(*BASE_CLASSES):
 
         self.enable_logging()
 
-        self.configure_distributed_args()
         self.calculate_derived()
 
         if not self.validate_types():
@@ -108,7 +107,7 @@ class NeoXArgs(*BASE_CLASSES):
                 from torch.utils.tensorboard import SummaryWriter
                 print('> setting tensorboard ...')
                 self.tensorboard_writer = SummaryWriter(log_dir=self.tensorboard_dir)
-            except ModuleNotFoundError:
+            except (ModuleNotFoundError, ImportError):
                 print('WARNING: TensorBoard writing requested but is not '
                     'available (are you using PyTorch 1.1.0 or later and do you have tensorboard installed?), '
                     'no TensorBoard logs will be written.', flush=True)
@@ -408,8 +407,7 @@ class NeoXArgs(*BASE_CLASSES):
         self.update_value("local_rank", int(os.getenv('LOCAL_RANK', '0')))
         self.update_value("rank", int(os.getenv('RANK', '0')))
         self.update_value("world_size", int(os.getenv("WORLD_SIZE", '1')))
-        self.update_value("model_parallel_size", min(self.model_parallel_size, self.world_size))
-
+        
         if self.rank == 0:
             print(
                 self.__class__.__name__ + ".configure_distributed_args() using world size: {} and model-parallel size: {} ".format(
