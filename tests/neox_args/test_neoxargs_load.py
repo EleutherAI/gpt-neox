@@ -1,7 +1,7 @@
 """
 load all confings in neox/configs in order to perform validations implemented in NeoXArgs 
 """
-from megatron import neox_arguments
+import pytest
 import yaml
 from ..common import get_configs_with_path
 
@@ -36,60 +36,70 @@ def run_neox_args_load_test(yaml_files):
         neox_args_value = getattr(args_loaded, k)
         assert v == neox_args_value, "loaded neox args value "+str(k)+" == "+str(neox_args_value)+" different from config file "+str(v)
 
+@pytest.mark.cpu 
 def test_neoxargs_load_arguments_small_local_setup():
     """
     verify small.yml can be loaded without raising validation errors
     """
     run_neox_args_load_test(["small.yml", "local_setup.yml"])
 
+@pytest.mark.cpu 
 def test_neoxargs_load_arguments_small_local_setup_text_generation():
     """
     verify small.yml can be loaded together with text generation without raising validation errors
     """
     run_neox_args_load_test(["small.yml", "local_setup.yml", "text_generation.yml"])
-    
+
+@pytest.mark.cpu     
 def test_neoxargs_load_arguments_medium_local_setup():
     """
     verify medium.yml can be loaded without raising validation errors
     """
     run_neox_args_load_test(["medium.yml", "local_setup.yml"])
 
+@pytest.mark.cpu 
 def test_neoxargs_load_arguments_large_local_setup():
     """
     verify large.yml can be loaded without raising validation errors
     """
     run_neox_args_load_test(["large.yml", "local_setup.yml"])
 
+@pytest.mark.cpu 
 def test_neoxargs_load_arguments_2_7B_local_setup():
     """
     verify 2-7B.yml can be loaded without raising validation errors
     """
     run_neox_args_load_test(["2-7B.yml", "local_setup.yml"])
 
+@pytest.mark.cpu 
 def test_neoxargs_load_arguments_6_7B_local_setup():
     """
     verify 6-7B.yml can be loaded without raising validation errors
     """
     run_neox_args_load_test(["6-7B.yml", "local_setup.yml"])
 
+@pytest.mark.cpu 
 def test_neoxargs_load_arguments_13B_local_setup():
     """
     verify 13B.yml can be loaded without raising validation errors
     """
     run_neox_args_load_test(["13B.yml", "local_setup.yml"])
 
+@pytest.mark.cpu 
 def test_neoxargs_load_arguments_XL_local_setup():
     """
     verify XL.yml can be loaded without raising validation errors
     """
     run_neox_args_load_test(["XL.yml", "local_setup.yml"])
 
+@pytest.mark.cpu 
 def test_neoxargs_load_arguments_175B_local_setup():
     """
     verify 13B.yml can be loaded without raising validation errors
     """
     run_neox_args_load_test(["175B.yml", "local_setup.yml"])
 
+@pytest.mark.cpu 
 def test_neoxargs_fail_instantiate_without_required_params():
     """
     verify assertion error if required arguments are not provided
@@ -101,6 +111,7 @@ def test_neoxargs_fail_instantiate_without_required_params():
     except Exception as e:
         assert True
 
+@pytest.mark.cpu 
 def test_neoxargs_fail_instantiate_without_any_params():
     """
     verify assertion error if required arguments are not provided

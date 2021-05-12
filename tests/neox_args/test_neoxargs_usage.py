@@ -1,10 +1,11 @@
 """
 plausibility check for the usage of neox_args in the megatron codebase
 """
-
+import pytest
 import re
 from ..common import get_root_directory
 
+@pytest.mark.cpu 
 def test_neoxargs_usage():
     """"
     checks for code pieces of the pattern "args.*" and verifies that such used arg is defined in NeoXArgs

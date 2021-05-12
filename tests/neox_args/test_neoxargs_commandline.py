@@ -1,12 +1,13 @@
 """
 verify parsing and handover of command line arguments
 """
-
+import pytest
 import sys
 from unittest.mock import patch
 
 from ..common import get_root_directory, get_config_directory, get_configs_with_path
 
+@pytest.mark.cpu 
 def test_neoxargs_consume_deepy_args_with_config_dir():
     """
     verify consume_deepy_args processes command line arguments without config dir
@@ -28,6 +29,7 @@ def test_neoxargs_consume_deepy_args_with_config_dir():
 
     assert args_loaded_yamls == args_loaded_consume
 
+@pytest.mark.cpu 
 def test_neoxargs_consume_deepy_args_without_yml_suffix():
     """
     verify consume_deepy_args processes command line arguments without yaml suffix
@@ -49,6 +51,7 @@ def test_neoxargs_consume_deepy_args_without_yml_suffix():
 
     assert args_loaded_yamls == args_loaded_consume
 
+@pytest.mark.cpu 
 def test_neoxargs_consume_deepy_args_with_config_dir():
     """
     verify consume_deepy_args processes command line arguments including config dir
@@ -70,6 +73,7 @@ def test_neoxargs_consume_deepy_args_with_config_dir():
 
     assert args_loaded_yamls == args_loaded_consume
 
+@pytest.mark.cpu 
 def test_neoxargs_consume_neox_args():
     """
     verify megatron args are correctly consumed after sending via deepspeed
