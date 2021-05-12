@@ -243,16 +243,16 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Base for rotary positional embedding
     """
 
-    init_method : Literal["normal", "scaled_normal", "orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"] = "normal"
+    init_method : Literal["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"] = "normal"
     """
     Init function used on all layers except ff residual outputs - choose from 
-    ["normal", "scaled_normal", "orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
+    ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
     """
 
-    output_layer_init_method : Literal["normal", "scaled_normal", "orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"] = "scaled_normal"
+    output_layer_init_method : Literal["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"] = "scaled_normal"
     """
     Init function used for ff residual outputs - choose from 
-    ["normal", "scaled_normal", "orthogonal", "xavier_uniform", "xavier_normal", "wang_init"]
+    ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
     """
 
 
