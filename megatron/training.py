@@ -416,7 +416,7 @@ def train_step_pipe(neox_args, timers, model, data_iterator):
 
     assert neox_args.deepspeed
     loss = model.train_batch(data_iter=data_iterator)
-    loss_dict = {'lm loss': loss}
+    loss_dict = {'lm_loss': loss}
     # Don't break Megatron's timers because we changed code paths.
     for t in ['forward', 'backward', 'allreduce', 'optimizer', 'batch generator', 'data loader']:
         timers(t).reset()
@@ -439,7 +439,7 @@ def train(neox_args, timers, model, optimizer, lr_scheduler,
     timers('interval time').start()
     report_memory_flag = True
 
-    # get noise scale logger (if args.log_noise_scale is True)
+    # get noise scale logger (if neox_args.log_gradient_noise_scale is True)
     noise_scale_logger = get_noise_scale_logger(neox_args)
 
     # to monitor if we've skipped many iterations in a row and trigger an early exit

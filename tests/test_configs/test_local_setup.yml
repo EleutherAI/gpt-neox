@@ -12,7 +12,8 @@
 
   "vocab-file": "data/gpt2-vocab.json",
   "merge-file": "data/gpt2-merges.txt",
-  "tensorboard-dir": null,
+  "save": "test_checkpoint",
+  "load": "test_checkpoint",
+  "tensorboard-dir": "test_tensorboard",
   "log-dir": "test_logs",
-  "use_wandb": false
 }
