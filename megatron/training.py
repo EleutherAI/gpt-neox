@@ -577,25 +577,78 @@ def evaluate_and_print_results(neox_args, prefix, forward_step_func, data_iterat
     print_rank_0('-' * length)
 
 
+from lm_eval.models.gpt2 import GPT2LM
+from lm_eval import tasks, evaluator
+from lm_eval.base import CacheHook
+import torch.nn.functional as F
+
+
+class EvalHarnessAdaptor(GPT2LM):
+
+    def __init__(self, model, forward_step_fn, neox_args, timers):
+        self.device = torch.device(f'cuda:{neox_args.local_rank}')
+        self.VOCAB_SIZE = neox_args.padded_vocab_size
+        self.tokenizer = neox_args.tokenizer
+        self.EOT_TOKEN_ID = neox_args.tokenizer.eod_id
+        self.model = model
+        self.model.eval()
+        self._forward_step_fn = partial(forward_step_fn, neox_args=neox_args, timers=timers, return_logits=True)
+        self.max_length = neox_args.max_position_embeddings // 2
+        self.tokenizer.encode = self.tokenizer.tokenize  # patch tokenizer encode method
+        self.batch_size = neox_args.batch_size
+        self.neox_args = neox_args
+        self.cache_hook = CacheHook(None)
+
+    def greedy_until(self, requests):
+        raise NotImplementedError
+
+    def _broadcast_logits(self, logits):
+        if self.neox_args.is_pipe_parallel:
+            # broadcast the shapes of the logits so we can get a dummy tensor on other ranks
+            # until we patch lm_eval_harness
+            if self.model.is_last_stage():
+                logits = logits.clone().detach()
+                logits_shape_tensor = torch.LongTensor(list(logits.shape)).to(self.device)
+                torch.distributed.broadcast(tensor=logits_shape_tensor,
+                                            src=self.model.global_rank)
+            else:
+                src_rank = self.model.grid.stage_to_global(self.model.num_stages - 1)
+                logits_shape_tensor = torch.LongTensor([0] * 3).to(self.device)
+                torch.distributed.broadcast(tensor=logits_shape_tensor,
+                                            src=src_rank)
+                logits_shape_tensor = logits_shape_tensor.clone().detach()
+            logits_shape = logits_shape_tensor.tolist()
+            if not self.model.is_last_stage():
+                logits = torch.zeros(logits_shape, dtype=self.neox_args.params_dtype).to(self.device)
+        return logits
+
+    def _model_call(self, inps):
+        data_wrapped = iter([{'text': F.pad(inps, pad=(0, 1))}])
+
+        if self.neox_args.is_pipe_parallel:
+            # need these flags to stop deepspeed from hanging
+            self.model.first_output_send = True
+            self.model.pipe_recv_buf = None
+
+        _, logits = self._forward_step_fn(model=self.model, data_iterator=data_wrapped)
+        logits = self._broadcast_logits(logits)
+        return logits.float()
+
+    def run_eval(self, eval_tasks=None):
+        if eval_tasks is None:
+            eval_tasks = ["lambada", "piqa", "hellaswag", "winogrande", "mathqa", "pubmedqa"]
+        return evaluator.evaluate(self, tasks.get_task_dict(eval_tasks), False, 0, None)
+
+
 def run_eval_harness(model, forward_step_fn, neox_args, timers):
     print_rank_0('Running evaluation harness...')
 
     # you should feed in a data iterator where each item is (args.batch_size, seq_len + 1).
     # this is transformed into inputs / labels internally
-    dummy_data_shape = (neox_args.batch_size, neox_args.max_position_embeddings + 1)
-    dummy_data_iterator = ({'text': torch.randint(0, 1000, size=dummy_data_shape)} for _ in range(100))
-    for _ in dummy_data_iterator:
-        loss, logits = forward_step_fn(model=model, data_iterator=dummy_data_iterator, return_logits=True,
-                                       neox_args=neox_args, timers=timers)
-
-        if neox_args.is_pipe_parallel:
-            if model.is_last_stage():
-                # logits will only be present on the last stage of pipe parallel
-                # do things with logits ...
-                pass
-        else:
-            # do things with logits ...
-            pass
+    adaptor = EvalHarnessAdaptor(model, forward_step_fn, neox_args, timers)
+    results = adaptor.run_eval()
+    from megatron.utils import ddb
+    ddb()
 
     eval_harness_results = None
     return eval_harness_results
