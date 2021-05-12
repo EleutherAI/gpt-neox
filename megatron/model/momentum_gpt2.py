@@ -108,6 +108,7 @@ class GPT2Momentum(torch.nn.Module):
         else:
             # Undo data format change and drop mask
             x = x[0].transpose(0, 1).contiguous()
+        x = self.final_layernorm(x)
         logits = self.to_logits(x)
         if self._inference:
             logits, presents = logits
