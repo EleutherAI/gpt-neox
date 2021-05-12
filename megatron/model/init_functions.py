@@ -105,7 +105,7 @@ def get_init_methods(args):
             return scaled_init_method_normal(args.init_method_std, args.num_layers)
         elif name == "orthogonal":
             return orthogonal_init_method()
-        elif name == "nestler_orthogonal":
+        elif name == "scaled_orthogonal":
             return orthogonal_init_method(args.num_layers)
         elif name == "xavier_uniform":
             return xavier_uniform_init_method()
