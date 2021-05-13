@@ -152,14 +152,14 @@ def distributed_test(world_size=2, backend='nccl'):
     return dist_wrap
 
 
-def model_setup(yaml_list=None, param_dict=None):
+def model_setup(yaml_list=None, param_dict=None, clear_data=True):
     from megatron.neox_arguments import NeoXArgs
     from megatron.mpu import destroy_model_parallel
     from megatron import initialize_megatron
     from megatron.training import setup_model_and_optimizer
 
     destroy_model_parallel()  # mpu model parallel contains remaining global vars
-    if torch.distributed.get_world_size() == 1 or torch.distributed.get_rank() == 0:
+    if clear_data and (not torch.distributed.is_initialized() or torch.distributed.get_world_size() == 1 or torch.distributed.get_rank() == 0):
         clear_test_dirs()
 
     overwrite_values = {
