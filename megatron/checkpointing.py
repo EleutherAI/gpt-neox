@@ -43,31 +43,15 @@ def check_checkpoint_args(neox_args, checkpoint_args):
         error_message = '{} value from checkpoint ({}) is not equal to the currently set argument value ({}).'.format(checkpoint_arg_name, checkpoint_arg_value, args_value)
         assert checkpoint_arg_value == args_value, error_message
 
-def do_forward_pass(neox_args, model, context_tokens=None, inference=False):
-    torch.distributed.barrier()
-
+def do_forward_pass(neox_args, model, inference=False):
+    
     # set to eval mode
     model_was_in_train = model.training
     model.eval()
     
-
     # get context tokens
-    if neox_args.is_pipe_parallel:
-        if context_tokens is None:
-            context_tokens_tensor = torch.randint(0, neox_args.padded_vocab_size, (4, neox_args.seq_length + 1)).to(torch.int64)
-        else:
-            context_tokens_tensor = context_tokens
-    else:
-        if context_tokens is None:
-            context_tokens_tensor = torch.randint(0, neox_args.padded_vocab_size, (4, neox_args.seq_length)).to(torch.int64) 
-        else:
-            context_tokens_tensor = context_tokens
-    
-    context_tokens_tensor = context_tokens_tensor.cuda()
-    torch.distributed.broadcast(context_tokens_tensor,
-                                mpu.get_model_parallel_src_rank(),
-                                group=mpu.get_model_parallel_group())
-    torch.distributed.barrier()
+    # always forward full batch size
+    context_tokens_tensor = torch.arange(2049).repeat((neox_args.train_micro_batch_size_per_gpu, 1)).cuda()
 
     # forward
     if inference:
@@ -78,29 +62,25 @@ def do_forward_pass(neox_args, model, context_tokens=None, inference=False):
                         torch.Tensor(),
                         )
         logits, _ = forward_model(neox_args, model, model_inputs)
-        logits = logits.detach().cpu()
     elif neox_args.is_pipe_parallel:
         data_iterator = iter([{"text": context_tokens_tensor}])
         _, logits = model.eval_batch(data_iter=data_iterator, return_logits=True)
-        if model.is_last_stage():
-            logits = logits.detach().cpu()
     else:
-        tokens, attention_mask, position_ids = get_batch(neox_args, context_tokens_tensor)
+        tokens, attention_mask, position_ids = get_batch(neox_args, context_tokens_tensor[:, :2048])
         logits = model((tokens, position_ids, attention_mask))
-        logits = logits.detach().cpu()
 
-    torch.distributed.barrier()
-    
     # reset to train mode, if model was in training before
     if model_was_in_train:
         model.train()
 
-    
-    return context_tokens_tensor.detach().cpu(), logits
+    if logits is not None:
+        logits = logits.detach().cpu()[0] # just return first batch item (they are all equal)
 
-def check_forward_pass(neox_args, model, checkpoint_context_tokens, checkpoint_logits, inference):
+    return logits
+
+def check_forward_pass(neox_args, model, checkpoint_logits, inference):
     # do forward pass with loaded checkpoint
-    _, logits = do_forward_pass(neox_args=neox_args, model=model, context_tokens=checkpoint_context_tokens, inference=inference)
+    logits = do_forward_pass(neox_args=neox_args, model=model, inference=inference)
 
     # check
     if logits is not None and checkpoint_logits is not None: # this could be the case for non-final pipeline stages
@@ -169,11 +149,8 @@ def save_ds_checkpoint(iteration, model, neox_args):
         sd['rng_tracker_states'] = mpu.get_cuda_rng_tracker().get_states()
     
     if neox_args.checkpoint_validation_with_forward_pass:
-        context_tokens, logits = do_forward_pass(neox_args=neox_args, model=model)
-        sd['checkpoint_validation'] = {
-            "context_tokens": context_tokens,
-            "logits": logits
-        }
+        logits = do_forward_pass(neox_args=neox_args, model=model)
+        sd['checkpoint_validation_logits'] = logits
     
     model.save_checkpoint(neox_args.save, client_state=sd)
 
@@ -227,12 +204,11 @@ def load_checkpoint(neox_args, model, optimizer, lr_scheduler, inference=False):
 
     # Check loaded checkpoint with forward pass
     if neox_args.checkpoint_validation_with_forward_pass:
-        if "checkpoint_validation" in state_dict:
+        if "checkpoint_validation_logits" in state_dict:
             check_forward_pass(
                 neox_args=neox_args, 
                 model=model, 
-                checkpoint_context_tokens=state_dict["checkpoint_validation"]["context_tokens"],
-                checkpoint_logits=state_dict["checkpoint_validation"]["logits"],
+                checkpoint_logits=state_dict["checkpoint_validation_logits"],
                 inference=inference
                 )
             print_rank_0(' > validated loaded checkpoint with forward pass ...')
