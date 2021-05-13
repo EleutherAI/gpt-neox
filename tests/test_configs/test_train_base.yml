@@ -6,9 +6,9 @@
    "model_parallel_size": 1,
 
    # model settings
-   "num_layers": 3,
-   "hidden_size": 192,
-   "num_attention_heads": 12,
+   "num_layers": 2,
+   "hidden_size": 96,
+   "num_attention_heads": 6,
    "seq_length": 1024,
    "max_position_embeddings": 1024,
    "norm": "layernorm",

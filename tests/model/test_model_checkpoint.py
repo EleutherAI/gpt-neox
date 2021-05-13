@@ -18,13 +18,14 @@ PARAMS_TO_TEST = {
     "checkpoint_validation_with_forward_pass": [True]
 }
 
-
-@pytest.mark.parametrize("param_dict", list(parametrize(PARAMS_TO_TEST, max_tests=50, seed=None)))
+parameters, names = parametrize(PARAMS_TO_TEST, max_tests=50, seed=None)
+@pytest.mark.parametrize("param_dict", parameters, ids=names)
 def test_train(param_dict):
     @distributed_test(world_size=2)
     def wrapper():
         run_checkpoint_test(param_dict=param_dict)
     wrapper()
+
 
 def run_checkpoint_test(yaml_list=None, param_dict=None):
     

@@ -11,23 +11,44 @@ from ..common import distributed_test, clear_test_dirs, model_setup, binary, par
 import torch
 
 PARAMS_TO_TEST = {
-    "norm,pos_emb,activation": [["layernorm", "learned", "gelu"], ["rmsnorm", "rotary", "gelu"],
-                                ["scalenorm", "sinusoidal", "geglu"], ["layernorm", "rpe", "geglu"],
-                                ["rmsnorm", "none", "geglu"]],
+    "norm,pos_emb,activation": [["layernorm", "learned", "gelu"], ["rmsnorm", "rotary", "relu"],
+                                ["scalenorm", "sinusoidal", "mish"], ["layernorm", "rpe", "geglu"],
+                                ["rmsnorm", "none", "swish"]],
     "pipe_parallel_size,model_parallel_size": [[0, 1], [1, 2], [0, 2]],
     "no_weight_tying": binary,
     "attention_config": [[[["global"], "all"]], [[["local"], "all"]], [[["sparse_variable"], "all"]],
                          [[["sparse_fixed"], "all"]]],
     "scaled_upper_triang_masked_softmax_fusion,bias_gelu_fusion": [[True, False], [False, True]],
     "checkpoint_activations": binary,
+    "log_gradient_noise_scale": [True],
+    
 }
 
-
-@pytest.mark.parametrize("param_dict", list(parametrize(PARAMS_TO_TEST, max_tests=50, seed=None)))
+parameters, names = parametrize(PARAMS_TO_TEST, max_tests=50, seed=None)
+@pytest.mark.parametrize("param_dict", parameters, ids=names)
 def test_train(param_dict):
     @distributed_test(world_size=2)
     def wrapper():
         run_train_test(param_dict=param_dict)
+    wrapper()
+
+
+OPTIMIZER_PARAMS = {
+    "optimizer": [
+                  {"type": "adam","params": {"lr": 0.0006}},
+                  {"type": "onebitadam","params": {"lr": 0.0006}},
+                  {"type": "cpu_adam","params": {"lr": 0.0006}},
+                  {"type": "cpu_torch_adam","params": {"lr": 0.0006}},
+                  {"type": "sm3","params": {"lr": 0.0006}},
+                  {"type": "madgrad_wd","params": {"lr": 0.0006}}
+                  ]
+                  }
+opt_params, opt_name = parametrize(OPTIMIZER_PARAMS, max_tests=50, seed=None)
+@pytest.mark.parametrize("param_dict", parameters, ids=names)
+def test_train_optimizers(param_dict):
+    @distributed_test(world_size=2)
+    def wrapper():
+        run_test_model_instantiation(param_dict=param_dict)
     wrapper()
 
 

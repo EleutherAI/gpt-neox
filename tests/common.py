@@ -152,7 +152,7 @@ def distributed_test(world_size=2, backend='nccl'):
     return dist_wrap
 
 
-def model_setup(yaml_list=None, param_dict=None, clear_data=True):
+def model_setup(yaml_list=None, param_dict=None, clear_data=True, inference=False):
     from megatron.neox_arguments import NeoXArgs
     from megatron.mpu import destroy_model_parallel
     from megatron import initialize_megatron
@@ -184,7 +184,7 @@ def model_setup(yaml_list=None, param_dict=None, clear_data=True):
     args_loaded.build_tokenizer()
 
     initialize_megatron(neox_args=args_loaded)
-    model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=args_loaded, inference=False,
+    model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=args_loaded, inference=inference,
                                                                get_key_value=True)
     return model, optimizer, lr_scheduler, args_loaded
 
@@ -207,7 +207,7 @@ def bounded_product(sequence, n=None, seed=None):
     return p if n is None else p[:n]
 
 
-def parametrize(params_to_test: dict, max_tests: int = 50, seed: int = None):
+def parametrize(params_to_test: dict, max_tests: int = 50, seed: int = None, with_names=True):
     """
     Generates a random sample of max_tests length of all possible combinations of values in
     `params_to_test`.
@@ -225,6 +225,9 @@ def parametrize(params_to_test: dict, max_tests: int = 50, seed: int = None):
     :return: a list of neox param dicts to pass to a parametrized unit test
     """
     keys, values = zip(*params_to_test.items())
+    ret = []
+    if with_names:
+        experiments = []
     for p in bounded_product(values, n=max_tests, seed=seed):
         experiment = dict(zip(keys, p))
         to_pop = []
@@ -242,8 +245,15 @@ def parametrize(params_to_test: dict, max_tests: int = 50, seed: int = None):
             experiment.pop(k)
         base = deepcopy(BASE_CONFIG)
         base.update(experiment)
-        yield base
+        ret.append(base)
+        if with_names:
+            experiments.append(experiment)
+    if with_names:
+        return ret, [dict_repr(d) for d in experiments]
+    return ret
 
+def dict_repr(d):
+    return " ".join([f"{str(k)} : {str(v)}" for k, v in d.items()])
 
 binary = [True, False]
 
