@@ -38,7 +38,7 @@ def get_configs_with_path(configs):
     return [str(get_config_directory() / cfg) for cfg in configs]
 
 
-def get_test_configs_with_path(configs):
+def get_test_configs_with_path(configs: list):
     test_config_dir = Path(__file__).parent / "test_configs"
     return [str((test_config_dir / cfg).absolute()) for cfg in configs]
 
@@ -227,13 +227,19 @@ def parametrize(params_to_test: dict, max_tests: int = 50, seed: int = None):
     keys, values = zip(*params_to_test.items())
     for p in bounded_product(values, n=max_tests, seed=seed):
         experiment = dict(zip(keys, p))
+        to_pop = []
+        to_add = {}
         for k, v in experiment.items():
             if "," in k:
                 keys_split = [i.strip() for i in k.split(',')]
-                values_separated = experiment.pop(k)
+                values_separated = experiment[k]
+                to_pop.append(k)
                 assert len(values_separated) == len(keys_split)
                 new_dict = dict(zip(keys_split, values_separated))
-                experiment.update(new_dict)
+                to_add.update(new_dict)
+        experiment.update(to_add)
+        for k in to_pop:
+            experiment.pop(k)
         base = deepcopy(BASE_CONFIG)
         base.update(experiment)
         yield base
@@ -241,5 +247,5 @@ def parametrize(params_to_test: dict, max_tests: int = 50, seed: int = None):
 
 binary = [True, False]
 
-with open(get_test_configs_with_path("test_train_base.yml")[0], 'r') as f:
+with open(get_test_configs_with_path(["test_train_base.yml"])[0], 'r') as f:
     BASE_CONFIG = load(f, Loader=Loader)

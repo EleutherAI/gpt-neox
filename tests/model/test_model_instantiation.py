@@ -9,19 +9,20 @@ import torch
 from ..common import distributed_test, model_setup, clear_test_dirs, parametrize, binary
 
 PARAMS_TO_TEST = {
-    "pipe_parallel_size,model_parallel_size": [[0, 1], [1, 1], [2, 2], [0, 2]],
+    "pipe_parallel_size,model_parallel_size": [[0, 1], [1, 2], [0, 2]],
     "no_weight_tying": binary,
     "attention_config": [[[["global"], "all"]], [[["local"], "all"]], [[["sparse_variable"], "all"]],
                          [[["sparse_fixed"], "all"]]],
-    "scaled_upper_triang_masked_softmax_fusion": [binary, binary],
-    "bias_gelu_fusion": binary,
+    "scaled_upper_triang_masked_softmax_fusion,bias_gelu_fusion": [[True, False], [False, True]],
 }
 
 
 @pytest.mark.parametrize("param_dict", list(parametrize(PARAMS_TO_TEST, max_tests=50, seed=None)))
-@distributed_test(world_size=2)
-def test_model_instantiation(param_dict):
-    run_test_model_instantiation(param_dict=param_dict)
+def test_train(param_dict):
+    @distributed_test(world_size=2)
+    def wrapper():
+        run_test_model_instantiation(param_dict=param_dict)
+    wrapper()
 
 
 def run_test_model_instantiation(yaml_list=None, param_dict=None):

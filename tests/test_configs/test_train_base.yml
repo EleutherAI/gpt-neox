@@ -1,23 +1,23 @@
-# GPT-2 pretraining setup
+# GPT_2 pretraining setup
 {
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
-   "pipe-parallel-size": 0,
-   "model-parallel-size": 1,
+   "pipe_parallel_size": 0,
+   "model_parallel_size": 1,
 
    # model settings
-   "num-layers": 3,
-   "hidden-size": 192,
-   "num-attention-heads": 12,
-   "seq-length": 1024,
-   "max-position-embeddings": 1024,
+   "num_layers": 3,
+   "hidden_size": 192,
+   "num_attention_heads": 12,
+   "seq_length": 1024,
+   "max_position_embeddings": 1024,
    "norm": "layernorm",
-   "pos-emb": "rotary",
-   "no-weight-tying": true,
+   "pos_emb": "rotary",
+   "no_weight_tying": true,
 
    # these should provide some speedup but takes a while to build, set to true if desired
-   "scaled-upper-triang-masked-softmax-fusion": false,
-   "bias-gelu-fusion": false,
+   "scaled_upper_triang_masked_softmax_fusion": false,
+   "bias_gelu_fusion": false,
 
    # optimizer settings
    "optimizer": {
@@ -42,20 +42,20 @@
 
    # batch / data settings
    "train_micro_batch_size_per_gpu": 4,
-   "data-impl": "mmap",
+   "data_impl": "mmap",
    "split": "949,50,1",
 
    # activation checkpointing
-   "checkpoint-activations": true,
-   "checkpoint-num-layers": 1,
-   "partition-activations": true,
-   "synchronize-each-layer": true,
+   "checkpoint_activations": true,
+   "checkpoint_num_layers": 1,
+   "partition_activations": true,
+   "synchronize_each_layer": true,
 
    # regularization
    "gradient_clipping": 1.0,
-   "weight-decay": 0.0,
-   "hidden-dropout": 0.0,
-   "attention-dropout": 0.0,
+   "weight_decay": 0.0,
+   "hidden_dropout": 0.0,
+   "attention_dropout": 0.0,
 
    # precision settings
    "fp16": { 
@@ -67,23 +67,23 @@
    },
 
    # misc. training settings
-   "train-iters": 320000,
-   "lr-decay-iters": 320000,
-   "distributed-backend": "nccl",
-   "lr-decay-style": "cosine",
+   "train_iters": 320000,
+   "lr_decay_iters": 320000,
+   "distributed_backend": "nccl",
+   "lr_decay_style": "cosine",
    "warmup": 0.01,
-   "save-interval": 10000,
-   "eval-interval": 1000,
-   "eval-iters": 10,
+   "save_interval": 10000,
+   "eval_interval": 1000,
+   "eval_iters": 10,
 
    # logging
-   "log-interval": 100,
+   "log_interval": 100,
    "steps_per_print": 10,
-   "keep-last-n-checkpoints": 4,
+   "keep_last_n_checkpoints": 4,
    "wall_clock_breakdown": true,
 
-  # Suggested data paths when using GPT-NeoX locally
-  "data-path": "data/enron/enron_text_document",
+  # Suggested data paths when using GPT_NeoX locally
+  "data_path": "data/enron/enron_text_document",
 
   # or for weighted datasets:
   # "train-data-paths": ["data/enron/enron_text_document", "data/enron/enron_text_document"],
@@ -93,11 +93,11 @@
   # "test-data-weights": [2., 1.],
   # "valid-data-weights": [0.5, 0.4],
 
-  "vocab-file": "data/gpt2-vocab.json",
-  "merge-file": "data/gpt2-merges.txt",
+  "vocab_file": "data/gpt2-vocab.json",
+  "merge_file": "data/gpt2-merges.txt",
   "save": "test_checkpoint",
   "load": "test_checkpoint",
-  "tensorboard-dir": "test_tensorboard",
-  "log-dir": "test_logs",
+  "tensorboard_dir": "test_tensorboard",
+  "log_dir": "test_logs",
 
 }

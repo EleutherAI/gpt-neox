@@ -14,7 +14,7 @@ PARAMS_TO_TEST = {
     "norm,pos_emb,activation": [["layernorm", "learned", "gelu"], ["rmsnorm", "rotary", "gelu"],
                                 ["scalenorm", "sinusoidal", "geglu"], ["layernorm", "rpe", "geglu"],
                                 ["rmsnorm", "none", "geglu"]],
-    "pipe_parallel_size,model_parallel_size": [[0, 1], [1, 1], [2, 2], [0, 2]],
+    "pipe_parallel_size,model_parallel_size": [[0, 1], [1, 2], [0, 2]],
     "no_weight_tying": binary,
     "attention_config": [[[["global"], "all"]], [[["local"], "all"]], [[["sparse_variable"], "all"]],
                          [[["sparse_fixed"], "all"]]],
@@ -24,9 +24,11 @@ PARAMS_TO_TEST = {
 
 
 @pytest.mark.parametrize("param_dict", list(parametrize(PARAMS_TO_TEST, max_tests=50, seed=None)))
-@distributed_test(world_size=2)
 def test_train(param_dict):
-    run_train_test(param_dict=param_dict)
+    @distributed_test(world_size=2)
+    def wrapper():
+        run_train_test(param_dict=param_dict)
+    wrapper()
 
 
 def run_train_test(yaml_list=None, param_dict=None):
