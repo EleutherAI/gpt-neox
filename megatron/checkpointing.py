@@ -31,7 +31,7 @@ from glob import glob
 from megatron import mpu
 from megatron import print_rank_0
 from megatron.utils import natural_sort
-from megatron.text_generation_utils import get_batch
+from megatron.text_generation_utils import get_batch, forward_model
 
 def check_checkpoint_args(neox_args, checkpoint_args):
     """Ensure fixed arguments for a model are the same for the input
@@ -43,7 +43,7 @@ def check_checkpoint_args(neox_args, checkpoint_args):
         error_message = '{} value from checkpoint ({}) is not equal to the currently set argument value ({}).'.format(checkpoint_arg_name, checkpoint_arg_value, args_value)
         assert checkpoint_arg_value == args_value, error_message
 
-def do_forward_pass(neox_args, model, context_tokens=None):
+def do_forward_pass(neox_args, model, context_tokens=None, inference=False):
     torch.distributed.barrier()
 
     # set to eval mode
@@ -70,7 +70,16 @@ def do_forward_pass(neox_args, model, context_tokens=None):
     torch.distributed.barrier()
 
     # forward
-    if neox_args.is_pipe_parallel:
+    if inference:
+        tokens, attention_mask, position_ids = get_batch(neox_args, context_tokens_tensor[:, :2048])
+        model_inputs = (tokens,
+                        position_ids,
+                        attention_mask,
+                        torch.Tensor(),
+                        )
+        logits, _ = forward_model(neox_args, model, model_inputs)
+        logits = logits.detach().cpu()
+    elif neox_args.is_pipe_parallel:
         data_iterator = iter([{"text": context_tokens_tensor}])
         _, logits = model.eval_batch(data_iter=data_iterator, return_logits=True)
         if model.is_last_stage():
@@ -89,12 +98,12 @@ def do_forward_pass(neox_args, model, context_tokens=None):
     
     return context_tokens_tensor.detach().cpu(), logits
 
-def check_forward_pass(neox_args, model, checkpoint_context_tokens, checkpoint_logits):
+def check_forward_pass(neox_args, model, checkpoint_context_tokens, checkpoint_logits, inference):
     # do forward pass with loaded checkpoint
-    _, logits = do_forward_pass(neox_args=neox_args, model=model, context_tokens=checkpoint_context_tokens)
+    _, logits = do_forward_pass(neox_args=neox_args, model=model, context_tokens=checkpoint_context_tokens, inference=inference)
 
     # check
-    if logits is not None: # this could be the case for non-final pipeline stages
+    if logits is not None and checkpoint_logits is not None: # this could be the case for non-final pipeline stages
         if not (logits == checkpoint_logits).all().item():
             if mpu.get_data_parallel_rank() == 0:
                     print(" > WARNING: validate_checkpoint_forward() forward after load of checkpoint does not yield exactly same result")
@@ -184,7 +193,7 @@ def save_checkpoint(neox_args, iteration, model, optimizer, lr_scheduler):
     # Wait so everyone is done (not necessary)
     torch.distributed.barrier()
 
-def load_checkpoint(neox_args, model, optimizer, lr_scheduler):
+def load_checkpoint(neox_args, model, optimizer, lr_scheduler, inference=False):
     """Load a model checkpoint and return the iteration."""
 
     if neox_args.deepspeed:
@@ -223,7 +232,8 @@ def load_checkpoint(neox_args, model, optimizer, lr_scheduler):
                 neox_args=neox_args, 
                 model=model, 
                 checkpoint_context_tokens=state_dict["checkpoint_validation"]["context_tokens"],
-                checkpoint_logits=state_dict["checkpoint_validation"]["logits"]
+                checkpoint_logits=state_dict["checkpoint_validation"]["logits"],
+                inference=inference
                 )
             print_rank_0(' > validated loaded checkpoint with forward pass ...')
         else:

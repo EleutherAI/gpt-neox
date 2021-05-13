@@ -349,7 +349,7 @@ def setup_model_and_optimizer(neox_args, inference=False, get_key_value=True):
 
     if neox_args.load is not None:
         neox_args.iteration = load_checkpoint(neox_args=neox_args, model=model, optimizer=optimizer,
-                                              lr_scheduler=lr_scheduler)
+                                              lr_scheduler=lr_scheduler, inference=inference)
         print_rank_0(f'Loading checkpoint and starting from iteration {neox_args.iteration}')
     else:
         neox_args.iteration = 0
