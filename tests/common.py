@@ -10,7 +10,12 @@ import random
 import torch
 import torch.distributed as dist
 from torch.multiprocessing import Process
-
+from yaml import load
+try:
+    from yaml import CLoader as Loader, CDumper as Dumper
+except ImportError:
+    from yaml import Loader, Dumper
+from copy import deepcopy
 import deepspeed
 
 TEST_CHECKPOINT_DIR = "test_checkpoint"
@@ -202,4 +207,39 @@ def bounded_product(sequence, n=None, seed=None):
     return p if n is None else p[:n]
 
 
+def parametrize(params_to_test: dict, max_tests: int = 50, seed: int = None):
+    """
+    Generates a random sample of max_tests length of all possible combinations of values in
+    `params_to_test`.
+
+    In `params_to_test` you can either specify one value, and all possible settings of that value,
+    or two values separated by a comma, and all possible combinations of those two values in tandem.
+        i.e "hidden_size,num_heads": [[768,12], [1024,32], [2048, 64]]
+    so the first item in each list is a value of `hidden_size` and the second a value of `num_heads`
+    this is useful for reducing the size of possible tests for values we know are unlikely to interact beforehand,
+    since the cartesian product can grow very large.
+
+    :param params_to_test: dict of neox params
+    :param max_tests: maximum number of tests to run
+    :param seed: random seed
+    :return: a list of neox param dicts to pass to a parametrized unit test
+    """
+    keys, values = zip(*params_to_test.items())
+    for p in bounded_product(values, n=max_tests, seed=seed):
+        experiment = dict(zip(keys, p))
+        for k, v in experiment.items():
+            if "," in k:
+                keys_split = [i.strip() for i in k.split(',')]
+                values_separated = experiment.pop(k)
+                assert len(values_separated) == len(keys_split)
+                new_dict = dict(zip(keys_split, values_separated))
+                experiment.update(new_dict)
+        base = deepcopy(BASE_CONFIG)
+        base.update(experiment)
+        yield base
+
+
 binary = [True, False]
+
+with open(get_test_configs_with_path("test_train_base.yml")[0], 'r') as f:
+    BASE_CONFIG = load(f, Loader=Loader)

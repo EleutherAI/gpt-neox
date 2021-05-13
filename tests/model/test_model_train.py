@@ -6,63 +6,21 @@ to run in order to perform follow up tests. Joining in one test reduces runtime 
 """
 import pytest
 
-from copy import deepcopy
-from ..common import distributed_test, clear_test_dirs, model_setup, get_test_configs_with_path, bounded_product, binary
+from ..common import distributed_test, clear_test_dirs, model_setup, binary, parametrize
 
 import torch
-from yaml import load
-
-try:
-    from yaml import CLoader as Loader, CDumper as Dumper
-except ImportError:
-    from yaml import Loader, Dumper
-
-with open(get_test_configs_with_path("test_train_base.yml")[0], 'r') as f:
-    BASE_CONFIG = load(f, Loader=Loader)
 
 PARAMS_TO_TEST = {
-    "norm,pos_emb": [["layernorm", "learned"], ["rmsnorm", "rotary"], ["scalenorm", "sinusoidal"],
-                     ["layernorm", "rpe"], ["rmsnorm", "none"]],
+    "norm,pos_emb,activation": [["layernorm", "learned", "gelu"], ["rmsnorm", "rotary", "gelu"],
+                                ["scalenorm", "sinusoidal", "geglu"], ["layernorm", "rpe", "geglu"],
+                                ["rmsnorm", "none", "geglu"]],
     "pipe_parallel_size,model_parallel_size": [[0, 1], [1, 1], [2, 2], [0, 2]],
     "no_weight_tying": binary,
     "attention_config": [[[["global"], "all"]], [[["local"], "all"]], [[["sparse_variable"], "all"]],
                          [[["sparse_fixed"], "all"]]],
-    "scaled_upper_triang_masked_softmax_fusion": binary,
-    "bias_gelu_fusion": binary,
+    "scaled_upper_triang_masked_softmax_fusion,bias_gelu_fusion": [[True, False], [False, True]],
     "checkpoint_activations": binary,
 }
-
-
-def parametrize(params_to_test: dict, max_tests: int = 50, seed: int = None):
-    """
-    Generates a random sample of max_tests length of all possible combinations of values in
-    `params_to_test`.
-
-    In `params_to_test` you can either specify one value, and all possible settings of that value,
-    or two values separated by a comma, and all possible combinations of those two values in tandem.
-        i.e "hidden_size,num_heads": [[768,12], [1024,32], [2048, 64]]
-    so the first item in each list is a value of `hidden_size` and the second a value of `num_heads`
-    this is useful for reducing the size of possible tests for values we know are unlikely to interact beforehand,
-    since the cartesian product can grow very large.
-
-    :param params_to_test: dict of neox params
-    :param max_tests: maximum number of tests to run
-    :param seed: random seed
-    :return: a list of neox param dicts to pass to a parametrized unit test
-    """
-    keys, values = zip(*params_to_test.items())
-    for p in bounded_product(values, n=max_tests, seed=seed):
-        experiment = dict(zip(keys, p))
-        for k, v in experiment.items():
-            if "," in k:
-                keys_split = [i.strip() for i in k.split(',')]
-                values_separated = experiment.pop(k)
-                assert len(values_separated) == len(keys_split)
-                new_dict = dict(zip(keys_split, values_separated))
-                experiment.update(new_dict)
-        base = deepcopy(BASE_CONFIG)
-        base.update(experiment)
-        yield base
 
 
 @pytest.mark.parametrize("param_dict", list(parametrize(PARAMS_TO_TEST, max_tests=50, seed=None)))
