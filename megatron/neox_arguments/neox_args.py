@@ -610,6 +610,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Directory containing a model checkpoint.
     """
 
+    checkpoint_validation_with_forward_pass: bool = False
+    """
+    save input and output of a forward pass with the checkpoint and validate after load
+    """
+
     save_interval: int = None
     """
     Number of iterations between checkpoint saves.
