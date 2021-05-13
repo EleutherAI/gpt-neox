@@ -16,8 +16,9 @@ PARAMS_TO_TEST = {
                                 ["rmsnorm", "none", "swish"]],
     "pipe_parallel_size,model_parallel_size": [[0, 1], [1, 2], [0, 2]],
     "no_weight_tying": binary,
-    "attention_config": [[[["global"], "all"]], [[["local"], "all"]], [[["sparse_variable"], "all"]],
-                         [[["sparse_fixed"], "all"]]],
+    "num_layers": [4],
+    "attention_config": [[[["global"], "all"]], [[["local", "global"], "all"]], [[["sparse_variable", "global"], "all"]],
+                         [[["sparse_fixed", "global"], "all"]]],
     "scaled_upper_triang_masked_softmax_fusion,bias_gelu_fusion": [[True, False], [False, True]],
     "checkpoint_activations": binary,
     "log_gradient_noise_scale": [True],
@@ -56,7 +57,7 @@ def run_train_test(yaml_list=None, param_dict=None):
     from megatron.training import train_step
     from megatron.utils import Timers
 
-    max_steps = 256
+    max_steps = 64
 
     model, optimizer, lr_scheduler, args_loaded = model_setup(yaml_list, param_dict)
 
