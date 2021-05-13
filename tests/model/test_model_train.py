@@ -48,7 +48,7 @@ opt_params, opt_name = parametrize(OPTIMIZER_PARAMS, max_tests=50, seed=None)
 def test_train_optimizers(param_dict):
     @distributed_test(world_size=2)
     def wrapper():
-        run_test_model_instantiation(param_dict=param_dict)
+        run_train_test(param_dict=param_dict)
     wrapper()
 
 
