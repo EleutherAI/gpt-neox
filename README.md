@@ -40,7 +40,7 @@ We offer a choice of layernorm, scalenorm and RMSNorm easily configured by chang
 
 - **Zero Redundancy Optimizer (ZeRO):** 
 
-    - ZeRO stage 1 works seamlessly with NeoX, while ZeRO stage 2 requires pipeline parallelism be set to 0, as ZeRO performs pipeline parallelism internally. We are additionally working on integrating ZeRO 3 into the codebase.
+    - ZeRO stage 1 works seamlessly with NeoX, while ZeRO stage 2 requires pipeline parallelism be set to 0. We are additionally working on integrating ZeRO 3 into the codebase.
     Turning on ZeRO is as simple as adding one field to your configuration file.
 
 ### Straightforward configuration
