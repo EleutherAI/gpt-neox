@@ -51,9 +51,9 @@ def get_params_for_weight_decay_optimization(module, neox_args):
     """
     weight_decay_params = {'params': []}
     no_weight_decay_params = {'params': [], 'weight_decay': 0.0}
-    from .transformer import LayerNorm, RMSNorm, ScaleNorm
+    from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm, ApexLayerNorm
     for module_ in module.modules():
-        if any([isinstance(module_, LayerNorm), isinstance(module_, RMSNorm), isinstance(module_, ScaleNorm)]) or \
+        if any([isinstance(module_, ApexLayerNorm), isinstance(module_, LayerNorm), isinstance(module_, RMSNorm), isinstance(module_, ScaleNorm)]) or \
                 (neox_args.weight_decay == 0.0):  # also include all parameters here if no weight decay is being done
             no_weight_decay_params['params'].extend(
                 [p for p in list(module_._parameters.values())

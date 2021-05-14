@@ -23,7 +23,7 @@ from collections import defaultdict
 
 from functools import partial
 from megatron.model.utils import init_method_normal, scaled_init_method_normal, Lambda, SequentialWrapper
-from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
+from megatron.model.norms import get_norm
 
 from megatron import mpu
 from megatron.mpu import ParallelRelativePositionBias
@@ -174,16 +174,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             self.specs.append(lambda x: x[0].transpose(0, 1).contiguous())
 
         # Final layernorm after transformer layers
-        if self.neox_args.norm == "rmsnorm":
-            norm = RMSNorm
-            eps = self.neox_args.rms_norm_epsilon
-        elif self.neox_args.norm == "layernorm":
-            eps = self.neox_args.layernorm_epsilon
-            norm = LayerNorm
-        elif self.neox_args.norm == "scalenorm":
-            eps = self.neox_args.scalenorm_epsilon
-            norm = ScaleNorm
-
+        norm, eps = get_norm(self.neox_args)
         # NormPipe is a helper class to pass presents through to the output when doing inference
         self.specs.append(
             LayerSpec(NormPipe,

@@ -22,7 +22,7 @@ import math
 import torch
 import torch.nn.functional as F
 
-from .norms import LayerNorm, RMSNorm, ScaleNorm
+from .norms import get_norm
 from megatron import mpu
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
 from megatron.model.activations import get_activation
@@ -406,17 +406,8 @@ class ParallelTransformerLayer(torch.nn.Module):
 
         self.apply_residual_connection_post_layernorm = neox_args.apply_residual_connection_post_layernorm
 
-        if neox_args.norm == "rmsnorm":
-            norm = RMSNorm
-            eps = neox_args.rms_norm_epsilon
-        elif neox_args.norm == "layernorm":
-            eps = neox_args.layernorm_epsilon
-            norm = LayerNorm
-        elif neox_args.norm == "scalenorm":
-            eps = neox_args.scalenorm_epsilon
-            norm = ScaleNorm
-
         # Layernorm on the input data.
+        norm, eps = get_norm(neox_args)
         self.input_layernorm = norm(neox_args.hidden_size, eps=eps)
         self.get_key_value = get_key_value
 
