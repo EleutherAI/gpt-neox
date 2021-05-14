@@ -27,7 +27,7 @@ from megatron import mpu
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
 from megatron.model.activations import get_activation
 from megatron.model.utils import exists
-from megatron.model.positional_embeddings import RotaryEmbedding, apply_rotary_pos_emb
+from megatron.model.positional_embeddings import RotaryEmbedding, apply_rotary_pos_emb, apply_rotary_pos_emb_torch
 from megatron.model.fused_bias_dropout import get_bias_dropout_add, bias_dropout_add_fused_train, \
     bias_dropout_add_fused_inference
 from megatron.model.utils import configure_sparse_attention
@@ -346,8 +346,8 @@ class ParallelSelfAttention(torch.nn.Module):
                 # full rotary
                 cos, sin = self.rotary_emb(query_layer, seq_dim=0)
                 query_rot, key_rot = query_layer, key_layer
-
-            query_layer, key_layer = apply_rotary_pos_emb(query_rot, key_rot, cos, sin)
+            apply_rotary_fn = apply_rotary_pos_emb_torch if self.bf16 else apply_rotary_pos_emb
+            query_layer, key_layer = apply_rotary_fn(query_rot, key_rot, cos, sin)
 
             if exists(self.rotary_ndims):
                 query_layer = torch.cat((query_layer, query_pass), dim=-1)
