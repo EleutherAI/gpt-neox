@@ -374,7 +374,7 @@ class NeoXArgs(*BASE_CLASSES):
 
     def print(self):
         """Print arguments."""
-        if self.rank == 0:
+        if self.rank == 0 or self.rank is None:
             print('-------------------- arguments --------------------', flush=True)
             str_list = []
             for arg in vars(self):
