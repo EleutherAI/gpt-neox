@@ -35,7 +35,6 @@ from deepspeed.launcher.runner import fetch_hostfile, parse_inclusion_exclusion
 
 from megatron import print_rank_0
 from megatron import mpu
-from megatron.data.samplers import DistributedBatchSampler
 from deepspeed import PipelineEngine, DeepSpeedEngine
 from collections import deque
 
@@ -60,30 +59,6 @@ def report_memory(name):
     string += ' | max reserved: {}'.format(
         torch.cuda.max_memory_reserved() / mega_bytes)
     print_rank_0(string)
-
-
-def make_data_loader(dataset, neox_args):
-    """Buld dataloader given an input dataset."""
-    if dataset is None:
-        return None
-    # Data parallel arguments.
-    world_size = mpu.get_data_parallel_world_size()
-    rank = mpu.get_data_parallel_rank()
-    global_batch_size = neox_args.batch_size * world_size
-    num_workers = neox_args.num_workers
-
-    # Use a simple sampler with distributed batch sampler.
-    sampler = torch.utils.data.SequentialSampler(dataset)
-    batch_sampler = DistributedBatchSampler(sampler=sampler,
-                                            batch_size=global_batch_size,
-                                            drop_last=True,
-                                            rank=rank,
-                                            world_size=world_size)
-    # Torch dataloader.
-    return torch.utils.data.DataLoader(dataset,
-                                       batch_sampler=batch_sampler,
-                                       num_workers=num_workers,
-                                       pin_memory=True)
 
 
 def get_ltor_masks_and_position_ids(data,

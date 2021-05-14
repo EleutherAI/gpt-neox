@@ -231,7 +231,7 @@ def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_i
         token_generation_end_index = torch.ones([batch_size]).long().cuda() * (-1)
 
         while token_index_to_generate <= last_token_index_to_generate:
-            if neox_args.recompute:
+            if recompute:
                 # recompute is needed for sparse attention at the moment
                 # because we can only forward multiples of the block size
                 # TODO The full padded context_tokens would not need to be forwarded, adjust to multiples of block size

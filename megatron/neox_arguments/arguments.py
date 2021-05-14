@@ -6,6 +6,7 @@ import shortuuid
 import copy
 import torch
 import argparse
+import shutil
 
 from dataclasses import dataclass
 from typing import List
@@ -95,8 +96,6 @@ class NeoXArgs(*BASE_CLASSES):
 
         if not self.validate_values():
             raise ValueError(self.__class__.__name__ + ".__post_init__() NeoXArgs values cannot be validated")
-
-        self.save_yml()
 
     def build_tokenizer(self):
         self.tokenizer = build_tokenizer(self)
@@ -227,6 +226,21 @@ class NeoXArgs(*BASE_CLASSES):
 
         # load args
         neox_args = cls.from_ymls(paths_to_yml_files=conf_files, overwrite_values=overwrite_values)
+
+
+        # save a copy of yaml configs to the save directory
+        if neox_args.save is not None:
+            configs_directory = os.path.join(neox_args.save, "configs")
+            
+            # delete the configs subdirectory in save if it already exists
+            # only the latest version of the configs are stored
+            if os.path.isdir(configs_directory):
+                shutil.rmtree(configs_directory)
+
+            # create configs directory and copy config files
+            os.makedirs(configs_directory)
+            for conf_file in conf_files:
+                shutil.copy(conf_file, os.path.join(configs_directory, os.path.basename(conf_file)))
 
         return neox_args
 
@@ -360,19 +374,9 @@ class NeoXArgs(*BASE_CLASSES):
             Tee(file_prefix + '_stdout.txt', err=False)
             Tee(file_prefix + '_stderr.txt', err=True)
 
-    def save_yml(self):
-        """
-        saves the configured value to the configured save directory (if any)
-        """
-        if self.save is not None:
-            os.makedirs(self.save, exist_ok=True)
-            config_file = os.path.join(self.save, 'config.yml')
-            with open(config_file, 'w') as f:
-                json.dump(self.all_config, f, indent=4)
-
     def print(self):
         """Print arguments."""
-        if self.rank == 0:
+        if self.rank == 0 or self.rank is None:
             print('-------------------- arguments --------------------', flush=True)
             str_list = []
             for arg in vars(self):
@@ -600,6 +604,14 @@ class NeoXArgs(*BASE_CLASSES):
             # Can't have a default value as an empty dict so need to set it here
             self.update_value("sparsity_config", {})
 
+        # Adding equal dataset weights if none are provided
+        if self.train_data_paths and (self.train_data_weights is None):
+            self.train_data_weights = [1.] * len(self.train_data_paths)
+        if self.valid_data_paths and (self.valid_data_weights is None):
+            self.valid_data_weights = [1.] * len(self.valid_data_paths)
+        if self.test_data_paths and (self.test_data_weights is None):
+            self.test_data_weights = [1.] * len(self.test_data_paths)
+
     ############################################################################################################################
     # start of validation functions
 
@@ -691,9 +703,9 @@ class NeoXArgs(*BASE_CLASSES):
             return False
 
         # assert that if one of train/test/valid_data_path are provided, data_path should not be
-        has_separate_path = [data_path is not None for data_path in [self.train_data_path,
-                                                                     self.valid_data_path,
-                                                                     self.test_data_path]]
+        has_separate_path = [data_path is not None for data_path in [self.train_data_paths,
+                                                                     self.valid_data_paths,
+                                                                     self.test_data_paths]]
         if all(has_separate_path):
             assert self.data_path is None, "Please provide *either* `data_path` or `train/valid/test_data_path` " \
                                                 "in args "
@@ -701,10 +713,18 @@ class NeoXArgs(*BASE_CLASSES):
         # assert that if one of train/test/valid_data_path are provided, all should be
         assert_error_mess = "One or more of train/valid/test data_path are not provided:\n\t"
         assert_error_mess += "\n\t".join(
-            [f"{name}_data_path: {data_path}," for name, data_path in [['train', self.train_data_path],
-                                                                     ['valid', self.valid_data_path],
-                                                                     ['test', self.test_data_path]]])
+            [f"{name} data paths: {data_path}," for name, data_path in [['train', self.train_data_paths],
+                                                                        ['valid', self.valid_data_paths],
+                                                                        ['test', self.test_data_paths]]])
         assert any(has_separate_path) == all(has_separate_path), assert_error_mess
+
+        # assert that if train / valid / test data path(s) and weights are provided, that the paths and the weights should be equal length
+        if self.train_data_paths is not None:
+            assert len(self.train_data_paths) == len(self.train_data_weights)
+        if self.valid_data_paths is not None:
+            assert len(self.valid_data_paths) == len(self.valid_data_weights)
+        if self.test_data_paths is not None:
+            assert len(self.test_data_paths) == len(self.test_data_weights)
 
         return True
 

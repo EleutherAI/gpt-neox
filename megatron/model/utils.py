@@ -25,26 +25,6 @@ from deepspeed.ops.sparse_attention import SparseSelfAttention, VariableSparsity
 from deepspeed.ops.sparse_attention.sparsity_config import LocalSlidingWindowSparsityConfig
 
 
-def init_method_normal(sigma):
-    """Init method based on N(0, sigma)."""
-
-    def init_(tensor):
-        return torch.nn.init.normal_(tensor, mean=0.0, std=sigma)
-
-    return init_
-
-
-def scaled_init_method_normal(sigma, num_layers):
-    """Init method based on N(0, sigma/sqrt(2*num_layers)."""
-    std = sigma / math.sqrt(2.0 * num_layers)
-
-    def init_(tensor):
-        return torch.nn.init.normal_(tensor, mean=0.0, std=std)
-
-    return init_
-
-
-
 def get_params_for_weight_decay_optimization(module, neox_args):
     """Divide params into with-weight-decay and without-weight-decay groups.
     Layernorms and biases will have no weight decay but the rest will.

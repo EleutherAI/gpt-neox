@@ -1,6 +1,3 @@
-"""
-Tests concerning the GPT2Model class
-"""
-
-from .test_model_checkpoint import TestModelCheckpoint
-from .test_model_instantiation import TestModelInstantiation
+from .test_model_instantiation import run_test_model_instantiation
+from .test_model_train import run_train_test
+from .test_model_checkpoint import run_checkpoint_test

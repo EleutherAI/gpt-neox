@@ -25,95 +25,11 @@ import numpy as np
 import torch
 
 from megatron import mpu, print_rank_0
-from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
-
-def build_the_dataset(data_prefix, name, data_impl,
-                      train_valid_test_num_samples,
-                      seq_length, seed, skip_warmup):
-    """Build train/valid/test datasets."""
-    
-    indexed_dataset = get_indexed_dataset_(data_prefix,
-                                           data_impl,
-                                           skip_warmup)
-
-    total_num_of_documents = indexed_dataset.sizes.shape[0]    
-    print_rank_0('    {}:'.format(name))
-    print_rank_0('     no. of documents:{}'.format(total_num_of_documents))    
-    
-    dataset = None
-    indexing = {'train': 0, 'valid': 1, 'test': 2}
-    documents = np.arange(start=0, stop=total_num_of_documents,
-                          step=1, dtype=np.int32)
-    dataset = GPT2Dataset(name, data_prefix,
-                          documents, indexed_dataset,
-                          train_valid_test_num_samples[indexing[name]],
-                          seq_length, seed)
-    return dataset
-    
-def build_train_valid_test_datasets(data_prefix, data_impl, splits_string,
-                                    train_valid_test_num_samples,
-                                    seq_length, seed, skip_warmup):
-    """Build train, valid, and test datasets."""
-
-    # Indexed dataset.
-    indexed_dataset = get_indexed_dataset_(data_prefix,
-                                           data_impl,
-                                           skip_warmup)
-
-    total_num_of_documents = indexed_dataset.sizes.shape[0]
-    splits = get_train_valid_test_split_(splits_string, total_num_of_documents)
-
-    # Print stats about the splits.
-    print_rank_0(' > dataset split:')
-
-    def print_split_stats(name, index):
-        print_rank_0('    {}:'.format(name))
-        print_rank_0('     document indices in [{}, {}) total of {} '
-                     'documents'.format(splits[index], splits[index + 1],
-                                        splits[index + 1] - splits[index]))
-
-    print_split_stats('train', 0)
-    print_split_stats('validation', 1)
-    print_split_stats('test', 2)
-
-    def build_dataset(index, name):
-        dataset = None
-        if splits[index + 1] > splits[index]:
-            documents = np.arange(start=splits[index], stop=splits[index + 1],
-                                  step=1, dtype=np.int32)
-            dataset = GPT2Dataset(name, data_prefix,
-                                  documents, indexed_dataset,
-                                  train_valid_test_num_samples[index],
-                                  seq_length, seed)
-        return dataset
-
-    train_dataset = build_dataset(0, 'train')
-    valid_dataset = build_dataset(1, 'valid')
-    test_dataset = build_dataset(2, 'test')
-
-    return train_dataset, valid_dataset, test_dataset
-
-
-def get_indexed_dataset_(data_prefix, data_impl, skip_warmup):
-    """Build indexed dataset."""
-    print_rank_0(' > building dataset index ...')
-
-    start_time = time.time()
-    indexed_dataset = make_indexed_dataset(data_prefix,
-                                           data_impl,
-                                           skip_warmup)
-    print_rank_0(' > finished creating indexed dataset in {:4f} '
-                 'seconds'.format(time.time() - start_time))
-    print_rank_0('    number of documents: {}'.format(
-        indexed_dataset.sizes.shape[0]))
-
-    return indexed_dataset
-
 
 class GPT2Dataset(torch.utils.data.Dataset):
 
     def __init__(self, name, data_prefix, documents, indexed_dataset,
-                 num_samples, seq_length, seed):
+                 num_samples, seq_length, seed, build_index_mappings=True):
 
         self.name = name
         self.indexed_dataset = indexed_dataset
@@ -122,10 +38,11 @@ class GPT2Dataset(torch.utils.data.Dataset):
         assert np.min(documents) >= 0
         assert np.max(documents) < indexed_dataset.sizes.shape[0]
 
-        # Build index mappings.
-        self.doc_idx, self.sample_idx, self.shuffle_idx = _build_index_mappings(
-            self.name, data_prefix, documents, self.indexed_dataset.sizes,
-            num_samples, seq_length, seed)
+        if build_index_mappings:
+            # Build index mappings.
+            self.doc_idx, self.sample_idx, self.shuffle_idx = _build_index_mappings(
+                self.name, data_prefix, documents, self.indexed_dataset.sizes,
+                num_samples, seq_length, seed)
 
     def __len__(self):
         # -1 is due to data structure used to retieve the index:
@@ -341,7 +258,7 @@ def _build_shuffle_idx(size, np_rng):
 
 
 def compile_helper():
-    """Compile helper function ar runtime. Make sure this
+    """Compile helper function at runtime. Make sure this
     is invoked on a single process."""
     import os
     import subprocess
@@ -351,31 +268,3 @@ def compile_helper():
         print("Making C++ dataset helpers module failed, exiting.")
         import sys
         sys.exit(1)
-
-
-def get_train_valid_test_split_(splits_string, size):
-    """ Get dataset splits from comma or '/' separated string list."""
-
-    splits = []
-    if splits_string.find(',') != -1:
-        splits = [float(s) for s in splits_string.split(',')]
-    elif splits_string.find('/') != -1:
-        splits = [float(s) for s in splits_string.split('/')]
-    else:
-        splits = [float(splits_string)]
-    while len(splits) < 3:
-        splits.append(0.)
-    splits = splits[:3]
-    splits_sum = sum(splits)
-    assert splits_sum > 0.0
-    splits = [split / splits_sum for split in splits]
-    splits_index = [0]
-    for index, split in enumerate(splits):
-        splits_index.append(splits_index[index] +
-                            int(round(split * float(size))))
-    diff = splits_index[-1] - size
-    for index in range(1, len(splits_index)):
-        splits_index[index] -= diff
-    assert len(splits_index) == 4
-    assert splits_index[-1] == size
-    return splits_index

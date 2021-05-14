@@ -243,6 +243,18 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Base for rotary positional embedding
     """
 
+    init_method : Literal["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"] = "normal"
+    """
+    Init function used on all layers except ff residual outputs - choose from 
+    ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
+    """
+
+    output_layer_init_method : Literal["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"] = "scaled_normal"
+    """
+    Init function used for ff residual outputs - choose from 
+    ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
+    """
+
 
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):
@@ -496,8 +508,7 @@ class NeoXArgsOther(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsTokenizer(NeoXArgsTemplate):
-    tokenizer_type: Literal[
-        "GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "CharLevelTokenizer"] = "GPT2BPETokenizer"
+    tokenizer_type: Literal["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "CharLevelTokenizer"] = "GPT2BPETokenizer"
     """
     Type of tokenizer to use - should be one of ["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "CharLevelTokenizer"]
     """
@@ -520,19 +531,63 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Path to combined dataset to split.
     """
 
-    train_data_path: str = None
+    train_data_paths: list = None
     """
-    Path to train dataset.
-    """
-
-    test_data_path: str = None
-    """
-    Path to test dataset.
+    List of paths to train datasets.
     """
 
-    valid_data_path: str = None
+    test_data_paths: list = None
     """
-    Path to validation dataset.
+    List of paths to test datasets.
+    """
+
+    valid_data_paths: list = None
+    """
+    List of paths to validation datasets.
+    """
+
+    train_data_weights: list = None
+    """
+    List of 'weights' that decide how often to sample from each training dataset when blending datasets. If None, defaults to equal weighting.
+    Should be a list the same length as `train_data_paths`
+    """
+
+    valid_data_weights: list = None
+    """
+    List of 'weights' that decide how often to sample from each validation dataset when blending datasets. If None, defaults to equal weighting.
+    Should be a list the same length as `valid_data_paths`
+    """
+
+    test_data_weights: list = None
+    """
+    List of 'weights' that decide how often to sample from each test dataset when blending datasets. If None, defaults to equal weighting.
+    Should be a list the same length as `test_data_paths`
+    """
+
+    weight_by_num_documents: bool = False
+    """
+    If True, Builds dataset weights from a multinomial distribution over groups of data according to the number of
+    documents in each group. 
+
+    WARNING: setting this to True will override any user provided weights
+
+    We sample from a group according to the probability p(L) ∝ |L| ** α,
+    where p(L) is the probability of sampling from a given group,
+          |L| is the number of examples in that datapoint,
+          and α is a coefficient that acts to upsample data from underrepresented groups
+
+    Hence α (`alpha`) allows us to control how much to 'boost' the probability of training on low-resource groups.
+
+    See https://arxiv.org/abs/1911.02116 for more details
+    """
+
+    weighted_sampler_alpha: float = 0.3
+    """
+    Alpha value for `weight_by_num_documents`. Only has an effect if `weight_by_num_documents` = True.
+
+    when alpha = 1, the probability of sampling from a given group = n_samples / total_samples
+    as alpha -> 0, the probability of sampling from all groups becomes equal, and number of documents has no effect
+    as alpha -> inf, the probability of sampling from the groups with *the most samples* -> 1
     """
 
     data_impl: str = 'infer'
@@ -553,6 +608,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     load: str = None
     """
     Directory containing a model checkpoint.
+    """
+
+    checkpoint_validation_with_forward_pass: bool = False
+    """
+    save input and output of a forward pass with the checkpoint and validate after load
     """
 
     save_interval: int = None

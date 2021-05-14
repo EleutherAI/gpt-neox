@@ -35,13 +35,11 @@ from megatron import mpu
 
 from megatron.model import GPT2ModelPipe
 from megatron.checkpointing import load_checkpoint, save_checkpoint
-from megatron.data.gpt2_dataset import build_train_valid_test_datasets
-from megatron.data.gpt2_dataset import build_the_dataset
+from megatron.data.data_utils import build_train_valid_test_data_iterators
 
 from megatron.initialize import initialize_megatron
 from megatron.learning_rates import AnnealingLR
 from megatron.model import get_params_for_weight_decay_optimization
-from megatron.utils import make_data_loader
 from megatron.logging import tb_wandb_log
 from megatron.utils import OverflowMonitor, get_noise_scale_logger
 from megatron.utils import get_total_params
@@ -346,7 +344,7 @@ def setup_model_and_optimizer(neox_args, inference=False, get_key_value=True):
 
     if neox_args.load is not None:
         neox_args.iteration = load_checkpoint(neox_args=neox_args, model=model, optimizer=optimizer,
-                                              lr_scheduler=lr_scheduler)
+                                              lr_scheduler=lr_scheduler, inference=inference)
         print_rank_0(f'Loading checkpoint and starting from iteration {neox_args.iteration}')
     else:
         neox_args.iteration = 0
@@ -413,7 +411,7 @@ def train_step_pipe(neox_args, timers, model, data_iterator):
 
     assert neox_args.deepspeed
     loss = model.train_batch(data_iter=data_iterator)
-    loss_dict = {'lm loss': loss}
+    loss_dict = {'lm_loss': loss}
     # Don't break Megatron's timers because we changed code paths.
     for t in ['forward', 'backward', 'allreduce', 'optimizer', 'batch generator', 'data loader']:
         timers(t).reset()
@@ -436,7 +434,7 @@ def train(neox_args, timers, model, optimizer, lr_scheduler,
     timers('interval time').start()
     report_memory_flag = True
 
-    # get noise scale logger (if args.log_noise_scale is True)
+    # get noise scale logger (if neox_args.log_gradient_noise_scale is True)
     noise_scale_logger = get_noise_scale_logger(neox_args)
 
     # to monitor if we've skipped many iterations in a row and trigger an early exit
@@ -565,127 +563,3 @@ def evaluate_and_print_results(neox_args, prefix, forward_step_func, data_iterat
     print_rank_0(string)
     print_rank_0('-' * length)
 
-
-def build_train_valid_test_data_iterators(neox_args):
-    """XXX"""
-
-    (train_dataloader, valid_dataloader, test_dataloader) = (None, None, None)
-
-    print_rank_0('> building train, validation, and test datasets ...')
-
-    # Ensure only the first/last pipeline stages have data loaders
-    if neox_args.is_pipe_parallel:
-        is_first_stage = mpu.get_pipe_parallel_rank() == 0
-        is_last_stage = mpu.get_pipe_parallel_rank() == mpu.get_pipe_parallel_world_size() - 1
-        pipe_load = is_first_stage or is_last_stage
-    else:
-        pipe_load = True
-
-    # Data loader only on rank 0 of each model parallel group.
-    if mpu.get_model_parallel_rank() == 0 and pipe_load:
-        # Number of train/valid/test samples.
-        train_iters = neox_args.train_iters
-        eval_iters = (train_iters // neox_args.eval_interval + 1) * neox_args.eval_iters
-        test_iters = neox_args.eval_iters
-        train_val_test_num_samples = [train_iters * neox_args.train_batch_size,
-                                      eval_iters * neox_args.train_batch_size,
-                                      test_iters * neox_args.train_batch_size]
-        print_rank_0(' > datasets target sizes (minimum size):')
-        print_rank_0('    train:      {}'.format(train_val_test_num_samples[0]))
-        print_rank_0('    validation: {}'.format(train_val_test_num_samples[1]))
-        print_rank_0('    test:       {}'.format(train_val_test_num_samples[2]))
-
-        # Build the datasets.
-        print_rank_0('> building train, validation, and test datasets for GPT2 ...')
-
-        all_data_paths = [('train', neox_args.train_data_path),
-                          ('valid', neox_args.valid_data_path),
-                          ('test', neox_args.test_data_path)]
-
-        if neox_args.train_data_path:
-            # when train_data_path, test_data_path, test_data_path provided
-            all_ds = []
-            for name, data_path in all_data_paths:
-                all_ds.append(build_the_dataset(
-                    data_prefix=data_path,
-                    name=name,
-                    data_impl=neox_args.data_impl,
-                    train_valid_test_num_samples=train_val_test_num_samples,
-                    seq_length=neox_args.seq_length,
-                    seed=neox_args.seed,
-                    skip_warmup=(not neox_args.mmap_warmup)
-                ))
-            train_ds, valid_ds, test_ds = all_ds
-        else:
-            # when data_path is provided
-            # split dataset into train, valid and test from data_path
-            train_ds, valid_ds, test_ds = build_train_valid_test_datasets(
-                data_prefix=neox_args.data_path,
-                data_impl=neox_args.data_impl,
-                splits_string=neox_args.split,
-                train_valid_test_num_samples=train_val_test_num_samples,
-                seq_length=neox_args.seq_length,
-                seed=neox_args.seed,
-                skip_warmup=(not neox_args.mmap_warmup)
-            )
-        print_rank_0("> finished creating GPT2 datasets ...")
-
-        # Build dataloders.
-        train_dataloader = make_data_loader(train_ds, neox_args=neox_args)
-        valid_dataloader = make_data_loader(valid_ds, neox_args=neox_args)
-        test_dataloader = make_data_loader(test_ds, neox_args=neox_args)
-
-        # Flags to know if we need to do training/validation/testing.
-        do_train = train_dataloader is not None and neox_args.train_iters > 0
-        do_valid = valid_dataloader is not None and neox_args.eval_iters > 0
-        do_test = test_dataloader is not None and neox_args.eval_iters > 0
-        # Need to broadcast num_tokens and num_type_tokens.
-        flags = torch.cuda.LongTensor(
-            [int(do_train), int(do_valid), int(do_test)])
-    else:
-        flags = torch.cuda.LongTensor([0, 0, 0])
-
-    # Broadcast num tokens.
-    if neox_args.is_pipe_parallel:
-        # Only first/last pipeline stages have data loaders, so pipeline parallelism should
-        # broadcast globally instead of just the model parallel group.
-        torch.distributed.broadcast(flags, src=0)
-    else:
-        torch.distributed.broadcast(flags,
-                                    mpu.get_model_parallel_src_rank(),
-                                    group=mpu.get_model_parallel_group())
-    neox_args.do_train = flags[0].item()
-    neox_args.do_valid = flags[1].item()
-    neox_args.do_test = flags[2].item()
-
-    # Shift the start iterations.
-    if train_dataloader is not None:
-        train_dataloader.batch_sampler.start_iter = (neox_args.iteration * neox_args.gradient_accumulation_steps) % \
-                                                    len(train_dataloader)
-        print_rank_0('setting training data start iteration to {}'.
-                     format(train_dataloader.batch_sampler.start_iter))
-    if valid_dataloader is not None:
-        start_iter_val = ((neox_args.iteration * neox_args.gradient_accumulation_steps) // neox_args.eval_interval) * \
-                         neox_args.eval_iters
-        valid_dataloader.batch_sampler.start_iter = start_iter_val % \
-                                                    len(valid_dataloader)
-        print_rank_0('setting validation data start iteration to {}'.
-                     format(valid_dataloader.batch_sampler.start_iter))
-
-    # Build iterators.
-    if train_dataloader is not None:
-        train_data_iterator = iter(train_dataloader)
-    else:
-        train_data_iterator = None
-
-    if valid_dataloader is not None:
-        valid_data_iterator = iter(valid_dataloader)
-    else:
-        valid_data_iterator = None
-
-    if test_dataloader is not None:
-        test_data_iterator = iter(test_dataloader)
-    else:
-        test_data_iterator = None
-
-    return train_data_iterator, valid_data_iterator, test_data_iterator

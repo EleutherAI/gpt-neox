@@ -17,9 +17,7 @@ import logging
 import os
 
 import deepspeed
-import requests
 from deepspeed.launcher.runner import main
-
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 
