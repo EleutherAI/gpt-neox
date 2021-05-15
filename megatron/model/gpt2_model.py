@@ -30,7 +30,7 @@ from megatron import mpu
 from megatron.mpu import ParallelRelativePositionBias
 import megatron.fp16 as fp16
 from megatron.model.transformer import ParallelTransformerLayerPipe, NormPipe, ParallelLinearPipe, parallel_lm_logits
-from megatron.model.word_embeddings import EmbeddingPipe
+from megatron.model.word_embeddings import EmbeddingPipe, SoftEmbedding
 
 # Pipeline parallelism
 from deepspeed.pipe import PipelineModule, LayerSpec, TiedLayerSpec
@@ -81,6 +81,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         self.init_method, self.output_layer_init_method = get_init_methods(self.neox_args)
         self.fp16_lm_cross_entropy = self.neox_args.fp16_lm_cross_entropy
         self.embedding_type = self.neox_args.pos_emb
+        self.__topology__ = topology
 
         #
         # forward() prototype
@@ -272,3 +273,17 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                                   parent_class_name=self.__class__.__name__)
         return model
 
+class SoftPromptTuner(PipelineModule, torch.nn.Module):
+    def __init__(self, neox_args, gpt2_model):
+        # gpt2_model = an already initialized gpt2 model
+        specs = gpt2_model.specs
+        specs.insert(1, SoftEmbedding(neox_args,
+                        gpt2_model.init_method,
+                        n_tokens=10, 
+                        random_range=0.5,
+                        initialize_from_vocab=True))
+        super().__init__(layers=specs,
+                    loss_fn=gpt2_model.loss_fn if not gpt2_model._inference else None,
+                    topology=gpt2_model.__topology__,
+                    activation_checkpoint_interval=gpt2_model.activation_checkpoint_interval,
+                    partition_method='type:transformer')

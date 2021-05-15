@@ -33,7 +33,7 @@ from megatron import print_rank_0
 
 from megatron import mpu
 
-from megatron.model import GPT2ModelPipe
+from megatron.model import GPT2ModelPipe, SoftPromptTuner
 from megatron.checkpointing import load_checkpoint, save_checkpoint
 from megatron.data.data_utils import build_train_valid_test_data_iterators
 
@@ -205,8 +205,13 @@ def get_model(neox_args, inference=False, get_key_value=True):
     print_rank_0('building GPT2 model ...')
 
     # Build model on cpu.
-    model = GPT2ModelPipe(neox_args=neox_args, num_tokentypes=0, parallel_output=True, topology=mpu.get_topology(),
+    gpt_model = GPT2ModelPipe(neox_args=neox_args, num_tokentypes=0, parallel_output=True, topology=mpu.get_topology(),
                           inference=inference, get_key_value=get_key_value)
+    ### soft prompt tuning stuff ###
+    model = SoftPromptTuner(neox_args, gpt_model)
+    for name, param in model.named_parameters():
+        if not 'soft_embedding' in name:
+            param.requires_grad = False
     if not neox_args.is_pipe_parallel:
         # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
         model = model.to_sequential()

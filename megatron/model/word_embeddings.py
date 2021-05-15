@@ -1,5 +1,5 @@
 import torch
-
+from torch.nn.parameter import Parameter
 from megatron import mpu
 from megatron.model.positional_embeddings import SinusoidalPositionalEmbedding
 
@@ -130,3 +130,31 @@ class EmbeddingPipe(Embedding):
         else:
             return embeddings, attention_mask
 
+class SoftEmbedding(torch.nn.Module):
+
+    def __init__(self, 
+                neox_args,
+                init_method,
+                n_tokens: int = 10, 
+                random_range: float = 0.5,
+                initialize_from_vocab: bool = True):
+        super(SoftEmbedding, self).__init__()
+        self.n_tokens = n_tokens
+        self.neox_args = neox_args
+        self.soft_embedding_weight = torch.nn.parameter.Parameter(torch.Tensor(n_tokens, neox_args.hidden_size))
+        init_method(self.soft_embedding_weight)
+
+    def forward(self, args: tuple):
+        in_inference = len(args) == 3  # embeddings, layer_past, attention_mask
+        in_train = len(args) == 2 # embeddings, attention_mask
+        if in_train:
+            embedding, attention_mask = args
+        else:
+            embedding, layer_past, attention_mask = args 
+        soft_embedding = self.soft_embedding_weight.repeat(embedding.shape[0], 1, 1)
+        if in_train:
+            embedding[ : , :self.n_tokens, :] = soft_embedding
+            return embedding, attention_mask
+        else:
+            raise NotImplementedError() # will need to concat the soft embeddings on the first prompt then cache?
+            return embedding, layer_past, attention_mask
