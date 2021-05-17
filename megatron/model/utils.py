@@ -21,7 +21,7 @@
 import math
 
 import torch
-from deepspeed.ops.sparse_attention import SparseSelfAttention, VariableSparsityConfig, FixedSparsityConfig
+from deepspeed.ops.sparse_attention import SparseSelfAttention, VariableSparsityConfig, FixedSparsityConfig, BigBirdSparsityConfig, BSLongformerSparsityConfig
 from deepspeed.ops.sparse_attention.sparsity_config import LocalSlidingWindowSparsityConfig
 
 
@@ -156,10 +156,32 @@ def configure_sparse_attention(neox_args, attention_type, num_attention_heads, m
             horizontal_global_attention=False,
         )
     elif attention_type == "local":
+        # can configure with `num_local_blocks` or `num_sliding_window_blocks`
+        num_local_blocks = neox_args.sparsity_config.get("num_local_blocks", neox_args.sparsity_config.get("num_sliding_window_blocks", 4))
         sparsity_config = LocalSlidingWindowSparsityConfig(
             num_heads=num_attention_heads,
             block=neox_args.sparsity_config.get("block", 16),
-            num_sliding_window_blocks=neox_args.sparsity_config.get("num_local_blocks", 4),
+            num_sliding_window_blocks=num_local_blocks,
+            attention='unidirectional'
+        )
+    elif attention_type == "bigbird":
+        sparsity_config = BigBirdSparsityConfig(
+            num_heads=num_attention_heads,
+            block=neox_args.sparsity_config.get("block", 16),
+            different_layout_per_head=neox_args.sparsity_config.get("different_layout_per_head", False),
+            num_random_blocks=neox_args.sparsity_config.get("num_random_blocks", 1),
+            num_sliding_window_blocks=neox_args.sparsity_config.get("num_sliding_window_blocks", 3),
+            num_global_blocks=neox_args.sparsity_config.get("num_global_blocks", 1),
+            attention='unidirectional'
+        )
+    elif attention_type == "bslongformer":
+        sparsity_config = BSLongformerSparsityConfig(
+            num_heads=num_attention_heads,
+            block=neox_args.sparsity_config.get("block", 16),
+            different_layout_per_head=neox_args.sparsity_config.get("different_layout_per_head", False),
+            num_sliding_window_blocks=neox_args.sparsity_config.get("num_sliding_window_blocks", 3),
+            global_block_indices=neox_args.sparsity_config.get("global_block_indices", [0]),
+            global_block_end_indices=neox_args.sparsity_config.get("global_block_end_indices", None),
             attention='unidirectional'
         )
     else:
