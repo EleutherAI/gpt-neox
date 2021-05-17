@@ -118,8 +118,6 @@ def _build_index_mappings(name, data_prefix, documents, sizes,
             # sample-idx.
             start_time = time.time()
             # Use C++ implementation for speed.
-            # First compile and then import.
-            compile_helper()
             from megatron.data import helpers
             assert doc_idx.dtype == np.int32
             assert sizes.dtype == np.int32
@@ -257,14 +255,3 @@ def _build_shuffle_idx(size, np_rng):
     return shuffle_idx
 
 
-def compile_helper():
-    """Compile helper function at runtime. Make sure this
-    is invoked on a single process."""
-    import os
-    import subprocess
-    path = os.path.abspath(os.path.dirname(__file__))
-    ret = subprocess.run(['make', '-C', path])
-    if ret.returncode != 0:
-        print("Making C++ dataset helpers module failed, exiting.")
-        import sys
-        sys.exit(1)
