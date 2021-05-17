@@ -16,12 +16,15 @@ PARAMS_TO_TEST = {
                                 ["rmsnorm", "none", "swish"]],
     "pipe_parallel_size,model_parallel_size": [[0, 1], [1, 2], [0, 2]],
     "no_weight_tying": binary,
-    "num_layers": [4],
-    "attention_config": [[[["global"], "all"]], [[["local", "global"], "all"]], [[["sparse_variable", "global"], "all"]],
-                         [[["sparse_fixed", "global"], "all"]]],
+    "attention_config,num_layers": [[[[["global"], "all"]], 2], [[[["local", "global"], "all"]], 12], [[[["sparse_variable", "global"], "all"]], 12],
+                         [[[["sparse_fixed", "global"], "all"]], 12]], # the sparse attention models need more layers to be stable
     "scaled_upper_triang_masked_softmax_fusion,bias_gelu_fusion": [[True, False], [False, True]],
     "checkpoint_activations": binary,
     "log_gradient_noise_scale": [True],
+    "sparsity_config": [{
+                        "block": 16, # block size
+                        "num_local_blocks": 32,
+                    }]
     
 }
 
