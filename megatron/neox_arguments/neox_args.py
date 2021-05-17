@@ -1,7 +1,10 @@
 import subprocess
 from dataclasses import dataclass
 from .template import NeoXArgsTemplate
-from typing import Literal
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
 
 ATTENTION_TYPE_CHOICES = ['global', 'local', 'sparse_fixed', 'sparse_variable']
 
