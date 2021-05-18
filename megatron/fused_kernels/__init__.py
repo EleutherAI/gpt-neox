@@ -66,18 +66,19 @@ def load_fused_kernels(neox_args):
                             '--expt-relaxed-constexpr',
                             '--expt-extended-lambda']
 
-        # Upper triangular softmax.
-        sources = [srcpath / 'scaled_upper_triang_masked_softmax.cpp',
-                   srcpath / 'scaled_upper_triang_masked_softmax_cuda.cu']
-        scaled_upper_triang_masked_softmax_cuda = _cpp_extention_load_helper(
-            "scaled_upper_triang_masked_softmax_cuda",
-            sources, extra_cuda_flags)
-
-        # Masked softmax.
-        sources = [srcpath / 'scaled_masked_softmax.cpp',
-                   srcpath / 'scaled_masked_softmax_cuda.cu']
-        scaled_masked_softmax_cuda = _cpp_extention_load_helper(
-            "scaled_masked_softmax_cuda", sources, extra_cuda_flags)
+        if neox_args.scaled_upper_triang_masked_softmax_fusion:
+            # Upper triangular softmax.
+            sources = [srcpath / 'scaled_upper_triang_masked_softmax.cpp',
+                       srcpath / 'scaled_upper_triang_masked_softmax_cuda.cu']
+            scaled_upper_triang_masked_softmax_cuda = _cpp_extention_load_helper(
+                "scaled_upper_triang_masked_softmax_cuda",
+                sources, extra_cuda_flags)
+        if neox_args.scaled_masked_softmax_fusion:
+            # Masked softmax.
+            sources = [srcpath / 'scaled_masked_softmax.cpp',
+                       srcpath / 'scaled_masked_softmax_cuda.cu']
+            scaled_masked_softmax_cuda = _cpp_extention_load_helper(
+                "scaled_masked_softmax_cuda", sources, extra_cuda_flags)
 
     # =================================
     # Mixed precision fused layer norm.
