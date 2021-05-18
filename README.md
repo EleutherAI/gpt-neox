@@ -184,6 +184,24 @@ We also support using Tensorboard via the `tensorboard-dir` argument. To use ten
 
 [WIP]
 
+## Citing GPT-NeoX
+
+
+### Citing 
+
+If you have found GPT-Neo helpful in your work, you can cite this repository as
+
+```
+@software{gpt-neo,
+  author = {Andonian, Alex and Biderman, Stella and Black, Sid and Gali, Preetham and Gao, Leo and Hallahan, Eric and Levy-Kramer, Josh and Leahy, Connor and Parker, Kip and Pieler, Michael and Purohit, Shivanshu and Wang, Phil and Weinbach, Samuel},
+  title = {{GPT-NeoX}: Large Scale Autoregressive Language Modeling in PyTorch},
+  url = {http://github.com/eleutherai/gpt-neox},
+  year = {2021}
+}
+```
+
+In the above bibtex entry, names are in alphabetical order, the version number is intended to be that from jax/version.py, and the year corresponds to the project's open-source release.
+
 ## Licensing
 
 This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright (c) 2021, EleutherAI contributors (in alphabetical order): Alex Andonian, Stella Biderman, Sid Black, Preetham Gali, Leo Gao, Eric Hallahan, Josh Levy-Kramer, Connor Leahy, Kip Parker, Michael Pieler, Shivanshu Purohit, Phil Wang, Samuel Weinbach. Licensed under the Apache License:
