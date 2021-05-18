@@ -151,7 +151,7 @@ def get_wandb_api_key(neox_args):
         return wandb_token[1]
 
 
-def init_wandb(neox_args):
+def init_wandb(neox_args, is_initialized=False):
     # Wandb. (one worker per machine)
     if neox_args.use_wandb == False:
         return
@@ -163,7 +163,7 @@ def init_wandb(neox_args):
         name = f'{socket.gethostname()}-{local_rank()}' if group_name else None
         try:
             wandb.init(project=neox_args.wandb_project, group=group_name, name=name, save_code=False,
-                       force=False, entity=neox_args.wandb_team)
+                    force=False, entity=neox_args.wandb_team)
         except UsageError as e:
             neox_args.update_value("use_wandb", False)
             print(e)

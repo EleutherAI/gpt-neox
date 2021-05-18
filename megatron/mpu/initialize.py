@@ -40,7 +40,7 @@ _MPU_RANK = None
 _MPU_TOPOLOGY = None
 
 
-def is_unitialized():
+def is_uninitialized():
     """Useful for code segments that may be accessed with or without mpu initialization"""
     return _DATA_PARALLEL_GROUP is None
 

@@ -7,6 +7,7 @@ except ImportError:
     from typing_extensions import Literal
 
 ATTENTION_TYPE_CHOICES = ['global', 'local', 'sparse_fixed', 'sparse_variable', 'bigbird', 'bslongformer']
+VALID_STAGEABLE_PARAMS = ['seq_length']
 
 
 def get_git_commit_hash():
@@ -527,6 +528,7 @@ class NeoXArgsTokenizer(NeoXArgsTemplate):
     tokenizer object loaded into memory and accesible by other functions
     """
 
+
 @dataclass
 class NeoXArgsTraining(NeoXArgsTemplate):
     data_path: str = None
@@ -787,6 +789,20 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     """
     Minimum loss scale for dynamic loss scale.
     """
+
+    stages: list = None
+    """
+    params for staged training, in the form of [[{'param_to_stage': param_value}, pct_of_total_training], [{'param_to_stage': param_value}, pct_of_total_training]]
+    i.e neox_args.stages = [[{'seq_length': 512}, 0.9], [{'seq_length': 2048}, 0.1]]
+        will train for 90% of the training steps with seq_length 512 - then the rest with seq_length 2048
+
+    """
+
+    stage: int = 0
+    """
+    stage no for staged training - incremented during training and only used if neox_args.stages is not None
+    """
+
 
 @dataclass
 class NeoXArgsTextgen(NeoXArgsTemplate):
