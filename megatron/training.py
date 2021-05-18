@@ -168,8 +168,13 @@ def pretrain_staged(neox_args):
         is_initialized = True
         neox_args.stage += 1
         if i + 1 < len(neox_args.stages):
+            start_iter_mod = 1
             if 'seq_length' in neox_args.stages[i+1][0]:
-                start_iter_mod = neox_args.seq_length / neox_args.stages[i+1][0]['seq_length']
+                seq_length_mod = neox_args.seq_length / neox_args.stages[i+1][0]['seq_length']
+                start_iter_mod *= seq_length_mod
+            if 'train_micro_batch_size_per_gpu' in neox_args.stages[i+1][0]:
+                batch_size_mod = neox_args.train_micro_batch_size_per_gpu / neox_args.stages[i+1][0]['train_micro_batch_size_per_gpu']
+                start_iter_mod *= batch_size_mod
 
 
 def _get_batch(neox_args, tokenizer, keys, data, datatype):

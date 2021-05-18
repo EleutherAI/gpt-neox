@@ -7,7 +7,7 @@ except ImportError:
     from typing_extensions import Literal
 
 ATTENTION_TYPE_CHOICES = ['global', 'local', 'sparse_fixed', 'sparse_variable', 'bigbird', 'bslongformer']
-VALID_STAGEABLE_PARAMS = ['seq_length']
+VALID_STAGEABLE_PARAMS = ['seq_length', 'train_micro_batch_size_per_gpu']
 
 
 def get_git_commit_hash():
