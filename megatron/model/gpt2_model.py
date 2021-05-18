@@ -22,6 +22,7 @@ import torch
 from collections import defaultdict
 
 from functools import partial
+from megatron.model.utils import Lambda, SequentialWrapper
 from megatron.model.norms import get_norm
 from megatron.model.init_functions import get_init_methods
 
