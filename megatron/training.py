@@ -155,7 +155,13 @@ def pretrain_staged(neox_args):
             print_rank_0('-'*100)
 
         for k, v in neox_args.stages[i][0].items():
-            setattr(neox_args, k, v)
+            if k == 'train_micro_batch_size_per_gpu':
+                train_batch, micro_batch, grad_acc = neox_args.calculate_batch_parameters(((neox_args.num_gpus / neox_args.pipe_parallel_size) / neox_args.model_parallel_size),
+                                                                                            micro_batch=v, grad_acc=neox_args.gradient_accumulation_steps)
+                neox_args.update_value("train_batch_size", train_batch)
+                neox_args.update_value("train_micro_batch_size_per_gpu", micro_batch)
+            else:
+                neox_args.update_value(k, v)
         
         # adjust total train iters for stage
         total_train_iters += int(neox_args.train_iters * neox_args.stages[i][1])
