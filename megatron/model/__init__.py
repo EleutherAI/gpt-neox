@@ -17,5 +17,4 @@
 # limitations under the License.
 
 from .gpt2_model import GPT2ModelPipe
-from .gmlp import GMLPModelPipe
 from .utils import get_params_for_weight_decay_optimization

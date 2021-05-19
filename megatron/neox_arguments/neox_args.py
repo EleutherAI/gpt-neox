@@ -6,7 +6,7 @@ try:
 except ImportError:
     from typing_extensions import Literal
 
-ATTENTION_TYPE_CHOICES = ['global', 'local', 'sparse_fixed', 'sparse_variable', 'bigbird', 'bslongformer']
+ATTENTION_TYPE_CHOICES = ['global', 'local', 'sparse_fixed', 'sparse_variable', 'bigbird', 'bslongformer', 'gmlp', 'amlp']
 
 
 def get_git_commit_hash():
@@ -31,9 +31,11 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     Size of the model parallelism.
     """
 
-    pipe_partition_method: str = "type:transformer"
+    pipe_partition_method: str = "type:transformer|mlp"
     """
-    method used to distribute model layers across pipeline stages. Choose from "parameters", which balances the number of parameters on each pipeline stage, "uniform", which naively balances the number of layers per stage, or "type:[regex]" (in our case this will basically only be "type:transformer"), which balances layers whose class names match [regex]
+    method used to distribute model layers across pipeline stages. Choose from "parameters", which balances the number 
+    of parameters on each pipeline stage, "uniform", which naively balances the number of layers per stage, or 
+    "type:[regex]", which balances layers whose class names match [regex]
     """
 
     world_size: int = None

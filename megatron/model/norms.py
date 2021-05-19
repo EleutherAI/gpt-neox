@@ -12,6 +12,7 @@ except Exception as e:
           'instead of apex.normalization.FusedLayerNorm!')
     from torch.nn import LayerNorm
 
+
 def get_norm(neox_args):
     if neox_args.norm == "rmsnorm":
         norm = RMSNorm
@@ -23,6 +24,7 @@ def get_norm(neox_args):
         eps = neox_args.scalenorm_epsilon
         norm = ScaleNorm
     return norm, eps
+
 
 class RMSNorm(torch.nn.Module):
     def __init__(self, dim, p=-1., eps=1e-8, bias=False):

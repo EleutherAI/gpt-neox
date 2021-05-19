@@ -24,5 +24,4 @@ if __name__ == "__main__":
     neox_args.configure_distributed_args()
     neox_args.build_tokenizer() # tokenizer needs to be build in training in order to set the padding vocab
     neox_args.initialize_tensorboard_writer()  # is initialized if tensorboard directory is defined
-    neox_args.model_type = "gpt2"
     pretrain(neox_args=neox_args)
