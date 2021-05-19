@@ -193,7 +193,7 @@ If you have found GPT-Neo helpful in your work, you can cite this repository as
 
 ```
 @software{gpt-neo,
-  author = {Andonian, Alex and Biderman, Stella and Black, Sid and Gali, Preetham and Gao, Leo and Hallahan, Eric and Levy-Kramer, Josh and Leahy, Connor and Parker, Kip and Pieler, Michael and Purohit, Shivanshu and Wang, Phil and Weinbach, Samuel},
+  author = {Andonian, Alex and Biderman, Stella and Black, Sid and Gali, Preetham and Gao, Leo and Hallahan, Eric and Levy-Kramer, Josh and Leahy, Connor and Nestler, Lucas and Parker, Kip and Pieler, Michael and Purohit, Shivanshu and Songz, Tri and Wang, Phil and Weinbach, Samuel},
   title = {{GPT-NeoX}: Large Scale Autoregressive Language Modeling in PyTorch},
   url = {http://github.com/eleutherai/gpt-neox},
   year = {2021}
