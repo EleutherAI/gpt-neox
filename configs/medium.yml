@@ -18,8 +18,6 @@
    # these should provide some speedup but takes a while to build, set to true if desired
    "scaled-upper-triang-masked-softmax-fusion": false,
    "bias-gelu-fusion": false,
-
-
    
    # optimizer settings
    "optimizer": {
