@@ -6,75 +6,48 @@ import pytest
 
 import torch
 
-from ..common import TEST_CHECKPOINT_DIR, TEST_LOG_DIR, TEST_TENSORBOARD_DIR
-from ..common import distributed_test, get_test_configs_with_path, get_root_directory, clear_test_dirs
+from ..common import distributed_test, model_setup, clear_test_dirs, parametrize, binary
 
-@distributed_test(world_size=1)
-def test_model_instantiation_small_0():
-    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_0.yml"])
-    run_test_model_instantiation(yaml_list=yaml_list)
+PARAMS_TO_TEST = {
+    "pipe_parallel_size,model_parallel_size,world_size": [[0, 1, 1], [1, 2, 2], [0, 2, 2]],
+    "no_weight_tying": binary,
+    "attention_config": [[[["global"], "all"]], [[["local"], "all"]], [[["sparse_variable"], "all"]],
+                         [[["sparse_fixed"], "all"]]],
+    "scaled_upper_triang_masked_softmax_fusion,bias_gelu_fusion": [[True, False], [False, True]]
+}
 
-@distributed_test(world_size=1)
-def test_model_instantiation_small_1():
-    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_1.yml"])
-    run_test_model_instantiation(yaml_list=yaml_list)
+parameters, names = parametrize(PARAMS_TO_TEST, max_tests=50, seed=None)
+@pytest.mark.parametrize("param_dict", parameters, ids=names)
+def test_instantiate(param_dict):
+    @distributed_test(world_size=param_dict.pop("world_size", 2))
+    def wrapper():
+        run_test_model_instantiation(param_dict=param_dict)
+    wrapper()
 
-@distributed_test(world_size=2)
-def test_model_instantiation_small_2():
-    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_2.yml"])
-    run_test_model_instantiation(yaml_list=yaml_list)
-
-@distributed_test(world_size=1)
-def test_model_instantiation_small_3():
-    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_3.yml"])
-    run_test_model_instantiation(yaml_list=yaml_list)
-
-@distributed_test(world_size=2)
-def test_model_instantiation_small_4():
-    yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_4.yml"])
-    run_test_model_instantiation(yaml_list=yaml_list)
+OPTIMIZER_PARAMS = {
+    "optimizer": [
+                  {"type": "adam","params": {"lr": 0.0006}},
+                  {"type": "onebitadam","params": {"lr": 0.0006}},
+                  {"type": "cpu_adam","params": {"lr": 0.0006}},
+                  {"type": "cpu_torch_adam","params": {"lr": 0.0006}},
+                  {"type": "sm3","params": {"lr": 0.0006}},
+                  {"type": "madgrad_wd","params": {"lr": 0.0006}}
+                  ]
+                  }
+opt_params, opt_name = parametrize(OPTIMIZER_PARAMS, max_tests=50, seed=None)
+@pytest.mark.parametrize("param_dict", parameters, ids=names)
+def test_instantiate_optimizers(param_dict):
+    @distributed_test(world_size=2)
+    def wrapper():
+        run_test_model_instantiation(param_dict=param_dict)
+    wrapper()
 
 def run_test_model_instantiation(yaml_list=None, param_dict=None):
     from deepspeed.runtime.pipe.engine import PipelineEngine, DeepSpeedEngine
-
-    from megatron.neox_arguments import NeoXArgs
-    from megatron.mpu import destroy_model_parallel
-    from megatron import initialize_megatron
-    from megatron.training import setup_model_and_optimizer
-
-    destroy_model_parallel() # mpu model parallel contains remaining global vars
-    if torch.distributed.get_world_size() == 1 or torch.distributed.get_rank() == 0:
-        clear_test_dirs()
-
-    overwrite_values = {
-        "user_script": str(get_root_directory() / "pretrain_gpt2.py"),
-        "save": TEST_CHECKPOINT_DIR,
-        "load": TEST_CHECKPOINT_DIR,
-        "log_dir": TEST_LOG_DIR,
-        "tensorboard_dir": TEST_TENSORBOARD_DIR,
-    }
-
-    # should not both be none
-    assert yaml_list is not None or param_dict is not None
-
-    # intitially load config from files as would be the case in deepy.py
-    if yaml_list is not None:
-        args_loaded = NeoXArgs.from_ymls(yaml_list, overwrite_values=overwrite_values)
-    else:
-        p_dict = param_dict.copy()
-        p_dict.update(overwrite_values)
-        args_loaded = NeoXArgs.from_dict(p_dict)
-
-    args_loaded.build_tokenizer()
-
-    initialize_megatron(neox_args=args_loaded)
-    model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=args_loaded, inference=False, get_key_value=True)
-    
-    print(type(model), flush=True)
+    model, optimizer, lr_scheduler, args_loaded = model_setup(yaml_list, param_dict)
     if args_loaded.pipe_parallel_size < 2:
-        assert isinstance(model, DeepSpeedEngine), "test model instantiation "+str(yaml_list)
+        assert isinstance(model, DeepSpeedEngine), "test model instantiation " + str(yaml_list)
     else:
-        assert isinstance(model, PipelineEngine), "test model instantiation "+str(yaml_list)
-
+        assert isinstance(model, PipelineEngine), "test model instantiation " + str(yaml_list)
     if torch.distributed.get_world_size() == 1 or torch.distributed.get_rank() == 0:
         clear_test_dirs()

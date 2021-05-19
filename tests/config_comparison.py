@@ -17,7 +17,6 @@ from tests.common import distributed_test, get_test_configs_with_path, get_root_
 @distributed_test(world_size=1)
 def main(subsequence_length: int = 2):
     """Allows you to easily compare sets of combinations to find which changes are causing issues
-
     Args:
         subsequence_length (int, optional): the length of subsequences of elements from the input iterable. Defaults to 2.
     """
@@ -25,7 +24,7 @@ def main(subsequence_length: int = 2):
     #choose default params and updated ones
     base_yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_0.yml"])
     new_yaml_list = get_test_configs_with_path(["test_local_setup.yml", "test_small_3.yml"])
-    
+
     # Need to import here as distributed
     from megatron.neox_arguments import NeoXArgs
 
@@ -48,7 +47,7 @@ def main(subsequence_length: int = 2):
 
 
     perms = list(combinations(diff.items(), subsequence_length))
-    
+
     # Iterate over combinations and run the test function
     # and print information so you can debug from console as program is distributed
     for items in perms:

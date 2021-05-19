@@ -80,6 +80,11 @@ def initialize_megatron(neox_args, allow_no_cuda=False):
         # Autoresume.
         _init_autoresume(neox_args)
 
+        # Compile dataset C++ code.
+        if neox_args.local_rank == 0:
+            from megatron.data.data_utils import compile_helper
+            compile_helper()
+
         # Write arguments to tensorboard.
         _write_args_to_tensorboard(neox_args=neox_args)
         # No continuation function

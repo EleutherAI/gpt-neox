@@ -9,9 +9,12 @@ import argparse
 import shutil
 
 from dataclasses import dataclass
-from typing import List
+from typing import List, Dict
 from socket import gethostname
-from typing import Literal, Dict
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
 from deepspeed.launcher.runner import DLTS_HOSTFILE
 from megatron.logging import Tee
 from megatron.tokenizer import build_tokenizer
