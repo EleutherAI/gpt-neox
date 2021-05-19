@@ -33,7 +33,7 @@ from megatron import print_rank_0
 
 from megatron import mpu
 
-from megatron.model import GPT2ModelPipe
+from megatron.model import GPT2ModelPipe, GMLPModelPipe
 from megatron.checkpointing import load_checkpoint, save_checkpoint
 from megatron.data.data_utils import build_train_valid_test_data_iterators
 
@@ -205,8 +205,13 @@ def get_model(neox_args, inference=False, get_key_value=True):
     print_rank_0('building GPT2 model ...')
 
     # Build model on cpu.
-    model = GPT2ModelPipe(neox_args=neox_args, num_tokentypes=0, parallel_output=True, topology=mpu.get_topology(),
-                          inference=inference, get_key_value=get_key_value)
+    if hasattr(neox_args, "model_type") and neox_args.model_type == "gmlp":
+        model = GMLPModelPipe(neox_args=neox_args, num_tokentypes=0, parallel_output=True, topology=mpu.get_topology(),
+                            inference=inference)
+        assert not neox_args.partition_activations, "GMLPModel is not compatible with partition activations"
+    else:
+        model = GPT2ModelPipe(neox_args=neox_args, num_tokentypes=0, parallel_output=True, topology=mpu.get_topology(),
+                            inference=inference, get_key_value=get_key_value)
     if not neox_args.is_pipe_parallel:
         # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
         model = model.to_sequential()
@@ -343,6 +348,7 @@ def setup_model_and_optimizer(neox_args, inference=False, get_key_value=True):
         print_rank_0(f' > total params: {"{:,}".format(model.total_params)}')
 
         if neox_args.is_pipe_parallel:
+            model.set_has_attention_mask(True)
             model.set_batch_fn(model.module._megatron_batch_fn)
     else:
         raise ValueError("Must be using deepspeed to run neox")

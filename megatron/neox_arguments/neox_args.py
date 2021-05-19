@@ -258,6 +258,12 @@ class NeoXArgsModel(NeoXArgsTemplate):
     ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
     """
 
+    gmlp_attn_dim : int = 64
+    """
+    the dimension of the single head self attention in gmlp model (not used in gpt models).
+    If None - gmlp model doesn't use attention.
+    """
+
 
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):
@@ -527,6 +533,7 @@ class NeoXArgsTokenizer(NeoXArgsTemplate):
     tokenizer object loaded into memory and accesible by other functions
     """
 
+
 @dataclass
 class NeoXArgsTraining(NeoXArgsTemplate):
     data_path: str = None
@@ -787,6 +794,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     """
     Minimum loss scale for dynamic loss scale.
     """
+
 
 @dataclass
 class NeoXArgsTextgen(NeoXArgsTemplate):
