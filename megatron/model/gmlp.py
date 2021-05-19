@@ -13,7 +13,6 @@ class TinyAttention(nn.Module):
         super().__init__()
         self.proj_qkv = nn.Linear(d_ff * 2, 3 * d_attn)
         self.scale = d_attn ** -0.5
-        self.seq_len = neox_args.seq_length
         self.proj_ffn = nn.Linear(d_attn, d_ff)
         self.softmax = FusedScaleMaskSoftmax(
             input_in_fp16=neox_args.precision == "fp16",
@@ -34,11 +33,12 @@ class TinyAttention(nn.Module):
 class SpatialGatingUnit(nn.Module):
     def __init__(self, neox_args, d_ff, d_attn=None, causal=True, mask_fn=None):
         super().__init__()
-        self.causal = causal  
+        self.causal = causal
+        self.use_attn = d_attn is not None
+
         norm, eps = get_norm(neox_args)
         self.norm = norm(d_ff, eps=eps)
         self.proj = nn.Linear(neox_args.seq_length, neox_args.seq_length)
-        self.use_attn = d_attn is not None
         if self.use_attn:
             assert mask_fn is not None
             self.attn = TinyAttention(neox_args=neox_args, d_attn=d_attn, d_ff=d_ff, mask_fn=mask_fn)
@@ -46,16 +46,23 @@ class SpatialGatingUnit(nn.Module):
         nn.init.constant_(self.proj.bias, 1.)
 
     def forward(self, x, attention_mask):
+        device, n = x.device, x.shape[1]
         x = x.transpose(0, 1) # [s, b, d] -> [b, s, d]
+
         res, gate = x.chunk(2, dim=-1)  # split along dim
         gate = self.norm(gate)
-        weight = self.proj.weight
+
+        weight, bias = self.proj.weight, self.proj.bias
         if self.causal:
-            mask = torch.ones(weight.shape[:2], device=gate.device).triu_(1).bool()
+            weight, bias = weight[:n, :n], bias[:n]
+            mask = torch.ones(weight.shape[:2], device=device).triu_(1).bool()
             weight = weight.masked_fill(mask, 0.)
+
         gate = F.linear(gate.transpose(2, 1), weight, self.proj.bias).transpose(2, 1)
+
         if self.use_attn:
             gate = gate + self.attn(x, attention_mask)
+
         return (gate * res).transpose(0, 1)  # [b, s, d] -> [s, b, d]
 
 
@@ -63,6 +70,7 @@ class GMLPBlock(nn.Module):
     def __init__(self, neox_args, init_method, output_layer_init_method, layer_number, ff_mult=4, mask_fn=None):
         super().__init__()
         self.layer_number = layer_number
+
         ff_dim = neox_args.hidden_size * ff_mult
         norm, eps = get_norm(neox_args)
         self.norm = norm(neox_args.hidden_size, eps=eps)
@@ -91,17 +99,20 @@ class GMLPBlock(nn.Module):
     def forward(self, args):
         in_inference = len(args) == 4
         in_train = len(args) == 2
+
         if in_train:
             x, attention_mask = args
         elif in_inference:
             x, layer_past, presents, attention_mask = args
         else:
             raise ValueError
+
         x = self.norm(x)
         x, _ = self.input_linear(x)
         x = self.activation_func(x)
         x = self.sgu(x, attention_mask)
         x, _ = self.output_linear(x)
+
         if in_train:
             return x, attention_mask
         elif in_inference:
