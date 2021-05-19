@@ -13,6 +13,19 @@ except Exception as e:
     from torch.nn import LayerNorm
 
 
+def get_norm(neox_args):
+    if neox_args.norm == "rmsnorm":
+        norm = RMSNorm
+        eps = neox_args.rms_norm_epsilon
+    elif neox_args.norm == "layernorm":
+        eps = neox_args.layernorm_epsilon
+        norm = LayerNorm
+    elif neox_args.norm == "scalenorm":
+        eps = neox_args.scalenorm_epsilon
+        norm = ScaleNorm
+    return norm, eps
+
+
 class RMSNorm(torch.nn.Module):
     def __init__(self, dim, p=-1., eps=1e-8, bias=False):
         """

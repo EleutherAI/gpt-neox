@@ -23,7 +23,7 @@ import math
 import torch
 from deepspeed.ops.sparse_attention import SparseSelfAttention, VariableSparsityConfig, FixedSparsityConfig, BigBirdSparsityConfig, BSLongformerSparsityConfig
 from deepspeed.ops.sparse_attention.sparsity_config import LocalSlidingWindowSparsityConfig
-
+from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
 
 def get_params_for_weight_decay_optimization(module, neox_args):
     """Divide params into with-weight-decay and without-weight-decay groups.
@@ -31,7 +31,6 @@ def get_params_for_weight_decay_optimization(module, neox_args):
     """
     weight_decay_params = {'params': []}
     no_weight_decay_params = {'params': [], 'weight_decay': 0.0}
-    from .transformer import LayerNorm, RMSNorm, ScaleNorm
     for module_ in module.modules():
         if any([isinstance(module_, LayerNorm), isinstance(module_, RMSNorm), isinstance(module_, ScaleNorm)]) or \
                 (neox_args.weight_decay == 0.0):  # also include all parameters here if no weight decay is being done
