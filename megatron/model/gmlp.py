@@ -26,7 +26,7 @@ class TinyAttention(nn.Module):
     def forward(self, x, attention_mask):
         q, k, v = torch.chunk(self.proj_qkv(x), 3, dim=-1)
         w = torch.einsum("bnd,bmd->bnm", q, k).unsqueeze(1) * self.scale
-        a = self.softmax(w, mask=attention_mask[..., :w.shape(-2), :w.shape(-1)]).squeeze(1)
+        a = self.softmax(w, mask=attention_mask[..., :w.size(-2), :w.size(-1)]).squeeze(1)
         x = torch.einsum("bnm,bmd->bnd", a, v)
         return self.proj_ffn(x)
 
@@ -34,7 +34,7 @@ class TinyAttention(nn.Module):
 class SpatialGatingUnit(nn.Module):
     def __init__(self, neox_args, d_ff, d_attn=None, causal=True, mask_fn=None):
         super().__init__()
-        self.causal = causal  # default to true bc mlm btfo
+        self.causal = causal  
         norm, eps = get_norm(neox_args)
         self.norm = norm(d_ff, eps=eps)
         self.proj = nn.Linear(neox_args.seq_length, neox_args.seq_length)
@@ -46,6 +46,7 @@ class SpatialGatingUnit(nn.Module):
         nn.init.constant_(self.proj.bias, 1.)
 
     def forward(self, x, attention_mask):
+        x = x.transpose(0, 1) # [s, b, d] -> [b, s, d]
         res, gate = x.chunk(2, dim=-1)  # split along dim
         gate = self.norm(gate)
         weight = self.proj.weight
@@ -55,7 +56,7 @@ class SpatialGatingUnit(nn.Module):
         gate = F.linear(gate.transpose(2, 1), weight, self.proj.bias).transpose(2, 1)
         if self.use_attn:
             gate = gate + self.attn(x, attention_mask)
-        return gate * res
+        return (gate * res).transpose(0, 1)  # [b, s, d] -> [s, b, d]
 
 
 class GMLPBlock(nn.Module):

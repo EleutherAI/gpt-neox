@@ -92,7 +92,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                          loss_fn=loss_fn if not self._inference else None,
                          topology=topology,
                          activation_checkpoint_interval=interval,
-                         partition_method=neox_args.partition_method,
+                         partition_method=neox_args.pipe_partition_method,
                          checkpointable_layers=['GMLPBlock', 'ParallelTransformerLayerPipe'])
 
     def init_specs(self):
@@ -153,7 +153,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                         layer_number=i,
                         output_layer_init_method=self.output_layer_init_method,
                         neox_args=self.neox_args,
-                        mask_fn=self.attention_mask_func
+                        mask_fn=gpt2_attention_mask_func
                     )
                 )
             else:
