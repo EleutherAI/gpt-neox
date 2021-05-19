@@ -200,7 +200,7 @@ If you have found GPT-Neo helpful in your work, you can cite this repository as
 }
 ```
 
-In the above bibtex entry, names are in alphabetical order, the version number is intended to be that from jax/version.py, and the year corresponds to the project's open-source release.
+In the above bibtex entry, names are in alphabetical order, and the year corresponds to the project's open-source release.
 
 ## Licensing
 
