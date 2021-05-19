@@ -23,7 +23,7 @@ GPT-NeoX is under active development.
 
 - **Positional Encodings:** 
 
-    - Choose between T5 RPE style positional encodings, a learned encoding added to the input (GPT2-style), Sinusoidal positional encoding, rotary positional encodings, and no positional encodings at all (which [recent](https://arxiv.org/abs/1905.04226) [research](https://arxiv.org/abs/2102.11174) has found to even outperform other positional encodings in autoregressive models).
+    - Choose between T5 RPE style positional encodings, a learned encoding added to the input (GPT2-style), Sinusoidal positional encoding, [rotary positional encodings](https://arxiv.org/abs/2104.09864), and no positional encodings at all (which [recent](https://arxiv.org/abs/1905.04226) [research](https://arxiv.org/abs/2102.11174) has found to even outperform other positional encodings in autoregressive models).
 
 - **Sparsity:** 
 
