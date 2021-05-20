@@ -79,7 +79,7 @@ class ParallelMLP(nn.Module):
 
         # auto scale so geglu has equal parameters
         ff_mult = 4 * 2 / 3 if self.activation_type == "geglu" else 4
-        ff_dim = int(ff_mult * neox_args.hidden_size * 2) if self.activation_type == "geglu" \
+        ff_dim = int(ff_mult * neox_args.hidden_size) * 2 if self.activation_type == "geglu" \
             else ff_mult * neox_args.hidden_size
         self.dense_h_to_4h = mpu.ColumnParallelLinear(
             neox_args=neox_args,
