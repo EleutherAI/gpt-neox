@@ -44,7 +44,7 @@ class DataDownloader(ABC):
         if merge_file is None:
             merge_file = f"{data_dir}/gpt2-merges.txt"
         if vocab_file is None:
-            if tokenizer_type == DEFAULT_TOKENIZER_TYPE:
+            if tokenizer_type == "GPT2BPETokenizer":
                 vocab_file = f"{data_dir}/gpt2-vocab.json"
             elif tokenizer_type == "HFGPT2Tokenizer":
                 vocab_file = 'gpt2'
