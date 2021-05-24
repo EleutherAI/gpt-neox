@@ -29,34 +29,29 @@ When done, add it to the DATA_DOWNLOADERS dict. The function process_data runs t
 dataset.
 """
 
-DEFAULT_DATA_DIR = os.environ.get('DATA_DIR', './data')
-
-DEFAULT_TOKENIZER_TYPE = "GPT2BPETokenizer"
-GPT2_VOCAB_FP = f"{DEFAULT_DATA_DIR}/gpt2-vocab.json"
 GPT2_VOCAB_URL = "https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-vocab.json"
-GPT2_MERGE_FP = f"{DEFAULT_DATA_DIR}/gpt2-merges.txt"
 GPT2_MERGE_URL = "https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-merges.txt"
 
 
 class DataDownloader(ABC):
     """Dataset registry class to automatically download / extract datasets"""
-
+    
     def __init__(self, tokenizer_type=None, merge_file=None, vocab_file=None, data_dir=None, num_workers=None):
         if tokenizer_type is None:
-            tokenizer_type = DEFAULT_TOKENIZER_TYPE
+            tokenizer_type = "GPT2BPETokenizer"
+        if data_dir is None:
+            data_dir = os.environ.get('DATA_DIR', './data')
         if merge_file is None:
-            merge_file = GPT2_MERGE_FP
+            merge_file = f"{data_dir}/gpt2-merges.txt"
         if vocab_file is None:
-            if tokenizer_type == DEFAULT_TOKENIZER_TYPE:
-                vocab_file = GPT2_VOCAB_FP
+            if tokenizer_type == "GPT2BPETokenizer":
+                vocab_file = f"{data_dir}/gpt2-vocab.json"
             elif tokenizer_type == "HFGPT2Tokenizer":
                 vocab_file = 'gpt2'
             elif tokenizer_type == "CharLevelTokenizer":
                 pass
             else:
                 assert vocab_file is not None, 'No vocab file provided'
-        if data_dir is None:
-            data_dir = DEFAULT_DATA_DIR
         if num_workers is None:
             num_workers = cpu_count()
         self._tokenizer_type = tokenizer_type
