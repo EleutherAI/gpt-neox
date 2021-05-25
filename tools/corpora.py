@@ -248,8 +248,10 @@ class Enwik8(DataDownloader):
     urls = ["https://data.deepai.org/enwik8.zip"]
 
 
-def maybe_download_gpt2_tokenizer_data(tokenizer_type):
-    if tokenizer_type is None or tokenizer_type == DEFAULT_TOKENIZER_TYPE:
+def maybe_download_gpt2_tokenizer_data(tokenizer_type, data_dir):
+    if tokenizer_type is None or tokenizer_type == "GPT2BPETokenizer":
+        GPT2_VOCAB_FP = f"{data_dir}//gpt2-vocab.json"
+        GPT2_MERGE_FP = f"{data_dir}/gpt2-merges.txt"
         if not os.path.isfile(GPT2_VOCAB_FP):
             os.system(f'wget {GPT2_VOCAB_URL} -O {GPT2_VOCAB_FP}')
         if not os.path.isfile(GPT2_MERGE_FP):
@@ -286,9 +288,9 @@ def prepare_dataset(dataset_name: str, tokenizer_type: str = None, data_dir: str
     Downloads + tokenizes a dataset in the registry (dataset_name) and saves output .npy files to data_dir.
     """
     if data_dir is None:
-        data_dir = DEFAULT_DATA_DIR
+        data_dir = os.environ.get('DATA_DIR', './data')
     os.makedirs(data_dir, exist_ok=True)
-    maybe_download_gpt2_tokenizer_data(tokenizer_type)
+    maybe_download_gpt2_tokenizer_data(tokenizer_type, data_dir)
     DownloaderClass = DATA_DOWNLOADERS.get(dataset_name.lower(), None)
     if DownloaderClass is None:
         raise NotImplementedError(
