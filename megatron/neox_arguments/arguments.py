@@ -20,7 +20,7 @@ from megatron.logging import Tee
 from megatron.tokenizer import build_tokenizer
 from megatron.utils import obtain_resource_pool, expand_attention_types
 from .deepspeed_args import NeoXArgsDeepspeedConfig, NeoXArgsDeepspeedRunner
-from .neox_args import NeoXArgsModel, NeoXArgsTokenizer, NeoXArgsTraining, NeoXArgsParallelism, \
+from .neox_args import NeoXArgsModel, NeoXArgsTokenizer, NeoXArgsTraining, NeoXArgsDistillation, NeoXArgsParallelism, \
     NeoXArgsLogging, NeoXArgsOther, NeoXArgsTextgen, NeoXArgsOptimizer, NeoXArgsLRScheduler, ATTENTION_TYPE_CHOICES
 
 # ZERO defaults by deespeed
@@ -60,6 +60,7 @@ BASE_CLASSES = [
     NeoXArgsOptimizer,
     NeoXArgsTokenizer,
     NeoXArgsTraining,
+    NeoXArgsDistillation,
     NeoXArgsParallelism,
     NeoXArgsLogging,
     NeoXArgsTextgen,
@@ -596,8 +597,6 @@ class NeoXArgs(*BASE_CLASSES):
         assert len(self.attention_config) == self.num_layers, "Length of attention config list must equal num_layers"
         for item in self.attention_config:
             assert item in ATTENTION_TYPE_CHOICES, f"Attention type {item} not recognized"
-        if "gmlp" in self.attention_config or "amlp" in self.attention_config:
-            assert not self.partition_activations, "GMLP Blocks are not compatible with partition activations"
 
         # Sparsity config
         if self.sparsity_config is None:
