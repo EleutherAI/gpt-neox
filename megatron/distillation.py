@@ -1,4 +1,25 @@
-"""Distillation utilities."""
+# coding=utf-8
+# Copyright (c) 2021, EleutherAI contributors
+# This file is based on code by the authors denoted below and has been modified from its original version.
+#
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# This file has been modified from its original version
+#
+
+"""Pretrain utilities."""
 from datetime import datetime
 
 import sys
@@ -25,7 +46,7 @@ from .training import backward_step
 
 
 def distillation(neox_args):
-    """Main distillation program.
+    """Main training program.
 
     This function will run the followings in the order provided:
         1) initialize Megatron.
@@ -45,15 +66,27 @@ def distillation(neox_args):
     init_wandb(neox_args=neox_args)
     timers = Timers(use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
 
+    def substitue_args(neox_args, set_student_args=True):
+        if neox_args.do_distillation:
+            args_to_substitue = neox_args.student_model_args \
+                if set_student_args else neox_args.teacher_model_args
+            for arg in args_to_substitue.__dict__:
+                if args_to_substitue.__dict__[arg] is not None:
+                    neox_args.__dict__[arg] = args_to_substitue.__dict__[arg]
+        return neox_args
+
     # Initalize and get arguments, timers, and Tensorboard writer.
+    neox_args = substitue_args(neox_args)
     initialize_megatron(neox_args=neox_args)
 
     # Model, optimizer, and learning rate.
     timers('model and optimizer').start()
 
+    neox_args = substitue_args(neox_args, set_student_args=False)
     neox_args.load = neox_args.load_teacher
     teacher_model, _, _ = setup_model_and_optimizer(neox_args=neox_args, inference=False, get_key_value=True)
 
+    neox_args = substitue_args(neox_args, set_student_args=True)
     neox_args.load = neox_args.load_student
     student_model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=neox_args, inference=False, get_key_value=True)
 
