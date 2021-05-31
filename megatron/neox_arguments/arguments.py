@@ -309,7 +309,7 @@ class NeoXArgs(*BASE_CLASSES):
         args_list.append("--megatron_config")
         neox_args = self.get_parent_class_value_dict(*self.__class__.__bases__, only_non_defaults=True)
 
-        if neox_args["do_distillation"]:
+        if "do_distillation" in neox_args and neox_args["do_distillation"]:
             neox_args["teacher_model_args"] = neox_args["teacher_model_args"].__dict__
             neox_args["student_model_args"] = neox_args["student_model_args"].__dict__
 
