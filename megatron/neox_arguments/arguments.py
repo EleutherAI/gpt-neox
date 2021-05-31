@@ -88,6 +88,13 @@ class NeoXArgs(*BASE_CLASSES):
         a number of functions are performed in order to 
         calculate values, assert consistency and do typechecking.
         """
+        if self.do_distillation:
+            self.teacher_model_args = {key.replace("-","_"):value for key, value in self.teacher_model_args.items()}
+            self.student_model_args = {key.replace("-","_"):value for key, value in self.teacher_model_args.items()}
+
+            self.teacher_model_args = NeoXArgsModel(**self.teacher_model_args)
+            self.student_model_args = NeoXArgsModel(**self.student_model_args)
+
         if not NeoXArgs.validate_keys():
             raise ValueError(self.__class__.__name__ + ".__post_init__() NeoXArgs keys cannot be validated")
 
@@ -301,8 +308,12 @@ class NeoXArgs(*BASE_CLASSES):
         # get all config values
         args_list.append("--megatron_config")
         neox_args = self.get_parent_class_value_dict(*self.__class__.__bases__, only_non_defaults=True)
-        args_list.append(json.dumps(neox_args))
 
+        if neox_args["do_distillation"]:
+            neox_args["teacher_model_args"] = neox_args["teacher_model_args"].__dict__
+            neox_args["student_model_args"] = neox_args["student_model_args"].__dict__
+
+        args_list.append(json.dumps(neox_args))
         return args_list
 
     ############################################################################################################################
@@ -590,18 +601,45 @@ class NeoXArgs(*BASE_CLASSES):
         # the sequential model without the PipelineModule wrapper to avoid the overhead it incurs
         self.update_value("is_pipe_parallel", self.pipe_parallel_size >= 1)
 
-        # Attention config
-        if self.attention_config is None:
-            self.update_value("attention_config", [[["global"], self.num_layers]])
-        self.update_value("attention_config", expand_attention_types(self.attention_config, self.num_layers))
-        assert len(self.attention_config) == self.num_layers, "Length of attention config list must equal num_layers"
-        for item in self.attention_config:
-            assert item in ATTENTION_TYPE_CHOICES, f"Attention type {item} not recognized"
+        def set_attention_config(config):
+            # Attention config
+            if config.attention_config is None:
+                config.update_value("attention_config", [[["global"], config.num_layers]])
+            config.update_value("attention_config", expand_attention_types(config.attention_config, config.num_layers))
+            assert len(config.attention_config) == config.num_layers, "Length of attention config list must equal num_layers"
+            for item in config.attention_config:
+                assert item in ATTENTION_TYPE_CHOICES, f"Attention type {item} not recognized"
 
-        # Sparsity config
-        if self.sparsity_config is None:
-            # Can't have a default value as an empty dict so need to set it here
-            self.update_value("sparsity_config", {})
+        def set_sparsity_config(config):
+            # Sparsity config
+            if config.sparsity_config is None:
+                # Can't have a default value as an empty dict so need to set it here
+                config.update_value("sparsity_config", {})
+
+
+        def validate_teacher_and_student(config):
+            """
+            test right teacher and student models are provided.
+            """    
+            teacher_seq_len = config.teacher_model_args.seq_length
+            student_seq_len = config.student_model_args.seq_length
+
+            assert student_seq_len == teacher_seq_len, f"Studenty model and teacher model sequence length" \
+                "shuould be same: {student_seq_len} != {teacher_seq_len}"
+
+            return True
+
+        if not self.do_distillation:
+            set_attention_config(self)
+            set_sparsity_config(self)
+        else:
+
+            if validate_teacher_and_student(self):
+                set_attention_config(self.teacher_model_args)
+                set_attention_config(self.student_model_args)
+
+                set_sparsity_config(self.teacher_model_args)
+                set_sparsity_config(self.student_model_args)
 
         # Adding equal dataset weights if none are provided
         if self.train_data_paths and (self.train_data_weights is None):
@@ -645,27 +683,65 @@ class NeoXArgs(*BASE_CLASSES):
             raise ValueError(error_message)
             return False
 
-        # required arguments
-        required_args = ['num_layers', 'hidden_size', 'num_attention_heads', 'max_position_embeddings']
-        for req_arg in required_args:
-            if getattr(self, req_arg) is None:
-                error_message = self.__class__.__name__ + ".validate_values() " + req_arg + " is None."
+
+        def validate_required_args(config):
+            # required arguments
+            required_args = ['num_layers', 'hidden_size', 'num_attention_heads', 'max_position_embeddings']
+            for req_arg in required_args:
+                if getattr(config, req_arg) is None:
+                    error_message = config.__class__.__name__ + ".validate_values() " + req_arg + " is None."
+                    logging.error(error_message)
+                    raise ValueError(error_message)
+                    return False
+            return True
+
+        def validate_hidden_size(config):
+            # Checks.
+            if config.hidden_size % config.num_attention_heads != 0:
+                error_message = config.__class__.__name__ + ".validate_values() hidden_size must be divisable by num_attention_heads"
                 logging.error(error_message)
                 raise ValueError(error_message)
                 return False
+            return True
 
-        # Checks.
-        if self.hidden_size % self.num_attention_heads != 0:
-            error_message = self.__class__.__name__ + ".validate_values() hidden_size must be divisable by num_attention_heads"
-            logging.error(error_message)
-            raise ValueError(error_message)
-            return False
+        def validate_seq_length(config):
+            if config.seq_length is not None:
+                if not (config.max_position_embeddings >= config.seq_length):
+                    error_message = config.__class__.__name__ + ".validate_values() max_position_embeddings must be bigger or equal seq_length"
+                    logging.error(error_message)
+                    raise ValueError(error_message)
+                    return False
+            return True
 
-        if self.seq_length is not None:
-            if not (self.max_position_embeddings >= self.seq_length):
-                error_message = self.__class__.__name__ + ".validate_values() max_position_embeddings must be bigger or equal seq_length"
-                logging.error(error_message)
-                raise ValueError(error_message)
+        def validate_layers(config):
+            # Parameters sharing does not work with torch DDP.
+            if (config.num_unique_layers is not None) and (config.num_layers is not None):
+                if not (config.num_unique_layers <= config.num_layers):
+                    error_message = config.__class__.__name__ + ".validate_values() num-unique-layers must be smaller or equal num_layers"
+                    logging.error(error_message)
+                    raise ValueError(error_message)
+                    return False
+
+                if not (config.num_layers % config.num_unique_layers == 0):
+                    error_message = config.__class__.__name__ + ".validate_values() num-layers should be divisible by num-unique-layers"
+                    logging.error(error_message)
+                    raise ValueError(error_message)
+                    return False
+
+            return True
+
+        def value_validator(validate_function, self):
+            if self.do_distillation:
+                if not validate_function(self.student_model_args) or not validate_function(self.teacher_model_args):
+                    return False
+            else:
+                if not validate_function(self):
+                    return False
+            return True
+
+
+        for validate_function in [validate_required_args, validate_hidden_size, validate_seq_length, validate_layers]:
+            if not value_validator(validate_function, self):
                 return False
 
         if not (self.min_lr <= self.lr):
@@ -680,22 +756,7 @@ class NeoXArgs(*BASE_CLASSES):
             raise ValueError(error_message)
             return False
 
-        # Parameters sharing does not work with torch DDP.
-        if (self.num_unique_layers is not None) and (self.num_layers is not None):
-
-            if not (self.num_unique_layers <= self.num_layers):
-                error_message = self.__class__.__name__ + ".validate_values() num-unique-layers must be smaller or equal num_layers"
-                logging.error(error_message)
-                raise ValueError(error_message)
-                return False
-
-            if not (self.num_layers % self.num_unique_layers == 0):
-                error_message = self.__class__.__name__ + ".validate_values() num-layers should be divisible by num-unique-layers"
-                logging.error(error_message)
-                raise ValueError(error_message)
-                return False
-
-        if self.fp16_lm_cross_entropy and self.precision != "fp16":
+        if (self.fp16_lm_cross_entropy or self.reduce_loss_fp16) and self.precision != "fp16":
             error_message = self.__class__.__name__ + ".validate_values() lm cross entropy in fp16 only support in fp16 mode."
             logging.error(error_message)
             raise ValueError(error_message)
