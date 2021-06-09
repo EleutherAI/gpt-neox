@@ -2,23 +2,21 @@
 {
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
-   "pipe-parallel-size": 0,
+   "pipe-parallel-size": 1,
    "model-parallel-size": 1,
+   "attention_config": [[["gmlp"], "all"]],
+
 
    # model settings
    "num-layers": 12,
-   "hidden-size": 768,
-   "num-attention-heads": 12,
+   "hidden-size": 768, # gmlp d_ff defaults to hidden_size * 4
+   "gmlp_attn_dim": 64,
+   "num-attention-heads": 12, # this has no effect with gmlp - and amlp defaults to single head attention.
    "seq-length": 2048,
    "max-position-embeddings": 2048,
    "norm": "layernorm",
-   "pos-emb": "rotary",
+   "pos-emb": "none",
    "no-weight-tying": true,
-
-   # these should provide some speedup but takes a while to build, set to true if desired
-   "scaled-upper-triang-masked-softmax-fusion": false,
-   "bias-gelu-fusion": false,
-
 
    # optimizer settings
    "optimizer": {
@@ -29,16 +27,6 @@
        "eps": 1.0e-8,
      }
    },
-   "zero_optimization": {
-    "stage": 0,
-    "allgather_partitions": True,
-    "allgather_bucket_size": 500000000,
-    "overlap_comm": True,
-    "reduce_scatter": True,
-    "reduce_bucket_size": 500000000,
-    "contiguous_gradients": True,
-    "cpu_offload": False
-  },
 
    # batch / data settings
    "train_micro_batch_size_per_gpu": 4,
@@ -48,12 +36,12 @@
    # activation checkpointing
    "checkpoint-activations": true,
    "checkpoint-num-layers": 1,
-   "partition-activations": true,
+   "partition-activations": false,
    "synchronize-each-layer": true,
 
    # regularization
    "gradient_clipping": 1.0,
-   "weight-decay": 0.0,
+   "weight-decay": 0.1,
    "hidden-dropout": 0.0,
    "attention-dropout": 0.0,
 

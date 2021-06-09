@@ -49,29 +49,15 @@ class BlendableDataset(torch.utils.data.Dataset):
         self.dataset_index = np.zeros(self.size, dtype=np.uint8)
         self.dataset_sample_index = np.zeros(self.size, dtype=np.int64)
 
-        if torch.distributed.get_rank() == 0:
-            from megatron.data.gpt2_dataset import compile_helper
-            compile_helper()
-
-        # Simple barrier
-        tmp = torch.cuda.LongTensor([1])
-        torch.distributed.all_reduce(tmp)
-
-
-        # apparently the barrier isn't working correctly, so this is 
-        # necessary for some reason upon first build
-        try:
-            from megatron.data import helpers
-        except:
-            time.sleep(5)
-            from megatron.data import helpers
-
+        from megatron.data import helpers
         helpers.build_blending_indices(self.dataset_index,
                                        self.dataset_sample_index,
                                        weights, num_datasets, self.size,
                                        torch.distributed.get_rank() == 0)
-        print_rank_0('> elapsed time for building blendable dataset indices: '
-                     '{:.2f} (sec)'.format(time.time() - start_time))
+
+        print('> RANK {} elapsed time for building blendable dataset indices: '
+                     '{:.2f} (sec)'.format(torch.distributed.get_rank(), time.time() - start_time))
+
 
 
     def __len__(self):

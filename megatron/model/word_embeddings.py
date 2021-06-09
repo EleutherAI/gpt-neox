@@ -24,7 +24,8 @@ class Embedding(torch.nn.Module):
                  max_sequence_length,
                  embedding_dropout_prob,
                  init_method,
-                 num_tokentypes=0):
+                 num_tokentypes=0,
+                 use_pos_emb=True):
         super(Embedding, self).__init__()
         
         self.hidden_size = hidden_size
@@ -41,15 +42,17 @@ class Embedding(torch.nn.Module):
         self._word_embeddings_key = 'word_embeddings'
 
         # Position embedding (serial).
-        self.embedding_type = neox_args.pos_emb
-        if self.embedding_type == "learned":
-            self.position_embeddings = torch.nn.Embedding(
-                max_sequence_length, self.hidden_size)
-            self._position_embeddings_key = 'position_embeddings'
-            # Initialize the position embeddings.
-            self.init_method(self.position_embeddings.weight)
-        elif self.embedding_type == "sinusoidal":
-            self.position_embeddings = SinusoidalPositionalEmbedding(self.hidden_size)
+        self.use_pos_emb = use_pos_emb
+        if self.use_pos_emb:
+            self.embedding_type = neox_args.pos_emb
+            if self.embedding_type == "learned":
+                self.position_embeddings = torch.nn.Embedding(
+                    max_sequence_length, self.hidden_size)
+                self._position_embeddings_key = 'position_embeddings'
+                # Initialize the position embeddings.
+                self.init_method(self.position_embeddings.weight)
+            elif self.embedding_type == "sinusoidal":
+                self.position_embeddings = SinusoidalPositionalEmbedding(self.hidden_size)
 
         # Token type embedding.
         # Add this as an optional field that can be added through
@@ -86,7 +89,7 @@ class Embedding(torch.nn.Module):
     def forward(self, input_ids, position_ids, tokentype_ids=None):
         # Embeddings.
         words_embeddings = self.word_embeddings(input_ids)
-        if self.embedding_type in ["learned", "sinusoidal"]:
+        if self.use_pos_emb and self.embedding_type in ["learned", "sinusoidal"]:
             position_embeddings = self.position_embeddings(position_ids)
             embeddings = words_embeddings + position_embeddings
         else:

@@ -1,9 +1,12 @@
 import subprocess
 from dataclasses import dataclass
 from .template import NeoXArgsTemplate
-from typing import Literal
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
 
-ATTENTION_TYPE_CHOICES = ['global', 'local', 'sparse_fixed', 'sparse_variable']
+ATTENTION_TYPE_CHOICES = ['global', 'local', 'sparse_fixed', 'sparse_variable', 'bigbird', 'bslongformer', 'gmlp', 'amlp']
 
 
 def get_git_commit_hash():
@@ -28,9 +31,11 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     Size of the model parallelism.
     """
 
-    pipe_partition_method: str = "type:transformer"
+    pipe_partition_method: str = "type:transformer|mlp"
     """
-    method used to distribute model layers across pipeline stages. Choose from "parameters", which balances the number of parameters on each pipeline stage, "uniform", which naively balances the number of layers per stage, or "type:[regex]" (in our case this will basically only be "type:transformer"), which balances layers whose class names match [regex]
+    method used to distribute model layers across pipeline stages. Choose from "parameters", which balances the number 
+    of parameters on each pipeline stage, "uniform", which naively balances the number of layers per stage, or 
+    "type:[regex]", which balances layers whose class names match [regex]
     """
 
     world_size: int = None
@@ -125,7 +130,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     The first item in the list specifies the attention type(s), and should be a list of strings. The second item 
     specifies the number of times to repeat those attention types in the full list.
     
-    attention type choices:  [global, local (`sparse_fixed` with no global tokens), sparse_fixed, sparse_variable]
+    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird]
                                 
     So a 12 layer network with only global attention could be specified like:
         [[[`global`], 12]]
@@ -243,16 +248,22 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Base for rotary positional embedding
     """
 
-    init_method : Literal["normal", "scaled_normal", "orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"] = "normal"
+    init_method : Literal["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"] = "normal"
     """
     Init function used on all layers except ff residual outputs - choose from 
-    ["normal", "scaled_normal", "orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
+    ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
     """
 
-    output_layer_init_method : Literal["normal", "scaled_normal", "orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"] = "scaled_normal"
+    output_layer_init_method : Literal["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"] = "scaled_normal"
     """
     Init function used for ff residual outputs - choose from 
-    ["normal", "scaled_normal", "orthogonal", "xavier_uniform", "xavier_normal", "wang_init"]
+    ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
+    """
+
+    gmlp_attn_dim : int = 64
+    """
+    the dimension of the single head self attention in gmlp model (not used in gpt models).
+    If None - gmlp model doesn't use attention.
     """
 
 
@@ -524,6 +535,7 @@ class NeoXArgsTokenizer(NeoXArgsTemplate):
     tokenizer object loaded into memory and accesible by other functions
     """
 
+
 @dataclass
 class NeoXArgsTraining(NeoXArgsTemplate):
     data_path: str = None
@@ -608,6 +620,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     load: str = None
     """
     Directory containing a model checkpoint.
+    """
+
+    checkpoint_validation_with_forward_pass: bool = False
+    """
+    save input and output of a forward pass with the checkpoint and validate after load
     """
 
     save_interval: int = None
@@ -779,6 +796,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     """
     Minimum loss scale for dynamic loss scale.
     """
+
 
 @dataclass
 class NeoXArgsTextgen(NeoXArgsTemplate):

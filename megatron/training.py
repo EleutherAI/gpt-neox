@@ -210,7 +210,7 @@ def get_model(neox_args, inference=False, get_key_value=True):
 
     # Build model on cpu.
     model = GPT2ModelPipe(neox_args=neox_args, num_tokentypes=0, parallel_output=True, topology=mpu.get_topology(),
-                          inference=inference, get_key_value=get_key_value)
+                            inference=inference, get_key_value=get_key_value)
     if not neox_args.is_pipe_parallel:
         # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
         model = model.to_sequential()
@@ -347,13 +347,14 @@ def setup_model_and_optimizer(neox_args, inference=False, get_key_value=True):
         print_rank_0(f' > total params: {"{:,}".format(model.total_params)}')
 
         if neox_args.is_pipe_parallel:
+            model.set_has_attention_mask(True)
             model.set_batch_fn(model.module._megatron_batch_fn)
     else:
         raise ValueError("Must be using deepspeed to run neox")
 
     if neox_args.load is not None:
         neox_args.iteration = load_checkpoint(neox_args=neox_args, model=model, optimizer=optimizer,
-                                              lr_scheduler=lr_scheduler)
+                                              lr_scheduler=lr_scheduler, inference=inference)
         print_rank_0(f'Loading checkpoint and starting from iteration {neox_args.iteration}')
     else:
         neox_args.iteration = 0
@@ -420,7 +421,7 @@ def train_step_pipe(neox_args, timers, model, data_iterator):
 
     assert neox_args.deepspeed
     loss = model.train_batch(data_iter=data_iterator)
-    loss_dict = {'lm loss': loss}
+    loss_dict = {'lm_loss': loss}
     # Don't break Megatron's timers because we changed code paths.
     for t in ['forward', 'backward', 'allreduce', 'optimizer', 'batch generator', 'data loader']:
         timers(t).reset()
@@ -443,7 +444,7 @@ def train(neox_args, timers, model, optimizer, lr_scheduler,
     timers('interval time').start()
     report_memory_flag = True
 
-    # get noise scale logger (if args.log_noise_scale is True)
+    # get noise scale logger (if neox_args.log_gradient_noise_scale is True)
     noise_scale_logger = get_noise_scale_logger(neox_args)
 
     # to monitor if we've skipped many iterations in a row and trigger an early exit

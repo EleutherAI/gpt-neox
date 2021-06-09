@@ -6,11 +6,15 @@ import shortuuid
 import copy
 import torch
 import argparse
+import shutil
 
 from dataclasses import dataclass
-from typing import List
+from typing import List, Dict
 from socket import gethostname
-from typing import Literal, Dict
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
 from deepspeed.launcher.runner import DLTS_HOSTFILE
 from megatron.logging import Tee
 from megatron.tokenizer import build_tokenizer
@@ -95,8 +99,6 @@ class NeoXArgs(*BASE_CLASSES):
 
         if not self.validate_values():
             raise ValueError(self.__class__.__name__ + ".__post_init__() NeoXArgs values cannot be validated")
-
-        self.save_yml()
 
     def build_tokenizer(self):
         self.tokenizer = build_tokenizer(self)
@@ -228,6 +230,21 @@ class NeoXArgs(*BASE_CLASSES):
         # load args
         neox_args = cls.from_ymls(paths_to_yml_files=conf_files, overwrite_values=overwrite_values)
 
+
+        # save a copy of yaml configs to the save directory
+        if neox_args.save is not None:
+            configs_directory = os.path.join(neox_args.save, "configs")
+            
+            # delete the configs subdirectory in save if it already exists
+            # only the latest version of the configs are stored
+            if os.path.isdir(configs_directory):
+                shutil.rmtree(configs_directory)
+
+            # create configs directory and copy config files
+            os.makedirs(configs_directory)
+            for conf_file in conf_files:
+                shutil.copy(conf_file, os.path.join(configs_directory, os.path.basename(conf_file)))
+
         return neox_args
 
     @classmethod
@@ -358,19 +375,9 @@ class NeoXArgs(*BASE_CLASSES):
             Tee(file_prefix + '_stdout.txt', err=False)
             Tee(file_prefix + '_stderr.txt', err=True)
 
-    def save_yml(self):
-        """
-        saves the configured value to the configured save directory (if any)
-        """
-        if self.save is not None:
-            os.makedirs(self.save, exist_ok=True)
-            config_file = os.path.join(self.save, 'config.yml')
-            with open(config_file, 'w') as f:
-                json.dump(self.all_config, f, indent=4)
-
     def print(self):
         """Print arguments."""
-        if self.rank == 0:
+        if self.rank == 0 or self.rank is None:
             print('-------------------- arguments --------------------', flush=True)
             str_list = []
             for arg in vars(self):
@@ -589,6 +596,8 @@ class NeoXArgs(*BASE_CLASSES):
         assert len(self.attention_config) == self.num_layers, "Length of attention config list must equal num_layers"
         for item in self.attention_config:
             assert item in ATTENTION_TYPE_CHOICES, f"Attention type {item} not recognized"
+        if "gmlp" in self.attention_config or "amlp" in self.attention_config:
+            assert not self.partition_activations, "GMLP Blocks are not compatible with partition activations"
 
         # Sparsity config
         if self.sparsity_config is None:

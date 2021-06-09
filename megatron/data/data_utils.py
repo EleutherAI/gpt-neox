@@ -281,7 +281,6 @@ def build_train_valid_test_data_iterators(neox_args):
                 valid_ds = BlendableDataset(valid_datasets, valid_weights)
             if test_datasets:
                 test_ds = BlendableDataset(test_datasets, test_weights)
-
         else:
             # when just data_path is provided
             # split dataset into train, valid and test from data_path
@@ -354,3 +353,16 @@ def build_train_valid_test_data_iterators(neox_args):
         test_data_iterator = None
 
     return train_data_iterator, valid_data_iterator, test_data_iterator 
+
+
+def compile_helper():
+    """Compile helper function at runtime. Make sure this
+    is invoked on a single process."""
+    import os
+    import subprocess
+    path = os.path.abspath(os.path.dirname(__file__))
+    ret = subprocess.run(['make', '-C', path])
+    if ret.returncode != 0:
+        print("Making C++ dataset helpers module failed, exiting.")
+        import sys
+        sys.exit(1)

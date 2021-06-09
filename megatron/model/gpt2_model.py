@@ -23,13 +23,14 @@ from collections import defaultdict
 
 from functools import partial
 from megatron.model.utils import Lambda, SequentialWrapper
-from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
+from megatron.model.norms import get_norm
 from megatron.model.init_functions import get_init_methods
 
 from megatron import mpu
 from megatron.mpu import ParallelRelativePositionBias
 import megatron.fp16 as fp16
 from megatron.model.transformer import ParallelTransformerLayerPipe, NormPipe, ParallelLinearPipe, parallel_lm_logits
+from megatron.model.gmlp import GMLPBlock
 from megatron.model.word_embeddings import EmbeddingPipe
 
 # Pipeline parallelism
@@ -79,15 +80,10 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         self.hidden_size = self.neox_args.hidden_size
         self.num_tokentypes = num_tokentypes
         self.init_method, self.output_layer_init_method = get_init_methods(self.neox_args)
-        self.fp16_lm_cross_entropy = self.neox_args.fp16_lm_cross_entropy
         self.embedding_type = self.neox_args.pos_emb
-
-        #
-        # forward() prototype
-        # 
         self.specs = []
         self.init_specs()
-        loss_fn = partial(cross_entropy, _fp16=self.fp16_lm_cross_entropy)
+        loss_fn = partial(cross_entropy, _fp16=self.neox_args.fp16_lm_cross_entropy)
         if self.neox_args.checkpoint_activations:
             interval = self.neox_args.checkpoint_num_layers
         else:
@@ -96,7 +92,8 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                          loss_fn=loss_fn if not self._inference else None,
                          topology=topology,
                          activation_checkpoint_interval=interval,
-                         partition_method='type:transformer')
+                         partition_method=neox_args.pipe_partition_method,
+                         checkpointable_layers=['GMLPBlock', 'ParallelTransformerLayerPipe'])
 
     def init_specs(self):
         weight_tying = not self.neox_args.no_weight_tying
@@ -104,11 +101,6 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             rpe_emb = ParallelRelativePositionBias(neox_args=self.neox_args, causal=True, num_buckets=self.neox_args.rpe_num_buckets,
                                                    max_distance=self.neox_args.rpe_max_distance,
                                                    heads=self.neox_args.num_attention_heads)
-        self.fp16_lm_cross_entropy = self.neox_args.fp16_lm_cross_entropy
-
-        #
-        # forward() prototype
-        # 
         self.specs = []
         # Embedding layer
         # input will be (input_ids, position_ids, attention_mask) in Training
@@ -151,42 +143,46 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), *x[1:]))
 
         # Transformer layers
-        for x in range(self.neox_args.num_layers):
-            self.specs.append(
-                LayerSpec(
-                    ParallelTransformerLayerPipe,
-                    neox_args=self.neox_args,
-                    attention_mask_func=gpt2_attention_mask_func,
-                    init_method=self.init_method,
-                    output_layer_init_method=self.output_layer_init_method,
-                    layer_number=x,
-                    rpe=rpe_emb if self.neox_args.pos_emb == 'rpe' else None,
-                    rotary=self.neox_args.pos_emb == 'rotary',
-                    get_key_value=self.get_key_value
+        for i in range(self.neox_args.num_layers):
+            layer_type = self.neox_args.attention_config[i]
+            if layer_type in ["gmlp", "amlp"]:
+                self.specs.append(
+                    LayerSpec(
+                        GMLPBlock,
+                        init_method=self.init_method,
+                        layer_number=i,
+                        output_layer_init_method=self.output_layer_init_method,
+                        neox_args=self.neox_args,
+                        mask_fn=gpt2_attention_mask_func
                     )
                 )
+            else:
+                self.specs.append(
+                    LayerSpec(
+                        ParallelTransformerLayerPipe,
+                        neox_args=self.neox_args,
+                        attention_mask_func=gpt2_attention_mask_func,
+                        init_method=self.init_method,
+                        output_layer_init_method=self.output_layer_init_method,
+                        layer_number=i,
+                        rpe=rpe_emb if self.neox_args.pos_emb == 'rpe' else None,
+                        rotary=self.neox_args.pos_emb == 'rotary',
+                        get_key_value=self.get_key_value
+                        )
+                    )
 
         if self._inference:
-            # we can get rid of the mask / pasts / (?rotary_pos_emb) now
-            # from (hidden_states, layer_past, presents, (maybe rotary_pos_emb), attention_mask)
-            # to (hidden_states^T, presents)
+            # we can get rid of the mask / pasts now
+            # from (hidden_states, layer_past, presents, attention_mask)
+            # to (hidden_states.T, presents)
             self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), x[2]))
         else:
             # Undo data format change and drop mask
             self.specs.append(lambda x: x[0].transpose(0, 1).contiguous())
 
         # Final layernorm after transformer layers
-        if self.neox_args.norm == "rmsnorm":
-            norm = RMSNorm
-            eps = self.neox_args.rms_norm_epsilon
-        elif self.neox_args.norm == "layernorm":
-            eps = self.neox_args.layernorm_epsilon
-            norm = LayerNorm
-        elif self.neox_args.norm == "scalenorm":
-            eps = self.neox_args.scalenorm_epsilon
-            norm = ScaleNorm
-
         # NormPipe is a helper class to pass presents through to the output when doing inference
+        norm, eps = get_norm(self.neox_args)
         self.specs.append(
             LayerSpec(NormPipe,
                       norm,
@@ -239,7 +235,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                     parallel_output=self.parallel_output
                 )
             )
-        # so output in training should just be logits
+        # output in training should just be logits
         # in inference it will be (logits, presents) (assuming get_key_value) is true
 
     def to_sequential(self):

@@ -1,69 +1,53 @@
-import os
-import sys
-import unittest
-import shutil
-import logging
+"""
+instantiate models with different configurations as a first possible point of failure
+"""
 
-if __name__ == "__main__":
-    sys.path.append(os.path.abspath(''))
+import pytest
 
-from deepspeed.runtime.pipe.engine import PipelineEngine, DeepSpeedEngine
+import torch
 
-from megatron.neox_arguments import NeoXArgs
-from megatron.model import GPT2ModelPipe
-from megatron import initialize_megatron
-from megatron.training import setup_model_and_optimizer
-from megatron.mpu import destroy_model_parallel
+from ..common import distributed_test, model_setup, clear_test_dirs, parametrize, binary
 
-from tests.common import get_root_directory, get_configs_with_path, get_test_configs_with_path, clear_test_dirs, TEST_CHECKPOINT_DIR, TEST_LOG_DIR
+PARAMS_TO_TEST = {
+    "pipe_parallel_size,model_parallel_size,world_size": [[0, 1, 1], [1, 2, 2], [0, 2, 2]],
+    "no_weight_tying": binary,
+    "attention_config": [[[["global"], "all"]], [[["local"], "all"]], [[["sparse_variable"], "all"]],
+                         [[["sparse_fixed"], "all"]]],
+    "scaled_upper_triang_masked_softmax_fusion,bias_gelu_fusion": [[True, False], [False, True]]
+}
 
-class TestModelInstantiation(unittest.TestCase):
- 
-    def setUp(self):
+parameters, names = parametrize(PARAMS_TO_TEST, max_tests=50, seed=None)
+@pytest.mark.parametrize("param_dict", parameters, ids=names)
+def test_instantiate(param_dict):
+    @distributed_test(world_size=param_dict.pop("world_size", 2))
+    def wrapper():
+        run_test_model_instantiation(param_dict=param_dict)
+    wrapper()
+
+OPTIMIZER_PARAMS = {
+    "optimizer": [
+                  {"type": "adam","params": {"lr": 0.0006}},
+                  {"type": "onebitadam","params": {"lr": 0.0006}},
+                  {"type": "cpu_adam","params": {"lr": 0.0006}},
+                  {"type": "cpu_torch_adam","params": {"lr": 0.0006}},
+                  {"type": "sm3","params": {"lr": 0.0006}},
+                  {"type": "madgrad_wd","params": {"lr": 0.0006}}
+                  ]
+                  }
+opt_params, opt_name = parametrize(OPTIMIZER_PARAMS, max_tests=50, seed=None)
+@pytest.mark.parametrize("param_dict", parameters, ids=names)
+def test_instantiate_optimizers(param_dict):
+    @distributed_test(world_size=2)
+    def wrapper():
+        run_test_model_instantiation(param_dict=param_dict)
+    wrapper()
+
+def run_test_model_instantiation(yaml_list=None, param_dict=None):
+    from deepspeed.runtime.pipe.engine import PipelineEngine, DeepSpeedEngine
+    model, optimizer, lr_scheduler, args_loaded = model_setup(yaml_list, param_dict)
+    if args_loaded.pipe_parallel_size < 2:
+        assert isinstance(model, DeepSpeedEngine), "test model instantiation " + str(yaml_list)
+    else:
+        assert isinstance(model, PipelineEngine), "test model instantiation " + str(yaml_list)
+    if torch.distributed.get_world_size() == 1 or torch.distributed.get_rank() == 0:
         clear_test_dirs()
-
-    def tearDown(self):
-        clear_test_dirs()
-
-    def run_instantiation_test(self, yaml_list, model_class_expected):
-        destroy_model_parallel() # mpu model parallel contains remaining global vars
-
-        # intitially load config from files as would be the case in deepy.py
- 
-        logging.info(self.__class__.__name__ + ".run_instantiation_test() " + f"Running on: {yaml_list}")
-
-        args_loaded = NeoXArgs.from_ymls(yaml_list)
-        args_loaded.build_tokenizer()
-        args_loaded.update_value("user_script", str(get_root_directory() / "pretrain_gpt2.py"))
-        args_loaded.update_value("use_cpu_initialization", True)
-        args_loaded.update_value("save", TEST_CHECKPOINT_DIR)
-        args_loaded.update_value("load", TEST_CHECKPOINT_DIR)
-        args_loaded.update_value("log_dir", TEST_LOG_DIR)
-       
-        logging.debug(self.__class__.__name__ + ".run_instantiation_test() initializing megatron")
-        initialize_megatron(neox_args=args_loaded)
-
-        logging.debug(self.__class__.__name__ + ".run_instantiation_test() initializing model")
-        model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=args_loaded, inference=False, get_key_value=True)
-        
-        self.assertTrue(isinstance(model, model_class_expected)) 
-
-    def test_model_instantiation_small(self):
-        self.run_instantiation_test(get_configs_with_path(["local_setup.yml", "small.yml"]), PipelineEngine)
-
-    def test_model_instantiation_medium(self):
-        self.run_instantiation_test(get_configs_with_path(["local_setup.yml", "medium.yml"]), PipelineEngine)
-        
-    def test_model_instantiation_small_test(self):
-        self.run_instantiation_test(get_test_configs_with_path(["test_local_setup.yml", "test_small.yml"]), DeepSpeedEngine)
-
-    def test_model_instantiation_medium_test(self):
-        self.run_instantiation_test(get_test_configs_with_path(["test_local_setup.yml", "test_medium.yml"]), DeepSpeedEngine)
-
-    def test_model_instantiation_small_sparse_test(self):
-        self.run_instantiation_test(get_test_configs_with_path(["test_local_setup.yml", "test_small.yml", "test_sparse.yml"]), DeepSpeedEngine)
-
-if __name__ == "__main__":
-    suite = unittest.TestSuite()
-    suite.addTest(TestModelInstantiation("test_model_instantiation_small_sparse_test"))
-    unittest.TextTestRunner(failfast=True).run(suite)

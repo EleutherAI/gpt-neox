@@ -17,13 +17,13 @@ GPT-NeoX is under active development.
 
 ### 3D Parallelism 
 
-- GPTNeoX offers full 3D parallelism (data, model and pipeline parallel) using deepspeed, allowing you to scale model training to hundreds of billions of parameters across multiple GPUs.
+- GPTNeoX offers full 3D parallelism (data, model and pipeline parallel) using DeepSpeed, allowing you to scale model training to hundreds of billions of parameters across multiple GPUs.
 
 ### Model Structure
 
 - **Positional Encodings:** 
 
-    - Choose between T5 RPE style positional encodings, a learned encoding added to the input (GPT2-style), Sinusoidal positional encoding, and no positional encodings at all (which [recent](https://arxiv.org/abs/1905.04226) [research](https://arxiv.org/abs/2102.11174) has found to even outperform other positional encodings in autoregressive models).
+    - Choose between T5 RPE style positional encodings, a learned encoding added to the input (GPT2-style), Sinusoidal positional encoding, [rotary positional encodings](https://arxiv.org/abs/2104.09864), and no positional encodings at all (which [recent](https://arxiv.org/abs/1905.04226) [research](https://arxiv.org/abs/2102.11174) has found to even outperform other positional encodings in autoregressive models).
 
 - **Sparsity:** 
 
@@ -45,15 +45,14 @@ We offer a choice of layernorm, scalenorm and RMSNorm easily configured by chang
 
 ### Straightforward configuration
 
-- Other libraries such as Megatron-LM require you configure them using command line arguments, which can often be difficult to work with and iterate upon. We offer straightforward configuration using .yaml files, which enables you to launch training runs across 100s of GPUs with a single line bash script. 
+- Other libraries such as Megatron-LM require you configure them using command line arguments and global variables, which can often be difficult to work with and iterate upon. We offer straightforward configuration using .yaml files, which enables you to launch training runs across 100s of GPUs with a single line bash script. 
 - Additionally, we hope to make data preparation easier on the user by providing scripts to automatically download and pretokenize a number of large-scale datasets.
 
 ## Getting Started
 
-Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), our fork of the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library with some added changes. 
-We strongly recommend using Anaconda, a virtual machine, or some other form of environment isolation before installing from `requirements.txt`. Failure to do so may cause other repositories that rely on DeepSpeed to break. Python 3.8 or later is required.
+Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), our fork of the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library with some added changes. We strongly recommend using Anaconda, a virtual machine, or some other form of environment isolation before installing from `requirements/requirements.txt`. Failure to do so may cause other repositories that rely on DeepSpeed to break. Python 3.8 or later is required.
 
-First make sure you are in an environment with `torch>=1.7.1` installed. Then run `pip install -r requirements.txt`. 
+First make sure you are in an environment with `torch>=1.8` installed. Then run `pip install -r requirements/requirements.txt`. 
 You may need to change the version of `cupy-cudaxxx` to match your machine's cuda version.
 
 Finally, certain features rely on apex, which you can install with the command below:
@@ -171,17 +170,41 @@ This will deploy the `pretrain_gpt2.py` script on all nodes with one process per
 
 EleutherAI is currently using [Weights & Biases to record experiments](https://wandb.ai/eleutherai/neox). If you are logged into Weights & Biases on your machine - you can do this by executing `wandb login` - your runs will automatically be recorded. Additionally, set the config parameter `wandb_team` if you would like the run to be added to an organisation/team account.
 
+We also support using Tensorboard via the `tensorboard-dir` argument. To use tensorboard, install the optional packages found at `requirements/requirements-tensorboard.txt`
+
 ## Inference
 
 [WIP]
 
-## Eleuther Cluster
+## Evaluation
 
-We run our experiments on a Kubernetes cluster generously provided by [CoreWeave](https://coreweave.com/). The `/kubernetes/` directory contains code designed to facilitate work on our server. If you are an EleutherAI member, see the [corresponding read-me](kubernetes) for information about how to use our cluster.
+[WIP]
+
+## Distilling
+
+[WIP]
+
+## Citing GPT-NeoX
+
+
+### Citing 
+
+If you have found GPT-Neo helpful in your work, you can cite this repository as
+
+```
+@software{gpt-neo,
+  author = {Andonian, Alex and Biderman, Stella and Black, Sid and Gali, Preetham and Gao, Leo and Hallahan, Eric and Levy-Kramer, Josh and Leahy, Connor and Nestler, Lucas and Parker, Kip and Pieler, Michael and Purohit, Shivanshu and Songz, Tri and Wang, Phil and Weinbach, Samuel},
+  title = {{GPT-NeoX}: Large Scale Autoregressive Language Modeling in PyTorch},
+  url = {http://github.com/eleutherai/gpt-neox},
+  year = {2021}
+}
+```
+
+In the above bibtex entry, names are in alphabetical order, and the year corresponds to the project's open-source release.
 
 ## Licensing
 
-This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright (c) 2021, EleutherAI contributors (in alphabetical order): Stella Biderman, Sid Black, Eric Hallahan, Josh Levy-Kramer, Michael Pieler, Shivanshu Purohit. Licensed under the Apache License:
+This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright (c) 2021, EleutherAI contributors (in alphabetical order): Alex Andonian, Stella Biderman, Sid Black, Preetham Gali, Leo Gao, Eric Hallahan, Josh Levy-Kramer, Connor Leahy, Lucas Nestler, Kip Parker, Michael Pieler, Shivanshu Purohit, Tri Songz, Phil Wang, Samuel Weinbach. Licensed under the Apache License:
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -198,3 +221,7 @@ This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyri
 This repository is based off code written by NVIDIA that is licensed under the Apache License, Version 2.0. In accordance with the Apache License, all files that are modifications of code originally written by NVIDIA maintain a NVIDIA copyright header. All files that do not contain such a header are original to EleutherAI contributors. When the NVIDIA code has been modified from its original version, that fact is noted in the copyright header. All derivative works of this repository must preserve these headers under the terms of the Apache License.
 
 For full terms, see the `LICENSE` file. If you have any questions, comments, or concerns about licensing please email us at contact@eleuther.ai.
+
+## Acknowledgements
+
+We run our experiments on a Kubernetes cluster generously provided by [CoreWeave](https://coreweave.com/).
