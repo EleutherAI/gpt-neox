@@ -51,6 +51,7 @@ from megatron.utils import reduce_losses
 from megatron.fp16 import fp32_to_fp16
 
 import deepspeed
+import numpy as np
 
 
 def pretrain(neox_args):
@@ -170,7 +171,6 @@ def get_batch(neox_args, data_iterator):
 
 def get_batch_pipe(data, neox_args):
     """A modification of get_batch() to work with the latest batch instead of an iterator. """
-
     # Items and their type.
     keys = ['text']
     datatype = torch.int64
@@ -185,8 +185,10 @@ def get_batch_pipe(data, neox_args):
         return (tokens, position_ids, attention_mask), (labels, loss_mask)
 
 
-def forward_step(data_iterator, model, neox_args, timers):
+def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
     """Forward step."""
+    if neox_args.is_pipe_parallel:
+        return model.eval_batch(data_iterator, return_logits=return_logits)
 
     # Get the batch.
     timers('batch generator').start()
@@ -196,6 +198,8 @@ def forward_step(data_iterator, model, neox_args, timers):
 
     outputs = model((tokens, position_ids, attention_mask))
     loss = cross_entropy(outputs, (labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy)
+    if return_logits:
+        return loss, outputs
     return loss
 
 
@@ -506,12 +510,19 @@ def train(neox_args, timers, model, optimizer, lr_scheduler,
     return iteration
 
 
-def evaluate(neox_args, forward_step_fn, data_iterator, model, verbose=False):
-    """Evaluation."""
+def evaluate(neox_args, forward_step_fn, data_iterator, model, verbose=False, timers=None):
+    """Evaluation.
+    neox_args: NeoX Arguments
+    forward_step_fn: function with args `neox_args, timers,
+                    data_iterator & model that will run a forward pass on the model
+    data_iterator: Iterator that iterates over batches of data. Should return data in the form:
+                    {'text': np.array([tokens], dtype=np.int64)}
+                    where the size of the array is the model's context size + 1
+                    (`get_batch` transforms it into inputs / labels)
+    """
     # Turn on evaluation mode which disables dropout.
     model.eval()
     losses = []
-
     with torch.no_grad():
         iteration = 0
         while iteration < neox_args.eval_iters:
@@ -523,7 +534,7 @@ def evaluate(neox_args, forward_step_fn, data_iterator, model, verbose=False):
             # to be consistent with deepspeed's pipe parallel engine
             for _ in range(neox_args.gradient_accumulation_steps):
                 # Forward evaluation
-                loss = forward_step_fn(data_iterator=data_iterator, model=model)
+                loss = forward_step_fn(model=model, data_iterator=data_iterator, neox_args=neox_args, timers=timers)
                 losses.append(loss)
 
             # When contiguous memory optimizations are enabled, the buffers
@@ -532,7 +543,13 @@ def evaluate(neox_args, forward_step_fn, data_iterator, model, verbose=False):
             # forward pass
             if neox_args.deepspeed and neox_args.deepspeed_activation_checkpointing:
                 deepspeed.checkpointing.reset()
-
+    ##########################################################################################
+    # for lm eval harness:
+    run_eval_harness(model=model,
+                     forward_step_fn=forward_step_fn,
+                     neox_args=neox_args,
+                     timers=timers)
+    ###########################################################################################
     # reduces losses across processes for logging
     reduced_loss = {"lm_loss": reduce_losses(losses).mean()}
     # Move model back to the train mode.
@@ -543,18 +560,8 @@ def evaluate(neox_args, forward_step_fn, data_iterator, model, verbose=False):
 def evaluate_and_print_results(neox_args, prefix, forward_step_func, data_iterator, model, iteration, verbose=False,
                                timers=None):
     """Helper function to evaluate and dump results on screen."""
-
-    # Pipeline parallelism needs eval_batch() instead of a simple forward().
-    if neox_args.is_pipe_parallel:
-        def _eval_helper(data_iterator, model):
-            return model.eval_batch(data_iterator)
-
-        forward_step_func = _eval_helper
-    else:
-        forward_step_func = partial(forward_step_func, neox_args=neox_args, timers=timers)
-
     total_loss_dict = evaluate(neox_args=neox_args, forward_step_fn=forward_step_func, data_iterator=data_iterator,
-                               model=model, verbose=verbose)
+                               model=model, verbose=verbose, timers=timers)
     string = ' validation loss at {} | '.format(prefix)
     for key in total_loss_dict:
         string += '{} value: {:.6E} | '.format(key, total_loss_dict[key].item())
@@ -570,3 +577,79 @@ def evaluate_and_print_results(neox_args, prefix, forward_step_func, data_iterat
     print_rank_0(string)
     print_rank_0('-' * length)
 
+
+from lm_eval.models.gpt2 import GPT2LM
+from lm_eval import tasks, evaluator
+from lm_eval.base import CacheHook
+import torch.nn.functional as F
+
+
+class EvalHarnessAdaptor(GPT2LM):
+
+    def __init__(self, model, forward_step_fn, neox_args, timers):
+        self.device = torch.device(f'cuda:{neox_args.local_rank}')
+        self.VOCAB_SIZE = neox_args.padded_vocab_size
+        self.tokenizer = neox_args.tokenizer
+        self.EOT_TOKEN_ID = neox_args.tokenizer.eod_id
+        self.model = model
+        self.model.eval()
+        self._forward_step_fn = partial(forward_step_fn, neox_args=neox_args, timers=timers, return_logits=True)
+        self.max_length = neox_args.max_position_embeddings // 2
+        self.tokenizer.encode = self.tokenizer.tokenize  # patch tokenizer encode method
+        self.batch_size = neox_args.batch_size
+        self.neox_args = neox_args
+        self.cache_hook = CacheHook(None)
+
+    def greedy_until(self, requests):
+        raise NotImplementedError
+
+    def _broadcast_logits(self, logits):
+        if self.neox_args.is_pipe_parallel:
+            # broadcast the shapes of the logits so we can get a dummy tensor on other ranks
+            # until we patch lm_eval_harness
+            if self.model.is_last_stage():
+                logits = logits.clone().detach()
+                logits_shape_tensor = torch.LongTensor(list(logits.shape)).to(self.device)
+                torch.distributed.broadcast(tensor=logits_shape_tensor,
+                                            src=self.model.global_rank)
+            else:
+                src_rank = self.model.grid.stage_to_global(self.model.num_stages - 1)
+                logits_shape_tensor = torch.LongTensor([0] * 3).to(self.device)
+                torch.distributed.broadcast(tensor=logits_shape_tensor,
+                                            src=src_rank)
+                logits_shape_tensor = logits_shape_tensor.clone().detach()
+            logits_shape = logits_shape_tensor.tolist()
+            if not self.model.is_last_stage():
+                logits = torch.zeros(logits_shape, dtype=self.neox_args.params_dtype).to(self.device)
+        return logits
+
+    def _model_call(self, inps):
+        data_wrapped = iter([{'text': F.pad(inps, pad=(0, 1))}])
+
+        if self.neox_args.is_pipe_parallel:
+            # need these flags to stop deepspeed from hanging
+            self.model.first_output_send = True
+            self.model.pipe_recv_buf = None
+
+        _, logits = self._forward_step_fn(model=self.model, data_iterator=data_wrapped)
+        logits = self._broadcast_logits(logits)
+        return logits.float()
+
+    def run_eval(self, eval_tasks=None):
+        if eval_tasks is None:
+            eval_tasks = ["lambada", "piqa", "hellaswag", "winogrande", "mathqa", "pubmedqa"]
+        return evaluator.evaluate(self, tasks.get_task_dict(eval_tasks), False, 0, None)
+
+
+def run_eval_harness(model, forward_step_fn, neox_args, timers):
+    print_rank_0('Running evaluation harness...')
+
+    # you should feed in a data iterator where each item is (args.batch_size, seq_len + 1).
+    # this is transformed into inputs / labels internally
+    adaptor = EvalHarnessAdaptor(model, forward_step_fn, neox_args, timers)
+    results = adaptor.run_eval()
+    from megatron.utils import ddb
+    ddb()
+
+    eval_harness_results = None
+    return eval_harness_results
