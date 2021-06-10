@@ -45,6 +45,8 @@ def create_build_dir(buildpath):
 
 def load_scaled_upper_triang_masked_softmax_fusion_kernel():
 
+    print(f'\nLoading scaled_upper_triang_masked_softmax fusion kernel (this may take a minute or two)...')
+
     # Check, if CUDA11 is installed for compute capability 8.0
     cc_flag = []
     _, bare_metal_major, _ = get_cuda_bare_metal_version(cpp_extension.CUDA_HOME)
@@ -72,6 +74,8 @@ def load_scaled_upper_triang_masked_softmax_fusion_kernel():
                            '--use_fast_math'] + cc_flag)
 
 def load_scaled_masked_softmax_fusion_kernel():
+
+    print(f'\nLoading scaled_masked_softmax fusion kernel (this may take a minute or two)...')
 
     # Check, if CUDA11 is installed for compute capability 8.0
     cc_flag = []

@@ -16,10 +16,10 @@
 """Processing data for pretraining."""
 
 import argparse
-import json
 import multiprocessing
 import os
 import sys
+
 import lm_dataformat as lmd
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
@@ -27,34 +27,11 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
 import time
 import tqdm
 import torch
-
-try:
-    import nltk
-
-    nltk_available = True
-except ImportError:
-    nltk_available = False
+import ftfy
 
 from megatron.tokenizer import build_tokenizer
 from megatron.data import indexed_dataset
-
-
-# https://stackoverflow.com/questions/33139531/preserve-empty-lines-with-nltks-punkt-tokenizer
-class CustomLanguageVars(nltk.tokenize.punkt.PunktLanguageVars):
-    _period_context_fmt = r"""
-        \S*                          # some word material
-        %(SentEndChars)s             # a potential sentence ending
-        \s*                       #  <-- THIS is what I changed
-        (?=(?P<after_tok>
-            %(NonWord)s              # either other punctuation
-            |
-            (?P<next_tok>\S+)     #  <-- Normally you would have \s+ here
-        ))"""
-
-
-class IdentitySplitter(object):
-    def tokenize(self, *text):
-        return text
+from threading import Semaphore
 
 
 class Encoder(object):
@@ -64,58 +41,36 @@ class Encoder(object):
     def initializer(self):
         # Use Encoder class as a container for global data
         Encoder.tokenizer = build_tokenizer(self.args)
-        if self.args.split_sentences:
-            if not nltk_available:
-                print("NLTK is not available to split sentences.")
-                exit()
-            splitter = nltk.load("tokenizers/punkt/english.pickle")
-            if self.args.keep_newlines:
-                # this prevents punkt from eating newlines after sentences
-                Encoder.splitter = nltk.tokenize.punkt.PunktSentenceTokenizer(
-                    train_text=splitter._params,
-                    lang_vars=CustomLanguageVars())
-            else:
-                Encoder.splitter = splitter
 
-        else:
-            Encoder.splitter = IdentitySplitter()
-
-    def encode(self, json_line):
-
-        data = {
-            "text": json_line
-        }
-        
+    def encode(self, text):
+        if self.args.ftfy:
+            text = ftfy.fix_text(text)
         ids = {}
         for key in self.args.json_keys:
-            text = data[key]
             doc_ids = []
-            for sentence in Encoder.splitter.tokenize(text):
-                sentence_ids = Encoder.tokenizer.tokenize(sentence)
-                if len(sentence_ids) > 0:
-                    doc_ids.append(sentence_ids)
+            text_ids = Encoder.tokenizer.tokenize(text)
+            if len(text_ids) > 0:
+                doc_ids.append(text_ids)
             if self.args.append_eod:
                 doc_ids[-1].append(Encoder.tokenizer.eod)
             ids[key] = doc_ids
-        return ids, len(json_line)
+        return ids, len(text)
 
 
 def get_args():
     parser = argparse.ArgumentParser()
     group = parser.add_argument_group(title='input data')
     group.add_argument('--input', type=str, required=True,
-                       help='Path to input lmd archives')
+                       help='Path to input lmd archive(s) - if using multiple archives, put them in a comma separated '
+                            'list')
     group.add_argument('--json-keys', nargs='+', default=['text'],
                        help='space separate listed of keys to extract from json')
-    group.add_argument('--split-sentences', action='store_true',
-                       help='Split documents into sentences.')
-    group.add_argument('--keep-newlines', action='store_true',
-                       help='Keep newlines between sentences when splitting.')
-    group.add_argument('--num-docs', default=None, help='Number of documents in the input data (if known) for an accurate progress bar.', type=int)
+    group.add_argument('--num-docs', default=None,
+                       help='Number of documents in the input data (if known) for an accurate progress bar.', type=int)
     group = parser.add_argument_group(title='tokenizer')
     group.add_argument('--tokenizer-type', type=str, required=True,
                        choices=['HFGPT2Tokenizer', 'HFTokenizer',
-                                'GPT2BPETokenizer'],
+                                'GPT2BPETokenizer', 'CharLevelTokenizer'],
                        help='What type of tokenizer to use.')
     group.add_argument('--vocab-file', type=str, default=None,
                        help='Path to the vocab file')
@@ -123,7 +78,8 @@ def get_args():
                        help='Path to the BPE merge file (if necessary).')
     group.add_argument('--append-eod', action='store_true',
                        help='Append an <eod> token to the end of a document.')
-
+    group.add_argument('--ftfy', action='store_true',
+                       help='Use ftfy to clean text')
     group = parser.add_argument_group(title='output data')
     group.add_argument('--output-prefix', type=str, required=True,
                        help='Path to binary output file without suffix')
@@ -146,63 +102,88 @@ def get_args():
     return args
 
 
-def _multi_lmd(fnames):
+def yield_from_files(fnames: list, semaphore):
+    """
+    Iterator over input documents using lm_dataformat. Should be able to handle jsons / texts /
+    other compressed formats. Also filters out empty documents.
+
+    :param fnames: list of filenames
+    """
+
+    def yielder(fname, semaphore):
+        for f in filter(lambda x: x, lmd.Reader(fname).stream_data()):
+            semaphore.acquire()
+            yield f
+
     for fname in fnames:
-        yield from filter(lambda x: x, lmd.Reader(fname).stream_data())
+        semaphore.acquire()
+
+        yield from yielder(fname, semaphore)
 
 
 def main():
     args = get_args()
-    startup_start = time.time()
-
-    print("Opening", args.input)
-    fin = _multi_lmd(args.input.split(","))
-
-    if nltk_available and args.split_sentences:
-        nltk.download("punkt", quiet=True)
-
     encoder = Encoder(args)
     tokenizer = build_tokenizer(args)
-    pool = multiprocessing.Pool(args.workers, initializer=encoder.initializer)
-    encoded_docs = pool.imap(encoder.encode, fin, 25)
-
-    level = "document"
-    if args.split_sentences:
-        level = "sentence"
-
     print(f"Vocab size: {tokenizer.vocab_size}")
     print(f"Output prefix: {args.output_prefix}")
+
+    # build a semaphore object to stop `yield_from_files` from getting ahead of encoder.encode and
+    # hence building up memory
+    semaphore = Semaphore(100 + args.workers)
+
+    # use multiprocessing to iterate over input documents
+    fin = yield_from_files(args.input.split(","), semaphore)
+
+    if args.workers > 1:
+        pool = multiprocessing.Pool(args.workers, initializer=encoder.initializer)
+        encoded_docs = pool.imap(encoder.encode, fin, chunksize=25)
+    else:
+        encoder.initializer()
+        encoded_docs = (encoder.encode(doc) for doc in fin)
+
+    # make a dataset builder for each key in args.json_keys
+    # each key will output to a different file beginning with args.output_prefix
     output_bin_files = {}
     output_idx_files = {}
     builders = {}
     for key in args.json_keys:
         output_bin_files[key] = "{}_{}_{}.bin".format(args.output_prefix,
-                                                      key, level)
+                                                      key, "document")
         output_idx_files[key] = "{}_{}_{}.idx".format(args.output_prefix,
-                                                      key, level)
+                                                      key, "document")
         builders[key] = indexed_dataset.make_builder(output_bin_files[key],
                                                      impl=args.dataset_impl,
                                                      vocab_size=tokenizer.vocab_size)
 
-    startup_end = time.time()
+    # actually do tokenization
     proc_start = time.time()
     total_bytes_processed = 0
-    print("Time to startup:", startup_end - startup_start)
     pbar = tqdm.tqdm()
     for i, (doc, bytes_processed) in enumerate(encoded_docs, start=1):
         total_bytes_processed += bytes_processed
+
+        # release semaphore so `yield_from_files` can add another file to the buffer
+        semaphore.release()
+
+        # add each tokenized document / sentence
         for key, sentences in doc.items():
             for sentence in sentences:
                 builders[key].add_item(torch.IntTensor(sentence))
+            # separate with eos token
             builders[key].end_document()
+
+        # log progress
         if i % args.log_interval == 0:
             current = time.time()
             elapsed = current - proc_start
             mbs = total_bytes_processed / elapsed / 1024 / 1024
-            pbar.set_description(f"Processed {i}{'' if args.num_docs is None else '/' + str(args.num_docs)} documents ({i / elapsed} docs/s, {mbs} MB/s).")
+            pbar.set_description(
+                f"Processed {i}{'' if args.num_docs is None else '/' + str(args.num_docs)} documents ({i / elapsed} docs/s, {mbs} MB/s).")
             if i != 0:
                 pbar.update(args.log_interval)
 
+    # save output file
     for key in args.json_keys:
         builders[key].finalize(output_idx_files[key])
 

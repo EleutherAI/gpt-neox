@@ -29,32 +29,29 @@ When done, add it to the DATA_DOWNLOADERS dict. The function process_data runs t
 dataset.
 """
 
-DEFAULT_DATA_DIR = os.environ.get('DATA_DIR', './data')
-
-DEFAULT_TOKENIZER_TYPE = "GPT2BPETokenizer"
-GPT2_VOCAB_FP = f"{DEFAULT_DATA_DIR}/gpt2-vocab.json"
 GPT2_VOCAB_URL = "https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-vocab.json"
-GPT2_MERGE_FP = f"{DEFAULT_DATA_DIR}/gpt2-merges.txt"
 GPT2_MERGE_URL = "https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-merges.txt"
 
 
 class DataDownloader(ABC):
     """Dataset registry class to automatically download / extract datasets"""
-
+    
     def __init__(self, tokenizer_type=None, merge_file=None, vocab_file=None, data_dir=None, num_workers=None):
         if tokenizer_type is None:
-            tokenizer_type = DEFAULT_TOKENIZER_TYPE
+            tokenizer_type = "GPT2BPETokenizer"
+        if data_dir is None:
+            data_dir = os.environ.get('DATA_DIR', './data')
         if merge_file is None:
-            merge_file = GPT2_MERGE_FP
+            merge_file = f"{data_dir}/gpt2-merges.txt"
         if vocab_file is None:
-            if tokenizer_type == DEFAULT_TOKENIZER_TYPE:
-                vocab_file = GPT2_VOCAB_FP
+            if tokenizer_type == "GPT2BPETokenizer":
+                vocab_file = f"{data_dir}/gpt2-vocab.json"
             elif tokenizer_type == "HFGPT2Tokenizer":
                 vocab_file = 'gpt2'
+            elif tokenizer_type == "CharLevelTokenizer":
+                pass
             else:
                 assert vocab_file is not None, 'No vocab file provided'
-        if data_dir is None:
-            data_dir = DEFAULT_DATA_DIR
         if num_workers is None:
             num_workers = cpu_count()
         self._tokenizer_type = tokenizer_type
@@ -105,6 +102,11 @@ class DataDownloader(ABC):
         """Number of documents in the dataset (if known)"""
         return None
 
+    @property
+    def ftfy(self):
+        """Use ftfy (https://github.com/LuminosoInsight/python-ftfy) to fix text encodings"""
+        return False
+
     def exists(self):
         """Checks if the dataset is present"""
         return os.path.isdir(f"{self.base_dir}/{self.name}")
@@ -134,7 +136,10 @@ class DataDownloader(ABC):
             --workers {self.num_workers} "
 
         if self.num_docs is not None:
-            cmd += f"--num-docs {self.num_docs}"
+            cmd += f"--num-docs {self.num_docs} "
+
+        if self.ftfy:
+            cmd += f"--ftfy "
 
         os.system(cmd)
 
@@ -167,7 +172,8 @@ class Github(DataDownloader):
 
 class ArXiv(DataDownloader):
     name = "arxiv"
-    urls = ["https://the-eye.eu/public/AI/pile_preliminary_components/2020-09-08-arxiv-extracts-nofallback-until-2007-068.tar.gz"]
+    urls = [
+        "https://the-eye.eu/public/AI/pile_preliminary_components/2020-09-08-arxiv-extracts-nofallback-until-2007-068.tar.gz"]
 
 
 class EuroParl(DataDownloader):
@@ -203,6 +209,7 @@ class Books3(DataDownloader):
 class HackerNews(DataDownloader):
     name = "hackernews"
     urls = ["https://the-eye.eu/public/AI/pile_preliminary_components/hn.tar.gz"]
+    num_docs = 373000
 
 
 class OpenWebText2(DataDownloader):
@@ -236,8 +243,15 @@ class C4OpenWebText(DataDownloader):
     urls = [f"https://the-eye.eu/eleuther_staging/c4/realnewslike/c4-train.{i:05}-of-00512.json.gz" for i in range(512)]
 
 
-def maybe_download_gpt2_tokenizer_data(tokenizer_type):
-    if tokenizer_type is None or tokenizer_type == DEFAULT_TOKENIZER_TYPE:
+class Enwik8(DataDownloader):
+    name = "enwik8"
+    urls = ["https://data.deepai.org/enwik8.zip"]
+
+
+def maybe_download_gpt2_tokenizer_data(tokenizer_type, data_dir):
+    if tokenizer_type is None or tokenizer_type == "GPT2BPETokenizer":
+        GPT2_VOCAB_FP = f"{data_dir}//gpt2-vocab.json"
+        GPT2_MERGE_FP = f"{data_dir}/gpt2-merges.txt"
         if not os.path.isfile(GPT2_VOCAB_FP):
             os.system(f'wget {GPT2_VOCAB_URL} -O {GPT2_VOCAB_FP}')
         if not os.path.isfile(GPT2_MERGE_FP):
@@ -245,6 +259,7 @@ def maybe_download_gpt2_tokenizer_data(tokenizer_type):
 
 
 DATA_DOWNLOADERS = {
+    "pass": "pass",
     "enron": Enron,
     "pile_subset": PileSubset,
     "pile": Pile,
@@ -262,7 +277,8 @@ DATA_DOWNLOADERS = {
     "ubuntu_irc": UbuntuIRC,
     "youtube_subtitles": YoutubeSubtitles,
     "c4": C4,
-    "c4_openwebtext": C4OpenWebText
+    "c4_openwebtext": C4OpenWebText,
+    "enwik8": Enwik8
 }
 
 
@@ -272,14 +288,18 @@ def prepare_dataset(dataset_name: str, tokenizer_type: str = None, data_dir: str
     Downloads + tokenizes a dataset in the registry (dataset_name) and saves output .npy files to data_dir.
     """
     if data_dir is None:
-        data_dir = DEFAULT_DATA_DIR
+        data_dir = os.environ.get('DATA_DIR', './data')
     os.makedirs(data_dir, exist_ok=True)
-    maybe_download_gpt2_tokenizer_data(tokenizer_type)
+    maybe_download_gpt2_tokenizer_data(tokenizer_type, data_dir)
     DownloaderClass = DATA_DOWNLOADERS.get(dataset_name.lower(), None)
     if DownloaderClass is None:
         raise NotImplementedError(
             f'Dataset "{dataset_name}" not recognized - please choose from {list(DATA_DOWNLOADERS.keys())}')
+    elif DownloaderClass == "pass":
+        # pass on building dataset (for unit tests)
+        pass
     else:
+        num_workers = 1 if dataset_name == "enwik8" else num_workers
         d = DownloaderClass(tokenizer_type=tokenizer_type, vocab_file=vocab_file, merge_file=merge_file,
                             data_dir=data_dir, num_workers=num_workers)
         d.prepare()

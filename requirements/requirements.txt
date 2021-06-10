@@ -1,0 +1,12 @@
+pybind11==2.6.2
+six
+regex
+numpy==1.20.2
+git+git://github.com/EleutherAI/DeeperSpeed.git@2d6a0d3de1282aa77a86df1a0d2a7ffa8647790b#egg=deepspeed
+mpi4py==3.0.3
+wandb==0.10.28
+einops==0.3.0
+transformers==4.5.0
+tokenizers==0.10.2
+lm_dataformat==0.0.19
+ftfy==6.0.1

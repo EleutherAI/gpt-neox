@@ -26,58 +26,74 @@ import sys
 import numpy as np
 
 import torch
-from torch.nn.parallel import DistributedDataParallel as torchDDP
 from glob import glob
 
-from megatron import mpu, get_args
-from megatron import get_args
+from megatron import mpu
 from megatron import print_rank_0
 from megatron.utils import natural_sort
+from megatron.text_generation_utils import get_batch, forward_model
 
-_CHECKPOINT_VERSION = None
-
-
-def set_checkpoint_version(value):
-    global _CHECKPOINT_VERSION
-    assert _CHECKPOINT_VERSION is None, \
-        "checkpoint version already set"
-    _CHECKPOINT_VERSION = value
-
-
-def get_checkpoint_version():
-    global _CHECKPOINT_VERSION
-    return _CHECKPOINT_VERSION
-
-
-def check_checkpoint_args(checkpoint_args):
+def check_checkpoint_args(neox_args, checkpoint_args):
     """Ensure fixed arguments for a model are the same for the input
     arguments and the one retreived frm checkpoint."""
-    args = get_args()
 
-    def _compare(arg_name):
-        checkpoint_value = getattr(checkpoint_args, arg_name)
-        args_value = getattr(args, arg_name)
-        error_message = '{} value from checkpoint ({}) is not equal to the ' \
-                        'input argument value ({}).'.format(
-            arg_name, checkpoint_value, args_value)
-        assert checkpoint_value == args_value, error_message
+    assert isinstance(checkpoint_args, dict), "args stored in checkpoint is a dict"
+    for checkpoint_arg_name, checkpoint_arg_value in checkpoint_args.items():
+        args_value = getattr(neox_args, checkpoint_arg_name)
+        error_message = '{} value from checkpoint ({}) is not equal to the currently set argument value ({}).'.format(checkpoint_arg_name, checkpoint_arg_value, args_value)
+        assert checkpoint_arg_value == args_value, error_message
 
-    _compare('num_layers')
-    _compare('hidden_size')
-    _compare('num_attention_heads')
-    _compare('max_position_embeddings')
-    _compare('make_vocab_size_divisible_by')
-    _compare('padded_vocab_size')
-    _compare('tokenizer_type')
-    _compare('model_parallel_size')
+def do_forward_pass(neox_args, model, inference=False):
+    
+    # set to eval mode
+    model_was_in_train = model.training
+    model.eval()
+    
+    # get context tokens
+    # always forward full batch size
+    context_tokens_tensor = torch.arange(2049).repeat((neox_args.train_micro_batch_size_per_gpu, 1)).cuda()
 
+    # forward
+    if inference:
+        tokens, attention_mask, position_ids = get_batch(neox_args, context_tokens_tensor[:, :2048])
+        model_inputs = (tokens,
+                        position_ids,
+                        attention_mask,
+                        torch.Tensor(),
+                        )
+        logits, _ = forward_model(neox_args, model, model_inputs)
+    elif neox_args.is_pipe_parallel:
+        data_iterator = iter([{"text": context_tokens_tensor}])
+        _, logits = model.eval_batch(data_iter=data_iterator, return_logits=True)
+    else:
+        tokens, attention_mask, position_ids = get_batch(neox_args, context_tokens_tensor[:, :2048])
+        logits = model((tokens, position_ids, attention_mask))
+
+    # reset to train mode, if model was in training before
+    if model_was_in_train:
+        model.train()
+
+    if logits is not None:
+        logits = logits.detach().cpu()[0] # just return first batch item (they are all equal)
+
+    return logits
+
+def check_forward_pass(neox_args, model, checkpoint_logits, inference):
+    # do forward pass with loaded checkpoint
+    logits = do_forward_pass(neox_args=neox_args, model=model, inference=inference)
+
+    # check
+    if logits is not None and checkpoint_logits is not None: # this could be the case for non-final pipeline stages
+        if not (logits == checkpoint_logits).all().item():
+            if mpu.get_data_parallel_rank() == 0:
+                    print(" > WARNING: validate_checkpoint_forward() forward after load of checkpoint does not yield exactly same result")
+            assert torch.isclose(logits, checkpoint_logits).all().item(), "validate_checkpoint_forward() forward after load of checkpoint does not yield a close result"
 
 def ensure_directory_exists(filename):
     """Build filename's path if it does not already exists."""
     dirname = os.path.dirname(filename)
     if not os.path.exists(dirname):
         os.makedirs(dirname)
-
 
 def get_checkpoint_name(checkpoints_path, iteration,
                         release=False, mp_rank=None):
@@ -91,13 +107,6 @@ def get_checkpoint_name(checkpoints_path, iteration,
                             mpu.get_model_parallel_rank() if mp_rank is None
                             else mp_rank),
                         'model_optim_rng.pt')
-
-
-def get_checkpoint_tracker_filename(checkpoints_path):
-    """Tracker file rescords the latest chckpoint during
-    training to restart from."""
-    return os.path.join(checkpoints_path, 'latest_checkpointed_iteration.txt')
-
 
 def delete_old_checkpoints(save_dir, n_to_keep):
     if torch.distributed.get_rank() == 0:
@@ -116,202 +125,99 @@ def delete_old_checkpoints(save_dir, n_to_keep):
                 except FileNotFoundError:
                     pass
 
-
-def save_ds_checkpoint(iteration, model, args):
+def save_ds_checkpoint(iteration, model, neox_args):
     """Save a model checkpoint."""
-
-    sd = {}
-    sd['iteration'] = iteration
+    sd = {
+        'iteration': iteration,
+        'args': {
+            'num_layers': neox_args.num_layers,
+            'hidden_size': neox_args.hidden_size,
+            'num_attention_heads': neox_args.num_attention_heads,
+            'max_position_embeddings': neox_args.max_position_embeddings,
+            'make_vocab_size_divisible_by': neox_args.make_vocab_size_divisible_by,
+            'padded_vocab_size': neox_args.padded_vocab_size,
+            'tokenizer_type': neox_args.tokenizer_type,
+            'model_parallel_size': neox_args.model_parallel_size
+            }
+        }
     # rng states.
-    if not args.no_save_rng:
+    if not neox_args.no_save_rng:
         sd['random_rng_state'] = random.getstate()
         sd['np_rng_state'] = np.random.get_state()
         sd['torch_rng_state'] = torch.get_rng_state()
         sd['cuda_rng_state'] = torch.cuda.get_rng_state()
         sd['rng_tracker_states'] = mpu.get_cuda_rng_tracker().get_states()
+    
+    if neox_args.checkpoint_validation_with_forward_pass:
+        logits = do_forward_pass(neox_args=neox_args, model=model)
+        sd['checkpoint_validation_logits'] = logits
+    
+    model.save_checkpoint(neox_args.save, client_state=sd)
 
-    if args.pipe_parallel_size == 0:
-        # megatron model uses state_dict_for_save_checkpointing instead of the standard state_dict
-        # state_dict is used by deepspeed for module saving so it needs to point to the right function
-        model.module.state_dict = model.module.state_dict_for_save_checkpoint
-    else:
-        # Pipeline parallelism manages its own state_dict.
-        pass
-
-    model.save_checkpoint(args.save, client_state=sd)
-
-
-def save_checkpoint(iteration, model, optimizer, lr_scheduler):
+def save_checkpoint(neox_args, iteration, model, optimizer, lr_scheduler):
     """Save a model checkpoint."""
-    args = get_args()
 
-    if args.deepspeed:
-        save_ds_checkpoint(iteration, model, args)
+    if neox_args.deepspeed:
+        save_ds_checkpoint(iteration, model, neox_args)
     else:
-        # Only rank zero of the data parallel writes to the disk.
-        if isinstance(model, torchDDP):
-            model = model.module
-        if mpu.get_data_parallel_rank() == 0:
-
-            # Arguments, iteration, and model.
-            state_dict = {}
-            state_dict['args'] = args
-            state_dict['checkpoint_version'] = 2.0
-            state_dict['iteration'] = iteration
-            state_dict['model'] = model.state_dict_for_save_checkpoint()
-
-            # Optimizer stuff.
-            if not args.no_save_optim:
-                if optimizer is not None:
-                    state_dict['optimizer'] = optimizer.state_dict()
-                if lr_scheduler is not None:
-                    state_dict['lr_scheduler'] = lr_scheduler.state_dict()
-
-            # RNG states.
-            if not args.no_save_rng:
-                state_dict['random_rng_state'] = random.getstate()
-                state_dict['np_rng_state'] = np.random.get_state()
-                state_dict['torch_rng_state'] = torch.get_rng_state()
-                state_dict['cuda_rng_state'] = torch.cuda.get_rng_state()
-                state_dict['rng_tracker_states'] \
-                    = mpu.get_cuda_rng_tracker().get_states()
-
-            # Save.
-            checkpoint_name = get_checkpoint_name(args.save, iteration)
-            print('global rank {} is saving checkpoint at iteration {:7d} to {}'.
-                  format(torch.distributed.get_rank(), iteration,
-                         checkpoint_name))
-            ensure_directory_exists(checkpoint_name)
-            torch.save(state_dict, checkpoint_name)
-            print('  successfully saved {}'.format(checkpoint_name))
+        raise ValueError('Must be using deepspeed to use neox')
 
     # Wait so everyone is done (necessary)
     torch.distributed.barrier()
-    # And update the latest iteration
-    if torch.distributed.get_rank() == 0:
-        tracker_filename = get_checkpoint_tracker_filename(args.save)
-        with open(tracker_filename, 'w') as f:
-            f.write(str(iteration))
-
-    # Wait so everyone is done (necessary)
-    torch.distributed.barrier()
-    if args.keep_last_n_checkpoints is not None:
-        delete_old_checkpoints(args.save, args.keep_last_n_checkpoints)
+    if neox_args.keep_last_n_checkpoints is not None:
+        delete_old_checkpoints(neox_args.save, neox_args.keep_last_n_checkpoints)
 
     # Wait so everyone is done (not necessary)
     torch.distributed.barrier()
 
-
-def load_checkpoint(model, optimizer, lr_scheduler, load_arg='load'):
+def load_checkpoint(neox_args, model, optimizer, lr_scheduler, inference=False):
     """Load a model checkpoint and return the iteration."""
-    args = get_args()
-    load_dir = getattr(args, load_arg)
 
-    if isinstance(model, torchDDP):
-        model = model.module
-    # Read the tracker file and set the iteration.
-    tracker_filename = get_checkpoint_tracker_filename(load_dir)
-
-    # If no tracker file, return iretation zero.
-    if not os.path.isfile(tracker_filename):
-        print_rank_0('WARNING: could not find the metadata file {} '.format(
-            tracker_filename))
-        print_rank_0('    will not load any checkpoints and will start from '
-                     'random')
-        return 0
-
-    # Otherwise, read the tracker file and either set the iteration or
-    # mark it as a release checkpoint.
-    iteration = 0
-    release = False
-    with open(tracker_filename, 'r') as f:
-        metastring = f.read().strip()
-        try:
-            iteration = int(metastring)
-        except ValueError:
-            release = metastring == 'release'
-            if not release:
-                print_rank_0('ERROR: Invalid metadata file {}. Exiting'.format(
-                    tracker_filename))
-                sys.exit()
-
-    assert iteration > 0 or release, 'error parsing metadata file {}'.format(
-        tracker_filename)
-
-    if args.deepspeed:
-        checkpoint_name, state_dict = model.load_checkpoint(load_dir)
+    if neox_args.deepspeed:
+        load_optim_and_scheduler = not neox_args.no_load_optim  # TODO: These should be configured by separate args
+        checkpoint_name, state_dict = model.load_checkpoint(neox_args.load,
+                                                            load_optimizer_states=load_optim_and_scheduler,
+                                                            load_lr_scheduler_states=load_optim_and_scheduler)
 
         if checkpoint_name is None:
             if mpu.get_data_parallel_rank() == 0:
                 print("Unable to load checkpoint.")
-            return iteration
-
+            return 0 # iteration 0, if not checkpoint loaded
     else:
-        # Checkpoint.
-        checkpoint_name = get_checkpoint_name(load_dir, iteration, release)
-        if mpu.get_data_parallel_rank() == 0:
-            print('global rank {} is loading checkpoint {}'.format(
-                torch.distributed.get_rank(), checkpoint_name))
-
-        # Load the checkpoint.
-        try:
-            state_dict = torch.load(checkpoint_name, map_location='cpu')
-        except ModuleNotFoundError:
-            # For backward compatibility.
-            print_rank_0(' > deserializing using the old code structure ...')
-            sys.modules['fp16.loss_scaler'] = sys.modules[
-                'megatron.fp16.loss_scaler']
-            state_dict = torch.load(checkpoint_name, map_location='cpu')
-            sys.modules.pop('fp16.loss_scaler', None)
-        except BaseException:
-            print_rank_0('could not load the checkpoint')
-            sys.exit()
-            # Model.
-
-        model.load_state_dict(state_dict['model'])
-
-        # Optimizer.
-        if not release and not args.finetune and not args.no_load_optim:
-            try:
-                if optimizer is not None:
-                    optimizer.load_state_dict(state_dict['optimizer'])
-                if lr_scheduler is not None:
-                    lr_scheduler.load_state_dict(state_dict['lr_scheduler'])
-            except KeyError:
-                print_rank_0(
-                    'Unable to load optimizer from checkpoint {}. '
-                    'Specify --no-load-optim or --finetune to prevent '
-                    'attempting to load the optimizer state, '
-                    'exiting ...'.format(checkpoint_name))
-                sys.exit()
-
-    # set checkpoint version
-    set_checkpoint_version(state_dict.get('checkpoint_version', 0))
+        raise ValueError('Must be using deepspeed to use neox')
 
     # Set iteration.
-    if args.finetune or release:
+    if neox_args.finetune:
         iteration = 0
     else:
-        try:
-            iteration = state_dict['iteration']
-        except KeyError:
-            try:  # Backward compatible with older checkpoints
-                iteration = state_dict['total_iters']
-            except KeyError:
-                print_rank_0('A metadata file exists but unable to load '
-                             'iteration from checkpoint {}, exiting'.format(
-                    checkpoint_name))
-                sys.exit()
+        iteration = state_dict.get('iteration') or state_dict.get("total_iters") # total_iters backward compatible with older checkpoints
+        if iteration is None:
+            raise ValueError('Unable to load iteration from checkpoint {}, exiting'.format(checkpoint_name))
 
     # Check arguments.
     if 'args' in state_dict:
         checkpoint_args = state_dict['args']
-        check_checkpoint_args(checkpoint_args)
+        check_checkpoint_args(neox_args=neox_args, checkpoint_args=checkpoint_args)
+        print_rank_0(' > validated currently set args with arguments in the checkpoint ...')
     else:
-        print_rank_0('could not find arguments in the checkpoint ...')
+        print_rank_0(' > could not find arguments in the checkpoint for validation...')
+
+    # Check loaded checkpoint with forward pass
+    if neox_args.checkpoint_validation_with_forward_pass:
+        if "checkpoint_validation_logits" in state_dict:
+            check_forward_pass(
+                neox_args=neox_args, 
+                model=model, 
+                checkpoint_logits=state_dict["checkpoint_validation_logits"],
+                inference=inference
+                )
+            print_rank_0(' > validated loaded checkpoint with forward pass ...')
+        else:
+            if mpu.get_data_parallel_rank() == 0:
+                print(' > WARNING: checkpoint_validation_with_forward_pass is configured but no checkpoint validation data available in checkpoint {}'.format(checkpoint_name))
 
     # rng states.
-    if not release and not args.finetune and not args.no_load_rng:
+    if not neox_args.finetune and not neox_args.no_load_rng:
         try:
             random.setstate(state_dict['random_rng_state'])
             np.random.set_state(state_dict['np_rng_state'])

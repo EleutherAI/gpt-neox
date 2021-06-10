@@ -13,14 +13,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
+
 import deepspeed
 from deepspeed.launcher.runner import main
+
 import requests
 import subprocess
 
 from megatron.config_monster import ConfigMonster
+from megatron.neox_arguments import NeoXArgs
 from megatron.utils import get_wandb_api_key
+
 import logging
 
 from megatron.logging import Tee
@@ -42,19 +47,19 @@ extra_conf = {
     'git_hash': get_git_commit_hash()
 }
 
+neox_args = NeoXArgs.consume_deepy_args()
+if neox_args.wandb_group is not None:
+    # concat the wandb group name with a uid to make sure it's unique
+    import wandb
+    neox_args.wandb_group += "_" + wandb.util.generate_id()
+neox_args.print()
+deepspeed_main_args = neox_args.get_deepspeed_main_args()
+
 # Extract wandb API key and inject into worker environments
-wandb_token = get_wandb_api_key()
+wandb_token = get_wandb_api_key(neox_args=neox_args)
 if wandb_token is not None:
     deepspeed.launcher.runner.EXPORT_ENVS.append('WANDB_API_KEY')
     os.environ['WANDB_API_KEY'] = wandb_token
 
-old_style_args, conf = ConfigMonster().consume_args(extra_conf=extra_conf)
-
-if 'log-dir' in conf:
-    os.makedirs(conf['log-dir'], exist_ok=True)
-    file_prefix = os.path.join(conf['log-dir'], '0-deepy')
-    Tee(file_prefix + '_stdout.txt', err=False)
-    Tee(file_prefix + '_stderr.txt', err=True)
-
 if __name__ == '__main__':
-    main(old_style_args)
+    main(deepspeed_main_args)

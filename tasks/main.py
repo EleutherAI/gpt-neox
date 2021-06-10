@@ -55,10 +55,16 @@ def get_tasks_args(parser):
 
 
 if __name__ == '__main__':
-
+    raise NotImplementedError("The neox codebase has been refactored. The task code needs to be adapted to the new codebase.")
+    
+    #neox_args = NeoXArgs.from_ymls(["configs/small.yml", "configs/local_setup.yml", "configs/text_generation.yml"]) #TODO remove_global_vars could also load from checkpoint here
+    #neox_args.build_tokenizer() #TODO remove global vars
+    # TODO remove_global_vars initialized from command line args?
+    #neox_args = NeoXArgs.consume_neox_args()
+    
     initialize_megatron(extra_args_provider=get_tasks_args)
 
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     if args.task in ['LAMBADA', 'WIKITEXT103']:
         from zeroshot_gpt2.evaluate import main
     else:

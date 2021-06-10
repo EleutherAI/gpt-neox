@@ -70,11 +70,14 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
     echo 'export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:$LD_LIBRARY_PATH' >> /home/mchorse/.bashrc
 
 #### Python packages
-RUN pip install torch==1.8.0+cu111 -f https://download.pytorch.org/whl/torch_stable.html && pip cache purge
+RUN pip install torch==1.8.1+cu111 -f https://download.pytorch.org/whl/torch_stable.html && pip cache purge
+COPY requirements/requirements.txt .
+COPY requirements/requirements-onebitadam.txt .
+COPY requirements/requirements-sparseattention.txt .
+RUN pip install -r requirements.txt && pip install -r requirements-onebitadam.txt && pip install -r requirements-sparseattention.txt && pip cache purge
 
-COPY requirements.txt .
-RUN pip install -r requirements.txt && pip cache purge
-RUN pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@e2083df5eb96643c61613b9df48dd4eea6b07690
+## Install APEX
+RUN pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@a651e2c24ecf97cbf367fd3f330df36760e1c597
 
 # Clear staging
 RUN mkdir -p /tmp && chmod 0777 /tmp

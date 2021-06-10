@@ -132,4 +132,21 @@ dmypy.json
 wandb/
 
 # data files 
-data/
+data/**/*.idx
+data/**/*.bin
+data/**/*.json*
+data/**/*.txt
+data/**/*.gz
+data/**/*.np*
+data/**/*.npy
+checkpoints/
+.vscode/
+*.pt
+*.ckpt
+
+#test logs
+test_checkpoint/
+test_logs/
+logs/
+tensorboard/
+src/

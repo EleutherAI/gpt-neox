@@ -22,8 +22,8 @@ import numpy as np
 import torch
 
 from megatron import get_args
-from megatron import print_rank_0
 from megatron import get_tokenizer
+from megatron import print_rank_0
 from .detokenizer import get_detokenizer
 
 
@@ -128,7 +128,7 @@ class _LambadaDataset(torch.utils.data.Dataset):
 
 def _build_lambada_dataset():
     """Build lambada dataset."""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     tokenizer = get_tokenizer()
 
     assert len(args.valid_data) == 1
@@ -141,7 +141,7 @@ def _build_lambada_dataset():
 
 def _build_wikitext103_dataset():
     """"""
-    args = get_args()
+    args = get_args() # TODO remove_global_vars
     tokenizer = get_tokenizer()
 
     assert len(args.valid_data) == 1

@@ -19,8 +19,6 @@ from .cross_entropy import vocab_parallel_cross_entropy
 
 from .data import broadcast_data
 
-from .grads import clip_grad_norm
-
 from .initialize import is_unitialized
 from .initialize import destroy_model_parallel
 from .initialize import get_data_parallel_group
@@ -50,9 +48,7 @@ from .mappings import scatter_to_model_parallel_region
 
 from .random import checkpoint
 from .random import get_cuda_rng_tracker
-from .random import init_checkpointed_activations_memory_buffer
 from .random import model_parallel_cuda_manual_seed
-from .random import reset_checkpointed_activations_memory_buffer
 
 from .utils import divide
 from .utils import split_tensor_along_last_dim
