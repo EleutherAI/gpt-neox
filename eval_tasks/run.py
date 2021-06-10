@@ -20,35 +20,10 @@
 
 import os
 import sys
-from functools import partial
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
                                              os.path.pardir)))
-
-from megatron import print_rank_0
 from megatron.training import forward_step
-from megatron.initialize import initialize_megatron
-from megatron.neox_arguments import NeoXArgs
-from megatron import initialize_megatron
-from megatron.training import setup_model_and_optimizer
-from megatron.utils import print_rank_0, is_mp_rank_0, is_local_main, setup_for_inference_or_eval
-from megatron.utils import ddb
-
-from tqdm import tqdm 
-
-import torch
-import lm_eval
-from lm_eval.base import CacheHook
-
-from lm_eval.models.gpt2 import GPT2LM
-from lm_eval import tasks, evaluator
-from lm_eval import utils
-import torch.nn.functional as F
-
-import collections
-import itertools
-import random
-import lm_eval.metrics
-
+from megatron.utils import setup_for_inference_or_eval
 from adaptor import run_eval_harness
 
 
