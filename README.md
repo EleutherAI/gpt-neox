@@ -7,7 +7,7 @@ This repository records [EleutherAI](www.eleuther.ai)'s work-in-progress for tra
 
 We aim to make this repo a centralized and accessible place to gather techniques for training large scale autoregressive language models, and accelerate research into large scale training. Additionally, we hope to train and open source a 175B parameter GPT3 replication along the way. 
 
-For more info on our progress, please [join our discord](https://discord.com/invite/vtRgjbM) and head to the `#gpt-neo` channel. We're working with cloud compute provider [Coreweave](https://www.coreweave.com/) for training, and hope to release the weights of smaller models as we progress up to 175B parameters.
+For more info on our progress, please [join our discord](https://discord.gg/zBGx3azzUn) and head to the `#gpt-neo` channel. We're working with cloud compute provider [Coreweave](https://www.coreweave.com/) for training, and hope to release the weights of smaller models as we progress up to 175B parameters.
 
 If you're looking for our TPU codebase, see [GPT-Neo](https://github.com/EleutherAI/gpt-neo).
 
