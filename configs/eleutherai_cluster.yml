@@ -16,4 +16,5 @@
   "tensorboard-dir": "/mnt/ssd-cluster/tensorboard",
   "log-dir": "/mnt/ssd-cluster/logs",
   "wandb_team": "eleutherai",
+  "wandb_project": distil
 }

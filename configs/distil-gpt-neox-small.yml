@@ -3,7 +3,7 @@
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
    # parallel pipeline is not implemeted for distillation.
-   "pipe-parallel-size": 0,
+   "pipe-parallel-size": 2,
    "model-parallel-size": 1,
 
    #related to distillation
