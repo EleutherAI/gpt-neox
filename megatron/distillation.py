@@ -58,10 +58,7 @@ def distillation(neox_args):
         neox_args: an instance of NeoXArgs containing the configuration for pretrain
 
     """
-
-    if neox_args.is_pipe_parallel:
-        raise NotImplementedError("Pipe parallel for distillation to be implemented!")
-
+    
     # setup logging and timers
     init_wandb(neox_args=neox_args)
     timers = Timers(use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
@@ -188,8 +185,7 @@ def distil_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler
     teacher_model, student_model = model
 
     if neox_args.is_pipe_parallel:
-        raise NotImplementedError("Pipe parallel for distillation to be implemented!")
-        # reduced_loss = train_step_pipe(neox_args=neox_args, timers=timers, model=model, data_iterator=data_iterator)
+        reduced_loss = distil_step_pipe(neox_args=neox_args, timers=timers, model=model, data_iterator=data_iterator)
     else:
         losses = []
         for _ in range(neox_args.gradient_accumulation_steps):
