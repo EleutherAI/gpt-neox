@@ -545,13 +545,6 @@ def evaluate(neox_args, forward_step_fn, data_iterator, model, verbose=False, ti
             # forward pass
             if neox_args.deepspeed and neox_args.deepspeed_activation_checkpointing:
                 deepspeed.checkpointing.reset()
-    ##########################################################################################
-    # for lm eval harness:
-    # run_eval_harness(model=model,
-    #                  forward_step_fn=forward_step_fn,
-    #                  neox_args=neox_args,
-    #                  timers=timers)
-    ###########################################################################################
     # reduces losses across processes for logging
     reduced_loss = {"lm_loss": reduce_losses(losses).mean()}
     # Move model back to the train mode.
