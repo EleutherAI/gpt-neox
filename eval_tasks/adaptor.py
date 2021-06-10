@@ -28,7 +28,8 @@ class EvalHarnessAdaptor(GPT2LM):
         self.cache_hook = CacheHook(None)
         self.is_main = neox_args.rank == 0
         self.is_local_main = neox_args.local_rank == 0
-        self.is_pipe_parallel = neox_args.pipe_parallel_size > 1
+        self.is_pipe_parallel = self.model.is_pipe_parallel
+        self.is_data_parallel = self.model.is_data_parallel
         self.is_last_stage = True if not self.is_pipe_parallel else model.is_last_stage()  # only the last stage of the pipeline model will receive the logits
 
     def greedy_until(self, requests):
@@ -134,7 +135,7 @@ class EvalHarnessAdaptor(GPT2LM):
                                      provide_description=False,
                                      num_fewshot=0,
                                      limit=None,
-                                     bootstrap_iters=1)
+                                     bootstrap_iters=2)
         if was_training:
             self.model.train()
         return results

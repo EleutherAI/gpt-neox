@@ -16,7 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Main tasks functionality."""
+"""Evaluation tasks - modified from https://github.com/EleutherAI/lm-evaluation-harness"""
 
 import os
 import sys
@@ -25,8 +25,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
 from megatron.training import forward_step
 from megatron.utils import setup_for_inference_or_eval
 from adaptor import run_eval_harness
+from pprint import pprint
 
+# TO RUN: ./deepy.py eval_tasks/run.py configs/your_config.yml
 
 if __name__ == "__main__":
     model, neox_args = setup_for_inference_or_eval(inference=False, get_key_value=False)
-    run_eval_harness(model, forward_step, neox_args)
+    results = run_eval_harness(model, forward_step, neox_args)
+    if neox_args.rank == 0:
+        pprint(dict(results['results']))
