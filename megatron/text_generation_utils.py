@@ -398,7 +398,8 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], 
                     generated_text = None
                     message = "WARNING: generated token which doesn't exist."
             else:
-                generated_tokens = list()
+                generated_text = None
+                generated_tokens = []
                 message = "WARNING: text generation did not start; try different batching or adjust parameters"
             if is_mp_rank_0():
                 data = {
