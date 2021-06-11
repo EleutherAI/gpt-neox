@@ -10,6 +10,22 @@ from lm_eval.base import CacheHook
 from lm_eval.models.gpt2 import GPT2LM
 from lm_eval import tasks, evaluator, utils
 import torch.nn.functional as F
+from megatron.text_generation_utils import generate_samples_from_prompt
+import inspect 
+from lm_eval import tasks 
+
+GENERATION_TASKS = []
+LL_TASKS = []
+
+# hacky way to differentiate the generation tasks from the log likelihood tasks
+
+for task_name, task_class in tasks.TASK_REGISTRY.items():
+    if hasattr(task_class, 'construct_requests'):
+        src = inspect.getsource(task_class.construct_requests)
+        if '.greedy_until(' in src:
+            GENERATION_TASKS.append(task_name)
+        else:
+            LL_TASKS.append(task_name)
 
 
 class EvalHarnessAdaptor(GPT2LM):
@@ -22,7 +38,9 @@ class EvalHarnessAdaptor(GPT2LM):
         self.model = model
         self._forward_step_fn = partial(forward_step_fn, neox_args=neox_args, timers=None, return_logits=True)
         self.max_length = neox_args.max_position_embeddings // 2
-        self.tokenizer.encode = self.tokenizer.tokenize  # patch tokenizer encode method
+        self.max_gen_toks = 256
+        self.tokenizer.encode = self.tokenizer.tokenize  # patch tokenizer encode + decode methods
+        self.tokenizer.decode = self.tokenizer.detokenize
         self.batch_size = batch_size or neox_args.batch_size
         self.neox_args = neox_args
         self.cache_hook = CacheHook(None)
@@ -31,9 +49,38 @@ class EvalHarnessAdaptor(GPT2LM):
         self.is_pipe_parallel = self.model.is_pipe_parallel
         self.is_data_parallel = self.model.is_data_parallel
         self.is_last_stage = True if not self.is_pipe_parallel else model.is_last_stage()  # only the last stage of the pipeline model will receive the logits
+        self.generate = partial(generate_samples_from_prompt, neox_args=neox_args, model=model, maximum_tokens=self.max_gen_toks)
 
     def greedy_until(self, requests):
-        raise NotImplementedError
+        res = []
+
+        def _collate(x):
+            toks = self.tokenizer.encode(x[0])
+            return (len(toks), x[0])
+        
+        reord = utils.Reorderer(requests, _collate)
+
+        for context, until in tqdm(reord.get_reordered()):
+            if isinstance(until, str): until = [until]
+
+            # TODO: add stop sequence
+            primary_until, = self.tokenizer.encode(until[0])
+
+            cont = self.generate(text=context, 
+                                 eos_token_id=primary_until, 
+                                 recompute = False)
+
+            s = cont[0]['text'] or ''
+
+            for term in until:
+                s = s.split(term)[0]
+            
+            # partial caching
+            self.cache_hook.add_partial("greedy_until", (context, until), s)
+            
+            res.append(s)
+        
+        return reord.get_original(res)
 
     def _loglikelihood_tokens(self, requests, disable_tqdm=False):
         # TODO: implement some kind of efficient-request-middleware that lumps together requests with the same context
@@ -130,18 +177,30 @@ class EvalHarnessAdaptor(GPT2LM):
         self.model.eval()
         if eval_tasks is None:
             eval_tasks = ["lambada", "piqa", "hellaswag", "winogrande", "mathqa", "pubmedqa"]
-        results = evaluator.evaluate(lm=self,
-                                     task_dict=tasks.get_task_dict(eval_tasks),
-                                     provide_description=False,
-                                     num_fewshot=0,
-                                     limit=None,
-                                     bootstrap_iters=2)
+        generation_tasks = [t for t in eval_tasks if t in GENERATION_TASKS]
+        ll_tasks = [t for t in eval_tasks if t in LL_TASKS]
+        ll_results, generation_results = {}, {}
+        if ll_tasks:
+            ll_results = evaluator.evaluate(lm=self,
+                                        task_dict=tasks.get_task_dict(ll_tasks),
+                                        provide_description=False,
+                                        num_fewshot=0,
+                                        limit=None,
+                                        bootstrap_iters=2)
+        if generation_tasks:
+            generation_results = evaluator.evaluate(lm=self,
+                                        task_dict=tasks.get_task_dict(generation_tasks),
+                                        provide_description=False,
+                                        num_fewshot=0,
+                                        limit=None,
+                                        bootstrap_iters=2)
+        results = {**ll_results, **generation_results}
         if was_training:
             self.model.train()
         return results
 
 
-def run_eval_harness(model, forward_step_fn, neox_args, batch_size=None):
+def run_eval_harness(model, forward_step_fn, neox_args, tasks=None, batch_size=None):
     print_rank_0('Running evaluation harness...')
     adaptor = EvalHarnessAdaptor(model, forward_step_fn, neox_args, batch_size)
-    return adaptor.run_eval()
+    return adaptor.run_eval(eval_tasks=tasks)
