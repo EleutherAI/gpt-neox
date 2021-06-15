@@ -38,7 +38,7 @@ if __name__ == "__main__":
     results = run_eval_harness(model, forward_step, neox_args, eval_tasks=neox_args.eval_tasks)
     if neox_args.rank == 0:
         pprint(dict(results['results']))
-        results_path = f'eval_results{datetime.now().strftime("%m-%d-%Y-%H-%M-%S")}.json'
+        results_path = f'eval_results_{datetime.now().strftime("%m-%d-%Y-%H-%M-%S")}.json'
         if neox_args.eval_results_prefix:
             results_path = f"{neox_args.eval_results_prefix}_{results_path}"
         with open(results_path, 'w') as f:

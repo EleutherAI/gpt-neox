@@ -10,7 +10,22 @@ from lm_eval.base import CacheHook
 from lm_eval.models.gpt2 import GPT2LM
 from lm_eval import tasks, evaluator, utils
 import torch.nn.functional as F
+from megatron.text_generation_utils import generate_samples_from_prompt
+import inspect 
+from lm_eval import tasks 
 
+GENERATION_TASKS = []
+LL_TASKS = []
+
+# hacky way to differentiate the generation tasks from the log likelihood tasks
+
+for task_name, task_class in tasks.TASK_REGISTRY.items():
+    if hasattr(task_class, 'construct_requests'):
+        src = inspect.getsource(task_class.construct_requests)
+        if '.greedy_until(' in src:
+            GENERATION_TASKS.append(task_name)
+        else:
+            LL_TASKS.append(task_name)
 
 class EvalHarnessAdaptor(GPT2LM):
 
@@ -34,7 +49,35 @@ class EvalHarnessAdaptor(GPT2LM):
 
 
     def greedy_until(self, requests):
-        raise NotImplementedError
+        res = []
+
+        def _collate(x):
+            toks = self.tokenizer.encode(x[0])
+            return (len(toks), x[0])
+
+        reord = utils.Reorderer(requests, _collate)
+
+        for context, until in tqdm(reord.get_reordered()):
+            if isinstance(until, str): until = [until]
+
+            # TODO: add stop sequence
+            primary_until, = self.tokenizer.encode(until[0])
+
+            cont = self.generate(text=context, 
+                                 eos_token_id=primary_until, 
+                                 recompute = False)
+
+            s = cont[0]['text'] or ''
+
+            for term in until:
+                s = s.split(term)[0]
+
+            # partial caching
+            self.cache_hook.add_partial("greedy_until", (context, until), s)
+
+            res.append(s)
+
+        return reord.get_original(res)
 
     def _loglikelihood_tokens(self, requests, disable_tqdm=False):
         # TODO: implement some kind of efficient-request-middleware that lumps together requests with the same context
@@ -133,12 +176,24 @@ class EvalHarnessAdaptor(GPT2LM):
         self.model.micro_batches = 1
         if eval_tasks is None:
             eval_tasks = ["lambada", "piqa", "hellaswag", "winogrande", "mathqa", "pubmedqa"]
-        results = evaluator.evaluate(lm=self,
-                                     task_dict=tasks.get_task_dict(eval_tasks),
-                                     provide_description=False,
-                                     num_fewshot=0,
-                                     limit=None,
-                                     bootstrap_iters=2)
+        generation_tasks = [t for t in eval_tasks if t in GENERATION_TASKS]
+        ll_tasks = [t for t in eval_tasks if t in LL_TASKS]
+        ll_results, generation_results = {}, {}
+        if ll_tasks:
+            ll_results = evaluator.evaluate(lm=self,
+                                        task_dict=tasks.get_task_dict(ll_tasks),
+                                        provide_description=False,
+                                        num_fewshot=0,
+                                        limit=None,
+                                        bootstrap_iters=2)
+        if generation_tasks:
+            generation_results = evaluator.evaluate(lm=self,
+                                        task_dict=tasks.get_task_dict(generation_tasks),
+                                        provide_description=False,
+                                        num_fewshot=0,
+                                        limit=None,
+                                        bootstrap_iters=2)
+        results = {**ll_results, **generation_results}
         if was_training:
             self.model.train()
         self.model.micro_batches = in_micro_batches
