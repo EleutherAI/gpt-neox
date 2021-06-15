@@ -846,3 +846,13 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     During generation recompute all attention instead of using previously computed keys/values.
     Should be set to true for sparse attention models
     """
+
+    eval_results_prefix: str = ""
+    """
+    prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
+    """
+
+    eval_tasks: list = None
+    """
+    Tasks to evaluate on using lm_eval_harness
+    """

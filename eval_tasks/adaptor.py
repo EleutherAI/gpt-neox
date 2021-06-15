@@ -32,6 +32,7 @@ class EvalHarnessAdaptor(GPT2LM):
         self.is_data_parallel = self.model.is_data_parallel
         self.is_last_stage = True if not self.is_pipe_parallel else model.is_last_stage()  # only the last stage of the pipeline model will receive the logits
 
+
     def greedy_until(self, requests):
         raise NotImplementedError
 
@@ -128,6 +129,8 @@ class EvalHarnessAdaptor(GPT2LM):
     def run_eval(self, eval_tasks=None):
         was_training = self.model.training
         self.model.eval()
+        in_micro_batches = self.model.micro_batches # store input microbatches - we need to set to 1 during eval
+        self.model.micro_batches = 1
         if eval_tasks is None:
             eval_tasks = ["lambada", "piqa", "hellaswag", "winogrande", "mathqa", "pubmedqa"]
         results = evaluator.evaluate(lm=self,
@@ -138,10 +141,11 @@ class EvalHarnessAdaptor(GPT2LM):
                                      bootstrap_iters=2)
         if was_training:
             self.model.train()
+        self.model.micro_batches = in_micro_batches
         return results
 
 
-def run_eval_harness(model, forward_step_fn, neox_args, batch_size=None):
+def run_eval_harness(model, forward_step_fn, neox_args, batch_size=None, eval_tasks=None):
     print_rank_0('Running evaluation harness...')
     adaptor = EvalHarnessAdaptor(model, forward_step_fn, neox_args, batch_size)
-    return adaptor.run_eval()
+    return adaptor.run_eval(eval_tasks=eval_tasks)
