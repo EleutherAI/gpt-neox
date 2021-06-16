@@ -390,7 +390,7 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], 
                 if context_length >= (neox_args.seq_length // 2):
                     print_rank_0("\nWarning! Context length", context_length,
                                  "\nPlease give smaller context (e.g. half of the "
-                                 "max sequence length)!", flush=True)
+                                 "max sequence length)!")
         else:
             context_tokens = neox_args.tokenizer.tokenize("EMPTY TEXT")
             context_length = len(context_tokens)
