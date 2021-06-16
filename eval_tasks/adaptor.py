@@ -1,3 +1,4 @@
+from megatron.utils import is_local_main 
 import best_download
 
 # patch best_download (eval harness downloader) to only happen on the first rank
@@ -25,7 +26,6 @@ from megatron.text_generation_utils import generate_samples_from_prompt
 import inspect 
 from lm_eval import tasks 
 from lm_eval.utils import chunks
-from megatron.utils import is_local_main 
 
 
 GENERATION_TASKS = []
@@ -110,10 +110,6 @@ class EvalHarnessAdaptor(GPT2LM):
             for chunk in utils.chunks(tqdm(reord.get_reordered(), disable=disable_tqdm), self.batch_size):
                 inps, contlens, inplens, padding_length = [], [], [], None
                 for _, context_enc, continuation_enc in chunk:
-                    # sanity check
-                    assert len(context_enc) > 0
-                    assert len(continuation_enc) > 0
-                    assert len(continuation_enc) <= self.max_length
 
                     # when too long to fit in context, truncate from the left
                     inp = torch.tensor(
@@ -201,14 +197,14 @@ class EvalHarnessAdaptor(GPT2LM):
                                         provide_description=False,
                                         num_fewshot=0,
                                         limit=None,
-                                        bootstrap_iters=2)
+                                        bootstrap_iters=2).get('results')
         if generation_tasks:
             generation_results = evaluator.evaluate(lm=self,
                                         task_dict=tasks.get_task_dict(generation_tasks),
                                         provide_description=False,
                                         num_fewshot=0,
                                         limit=None,
-                                        bootstrap_iters=2)
+                                        bootstrap_iters=2).get('results')
         results = {**ll_results, **generation_results}
         if was_training:
             self.model.train()
