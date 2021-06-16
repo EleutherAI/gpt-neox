@@ -1,3 +1,14 @@
+import best_download
+
+# patch best_download (eval harness downloader) to only happen on the first rank
+fn = best_download.download_file
+
+def _download_file(*args, **kwargs):
+    if is_local_main():
+        fn(*args, **kwargs)
+
+best_download.download_file = _download_file
+
 import os
 import sys
 from functools import partial
@@ -15,17 +26,6 @@ import inspect
 from lm_eval import tasks 
 from lm_eval.utils import chunks
 from megatron.utils import is_local_main 
-import best_download
-
-# patch Task.download to only happen on the first rank
-download_original = best_download.download_file
-
-def _download_file(*args, **kwargs):
-    print('HELLO WORLD!')
-    if is_local_main():
-        download_original(*args, **kwargs)
-
-best_download.download_file = _download_file
 
 
 GENERATION_TASKS = []
