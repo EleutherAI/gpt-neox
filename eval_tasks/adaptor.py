@@ -14,7 +14,19 @@ from megatron.text_generation_utils import generate_samples_from_prompt
 import inspect 
 from lm_eval import tasks 
 from lm_eval.utils import chunks
-from megatron.utils import ddb 
+from megatron.utils import is_local_main 
+import best_download
+
+# patch Task.download to only happen on the first rank
+download_original = best_download.download_file
+
+def _download_file(*args, **kwargs):
+    print('HELLO WORLD!')
+    if is_local_main():
+        download_original(*args, **kwargs)
+
+best_download.download_file = _download_file
+
 
 GENERATION_TASKS = []
 LL_TASKS = []
@@ -39,7 +51,7 @@ class EvalHarnessAdaptor(GPT2LM):
         self.model = model
         self._forward_step_fn = partial(forward_step_fn, neox_args=neox_args, timers=None, return_logits=True)
         self.max_length = neox_args.max_position_embeddings // 2
-        self.max_gen_toks = 256
+        self.max_gen_toks = 128
         self.tokenizer.encode = self.tokenizer.tokenize  # patch tokenizer encode + decode methods
         self.tokenizer.decode = self.tokenizer.detokenize
         self.batch_size = batch_size or neox_args.batch_size
@@ -62,41 +74,23 @@ class EvalHarnessAdaptor(GPT2LM):
             return (len(toks), x[0])
 
         reord = utils.Reorderer(requests, _collate)
-        if batch:
-            for chunk in chunks(tqdm(reord.get_reordered()), n=self.batch_size):
-                batch_context, batch_until = [list(i) for i in zip(*chunk)]
-                assert all(x == batch_until[0] for x in batch_until) # assert all batch_until items are equal
-                # TODO: add stop sequence
-                primary_until, = self.tokenizer.encode(batch_until[0][0])
-                out = self.generate(text=batch_context, 
-                                    eos_token_id=primary_until, 
-                                    recompute = False)
-                assert len(out) == len(batch_context)
-                for context, s in zip(batch_context, out):
-                    s = s['text'] or ''
-                    for term in batch_until[0]:
-                        s = s.split(term)[0]
-                    self.cache_hook.add_partial("greedy_until", (context, batch_until[0]), s)
-                    res.append(s)
-        else:
-            for context, until in tqdm(reord.get_reordered()):
-                if isinstance(until, str): until = [until]
+        for context, until in tqdm(reord.get_reordered()):
+            if isinstance(until, str): 
+                until = [until]
+            stop_tokens = [self.tokenizer.encode(i) for i in until]
+            cont = self.generate(text=context, 
+                                stop_tokens=stop_tokens, 
+                                recompute = self.neox_args.recompute)
 
-                # TODO: add stop sequence
-                primary_until, = self.tokenizer.encode(until[0])
-                cont = self.generate(text=context, 
-                                    eos_token_id=primary_until, 
-                                    recompute = False)
+            s = cont[0]['text'] or ''
 
-                s = cont[0]['text'] or ''
+            for term in until:
+                s = s.split(term)[0]
+            
+            # partial caching
+            self.cache_hook.add_partial("greedy_until", (context, until), s)
 
-                for term in until:
-                    s = s.split(term)[0]
-
-                # partial caching
-                self.cache_hook.add_partial("greedy_until", (context, until), s)
-
-                res.append(s)
+            res.append(s)
 
         self.model.module.train_mode()
         return reord.get_original(res)
