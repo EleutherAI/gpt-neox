@@ -335,6 +335,19 @@ class ParallelSelfAttention(nn.Module):
         # [sq, b, np, 3 * hn] --> 3 [sq, b, np, hn]
         (query_layer, key_layer, value_layer) = mpu.split_tensor_along_last_dim(mixed_x_layer, 3)
 
+        # ==================================
+        # Cache key and value for inference
+        # ==================================
+
+        if layer_past is not None and layer_past.numel() > 0:
+            past_key, past_value = layer_past
+            key_layer = torch.cat((past_key.type_as(key_layer),
+                                   key_layer), dim=0)
+            value_layer = torch.cat((past_value.type_as(value_layer),
+                                     value_layer), dim=0)
+        if self.get_key_value:
+            present = torch.stack((key_layer, value_layer))
+
         if exists(self.rotary_emb):
             if exists(self.rotary_ndims):
                 # partial rotary
@@ -352,18 +365,6 @@ class ParallelSelfAttention(nn.Module):
                 query_layer = torch.cat((query_layer, query_pass), dim=-1)
                 key_layer = torch.cat((key_layer, key_pass), dim=-1)
 
-        # ==================================
-        # Adjust key and value for inference
-        # ==================================
-
-        if layer_past is not None and layer_past.numel() > 0:
-            past_key, past_value = layer_past
-            key_layer = torch.cat((past_key.type_as(key_layer),
-                                   key_layer), dim=0)
-            value_layer = torch.cat((past_value.type_as(value_layer),
-                                     value_layer), dim=0)
-        if self.get_key_value:
-            present = torch.stack((key_layer, value_layer))
 
         if not self.sparse:
             context_layer = self.attention(query_layer, key_layer, value_layer, layer_past, attention_mask)
