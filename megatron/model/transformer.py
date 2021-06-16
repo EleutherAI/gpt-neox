@@ -335,36 +335,43 @@ class ParallelSelfAttention(nn.Module):
         # [sq, b, np, 3 * hn] --> 3 [sq, b, np, hn]
         (query_layer, key_layer, value_layer) = mpu.split_tensor_along_last_dim(mixed_x_layer, 3)
 
-        # ==================================
-        # Cache key and value for inference
-        # ==================================
-
-        if layer_past is not None and layer_past.numel() > 0:
-            past_key, past_value = layer_past
-            key_layer = torch.cat((past_key.type_as(key_layer),
-                                   key_layer), dim=0)
-            value_layer = torch.cat((past_value.type_as(value_layer),
-                                     value_layer), dim=0)
-        if self.get_key_value:
-            present = torch.stack((key_layer, value_layer))
 
         if exists(self.rotary_emb):
             if exists(self.rotary_ndims):
                 # partial rotary
                 query_rot, query_pass = query_layer[..., :self.rotary_ndims], query_layer[..., self.rotary_ndims:]
                 key_rot, key_pass = key_layer[..., :self.rotary_ndims], key_layer[..., self.rotary_ndims:]
-                cos, sin = self.rotary_emb(query_rot, seq_dim=0)
             else:
                 # full rotary
-                cos, sin = self.rotary_emb(query_layer, seq_dim=0)
                 query_rot, key_rot = query_layer, key_layer
 
-            query_layer, key_layer = apply_rotary_pos_emb(query_rot, key_rot, cos, sin)
+            seq_len = key_layer.shape[0]
+            offset = 0
+            if exists(layer_past) and layer_past.numel() > 0:
+                offset = layer_past[0].shape[0]
+                seq_len += offset
+            cos, sin = self.rotary_emb(value_layer, seq_len=seq_len)
+            query_layer, key_layer = apply_rotary_pos_emb(query_rot, key_rot, cos, sin, offset=offset)
+
 
             if exists(self.rotary_ndims):
                 query_layer = torch.cat((query_layer, query_pass), dim=-1)
                 key_layer = torch.cat((key_layer, key_pass), dim=-1)
 
+
+        # ==================================
+        # Cache key and value for inference
+        # ==================================
+
+        if exists(layer_past) and layer_past.numel() > 0:
+            past_key, past_value = layer_past
+            key_layer = torch.cat((past_key.type_as(key_layer),
+                                   key_layer), dim=0)
+            value_layer = torch.cat((past_value.type_as(value_layer),
+                                     value_layer), dim=0)
+
+        if self.get_key_value:
+            present = torch.stack((key_layer, value_layer))
 
         if not self.sparse:
             context_layer = self.attention(query_layer, key_layer, value_layer, layer_past, attention_mask)
