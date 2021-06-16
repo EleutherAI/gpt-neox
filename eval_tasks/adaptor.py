@@ -13,6 +13,8 @@ import torch.nn.functional as F
 from megatron.text_generation_utils import generate_samples_from_prompt
 import inspect 
 from lm_eval import tasks 
+from lm_eval.utils import chunks
+from megatron.utils import ddb 
 
 GENERATION_TASKS = []
 LL_TASKS = []
@@ -37,7 +39,9 @@ class EvalHarnessAdaptor(GPT2LM):
         self.model = model
         self._forward_step_fn = partial(forward_step_fn, neox_args=neox_args, timers=None, return_logits=True)
         self.max_length = neox_args.max_position_embeddings // 2
-        self.tokenizer.encode = self.tokenizer.tokenize  # patch tokenizer encode method
+        self.max_gen_toks = 256
+        self.tokenizer.encode = self.tokenizer.tokenize  # patch tokenizer encode + decode methods
+        self.tokenizer.decode = self.tokenizer.detokenize
         self.batch_size = batch_size or neox_args.batch_size
         self.neox_args = neox_args
         self.cache_hook = CacheHook(None)
@@ -46,9 +50,11 @@ class EvalHarnessAdaptor(GPT2LM):
         self.is_pipe_parallel = self.model.is_pipe_parallel
         self.is_data_parallel = self.model.is_data_parallel
         self.is_last_stage = True if not self.is_pipe_parallel else model.is_last_stage()  # only the last stage of the pipeline model will receive the logits
+        self.generate = partial(generate_samples_from_prompt, neox_args=neox_args, model=model, maximum_tokens=self.max_gen_toks)
 
 
-    def greedy_until(self, requests):
+    def greedy_until(self, requests, batch=False):
+        self.model.module.inference_mode()
         res = []
 
         def _collate(x):
@@ -56,27 +62,43 @@ class EvalHarnessAdaptor(GPT2LM):
             return (len(toks), x[0])
 
         reord = utils.Reorderer(requests, _collate)
+        if batch:
+            for chunk in chunks(tqdm(reord.get_reordered()), n=self.batch_size):
+                batch_context, batch_until = [list(i) for i in zip(*chunk)]
+                assert all(x == batch_until[0] for x in batch_until) # assert all batch_until items are equal
+                # TODO: add stop sequence
+                primary_until, = self.tokenizer.encode(batch_until[0][0])
+                out = self.generate(text=batch_context, 
+                                    eos_token_id=primary_until, 
+                                    recompute = False)
+                assert len(out) == len(batch_context)
+                for context, s in zip(batch_context, out):
+                    s = s['text'] or ''
+                    for term in batch_until[0]:
+                        s = s.split(term)[0]
+                    self.cache_hook.add_partial("greedy_until", (context, batch_until[0]), s)
+                    res.append(s)
+        else:
+            for context, until in tqdm(reord.get_reordered()):
+                if isinstance(until, str): until = [until]
 
-        for context, until in tqdm(reord.get_reordered()):
-            if isinstance(until, str): until = [until]
+                # TODO: add stop sequence
+                primary_until, = self.tokenizer.encode(until[0])
+                cont = self.generate(text=context, 
+                                    eos_token_id=primary_until, 
+                                    recompute = False)
 
-            # TODO: add stop sequence
-            primary_until, = self.tokenizer.encode(until[0])
+                s = cont[0]['text'] or ''
 
-            cont = self.generate(text=context, 
-                                 eos_token_id=primary_until, 
-                                 recompute = False)
+                for term in until:
+                    s = s.split(term)[0]
 
-            s = cont[0]['text'] or ''
+                # partial caching
+                self.cache_hook.add_partial("greedy_until", (context, until), s)
 
-            for term in until:
-                s = s.split(term)[0]
+                res.append(s)
 
-            # partial caching
-            self.cache_hook.add_partial("greedy_until", (context, until), s)
-
-            res.append(s)
-
+        self.model.module.train_mode()
         return reord.get_original(res)
 
     def _loglikelihood_tokens(self, requests, disable_tqdm=False):
