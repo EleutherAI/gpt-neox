@@ -27,20 +27,6 @@ import inspect
 from lm_eval import tasks 
 from lm_eval.utils import chunks
 
-
-GENERATION_TASKS = []
-LL_TASKS = []
-
-# hacky way to differentiate the generation tasks from the log likelihood tasks
-
-for task_name, task_class in tasks.TASK_REGISTRY.items():
-    if hasattr(task_class, 'construct_requests'):
-        src = inspect.getsource(task_class.construct_requests)
-        if '.greedy_until(' in src:
-            GENERATION_TASKS.append(task_name)
-        else:
-            LL_TASKS.append(task_name)
-
 class EvalHarnessAdaptor(GPT2LM):
 
     def __init__(self, model, forward_step_fn, neox_args, batch_size=None):
@@ -188,24 +174,12 @@ class EvalHarnessAdaptor(GPT2LM):
         self.model.micro_batches = 1
         if eval_tasks is None:
             eval_tasks = ["lambada", "piqa", "hellaswag", "winogrande", "mathqa", "pubmedqa"]
-        generation_tasks = [t for t in eval_tasks if t in GENERATION_TASKS]
-        ll_tasks = [t for t in eval_tasks if t in LL_TASKS]
-        ll_results, generation_results = {}, {}
-        if ll_tasks:
-            ll_results = evaluator.evaluate(lm=self,
-                                        task_dict=tasks.get_task_dict(ll_tasks),
+        results = evaluator.evaluate(lm=self,
+                                        task_dict=tasks.get_task_dict(eval_tasks),
                                         provide_description=False,
                                         num_fewshot=0,
                                         limit=None,
                                         bootstrap_iters=2).get('results')
-        if generation_tasks:
-            generation_results = evaluator.evaluate(lm=self,
-                                        task_dict=tasks.get_task_dict(generation_tasks),
-                                        provide_description=False,
-                                        num_fewshot=0,
-                                        limit=None,
-                                        bootstrap_iters=2).get('results')
-        results = {**ll_results, **generation_results}
         if was_training:
             self.model.train()
         self.model.micro_batches = in_micro_batches

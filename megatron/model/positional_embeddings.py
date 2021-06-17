@@ -1,6 +1,5 @@
 import torch
 
-
 class SinusoidalPositionalEmbedding(torch.nn.Module):
 
     def __init__(self, dim, base=10000):
@@ -45,6 +44,6 @@ def rotate_half(x):
     return torch.cat((-x2, x1), dim=x1.ndim - 1) # dim=-1 triggers a bug in earlier torch versions
 
 @torch.jit.script
-def apply_rotary_pos_emb(q, k, cos, sin, offset=None):
+def apply_rotary_pos_emb(q, k, cos, sin, offset: int = 0):
     cos, sin = cos[offset:q.shape[0]+offset, ...], sin[offset:q.shape[0]+offset, ...]
     return (q * cos) + (rotate_half(q) * sin), (k * cos) + (rotate_half(k) * sin)
