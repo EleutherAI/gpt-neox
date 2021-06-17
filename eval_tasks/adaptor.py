@@ -27,6 +27,8 @@ import inspect
 from lm_eval import tasks 
 from lm_eval.utils import chunks
 
+# TODO: add data parallel
+
 class EvalHarnessAdaptor(GPT2LM):
 
     def __init__(self, model, forward_step_fn, neox_args, batch_size=None):
@@ -82,7 +84,6 @@ class EvalHarnessAdaptor(GPT2LM):
         return reord.get_original(res)
 
     def _loglikelihood_tokens(self, requests, disable_tqdm=False):
-        # TODO: implement some kind of efficient-request-middleware that lumps together requests with the same context
         disable_tqdm = disable_tqdm if self.is_main else True
         res = []
         res_len = 0  # storing the result length for later
