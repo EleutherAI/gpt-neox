@@ -1,3 +1,15 @@
+from megatron.utils import is_local_main 
+import best_download
+
+# patch best_download (eval harness downloader) to only happen on the first rank
+fn = best_download.download_file
+
+def _download_file(*args, **kwargs):
+    if is_local_main():
+        fn(*args, **kwargs)
+
+best_download.download_file = _download_file
+
 import os
 import sys
 from functools import partial
@@ -10,7 +22,12 @@ from lm_eval.base import CacheHook
 from lm_eval.models.gpt2 import GPT2LM
 from lm_eval import tasks, evaluator, utils
 import torch.nn.functional as F
+from megatron.text_generation_utils import generate_samples_from_prompt
+import inspect 
+from lm_eval import tasks 
+from lm_eval.utils import chunks
 
+# TODO: add data parallel
 
 class EvalHarnessAdaptor(GPT2LM):
 
@@ -22,7 +39,9 @@ class EvalHarnessAdaptor(GPT2LM):
         self.model = model
         self._forward_step_fn = partial(forward_step_fn, neox_args=neox_args, timers=None, return_logits=True)
         self.max_length = neox_args.max_position_embeddings // 2
-        self.tokenizer.encode = self.tokenizer.tokenize  # patch tokenizer encode method
+        self.max_gen_toks = 128
+        self.tokenizer.encode = self.tokenizer.tokenize  # patch tokenizer encode + decode methods
+        self.tokenizer.decode = self.tokenizer.detokenize
         self.batch_size = batch_size or neox_args.batch_size
         self.neox_args = neox_args
         self.cache_hook = CacheHook(None)
@@ -31,12 +50,40 @@ class EvalHarnessAdaptor(GPT2LM):
         self.is_pipe_parallel = self.model.is_pipe_parallel
         self.is_data_parallel = self.model.is_data_parallel
         self.is_last_stage = True if not self.is_pipe_parallel else model.is_last_stage()  # only the last stage of the pipeline model will receive the logits
+        self.generate = partial(generate_samples_from_prompt, neox_args=neox_args, model=model, maximum_tokens=self.max_gen_toks)
 
-    def greedy_until(self, requests):
-        raise NotImplementedError
+
+    def greedy_until(self, requests, batch=False):
+        self.model.module.inference_mode()
+        res = []
+
+        def _collate(x):
+            toks = self.tokenizer.encode(x[0])
+            return (len(toks), x[0])
+
+        reord = utils.Reorderer(requests, _collate)
+        for context, until in tqdm(reord.get_reordered()):
+            if isinstance(until, str): 
+                until = [until]
+            stop_tokens = [self.tokenizer.encode(i) for i in until]
+            cont = self.generate(text=context, 
+                                stop_tokens=stop_tokens, 
+                                recompute = self.neox_args.recompute)
+
+            s = cont[0]['text'] or ''
+
+            for term in until:
+                s = s.split(term)[0]
+            
+            # partial caching
+            self.cache_hook.add_partial("greedy_until", (context, until), s)
+
+            res.append(s)
+
+        self.model.module.train_mode()
+        return reord.get_original(res)
 
     def _loglikelihood_tokens(self, requests, disable_tqdm=False):
-        # TODO: implement some kind of efficient-request-middleware that lumps together requests with the same context
         disable_tqdm = disable_tqdm if self.is_main else True
         res = []
         res_len = 0  # storing the result length for later
@@ -50,10 +97,6 @@ class EvalHarnessAdaptor(GPT2LM):
             for chunk in utils.chunks(tqdm(reord.get_reordered(), disable=disable_tqdm), self.batch_size):
                 inps, contlens, inplens, padding_length = [], [], [], None
                 for _, context_enc, continuation_enc in chunk:
-                    # sanity check
-                    assert len(context_enc) > 0
-                    assert len(continuation_enc) > 0
-                    assert len(continuation_enc) <= self.max_length
 
                     # when too long to fit in context, truncate from the left
                     inp = torch.tensor(
@@ -128,20 +171,23 @@ class EvalHarnessAdaptor(GPT2LM):
     def run_eval(self, eval_tasks=None):
         was_training = self.model.training
         self.model.eval()
+        in_micro_batches = self.model.micro_batches # store input microbatches - we need to set to 1 during eval
+        self.model.micro_batches = 1
         if eval_tasks is None:
             eval_tasks = ["lambada", "piqa", "hellaswag", "winogrande", "mathqa", "pubmedqa"]
         results = evaluator.evaluate(lm=self,
-                                     task_dict=tasks.get_task_dict(eval_tasks),
-                                     provide_description=False,
-                                     num_fewshot=0,
-                                     limit=None,
-                                     bootstrap_iters=2)
+                                        task_dict=tasks.get_task_dict(eval_tasks),
+                                        provide_description=False,
+                                        num_fewshot=0,
+                                        limit=None,
+                                        bootstrap_iters=2).get('results')
         if was_training:
             self.model.train()
+        self.model.micro_batches = in_micro_batches
         return results
 
 
-def run_eval_harness(model, forward_step_fn, neox_args, batch_size=None):
+def run_eval_harness(model, forward_step_fn, neox_args, batch_size=None, eval_tasks=None):
     print_rank_0('Running evaluation harness...')
     adaptor = EvalHarnessAdaptor(model, forward_step_fn, neox_args, batch_size)
-    return adaptor.run_eval()
+    return adaptor.run_eval(eval_tasks=eval_tasks)

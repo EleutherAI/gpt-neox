@@ -372,17 +372,20 @@ def get_total_params(model):
     total_n_parameters = total_n_parameters.item()
     return total_n_parameters
 
-def setup_for_inference_or_eval(inference=True, get_key_value=True):
+def setup_for_inference_or_eval(inference=True, get_key_value=True, overwrite_values=None):
 
     from megatron.neox_arguments import NeoXArgs
     from megatron.initialize import initialize_megatron
     from megatron.training import setup_model_and_optimizer
 
-    neox_args = NeoXArgs.consume_neox_args(overwrite_values={
+    _overwrite_values = {
         "checkpoint_activations": False,
         "partition_activations": False,
         "no_load_optim": True,
-    })
+    }
+    if overwrite_values:
+        _overwrite_values.update(overwrite_values)
+    neox_args = NeoXArgs.consume_neox_args(overwrite_values=_overwrite_values)
     neox_args.configure_distributed_args()
     neox_args.build_tokenizer()
     
