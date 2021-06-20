@@ -142,6 +142,8 @@ def is_mp_rank_0():
 
 def get_wandb_api_key(neox_args):
     """ Get Weights and Biases API key from ENV or .netrc file. Otherwise return None """
+    if 'WANDB_LOCAL' in os.environ:
+        return 'LOCAL'
     if 'WANDB_API_KEY' in os.environ:
         return os.environ['WANDB_API_KEY']
 
