@@ -38,7 +38,8 @@ void build_blending_indices(py::array_t<uint8_t>& dataset_index,
 			    py::array_t<int64_t>& dataset_sample_index,
 			    const py::array_t<double>& weights,
 			    const int32_t num_datasets,
-			    const int64_t size, const bool verbose) {
+			    const int64_t size, 
+          const bool verbose) {
   /* Given multiple datasets and a weighting array, build samples
    such that it follows those wieghts.*/
 

@@ -21,6 +21,7 @@
 import math
 import torch
 import torch.nn.functional as F
+import torch.nn as nn
 
 from .norms import get_norm
 from megatron import mpu
@@ -60,7 +61,7 @@ torch._C._jit_override_can_fuse_on_gpu(True)
 """
 
 
-class ParallelMLP(torch.nn.Module):
+class ParallelMLP(nn.Module):
     """MLP.
 
     MLP will take the input with h hidden state, project it to 4*h
@@ -77,8 +78,8 @@ class ParallelMLP(torch.nn.Module):
         self.bias_gelu_fusion = neox_args.bias_gelu_fusion
 
         # auto scale so geglu has equal parameters
-        ff_mult = 4*2/3 if self.activation_type == "geglu" else 4
-        ff_dim = int(ff_mult * neox_args.hidden_size * 2) if self.activation_type == "geglu" \
+        ff_mult = 4 * 2 / 3 if self.activation_type == "geglu" else 4
+        ff_dim = int(ff_mult * neox_args.hidden_size) * 2 if self.activation_type == "geglu" \
             else ff_mult * neox_args.hidden_size
         self.dense_h_to_4h = mpu.ColumnParallelLinear(
             neox_args=neox_args,
@@ -113,12 +114,12 @@ class ParallelMLP(torch.nn.Module):
         return output, output_bias
 
 
-class ParallelLinear(torch.nn.Module):
+class ParallelLinear(nn.Module):
     """
     A Parallel Linear Layer transforming the transformer outputs from hidden_size -> vocab_size
     """
 
-    def __init__(self, neox_args, parallel_output=True, init_method=torch.nn.init.xavier_normal_):
+    def __init__(self, neox_args, parallel_output=True, init_method=nn.init.xavier_normal_):
         super(ParallelLinear, self).__init__()
         self.final_linear = mpu.RowParallelLinear(
             neox_args=neox_args,
@@ -134,7 +135,7 @@ class ParallelLinear(torch.nn.Module):
         return self.final_linear(hidden_states)
 
 
-class ParallelSelfAttention(torch.nn.Module):
+class ParallelSelfAttention(nn.Module):
     """Parallel self-attention layer abstract class.
 
     Self-attention layer takes input with size [b, s, h]
@@ -210,7 +211,7 @@ class ParallelSelfAttention(torch.nn.Module):
             # Dropout. Note that for a single iteration, this layer will generate
             # different outputs on different number of parallel partitions but
             # on average it should not be partition dependent.
-            self.attention_dropout = torch.nn.Dropout(neox_args.attention_dropout)
+            self.attention_dropout = nn.Dropout(neox_args.attention_dropout)
 
         # Output.
         self.dense = mpu.RowParallelLinear(
@@ -341,28 +342,34 @@ class ParallelSelfAttention(torch.nn.Module):
                 # partial rotary
                 query_rot, query_pass = query_layer[..., :self.rotary_ndims], query_layer[..., self.rotary_ndims:]
                 key_rot, key_pass = key_layer[..., :self.rotary_ndims], key_layer[..., self.rotary_ndims:]
-                cos, sin = self.rotary_emb(query_rot, seq_dim=0)
             else:
                 # full rotary
-                cos, sin = self.rotary_emb(query_layer, seq_dim=0)
                 query_rot, key_rot = query_layer, key_layer
             apply_rotary_fn = apply_rotary_pos_emb_torch if self.bf16 else apply_rotary_pos_emb
-            query_layer, key_layer = apply_rotary_fn(query_rot, key_rot, cos, sin)
+
+            seq_len = key_layer.shape[0]
+            offset = 0
+            if exists(layer_past) and layer_past.numel() > 0:
+                offset = layer_past[0].shape[0]
+                seq_len += offset
+            cos, sin = self.rotary_emb(value_layer, seq_len=seq_len)
+            query_layer, key_layer = apply_rotary_pos_emb(query_rot, key_rot, cos, sin, offset=offset)
 
             if exists(self.rotary_ndims):
                 query_layer = torch.cat((query_layer, query_pass), dim=-1)
                 key_layer = torch.cat((key_layer, key_pass), dim=-1)
-
+                
         # ==================================
-        # Adjust key and value for inference
+        # Cache key and value for inference
         # ==================================
 
-        if layer_past is not None and layer_past.numel() > 0:
+        if exists(layer_past) and layer_past.numel() > 0:
             past_key, past_value = layer_past
             key_layer = torch.cat((past_key.type_as(key_layer),
                                    key_layer), dim=0)
             value_layer = torch.cat((past_value.type_as(value_layer),
                                      value_layer), dim=0)
+
         if self.get_key_value:
             present = torch.stack((key_layer, value_layer))
 
@@ -391,7 +398,7 @@ class ParallelSelfAttention(torch.nn.Module):
         return output, bias
 
 
-class ParallelTransformerLayer(torch.nn.Module):
+class ParallelTransformerLayer(nn.Module):
     """A single transformer layer.
 
     Transformer layer takes input with size [b, s, h] and returns an
@@ -555,7 +562,7 @@ class ParallelLinearPipe(ParallelLinear):
             raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
 
 
-class NormPipe(torch.nn.Module):
+class NormPipe(nn.Module):
     """Just a helper class to pass presents through to the output when doing inference with a Pipe Parallel model"""
 
     def __init__(self, norm_class, hidden_size, eps):

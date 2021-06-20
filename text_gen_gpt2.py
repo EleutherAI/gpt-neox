@@ -16,10 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from megatron.neox_arguments import NeoXArgs
-from megatron import initialize_megatron
-from megatron.training import setup_model_and_optimizer
-from megatron.utils import print_rank_0
+from megatron.utils import print_rank_0, setup_for_inference_or_eval
 
 from megatron.text_generation_utils import generate_samples_input_from_file, generate_samples_from_prompt, generate_samples_unconditional, generate_samples_interactive
 
@@ -27,25 +24,7 @@ if __name__ == "__main__":
     """
     Generate text/sample model
     """
-
-    neox_args = NeoXArgs.consume_neox_args(overwrite_values={
-        "checkpoint_activations": False,
-        "partition_activations": False,
-        "no_load_optim": True,
-    })
-    neox_args.configure_distributed_args()
-    neox_args.build_tokenizer()
-    
-    if neox_args.load is None:
-        raise ValueError("`load` parameter must be supplied to load a model`")
-
-    # initialize megatron
-    initialize_megatron(neox_args)
-
-    # set up model and load checkpoint.
-    model, _, _ = setup_model_and_optimizer(neox_args=neox_args, inference=True, get_key_value=True) # we use setup_model_and_optimizer instead of get_model in order to initialize deepspeed
-    print_rank_0('Finished loading model')
-
+    model, neox_args = setup_for_inference_or_eval()
     if neox_args.text_gen_type == 'unconditional':
         print_rank_0('Generating samples unconditionally')
         assert neox_args.sample_output_file is not None

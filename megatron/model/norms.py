@@ -1,4 +1,5 @@
 import torch
+from .fused_layer_norm import MixedFusedLayerNorm as LayerNorm
 
 # Attempt to import FusedLayerNorm from Apex
 try:
@@ -12,8 +13,22 @@ except Exception as e:
           'instead of apex.normalization.FusedLayerNorm!')
     from torch.nn import LayerNorm as ApexLayerNorm
 
-
-from .fused_layer_norm import MixedFusedLayerNorm as LayerNorm
+def get_norm(neox_args):
+    if neox_args.norm == "rmsnorm":
+        norm = RMSNorm
+        eps = neox_args.rms_norm_epsilon
+    elif neox_args.norm == "layernorm":
+        eps = neox_args.layernorm_epsilon
+        norm = LayerNorm
+    elif neox_args.norm == "scalenorm":
+        eps = neox_args.scalenorm_epsilon
+        norm = ScaleNorm
+    elif neox_args.norm == "apexlayernorm":
+        eps = neox_args.layernorm_epsilon
+        norm = ApexLayerNorm
+    else:
+        raise ValueError(f"norm {neox_args.norm} not recognized")
+    return norm, eps
 
 class RMSNorm(torch.nn.Module):
     def __init__(self, dim, p=-1., eps=1e-8, bias=False):
@@ -68,20 +83,3 @@ class ScaleNorm(torch.nn.Module):
     def forward(self, x):
         n = torch.norm(x, dim=-1, keepdim=True).clamp(min=self.eps)
         return x / n * self.g
-
-def get_norm(neox_args):
-    if neox_args.norm == "rmsnorm":
-        norm = RMSNorm
-        eps = neox_args.rms_norm_epsilon
-    elif neox_args.norm == "layernorm":
-        eps = neox_args.layernorm_epsilon
-        norm = LayerNorm
-    elif neox_args.norm == "scalenorm":
-        eps = neox_args.scalenorm_epsilon
-        norm = ScaleNorm
-    elif neox_args.norm == "apexlayernorm":
-        eps = neox_args.layernorm_epsilon
-        norm = ApexLayerNorm
-    else:
-        raise ValueError(f"norm {neox_args.norm} not recognized")
-    return norm, eps

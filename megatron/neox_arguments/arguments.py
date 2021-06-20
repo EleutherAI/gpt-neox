@@ -9,9 +9,12 @@ import argparse
 import shutil
 
 from dataclasses import dataclass
-from typing import List
+from typing import List, Dict
 from socket import gethostname
-from typing import Literal, Dict
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
 from deepspeed.launcher.runner import DLTS_HOSTFILE
 from megatron.logging import Tee
 from megatron.tokenizer import build_tokenizer
@@ -232,16 +235,29 @@ class NeoXArgs(*BASE_CLASSES):
         if neox_args.save is not None:
             configs_directory = os.path.join(neox_args.save, "configs")
             
-            # delete the configs subdirectory in save if it already exists
-            # only the latest version of the configs are stored
+            # If loading the conf files from the save directory
+            # deleting the conf files in the following step would
+            # naturally prevent the later copy. Therefore we are first
+            # loading the files into memory. 
+            conf_files_memory = dict()
+            for conf_file in conf_files:
+                conf_files_memory[os.path.basename(conf_file)] = open(conf_file, "r").read()
+            
+            # Delete the configs subdirectory in save if it already exists.
+            # Reason: only the latest version of the configs are stored
+            # All files are deleted because selecting a subset of configs 
+            # is a valid option. We would like to prevent keeping files
+            # which are not part of the latest config. If data is saved to
+            # a previously non-empty save directory. 
             if os.path.isdir(configs_directory):
                 shutil.rmtree(configs_directory)
 
-            # create configs directory and copy config files
+            # create configs directory and save config files
             os.makedirs(configs_directory)
-            for conf_file in conf_files:
-                shutil.copy(conf_file, os.path.join(configs_directory, os.path.basename(conf_file)))
-
+            for conf_file_name, conf_data in conf_files_memory.items():
+                with open(os.path.join(configs_directory, conf_file_name), "w") as f:
+                    f.write(conf_data)
+            
         return neox_args
 
     @classmethod
@@ -598,6 +614,8 @@ class NeoXArgs(*BASE_CLASSES):
         assert len(self.attention_config) == self.num_layers, "Length of attention config list must equal num_layers"
         for item in self.attention_config:
             assert item in ATTENTION_TYPE_CHOICES, f"Attention type {item} not recognized"
+        if "gmlp" in self.attention_config or "amlp" in self.attention_config:
+            assert not self.partition_activations, "GMLP Blocks are not compatible with partition activations"
 
         # Sparsity config
         if self.sparsity_config is None:
