@@ -6,9 +6,9 @@ to run in order to perform follow up tests. Joining in one test reduces runtime 
 """
 
 
+import os
 
 if __name__ == "__main__":
-    import os
     import sys
     sys.path.append(os.path.abspath(''))
 
@@ -19,10 +19,24 @@ import torch
 PARAMS_TO_TEST = {
     "pipe_parallel_size,model_parallel_size,world_size": [[0, 1, 1], [0, 1, 2], [1, 2, 2], [0, 2, 2], [2, 1, 2]],
     "top_p,temperature,top_k": [[0.0, 0.5, 0], [0.5, 0.0, 100], [0.5, 0.5, 0]],
-    "prompt": ["", "hello world"]
+    "prompt": ["", "hello world"],
+    "fp16,fp32_allreduce": [[{ 
+     "enabled": True,
+     "type": "bfloat16",
+     "loss_scale": 0,
+     "loss_scale_window": 1000,
+     "hysteresis": 2,
+     "min_loss_scale": 1
+   }, True], [{ 
+     "enabled": True,
+     "loss_scale": 0,
+     "loss_scale_window": 1000,
+     "hysteresis": 2,
+     "min_loss_scale": 1
+   }, False]]
 }
 
-parameters, names = parametrize(PARAMS_TO_TEST, max_tests=50, seed=None)
+parameters, names = parametrize(PARAMS_TO_TEST, max_tests=int(os.getenv('MAX_TESTCASES', 50)), seed=None)
 @pytest.mark.parametrize("param_dict", parameters, ids=names)
 def test_train(param_dict):
     @distributed_test(world_size=param_dict.pop("world_size", 2))

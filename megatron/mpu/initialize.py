@@ -278,6 +278,18 @@ def destroy_model_parallel():
     _MODEL_PARALLEL_GROUP = None
     global _DATA_PARALLEL_GROUP
     _DATA_PARALLEL_GROUP = None
+    global _PIPE_PARALLEL_GROUP
+    _PIPE_PARALLEL_GROUP = None
+    global _IO_PARALLEL_GROUP
+    _IO_PARALLEL_GROUP = None
+    global _MPU_WORLD_SIZE
+    global _MPU_RANK
+    _MPU_WORLD_SIZE = None
+    _MPU_RANK = None
+    global _MPU_TOPOLOGY
+    _MPU_TOPOLOGY = None
+    global _FP32_ALLREDUCE
+    _FP32_ALLREDUCE = None
 
 
 def get_fp32_allreduce():
