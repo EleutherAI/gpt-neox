@@ -34,6 +34,10 @@ def load_fused_kernels(neox_args):
         import scaled_upper_triang_masked_softmax_cuda
         import scaled_masked_softmax_cuda
         import fused_mix_prec_layer_norm_cuda
-    except ImportError:
-        raise ImportError(f'Please run `python {str(srcpath / "setup.py")} install` to install the fused kernels')
+    except (ImportError, ModuleNotFoundError):
+        print('\n')
+        print('='*100)
+        print(f'ERROR: Please run `python {str(srcpath / "setup.py")} install` to install the fused kernels')
+        print('='*100)
+        exit()
     return
