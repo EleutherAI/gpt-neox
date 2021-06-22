@@ -212,7 +212,7 @@ def training_log(neox_args, timers, loss_dict, total_loss_dict, learning_rate, i
 
 def tb_wandb_log(key, value, iteration_no, use_wandb, tensorboard_writer=None):
     # logs to both tb and wandb (if present) from the zeroth rank
-    if torch.distributed.get_rank() == 0:
+    if torch.distributed.get_rank() == 0 and value is not None:
         if tensorboard_writer:
             tensorboard_writer.add_scalar(key, value, iteration_no)
         if use_wandb:

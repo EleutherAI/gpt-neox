@@ -52,7 +52,7 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsModel(NeoXArgsTemplate):
-    precision: Literal["fp16", "fp32"] = None
+    precision: Literal["fp16", "fp32", "bfloat16"] = None
     """
     description of the used precision, either one of fp16 or fp32 (and in the future bf16).
     """
@@ -82,9 +82,9 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Maximum number of position embeddings to use. This is the size of position embedding.
     """
 
-    norm: Literal['layernorm', 'rmsnorm', 'scalenorm'] = "layernorm"
+    norm: Literal['layernorm', 'rmsnorm', 'scalenorm', 'apexlayernorm'] = "layernorm"
     """
-    Normalization layer to use. Choose from "layernorm", "rmsnorm" and "scalenorm".
+    Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm", "apexlayernorm".
     """
 
     layernorm_epsilon: float = 1.0e-5

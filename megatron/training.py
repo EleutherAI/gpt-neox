@@ -48,7 +48,6 @@ from megatron.logging import training_log
 from megatron.model.gpt2_model import cross_entropy
 from megatron.utils import get_ltor_masks_and_position_ids
 from megatron.utils import reduce_losses
-from megatron.fp16 import fp32_to_fp16
 
 import deepspeed
 import numpy as np
@@ -133,7 +132,6 @@ def pretrain(neox_args):
             timers=timers
         )
 
-
 def _get_batch(neox_args, tokenizer, keys, data, datatype):
     """Support function for get_batch / get_batch pipe (to avoid code repetition)"""
     data_b = mpu.broadcast_data(keys, data, datatype)
@@ -178,11 +176,7 @@ def get_batch_pipe(data, neox_args):
     tokens, labels, loss_mask, attention_mask, position_ids = _get_batch(neox_args, neox_args.tokenizer, keys, data,
                                                                          datatype)
     # unpack data
-    if neox_args.precision == "fp16":
-        # cast to fp16 because pipeline parallelism skips the FP16 wrapper.
-        return fp32_to_fp16((tokens, position_ids, attention_mask)), fp32_to_fp16((labels, loss_mask))
-    else:
-        return (tokens, position_ids, attention_mask), (labels, loss_mask)
+    return (tokens, position_ids, attention_mask), (labels, loss_mask)
 
 
 def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
@@ -203,6 +197,7 @@ def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
     if return_logits:
         return loss, outputs
     return loss
+
 
 
 def get_model(neox_args, inference=False, get_key_value=True):
@@ -460,7 +455,6 @@ def train(neox_args, timers, model, optimizer, lr_scheduler,
             optimizer=optimizer,
             lr_scheduler=lr_scheduler
         )
-
         iteration += 1
 
         overflow_monitor.check(skipped_iter)  # check for repeated overflow

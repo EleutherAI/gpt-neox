@@ -371,6 +371,8 @@ class NeoXArgs(*BASE_CLASSES):
         """
         if self.precision == "fp16":
             return torch.half
+        elif self.precision == "bfloat16":
+            return torch.bfloat16
         else:
             return torch.float
 
@@ -555,11 +557,19 @@ class NeoXArgs(*BASE_CLASSES):
             "batch_size": train_micro_batch_size_per_gpu,
 
             # duplicate items
-            "precision": "fp16" if (self.fp16 or {}).get("enabled", False) else "fp32",
             "gas": self.gradient_accumulation_steps,
             "clip_grad": self.gradient_clipping,
 
         })
+        
+        # derive precision
+        if (self.fp16 or {}).get("type", self.precision) == "bfloat16":
+            self.update_value("precision", "bfloat16")
+        elif (self.fp16 or {}).get("enabled", False):
+            self.update_value("precision", "fp16")
+        else:
+            self.update_value("precision", "fp32")
+        
 
         # zero optimization
         if self.zero_optimization is None:

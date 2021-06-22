@@ -28,7 +28,7 @@ from megatron import mpu
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
 from megatron.model.activations import get_activation
 from megatron.model.utils import exists
-from megatron.model.positional_embeddings import RotaryEmbedding, apply_rotary_pos_emb
+from megatron.model.positional_embeddings import RotaryEmbedding, apply_rotary_pos_emb, apply_rotary_pos_emb_torch
 from megatron.model.fused_bias_dropout import get_bias_dropout_add, bias_dropout_add_fused_train, \
     bias_dropout_add_fused_inference
 from megatron.model.utils import configure_sparse_attention
@@ -148,6 +148,7 @@ class ParallelSelfAttention(nn.Module):
         super(ParallelSelfAttention, self).__init__()
 
         self.fp16 = neox_args.precision == "fp16"
+        self.bf16 = neox_args.precision == "bfloat16"
         self.attention_mask_func = attention_mask_func
         self.apply_query_key_layer_scaling = neox_args.apply_query_key_layer_scaling
         self.get_key_value = get_key_value
@@ -187,7 +188,7 @@ class ParallelSelfAttention(nn.Module):
                 assert neox_args.rotary_pct < 1
                 self.rotary_ndims = int(self.hidden_size_per_attention_head * neox_args.rotary_pct)
             dim = self.rotary_ndims if self.rotary_ndims is not None else self.hidden_size_per_attention_head
-            self.rotary_emb = RotaryEmbedding(dim, base=neox_args.rotary_emb_base)
+            self.rotary_emb = RotaryEmbedding(dim, base=neox_args.rotary_emb_base, precision=neox_args.params_dtype)
         else:
             self.rotary_emb = None
 
@@ -199,12 +200,13 @@ class ParallelSelfAttention(nn.Module):
                                                           mpu=mpu)
         else:
             self.scale_mask_softmax = FusedScaleMaskSoftmax(
-                self.fp16,
-                neox_args.scaled_upper_triang_masked_softmax_fusion,
-                neox_args.scaled_masked_softmax_fusion,
-                self.attention_mask_func,
-                self.attention_softmax_in_fp32,
-                coeff)
+                input_in_fp16=self.fp16,
+                input_in_bf16=self.bf16,
+                upper_triang_mask_fusion=neox_args.scaled_upper_triang_masked_softmax_fusion,
+                general_mask_fusion=neox_args.scaled_masked_softmax_fusion,
+                mask_func=self.attention_mask_func,
+                softmax_in_fp32=self.attention_softmax_in_fp32,
+                scale=coeff)
 
             # Dropout. Note that for a single iteration, this layer will generate
             # different outputs on different number of parallel partitions but
@@ -343,6 +345,7 @@ class ParallelSelfAttention(nn.Module):
             else:
                 # full rotary
                 query_rot, key_rot = query_layer, key_layer
+            apply_rotary_fn = apply_rotary_pos_emb_torch if self.bf16 else apply_rotary_pos_emb
 
             seq_len = key_layer.shape[0]
             offset = 0
@@ -350,8 +353,7 @@ class ParallelSelfAttention(nn.Module):
                 offset = layer_past[0].shape[0]
                 seq_len += offset
             cos, sin = self.rotary_emb(value_layer, seq_len=seq_len)
-            query_layer, key_layer = apply_rotary_pos_emb(query_rot, key_rot, cos, sin, offset=offset)
-
+            query_layer, key_layer = apply_rotary_fn(query_rot, key_rot, cos, sin, offset=offset)
 
             if exists(self.rotary_ndims):
                 query_layer = torch.cat((query_layer, query_pass), dim=-1)
@@ -410,9 +412,9 @@ class ParallelTransformerLayer(nn.Module):
         self.layer_number = layer_number
 
         self.apply_residual_connection_post_layernorm = neox_args.apply_residual_connection_post_layernorm
-        norm, eps = get_norm(neox_args)
 
         # Layernorm on the input data.
+        norm, eps = get_norm(neox_args)
         self.input_layernorm = norm(neox_args.hidden_size, eps=eps)
         self.get_key_value = get_key_value
 
