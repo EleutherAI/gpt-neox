@@ -266,7 +266,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     If None - gmlp model doesn't use attention.
     """
 
-    gptj_residual : bool = False
+    gpt_j_residual : bool = False
     """
     If false, we use the conventional residual path:
       x = x + attn(ln1(x))
