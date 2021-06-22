@@ -19,33 +19,12 @@ import os
 import deepspeed
 from deepspeed.launcher.runner import main
 
-import requests
-import subprocess
+logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 
-from megatron.config_monster import ConfigMonster
 from megatron.neox_arguments import NeoXArgs
 from megatron.utils import get_wandb_api_key
 
-import logging
 
-from megatron.logging import Tee
-
-logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
-
-def get_git_commit_hash():
-    """ Gets the git commit hash of your current repo (if it exists) """
-    try:
-        git_hash = subprocess.check_output(["git", "describe", "--always"]).strip()
-        git_hash = git_hash.decode()
-    except subprocess.CalledProcessError:
-        git_hash = None
-    return git_hash
-
-
-# add git hash
-extra_conf = {
-    'git_hash': get_git_commit_hash()
-}
 
 neox_args = NeoXArgs.consume_deepy_args()
 if neox_args.wandb_group is not None:
