@@ -266,6 +266,16 @@ class NeoXArgsModel(NeoXArgsTemplate):
     If None - gmlp model doesn't use attention.
     """
 
+    gptj_residual : bool = False
+    """
+    If false, we use the conventional residual path:
+      x = x + attn(ln1(x))
+      x = x + mlp(ln2(x))
+    Otherwise, we use the residual path from GPT-J, which offers a slight speedup:
+      x = ln(x)
+      x = x + attn(x) + mlp(x)
+    """
+
 
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):
