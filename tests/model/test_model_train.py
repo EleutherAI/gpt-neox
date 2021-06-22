@@ -26,7 +26,18 @@ PARAMS_TO_TEST = {
                         "block": 16, # block size
                         "num_local_blocks": 32,
                     }],
-    "fp16,fp32_allreduce": [[{ 
+}
+
+
+parameters, names = parametrize(PARAMS_TO_TEST, max_tests=int(os.getenv('MAX_TESTCASES', 50)), seed=None)
+@pytest.mark.parametrize("param_dict", parameters, ids=names)
+def test_train(param_dict):
+    @distributed_test(world_size=2)
+    def wrapper():
+        run_train_test(param_dict=param_dict)
+    wrapper()
+
+BF16_PARAMS_TO_TEST = {"fp16,fp32_allreduce": [[{ 
      "enabled": True,
      "type": "bfloat16",
      "loss_scale": 0,
@@ -39,18 +50,15 @@ PARAMS_TO_TEST = {
      "loss_scale_window": 1000,
      "hysteresis": 2,
      "min_loss_scale": 1
-   }, False]]
-    
-}
+   }, False]]}
 
-parameters, names = parametrize(PARAMS_TO_TEST, max_tests=int(os.getenv('MAX_TESTCASES', 50)), seed=None)
+parameters, names = parametrize(BF16_PARAMS_TO_TEST, max_tests=int(os.getenv('MAX_TESTCASES', 50)), seed=None)
 @pytest.mark.parametrize("param_dict", parameters, ids=names)
-def test_train(param_dict):
+def test_train_bf16(param_dict):
     @distributed_test(world_size=2)
     def wrapper():
         run_train_test(param_dict=param_dict)
     wrapper()
-
 
 OPTIMIZER_PARAMS = {
     "optimizer": [
