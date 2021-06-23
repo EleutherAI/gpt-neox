@@ -292,3 +292,95 @@ class CharLevelTokenizer(AbstractTokenizer):
     @property
     def eod(self):
         return self.eod_id
+
+class HFTokenizer(AbstractTokenizer):
+    """Designed to Integrate HF's Tokenizer library."""
+
+    def __init__(self, vocab_file):
+        name = 'HFTokenizer'
+        super().__init__(name)
+
+        self.tokenizer = Tokenizer.from_file(vocab_file)
+        self.eod_id = self.tokenizer.token_to_id('<|endoftext|>')
+        self.pad_id = self.tokenizer.token_to_id('<|padding|>')
+
+    @property
+    def vocab_size(self):
+        return self.tokenizer.get_vocab_size()
+
+    @property
+    def vocab(self):
+        return self.tokenizer.get_vocab()
+
+    @property
+    def inv_vocab(self):
+        return self.tokenizer.decoder
+
+    def tokenize(self, text: str):
+        return self.tokenizer.encode(text).ids
+
+    def tokenize_batch(self, text_batch: Union[List[str], str]):
+        return self.tokenizer.encode_batch(text_batch)
+
+    def detokenize(self, token_ids):
+        return self.tokenizer.decode(token_ids)
+
+    @property
+    def eod(self):
+        return self.eod_id
+
+
+class SentencePieceTokenizer(AbstractTokenizer):
+    """Wrapper for Google's SentencePiece Tokenizer.
+    
+    Here the 'vocab_file' used to load the tokenizer is actually the `model_prefix` in google's terminology.
+    
+    When you have a trained spm, you should have two files:
+    
+        your_model_prefix.model + your_model_prefix.vocab
+        
+    To load the tokenizer, just pass in vocab_file=your_model_prefix"""
+
+    def __init__(self, model_path=None, model_type="bpe"):
+        name = 'SentencePieceTokenizer'
+        import sentencepiece as spm
+
+        self.tokenizer = spm.SentencePieceProcessor()
+        self.tokenizer.load(model_path)
+
+        self.eod_id = self.tokenizer.piece_to_id("<|endoftext|>")
+        assert self.eod_id != 0, "eod token not detected" # 0 = unk token
+        
+        self.pad_id = self.tokenizer.piece_to_id("<|padding|>")
+        assert self.pad_id != 0, "pad token not detected" # 0 = unk token
+
+        self.newline_id = self.tokenizer.piece_to_id("<|newline|>")
+        assert self.pad_id != 0, "newline[] token not detected" # 0 = unk token
+
+
+    @property
+    def vocab_size(self):
+        return len(self.tokenizer)
+
+    @property
+    def vocab(self):
+        raise NotImplementedError
+
+    @property
+    def inv_vocab(self):
+        raise NotImplementedError
+
+    def tokenize(self, text: str):
+        return self.tokenizer.encode(text.replace("\n", "<|newline|>"))
+
+    def tokenize_batch(self, text_batch: Union[List[str], str]):
+        if isinstance(text_batch, str):
+            text_batch = [text_batch]
+        return [self.tokenize(t) for t in text_batch]
+
+    def detokenize(self, token_ids):
+        return self.tokenizer.decode(token_ids).replace("<|newline|>", "\n")
+
+    @property
+    def eod(self):
+        return self.eod_id
