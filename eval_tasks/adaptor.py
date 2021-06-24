@@ -1,4 +1,4 @@
-from megatron.utils import is_local_main
+from megatron.utils import is_local_main, print_rank_0
 import best_download
 
 # patch best_download (eval harness downloader) to only happen on the first rank
@@ -18,17 +18,14 @@ from functools import partial
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
                                              os.path.pardir)))
-from megatron.utils import print_rank_0
 from tqdm import tqdm
 import torch
+import torch.nn.functional as F
+
 from lm_eval.base import CacheHook
 from lm_eval.models.gpt2 import GPT2LM
 from lm_eval import tasks, evaluator, utils
-import torch.nn.functional as F
 from megatron.text_generation_utils import generate_samples_from_prompt
-import inspect
-from lm_eval import tasks
-from lm_eval.utils import chunks
 
 
 # TODO: add data parallel
