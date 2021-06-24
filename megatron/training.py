@@ -556,14 +556,17 @@ def evaluate_and_print_results(neox_args, prefix, forward_step_func, data_iterat
                                model=model, verbose=verbose, timers=timers)
     string = f' validation loss at {prefix} | '
     for k, v in total_loss_dict.items():
-        string += f'{k} value: {v:.6E} | '
         if isinstance(v, dict):
             for k2, v2 in v.items():
                 k3 = "_".join([k, k2])
+                string += f'{k3} value: {v2:.6E} | '
                 tb_wandb_log(f"validation/{k3}", v2, iteration, use_wandb=neox_args.use_wandb,
                              tensorboard_writer=neox_args.tensorboard_writer)
         else:
-            tb_wandb_log(f"validation/{k}", v, iteration, use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
+            string += f'{k} value: {v:.6E} | '
+            tb_wandb_log(f"validation/{k}", v, iteration, use_wandb=neox_args.use_wandb,
+                         tensorboard_writer=neox_args.tensorboard_writer)
+
     length = len(string) + 1
     print_rank_0('-' * length)
     print_rank_0(string)
