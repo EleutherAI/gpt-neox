@@ -1,18 +1,21 @@
-from megatron.utils import is_local_main 
+from megatron.utils import is_local_main
 import best_download
 
 # patch best_download (eval harness downloader) to only happen on the first rank
 fn = best_download.download_file
 
+
 def _download_file(*args, **kwargs):
     if is_local_main():
         fn(*args, **kwargs)
+
 
 best_download.download_file = _download_file
 
 import os
 import sys
 from functools import partial
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
                                              os.path.pardir)))
 from megatron.utils import print_rank_0
@@ -23,9 +26,10 @@ from lm_eval.models.gpt2 import GPT2LM
 from lm_eval import tasks, evaluator, utils
 import torch.nn.functional as F
 from megatron.text_generation_utils import generate_samples_from_prompt
-import inspect 
-from lm_eval import tasks 
+import inspect
+from lm_eval import tasks
 from lm_eval.utils import chunks
+
 
 # TODO: add data parallel
 
@@ -50,10 +54,10 @@ class EvalHarnessAdaptor(GPT2LM):
         self.is_pipe_parallel = self.model.is_pipe_parallel
         self.is_data_parallel = self.model.is_data_parallel
         self.is_last_stage = True if not self.is_pipe_parallel else model.is_last_stage()  # only the last stage of the pipeline model will receive the logits
-        self.generate = partial(generate_samples_from_prompt, neox_args=neox_args, model=model, maximum_tokens=self.max_gen_toks)
+        self.generate = partial(generate_samples_from_prompt, neox_args=neox_args, model=model,
+                                maximum_tokens=self.max_gen_toks)
 
-
-    def greedy_until(self, requests, batch=False):
+    def greedy_until(self, requests):
         self.model.module.inference_mode()
         res = []
 
@@ -63,18 +67,18 @@ class EvalHarnessAdaptor(GPT2LM):
 
         reord = utils.Reorderer(requests, _collate)
         for context, until in tqdm(reord.get_reordered()):
-            if isinstance(until, str): 
+            if isinstance(until, str):
                 until = [until]
             stop_tokens = [self.tokenizer.encode(i) for i in until]
-            cont = self.generate(text=context, 
-                                stop_tokens=stop_tokens, 
-                                recompute = self.neox_args.recompute)
+            cont = self.generate(text=context,
+                                 stop_tokens=stop_tokens,
+                                 recompute=self.neox_args.recompute)
 
             s = cont[0]['text'] or ''
 
             for term in until:
                 s = s.split(term)[0]
-            
+
             # partial caching
             self.cache_hook.add_partial("greedy_until", (context, until), s)
 
@@ -97,7 +101,6 @@ class EvalHarnessAdaptor(GPT2LM):
             for chunk in utils.chunks(tqdm(reord.get_reordered(), disable=disable_tqdm), self.batch_size):
                 inps, contlens, inplens, padding_length = [], [], [], None
                 for _, context_enc, continuation_enc in chunk:
-
                     # when too long to fit in context, truncate from the left
                     inp = torch.tensor(
                         (context_enc + continuation_enc)[-(self.max_length + 1):][:-1]
@@ -171,16 +174,16 @@ class EvalHarnessAdaptor(GPT2LM):
     def run_eval(self, eval_tasks=None):
         was_training = self.model.training
         self.model.eval()
-        in_micro_batches = self.model.micro_batches # store input microbatches - we need to set to 1 during eval
+        in_micro_batches = self.model.micro_batches  # store input microbatches - we need to set to 1 during eval
         self.model.micro_batches = 1
         if eval_tasks is None:
             eval_tasks = ["lambada", "piqa", "hellaswag", "winogrande", "mathqa", "pubmedqa"]
         results = evaluator.evaluate(lm=self,
-                                        task_dict=tasks.get_task_dict(eval_tasks),
-                                        provide_description=False,
-                                        num_fewshot=0,
-                                        limit=None,
-                                        bootstrap_iters=2).get('results')
+                                     task_dict=tasks.get_task_dict(eval_tasks),
+                                     provide_description=False,
+                                     num_fewshot=0,
+                                     limit=None,
+                                     bootstrap_iters=2).get('results')
         if was_training:
             self.model.train()
         self.model.micro_batches = in_micro_batches

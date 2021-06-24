@@ -48,7 +48,7 @@ from megatron.logging import training_log
 from megatron.model.gpt2_model import cross_entropy
 from megatron.utils import get_ltor_masks_and_position_ids
 from megatron.utils import reduce_losses
-
+from eval_tasks import run_eval_harness
 import deepspeed
 import numpy as np
 
@@ -132,6 +132,7 @@ def pretrain(neox_args):
             timers=timers
         )
 
+
 def _get_batch(neox_args, tokenizer, keys, data, datatype):
     """Support function for get_batch / get_batch pipe (to avoid code repetition)"""
     data_b = mpu.broadcast_data(keys, data, datatype)
@@ -199,7 +200,6 @@ def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
     return loss
 
 
-
 def get_model(neox_args, inference=False, get_key_value=True):
     """Build the model."""
 
@@ -207,7 +207,7 @@ def get_model(neox_args, inference=False, get_key_value=True):
 
     # Build model on cpu.
     model = GPT2ModelPipe(neox_args=neox_args, num_tokentypes=0, parallel_output=True, topology=mpu.get_topology(),
-                            inference=inference, get_key_value=get_key_value)
+                          inference=inference, get_key_value=get_key_value)
     if not neox_args.is_pipe_parallel:
         # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
         model = model.to_sequential()
@@ -539,11 +539,14 @@ def evaluate(neox_args, forward_step_fn, data_iterator, model, verbose=False, ti
             # forward pass
             if neox_args.deepspeed and neox_args.deepspeed_activation_checkpointing:
                 deepspeed.checkpointing.reset()
-    # reduces losses across processes for logging
-    reduced_loss = {"lm_loss": reduce_losses(losses).mean()}
+    # reduces losses across processes for logging & run eval harness tasks
+    eval_results = {"lm_loss": reduce_losses(losses).mean().item()}
+    eval_results['lm_loss_ppl'] = math.exp(eval_results['lm_loss'])
+    if neox_args.eval_tasks:
+        eval_results.update(run_eval_harness(model, forward_step_fn, neox_args, eval_tasks=neox_args.eval_tasks))
     # Move model back to the train mode.
     model.train()
-    return reduced_loss
+    return eval_results
 
 
 def evaluate_and_print_results(neox_args, prefix, forward_step_func, data_iterator, model, iteration, verbose=False,
@@ -551,19 +554,17 @@ def evaluate_and_print_results(neox_args, prefix, forward_step_func, data_iterat
     """Helper function to evaluate and dump results on screen."""
     total_loss_dict = evaluate(neox_args=neox_args, forward_step_fn=forward_step_func, data_iterator=data_iterator,
                                model=model, verbose=verbose, timers=timers)
-    string = ' validation loss at {} | '.format(prefix)
-    for key in total_loss_dict:
-        string += '{} value: {:.6E} | '.format(key, total_loss_dict[key].item())
-        ppl = math.exp(min(20, total_loss_dict[key].item()))
-        string += '{} PPL: {:.6E} | '.format(key, ppl)
-        tb_wandb_log(f"validation/{key.replace(' ', '_')}", total_loss_dict[key].item(), iteration,
-                     use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
-        tb_wandb_log(f"validation/{key.replace(' ', '_')}_ppl", ppl, iteration, use_wandb=neox_args.use_wandb,
-                     tensorboard_writer=neox_args.tensorboard_writer)
-
+    string = f' validation loss at {prefix} | '
+    for k, v in total_loss_dict.items():
+        string += f'{k} value: {v:.6E} | '
+        if isinstance(v, dict):
+            for k2, v2 in v.items():
+                k3 = "_".join([k, k2])
+                tb_wandb_log(f"validation/{k3}", v2, iteration, use_wandb=neox_args.use_wandb,
+                             tensorboard_writer=neox_args.tensorboard_writer)
+        else:
+            tb_wandb_log(f"validation/{k}", v, iteration, use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
     length = len(string) + 1
     print_rank_0('-' * length)
     print_rank_0(string)
     print_rank_0('-' * length)
-
-
