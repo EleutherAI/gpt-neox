@@ -144,7 +144,7 @@ class EmbeddingDistilPipe(Embedding):
         in_student_model = len(args) == 5  # if the length of the args is 5, we're in student model :|
 
 
-        if in_student_model:
+        if not (in_student_model or in_teacher_model):
             raise ValueError(f'Incorrect number of args passed to {self.__class__.__name__}')
 
         input_ids = args[0]
@@ -156,6 +156,9 @@ class EmbeddingDistilPipe(Embedding):
 
         embeddings = super().forward(input_ids, position_ids)
         if in_teacher_model:
-            return embeddings, (input_ids, position_ids, attention_mask)
+            # return embeddings, (input_ids, position_ids, attention_mask)
+            return embeddings, input_ids, position_ids, attention_mask
         else:
-            return embeddings, attention_mask,  (teacher_logits, teacher_outputs)
+            # return embeddings, attention_mask,  (teacher_logits, teacher_outputs)
+            return embeddings, attention_mask, teacher_logits, teacher_outputs, None
+        
