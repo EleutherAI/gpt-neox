@@ -213,9 +213,6 @@ To evaluate a trained model on the evaluation harness, use `./deepy.py evaluate.
 
 ## Citing GPT-NeoX
 
-
-### Citing 
-
 If you have found GPT-Neo helpful in your work, you can cite this repository as
 
 ```
