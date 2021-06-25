@@ -58,12 +58,7 @@ def initialize_megatron(neox_args, allow_no_cuda=False):
         _set_random_seed(neox_args.seed)
 
     # load scaled_upper_triang_masked_softmax_fusion kernel
-    if neox_args.scaled_upper_triang_masked_softmax_fusion:
-        fused_kernels.load_scaled_upper_triang_masked_softmax_fusion_kernel()
-
-    # load scaled_masked_softmax_fusion kernel
-    if neox_args.scaled_masked_softmax_fusion:
-        fused_kernels.load_scaled_masked_softmax_fusion_kernel()
+    fused_kernels.load_fused_kernels(neox_args)
 
     if neox_args.lazy_mpu_init:
         neox_args.use_cpu_initialization = True
@@ -174,7 +169,8 @@ def _initialize_distributed(neox_args):
         if mpu.model_parallel_is_initialized():
             print('_initialize_distributed() model parallel is already initialized', flush=True)
         else:
-            mpu.initialize_model_parallel(neox_args.model_parallel_size, topology=topo)
+            mpu.initialize_model_parallel(neox_args.model_parallel_size, topology=topo,
+                                          fp32_allreduce=neox_args.fp32_allreduce)
 
     # Init DeepSpeed Activation Checkpointing Features
     setup_deepspeed_random_and_activation_checkpointing(neox_args=neox_args)

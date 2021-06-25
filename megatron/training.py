@@ -48,9 +48,9 @@ from megatron.logging import training_log
 from megatron.model.gpt2_model import cross_entropy
 from megatron.utils import get_ltor_masks_and_position_ids
 from megatron.utils import reduce_losses
-from megatron.fp16 import fp32_to_fp16
 
 import deepspeed
+import numpy as np
 
 
 def pretrain(neox_args):
@@ -132,7 +132,6 @@ def pretrain(neox_args):
             timers=timers
         )
 
-
 def _get_batch(neox_args, tokenizer, keys, data, datatype):
     """Support function for get_batch / get_batch pipe (to avoid code repetition)"""
     data_b = mpu.broadcast_data(keys, data, datatype)
@@ -170,7 +169,6 @@ def get_batch(neox_args, data_iterator):
 
 def get_batch_pipe(data, neox_args):
     """A modification of get_batch() to work with the latest batch instead of an iterator. """
-
     # Items and their type.
     keys = ['text']
     datatype = torch.int64
@@ -178,25 +176,28 @@ def get_batch_pipe(data, neox_args):
     tokens, labels, loss_mask, attention_mask, position_ids = _get_batch(neox_args, neox_args.tokenizer, keys, data,
                                                                          datatype)
     # unpack data
-    if neox_args.precision == "fp16":
-        # cast to fp16 because pipeline parallelism skips the FP16 wrapper.
-        return fp32_to_fp16((tokens, position_ids, attention_mask)), fp32_to_fp16((labels, loss_mask))
-    else:
-        return (tokens, position_ids, attention_mask), (labels, loss_mask)
+    return (tokens, position_ids, attention_mask), (labels, loss_mask)
 
 
-def forward_step(data_iterator, model, neox_args, timers):
+def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
     """Forward step."""
+    if neox_args.is_pipe_parallel:
+        return model.eval_batch(data_iterator, return_logits=return_logits)
 
     # Get the batch.
-    timers('batch generator').start()
+    if timers is not None:
+        timers('batch generator').start()
     tokens, labels, loss_mask, attention_mask, position_ids = get_batch(neox_args=neox_args,
                                                                         data_iterator=data_iterator)
-    timers('batch generator').stop()
+    if timers is not None:
+        timers('batch generator').stop()
 
     outputs = model((tokens, position_ids, attention_mask))
     loss = cross_entropy(outputs, (labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy)
+    if return_logits:
+        return loss, outputs
     return loss
+
 
 
 def get_model(neox_args, inference=False, get_key_value=True):
@@ -454,7 +455,6 @@ def train(neox_args, timers, model, optimizer, lr_scheduler,
             optimizer=optimizer,
             lr_scheduler=lr_scheduler
         )
-
         iteration += 1
 
         overflow_monitor.check(skipped_iter)  # check for repeated overflow
@@ -506,12 +506,19 @@ def train(neox_args, timers, model, optimizer, lr_scheduler,
     return iteration
 
 
-def evaluate(neox_args, forward_step_fn, data_iterator, model, verbose=False):
-    """Evaluation."""
+def evaluate(neox_args, forward_step_fn, data_iterator, model, verbose=False, timers=None):
+    """Evaluation.
+    neox_args: NeoX Arguments
+    forward_step_fn: function with args `neox_args, timers,
+                    data_iterator & model that will run a forward pass on the model
+    data_iterator: Iterator that iterates over batches of data. Should return data in the form:
+                    {'text': np.array([tokens], dtype=np.int64)}
+                    where the size of the array is the model's context size + 1
+                    (`get_batch` transforms it into inputs / labels)
+    """
     # Turn on evaluation mode which disables dropout.
     model.eval()
     losses = []
-
     with torch.no_grad():
         iteration = 0
         while iteration < neox_args.eval_iters:
@@ -523,7 +530,7 @@ def evaluate(neox_args, forward_step_fn, data_iterator, model, verbose=False):
             # to be consistent with deepspeed's pipe parallel engine
             for _ in range(neox_args.gradient_accumulation_steps):
                 # Forward evaluation
-                loss = forward_step_fn(data_iterator=data_iterator, model=model)
+                loss = forward_step_fn(model=model, data_iterator=data_iterator, neox_args=neox_args, timers=timers)
                 losses.append(loss)
 
             # When contiguous memory optimizations are enabled, the buffers
@@ -532,7 +539,6 @@ def evaluate(neox_args, forward_step_fn, data_iterator, model, verbose=False):
             # forward pass
             if neox_args.deepspeed and neox_args.deepspeed_activation_checkpointing:
                 deepspeed.checkpointing.reset()
-
     # reduces losses across processes for logging
     reduced_loss = {"lm_loss": reduce_losses(losses).mean()}
     # Move model back to the train mode.
@@ -543,18 +549,8 @@ def evaluate(neox_args, forward_step_fn, data_iterator, model, verbose=False):
 def evaluate_and_print_results(neox_args, prefix, forward_step_func, data_iterator, model, iteration, verbose=False,
                                timers=None):
     """Helper function to evaluate and dump results on screen."""
-
-    # Pipeline parallelism needs eval_batch() instead of a simple forward().
-    if neox_args.is_pipe_parallel:
-        def _eval_helper(data_iterator, model):
-            return model.eval_batch(data_iterator)
-
-        forward_step_func = _eval_helper
-    else:
-        forward_step_func = partial(forward_step_func, neox_args=neox_args, timers=timers)
-
     total_loss_dict = evaluate(neox_args=neox_args, forward_step_fn=forward_step_func, data_iterator=data_iterator,
-                               model=model, verbose=verbose)
+                               model=model, verbose=verbose, timers=timers)
     string = ' validation loss at {} | '.format(prefix)
     for key in total_loss_dict:
         string += '{} value: {:.6E} | '.format(key, total_loss_dict[key].item())
@@ -569,4 +565,5 @@ def evaluate_and_print_results(neox_args, prefix, forward_step_func, data_iterat
     print_rank_0('-' * length)
     print_rank_0(string)
     print_rank_0('-' * length)
+
 

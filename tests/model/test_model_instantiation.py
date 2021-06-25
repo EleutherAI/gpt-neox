@@ -5,7 +5,7 @@ instantiate models with different configurations as a first possible point of fa
 import pytest
 
 import torch
-
+import os
 from ..common import distributed_test, model_setup, clear_test_dirs, parametrize, binary
 
 PARAMS_TO_TEST = {
@@ -13,10 +13,24 @@ PARAMS_TO_TEST = {
     "no_weight_tying": binary,
     "attention_config": [[[["global"], "all"]], [[["local"], "all"]], [[["sparse_variable"], "all"]],
                          [[["sparse_fixed"], "all"]]],
-    "scaled_upper_triang_masked_softmax_fusion,bias_gelu_fusion": [[True, False], [False, True]]
+    "scaled_upper_triang_masked_softmax_fusion,bias_gelu_fusion": [[True, False], [False, True]],
+    "fp16,fp32_allreduce": [[{ 
+     "enabled": True,
+     "type": "bfloat16",
+     "loss_scale": 0,
+     "loss_scale_window": 1000,
+     "hysteresis": 2,
+     "min_loss_scale": 1
+   }, True], [{ 
+     "enabled": True,
+     "loss_scale": 0,
+     "loss_scale_window": 1000,
+     "hysteresis": 2,
+     "min_loss_scale": 1
+   }, False]]
 }
 
-parameters, names = parametrize(PARAMS_TO_TEST, max_tests=50, seed=None)
+parameters, names = parametrize(PARAMS_TO_TEST, max_tests=int(os.getenv('MAX_TESTCASES', 50)), seed=None)
 @pytest.mark.parametrize("param_dict", parameters, ids=names)
 def test_instantiate(param_dict):
     @distributed_test(world_size=param_dict.pop("world_size", 2))
@@ -34,7 +48,7 @@ OPTIMIZER_PARAMS = {
                   {"type": "madgrad_wd","params": {"lr": 0.0006}}
                   ]
                   }
-opt_params, opt_name = parametrize(OPTIMIZER_PARAMS, max_tests=50, seed=None)
+opt_params, opt_name = parametrize(OPTIMIZER_PARAMS, max_tests=int(os.getenv('MAX_TESTCASES', 50)), seed=None)
 @pytest.mark.parametrize("param_dict", parameters, ids=names)
 def test_instantiate_optimizers(param_dict):
     @distributed_test(world_size=2)

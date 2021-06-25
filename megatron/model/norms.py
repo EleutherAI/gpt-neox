@@ -1,17 +1,17 @@
 import torch
+from .fused_layer_norm import MixedFusedLayerNorm as LayerNorm
 
-# default to FusedLayerNorm
+# Attempt to import FusedLayerNorm from Apex
 try:
-    from apex.normalization.fused_layer_norm import FusedLayerNorm as LayerNorm
+    from apex.normalization.fused_layer_norm import FusedLayerNorm as ApexLayerNorm
 
     # Try to use FusedLayerNorm from Apex - this will trigger an error.
-    _ = LayerNorm(8, eps=1e-5)
+    _ = ApexLayerNorm(8, eps=1e-5)
 
 except Exception as e:
     print('WARNING: APEX is not installed, using torch.nn.LayerNorm '
           'instead of apex.normalization.FusedLayerNorm!')
-    from torch.nn import LayerNorm
-
+    from torch.nn import LayerNorm as ApexLayerNorm
 
 def get_norm(neox_args):
     if neox_args.norm == "rmsnorm":
@@ -23,8 +23,12 @@ def get_norm(neox_args):
     elif neox_args.norm == "scalenorm":
         eps = neox_args.scalenorm_epsilon
         norm = ScaleNorm
+    elif neox_args.norm == "apexlayernorm":
+        eps = neox_args.layernorm_epsilon
+        norm = ApexLayerNorm
+    else:
+        raise ValueError(f"norm {neox_args.norm} not recognized")
     return norm, eps
-
 
 class RMSNorm(torch.nn.Module):
     def __init__(self, dim, p=-1., eps=1e-8, bias=False):

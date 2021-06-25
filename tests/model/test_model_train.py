@@ -9,6 +9,7 @@ import pytest
 from ..common import distributed_test, clear_test_dirs, model_setup, binary, parametrize
 
 import torch
+import os 
 
 PARAMS_TO_TEST = {
     "norm,pos_emb,activation": [["layernorm", "learned", "gelu"], ["rmsnorm", "rotary", "relu"],
@@ -24,11 +25,11 @@ PARAMS_TO_TEST = {
     "sparsity_config": [{
                         "block": 16, # block size
                         "num_local_blocks": 32,
-                    }]
-    
+                    }],
 }
 
-parameters, names = parametrize(PARAMS_TO_TEST, max_tests=50, seed=None)
+
+parameters, names = parametrize(PARAMS_TO_TEST, max_tests=int(os.getenv('MAX_TESTCASES', 50)), seed=None)
 @pytest.mark.parametrize("param_dict", parameters, ids=names)
 def test_train(param_dict):
     @distributed_test(world_size=2)
@@ -36,6 +37,28 @@ def test_train(param_dict):
         run_train_test(param_dict=param_dict)
     wrapper()
 
+BF16_PARAMS_TO_TEST = {"fp16,fp32_allreduce": [[{ 
+     "enabled": True,
+     "type": "bfloat16",
+     "loss_scale": 0,
+     "loss_scale_window": 1000,
+     "hysteresis": 2,
+     "min_loss_scale": 1
+   }, True], [{ 
+     "enabled": True,
+     "loss_scale": 0,
+     "loss_scale_window": 1000,
+     "hysteresis": 2,
+     "min_loss_scale": 1
+   }, False]]}
+
+parameters, names = parametrize(BF16_PARAMS_TO_TEST, max_tests=int(os.getenv('MAX_TESTCASES', 50)), seed=None)
+@pytest.mark.parametrize("param_dict", parameters, ids=names)
+def test_train_bf16(param_dict):
+    @distributed_test(world_size=2)
+    def wrapper():
+        run_train_test(param_dict=param_dict)
+    wrapper()
 
 OPTIMIZER_PARAMS = {
     "optimizer": [
@@ -47,7 +70,7 @@ OPTIMIZER_PARAMS = {
                   {"type": "madgrad_wd","params": {"lr": 0.0006}}
                   ]
                   }
-opt_params, opt_name = parametrize(OPTIMIZER_PARAMS, max_tests=50, seed=None)
+opt_params, opt_name = parametrize(OPTIMIZER_PARAMS, max_tests=int(os.getenv('MAX_TESTCASES', 50)), seed=None)
 @pytest.mark.parametrize("param_dict", parameters, ids=names)
 def test_train_optimizers(param_dict):
     @distributed_test(world_size=2)
