@@ -13,7 +13,32 @@ If you're looking for our TPU codebase, see [GPT-Neo](https://github.com/Eleuthe
 
 GPT-NeoX is under active development.
 
-## Features:
+- [GPT-NeoX](#gpt-neox)
+  * [Quick Start](#quick-start)
+  * [Features:](#features)
+    + [3D Parallelism](#3d-parallelism)
+    + [Model Structure](#model-structure)
+    + [Optimizers](#optimizers)
+    + [Straightforward configuration](#straightforward-configuration)
+  * [Getting Started](#getting-started)
+    + [Configuration and parameters](#configuration-and-parameters)
+    + [Datasets](#datasets)
+    + [Training](#training)
+  * [Monitoring](#monitoring)
+  * [Inference](#inference)
+  * [Evaluation](#evaluation)
+  * [Distilling](#distilling)
+  * [Citing GPT-NeoX](#citing-gpt-neox)
+    + [Citing](#citing)
+  * [Licensing](#licensing)
+  * [Acknowledgements](#acknowledgements)
+
+<small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>
+
+
+## Quick Start
+
+## Features
 
 ### 3D Parallelism 
 
@@ -178,7 +203,9 @@ We also support using Tensorboard via the `tensorboard-dir` argument. To use ten
 
 ## Evaluation
 
-[WIP]
+GPT-NeoX supports evaluation on downstream tasks through the [language model evaluation harness](https://github.com/EleutherAI/lm-evaluation-harness).
+
+To evaluate a trained model on the evaluation harness, use `./deepy.py evaluate.py configs/your_config.yml`
 
 ## Distilling
 
