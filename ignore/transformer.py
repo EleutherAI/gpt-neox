@@ -535,32 +535,6 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
             raise ValueError(
                 f'In layer {self.layer_number} - Incorrect number of arguments ({len(args)}) for {self.__class__.__name__}')
 
-class ParallelTransformerLayerDistilPipe(ParallelTransformerLayer):
-    """Extends ParallelTransformerLayer to forward attention_mask through the pipeline. """
-
-    def forward(self, args):
-        # we dont inference on distillation model
-        # in_inference = len(args) == 4  # length of the args in inference == 4
-        in_teacher_model = len(args)==2  # length of the args in teacher model == 2
-        in_student_model = len(args)==3  # length of the args in student model == 3
-
-        if in_teacher_model:
-            embeddings, (input_ids, position_ids, attention_mask) = args
-            hidden_states = embeddings 
-            next_hidden_states = super().forward(hidden_states, attention_mask)
-            # passing the data through layer
-            # input_ids, position_ids, attention_mask are required for student model
-            return next_hidden_states, (input_ids, position_ids, attention_mask)
-        elif in_student_model:
-            embeddings, attention_mask, (teacher_logits, teacher_outputs) = args
-            hidden_states = embeddings 
-            next_hidden_states = super().forward(hidden_states, attention_mask)
-            # passing the data through layer
-            # teacher_logits, teacher_outputs are required to compute student loss
-            return next_hidden_states, attention_mask, (teacher_logits, teacher_outputs)
-        else:
-            raise ValueError(
-                f'In layer {self.layer_number} - Incorrect number of arguments ({len(args)}) for {self.__class__.__name__}')
 
 class ParallelLinearPipe(ParallelLinear):
     """Another helper class to pass presents through to the output when doing inference with a Pipe Parallel model"""
@@ -578,31 +552,6 @@ class ParallelLinearPipe(ParallelLinear):
             return logits, presents
         else:
             raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
-
-class ParallelLinearDistilPipe(ParallelLinear):
-    """Another helper class to pass presents through to the output when doing inference with a Pipe Parallel model"""
-
-    def forward(self, args):
-        if not isinstance(args, tuple):
-            # in training, args = hidden_state (tensor, so we check if object isn't a tuple and pass through here)
-            hidden_state = args
-            logits, bias = super().forward(hidden_state)
-            return logits
-        in_teacher_model = len(args)==2  # length of the args in teacher model == 2
-        in_student_model = len(args)==3  # length of the args in student model == 3
-
-        hidden_states = args[0]
-        logits, bias = super().forward(hidden_states)
-        if in_teacher_model:
-            input_ids, position_ids, attention_mask = args[1]
-            return input_ids, position_ids, attention_mask, hidden_states, logits
-        elif in_student_model:
-            attention_mask = args[1]
-            teacher_logits, teacher_outputs = args[2]
-            return teacher_logits, teacher_outputs, hidden_states, logits
-        else:
-            raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
-
 
 class NormPipe(nn.Module):
     """Just a helper class to pass presents through to the output when doing inference with a Pipe Parallel model"""
@@ -624,32 +573,6 @@ class NormPipe(nn.Module):
         else:
             raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
 
-class NormDistilPipe(nn.Module):
-    """Just a helper class to pass presents through to the output when doing inference with a Pipe Parallel model"""
-
-    def __init__(self, norm_class, hidden_size, eps):
-        super().__init__()
-        self.norm = norm_class(hidden_size, eps=eps)
-
-    def forward(self, args):
-        if not isinstance(args, tuple):
-            # in training, args = hidden_state (tensor, so we check if object isn't a tuple and pass through here)
-            hidden_state = args
-            return self.norm(hidden_state)
-
-        in_teacher_model = len(args)==2  # length of the args in teacher model == 2
-        in_student_model = len(args)==3  # length of the args in student model == 3
-
-        if in_teacher_model or in_student_model:
-            hidden_states= args[0]
-            hidden_states = self.norm(hidden_states)
-            out = (hidden_states, args[1:])
-            raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}, {out}')
-            return hidden_states, args[1:]
-        else:
-            raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
-
-
 def parallel_lm_logits(input_, word_embeddings_weight, parallel_output,
                        bias=None):
     """LM logits using word embedding weights."""
@@ -667,3 +590,79 @@ def parallel_lm_logits(input_, word_embeddings_weight, parallel_output,
         return logits_parallel
 
     return mpu.gather_from_model_parallel_region(logits_parallel)
+
+
+class ParallelTransformerLayerDistilPipe(ParallelTransformerLayer):
+    """Extends ParallelTransformerLayer to forward attention_mask through the pipeline. """
+
+    def forward(self, args):
+        # we dont inference on distillation model
+        in_teacher_model = len(args)==4  # length of the args in teacher model == 2
+        in_student_model = len(args)==5  # length of the args in student model == 3
+
+        if in_teacher_model:
+            embeddings, input_ids, position_ids, attention_mask = args
+            hidden_states = embeddings 
+            next_hidden_states = super().forward(hidden_states, attention_mask)
+            # passing the data through layer
+            # input_ids, position_ids, attention_mask are required for student model
+            return next_hidden_states, input_ids, position_ids, attention_mask
+        elif in_student_model:
+            embeddings, attention_mask, teacher_logits, teacher_outputs, _ = args
+            hidden_states = embeddings 
+            next_hidden_states = super().forward(hidden_states, attention_mask)
+            # passing the data through layer
+            # teacher_logits, teacher_outputs are required to compute student loss
+            return next_hidden_states, attention_mask, teacher_logits, teacher_outputs, None
+        else:
+            raise ValueError(
+                f'In layer {self.layer_number} - Incorrect number of arguments ({len(args)}) for {self.__class__.__name__}')
+
+class NormDistilPipe(nn.Module):
+    """Just a helper class to pass presents through to the output when doing inference with a Pipe Parallel model"""
+
+    def __init__(self, norm_class, hidden_size, eps):
+        super().__init__()
+        self.norm = norm_class(hidden_size, eps=eps)
+
+    def forward(self, args):
+        if not isinstance(args, tuple):
+            # in training, args = hidden_state (tensor, so we check if object isn't a tuple and pass through here)
+            hidden_state = args
+            return self.norm(hidden_state)
+
+        in_teacher_model = len(args)==4  # length of the args in teacher model == 2
+        in_student_model = len(args)==5  # length of the args in student model == 3
+
+        if in_teacher_model or in_student_model:
+            hidden_states= args[0]
+            hidden_states = self.norm(hidden_states)
+            return hidden_states, *args[1:]
+        else:
+            raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
+
+class ParallelLinearDistilPipe(ParallelLinear):
+    """Another helper class to pass presents through to the output when doing inference with a Pipe Parallel model"""
+
+    def forward(self, args):
+        if not isinstance(args, tuple):
+            # in training, args = hidden_state (tensor, so we check if object isn't a tuple and pass through here)
+            hidden_state = args
+            logits, bias = super().forward(hidden_state)
+            return logits
+        in_teacher_model = len(args)==4  # length of the args in teacher model == 2
+        in_student_model = len(args)==5  # length of the args in student model == 3
+
+        hidden_states = args[0]
+        logits, bias = super().forward(hidden_states)
+
+        if in_teacher_model:
+            input_ids, position_ids, attention_mask = args[1:]
+            return input_ids, position_ids, attention_mask, hidden_states, logits
+        elif in_student_model:
+            attention_mask, teacher_logits, teacher_outputs, _ = args[1:]
+            return teacher_logits, teacher_outputs, hidden_states, logits
+        else:
+            raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
+
+
