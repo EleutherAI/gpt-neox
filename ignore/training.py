@@ -78,10 +78,10 @@ def pretrain(neox_args):
     # Model, optimizer, and learning rate.
     timers('model and optimizer').start()
     model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=neox_args, inference=False, get_key_value=True)
-    print_rank_0(model)
-    exit()
-    #student_model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=neox_args, inference=False, get_key_value=True)
-
+    print_rank_0("saving args as pickle")
+    import pickle
+    with open("args.pickle","wb") as pkl:
+        pickle.dump(neox_args, pkl)
     timers('model and optimizer').stop()
 
     # Data stuff.
@@ -350,56 +350,6 @@ def get_learning_rate_scheduler(optimizer, neox_args):
 
     return lr_scheduler
 
-
-def setup_model_and_optimizer_for_distillation(neox_args, inference=False, get_key_value=True):
-    """Setup model and optimizer."""
-    model = get_model(neox_args=neox_args, inference=inference, get_key_value=get_key_value)
-    #_model = get_model(neox_args=neox_args, inference=inference, get_key_value=get_key_value)
-    print_rank_0(vars(model))
-    exit()
-
-    optimizer, param_groups = get_optimizer(model=model, neox_args=neox_args)
-    lr_scheduler = get_learning_rate_scheduler(optimizer=optimizer, neox_args=neox_args)
-
-    if neox_args.deepspeed:
-        print_rank_0("DeepSpeed is enabled.")
-        if neox_args.no_load_optim:
-            assert optimizer is None
-            _model_params = None
-            _lr_scheduler = None
-        else:
-            _model_params = param_groups if optimizer is None else None
-            _lr_scheduler = lr_scheduler
-
-        model, optimizer, _, lr_scheduler = deepspeed.initialize(
-            model=model,
-            optimizer=optimizer,
-            args=neox_args,
-            lr_scheduler=_lr_scheduler,
-            dist_init_required=False,
-            model_parameters=_model_params,
-            config_params=neox_args.deepspeed_config,
-            mpu=mpu if not neox_args.is_pipe_parallel else None
-        )
-        model.total_params = get_total_params(model.module)
-        print_rank_0(f' > total params: {"{:,}".format(model.total_params)}')
-
-        if neox_args.is_pipe_parallel:
-            model.set_has_attention_mask(True)
-            model.set_batch_fn(model.module._megatron_batch_fn)
-    else:
-        raise ValueError("Must be using deepspeed to run neox")
-
-    if neox_args.load is not None:
-        neox_args.iteration = load_checkpoint(neox_args=neox_args, model=model, optimizer=optimizer,
-                                              lr_scheduler=lr_scheduler, inference=inference)
-        print_rank_0(f'Loading checkpoint and starting from iteration {neox_args.iteration}')
-    else:
-        neox_args.iteration = 0
-
-    return model, optimizer, lr_scheduler    
-
-
 def setup_model_and_optimizer(neox_args, inference=False, get_key_value=True):
     """Setup model and optimizer."""
     model = get_model(neox_args=neox_args, inference=inference, get_key_value=get_key_value)
@@ -656,4 +606,3 @@ def evaluate_and_print_results(neox_args, prefix, forward_step_func, data_iterat
     print_rank_0('-' * length)
     print_rank_0(string)
     print_rank_0('-' * length)
-
