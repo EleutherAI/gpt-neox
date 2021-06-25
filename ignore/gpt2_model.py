@@ -93,6 +93,24 @@ def mse_loss(output, labels, _fp16=False):
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
     return loss
 
+def combined_loss(output, labels, alpha_lm=0, alpha_kld=0, alpha_mse=0, _fp16=False):
+
+    labels, loss_mask = labels[0], labels[1]
+    teacher_logits, teacher_outputs, student_logits, student_output = output
+    if alpha_lm > 0:
+        lm_loss = cross_entropy(student_logits, (labels, loss_mask), _fp16=_fp16)
+        loss = alpha_lm * lm_loss
+
+    if alpha_kld > 0:
+        kl_loss = kldiv_loss(student_logits, (teacher_logits, loss_mask),  _fp16=_fp16)
+        loss += alpha_kld * kl_loss
+
+    if alpha_mse > 0:
+        ms_loss = mse_loss(student_logits, (teacher_logits, loss_mask), _fp16=_fp16)
+        loss += alpha_mse * ms_loss
+
+    return loss
+
 def substitue_args(neox_args, set_student_args=True):
     if neox_args.do_distillation:
         args_to_substitue = neox_args.student_model_args \
@@ -125,7 +143,6 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                               substitue_args(neox_args, set_student_args=True)]
         else:
             list_neox_args = [neox_args] 
-            
 
         for neox_args in list_neox_args:
             self.neox_args = neox_args
@@ -136,7 +153,15 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             self.embedding_type = self.neox_args.pos_emb
             self.init_specs()
 
-        loss_fn = partial(cross_entropy, _fp16=self.fp16_lm_cross_entropy)
+        if self.do_distillation:
+            loss_fn = partial(combined_loss, 
+                            alpha_lm=self.neox_args.alpha_lm, 
+                            alpha_kld=self.neox_args.alpha_kld, 
+                            alpha_mse=self.neox_args.alpha_mse, 
+                            _fp16=self.fp16_lm_cross_entropy)
+        else:
+            loss_fn = partial(cross_entropy, _fp16=self.fp16_lm_cross_entropy)
+
         if self.neox_args.checkpoint_activations:
             interval = self.neox_args.checkpoint_num_layers
         else:
