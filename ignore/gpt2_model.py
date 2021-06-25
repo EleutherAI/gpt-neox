@@ -97,9 +97,10 @@ def combined_loss(output, labels, alpha_lm=0, alpha_kld=0, alpha_mse=0, _fp16=Fa
 
     labels, loss_mask = labels[0], labels[1]
     teacher_logits, teacher_outputs, student_logits, student_output = output
+    loss = 0
     if alpha_lm > 0:
         lm_loss = cross_entropy(student_logits, (labels, loss_mask), _fp16=_fp16)
-        loss = alpha_lm * lm_loss
+        loss += alpha_lm * lm_loss
 
     if alpha_kld > 0:
         kl_loss = kldiv_loss(student_logits, (teacher_logits, loss_mask),  _fp16=_fp16)
