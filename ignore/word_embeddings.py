@@ -159,6 +159,3 @@ class EmbeddingDistilPipe(Embedding):
             return embeddings, (input_ids, position_ids, attention_mask)
         else:
             return embeddings, attention_mask,  (teacher_logits, teacher_outputs)
-
-
-
