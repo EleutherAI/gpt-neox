@@ -33,6 +33,8 @@ GPT-NeoX is under active development.
 
 ## Quick Start
 
+To try out a pretrained model [coming soon].
+
 ## Features
 
 ### 3D Parallelism 
