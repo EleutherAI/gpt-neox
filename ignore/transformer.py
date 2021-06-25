@@ -24,7 +24,7 @@ import torch.nn.functional as F
 import torch.nn as nn
 
 from .norms import get_norm
-from megatron import mpu
+from megatron import mpu, print_rank_0
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
 from megatron.model.activations import get_activation
 from megatron.model.utils import exists
@@ -597,7 +597,8 @@ class ParallelLinearDistilPipe(ParallelLinear):
             input_ids, position_ids, attention_mask = args[1]
             return input_ids, position_ids, attention_mask, hidden_states, logits
         elif in_student_model:
-            attention_mask, (teacher_logits, teacher_outputs) = args[1]
+            attention_mask = args[1]
+            teacher_logits, teacher_outputs = args[2]
             return teacher_logits, teacher_outputs, hidden_states, logits
         else:
             raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
@@ -642,6 +643,8 @@ class NormDistilPipe(nn.Module):
         if in_teacher_model or in_student_model:
             hidden_states= args[0]
             hidden_states = self.norm(hidden_states)
+            out = (hidden_states, args[1:])
+            raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}, {out}')
             return hidden_states, args[1:]
         else:
             raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
