@@ -213,9 +213,6 @@ def disitl_step(data_iterator, model, neox_args, timers):
     if neox_args.alpha_mse > 0:
         ms_loss = mse_loss(student_logits, (teacher_logits, loss_mask), _fp16=neox_args.reduce_loss_fp16)
         loss += neox_args.alpha_mse * ms_loss
-    else:
-        outputs = model((tokens, position_ids, attention_mask))
-        loss = cross_entropy(outputs, (labels, loss_mask), _fp16=neox_args.reduce_loss_fp16)
 
     return loss
 
@@ -606,3 +603,4 @@ def evaluate_and_print_results(neox_args, prefix, forward_step_func, data_iterat
     print_rank_0('-' * length)
     print_rank_0(string)
     print_rank_0('-' * length)
+
