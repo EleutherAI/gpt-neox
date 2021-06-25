@@ -12,26 +12,27 @@ For more info on our progress, please [join our discord](https://discord.gg/zBGx
 If you're looking for our TPU codebase, see [GPT-Neo](https://github.com/EleutherAI/gpt-neo).
 
 GPT-NeoX is under active development.
+- [Quick Start](#quick-start)
+- [Features:](#features-)
+  * [3D Parallelism](#3d-parallelism)
+  * [Model Structure](#model-structure)
+  * [Optimizers](#optimizers)
+  * [Straightforward configuration](#straightforward-configuration)
+- [Getting Started](#getting-started)
+  * [Configuration and parameters](#configuration-and-parameters)
+  * [Datasets](#datasets)
+  * [Training](#training)
+- [Monitoring](#monitoring)
+- [Inference](#inference)
+- [Evaluation](#evaluation)
+- [Distilling](#distilling)
+- [Citing GPT-NeoX](#citing-gpt-neox)
+  * [Citing](#citing)
+- [Licensing](#licensing)
+- [Acknowledgements](#acknowledgements)
 
-- [GPT-NeoX](#gpt-neox)
-  * [Quick Start](#quick-start)
-  * [Features:](#features)
-    + [3D Parallelism](#3d-parallelism)
-    + [Model Structure](#model-structure)
-    + [Optimizers](#optimizers)
-    + [Straightforward configuration](#straightforward-configuration)
-  * [Getting Started](#getting-started)
-    + [Configuration and parameters](#configuration-and-parameters)
-    + [Datasets](#datasets)
-    + [Training](#training)
-  * [Monitoring](#monitoring)
-  * [Inference](#inference)
-  * [Evaluation](#evaluation)
-  * [Distilling](#distilling)
-  * [Citing GPT-NeoX](#citing-gpt-neox)
-    + [Citing](#citing)
-  * [Licensing](#licensing)
-  * [Acknowledgements](#acknowledgements)
+<small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>
+
 
 <small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>
 
