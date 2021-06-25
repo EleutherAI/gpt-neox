@@ -135,8 +135,6 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             self.fp16_lm_cross_entropy = self.neox_args.fp16_lm_cross_entropy
             self.embedding_type = self.neox_args.pos_emb
             self.init_specs()
-            print_rank_0("!"*100)
-            print_rank_0(len(self.specs))
 
         loss_fn = partial(cross_entropy, _fp16=self.fp16_lm_cross_entropy)
         if self.neox_args.checkpoint_activations:
@@ -227,9 +225,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         else:
             if self.do_distillation:
                 # Undo data format change
-                def change_format(args):
-                    return lambda x: x[0].transpose(0, 1).contiguous(), x[1:]
-                self.specs.append(change_format)
+                self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), *x[1:]))
             else:
                 # Undo data format change and drop mask
                 self.specs.append(lambda x: x[0].transpose(0, 1).contiguous())
