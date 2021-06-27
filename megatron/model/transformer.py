@@ -24,11 +24,11 @@ import torch.nn.functional as F
 import torch.nn as nn
 
 from .norms import get_norm
-from megatron import mpu
+from megatron import mpu, print_rank_0
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
 from megatron.model.activations import get_activation
 from megatron.model.utils import exists
-from megatron.model.positional_embeddings import RotaryEmbedding, apply_rotary_pos_emb, apply_rotary_pos_emb_torch
+from megatron.model.positional_embeddings import RotaryEmbedding, apply_rotary_pos_emb
 from megatron.model.fused_bias_dropout import get_bias_dropout_add, bias_dropout_add_fused_train, \
     bias_dropout_add_fused_inference
 from megatron.model.utils import configure_sparse_attention
@@ -148,7 +148,6 @@ class ParallelSelfAttention(nn.Module):
         super(ParallelSelfAttention, self).__init__()
 
         self.fp16 = neox_args.precision == "fp16"
-        self.bf16 = neox_args.precision == "bfloat16"
         self.attention_mask_func = attention_mask_func
         self.apply_query_key_layer_scaling = neox_args.apply_query_key_layer_scaling
         self.get_key_value = get_key_value
@@ -188,7 +187,7 @@ class ParallelSelfAttention(nn.Module):
                 assert neox_args.rotary_pct < 1
                 self.rotary_ndims = int(self.hidden_size_per_attention_head * neox_args.rotary_pct)
             dim = self.rotary_ndims if self.rotary_ndims is not None else self.hidden_size_per_attention_head
-            self.rotary_emb = RotaryEmbedding(dim, base=neox_args.rotary_emb_base, precision=neox_args.params_dtype)
+            self.rotary_emb = RotaryEmbedding(dim, base=neox_args.rotary_emb_base)
         else:
             self.rotary_emb = None
 
@@ -200,13 +199,12 @@ class ParallelSelfAttention(nn.Module):
                                                           mpu=mpu)
         else:
             self.scale_mask_softmax = FusedScaleMaskSoftmax(
-                input_in_fp16=self.fp16,
-                input_in_bf16=self.bf16,
-                upper_triang_mask_fusion=neox_args.scaled_upper_triang_masked_softmax_fusion,
-                general_mask_fusion=neox_args.scaled_masked_softmax_fusion,
-                mask_func=self.attention_mask_func,
-                softmax_in_fp32=self.attention_softmax_in_fp32,
-                scale=coeff)
+                self.fp16,
+                neox_args.scaled_upper_triang_masked_softmax_fusion,
+                neox_args.scaled_masked_softmax_fusion,
+                self.attention_mask_func,
+                self.attention_softmax_in_fp32,
+                coeff)
 
             # Dropout. Note that for a single iteration, this layer will generate
             # different outputs on different number of parallel partitions but
@@ -342,34 +340,28 @@ class ParallelSelfAttention(nn.Module):
                 # partial rotary
                 query_rot, query_pass = query_layer[..., :self.rotary_ndims], query_layer[..., self.rotary_ndims:]
                 key_rot, key_pass = key_layer[..., :self.rotary_ndims], key_layer[..., self.rotary_ndims:]
+                cos, sin = self.rotary_emb(query_rot, seq_dim=0)
             else:
                 # full rotary
+                cos, sin = self.rotary_emb(query_layer, seq_dim=0)
                 query_rot, key_rot = query_layer, key_layer
-            apply_rotary_fn = apply_rotary_pos_emb_torch if self.bf16 else apply_rotary_pos_emb
 
-            seq_len = key_layer.shape[0]
-            offset = 0
-            if exists(layer_past) and layer_past.numel() > 0:
-                offset = layer_past[0].shape[0]
-                seq_len += offset
-            cos, sin = self.rotary_emb(value_layer, seq_len=seq_len)
-            query_layer, key_layer = apply_rotary_fn(query_rot, key_rot, cos, sin, offset=offset)
+            query_layer, key_layer = apply_rotary_pos_emb(query_rot, key_rot, cos, sin)
 
             if exists(self.rotary_ndims):
                 query_layer = torch.cat((query_layer, query_pass), dim=-1)
                 key_layer = torch.cat((key_layer, key_pass), dim=-1)
-                
+
         # ==================================
-        # Cache key and value for inference
+        # Adjust key and value for inference
         # ==================================
 
-        if exists(layer_past) and layer_past.numel() > 0:
+        if layer_past is not None and layer_past.numel() > 0:
             past_key, past_value = layer_past
             key_layer = torch.cat((past_key.type_as(key_layer),
                                    key_layer), dim=0)
             value_layer = torch.cat((past_value.type_as(value_layer),
                                      value_layer), dim=0)
-
         if self.get_key_value:
             present = torch.stack((key_layer, value_layer))
 
@@ -412,9 +404,9 @@ class ParallelTransformerLayer(nn.Module):
         self.layer_number = layer_number
 
         self.apply_residual_connection_post_layernorm = neox_args.apply_residual_connection_post_layernorm
+        norm, eps = get_norm(neox_args)
 
         # Layernorm on the input data.
-        norm, eps = get_norm(neox_args)
         self.input_layernorm = norm(neox_args.hidden_size, eps=eps)
         self.get_key_value = get_key_value
 
@@ -561,7 +553,6 @@ class ParallelLinearPipe(ParallelLinear):
         else:
             raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
 
-
 class NormPipe(nn.Module):
     """Just a helper class to pass presents through to the output when doing inference with a Pipe Parallel model"""
 
@@ -582,7 +573,6 @@ class NormPipe(nn.Module):
         else:
             raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
 
-
 def parallel_lm_logits(input_, word_embeddings_weight, parallel_output,
                        bias=None):
     """LM logits using word embedding weights."""
@@ -600,3 +590,79 @@ def parallel_lm_logits(input_, word_embeddings_weight, parallel_output,
         return logits_parallel
 
     return mpu.gather_from_model_parallel_region(logits_parallel)
+
+
+class ParallelTransformerLayerDistilPipe(ParallelTransformerLayer):
+    """Extends ParallelTransformerLayer to forward attention_mask through the pipeline. """
+
+    def forward(self, args):
+        # we dont inference on distillation model
+        in_teacher_model = len(args)==4  # length of the args in teacher model == 2
+        in_student_model = len(args)==5  # length of the args in student model == 3
+
+        if in_teacher_model:
+            embeddings, input_ids, position_ids, attention_mask = args
+            hidden_states = embeddings 
+            next_hidden_states = super().forward(hidden_states, attention_mask)
+            # passing the data through layer
+            # input_ids, position_ids, attention_mask are required for student model
+            return next_hidden_states, input_ids, position_ids, attention_mask
+        elif in_student_model:
+            embeddings, attention_mask, teacher_logits, teacher_outputs, _ = args
+            hidden_states = embeddings 
+            next_hidden_states = super().forward(hidden_states, attention_mask)
+            # passing the data through layer
+            # teacher_logits, teacher_outputs are required to compute student loss
+            return next_hidden_states, attention_mask, teacher_logits, teacher_outputs, None
+        else:
+            raise ValueError(
+                f'In layer {self.layer_number} - Incorrect number of arguments ({len(args)}) for {self.__class__.__name__}')
+
+class NormDistilPipe(nn.Module):
+    """Just a helper class to pass presents through to the output when doing inference with a Pipe Parallel model"""
+
+    def __init__(self, norm_class, hidden_size, eps):
+        super().__init__()
+        self.norm = norm_class(hidden_size, eps=eps)
+
+    def forward(self, args):
+        if not isinstance(args, tuple):
+            # in training, args = hidden_state (tensor, so we check if object isn't a tuple and pass through here)
+            hidden_state = args
+            return self.norm(hidden_state)
+
+        in_teacher_model = len(args)==4  # length of the args in teacher model == 2
+        in_student_model = len(args)==5  # length of the args in student model == 3
+
+        if in_teacher_model or in_student_model:
+            hidden_states= args[0]
+            hidden_states = self.norm(hidden_states)
+            return hidden_states, *args[1:]
+        else:
+            raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
+
+class ParallelLinearDistilPipe(ParallelLinear):
+    """Another helper class to pass presents through to the output when doing inference with a Pipe Parallel model"""
+
+    def forward(self, args):
+        if not isinstance(args, tuple):
+            # in training, args = hidden_state (tensor, so we check if object isn't a tuple and pass through here)
+            hidden_state = args
+            logits, bias = super().forward(hidden_state)
+            return logits
+        in_teacher_model = len(args)==4  # length of the args in teacher model == 2
+        in_student_model = len(args)==5  # length of the args in student model == 3
+
+        hidden_states = args[0]
+        logits, bias = super().forward(hidden_states)
+
+        if in_teacher_model:
+            input_ids, position_ids, attention_mask = args[1:]
+            return input_ids, position_ids, attention_mask, hidden_states, logits
+        elif in_student_model:
+            attention_mask, teacher_logits, teacher_outputs, _ = args[1:]
+            return teacher_logits, teacher_outputs, hidden_states, logits
+        else:
+            raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
+
+
