@@ -34,7 +34,7 @@ from megatron import print_rank_0
 from megatron import mpu
 
 from megatron.model import GPT2ModelPipe
-from megatron.checkpointing import load_checkpoint, save_checkpoint
+from megatron.checkpointing import load_checkpoint, save_checkpoint, save_checkpoint_student
 from megatron.data.data_utils import build_train_valid_test_data_iterators
 
 from megatron.initialize import initialize_megatron
@@ -45,12 +45,12 @@ from megatron.utils import OverflowMonitor, get_noise_scale_logger
 from megatron.utils import get_total_params
 from megatron.logging import training_log
 
-from megatron.model.gpt2_model import cross_entropy
+from megatron.model.gpt2_model import cross_entropy, substitue_args, kldiv_loss, mse_loss
 from megatron.utils import get_ltor_masks_and_position_ids
 from megatron.utils import reduce_losses
+from megatron.fp16 import fp32_to_fp16
 
 import deepspeed
-import numpy as np
 
 
 def pretrain(neox_args):
@@ -71,6 +71,8 @@ def pretrain(neox_args):
     timers = Timers(use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
 
     # Initalize and get arguments, timers, and Tensorboard writer.
+    if neox_args.do_distillation:
+        neox_args = substitue_args(neox_args)
     initialize_megatron(neox_args=neox_args)
 
     # Model, optimizer, and learning rate.
@@ -132,6 +134,7 @@ def pretrain(neox_args):
             timers=timers
         )
 
+
 def _get_batch(neox_args, tokenizer, keys, data, datatype):
     """Support function for get_batch / get_batch pipe (to avoid code repetition)"""
     data_b = mpu.broadcast_data(keys, data, datatype)
@@ -169,6 +172,7 @@ def get_batch(neox_args, data_iterator):
 
 def get_batch_pipe(data, neox_args):
     """A modification of get_batch() to work with the latest batch instead of an iterator. """
+
     # Items and their type.
     keys = ['text']
     datatype = torch.int64
@@ -176,28 +180,54 @@ def get_batch_pipe(data, neox_args):
     tokens, labels, loss_mask, attention_mask, position_ids = _get_batch(neox_args, neox_args.tokenizer, keys, data,
                                                                          datatype)
     # unpack data
-    return (tokens, position_ids, attention_mask), (labels, loss_mask)
+    if neox_args.precision == "fp16":
+        # cast to fp16 because pipeline parallelism skips the FP16 wrapper.
+        return fp32_to_fp16((tokens, position_ids, attention_mask)), fp32_to_fp16((labels, loss_mask))
+    else:
+        return (tokens, position_ids, attention_mask), (labels, loss_mask)
 
-
-def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
+def disitl_step(data_iterator, model, neox_args, timers):
     """Forward step."""
-    if neox_args.is_pipe_parallel:
-        return model.eval_batch(data_iterator, return_logits=return_logits)
 
     # Get the batch.
-    if timers is not None:
-        timers('batch generator').start()
+    timers('batch generator').start()
     tokens, labels, loss_mask, attention_mask, position_ids = get_batch(neox_args=neox_args,
                                                                         data_iterator=data_iterator)
-    if timers is not None:
-        timers('batch generator').stop()
+    timers('batch generator').stop()
+
+    # teacher_outputs and student_output can be used for cosine similarity loss, TO DO create cosine similarity loss
+    teacher_logits, teacher_outputs, student_logits, student_output = model((tokens, position_ids, attention_mask))
+
+    if neox_args.alpha_lm > 0:
+        lm_loss = cross_entropy(student_logits, (labels, loss_mask), _fp16=neox_args.reduce_loss_fp16)
+        loss = neox_args.alpha_lm * lm_loss
+
+    if neox_args.alpha_kld > 0:
+        kl_loss = kldiv_loss(student_logits, (teacher_logits, loss_mask), _fp16=neox_args.reduce_loss_fp16)
+        loss += neox_args.alpha_kld * kl_loss
+
+    if neox_args.alpha_mse > 0:
+        ms_loss = mse_loss(student_logits, (teacher_logits, loss_mask), _fp16=neox_args.reduce_loss_fp16)
+        loss += neox_args.alpha_mse * ms_loss
+
+    return loss
+
+
+def forward_step(data_iterator, model, neox_args, timers):
+    """Forward step."""
+
+    if neox_args.do_distillation:
+        return disitl_step(data_iterator, model, neox_args, timers)
+
+    # Get the batch.
+    timers('batch generator').start()
+    tokens, labels, loss_mask, attention_mask, position_ids = get_batch(neox_args=neox_args,
+                                                                        data_iterator=data_iterator)
+    timers('batch generator').stop()
 
     outputs = model((tokens, position_ids, attention_mask))
     loss = cross_entropy(outputs, (labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy)
-    if return_logits:
-        return loss, outputs
     return loss
-
 
 
 def get_model(neox_args, inference=False, get_key_value=True):
@@ -313,7 +343,6 @@ def get_learning_rate_scheduler(optimizer, neox_args):
 
     return lr_scheduler
 
-
 def setup_model_and_optimizer(neox_args, inference=False, get_key_value=True):
     """Setup model and optimizer."""
     model = get_model(neox_args=neox_args, inference=inference, get_key_value=get_key_value)
@@ -349,7 +378,7 @@ def setup_model_and_optimizer(neox_args, inference=False, get_key_value=True):
     else:
         raise ValueError("Must be using deepspeed to run neox")
 
-    if neox_args.load is not None:
+    if neox_args.load is not None or neox_args.load_teacher is not None:
         neox_args.iteration = load_checkpoint(neox_args=neox_args, model=model, optimizer=optimizer,
                                               lr_scheduler=lr_scheduler, inference=inference)
         print_rank_0(f'Loading checkpoint and starting from iteration {neox_args.iteration}')
@@ -455,6 +484,7 @@ def train(neox_args, timers, model, optimizer, lr_scheduler,
             optimizer=optimizer,
             lr_scheduler=lr_scheduler
         )
+
         iteration += 1
 
         overflow_monitor.check(skipped_iter)  # check for repeated overflow
@@ -506,19 +536,12 @@ def train(neox_args, timers, model, optimizer, lr_scheduler,
     return iteration
 
 
-def evaluate(neox_args, forward_step_fn, data_iterator, model, verbose=False, timers=None):
-    """Evaluation.
-    neox_args: NeoX Arguments
-    forward_step_fn: function with args `neox_args, timers,
-                    data_iterator & model that will run a forward pass on the model
-    data_iterator: Iterator that iterates over batches of data. Should return data in the form:
-                    {'text': np.array([tokens], dtype=np.int64)}
-                    where the size of the array is the model's context size + 1
-                    (`get_batch` transforms it into inputs / labels)
-    """
+def evaluate(neox_args, forward_step_fn, data_iterator, model, verbose=False):
+    """Evaluation."""
     # Turn on evaluation mode which disables dropout.
     model.eval()
     losses = []
+
     with torch.no_grad():
         iteration = 0
         while iteration < neox_args.eval_iters:
@@ -530,7 +553,7 @@ def evaluate(neox_args, forward_step_fn, data_iterator, model, verbose=False, ti
             # to be consistent with deepspeed's pipe parallel engine
             for _ in range(neox_args.gradient_accumulation_steps):
                 # Forward evaluation
-                loss = forward_step_fn(model=model, data_iterator=data_iterator, neox_args=neox_args, timers=timers)
+                loss = forward_step_fn(data_iterator=data_iterator, model=model)
                 losses.append(loss)
 
             # When contiguous memory optimizations are enabled, the buffers
@@ -539,6 +562,7 @@ def evaluate(neox_args, forward_step_fn, data_iterator, model, verbose=False, ti
             # forward pass
             if neox_args.deepspeed and neox_args.deepspeed_activation_checkpointing:
                 deepspeed.checkpointing.reset()
+
     # reduces losses across processes for logging
     reduced_loss = {"lm_loss": reduce_losses(losses).mean()}
     # Move model back to the train mode.
@@ -549,8 +573,18 @@ def evaluate(neox_args, forward_step_fn, data_iterator, model, verbose=False, ti
 def evaluate_and_print_results(neox_args, prefix, forward_step_func, data_iterator, model, iteration, verbose=False,
                                timers=None):
     """Helper function to evaluate and dump results on screen."""
+
+    # Pipeline parallelism needs eval_batch() instead of a simple forward().
+    if neox_args.is_pipe_parallel:
+        def _eval_helper(data_iterator, model):
+            return model.eval_batch(data_iterator)
+
+        forward_step_func = _eval_helper
+    else:
+        forward_step_func = partial(forward_step_func, neox_args=neox_args, timers=timers)
+
     total_loss_dict = evaluate(neox_args=neox_args, forward_step_fn=forward_step_func, data_iterator=data_iterator,
-                               model=model, verbose=verbose, timers=timers)
+                               model=model, verbose=verbose)
     string = ' validation loss at {} | '.format(prefix)
     for key in total_loss_dict:
         string += '{} value: {:.6E} | '.format(key, total_loss_dict[key].item())
@@ -565,5 +599,3 @@ def evaluate_and_print_results(neox_args, prefix, forward_step_func, data_iterat
     print_rank_0('-' * length)
     print_rank_0(string)
     print_rank_0('-' * length)
-
-
