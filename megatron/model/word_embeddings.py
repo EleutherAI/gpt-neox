@@ -133,3 +133,31 @@ class EmbeddingPipe(Embedding):
         else:
             return embeddings, attention_mask
 
+class EmbeddingDistilPipe(Embedding):
+    """Extends Embedding to forward attention_mask through the pipeline."""
+
+    def forward(self, args):
+        # we dont inference on distillation model
+        # in_inference = len(args) == 4  # if the length of the args is 4, we're in inference :|
+
+        in_teacher_model = len(args) == 3  # if the length of the args is 3, we're in teacher model :|
+        in_student_model = len(args) == 5  # if the length of the args is 5, we're in student model :|
+
+
+        if not (in_student_model or in_teacher_model):
+            raise ValueError(f'Incorrect number of args passed to {self.__class__.__name__}')
+
+        input_ids = args[0]
+        position_ids = args[1]
+        attention_mask = args[2]
+        if in_student_model:
+            teacher_logits = args[3]
+            teacher_outputs = args[4]
+
+        embeddings = super().forward(input_ids, position_ids)
+        if in_teacher_model:
+            # return embeddings, (input_ids, position_ids, attention_mask)
+            return embeddings, input_ids, position_ids, attention_mask
+        else:
+            # return embeddings, attention_mask,  (teacher_logits, teacher_outputs)
+            return embeddings, attention_mask, teacher_logits, teacher_outputs, None
