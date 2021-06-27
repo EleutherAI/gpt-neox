@@ -3,7 +3,7 @@
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
    # parallel pipeline is not implemeted for distillation.
-   "pipe-parallel-size": 2,
+   "pipe-parallel-size": 1,
    "model-parallel-size": 1,
 
    #related to distillation
@@ -15,7 +15,7 @@
 
    "student_model_args" :{
       # model settings
-      "num_layers": 2,
+      "num_layers": 12,
       "hidden_size": 768,
       "num_attention_heads": 12,
       "seq_length": 2048,
@@ -27,7 +27,7 @@
   
    "teacher_model_args" :{
      # model settings
-      "num-layers": 2,
+      "num-layers": 12,
       "hidden-size": 768,
       "num-attention-heads": 12,
       "seq-length": 2048,
