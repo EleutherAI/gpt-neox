@@ -183,6 +183,7 @@ We also support using Tensorboard via the `tensorboard-dir` argument. To use ten
 ## Distilling
 
 [WIP]
+`./deepy.py pretrain_gpt2.py -d configs distil-gpt-neox-small.yml local_setup.yml`
 
 ## Citing GPT-NeoX
 
