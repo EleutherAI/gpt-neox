@@ -53,25 +53,29 @@ For information on the required arguments for each function, see the correspondi
 
 - **Positional Encodings:** 
 
-    - Choose between T5 RPE style positional encodings, a learned encoding added to the input (GPT2-style), Sinusoidal positional encoding, [rotary positional encodings](https://arxiv.org/abs/2104.09864), and no positional encodings at all (which [recent](https://arxiv.org/abs/1905.04226) [research](https://arxiv.org/abs/2102.11174) has found to even outperform other positional encodings in autoregressive models).
+    - Choose between T5-style relative positional encodings, learned encoding added to the input (GPT2-style), sinusoidal positional encoding, [rotary positional encodings](https://arxiv.org/abs/2104.09864), and no positional encodings at all (which [recent](https://arxiv.org/abs/1905.04226) [research](https://arxiv.org/abs/2102.11174) has found to be competetive with other positional encodings in autoregressive models). Use the `pos-emb` field to select a positional encoding.
 
 - **Sparsity:** 
 
-    - Deepspeed's sparse attention kernels are supported, but don't work with cuda 11.0+, and require a specific hardware setup (V100s/RTX2080s). add `"sparsity": "all"` to your config to use sparse attention on all layers, or `"sparsity": "interspersed"` to use it every other layer. 
+    - Deepspeed's sparse attention kernels are supported, but don't work with cuda 11.0+, and require a specific hardware setup (V100s/RTX2080s/A100s). Add `"sparsity": "all"` to your config file to use sparse attention on all layers, or `"sparsity": "interspersed"` to use it every other layer. 
 
 - **Norms:**
 
-    - A [recent Google paper](https://arxiv.org/abs/2102.11972) has shown layernorm may not be the best option for transformer models. 
-We offer a choice of layernorm, scalenorm and RMSNorm easily configured by changing a single line in your config file.
+    - We offer a choice of layernorm, scalenorm, RMSNorm, and a custom layernorm kernel. Use the `norm` field to select a normalization.
 
 ### Optimizers
 
-- NeoX supports Adam, CPUAdam, 1-Bit Adam, SM3 and madgrad_wd optimizers, as well as Deepspeed's [Zero Redundancy Optimizer](https://www.deepspeed.ai/features/#the-zero-redundancy-optimizer).
+- NeoX supports Adam, CPUAdam, 1-Bit Adam, SM3 and madgrad_wd optimizers, as well as Deepspeed's [Zero Redundancy Optimizer](https://www.deepspeed.ai/features/#the-zero-redundancy-optimizer). Use the `optimizer` field and (if applicable) `zero_optimization` field to configure your optimizer.
 
 - **Zero Redundancy Optimizer (ZeRO):** 
 
     - ZeRO stage 1 works seamlessly with NeoX, while ZeRO stage 2 requires pipeline parallelism be set to 0. We are additionally working on integrating ZeRO 3 into the codebase.
     Turning on ZeRO is as simple as adding one field to your configuration file.
+
+### High-Precision Training:
+
+ - Choose between `fp16`, `bf16`, and `fp32` operations to get the most performance out of your avaliable compute. Use the `precision` field to configure your precision settings.
+ - Due to a known issue with `PyTorch`, `bf16` models require doing the all-reduce operation in `fp32`. If you have a patch for this problem, you can turn off the default`"fp32_allreduce": True`.
 
 ### Straightforward configuration
 
