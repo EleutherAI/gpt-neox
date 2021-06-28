@@ -138,11 +138,9 @@ class EmbeddingDistilPipe(Embedding):
 
     def forward(self, args):
         # we dont inference on distillation model
-        # in_inference = len(args) == 4  # if the length of the args is 4, we're in inference :|
 
-        in_teacher_model = len(args) == 3  # if the length of the args is 3, we're in teacher model :|
-        in_student_model = len(args) == 5  # if the length of the args is 5, we're in student model :|
-
+        in_teacher_model = len(args) == 3
+        in_student_model = len(args) == 5
 
         if not (in_student_model or in_teacher_model):
             raise ValueError(f'Incorrect number of args passed to {self.__class__.__name__}')
@@ -161,3 +159,4 @@ class EmbeddingDistilPipe(Embedding):
         else:
             # return embeddings, attention_mask,  (teacher_logits, teacher_outputs)
             return embeddings, attention_mask, teacher_logits, teacher_outputs, None
+        
