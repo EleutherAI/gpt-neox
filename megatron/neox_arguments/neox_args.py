@@ -6,7 +6,7 @@ try:
 except ImportError:
     from typing_extensions import Literal
 
-ATTENTION_TYPE_CHOICES = ['global', 'local', 'sparse_fixed', 'sparse_variable', 'bigbird', 'bslongformer']
+ATTENTION_TYPE_CHOICES = ['global', 'local', 'sparse_fixed', 'sparse_variable', 'bigbird', 'bslongformer', 'gmlp', 'amlp']
 
 
 def get_git_commit_hash():
@@ -31,9 +31,11 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     Size of the model parallelism.
     """
 
-    pipe_partition_method: str = "type:transformer"
+    pipe_partition_method: str = "type:transformer|mlp"
     """
-    method used to distribute model layers across pipeline stages. Choose from "parameters", which balances the number of parameters on each pipeline stage, "uniform", which naively balances the number of layers per stage, or "type:[regex]" (in our case this will basically only be "type:transformer"), which balances layers whose class names match [regex]
+    method used to distribute model layers across pipeline stages. Choose from "parameters", which balances the number 
+    of parameters on each pipeline stage, "uniform", which naively balances the number of layers per stage, or 
+    "type:[regex]", which balances layers whose class names match [regex]
     """
 
     world_size: int = None
@@ -46,6 +48,7 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     flag to determine whether pipeline parallelism is on - shouldn't be set by user, is automatically determined 
     according to pipeline parallel size.
     """
+
 
 @dataclass
 class NeoXArgsModel(NeoXArgsTemplate):
@@ -256,7 +259,13 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Init function used for ff residual outputs - choose from 
     ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
     """
-    
+
+    gmlp_attn_dim : int = 64
+    """
+    the dimension of the single head self attention in gmlp model (not used in gpt models).
+    If None - gmlp model doesn't use attention.
+    """
+
 @dataclass
 class NeoXArgsDistillation(NeoXArgsTemplate):
     do_distillation : bool = False
@@ -303,7 +312,6 @@ class NeoXArgsDistillation(NeoXArgsTemplate):
     """
     Move the cross entropy unreduced loss calculation for lm head to fp16.
     """
-
 
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):
@@ -573,6 +581,7 @@ class NeoXArgsTokenizer(NeoXArgsTemplate):
     tokenizer object loaded into memory and accesible by other functions
     """
 
+
 @dataclass
 class NeoXArgsTraining(NeoXArgsTemplate):
     data_path: str = None
@@ -834,6 +843,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Minimum loss scale for dynamic loss scale.
     """
 
+
 @dataclass
 class NeoXArgsTextgen(NeoXArgsTemplate):
     text_gen_type: str = None
@@ -892,3 +902,4 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     """
     Tasks to evaluate on using lm_eval_harness
     """
+    
