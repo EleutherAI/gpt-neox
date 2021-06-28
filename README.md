@@ -7,7 +7,7 @@ This repository records [EleutherAI](www.eleuther.ai)'s work-in-progress for tra
 
 We aim to make this repo a centralized and accessible place to gather techniques for training large scale autoregressive language models, and accelerate research into large scale training. Additionally, we hope to train and open source a 175B parameter GPT3 replication along the way. 
 
-For more info on our progress, please [join our discord](https://discord.gg/zBGx3azzUn) and head to the `#gpt-neo` channel. We're working with cloud compute provider [Coreweave](https://www.coreweave.com/) for training, and hope to release the weights of smaller models as we progress up to 175B parameters.
+If you are interested in contributing, please [join our discord](https://discord.gg/zBGx3azzUn) and head to the `#gpt-neo` channel. We're working with cloud compute provider [Coreweave](https://www.coreweave.com/) for training, and hope to release the weights of smaller models as we progress up to 175B parameters.
 
 If you're looking for our TPU codebase, see [GPT-Neo](https://github.com/EleutherAI/gpt-neo).
 
@@ -33,9 +33,17 @@ GPT-NeoX is under active development.
 
 ## Quick Start
 
-To try out a pretrained model [coming soon].
+Coming Soon: a colab notebook for trying out the model.
 
-All functionality follows the pattern `./deeply.py main_function.py -d configs config_file1 config_file2 …`
+### Running Locally
+
+With `torch >= 1.8` installed, run `pip install -r requirements/requirements.txt` followed by
+
+```bash
+pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@e2083df5eb96643c61613b9df48dd4eea6b07690
+```
+
+All functionality follows the pattern `./deeply.py main_function.py -d configs small.yml `
 We currently offer four main functions:
 1. `train.py` is used for training models
 2. `evaluate.py` is used to evaluate a trained model using the evaluation harness
@@ -44,6 +52,8 @@ We currently offer four main functions:
 For information on the required arguments for each function, see the corresponding section below.
 
 ## Features
+
+GPT-NeoX offers a wide variety of state-of-the-art and bespoke features 
 
 ### 3D Parallelism 
 
@@ -65,7 +75,7 @@ For information on the required arguments for each function, see the correspondi
 
 ### Optimizers
 
-- NeoX supports Adam, CPUAdam, 1-Bit Adam, SM3 and madgrad_wd optimizers, as well as Deepspeed's [Zero Redundancy Optimizer](https://www.deepspeed.ai/features/#the-zero-redundancy-optimizer). Use the `optimizer` field and (if applicable) `zero_optimization` field to configure your optimizer.
+- NeoX supports Adam, CPUAdam, 1-Bit Adam, SM3 and madgrad_wd optimizers, as well as Deepspeed's [Zero Redundancy Optimizer](https://www.deepspeed.ai/features/#the-zero-redundancy-optimizer). Use the `optimizer` and (if applicable) `zero_optimization` fields to configure your optimizer.
 
 - **Zero Redundancy Optimizer (ZeRO):** 
 
@@ -83,6 +93,15 @@ For information on the required arguments for each function, see the correspondi
 - Additionally, we hope to make data preparation easier on the user by providing scripts to automatically download and pretokenize a number of large-scale datasets.
 
 ## Using the Library
+
+All functionality follows the pattern `./deeply.py main_function.py -d configs config1.yml config2.yml ...`. By default we split our configs into one file about the model and one file about the hardware, but you may use any number of configuration files you like.
+We currently offer four main functions:
+1. `train.py` is used for training models
+2. `evaluate.py` is used to evaluate a trained model using the evaluation harness
+3. `generate.py` is used to sample text from a file.
+4. `distill.py` is used to distill a larger model into a smaller model.
+For information on the required arguments for each function, see the corresponding section below.
+
 
 ### Getting Started
 
