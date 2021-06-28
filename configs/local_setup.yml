@@ -19,13 +19,13 @@
   "merge-file": "data/gpt2-merges.txt",
 
   "save": "checkpoints",
+  "load": "checkpoints",
+  "checkpoint_validation_with_forward_pass": False,
 
   # for Distillation
   # "load": "/path/of/distillation/checkpoint/from/previous/run"
-  # "load_student": "/path/of/pretrained-model",
-  "load_teacher": "./checky_chekpoints2/global_step0/",
-
-  "checkpoint_validation_with_forward_pass": False,
+  # "load_student": "/path/of/pretrained-model/as/student",
+  # "load_teacher": "/path/of/pretrained-model/as/teacher",
   
   "tensorboard-dir": "tensorboard",
   "log-dir": "logs",
