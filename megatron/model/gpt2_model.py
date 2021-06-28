@@ -18,21 +18,20 @@
 
 """GPT-2 model."""
 
-from logging import error
 import torch
 from collections import defaultdict
 
 from functools import partial
-from megatron.model.utils import Lambda, SequentialWrapper
-from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
+from megatron.model.utils import Lambda, SequentialWrapper, _set_get_key_value
+from megatron.model.norms import get_norm
 from megatron.model.init_functions import get_init_methods
 
 from megatron import mpu, print_rank_0
 from megatron.mpu import ParallelRelativePositionBias
-import megatron.fp16 as fp16
 from megatron.model.transformer import ParallelTransformerLayerPipe, NormPipe, ParallelLinearPipe, parallel_lm_logits
 from megatron.model.transformer import ParallelTransformerLayerDistilPipe, NormDistilPipe, ParallelLinearDistilPipe
 
+from megatron.model.gmlp import GMLPBlock
 from megatron.model.word_embeddings import EmbeddingPipe, EmbeddingDistilPipe
 
 # Pipeline parallelism
@@ -59,11 +58,11 @@ def cross_entropy(output, labels, _fp16=False):
         assert (output.dtype == torch.half and loss_mask.dtype == torch.half)
         losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels)
     else:
-        output = fp16.fp16_to_fp32(output)
-        losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels)
+        losses = mpu.vocab_parallel_cross_entropy(output.float().contiguous(), labels)
     loss_mask = loss_mask.view(-1)
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
     return loss
+
 
 def kldiv_loss(output, labels, _fp16=False):
 
@@ -72,9 +71,7 @@ def kldiv_loss(output, labels, _fp16=False):
         assert (output.dtype == torch.half and labels.dtype == torch.half and loss_mask.dtype == torch.half)
         losses = mpu.loss.vocab_parallel_KLDivLoss(output.contiguous(), labels.contiguous())
     else:
-        output = fp16.fp16_to_fp32(output)
-        labels = fp16.fp16_to_fp32(labels)
-        losses = mpu.loss.vocab_parallel_KLDivLoss(output.contiguous(), labels.contiguous())
+        losses = mpu.loss.vocab_parallel_KLDivLoss(output.float().contiguous(), labels.float().contiguous())
     loss_mask = loss_mask.view(-1)
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
     return loss
@@ -86,9 +83,7 @@ def mse_loss(output, labels, _fp16=False):
         assert (output.dtype == torch.half and labels.dtype == torch.half and loss_mask.dtype == torch.half)
         losses = mpu.loss.vocab_parallel_KLDivLoss(output.contiguous(), labels.contiguous())
     else:
-        output = fp16.fp16_to_fp32(output)
-        losses = mpu.loss.vocab_parallel_KLDivLoss(output.contiguous(), labels.contiguous())
-        labels = fp16.fp16_to_fp32(labels)
+        losses = mpu.loss.vocab_parallel_KLDivLoss(output.float().contiguous(), labels.float().contiguous())
     loss_mask = loss_mask.view(-1)
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
     return loss
@@ -121,6 +116,54 @@ def substitue_args(neox_args, set_student_args=True):
                 neox_args.__dict__[arg] = args_to_substitue.__dict__[arg]
     return neox_args
 
+def _pre_transformer_block(args):
+    # used instead of a lambda layer to pass outputs of the word embedding to the transformer block
+    # using a custom function means we don't have to have this _inference mode which makes everything tricky
+    in_inference = len(args) == 3
+    in_train = len(args) == 2
+    in_teacher_model = len(args)==4 
+    in_student_model = len(args)==5
+
+    # data format change for hidden_states to avoid explicit tranposes : [b s h] --> [s b h]
+    if in_inference:
+        # we need to add a container to cache `presents` from each layer's forward pass
+        # inputs/outputs are now (hidden_states, layer_past, presents, attention_mask)
+        fn = lambda x: (x[0].transpose(0, 1).contiguous(), x[1], torch.Tensor(), *x[2:])
+    elif in_train or in_teacher_model or in_student_model:
+        fn = lambda x: (x[0].transpose(0, 1).contiguous(), *x[1:])
+    else:
+        raise ValueError('Incorrect number of args in `_pre_transformer_block`')
+    return fn(args)
+
+def _post_transformer_block_distillation(args):
+    # used instead of a lambda layer to pass outputs of the transformer block to the final layer
+    # using a custom function means we don't have to have this _inference mode which makes everything tricky
+    in_teacher_model = len(args)==4 
+    in_student_model = len(args)==5
+    if in_teacher_model or in_student_model:
+        fn = lambda x: (x[0].transpose(0, 1).contiguous(), *x[1:])
+    else:
+        raise ValueError('Incorrect number of args in `_post_transformer_block`')
+    return fn(args)
+
+def _post_transformer_block(args):
+    # used instead of a lambda layer to pass outputs of the transformer block to the final layer
+    # using a custom function means we don't have to have this _inference mode which makes everything tricky
+    in_inference = len(args) == 4
+    in_train = len(args) == 2
+    if in_inference:
+        # we can get rid of the mask / pasts now
+        # from (hidden_states, layer_past, presents, attention_mask)
+        # to (hidden_states.T, presents)
+        fn = lambda x: (x[0].transpose(0, 1).contiguous(), x[2])
+    elif in_train:
+        # Undo data format change and drop mask
+        fn = lambda x: x[0].transpose(0, 1).contiguous()
+    else:
+        raise ValueError('Incorrect number of args in `_post_transformer_block`')
+    return fn(args)
+
+
 class GPT2ModelPipe(PipelineModule, torch.nn.Module):
     """GPT2Model adapted for pipeline parallelism.
 
@@ -128,7 +171,10 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
     sequence of layers including embedding, transformer layers, and output.
     """
 
-    def __init__(self, neox_args, num_tokentypes=0, parallel_output=True, topology=None, inference=False, get_key_value=True):
+    def __init__(self, neox_args, num_tokentypes=0, parallel_output=True, topology=None, inference=False,
+                 get_key_value=True):
+        self.neox_args = neox_args
+
         self.neox_args = neox_args
 
         self._inference = inference
@@ -168,22 +214,19 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         else:
             interval = 0
         super().__init__(layers=self.specs,
-                        loss_fn=loss_fn if not self._inference else None,
-                        topology=topology,
-                        activation_checkpoint_interval=interval,
-                        partition_method='type:transformer')
+                         loss_fn=loss_fn if not self._inference else None,
+                         topology=topology,
+                         activation_checkpoint_interval=interval,
+                         partition_method=neox_args.pipe_partition_method,
+                         checkpointable_layers=['GMLPBlock', 'ParallelTransformerLayerPipe'])
 
     def init_specs(self):
         weight_tying = not self.neox_args.no_weight_tying
         if self.embedding_type == 'rpe':
-            rpe_emb = ParallelRelativePositionBias(neox_args=self.neox_args, causal=True, num_buckets=self.neox_args.rpe_num_buckets,
+            rpe_emb = ParallelRelativePositionBias(neox_args=self.neox_args, causal=True,
+                                                   num_buckets=self.neox_args.rpe_num_buckets,
                                                    max_distance=self.neox_args.rpe_max_distance,
                                                    heads=self.neox_args.num_attention_heads)
-        self.fp16_lm_cross_entropy = self.neox_args.fp16_lm_cross_entropy
-
-        #
-        # forward() prototype
-        # 
         # Embedding layer
         # input will be (input_ids, position_ids, attention_mask) in Training
         # and (input_ids, position_ids, attention_mask, layer_past) in Inference
@@ -215,61 +258,48 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         # one stage to the next, because deepspeed is hacks on top of hacks.
         #
         # outputs are now
-        #           Train: (hidden_states, ((maybe) rotary_pos_emb), attention_mask)
-        #           Inference: (hidden_states, layer_past, ((maybe) rotary_pos_emb), attention_mask)
-        # 
-        # data format change for hidden_states to avoid explicit tranposes : [b s h] --> [s b h]
+        #           Train: (hidden_states,  attention_mask)
+        #           Inference: (hidden_states, layer_past, attention_mask)
 
-        if self._inference:
-            # we need to add a container to cache `presents` from each layer's forward pass
-            # inputs/outputs are now (hidden_states, layer_past, presents, attention_mask)
-            self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), x[1], torch.Tensor(), *x[2:]))
-        else:
-            self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), *x[1:]))
+        self.specs.append(_pre_transformer_block)
 
         # Transformer layers
-        for x in range(self.neox_args.num_layers):
-            self.specs.append(
-                LayerSpec(
-                    ParallelTransformerLayerDistilPipe if self.do_distillation else ParallelTransformerLayerPipe,
-                    neox_args=self.neox_args,
-                    attention_mask_func=gpt2_attention_mask_func,
-                    init_method=self.init_method,
-                    output_layer_init_method=self.output_layer_init_method,
-                    layer_number=x,
-                    rpe=rpe_emb if self.neox_args.pos_emb == 'rpe' else None,
-                    rotary=self.neox_args.pos_emb == 'rotary',
-                    get_key_value=self.get_key_value
+        for i in range(self.neox_args.num_layers):
+            layer_type = self.neox_args.attention_config[i]
+            if layer_type in ["gmlp", "amlp"]:
+                self.specs.append(
+                    LayerSpec(
+                        GMLPBlock,
+                        init_method=self.init_method,
+                        layer_number=i,
+                        output_layer_init_method=self.output_layer_init_method,
+                        neox_args=self.neox_args,
+                        mask_fn=gpt2_attention_mask_func
+                    )
+                )
+            else:
+                self.specs.append(
+                    LayerSpec(
+                        ParallelTransformerLayerPipe,
+                        neox_args=self.neox_args,
+                        attention_mask_func=gpt2_attention_mask_func,
+                        init_method=self.init_method,
+                        output_layer_init_method=self.output_layer_init_method,
+                        layer_number=i,
+                        rpe=rpe_emb if self.neox_args.pos_emb == 'rpe' else None,
+                        rotary=self.neox_args.pos_emb == 'rotary',
+                        get_key_value=self.get_key_value
                     )
                 )
 
-        if self._inference:
-            # we can get rid of the mask / pasts / (?rotary_pos_emb) now
-            # from (hidden_states, layer_past, presents, (maybe rotary_pos_emb), attention_mask)
-            # to (hidden_states^T, presents)
-            self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), x[2]))
-        else:
-            if self.do_distillation:
-                # Undo data format change
-                self.specs.append(lambda x: (x[0].transpose(0, 1).contiguous(), *x[1:]))
-            else:
-                # Undo data format change and drop mask
-                self.specs.append(lambda x: x[0].transpose(0, 1).contiguous())
-
-        # Final layernorm after transformer layers
-        if self.neox_args.norm == "rmsnorm":
-            norm = RMSNorm
-            eps = self.neox_args.rms_norm_epsilon
-        elif self.neox_args.norm == "layernorm":
-            eps = self.neox_args.layernorm_epsilon
-            norm = LayerNorm
-        elif self.neox_args.norm == "scalenorm":
-            eps = self.neox_args.scalenorm_epsilon
-            norm = ScaleNorm
+        self.specs.append(
+            _post_transformer_block_distillation if self.do_distillation \
+                                                else _post_transformer_block)
 
         # NormPipe is a helper class to pass presents through to the output when doing inference
+        norm, eps = get_norm(self.neox_args)
         self.specs.append(
-            LayerSpec(NormDistilPipe if self.do_distillation else NormPipe,
+            LayerSpec(NormPipe,
                       norm,
                       self.neox_args.hidden_size,
                       eps=eps))
@@ -277,9 +307,6 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         # outputs are now
         #           Train: hidden_states
         #           Inference: (hidden_states, presents)
-
-        # XXX forward_method_parallel_output is assumed to be None, but we're not in a
-        # fwd method to assert
 
         def _logits_helper(embedding, lm_output):
             """Just a wrapper to massage inputs/outputs from pipeline. """
@@ -327,8 +354,14 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                     parallel_output=self.parallel_output
                 )
             )
-        # so output in training should just be logits
+        # output in training should just be logits
         # in inference it will be (logits, presents) (assuming get_key_value) is true
+
+    def inference_mode(self, cache=True):
+        _set_get_key_value(self.forward_funcs, cache)
+
+    def train_mode(self):
+        _set_get_key_value(self.forward_funcs, False)
 
     def to_sequential(self):
         """
@@ -359,4 +392,3 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                                   self.activation_checkpoint_func,
                                   parent_class_name=self.__class__.__name__)
         return model
-        
