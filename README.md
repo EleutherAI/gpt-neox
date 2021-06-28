@@ -35,6 +35,14 @@ GPT-NeoX is under active development.
 
 To try out a pretrained model [coming soon].
 
+All functionality follows the pattern `./deeply.py main_function.py -d configs config_file1 config_file2 …`
+We currently offer four main functions:
+1. `train.py` is used for training models
+2. `evaluate.py` is used to evaluate a trained model using the evaluation harness
+3. `generate.py` is used to sample text from a file.
+4. `distill.py` is used to distill a larger model into a smaller model.
+For information on the required arguments for each function, see the corresponding section below.
+
 ## Features
 
 ### 3D Parallelism 
@@ -70,7 +78,9 @@ We offer a choice of layernorm, scalenorm and RMSNorm easily configured by chang
 - Other libraries such as Megatron-LM require you configure them using command line arguments and global variables, which can often be difficult to work with and iterate upon. We offer straightforward configuration using .yaml files, which enables you to launch training runs across 100s of GPUs with a single line bash script. 
 - Additionally, we hope to make data preparation easier on the user by providing scripts to automatically download and pretokenize a number of large-scale datasets.
 
-## Getting Started
+## Using the Library
+
+### Getting Started
 
 Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), our fork of the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library with some added changes. We strongly recommend using Anaconda, a virtual machine, or some other form of environment isolation before installing from `requirements/requirements.txt`. Failure to do so may cause other repositories that rely on DeepSpeed to break. Python 3.8 or later is required.
 
@@ -188,23 +198,23 @@ This will deploy the `pretrain_gpt2.py` script on all nodes with one process per
 * Model parameters are defined in the config file `configs/small.yml`.
 * Data path parameters are defined in the config file `configs/local_setup.yml`. If you are an EleutherAI member and using the [Kubernetes cluster](kubernetes), the `eleutherai_cluster.yml` config should be instead.
 
-## Monitoring
+### Monitoring
 
 EleutherAI is currently using [Weights & Biases to record experiments](https://wandb.ai/eleutherai/neox). If you are logged into Weights & Biases on your machine - you can do this by executing `wandb login` - your runs will automatically be recorded. Additionally, set the config parameter `wandb_team` if you would like the run to be added to an organisation/team account.
 
 We also support using Tensorboard via the `tensorboard-dir` argument. To use tensorboard, install the optional packages found at `requirements/requirements-tensorboard.txt`
 
-## Inference
+### Inference
 
 [WIP]
 
-## Evaluation
+### Evaluation
 
 GPT-NeoX supports evaluation on downstream tasks through the [language model evaluation harness](https://github.com/EleutherAI/lm-evaluation-harness).
 
 To evaluate a trained model on the evaluation harness, use `./deepy.py evaluate.py configs/your_config.yml`
 
-## Distilling
+### Distilling
 
 [WIP]
 
