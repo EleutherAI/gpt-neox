@@ -19,12 +19,13 @@
 """Utilities for models."""
 
 import math
-from megatron import print_rank_0
 
 import torch
-from deepspeed.ops.sparse_attention import SparseSelfAttention, VariableSparsityConfig, FixedSparsityConfig, BigBirdSparsityConfig, BSLongformerSparsityConfig
+from deepspeed.ops.sparse_attention import SparseSelfAttention, VariableSparsityConfig, FixedSparsityConfig, \
+    BigBirdSparsityConfig, BSLongformerSparsityConfig
 from deepspeed.ops.sparse_attention.sparsity_config import LocalSlidingWindowSparsityConfig
-from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
+from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm, ApexLayerNorm
+
 
 def get_params_for_weight_decay_optimization(module, neox_args):
     """Divide params into with-weight-decay and without-weight-decay groups.
@@ -41,7 +42,7 @@ def get_params_for_weight_decay_optimization(module, neox_args):
             if name.endswith("final_linear.weight"): requires_grads = True
 
     for module_ in module.modules():
-        if any([isinstance(module_, LayerNorm), isinstance(module_, RMSNorm), isinstance(module_, ScaleNorm)]) or \
+        if any([isinstance(module_, ApexLayerNorm), isinstance(module_, LayerNorm), isinstance(module_, RMSNorm), isinstance(module_, ScaleNorm)]) or \
                 (neox_args.weight_decay == 0.0):  # also include all parameters here if no weight decay is being done
             no_weight_decay_params['params'].extend(
                 [p for p in list(module_._parameters.values())
@@ -53,14 +54,13 @@ def get_params_for_weight_decay_optimization(module, neox_args):
             no_weight_decay_params['params'].extend(
                 [p for n, p in list(module_._parameters.items())
                  if p is not None and n == 'bias'])
-    #exit()
-
     if neox_args.weight_decay == 0.0:
         # only return a single param group
         # with onebitadam, we want to minimize the calls to compressed_allreduce. Every param group calls it once.
         # to avoid this, only use a single param group when weight decay is off.
         return [no_weight_decay_params]
     return weight_decay_params, no_weight_decay_params
+
 
 def exists(x):
     return x is not None
@@ -94,6 +94,12 @@ class SequentialWrapper(torch.nn.Module):
                        for f in funcs)
         params = [f.parameters() for f in funcs if isinstance(f, torch.nn.Module)]
         return any(len(list(p)) > 0 for p in params)
+
+    def inference_mode(self):
+        _set_get_key_value(self.sequential, True)
+
+    def train_mode(self):
+        _set_get_key_value(self.sequential, False)
 
     def forward(self, forward_input):
 
@@ -138,6 +144,18 @@ class SequentialWrapper(torch.nn.Module):
         return x
 
 
+def _set_get_key_value(base, value):
+    # utility used to recursively set the get key attribute value to true/false
+    # (i.e switch between inference and train mode)
+
+    assert isinstance(value, bool)
+    for m in base:
+        if hasattr(m, 'get_key_value'):
+            m.get_key_value = value
+        if hasattr(m, 'children'):
+            _set_get_key_value(m.children(), value)
+
+
 def configure_sparse_attention(neox_args, attention_type, num_attention_heads, mpu):
     if attention_type == "sparse_fixed":
         # you can think of local window size as `block_size` * `num_local_blocks`.
@@ -166,7 +184,8 @@ def configure_sparse_attention(neox_args, attention_type, num_attention_heads, m
         )
     elif attention_type == "local":
         # can configure with `num_local_blocks` or `num_sliding_window_blocks`
-        num_local_blocks = neox_args.sparsity_config.get("num_local_blocks", neox_args.sparsity_config.get("num_sliding_window_blocks", 4))
+        num_local_blocks = neox_args.sparsity_config.get("num_local_blocks",
+                                                         neox_args.sparsity_config.get("num_sliding_window_blocks", 4))
         sparsity_config = LocalSlidingWindowSparsityConfig(
             num_heads=num_attention_heads,
             block=neox_args.sparsity_config.get("block", 16),
