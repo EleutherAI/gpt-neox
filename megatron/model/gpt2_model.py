@@ -280,7 +280,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             else:
                 self.specs.append(
                     LayerSpec(
-                        ParallelTransformerLayerPipe,
+                        ParallelTransformerLayerDistilPipe if self.do_distillation else ParallelTransformerLayerPipe,
                         neox_args=self.neox_args,
                         attention_mask_func=gpt2_attention_mask_func,
                         init_method=self.init_method,
@@ -299,7 +299,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         # NormPipe is a helper class to pass presents through to the output when doing inference
         norm, eps = get_norm(self.neox_args)
         self.specs.append(
-            LayerSpec(NormPipe,
+            LayerSpec(NormDistilPipe if self.do_distillation else NormPipe,
                       norm,
                       self.neox_args.hidden_size,
                       eps=eps))
@@ -392,3 +392,4 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                                   self.activation_checkpoint_func,
                                   parent_class_name=self.__class__.__name__)
         return model
+    
