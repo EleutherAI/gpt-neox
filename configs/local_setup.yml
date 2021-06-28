@@ -23,6 +23,8 @@
   "checkpoint_validation_with_forward_pass": False,
 
   # for Distillation
+  # "no_load_optim": True,
+  # "finetune": True,
   # "load": "/path/of/distillation/checkpoint/from/previous/run"
   # "load_student": "/path/of/pretrained-model/as/student",
   # "load_teacher": "/path/of/pretrained-model/as/teacher",
