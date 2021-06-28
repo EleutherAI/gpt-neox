@@ -89,11 +89,7 @@ class NeoXArgs(*BASE_CLASSES):
         calculate values, assert consistency and do typechecking.
         """
         if self.do_distillation:
-            self.teacher_model_args = {key.replace("-","_"):value for key, value in self.teacher_model_args.items()}
-            self.student_model_args = {key.replace("-","_"):value for key, value in self.teacher_model_args.items()}
-
-            self.teacher_model_args = NeoXArgsModel(**self.teacher_model_args)
-            self.student_model_args = NeoXArgsModel(**self.student_model_args)
+            self.set_distillation_args()
 
         if not NeoXArgs.validate_keys():
             raise ValueError(self.__class__.__name__ + ".__post_init__() NeoXArgs keys cannot be validated")
@@ -107,6 +103,13 @@ class NeoXArgs(*BASE_CLASSES):
 
         if not self.validate_values():
             raise ValueError(self.__class__.__name__ + ".__post_init__() NeoXArgs values cannot be validated")
+
+    def set_distillation_args(self):
+        self.teacher_model_args = {key.replace("-","_"):value for key, value in self.teacher_model_args.items()}
+        self.student_model_args = {key.replace("-","_"):value for key, value in self.teacher_model_args.items()}
+
+        self.teacher_model_args = NeoXArgsModel(**self.teacher_model_args)
+        self.student_model_args = NeoXArgsModel(**self.student_model_args)
 
     def build_tokenizer(self):
         self.tokenizer = build_tokenizer(self)
@@ -321,12 +324,11 @@ class NeoXArgs(*BASE_CLASSES):
         # get all config values
         args_list.append("--megatron_config")
         neox_args = self.get_parent_class_value_dict(*self.__class__.__bases__, only_non_defaults=True)
-
         if "do_distillation" in neox_args and neox_args["do_distillation"]:
             neox_args["teacher_model_args"] = neox_args["teacher_model_args"].__dict__
             neox_args["student_model_args"] = neox_args["student_model_args"].__dict__
-
         args_list.append(json.dumps(neox_args))
+
         return args_list
 
     ############################################################################################################################
@@ -706,7 +708,6 @@ class NeoXArgs(*BASE_CLASSES):
             raise ValueError(error_message)
             return False
 
-
         def validate_required_args(config):
             # required arguments
             required_args = ['num_layers', 'hidden_size', 'num_attention_heads', 'max_position_embeddings']
@@ -762,7 +763,6 @@ class NeoXArgs(*BASE_CLASSES):
                     return False
             return True
 
-
         for validate_function in [validate_required_args, validate_hidden_size, validate_seq_length, validate_layers]:
             if not value_validator(validate_function, self):
                 return False
@@ -779,7 +779,22 @@ class NeoXArgs(*BASE_CLASSES):
             raise ValueError(error_message)
             return False
 
-        if (self.fp16_lm_cross_entropy or self.reduce_loss_fp16) and self.precision != "fp16":
+        # Parameters sharing does not work with torch DDP.
+        if (self.num_unique_layers is not None) and (self.num_layers is not None):
+
+            if not (self.num_unique_layers <= self.num_layers):
+                error_message = self.__class__.__name__ + ".validate_values() num-unique-layers must be smaller or equal num_layers"
+                logging.error(error_message)
+                raise ValueError(error_message)
+                return False
+
+            if not (self.num_layers % self.num_unique_layers == 0):
+                error_message = self.__class__.__name__ + ".validate_values() num-layers should be divisible by num-unique-layers"
+                logging.error(error_message)
+                raise ValueError(error_message)
+                return False
+
+        if self.fp16_lm_cross_entropy and self.precision != "fp16":
             error_message = self.__class__.__name__ + ".validate_values() lm cross entropy in fp16 only support in fp16 mode."
             logging.error(error_message)
             raise ValueError(error_message)
