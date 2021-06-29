@@ -229,7 +229,7 @@ def save_checkpoint_student(model, load_teacher, save_dir, tag):
     torch.distributed.barrier()
     return load_dir
 
-def combine_checkpoints(model, load_teacher, load_student, save_dir):
+def combine_checkpoints(model, optimizer, lr_scheduler, load_teacher, load_student, save_dir):
     """For distillation the layers of teacher model and student model 
     are appended to create a single distillation model. Since to make 
     use of pretrained model for distillation teacher model and student 
@@ -274,8 +274,8 @@ def combine_checkpoints(model, load_teacher, load_student, save_dir):
             mp_world_size = 1 if mpu is None \
                               else mpu.get_model_parallel_world_size()
             client_sd = {'module': None, 
-                        'optimizer': None, 
-                        'lr_scheduler': None, 
+                        'optimizer': optimizer.state_dict(),  
+                        'lr_scheduler': lr_scheduler.state_dict(), 
                         'csr_tensor_module_names': set(), 
                         'skipped_steps': 0, 
                         'global_steps': 0, 
@@ -297,9 +297,9 @@ def load_checkpoint(neox_args, model, optimizer, lr_scheduler, inference=False):
 
         if neox_args.do_distillation is not None and neox_args.load is None:
             load_module_strict = False
-            load_optim_and_scheduler = False
+            load_optim_and_scheduler = True
             if neox_args.load_teacher is not None:
-                neox_args.load, tag = combine_checkpoints(model, 
+                neox_args.load, tag = combine_checkpoints(model, optimizer, lr_scheduler,
                                                           neox_args.load_teacher, 
                                                           neox_args.load_student, 
                                                           neox_args.save)
