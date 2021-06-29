@@ -31,7 +31,7 @@ from megatron.mpu import ParallelRelativePositionBias
 from megatron.model.transformer import ParallelTransformerLayerPipe, NormPipe, ParallelLinearPipe, parallel_lm_logits
 from megatron.model.transformer import ParallelTransformerLayerDistilPipe, NormDistilPipe, ParallelLinearDistilPipe
 
-from megatron.model.gmlp import GMLPBlock
+from megatron.model.gmlp import GMLPBlock, GMLPBlockDistil
 from megatron.model.word_embeddings import EmbeddingPipe, EmbeddingDistilPipe
 
 # Pipeline parallelism
@@ -104,7 +104,7 @@ def combined_loss(output, labels, alpha_lm=0, alpha_kld=0, alpha_mse=0, _fp16=Fa
     if alpha_mse > 0:
         ms_loss = mse_loss(student_logits, (teacher_logits, loss_mask), _fp16=_fp16)
         loss += alpha_mse * ms_loss
-    print_rank_0("!"*100, loss)
+    #print_rank_0("!"*100, loss)
     return loss
 
 def substitue_args(neox_args, set_student_args=True):
@@ -269,7 +269,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             if layer_type in ["gmlp", "amlp"]:
                 self.specs.append(
                     LayerSpec(
-                        GMLPBlock,
+                        GMLPBlock if self.do_distillation else GMLPBlockDistil,
                         init_method=self.init_method,
                         layer_number=i,
                         output_layer_init_method=self.output_layer_init_method,
@@ -392,4 +392,3 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                                   self.activation_checkpoint_func,
                                   parent_class_name=self.__class__.__name__)
         return model
-    
