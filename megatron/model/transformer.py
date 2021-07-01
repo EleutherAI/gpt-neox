@@ -406,7 +406,7 @@ class ParallelTransformerLayer(nn.Module):
         norm, eps = get_norm(neox_args)
 
         # Layernorm on the input data.
-        self.input_layernorm = norm(neox_args.hidden_size, eps=eps)
+        self.ln1 = norm(neox_args.hidden_size, eps=eps)
         self.get_key_value = get_key_value
 
         # Self attention.
@@ -425,18 +425,9 @@ class ParallelTransformerLayer(nn.Module):
         self.bias_dropout_fusion = neox_args.bias_dropout_fusion
         self.gpt_j_residual = neox_args.gpt_j_residual
 
-        # regular transformer layer:
-        #   x = x + attn(ln1(x))
-        #   x = x + mlp(ln2(x))
-        # gpt-j transformer layer:
-        #   x = ln(x)
-        #   x = x + attn(x) + mlp(x)
-
         if not self.gpt_j_residual:
             # Layernorm on the output of the attention layer.
-            self.post_attention_layernorm = norm(
-                neox_args.hidden_size,
-                eps=eps)
+            self.ln2 = norm(neox_args.hidden_size, eps=eps)
 
         # MLP
         self.mlp = ParallelMLP(
@@ -452,31 +443,27 @@ class ParallelTransformerLayer(nn.Module):
             fn = get_bias_dropout_add(self.training)
         return fn
 
-    def forward(self, hidden_states, attention_mask, layer_past=None):
+    def forward(self, x, attention_mask, layer_past=None):
         bias_dropout_fn = self._get_bias_dropout()
-        # hidden_states: [b, s, h]
-        # Self attention.
-        hidden_states = self.input_layernorm(hidden_states)
-        attention_output, attention_bias = \
-            self.attention(hidden_states,
-                           attention_mask,
-                           layer_past=layer_past)
+        # x: [b, s, h]
+
+        residual, x = x, self.ln1(x)
+        attention_output, attention_bias = self.attention(x, attention_mask, layer_past=layer_past)
         if self.get_key_value:
             attention_output, presents = attention_output
 
-        attention_residual = None if self.gpt_j_residual else hidden_states
+        attention_residual = None if self.gpt_j_residual else residual
 
         # re-enable torch grad to enable fused optimization.
-        with torch.enable_grad(): # x, bias, residual, prob
-            attention_output = bias_dropout_fn(attention_output, bias=attention_bias.expand_as(hidden_states),
+        with torch.enable_grad():  # x, bias, residual, prob
+            attention_output = bias_dropout_fn(attention_output, bias=attention_bias.expand_as(x),
                                                residual=attention_residual, prob=self.hidden_dropout)
 
         # MLP.
-        mlp_input = hidden_states if self.gpt_j_residual else attention_output
-        mlp_residual = hidden_states if self.gpt_j_residual else attention_output
-        mlp_layernorm = self.input_layernorm if self.gpt_j_residual else self.post_attention_layernorm
+        mlp_input = x if self.gpt_j_residual else self.ln2(attention_output)
+        mlp_residual = residual if self.gpt_j_residual else attention_output
 
-        mlp_output, mlp_bias = self.mlp(mlp_layernorm(mlp_input))
+        mlp_output, mlp_bias = self.mlp(mlp_input)
 
         # re-enable torch grad to enable fused optimization.
         with torch.enable_grad():
