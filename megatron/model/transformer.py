@@ -461,7 +461,7 @@ class ParallelTransformerLayer(nn.Module):
 
         # MLP.
         mlp_input = x if self.gpt_j_residual else self.ln2(attention_output)
-        mlp_residual = residual if self.gpt_j_residual else attention_output
+        mlp_residual = residual + attention_output if self.gpt_j_residual else attention_output
 
         mlp_output, mlp_bias = self.mlp(mlp_input)
 
