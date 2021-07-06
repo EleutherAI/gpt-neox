@@ -187,6 +187,12 @@ def _get_layer_number_from_ckt(filename):
     # layer_21-model_00-model_states.pt
     return int(filename.split("-")[0].split("_")[1])
 
+def _get_last_layer_number_from_ckt(list_of_filename):
+    ckt_layer_file_re = r"layer_\d+-model_\d+-model_states.pt"
+    list_of_filename = sorted([filename for filename in list_of_filename 
+                            if bool(re.match(ckt_layer_file_re, filename))])
+    return _get_layer_number_from_ckt(list_of_filename[-1])
+
 def _sort_and_remove_mp_rank_ckpt(checkpoint_files):
     # return sorted lis of layers pt files from ckpt without mp_rank ckpt
     layer_ckpts = []; mp_rank_ckpt= None
@@ -211,7 +217,7 @@ def save_checkpoint_student(model, load_teacher, save_dir, tag):
                                 os.listdir(_get_path_to_pt_files(load_dir)))
             teacher_pt_files, _ = _sort_and_remove_mp_rank_ckpt(
                                 os.listdir(_get_path_to_pt_files(load_teacher)))
-            teacher_last_layer = _get_layer_number_from_ckt(teacher_pt_files[-1]) + 1
+            teacher_last_layer = _get_last_layer_number_from_ckt(teacher_pt_files) + 1
             leading_zeros = len(str(teacher_last_layer))
             for pt_file in pt_files:
                 layer_num = _get_layer_number_from_ckt(pt_file)
@@ -235,13 +241,13 @@ def combine_checkpoints(model, optimizer, lr_scheduler, load_teacher, load_stude
     use of pretrained model for distillation teacher model and student 
     model ckpt files are merged into single ckpt folder"""
     teacher_checkpoint_files, _ = _sort_and_remove_mp_rank_ckpt(os.listdir(_get_path_to_pt_files(load_teacher)))
-    teacher_last_layer = _get_layer_number_from_ckt(teacher_checkpoint_files[-1]) + 1
+    teacher_last_layer = _get_last_layer_number_from_ckt(teacher_checkpoint_files) + 1
 
     load_student = load_student if load_student is not None \
                 else save_checkpoint_student(model, load_teacher, save_dir, tag="temp_student_model")
 
     student_checkpoint_files, _ = _sort_and_remove_mp_rank_ckpt(os.listdir(_get_path_to_pt_files(load_student)))
-    student_last_layer = _get_layer_number_from_ckt(student_checkpoint_files[-1]) + 1
+    student_last_layer = _get_last_layer_number_from_ckt(student_checkpoint_files) + 1
 
     load_dir = os.path.join(save_dir, "temp")
 
