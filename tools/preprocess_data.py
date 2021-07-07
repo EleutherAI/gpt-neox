@@ -130,7 +130,7 @@ def main():
 
     # build a semaphore object to stop `yield_from_files` from getting ahead of encoder.encode and
     # hence building up memory
-    semaphore = Semaphore(100 + args.workers)
+    semaphore = Semaphore(10000 + args.workers)
 
     # use multiprocessing to iterate over input documents
     fin = yield_from_files(args.input.split(","), semaphore)
