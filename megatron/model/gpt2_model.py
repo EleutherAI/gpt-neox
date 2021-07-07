@@ -108,13 +108,14 @@ def combined_loss(output, labels, alpha_lm=0, alpha_kld=0, alpha_mse=0, _fp16=Fa
     return loss
 
 def substitue_args(neox_args, set_student_args=True):
+    from copy import deepcopy
     if neox_args.do_distillation:
         args_to_substitue = neox_args.student_model_args \
             if set_student_args else neox_args.teacher_model_args
         for arg in args_to_substitue.__dict__:
             if args_to_substitue.__dict__[arg] is not None:
                 neox_args.__dict__[arg] = args_to_substitue.__dict__[arg]
-    return neox_args
+    return deepcopy(neox_args)
 
 def _pre_transformer_block(args):
     # used instead of a lambda layer to pass outputs of the word embedding to the transformer block
@@ -175,8 +176,6 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                  get_key_value=True):
         self.neox_args = neox_args
 
-        self.neox_args = neox_args
-
         self._inference = inference
         self.get_key_value = get_key_value if inference else False
         self.parallel_output = parallel_output
@@ -185,13 +184,14 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
 
         if self.do_distillation:
             if self._inference == True:
-                raise AssertionError("Cannot use distill model for inference !")
+                raise AssertionError("Cannot use distiling model for inference !")
             list_neox_args = [substitue_args(neox_args, set_student_args=False), 
                               substitue_args(neox_args, set_student_args=True)]
         else:
             list_neox_args = [neox_args] 
 
         for neox_args in list_neox_args:
+            print_rank_0(neox_args)
             self.neox_args = neox_args
             self.hidden_size = self.neox_args.hidden_size
             self.num_tokentypes = num_tokentypes

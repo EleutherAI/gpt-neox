@@ -179,8 +179,8 @@ def get_batch_pipe(data, neox_args):
     # unpack data
     return (tokens, position_ids, attention_mask), (labels, loss_mask)
 
-def disitl_step(data_iterator, model, neox_args, timers):
-    """Forward step for distilation."""
+def distill_step(data_iterator, model, neox_args, timers):
+    """Forward step for distillation."""
 
     # Get the batch.
     timers('batch generator').start()
@@ -196,14 +196,14 @@ def disitl_step(data_iterator, model, neox_args, timers):
         loss = neox_args.alpha_lm * lm_loss
 
     if neox_args.alpha_kld > 0:
-        kl_loss = kldiv_loss(student_logits, (teacher_logits, loss_mask), _fp16=neox_args.reduce_loss_fp16)
-        loss += neox_args.alpha_kld * kl_loss
+        kld_loss = kldiv_loss(student_logits, (teacher_logits, loss_mask), _fp16=neox_args.reduce_loss_fp16)
+        loss += neox_args.alpha_kld * kld_loss
 
     if neox_args.alpha_mse > 0:
-        ms_loss = mse_loss(student_logits, (teacher_logits, loss_mask), _fp16=neox_args.reduce_loss_fp16)
-        loss += neox_args.alpha_mse * ms_loss
+        mse_loss = mse_loss(student_logits, (teacher_logits, loss_mask), _fp16=neox_args.reduce_loss_fp16)
+        loss += neox_args.alpha_mse * mes_loss
 
-    return loss
+    return loss, lm_loss, kld_loss, mse_loss
 
 def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
     """Forward step."""
