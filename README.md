@@ -49,6 +49,7 @@ We currently offer four main functions:
 2. `evaluate.py` is used to evaluate a trained model using the evaluation harness
 3. `generate.py` is used to sample text from a file.
 4. `distill.py` is used to distill a larger model into a smaller model.
+
 For information on the required arguments for each function, see the corresponding section below.
 
 ## Features
