@@ -106,7 +106,7 @@ class NeoXArgs(*BASE_CLASSES):
 
     def set_distillation_args(self):
         self.teacher_model_args = {key.replace("-","_"):value for key, value in self.teacher_model_args.items()}
-        self.student_model_args = {key.replace("-","_"):value for key, value in self.teacher_model_args.items()}
+        self.student_model_args = {key.replace("-","_"):value for key, value in self.student_model_args.items()}
 
         self.teacher_model_args = NeoXArgsModel(**self.teacher_model_args)
         self.student_model_args = NeoXArgsModel(**self.student_model_args)
