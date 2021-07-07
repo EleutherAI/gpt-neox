@@ -201,7 +201,7 @@ def distill_step(data_iterator, model, neox_args, timers):
 
     if neox_args.alpha_mse > 0:
         mse_loss = mse_loss(student_logits, (teacher_logits, loss_mask), _fp16=neox_args.reduce_loss_fp16)
-        loss += neox_args.alpha_mse * mes_loss
+        loss += neox_args.alpha_mse * mse_loss
 
     return loss, lm_loss, kld_loss, mse_loss
 
