@@ -15,7 +15,7 @@
 
 import torch
 
-from .initialize import get_model_parallel_group, get_model_parallel_world_size, get_model_parallel_rank
+from .initialize import get_model_parallel_group, get_model_parallel_world_size, get_model_parallel_rank, get_fp32_allreduce
 from .utils import split_tensor_along_last_dim
 
 
@@ -23,11 +23,20 @@ def _reduce(input_):
     """All-reduce the the input tensor across model parallel group."""
 
     # Bypass the function if we are using only 1 GPU.
-    if get_model_parallel_world_size()==1:
+    if get_model_parallel_world_size() == 1:
         return input_
+
+    # Bf16 convert
+    dt = input_.dtype
+    if dt == torch.bfloat16 and get_fp32_allreduce():
+        input_ = input_.float()
 
     # All-reduce.
     torch.distributed.all_reduce(input_, group=get_model_parallel_group())
+
+    # Bf16 convert
+    if dt == torch.bfloat16 and get_fp32_allreduce():
+        input_ = input_.bfloat16()
 
     return input_
 
@@ -38,8 +47,13 @@ def _split(input_):
 
     world_size = get_model_parallel_world_size()
     # Bypass the function if we are using only 1 GPU.
-    if world_size==1:
+    if world_size == 1:
         return input_
+
+    # Bf16 convert
+    dt = input_.dtype
+    if dt == torch.bfloat16 and get_fp32_allreduce():
+        input_ = input_.float()
 
     # Split along last dimension.
     input_list = split_tensor_along_last_dim(input_, world_size)
@@ -47,6 +61,10 @@ def _split(input_):
     # Note: torch.split does not create contiguous tensors by default.
     rank = get_model_parallel_rank()
     output = input_list[rank].contiguous()
+
+    # Bf16 convert
+    if dt == torch.bfloat16 and get_fp32_allreduce():
+        output = output.bfloat16()
 
     return output
 
@@ -56,8 +74,13 @@ def _gather(input_):
 
     world_size = get_model_parallel_world_size()
     # Bypass the function if we are using only 1 GPU.
-    if world_size==1:
+    if world_size == 1:
         return input_
+
+    # Bf16 convert
+    dt = input_.dtype
+    if dt == torch.bfloat16 and get_fp32_allreduce():
+        input_ = input_.float()
 
     # Size and dimension.
     last_dim = input_.dim() - 1
@@ -70,6 +93,10 @@ def _gather(input_):
     # Note: torch.cat already creates a contiguous tensor.
     output = torch.cat(tensor_list, dim=last_dim).contiguous()
 
+    # Bf16 convert
+    if dt == torch.bfloat16 and get_fp32_allreduce():
+        output = output.bfloat16()
+
     return output
 
 
@@ -79,7 +106,7 @@ class _CopyToModelParallelRegion(torch.autograd.Function):
     @staticmethod
     def symbolic(graph, input_):
         return input_
-    
+
     @staticmethod
     def forward(ctx, input_):
         return input_
@@ -95,7 +122,7 @@ class _ReduceFromModelParallelRegion(torch.autograd.Function):
     @staticmethod
     def symbolic(graph, input_):
         return _reduce(input_)
-    
+
     @staticmethod
     def forward(ctx, input_):
         return _reduce(input_)
@@ -127,7 +154,7 @@ class _GatherFromModelParallelRegion(torch.autograd.Function):
     @staticmethod
     def symbolic(graph, input_):
         return _gather(input_)
-    
+
     @staticmethod
     def forward(ctx, input_):
         return _gather(input_)

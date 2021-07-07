@@ -4,8 +4,9 @@ instantiate models, save checkpoints, load checkpoints, compare loaded parameter
 This tests contain a relatively large number of functions. They are not split into separate tests because a lot of boilerplate (e.g. instantiate model) needs
 to run in order to perform follow up tests. Joining in one test reduces runtime at the expense of decreased transparency of test results in case of failures.
 """
+import os
+
 if __name__ == "__main__":
-    import os
     import sys
     sys.path.append(os.path.abspath(''))
 
@@ -15,10 +16,24 @@ import torch
 
 PARAMS_TO_TEST = {
     "pipe_parallel_size,model_parallel_size": [[0, 1], [1, 2], [0, 2], [2, 1]],
-    "checkpoint_validation_with_forward_pass": [True]
+    "checkpoint_validation_with_forward_pass": [True],
+    "fp16,fp32_allreduce": [[{ 
+     "enabled": True,
+     "type": "bfloat16",
+     "loss_scale": 0,
+     "loss_scale_window": 1000,
+     "hysteresis": 2,
+     "min_loss_scale": 1
+   }, True], [{ 
+     "enabled": True,
+     "loss_scale": 0,
+     "loss_scale_window": 1000,
+     "hysteresis": 2,
+     "min_loss_scale": 1
+   }, False]]
 }
 
-parameters, names = parametrize(PARAMS_TO_TEST, max_tests=50, seed=None)
+parameters, names = parametrize(PARAMS_TO_TEST, max_tests=int(os.getenv('MAX_TESTCASES', 50)), seed=None)
 @pytest.mark.parametrize("param_dict", parameters, ids=names)
 def test_train(param_dict):
     @distributed_test(world_size=2)
@@ -55,5 +70,5 @@ def run_checkpoint_test(yaml_list=None, param_dict=None):
         clear_test_dirs()
 
 if __name__ == "__main__":
-    params = list(parametrize(PARAMS_TO_TEST, max_tests=50, seed=None))
+    params = list(parametrize(PARAMS_TO_TEST, max_tests=int(os.getenv('MAX_TESTCASES', 50)), seed=None))
     test_train(params[0])

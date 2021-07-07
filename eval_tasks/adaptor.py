@@ -1,3 +1,15 @@
+from megatron.utils import is_local_main 
+import best_download
+
+# patch best_download (eval harness downloader) to only happen on the first rank
+fn = best_download.download_file
+
+def _download_file(*args, **kwargs):
+    if is_local_main():
+        fn(*args, **kwargs)
+
+best_download.download_file = _download_file
+
 import os
 import sys
 from functools import partial
@@ -13,20 +25,9 @@ import torch.nn.functional as F
 from megatron.text_generation_utils import generate_samples_from_prompt
 import inspect 
 from lm_eval import tasks 
+from lm_eval.utils import chunks
 
-GENERATION_TASKS = []
-LL_TASKS = []
-
-# hacky way to differentiate the generation tasks from the log likelihood tasks
-
-for task_name, task_class in tasks.TASK_REGISTRY.items():
-    if hasattr(task_class, 'construct_requests'):
-        src = inspect.getsource(task_class.construct_requests)
-        if '.greedy_until(' in src:
-            GENERATION_TASKS.append(task_name)
-        else:
-            LL_TASKS.append(task_name)
-
+# TODO: add data parallel
 
 class EvalHarnessAdaptor(GPT2LM):
 
@@ -38,7 +39,7 @@ class EvalHarnessAdaptor(GPT2LM):
         self.model = model
         self._forward_step_fn = partial(forward_step_fn, neox_args=neox_args, timers=None, return_logits=True)
         self.max_length = neox_args.max_position_embeddings // 2
-        self.max_gen_toks = 256
+        self.max_gen_toks = 128
         self.tokenizer.encode = self.tokenizer.tokenize  # patch tokenizer encode + decode methods
         self.tokenizer.decode = self.tokenizer.detokenize
         self.batch_size = batch_size or neox_args.batch_size
@@ -51,24 +52,23 @@ class EvalHarnessAdaptor(GPT2LM):
         self.is_last_stage = True if not self.is_pipe_parallel else model.is_last_stage()  # only the last stage of the pipeline model will receive the logits
         self.generate = partial(generate_samples_from_prompt, neox_args=neox_args, model=model, maximum_tokens=self.max_gen_toks)
 
-    def greedy_until(self, requests):
+
+    def greedy_until(self, requests, batch=False):
+        self.model.module.inference_mode()
         res = []
 
         def _collate(x):
             toks = self.tokenizer.encode(x[0])
             return (len(toks), x[0])
-        
+
         reord = utils.Reorderer(requests, _collate)
-
         for context, until in tqdm(reord.get_reordered()):
-            if isinstance(until, str): until = [until]
-
-            # TODO: add stop sequence
-            primary_until, = self.tokenizer.encode(until[0])
-
+            if isinstance(until, str): 
+                until = [until]
+            stop_tokens = [self.tokenizer.encode(i) for i in until]
             cont = self.generate(text=context, 
-                                 eos_token_id=primary_until, 
-                                 recompute = False)
+                                stop_tokens=stop_tokens, 
+                                recompute = self.neox_args.recompute)
 
             s = cont[0]['text'] or ''
 
@@ -77,13 +77,13 @@ class EvalHarnessAdaptor(GPT2LM):
             
             # partial caching
             self.cache_hook.add_partial("greedy_until", (context, until), s)
-            
+
             res.append(s)
-        
+
+        self.model.module.train_mode()
         return reord.get_original(res)
 
     def _loglikelihood_tokens(self, requests, disable_tqdm=False):
-        # TODO: implement some kind of efficient-request-middleware that lumps together requests with the same context
         disable_tqdm = disable_tqdm if self.is_main else True
         res = []
         res_len = 0  # storing the result length for later
@@ -97,10 +97,6 @@ class EvalHarnessAdaptor(GPT2LM):
             for chunk in utils.chunks(tqdm(reord.get_reordered(), disable=disable_tqdm), self.batch_size):
                 inps, contlens, inplens, padding_length = [], [], [], None
                 for _, context_enc, continuation_enc in chunk:
-                    # sanity check
-                    assert len(context_enc) > 0
-                    assert len(continuation_enc) > 0
-                    assert len(continuation_enc) <= self.max_length
 
                     # when too long to fit in context, truncate from the left
                     inp = torch.tensor(
@@ -175,32 +171,23 @@ class EvalHarnessAdaptor(GPT2LM):
     def run_eval(self, eval_tasks=None):
         was_training = self.model.training
         self.model.eval()
+        in_micro_batches = self.model.micro_batches # store input microbatches - we need to set to 1 during eval
+        self.model.micro_batches = 1
         if eval_tasks is None:
             eval_tasks = ["lambada", "piqa", "hellaswag", "winogrande", "mathqa", "pubmedqa"]
-        generation_tasks = [t for t in eval_tasks if t in GENERATION_TASKS]
-        ll_tasks = [t for t in eval_tasks if t in LL_TASKS]
-        ll_results, generation_results = {}, {}
-        if ll_tasks:
-            ll_results = evaluator.evaluate(lm=self,
-                                        task_dict=tasks.get_task_dict(ll_tasks),
+        results = evaluator.evaluate(lm=self,
+                                        task_dict=tasks.get_task_dict(eval_tasks),
                                         provide_description=False,
                                         num_fewshot=0,
                                         limit=None,
-                                        bootstrap_iters=2)
-        if generation_tasks:
-            generation_results = evaluator.evaluate(lm=self,
-                                        task_dict=tasks.get_task_dict(generation_tasks),
-                                        provide_description=False,
-                                        num_fewshot=0,
-                                        limit=None,
-                                        bootstrap_iters=2)
-        results = {**ll_results, **generation_results}
+                                        bootstrap_iters=2).get('results')
         if was_training:
             self.model.train()
+        self.model.micro_batches = in_micro_batches
         return results
 
 
-def run_eval_harness(model, forward_step_fn, neox_args, tasks=None, batch_size=None):
+def run_eval_harness(model, forward_step_fn, neox_args, batch_size=None, eval_tasks=None):
     print_rank_0('Running evaluation harness...')
     adaptor = EvalHarnessAdaptor(model, forward_step_fn, neox_args, batch_size)
-    return adaptor.run_eval(eval_tasks=tasks)
+    return adaptor.run_eval(eval_tasks=eval_tasks)
