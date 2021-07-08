@@ -64,7 +64,7 @@ def cross_entropy(output, labels, _fp16=False):
     return loss
 
 
-def kldiv_loss(output, labels, _fp16=False):
+def kldiv_loss_fn(output, labels, _fp16=False):
 
     labels, loss_mask = labels[0], labels[1]
     if _fp16:
@@ -76,35 +76,46 @@ def kldiv_loss(output, labels, _fp16=False):
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
     return loss
 
-def mse_loss(output, labels, _fp16=False):
+def mse_loss_fn(output, labels, _fp16=False):
 
     labels, loss_mask = labels[0], labels[1]
     if _fp16:
         assert (output.dtype == torch.half and labels.dtype == torch.half and loss_mask.dtype == torch.half)
-        losses = mpu.loss.vocab_parallel_KLDivLoss(output.contiguous(), labels.contiguous())
+        losses = mpu.loss.vocab_parallel_MSELoss(output.contiguous(), labels.contiguous())
     else:
-        losses = mpu.loss.vocab_parallel_KLDivLoss(output.float().contiguous(), labels.float().contiguous())
+        losses = mpu.loss.vocab_parallel_MSELoss(output.float().contiguous(), labels.float().contiguous())
     loss_mask = loss_mask.view(-1)
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
     return loss
 
-def combined_loss(output, labels, alpha_lm=0, alpha_kld=0, alpha_mse=0, _fp16=False):
-
+def combined_loss_fn(output, labels, self, alpha_lm=0, alpha_kld=0, alpha_mse=0, _fp16=False):
     labels, loss_mask = labels[0], labels[1]
     teacher_logits, teacher_outputs, student_logits, student_output = output
-    loss = 0
+    lm_loss = 0
     if alpha_lm > 0:
         lm_loss = cross_entropy(student_logits, (labels, loss_mask), _fp16=_fp16)
-        loss = alpha_lm * lm_loss
+        lm_loss = alpha_lm * lm_loss
 
+    kld_loss = 0
     if alpha_kld > 0:
-        kl_loss = kldiv_loss(student_logits, (teacher_logits, loss_mask),  _fp16=_fp16)
-        loss += alpha_kld * kl_loss
+        kld_loss = kldiv_loss_fn(student_logits, (teacher_logits, loss_mask),  _fp16=_fp16)
+        kld_loss += alpha_kld * kld_loss
 
+    mse_loss = 0
     if alpha_mse > 0:
-        ms_loss = mse_loss(student_logits, (teacher_logits, loss_mask), _fp16=_fp16)
-        loss += alpha_mse * ms_loss
-    #print_rank_0("!"*100, loss)
+        mse_loss = mse_loss_fn(student_logits, (teacher_logits, loss_mask), _fp16=_fp16)
+        mse_loss += alpha_mse * mse_loss
+
+    loss = lm_loss + kld_loss + mse_loss
+    if self._losses==None:
+        self._losses = [lm_loss.clone().detach(), 
+                        kld_loss.clone().detach(), 
+                        mse_loss.clone().detach()]
+    else:
+        self._losses[0] += lm_loss.clone().detach()
+        self._losses[1] += kld_loss.clone().detach()
+        self._losses[2] += mse_loss.clone().detach()
+        
     return loss
 
 def substitue_args(neox_args, set_student_args=True):
@@ -164,7 +175,6 @@ def _post_transformer_block(args):
         raise ValueError('Incorrect number of args in `_post_transformer_block`')
     return fn(args)
 
-
 class GPT2ModelPipe(PipelineModule, torch.nn.Module):
     """GPT2Model adapted for pipeline parallelism.
 
@@ -181,6 +191,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         self.parallel_output = parallel_output
         self.do_distillation = self.neox_args.do_distillation
         self.specs = []
+        self._losses = None
 
         if self.do_distillation:
             if self._inference == True:
@@ -201,11 +212,13 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             self.init_specs()
 
         if self.do_distillation:
-            loss_fn = partial(combined_loss, 
+            loss_fn = partial(combined_loss_fn,
+                            self=self, 
                             alpha_lm=self.neox_args.alpha_lm, 
                             alpha_kld=self.neox_args.alpha_kld, 
                             alpha_mse=self.neox_args.alpha_mse, 
                             _fp16=self.fp16_lm_cross_entropy)
+
         else:
             loss_fn = partial(cross_entropy, _fp16=self.fp16_lm_cross_entropy)
 
