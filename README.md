@@ -87,7 +87,7 @@ GPT-NeoX offers a wide variety of state-of-the-art and bespoke features
 
  - Choose between `fp16`, `bf16`, and `fp32` operations to get the most performance out of your avaliable compute. Use the `precision` field to configure your precision settings.
  - Due to a known issue with `PyTorch`, `bf16` models require doing the all-reduce operation in `fp32`. If you have a patch for this problem, you can turn off the default`"fp32_allreduce": True`.
- - Additionally, you have to run `python /home/mchorse/gpt-neox/megatron/fused_kernels/setup.py install` to be able to use bf16 (may require root access).
+ - Additionally, you have to run `python /home/$USER/gpt-neox/megatron/fused_kernels/setup.py install` to be able to use bf16 (may require root access).
 
 ### Straightforward configuration
 
