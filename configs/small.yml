@@ -6,7 +6,7 @@
    "model-parallel-size": 1,
 
    # model settings
-   "num-layers": 12,
+   "num-layers": 4,
    "hidden-size": 768,
    "num-attention-heads": 12,
    "seq-length": 2048,

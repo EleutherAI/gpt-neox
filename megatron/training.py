@@ -45,7 +45,7 @@ from megatron.utils import OverflowMonitor, get_noise_scale_logger
 from megatron.utils import get_total_params
 from megatron.logging import training_log
 
-from megatron.model.gpt2_model import cross_entropy, substitue_args, kldiv_loss, mse_loss
+from megatron.model.gpt2_model import cross_entropy, substitue_args, kldiv_loss_fn, mse_loss_fn
 from megatron.utils import get_ltor_masks_and_position_ids
 from megatron.utils import reduce_losses
 
@@ -180,7 +180,7 @@ def get_batch_pipe(data, neox_args):
     return (tokens, position_ids, attention_mask), (labels, loss_mask)
 
 def distill_step(data_iterator, model, neox_args, timers):
-    """Forward step for distillation."""
+    """Forward step for distilation."""
 
     # Get the batch.
     timers('batch generator').start()
@@ -191,24 +191,31 @@ def distill_step(data_iterator, model, neox_args, timers):
     # teacher_outputs and student_output can be used for cosine similarity loss, TO DO create cosine similarity loss
     teacher_logits, teacher_outputs, student_logits, student_output = model((tokens, position_ids, attention_mask))
 
+    lm_loss = 0
     if neox_args.alpha_lm > 0:
         lm_loss = cross_entropy(student_logits, (labels, loss_mask), _fp16=neox_args.reduce_loss_fp16)
-        loss = neox_args.alpha_lm * lm_loss
+        lm_loss = neox_args.alpha_lm * lm_loss
 
+    kld_loss = 0
     if neox_args.alpha_kld > 0:
-        kld_loss = kldiv_loss(student_logits, (teacher_logits, loss_mask), _fp16=neox_args.reduce_loss_fp16)
-        loss += neox_args.alpha_kld * kld_loss
+        kld_loss = kldiv_loss_fn(student_logits, (teacher_logits, loss_mask),  _fp16=neox_args.reduce_loss_fp16)
+        kld_loss += neox_args.alpha_kld * kld_loss
 
+    mse_loss = 0
     if neox_args.alpha_mse > 0:
-        mse_loss = mse_loss(student_logits, (teacher_logits, loss_mask), _fp16=neox_args.reduce_loss_fp16)
-        loss += neox_args.alpha_mse * mes_loss
+        mse_loss = mse_loss_fn(student_logits, (teacher_logits, loss_mask), _fp16=neox_args.reduce_loss_fp16)
+        mse_loss += neox_args.alpha_mse * mse_loss
 
+    loss = lm_loss + kld_loss + mse_loss
     return loss, lm_loss, kld_loss, mse_loss
 
 def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
     """Forward step."""
     if neox_args.is_pipe_parallel:
         return model.eval_batch(data_iterator, return_logits=return_logits)
+    
+    if neox_args.do_distillation:
+        return distill_step(data_iterator, model, neox_args, timers)
 
     # Get the batch.
     if timers is not None:
@@ -410,11 +417,17 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
         reduced_loss = train_step_pipe(neox_args=neox_args, timers=timers, model=model, data_iterator=data_iterator)
     else:
         losses = []
+        lm_losses, kld_losses, mse_losses = [], [], []
         for _ in range(neox_args.gradient_accumulation_steps):
             # Forward model for one step.
             timers('forward').start()
             loss = forward_step(neox_args=neox_args, timers=timers, data_iterator=data_iterator, model=model)
             timers('forward').stop()
+            if neox_args.do_distillation:
+                loss, lm_loss, kld_loss, mse_loss =  loss          
+                lm_losses.append(lm_loss)
+                kld_losses.append(kld_loss)
+                mse_losses.append(mse_loss)
             losses.append(loss)
             # Calculate gradients, reduce across processes, and clip.
             timers('backward').start()
@@ -428,6 +441,10 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
                 raise ValueError("Must be using deepspeed to run neox")
             timers('optimizer').stop()
         reduced_loss = {"lm_loss": reduce_losses(losses).mean()}  # reduces losses across machines for logging
+        if neox_args.do_distillation:
+            reduced_loss.update({'lm_loss': reduce_losses(lm_losses).mean(), 
+                                'kld_loss' : reduce_losses(kld_losses).mean(), 
+                                'mse_loss' : reduce_losses(mse_losses).mean()})
 
     if neox_args.precision == "fp16" and model.optimizer.overflow:
         skipped_iter = 1
@@ -436,13 +453,19 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
 
     return reduced_loss, skipped_iter
 
-
 def train_step_pipe(neox_args, timers, model, data_iterator):
     """Single training step with DeepSpeed's pipeline parallel engine. """
 
     assert neox_args.deepspeed
     loss = model.train_batch(data_iter=data_iterator)
-    loss_dict = {'lm_loss': loss}
+    loss_dict = {'loss': loss }
+    if neox_args.do_distillation:
+        lm_loss, kld_loss, mse_loss= model.module._losses
+        model.module._losses = None
+        loss_dict.update({'lm_loss': lm_loss, 
+                          'kld_loss' : kld_loss, 
+                          'mse_loss' : mse_loss})
+
     # Don't break Megatron's timers because we changed code paths.
     for t in ['forward', 'backward', 'allreduce', 'optimizer', 'batch generator', 'data loader']:
         timers(t).reset()
@@ -543,6 +566,7 @@ def evaluate(neox_args, forward_step_fn, data_iterator, model, verbose=False, ti
     # Turn on evaluation mode which disables dropout.
     model.eval()
     losses = []
+    lm_losses, kld_losses, mse_losses = [], [], []
     with torch.no_grad():
         iteration = 0
         while iteration < neox_args.eval_iters:
@@ -556,6 +580,12 @@ def evaluate(neox_args, forward_step_fn, data_iterator, model, verbose=False, ti
                 # Forward evaluation
                 loss = forward_step_fn(model=model, data_iterator=data_iterator, neox_args=neox_args, timers=timers)
                 losses.append(loss)
+                if neox_args.do_distillation:
+                    lm_loss, kld_loss, mse_loss= model.module._losses
+                    model.module._losses = None
+                    lm_losses.append(lm_loss)
+                    kld_losses.append(kld_loss)
+                    mse_losses.append(mse_loss)
 
             # When contiguous memory optimizations are enabled, the buffers
             # allocated by the optimizations are deallocated during backward pass
@@ -565,6 +595,11 @@ def evaluate(neox_args, forward_step_fn, data_iterator, model, verbose=False, ti
                 deepspeed.checkpointing.reset()
     # reduces losses across processes for logging
     reduced_loss = {"lm_loss": reduce_losses(losses).mean()}
+    if neox_args.do_distillation:
+        reduced_loss.update({'lm_loss': reduce_losses(lm_losses).mean(), 
+                            'kld_loss' : reduce_losses(kld_losses).mean(), 
+                            'mse_loss' : reduce_losses(mse_losses).mean()})
+
     # Move model back to the train mode.
     model.train()
     return reduced_loss
@@ -589,3 +624,5 @@ def evaluate_and_print_results(neox_args, prefix, forward_step_func, data_iterat
     print_rank_0('-' * length)
     print_rank_0(string)
     print_rank_0('-' * length)
+
+

@@ -9,8 +9,8 @@
    "do_distillation" : true,
    "reduce_loss_fp16" : false,
    "alpha_lm" : 1.0,
-   "alpha_kld" : 1.0,
-   "alpha_mse" : 1.0,
+   "alpha_kld" : 0.5,
+   "alpha_mse" : 0.5,
 
    "student_model_args" :{
       # model settings
@@ -93,7 +93,7 @@
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
-   "save-interval": 10000,
+   "save-interval": 1000000,
    "eval-interval": 1000,
    "eval-iters": 10,
 
