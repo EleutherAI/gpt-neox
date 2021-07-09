@@ -43,7 +43,7 @@ With `torch >= 1.8` installed, run `pip install -r requirements/requirements.txt
 pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@e2083df5eb96643c61613b9df48dd4eea6b07690
 ```
 
-All functionality follows the pattern `./deeply.py main_function.py -d configs small.yml `
+All functionality follows the pattern `./deepy.py main_function.py -d configs small.yml `
 We currently offer four main functions:
 1. `train.py` is used for training models
 2. `evaluate.py` is used to evaluate a trained model using the evaluation harness
@@ -68,7 +68,7 @@ GPT-NeoX offers a wide variety of state-of-the-art and bespoke features
 
 - **Sparsity:** 
 
-    - Deepspeed's sparse attention kernels are supported, but don't work with cuda 11.0+, and require a specific hardware setup (V100s/RTX2080s/A100s). Add `"sparsity": "all"` to your config file to use sparse attention on all layers, or `"sparsity": "interspersed"` to use it every other layer. 
+    - Deepspeed's sparse attention kernels are supported, but don't work with cuda 11.0+, and require a specific hardware setup (V100s/RTX2080s/A100s). Add `"sparsity": "all"` to your config file to use sparse attention on all layers, or `"sparsity": "interspersed"` to use it every other layer. To use sparsity, first run `pip install requirements/requirements-sparseattention.txt` to install triton.
 
 - **Norms:**
 
@@ -206,7 +206,7 @@ Training is launched using `deepy.py`, a wrapper around Deepspeed's launcher, wh
 The general usage pattern is:
 
 ```bash
-./deepy.py [TRAINING_SCRIPT] [path/to/config1.yml] [path/to/config2/yml] ...
+./deepy.py [TRAINING_SCRIPT] [path/to/config1.yml] [path/to/config2.yml] ...
 ```
 
 You can pass in an arbritrary number of configs which will all be merged at runtime.
