@@ -14,6 +14,7 @@ If you're looking for our TPU codebase, see [GPT-Neo](https://github.com/Eleuthe
 GPT-NeoX is under active development.
 - [Why GPT-NeoX](#why-gpt-neox)
   * [Straightforward Configuration](#straightforward-configuration)
+  * [Diverse Modeling Options](#diverse-modeling-options)
   * [HuggingFace Integration](huggingface-integration)
   * [Pretrained Models](#pretrained-models)
 - [Quick Start](#quick-start)
@@ -21,12 +22,12 @@ GPT-NeoX is under active development.
   * [Configuration and parameters](#configuration-and-parameters)
   * [Datasets](#datasets)
   * [Training Options](#training)
-  * [Running the Code](#run)
+  * [Running the Code](#running-the-code)
 - [Features:](#features)
   * [3D Parallelism](#3d-parallelism)
   * [Model Structure](#model-structure)
   * [Optimizers](#optimizers)
-- [Datasets]
+- [Datasets](#datasets)
   * [Preconfigured Datasets](#preconfigured-datasets)
   * [Using Custom Data](#using-custom-data)
   * [Tokenizers](#tokenizers]
