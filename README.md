@@ -13,53 +13,84 @@ If you're looking for our TPU codebase, see [GPT-Neo](https://github.com/Eleuthe
 
 GPT-NeoX is under active development.
 - [Why GPT-NeoX](#why-gpt-neox)
-  * [Straightforward Configuration](#straightforward-configuration)
+  * [Straightforward configuration](#straightforward-configuration)
   * [Diverse Modeling Options](#diverse-modeling-options)
-  * [HuggingFace Integration](huggingface-integration)
-  * [Pretrained Models](#pretrained-models)
+  * [HuggingFace Integration](#huggingface-integration)
+  * [Large Pretrained Models](#large-pretrained-models)
 - [Quick Start](#quick-start)
   * [Getting Started](#getting-started)
-  * [Configuration and parameters](#configuration-and-parameters)
+  * [Configuration and Parameters](#configuration-and-parameters)
   * [Datasets](#datasets)
   * [Running the Code](#running-the-code)
-- [Features:](#features)
+- [Features](#features)
   * [3D Parallelism](#3d-parallelism)
   * [Model Structure](#model-structure)
   * [Optimizers](#optimizers)
-- [Datasets](#datasets)
+  * [High-Precision Training:](#high-precision-training-)
+- [Datasets](#datasets-1)
   * [Preconfigured Datasets](#preconfigured-datasets)
   * [Using Custom Data](#using-custom-data)
-  * [Tokenizers](#tokenizers)
+  * [Using and Training Tokenizers](#using-and-training-tokenizers)
 - [Training and Finetuning](#training-and-finetuning)
 - [Inference](#inference)
 - [Evaluation](#evaluation)
 - [Distilling](#distilling)
-- [Monitoring](#monitoring)
+  * [Monitoring](#monitoring)
 - [Placeholder Name](#placeholder-name)
   * [Citing GPT-NeoX](#citing-gpt-neox)
   * [Licensing](#licensing)
   * [Acknowledgements](#acknowledgements)
 
+## Why GPT-NeoX
+
+### Straightforward configuration
+
+- Other libraries such as Megatron-LM require you configure them using command line arguments and global variables, which can often be difficult to work with and iterate upon. We offer straightforward configuration using .yaml files, which enables you to launch training runs across 100s of GPUs with a single line bash script. 
+- Additionally, we hope to make data preparation easier on the user by providing scripts to automatically download and pretokenize a number of large-scale datasets.
+
+### Diverse Modeling Options
+
+### HuggingFace Integration
+
+### Large Pretrained Models
+
 ## Quick Start
 
-Coming Soon: a colab notebook for trying out the model.
+**Coming Soon:** a colab notebook for trying out the model.
 
-### Running Locally
+### Getting Started
 
-With `torch >= 1.8` installed, run `pip install -r requirements/requirements.txt` followed by
+**Warning:** Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), our fork of the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library with some added changes. We strongly recommend using Anaconda, a virtual machine, or some other form of environment isolation before installing from `requirements/requirements.txt`. Failure to do so may cause other repositories that rely on DeepSpeed to break.
+
+First make sure you are in an environment with Python 3.8 or later and `torch>=1.8` installed. Then run `pip install -r requirements/requirements.txt`. 
+You may need to change the version of `cupy-cudaxxx` to match your machine's cuda version.
+
+Some features rely on apex, which you can install with the command below:
 
 ```bash
 pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@e2083df5eb96643c61613b9df48dd4eea6b07690
 ```
 
-All functionality follows the pattern `./deepy.py main_function.py -d configs small.yml `
-We currently offer four main functions:
-1. `train.py` is used for training models
-2. `evaluate.py` is used to evaluate a trained model using the evaluation harness
-3. `generate.py` is used to sample text from a file.
-4. `distill.py` is used to distill a larger model into a smaller model.
+We also host a Docker Image on Dockerhub at `leogao2/gpt-neox`, which enables easy multi-node training.
 
-For information on the required arguments for each function, see the corresponding section below.
+### Configuration and Parameters
+
+GPT-NeoX parameters are defined in a YAML configuration file which is passed to the `deepy.py` launcher - for examples see the `configs` folder. 
+
+For a full list of parameters and documentation see the [configuration readme](configs).
+
+### Datasets
+
+Quick overview of the datasets we provide
+
+### Running the Code
+
+All functionality follows the pattern `./deepy.py main_function.py -d configs small.yml local_configs.yml`
+We currently offer four main functions:
+1. `train.py` is used for training and finetuning models
+2. `evaluate.py` is used to evaluate a trained model using the evaluation harness
+3. `generate.py` is used to sample text from a model.
+4. `distill.py` is used to distill a larger model into a smaller model.
 
 ## Features
 
@@ -98,46 +129,11 @@ GPT-NeoX offers a wide variety of state-of-the-art and bespoke features
  - Due to a known issue with `PyTorch`, `bf16` models require doing the all-reduce operation in `fp32`. If you have a patch for this problem, you can turn off the default`"fp32_allreduce": True`.
  - Additionally, you have to run `python /home/$USER/gpt-neox/megatron/fused_kernels/setup.py install` to be able to use bf16 (may require root access).
 
-### Straightforward configuration
-
-- Other libraries such as Megatron-LM require you configure them using command line arguments and global variables, which can often be difficult to work with and iterate upon. We offer straightforward configuration using .yaml files, which enables you to launch training runs across 100s of GPUs with a single line bash script. 
-- Additionally, we hope to make data preparation easier on the user by providing scripts to automatically download and pretokenize a number of large-scale datasets.
-
-## Using the Library
-
-All functionality follows the pattern `./deepy.py main_function.py -d configs config1.yml config2.yml ...`. By default we split our configs into one file about the model and one file about the hardware, but you may use any number of configuration files you like.
-We currently offer four main functions:
-1. `train.py` is used for training models
-2. `evaluate.py` is used to evaluate a trained model using the evaluation harness
-3. `generate.py` is used to sample text from a file.
-4. `distill.py` is used to distill a larger model into a smaller model.
-For information on the required arguments for each function, see the corresponding section below.
-
-
-### Getting Started
-
-Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), our fork of the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library with some added changes. We strongly recommend using Anaconda, a virtual machine, or some other form of environment isolation before installing from `requirements/requirements.txt`. Failure to do so may cause other repositories that rely on DeepSpeed to break. Python 3.8 or later is required.
-
-First make sure you are in an environment with `torch>=1.8` installed. Then run `pip install -r requirements/requirements.txt`. 
-You may need to change the version of `cupy-cudaxxx` to match your machine's cuda version.
-
-Finally, certain features rely on apex, which you can install with the command below:
-
-```bash
-pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@e2083df5eb96643c61613b9df48dd4eea6b07690
-```
-
-We also host a Docker Image on Dockerhub at `leogao2/gpt-neox`, which enables easy multi-node training.
-
-### Configuration and parameters
-
-GPT-NeoX parameters are defined in a YAML configuration file which is passed to the `deepy.py` launcher - for examples see the `configs` folder. 
-
-For a full list of parameters and documentation see the [configuration readme](configs).
-
-### Datasets
+## Datasets
 
 Once you've installed all the requirements and set up your model configuration, the next step is obtaining and preprocessing your dataset. 
+
+### Preconfigured Datasets
 
 For demonstrative purposes we've hosted the Enron Emails corpus and made it available for downloading. Running `python prepare_data.py` will download the tokenizer files and dataset, pretokenize the dataset, and save it into a folder named `./data`.
 
@@ -150,6 +146,10 @@ Next make sure to download the GPT2 tokenizer vocab, and merge files from the fo
 
 - Vocab: https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-vocab.json
 - Merge: https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-merges.txt
+
+### Using Custom Data
+
+### Using and Training Tokenizers
 
 We plan to integrate HuggingFace's `Tokenizers` library soon to make this process smoother.
 
@@ -208,7 +208,7 @@ You would then run training with the following settings added to your configurat
   "data-path": "data/mydataset/mydataset",
 ```
 
-### Training
+## Training and Finetuning
 
 Training is launched using `deepy.py`, a wrapper around Deepspeed's launcher, which launches the same script in parallel across many GPUs / nodes.
 
@@ -232,27 +232,31 @@ This will deploy the `pretrain_gpt2.py` script on all nodes with one process per
 * Model parameters are defined in the config file `configs/small.yml`.
 * Data path parameters are defined in the config file `configs/local_setup.yml`. If you are an EleutherAI member and using the [Kubernetes cluster](kubernetes), the `eleutherai_cluster.yml` config should be instead.
 
+
+## Inference
+
+[WIP]
+
+## Evaluation
+
+GPT-NeoX supports evaluation on downstream tasks through the [language model evaluation harness](https://github.com/EleutherAI/lm-evaluation-harness).
+
+To evaluate a trained model on the evaluation harness, use `./deepy.py evaluate.py configs/your_config.yml`
+
+## Distilling
+
+[WIP]
+
+
 ### Monitoring
 
 EleutherAI is currently using [Weights & Biases to record experiments](https://wandb.ai/eleutherai/neox). If you are logged into Weights & Biases on your machine - you can do this by executing `wandb login` - your runs will automatically be recorded. Additionally, set the config parameter `wandb_team` if you would like the run to be added to an organisation/team account.
 
 We also support using Tensorboard via the `tensorboard-dir` argument. To use tensorboard, install the optional packages found at `requirements/requirements-tensorboard.txt`
 
-### Inference
+## Placeholder Name
 
-[WIP]
-
-### Evaluation
-
-GPT-NeoX supports evaluation on downstream tasks through the [language model evaluation harness](https://github.com/EleutherAI/lm-evaluation-harness).
-
-To evaluate a trained model on the evaluation harness, use `./deepy.py evaluate.py configs/your_config.yml`
-
-### Distilling
-
-[WIP]
-
-## Citing GPT-NeoX
+### Citing GPT-NeoX
 
 If you have found GPT-Neo helpful in your work, you can cite this repository as
 
@@ -267,7 +271,7 @@ If you have found GPT-Neo helpful in your work, you can cite this repository as
 
 In the above bibtex entry, names are in alphabetical order, and the year corresponds to the project's open-source release.
 
-## Licensing
+### Licensing
 
 This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright (c) 2021, EleutherAI contributors (in alphabetical order): Alex Andonian, Stella Biderman, Sid Black, Preetham Gali, Leo Gao, Eric Hallahan, Josh Levy-Kramer, Connor Leahy, Lucas Nestler, Kip Parker, Michael Pieler, Shivanshu Purohit, Tri Songz, Phil Wang, Samuel Weinbach. Licensed under the Apache License:
 
@@ -287,6 +291,9 @@ This repository is based off code written by NVIDIA that is licensed under the A
 
 For full terms, see the `LICENSE` file. If you have any questions, comments, or concerns about licensing please email us at contact@eleuther.ai.
 
-## Acknowledgements
+### Acknowledgements
 
 We run our experiments on a Kubernetes cluster generously provided by [CoreWeave](https://coreweave.com/).
+
+<small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>
+
