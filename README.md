@@ -31,7 +31,9 @@ GPT-NeoX is under active development.
 - [Inference](#inference)
 - [Evaluation](#evaluation)
 - [Distilling](#distilling)
-  * [Monitoring](#monitoring)
+- [Monitoring](#monitoring)
+  * [WandB](#wandb)
+  * [Tensorboard](#tensorboard)
 - [Placeholder Name](#placeholder-name)
   * [Citing GPT-NeoX](#citing-gpt-neox)
   * [Licensing](#licensing)
@@ -241,9 +243,13 @@ To evaluate a trained model on the evaluation harness, use `./deepy.py evaluate.
 [WIP]
 
 
-### Monitoring
+## Monitoring
+
+### WandB
 
 EleutherAI is currently using [Weights & Biases to record experiments](https://wandb.ai/eleutherai/neox). If you are logged into Weights & Biases on your machine - you can do this by executing `wandb login` - your runs will automatically be recorded. Additionally, set the config parameter `wandb_team` if you would like the run to be added to an organisation/team account.
+
+### Tensorboard
 
 We also support using Tensorboard via the `tensorboard-dir` argument. To use tensorboard, install the optional packages found at `requirements/requirements-tensorboard.txt`
 
