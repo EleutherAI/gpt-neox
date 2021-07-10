@@ -30,8 +30,8 @@ GPT-NeoX is under active development.
 - [Datasets](#datasets)
   * [Preconfigured Datasets](#preconfigured-datasets)
   * [Using Custom Data](#using-custom-data)
-  * [Tokenizers](#tokenizers]
-- [Training and Finetuning](#training-and-finetuning]
+  * [Tokenizers](#tokenizers)
+- [Training and Finetuning](#training-and-finetuning)
 - [Inference](#inference)
 - [Evaluation](#evaluation)
 - [Distilling](#distilling)
