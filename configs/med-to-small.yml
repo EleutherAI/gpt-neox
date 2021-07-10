@@ -9,8 +9,8 @@
    "do_distillation" : true,
    "reduce_loss_fp16" : false,
    "alpha_lm" : 1.0,
-   "alpha_kld" : 0.5,
-   "alpha_mse" : 0.5,
+   "alpha_kld" : 0.0,
+   "alpha_mse" : 0.0,
 
    "student_model_args" :{
       # model settings
