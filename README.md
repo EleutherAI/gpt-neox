@@ -21,7 +21,6 @@ GPT-NeoX is under active development.
   * [Getting Started](#getting-started)
   * [Configuration and parameters](#configuration-and-parameters)
   * [Datasets](#datasets)
-  * [Training Options](#training)
   * [Running the Code](#running-the-code)
 - [Features:](#features)
   * [3D Parallelism](#3d-parallelism)
