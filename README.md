@@ -12,24 +12,29 @@ If you are interested in contributing, please [join our discord](https://discord
 If you're looking for our TPU codebase, see [GPT-Neo](https://github.com/EleutherAI/gpt-neo).
 
 GPT-NeoX is under active development.
+- [Why GPT-NeoX](#why-gpt-neox)
+  * [Straightforward Configuration](#straightforward-configuration)
+  * [Pretrained Models](#pretrained-models)
 - [Quick Start](#quick-start)
-- [Features:](#features-)
+  * [Google Colab](#google-colab)
+  * [Local Compute](#local-compute)
+  * [EleutherAI Clusters](#eleutherai-clusters)
+- [Features:](#features)
   * [3D Parallelism](#3d-parallelism)
   * [Model Structure](#model-structure)
   * [Optimizers](#optimizers)
-  * [Straightforward configuration](#straightforward-configuration)
 - [Getting Started](#getting-started)
   * [Configuration and parameters](#configuration-and-parameters)
   * [Datasets](#datasets)
   * [Training](#training)
-- [Monitoring](#monitoring)
 - [Inference](#inference)
 - [Evaluation](#evaluation)
 - [Distilling](#distilling)
-- [Citing GPT-NeoX](#citing-gpt-neox)
-  * [Citing](#citing)
-- [Licensing](#licensing)
-- [Acknowledgements](#acknowledgements)
+- [Monitoring](#monitoring)
+- [Placeholder Name](#placeholder-name)
+  * [Citing GPT-NeoX](#citing-gpt-neox)
+  * [Licensing](#licensing)
+  * [Acknowledgements](#acknowledgements)
 
 ## Quick Start
 
