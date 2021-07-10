@@ -96,7 +96,7 @@ GPT-NeoX offers a wide variety of state-of-the-art and bespoke features
 
 ## Using the Library
 
-All functionality follows the pattern `./deeply.py main_function.py -d configs config1.yml config2.yml ...`. By default we split our configs into one file about the model and one file about the hardware, but you may use any number of configuration files you like.
+All functionality follows the pattern `./deepy.py main_function.py -d configs config1.yml config2.yml ...`. By default we split our configs into one file about the model and one file about the hardware, but you may use any number of configuration files you like.
 We currently offer four main functions:
 1. `train.py` is used for training models
 2. `evaluate.py` is used to evaluate a trained model using the evaluation harness
