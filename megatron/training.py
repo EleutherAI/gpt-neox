@@ -191,17 +191,17 @@ def distill_step(data_iterator, model, neox_args, timers):
     # teacher_outputs and student_output can be used for cosine similarity loss, TO DO create cosine similarity loss
     teacher_logits, teacher_outputs, student_logits, student_output = model((tokens, position_ids, attention_mask))
 
-    lm_loss = 0
+    lm_loss = torch.tensor(0).to(student_logits)
     if neox_args.alpha_lm > 0:
         lm_loss = cross_entropy(student_logits, (labels, loss_mask), _fp16=neox_args.reduce_loss_fp16)
         lm_loss = neox_args.alpha_lm * lm_loss
 
-    kld_loss = 0
+    kld_loss = torch.tensor(0).to(student_logits)
     if neox_args.alpha_kld > 0:
         kld_loss = kldiv_loss_fn(student_logits, (teacher_logits, loss_mask),  _fp16=neox_args.reduce_loss_fp16)
         kld_loss += neox_args.alpha_kld * kld_loss
 
-    mse_loss = 0
+    mse_loss = torch.tensor(0).to(student_logits)
     if neox_args.alpha_mse > 0:
         mse_loss = mse_loss_fn(student_logits, (teacher_logits, loss_mask), _fp16=neox_args.reduce_loss_fp16)
         mse_loss += neox_args.alpha_mse * mse_loss
@@ -594,7 +594,7 @@ def evaluate(neox_args, forward_step_fn, data_iterator, model, verbose=False, ti
             if neox_args.deepspeed and neox_args.deepspeed_activation_checkpointing:
                 deepspeed.checkpointing.reset()
     # reduces losses across processes for logging
-    reduced_loss = {"lm_loss": reduce_losses(losses).mean()}
+    reduced_loss = {"loss": reduce_losses(losses).mean()}
     if neox_args.do_distillation:
         reduced_loss.update({'lm_loss': reduce_losses(lm_losses).mean(), 
                             'kld_loss' : reduce_losses(kld_losses).mean(), 
