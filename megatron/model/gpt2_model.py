@@ -91,17 +91,17 @@ def mse_loss_fn(output, labels, _fp16=False):
 def combined_loss_fn(output, labels, self, alpha_lm=0, alpha_kld=0, alpha_mse=0, _fp16=False):
     labels, loss_mask = labels[0], labels[1]
     teacher_logits, teacher_outputs, student_logits, student_output = output
-    lm_loss = torch.tensor(0)
+    lm_loss = torch.tensor(0).to(student_logits)
     if alpha_lm > 0:
         lm_loss = cross_entropy(student_logits, (labels, loss_mask), _fp16=_fp16)
         lm_loss = alpha_lm * lm_loss
 
-    kld_loss = torch.tensor(0)
+    kld_loss = torch.tensor(0).to(student_logits)
     if alpha_kld > 0:
         kld_loss = kldiv_loss_fn(student_logits, (teacher_logits, loss_mask),  _fp16=_fp16)
         kld_loss += alpha_kld * kld_loss
 
-    mse_loss = torch.tensor(0)
+    mse_loss = torch.tensor(0).to(student_logits)
     if alpha_mse > 0:
         mse_loss = mse_loss_fn(student_logits, (teacher_logits, loss_mask), _fp16=_fp16)
         mse_loss += alpha_mse * mse_loss
