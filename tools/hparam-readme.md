@@ -10,7 +10,7 @@ Click on the `Create Sweep` button and a config will be generated, like so:
 
 ![image](https://user-images.githubusercontent.com/42869065/125508038-a2ced583-f55d-4fa2-8c6e-99cc5d893f56.png)
 
-Edit the config to only keep the desired hparams (neox has over 170!). Then click on initialize sweep and an agent will be created.
+Edit the config to only keep the desired hparams (neox has over 170!). Then click on initialize sweep and an agent will be created. Remember to change `program` to `tools/hparam_search_wandb.py`
 
 ## 3. Launch the agent
 You'll be greeted by this screen
