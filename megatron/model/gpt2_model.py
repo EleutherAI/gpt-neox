@@ -90,21 +90,26 @@ def mse_loss_fn(output, labels, _fp16=False):
 
 def combined_loss_fn(output, labels, self, alpha_lm=0, alpha_kld=0, alpha_mse=0, _fp16=False):
     labels, loss_mask = labels[0], labels[1]
-    teacher_logits, teacher_outputs, student_logits, student_output = output
-    lm_loss = torch.tensor(0).to(student_logits)
-    if alpha_lm > 0:
-        lm_loss = cross_entropy(student_logits, (labels, loss_mask), _fp16=_fp16)
-        lm_loss = alpha_lm * lm_loss
+    teacher_hidden_states ,teacher_logits, student_hidden_states, student_logits = output
 
-    kld_loss = torch.tensor(0).to(student_logits)
-    if alpha_kld > 0:
-        kld_loss = kldiv_loss_fn(student_logits, (teacher_logits, loss_mask),  _fp16=_fp16)
-        kld_loss += alpha_kld * kld_loss
+    # CosineEmbeddingLoss(teacher_hidden_states, student_hidden_states) to be implemented 
+    del teacher_hidden_states
+    del student_hidden_states
 
     mse_loss = torch.tensor(0).to(student_logits)
     if alpha_mse > 0:
         mse_loss = mse_loss_fn(student_logits, (teacher_logits, loss_mask), _fp16=_fp16)
         mse_loss += alpha_mse * mse_loss
+
+    kld_loss = torch.tensor(0).to(student_logits)
+    if alpha_kld > 0:
+        kld_loss = kldiv_loss_fn(student_logits, (teacher_logits, loss_mask),  _fp16=_fp16)
+        kld_loss += alpha_kld * kld_loss
+        
+    lm_loss = torch.tensor(0).to(student_logits)
+    if alpha_lm > 0:
+        lm_loss = cross_entropy(student_logits, (labels, loss_mask), _fp16=_fp16)
+        lm_loss = alpha_lm * lm_loss
 
     loss = lm_loss + kld_loss + mse_loss
     if self._losses==None:
@@ -202,7 +207,6 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             list_neox_args = [neox_args] 
 
         for neox_args in list_neox_args:
-            print_rank_0(neox_args)
             self.neox_args = neox_args
             self.hidden_size = self.neox_args.hidden_size
             self.num_tokentypes = num_tokentypes
@@ -331,12 +335,14 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                     self.parallel_output)
                 return logits, presents
             elif self.do_distillation:
-                hidden_states = lm_output[0]
-                logits = parallel_lm_logits(
-                    lm_output,
-                    embedding.word_embeddings_weight,
-                    self.parallel_output)
-                return logits, lm_output[1:]
+                raise ValueError(f'Need to test Not recognized')
+                # Need to test
+                # hidden_states = lm_output[0]
+                # logits = parallel_lm_logits(
+                #     lm_output,
+                #     embedding.word_embeddings_weight,
+                #     self.parallel_output)
+                # return logits, lm_output[1:]
             else:
                 logits = parallel_lm_logits(
                     lm_output,
