@@ -189,25 +189,29 @@ def distill_step(data_iterator, model, neox_args, timers):
     timers('batch generator').stop()
 
     # teacher_outputs and student_output can be used for cosine similarity loss, TO DO create cosine similarity loss
-    teacher_logits, teacher_outputs, student_logits, student_output = model((tokens, position_ids, attention_mask))
+    teacher_hidden_states ,teacher_logits, student_hidden_states, student_logits = model((tokens, position_ids, attention_mask))
 
-    lm_loss = torch.tensor(0).to(student_logits)
-    if neox_args.alpha_lm > 0:
-        lm_loss = cross_entropy(student_logits, (labels, loss_mask), _fp16=neox_args.reduce_loss_fp16)
-        lm_loss = neox_args.alpha_lm * lm_loss
-
-    kld_loss = torch.tensor(0).to(student_logits)
-    if neox_args.alpha_kld > 0:
-        kld_loss = kldiv_loss_fn(student_logits, (teacher_logits, loss_mask),  _fp16=neox_args.reduce_loss_fp16)
-        kld_loss += neox_args.alpha_kld * kld_loss
+    # CosineEmbeddingLoss(teacher_hidden_states, student_hidden_states) to be implemented 
+    del teacher_hidden_states
+    del student_hidden_states
 
     mse_loss = torch.tensor(0).to(student_logits)
     if neox_args.alpha_mse > 0:
         mse_loss = mse_loss_fn(student_logits, (teacher_logits, loss_mask), _fp16=neox_args.reduce_loss_fp16)
         mse_loss += neox_args.alpha_mse * mse_loss
 
+    kld_loss = torch.tensor(0).to(student_logits)
+    if neox_args.alpha_kld > 0:
+        kld_loss = kldiv_loss_fn(student_logits, (teacher_logits, loss_mask),  _fp16=neox_args.reduce_loss_fp16)
+        kld_loss += neox_args.alpha_kld * kld_loss
+       
+    lm_loss = torch.tensor(0).to(student_logits)
+    if neox_args.alpha_lm > 0:
+        lm_loss = cross_entropy(student_logits, (labels, loss_mask), _fp16=neox_args.reduce_loss_fp16)
+        lm_loss = neox_args.alpha_lm * lm_loss
+
     loss = lm_loss + kld_loss + mse_loss
-    return loss, lm_loss, kld_loss, mse_loss
+    return loss, lm_loss.clone().detach(), kld_loss.clone().detach(), mse_loss.clone().detach()
 
 def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
     """Forward step."""
@@ -440,7 +444,7 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
             else:
                 raise ValueError("Must be using deepspeed to run neox")
             timers('optimizer').stop()
-        reduced_loss = {"lm_loss": reduce_losses(losses).mean()}  # reduces losses across machines for logging
+        reduced_loss = {"loss": reduce_losses(losses).mean()}  # reduces losses across machines for logging
         if neox_args.do_distillation:
             reduced_loss.update({'lm_loss': reduce_losses(lm_losses).mean(), 
                                 'kld_loss' : reduce_losses(kld_losses).mean(), 
@@ -624,5 +628,3 @@ def evaluate_and_print_results(neox_args, prefix, forward_step_func, data_iterat
     print_rank_0('-' * length)
     print_rank_0(string)
     print_rank_0('-' * length)
-
-
