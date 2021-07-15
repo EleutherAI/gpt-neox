@@ -149,14 +149,13 @@ class EmbeddingDistilPipe(Embedding):
         position_ids = args[1]
         attention_mask = args[2]
         if in_student_model:
-            teacher_logits = args[3]
-            teacher_outputs = args[4]
+            teacher_hidden_states = args[3]
+            teacher_logits = args[4]
 
         embeddings = super().forward(input_ids, position_ids)
         if in_teacher_model:
             # return embeddings, (input_ids, position_ids, attention_mask)
             return embeddings, input_ids, position_ids, attention_mask
         else:
-            # return embeddings, attention_mask,  (teacher_logits, teacher_outputs)
-            return embeddings, attention_mask, teacher_logits, teacher_outputs, None
-        
+            # return embeddings, attention_mask,  teacher_hidden_states ,teacher_logits
+            return embeddings, attention_mask, teacher_hidden_states ,teacher_logits, None
