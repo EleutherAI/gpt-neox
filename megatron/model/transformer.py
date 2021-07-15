@@ -611,18 +611,14 @@ class ParallelTransformerLayerDistilPipe(ParallelTransformerLayer):
 
         if in_teacher_model:
             embeddings, input_ids, position_ids, attention_mask = args
-            hidden_states = embeddings 
-            next_hidden_states = super().forward(hidden_states, attention_mask)
             # passing the data through layer
             # input_ids, position_ids, attention_mask are required for input to student model
-            return next_hidden_states, input_ids, position_ids, attention_mask
+            return super().forward(embeddings, attention_mask), input_ids, position_ids, attention_mask
         elif in_student_model:
-            embeddings, attention_mask, teacher_logits, teacher_outputs, _ = args
-            hidden_states = embeddings 
-            next_hidden_states = super().forward(hidden_states, attention_mask)
+            embeddings, attention_mask, teacher_hidden_states ,teacher_logits, _ = args
             # passing the data through layer
-            # teacher_logits, teacher_outputs are required to compute student loss
-            return next_hidden_states, attention_mask, teacher_logits, teacher_outputs, None
+            # teacher_hidden_states ,teacher_logits are required to compute student loss
+            return super().forward(embeddings, attention_mask), attention_mask, teacher_hidden_states ,teacher_logits,  None
         else:
             raise ValueError(
                 f'In layer {self.layer_number} - Incorrect number of arguments ({len(args)}) for {self.__class__.__name__}')
@@ -669,7 +665,7 @@ class ParallelLinearDistilPipe(ParallelLinear):
             input_ids, position_ids, attention_mask = args[1:]
             return input_ids, position_ids, attention_mask, hidden_states, logits
         elif in_student_model:
-            attention_mask, teacher_logits, teacher_outputs, _ = args[1:]
-            return teacher_logits, teacher_outputs, hidden_states, logits
+            attention_mask, teacher_hidden_states ,teacher_logits, _ = args[1:]
+            return teacher_hidden_states, teacher_logits, hidden_states, logits
         else:
             raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
