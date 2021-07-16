@@ -239,7 +239,7 @@ def get_model(neox_args, inference=False, get_key_value=True):
     """Build the model."""
 
     print_rank_0('building GPT2 model ...')
-
+    print_rank_0("!"*100,neox_args.attention_config)
     # Build model on cpu.
     model = GPT2ModelPipe(neox_args=neox_args, num_tokentypes=0, parallel_output=True, topology=mpu.get_topology(),
                             inference=inference, get_key_value=get_key_value)
