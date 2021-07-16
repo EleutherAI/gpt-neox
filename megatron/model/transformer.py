@@ -191,7 +191,6 @@ class ParallelSelfAttention(nn.Module):
             self.rotary_emb = RotaryEmbedding(dim, base=neox_args.rotary_emb_base, precision=neox_args.params_dtype)
         else:
             self.rotary_emb = None
-
         self.attention_type = neox_args.attention_config[layer_number]
         self.sparse = self.attention_type != 'global'
         if self.sparse:
