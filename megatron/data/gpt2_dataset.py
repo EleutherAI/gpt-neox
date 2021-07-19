@@ -43,12 +43,11 @@ class GPT2Dataset(torch.utils.data.Dataset):
             self.doc_idx, self.sample_idx, self.shuffle_idx = _build_index_mappings(
                 self.name, data_prefix, documents, self.indexed_dataset.sizes,
                 num_samples, seq_length, seed)
+            self.shuffle_idx_len = self.shuffle_idx.shape[0] - 1
+            self.sample_idx_len = self.sample_idx.shape[0] - 1
 
-        self.shuffle_idx_len = self.shuffle_idx.shape[0] - 1
-        self.sample_idx_len = self.sample_idx.shape[0] - 1
-
-        if self.shuffle_idx_len != self.sample_idx_len:
-            print(f'WARNING: shuffle index length ({self.shuffle_idx_len}) is not equal to sample index length ({self.sample_idx_len})')
+            if self.shuffle_idx_len != self.sample_idx_len:
+                print(f'WARNING: shuffle index length ({self.shuffle_idx_len}) is not equal to sample index length ({self.sample_idx_len})')
 
     def __len__(self):
         return min(self.shuffle_idx_len, self.sample_idx_len)
