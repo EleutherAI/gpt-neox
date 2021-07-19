@@ -26,9 +26,7 @@ from megatron import mpu
 
 class BlendableDataset(torch.utils.data.Dataset):
 
-
     def __init__(self, datasets, weights):
-
         self.datasets = datasets
         num_datasets = len(datasets)
         assert num_datasets == len(weights)
@@ -56,15 +54,18 @@ class BlendableDataset(torch.utils.data.Dataset):
                                        torch.distributed.get_rank() == 0)
 
         print('> RANK {} elapsed time for building blendable dataset indices: '
-                     '{:.2f} (sec)'.format(torch.distributed.get_rank(), time.time() - start_time))
-
-
+              '{:.2f} (sec)'.format(torch.distributed.get_rank(), time.time() - start_time))
 
     def __len__(self):
         return self.size
 
-
     def __getitem__(self, idx):
-        dataset_idx = self.dataset_index[idx]
-        sample_idx = self.dataset_sample_index[idx]
-        return self.datasets[dataset_idx][sample_idx] 
+        try:
+            dataset_idx = self.dataset_index[idx]
+            sample_idx = self.dataset_sample_index[idx]
+            return self.datasets[dataset_idx][sample_idx]
+        except IndexError:
+            new_idx = idx % len(self)
+            print(
+                f'WARNING: Got index out of bounds error with index {idx} - taking modulo of index instead ({new_idx})')
+            return self[new_idx]
