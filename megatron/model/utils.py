@@ -35,25 +35,25 @@ def get_params_for_weight_decay_optimization(module, neox_args):
     no_weight_decay_params = {'params': [], 'weight_decay': 0.0}
 
     if neox_args.do_distillation:
-        requires_grads = False
+        requires_grad = False
         for name, param in module.named_parameters():
-            param.requires_grad = requires_grads
+            param.requires_grad = requires_grad
             #When last layer is reached that means end of teacher model
-            if name.endswith("final_linear.weight"): requires_grads = True
+            if name.endswith("final_linear.weight"): requires_grad = True
 
     for module_ in module.modules():
         if any([isinstance(module_, ApexLayerNorm), isinstance(module_, LayerNorm), isinstance(module_, RMSNorm), isinstance(module_, ScaleNorm)]) or \
                 (neox_args.weight_decay == 0.0):  # also include all parameters here if no weight decay is being done
             no_weight_decay_params['params'].extend(
                 [p for p in list(module_._parameters.values())
-                 if p is not None])
+                 if p is not None and p.requires_grad])
         else:
             weight_decay_params['params'].extend(
                 [p for n, p in list(module_._parameters.items())
-                 if p is not None and n != 'bias'])
+                 if p is not None and n != 'bias' and p.requires_grad])
             no_weight_decay_params['params'].extend(
                 [p for n, p in list(module_._parameters.items())
-                 if p is not None and n == 'bias'])
+                 if p is not None and n == 'bias' and p.requires_grad])
     if neox_args.weight_decay == 0.0:
         # only return a single param group
         # with onebitadam, we want to minimize the calls to compressed_allreduce. Every param group calls it once.
