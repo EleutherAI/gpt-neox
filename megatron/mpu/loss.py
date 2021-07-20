@@ -226,8 +226,8 @@ class _VocabParallelMSELoss(torch.autograd.Function):
         logits_diff = t_logits_2d.sub_(s_logits_2d)
         #ctx.save_for_backward(logits_diff.div(t_logits_2d.shape[0]))
         ctx.save_for_backward(logits_diff.div(torch.numel(t_logits_2d)))
-        # loss = logits_diff.square_().mean(dim=-1).view(-1, seq_len).clone()
-        loss = logits_diff.square_().sum(dim=-1).view(-1, seq_len).clone()
+        loss = logits_diff.square_().mean(dim=-1).view(-1, seq_len).clone()
+        #loss = logits_diff.square_().sum(dim=-1).view(-1, seq_len).clone()
 
         del t_logits_2d
         del s_logits_2d
