@@ -42,6 +42,7 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         predicted_logits_1d = predicted_logits_1d.clone().contiguous()
         predicted_logits = predicted_logits_1d.view_as(target)
         predicted_logits[target_mask] = 0.0
+
         # All reduce is needed to get the chunks from other GPUs.
         torch.distributed.all_reduce(predicted_logits,
                                      op=torch.distributed.ReduceOp.SUM,
@@ -85,7 +86,6 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
 
         # Finally elementwise multiplication with the output gradients.
         grad_input.mul_(grad_output.unsqueeze(dim=-1))
-        #print_rank_0("CSE-BACKPROP "*10, grad_input.shape, grad_input.sum(), grad_output.shape, grad_output.sum())
 
         return grad_input, None
 
@@ -175,21 +175,9 @@ class _VocabParallelKLDivLoss(torch.autograd.Function):
         grad_output_shape = grad_output.shape
         _reshape = (grad_output_shape[0], grad_output_shape[1], -1)
 
-        # # Retreive tensors from the forward path.
-        # softmax_s, softmax_t = ctx.saved_tensors
-
-        # softmax_s = softmax_s.view(_reshape)
-        # softmax_t = softmax_t.view(_reshape)
-
-        # grad_input = (softmax_s - softmax_t)
-
-        # # Finally elementwise multiplication with the output gradients.
-        # grad_input.mul_(grad_output.unsqueeze(dim=-1))
-
         grad_input, = ctx.saved_tensors
         grad_input = grad_input.view(_reshape)
         grad_input.mul_(grad_output.unsqueeze(dim=-1))
-        #print_rank_0("KL-BACKPROP "*10, grad_input.shape, grad_input.sum(), grad_output.shape, grad_output.sum())
 
         return grad_input, None, None
 
@@ -238,28 +226,22 @@ class _VocabParallelMSELoss(torch.autograd.Function):
         logits_diff = t_logits_2d.sub_(s_logits_2d)
         #ctx.save_for_backward(logits_diff.div(t_logits_2d.shape[0]))
         ctx.save_for_backward(logits_diff.div(torch.numel(t_logits_2d)))
-
-        # loss = (logits_diff.square_()).div_(sum(_logit_shape[:-1])).mean(dim=-1).view(-1, seq_len)
-        loss = logits_diff.square_().mean(dim=-1).view(-1, seq_len).clone()
-        # Store logits_diff for backward pass.
+        # loss = logits_diff.square_().mean(dim=-1).view(-1, seq_len).clone()
+        loss = logits_diff.square_().sum(dim=-1).view(-1, seq_len).clone()
 
         del t_logits_2d
         del s_logits_2d
-        #print_rank_0("MSELOSS "*10, loss.shape, loss.sum())
         return loss
 
     @staticmethod
     def backward(ctx, grad_output):
         grad_output_shape = grad_output.shape
-
         # Retreive tensors from the forward path.
         logits_diff, = ctx.saved_tensors
         logits_diff = logits_diff.view(grad_output_shape[0], grad_output_shape[1], -1)
-        grad_input = logits_diff
-
+        grad_input = logits_diff.mul_(-2)
         # Finally elementwise multiplication with the output gradients.
         grad_input.mul_(grad_output.unsqueeze(dim=-1))
-        #print_rank_0("MSE-BACKPROP "*10, grad_input.shape, grad_input.sum(), grad_output.shape, grad_output.sum())
         return grad_input, None
 
 def vocab_parallel_MSELoss(vocab_parallel_s_logits, vocab_parallel_t_logits):
