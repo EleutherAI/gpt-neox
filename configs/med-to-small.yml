@@ -45,7 +45,7 @@
    "optimizer": {
      "type": "Adam",
      "params": {
-       "lr": 0.0006,
+       "lr": 0.0003,
        "betas": [0.9, 0.999],
        "eps": 1.0e-8,
      }
@@ -62,7 +62,8 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 1,
+   "train_micro_batch_size_per_gpu": 6,
+   "gradient_accumulation_steps": 12,
    "data-impl": "mmap",
    "split": "949,50,1",
 
@@ -74,7 +75,7 @@
 
    # regularization
    "gradient_clipping": 1.0,
-   "weight-decay": 0.0,
+   "weight-decay": 0.1,
    "hidden-dropout": 0.0,
    "attention-dropout": 0.0,
 
@@ -88,12 +89,12 @@
    },
 
    # misc. training settings
-   "train-iters": 320000,
-   "lr-decay-iters": 320000,
+   "train-iters": 250000,
+   "lr-decay-iters": 250000,
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
-   "save-interval": 1000000,
+   "save-interval": 5000,
    "eval-interval": 1000,
    "eval-iters": 10,
 
