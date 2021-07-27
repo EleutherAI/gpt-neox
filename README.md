@@ -14,10 +14,6 @@ If you're looking for our TPU codebase, see [GPT-Neo](https://github.com/Eleuthe
 GPT-NeoX is under active development.
 - [Why GPT-NeoX](#why-gpt-neox)
 - [Quick Start](#quick-start)
-  * [Getting Started](#getting-started)
-  * [Configuration and Parameters](#configuration-and-parameters)
-  * [Datasets](#datasets)
-  * [Running the Code](#running-the-code)
 - [Features](#features)
   * [3D Parallelism](#3d-parallelism)
   * [Model Structure](#model-structure)
@@ -51,9 +47,9 @@ GPT-NeoX is under active development.
 
 ## Quick Start
 
-**Coming Soon:** a colab notebook for trying out the model.
+**Google Colab**
 
-### Getting Started
+Coming soon: a colab notebook for trying out the model.
 
 **Warning:** Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), our fork of the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library with some added changes. We strongly recommend using Anaconda, a virtual machine, or some other form of environment isolation before installing from `requirements/requirements.txt`. Failure to do so may cause other repositories that rely on DeepSpeed to break.
 
@@ -68,24 +64,16 @@ pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp
 
 We also host a Docker Image on Dockerhub at `leogao2/gpt-neox`, which enables easy multi-node training.
 
-### Configuration and Parameters
+Once you've installed all the requirements and set up your model configuration, the next step is obtaining and preprocessing your dataset. We provide a data processing library that is easily interfaced with via the function `prepare_data.py`. Calling `python prepare_data.py enron -t CharLevelTokenizer -d ./data/` will download the dataset `enron`, tokenize it with a character-level tokenizer, and save the results to `./data/`. 
 
-GPT-NeoX parameters are defined in a YAML configuration file which is passed to the `deepy.py` launcher - for examples see the `configs` folder. 
-
-For a full list of parameters and documentation see the [configuration readme](configs).
-
-### Datasets
-
-Quick overview of the datasets we provide
-
-### Running the Code
+GPT-NeoX parameters are defined in a YAML configuration file which is passed to the `deepy.py` launcher. We provide baseline examples for the models found in the paper [Language Models are Few Shot Learners](https://arxiv.org/abs/2005.14165). Configs such as file locations that are dependant on your particular system go in `local_configs.yml`. We have filled it out with some placeholder examples, but you will need to update this for your system.
 
 All functionality follows the pattern `./deepy.py main_function.py -d configs small.yml local_configs.yml`
 We currently offer four main functions:
-1. `pretrain_gpt2.py` is used for training and finetuning models
-2. `evaluate.py` is used to evaluate a trained model using the evaluation harness
-3. `generate.py` is used to sample text from a model.
-4. `distill.py` is used to distill a larger model into a smaller model.
+1. `train.py` is used for training and finetuning models.
+2. `evaluate.py` is used to evaluate a trained model using the evaluation harness.
+3. `generate.py` is used to sample text from a trained model.
+4. `distill.py` is used to distill a trained model into another model.
 
 ## Features
 
@@ -126,7 +114,6 @@ GPT-NeoX offers a wide variety of state-of-the-art and bespoke features
 
 ## Datasets
 
-Once you've installed all the requirements and set up your model configuration, the next step is obtaining and preprocessing your dataset. 
 
 ### Preconfigured Datasets
 
@@ -145,8 +132,6 @@ Next make sure to download the GPT2 tokenizer vocab, and merge files from the fo
 ### Using Custom Data
 
 ### Using and Training Tokenizers
-
-We plan to integrate HuggingFace's `Tokenizers` library soon to make this process smoother.
 
 You can now pretokenize your data using `tools/preprocess_data.py`.
 
