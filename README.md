@@ -37,13 +37,13 @@ GPT-NeoX is under active development.
 
 ## Why GPT-NeoX
 
-**Straightforward configuration:*** Other libraries such as Megatron-LM require you configure them using command line arguments and global variables, which can often be difficult to work with and iterate upon. We offer straightforward configuration using .yaml files, which enables you to launch training runs across 100s of GPUs with a single line bash script. Additionally, we hope to make data preparation easier on the user by providing scripts to automatically download and pretokenize a number of large-scale datasets.
+**Straightforward configuration:** Other libraries such as Megatron-LM require you configure them using command line arguments and global variables, which can often be difficult to work with and iterate upon. We offer straightforward configuration using .yaml files, which enables you to launch training runs across 100s of GPUs with a single line bash script. Additionally, we hope to make data preparation easier on the user by providing scripts to automatically download and pretokenize a number of large-scale datasets.
 
 **Diverse Modeling Options:** We provide a wide collections of options for constructing your model.
 
-**HuggingFace Integration:** Our code is designed to work with the HuggingFace `transformers` library. All models trained using this codebase can be uploaded to a custom HuggingFace class with ease.
+**HuggingFace Integration:** Our code is designed to work with the HuggingFace `transformers` library. All models trained using this codebase can be uploaded to a custom HuggingFace class with ease, and all HuggingFace tokenizers and datasets can be used to train models.
 
-**Large Pretrained Models:** We offer several large, pretrained models to iterate on
+**Large Pretrained Models:** We offer several large, pretrained models to iterate on. For people who are unable to train billion parameter scale models themselves, this framework allows you to easily interact with models that we have released.
 
 ## Quick Start
 
