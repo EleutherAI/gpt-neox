@@ -74,7 +74,7 @@ RUN pip install torch==1.9.0+cu111 -f https://download.pytorch.org/whl/torch_sta
 COPY requirements/requirements.txt .
 COPY requirements/requirements-onebitadam.txt .
 COPY requirements/requirements-sparseattention.txt .
-RUN pip install -r requirements.txt && pip install -r requirements-onebitadam.txt && pip install -r requirements-sparseattention.txt && pip cache purge
+RUN pip install -r requirements.txt && pip install --pre -r requirements-onebitadam.txt && pip install -r requirements-sparseattention.txt && pip cache purge
 
 ## Install APEX
 RUN pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@0c2c6eea6556b208d1a8711197efc94899e754e1
