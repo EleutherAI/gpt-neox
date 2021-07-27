@@ -75,6 +75,8 @@ We currently offer four main functions:
 3. `generate.py` is used to sample text from a trained model.
 4. `distill.py` is used to distill a trained model into another model.
 
+For now, run `./deepy.py train.py -d configs small.yml local_configs.yml` to begin training a model and complete this tutorial.
+
 ## Features
 
 GPT-NeoX offers a wide variety of state-of-the-art and bespoke features 
