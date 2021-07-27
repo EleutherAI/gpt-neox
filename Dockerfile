@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.1.1-devel-ubuntu20.04
+FROM nvidia/cuda:11.4.0-devel-ubuntu20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -34,7 +34,7 @@ EXPOSE 22
 
 #### OPENMPI
 ENV OPENMPI_BASEVERSION=4.1
-ENV OPENMPI_VERSION=${OPENMPI_BASEVERSION}.0
+ENV OPENMPI_VERSION=${OPENMPI_BASEVERSION}.1
 RUN mkdir -p /build && \
     cd /build && \
     wget -q -O - https://download.open-mpi.org/release/open-mpi/v${OPENMPI_BASEVERSION}/openmpi-${OPENMPI_VERSION}.tar.gz | tar xzf - && \
