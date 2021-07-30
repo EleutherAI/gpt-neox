@@ -162,7 +162,6 @@ class GPT2Tokenizer(object):
         bpe_data = open(merges_file, encoding='utf-8').read().split('\n')[1:-1]
         bpe_merges = [tuple(merge.split()) for merge in bpe_data]
         self.bpe_ranks = dict(zip(bpe_merges, range(len(bpe_merges))))
-        self.cache = {}
 
         # Should haved added re.IGNORECASE so BPE merges can happen for
         # capitalized versions of contractions
@@ -190,9 +189,8 @@ class GPT2Tokenizer(object):
         self.special_tokens_decoder = {v: k for k, v in self.special_tokens.items()}
         logger.info("Special tokens {}".format(self.special_tokens))
 
+    @lru_cache(maxsize=131072)
     def bpe(self, token):
-        if token in self.cache:
-            return self.cache[token]
         word = tuple(token)
         pairs = get_pairs(word)
 
@@ -228,7 +226,6 @@ class GPT2Tokenizer(object):
             else:
                 pairs = get_pairs(word)
         word = ' '.join(word)
-        self.cache[token] = word
         return word
 
     def tokenize(self, text):
