@@ -528,7 +528,8 @@ def evaluate(neox_args, forward_step_fn, data_iterator, model, verbose=False, ti
 
             # although we're not accumulating gradients here, we count one iter as train_batch_size_per_gpu * g.a.s
             # to be consistent with deepspeed's pipe parallel engine
-            for _ in range(neox_args.gradient_accumulation_steps):
+            # since pipe parallel already takes gas into account - default to 1 here if pipe parallel is true
+            for _ in range(1 if neox_args.is_pipe_parallel else neox_args.gradient_accumulation_steps):
                 # Forward evaluation
                 loss = forward_step_fn(model=model, data_iterator=data_iterator, neox_args=neox_args, timers=timers)
                 losses.append(loss)
