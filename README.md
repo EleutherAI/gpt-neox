@@ -11,29 +11,29 @@ If you are interested in contributing, please [join our discord](https://discord
 
 If you're looking for our TPU codebase, see [GPT-Neo](https://github.com/EleutherAI/gpt-neo).
 
-GPT-NeoX is under active development.
-- [Why GPT-NeoX](#why-gpt-neox)
-- [Quick Start](#quick-start)
-- [Features](#features)
-  * [3D Parallelism](#3d-parallelism)
-  * [Model Structure](#model-structure)
-  * [Optimizers](#optimizers)
-  * [High-Precision Training:](#high-precision-training-)
-- [Datasets](#datasets-1)
-  * [Preconfigured Datasets](#preconfigured-datasets)
-  * [Using Custom Data](#using-custom-data)
-  * [Using and Training Tokenizers](#using-and-training-tokenizers)
-- [Training and Finetuning](#training-and-finetuning)
-- [Inference](#inference)
-- [Evaluation](#evaluation)
-- [Distilling](#distilling)
-- [Monitoring](#monitoring)
-  * [WandB](#wandb)
-  * [Tensorboard](#tensorboard)
-- [Placeholder Name](#placeholder-name)
-  * [Citing GPT-NeoX](#citing-gpt-neox)
-  * [Licensing](#licensing)
-  * [Acknowledgements](#acknowledgements)
+- [GPT-NeoX](#gpt-neox)
+  * [Why GPT-NeoX](#why-gpt-neox)
+  * [Quick Start](#quick-start)
+  * [Features](#features)
+    + [3D Parallelism](#3d-parallelism)
+    + [Model Structure](#model-structure)
+    + [Optimizers](#optimizers)
+    + [High-Precision Training](#high-precision-training)
+  * [Datasets](#datasets)
+    + [Preconfigured Datasets](#preconfigured-datasets)
+    + [Using Custom Data](#using-custom-data)
+    + [Using and Training Tokenizers](#using-and-training-tokenizers)
+  * [Training and Finetuning](#training-and-finetuning)
+  * [Inference](#inference)
+  * [Evaluation](#evaluation)
+  * [Distilling](#distilling)
+  * [Monitoring](#monitoring)
+    + [WandB](#wandb)
+    + [Tensorboard](#tensorboard)
+  * [Placeholder Name](#placeholder-name)
+    + [Citing GPT-NeoX](#citing-gpt-neox)
+    + [Licensing](#licensing)
+    + [Acknowledgements](#acknowledgements)
 
 ## Why GPT-NeoX
 
@@ -108,7 +108,7 @@ GPT-NeoX offers a wide variety of state-of-the-art and bespoke features
     - ZeRO stage 1 works seamlessly with NeoX, while ZeRO stage 2 requires pipeline parallelism be set to 0. We are additionally working on integrating ZeRO 3 into the codebase.
     Turning on ZeRO is as simple as adding one field to your configuration file.
 
-### High-Precision Training:
+### High-Precision Training
 
  - Choose between `fp16`, `bf16`, and `fp32` operations to get the most performance out of your avaliable compute. Use the `precision` field to configure your precision settings.
  - Due to a known issue with `PyTorch`, `bf16` models require doing the all-reduce operation in `fp32`. If you have a patch for this problem, you can turn off the default`"fp32_allreduce": True`.
