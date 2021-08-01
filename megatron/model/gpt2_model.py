@@ -112,15 +112,22 @@ def combined_loss_fn(output, labels, self, alpha_lm=0, alpha_kld=0, alpha_mse=0,
         lm_loss = alpha_lm * lm_loss
 
     loss = lm_loss + kld_loss + mse_loss
+    count = torch.tensor(1).to(lm_loss.device)
+
+    torch.distributed.all_reduce(count, group=mpu.get_data_parallel_group())
+    torch.distributed.all_reduce(lm_loss, group=mpu.get_data_parallel_group())
+    torch.distributed.all_reduce(kld_loss, group=mpu.get_data_parallel_group())
+    torch.distributed.all_reduce(mse_loss, group=mpu.get_data_parallel_group())
+
+    count = count * self.gradient_accumulation_steps
     if self._losses==None:
-        self._losses = [lm_loss.clone().detach(), 
-                        kld_loss.clone().detach(), 
-                        mse_loss.clone().detach()]
+        self._losses = [lm_loss.clone().detach()/count, 
+                        kld_loss.clone().detach()/count, 
+                        mse_loss.clone().detach()/count]
     else:
-        self._losses[0] += lm_loss.clone().detach()
-        self._losses[1] += kld_loss.clone().detach()
-        self._losses[2] += mse_loss.clone().detach()
-        
+        self._losses[0] += lm_loss.clone().detach()/count
+        self._losses[1] += kld_loss.clone().detach()/count
+        self._losses[2] += mse_loss.clone().detach()/count
     return loss
 
 def substitue_args(neox_args, set_student_args=True):
@@ -195,6 +202,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         self.get_key_value = get_key_value if inference else False
         self.parallel_output = parallel_output
         self.do_distillation = self.neox_args.do_distillation
+        self.gradient_accumulation_steps = self.neox_args.gradient_accumulation_steps
         self.specs = []
         self._losses = None
 
