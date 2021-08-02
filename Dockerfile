@@ -11,6 +11,7 @@ RUN apt-get update -y && \
         rsync iputils-ping net-tools libcupti-dev && \
     wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB -O - | apt-key add - && \
     echo "deb https://apt.repos.intel.com/oneapi all main" | tee /etc/apt/sources.list.d/oneAPI.list && \
+    apt-get update -y && \
     apt-get install -y intel-oneapi-mkl && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3 1 && \
     update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1 && \
