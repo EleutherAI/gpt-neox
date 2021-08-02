@@ -3,12 +3,14 @@ FROM nvidia/cuda:11.1.1-devel-ubuntu20.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 #### System package (uses default Python 3 version in Ubuntu 20.04)
-RUN apt-get update -y && \
+RUN wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB -O - | sudo apt-key add - && \
+    echo "deb https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list && \
+    apt-get update -y && \
     apt-get install -y \
         git python3 python3-dev libpython3-dev python3-pip sudo pdsh \
         htop llvm-9-dev tmux zstd software-properties-common build-essential autotools-dev \
         nfs-common pdsh cmake g++ gcc curl wget vim less unzip htop iftop iotop ca-certificates ssh \
-        rsync iputils-ping net-tools libcupti-dev && \
+        rsync iputils-ping net-tools libcupti-dev intel-oneapi-mkl && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3 1 && \
     update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1 && \
     pip install --upgrade pip && \
