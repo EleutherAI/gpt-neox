@@ -65,7 +65,7 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
     echo 'Host *' > /home/mchorse/.ssh/config && \
     echo '    StrictHostKeyChecking no' >> /home/mchorse/.ssh/config && \
     echo 'export PDSH_RCMD_TYPE=ssh' >> /home/mchorse/.bashrc && \
-    echo 'export PATH=/home/mchorse/.local/bin:$PATH' >> /home/mchorse/.bashrc
+    echo 'export PATH=/home/mchorse/.local/bin:$PATH' >> /home/mchorse/.bashrc && \
     echo 'export PATH=/usr/local/mpi/bin:$PATH' >> /home/mchorse/.bashrc && \
     echo 'export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:$LD_LIBRARY_PATH' >> /home/mchorse/.bashrc
 
