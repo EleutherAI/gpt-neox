@@ -17,6 +17,7 @@ RUN apt-get update -y && \
     update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1 && \
     pip install --upgrade pip && \
     pip install gpustat
+ENV LD_LIBRARY_PATH=/opt/intel/oneapi/mkl/latest/lib/intel64
 
 ### SSH
 # Set password
