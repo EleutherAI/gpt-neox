@@ -10,7 +10,7 @@
    "reduce_loss_fp16" : false,
    "alpha_lm" : 1.0,
    "alpha_kld" : 1.0,
-   "alpha_mse" : 1.0,
+   "alpha_mse" : 0.0,
 
    "student_model_args" :{
       # model settings
@@ -62,8 +62,8 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 6,
-   "gradient_accumulation_steps": 12,
+   "train_micro_batch_size_per_gpu": 5,
+   "gradient_accumulation_steps": 27,
    "data-impl": "mmap",
    "split": "949,50,1",
 
@@ -89,13 +89,13 @@
    },
 
    # misc. training settings
-   "train-iters": 250000,
-   "lr-decay-iters": 250000,
+   "train-iters": 25000,
+   "lr-decay-iters": 25000,
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
    "save-interval": 5000,
-   "eval-interval": 1000,
+   "eval-interval": 500,
    "eval-iters": 10,
 
    # logging
