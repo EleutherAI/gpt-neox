@@ -1,64 +1,49 @@
 # YAML 1.2
 ---
 authors: 
-  -
-    affiliation: EleutherAI
+  - affiliation: EleutherAI
     family-names: Andonian
     given-names: Alex
-  -
-    affiliation: EleutherAI
+  - affiliation: EleutherAI
     family-names: Biderman
     given-names: Stella
-  -
-    affiliation: EleutherAI
+  - affiliation: EleutherAI
     family-names: Black
     given-names: Sid
-  -
-    affiliation: EleutherAI
+  - affiliation: EleutherAI
     family-names: Gali
     given-names: Preetham
-   -
-    affiliation: EleutherAI
+  - affiliation: EleutherAI
     family-names: Gao
     given-names: Leo
-   -
-    affiliation: EleutherAI
+  - affiliation: EleutherAI
     family-names: Hallahan
     given-names: Eric
-   -
-    affiliation: EleutherAI
+  - affiliation: EleutherAI
     family-names: Levy-Kramer
     given-names: Josh
-   -
-    affiliation: EleutherAI
+  - affiliation: EleutherAI
     family-names: Leahy
     given-names: Connor
-   -
-    affiliation: EleutherAI
+  - affiliation: EleutherAI
     family-names: Nestler
     given-names: Lucas
-   -
-    affiliation: EleutherAI
+  - affiliation: EleutherAI
     family-names: Parker
     given-names: Kip
-   -
-    affiliation: EleutherAI
+  - affiliation: EleutherAI
     family-names: Pieler
     given-names: Michael
-   -
-    affiliation: EleutherAI
+  - affiliation: EleutherAI
     family-names: Purohit
     given-names: Shivanshu
-   -
-    affiliation: EleutherAI
+  - affiliation: EleutherAI
     family-names: Songz
     given-names: Tri
-   -
-    affiliation: EleutherAI
+  - affiliation: EleutherAI
     family-names: Phil
     given-names: Wang
-   -
-    affiliation: EleutherAI
+  - affiliation: EleutherAI
     family-names: Weinbach
     given-names: Samuel
 cff-version: "1.1.0"
