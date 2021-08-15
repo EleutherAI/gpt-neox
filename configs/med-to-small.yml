@@ -89,13 +89,13 @@
    },
 
    # misc. training settings
-   "train-iters": 25000,
-   "lr-decay-iters": 25000,
+   "train-iters": 250000,
+   "lr-decay-iters": 250000,
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
-   "save-interval": 5000,
-   "eval-interval": 500,
+   "save-interval": 10000,
+   "eval-interval": 1000,
    "eval-iters": 10,
 
    # logging
