@@ -33,6 +33,12 @@ from megatron.model.fused_bias_dropout import get_bias_dropout_add, bias_dropout
     bias_dropout_add_fused_inference
 from megatron.model.utils import configure_sparse_attention
 
+try:
+    from torch_discounted_cumsum import discounted_cumsum_left
+except ImportError as e:
+    print('unable to import torch_discounted_cumsum - please run `pip install torch-discounted-cumsum`')
+    raise e
+
 # flags required to enable jit fusion kernels
 torch._C._jit_set_profiling_mode(False)
 torch._C._jit_set_profiling_executor(False)
@@ -98,6 +104,15 @@ class ParallelMLP(nn.Module):
             input_is_parallel=True,
             init_method=output_layer_init_method,
             skip_bias_add=True)
+        
+        self.num_shifts = getattr(neox_args, 'num_token_shifts', 0)
+        if self.num_shifts > 0:
+            assert self.activation_type != "geglu"
+            gated_dim = ff_dim // 2
+            self.gate_norm = nn.LayerNorm(gated_dim)
+            self.to_gate = nn.Linear(gated_dim, gated_dim)
+            nn.init.constant_(self.to_gate.weight, eps)
+            nn.init.constant_(self.to_gate.bias, 1.)
 
     def forward(self, hidden_states):
 
@@ -113,6 +128,120 @@ class ParallelMLP(nn.Module):
         output, output_bias = self.dense_4h_to_h(intermediate_parallel)
         return output, output_bias
 
+
+def shift(x, amt, dim = -1):
+    return F.pad(x, (*((0, 0) * (-dim - 1)), amt, -amt), value = 0.)
+
+def shift_tokens(x, amt, eps = 1e-5):
+    n, device = x.shape[1], x.device
+
+    cumsum = x.cumsum(dim = 1)
+    *x, x_pass = x.chunk(amt + 1, dim = -1)
+    *x_cumsum, _ = cumsum.chunk(amt + 1, dim = -1)
+
+    amts = 2 ** torch.arange(amt)
+    amts = amts.tolist()
+
+    shifts = []
+    denom = torch.arange(n, device = device)
+
+    for x_chunk, x_cumsum_chunk, amt in zip(x, x_cumsum, amts):
+        shifted_chunk = shift(x_cumsum_chunk, amt, dim = -2) - shift(x_cumsum_chunk, 2 * amt, dim = -2)
+        shifted_denom = shift(denom, amt, dim = -1) - shift(denom, 2 * amt, dim = -1)
+        shifted_denom = rearrange(shifted_denom, 'n -> () n ()')
+        normed_shifted_x = shifted_chunk /  (shifted_denom + eps)
+        shifts.append(normed_shifted_x)
+
+    return torch.cat((*shifts, x_pass), dim = -1)
+
+def discounted_cumsum(t, gamma):
+    b, n, d = t.shape
+    t = rearrange(t, 'b n d -> (b d) n')
+    t = discounted_cumsum_left(t, gamma)
+    t = rearrange(t, '(b d) n -> b n d', b = b)
+    return t
+    
+class ParallelTokenShiftMLP(nn.Module):
+    """
+    MLP + token shifting.
+
+    TODO: 
+    This, as well as geglu, will cause weird bugs when trying to merge mp groups - since the gating 
+    is actually happening across the already parallelised tensor... how to approach?
+
+    """
+
+    def __init__(self, neox_args, init_method, output_layer_init_method, ff_mult=4):
+
+
+        super(ParallelMLP, self).__init__()
+
+        self.activation_func = get_activation(neox_args)
+        self.activation_type = neox_args.activation
+        self.bias_gelu_fusion = neox_args.bias_gelu_fusion
+        assert self.activation_type != "geglu"
+
+        self.norm = nn.LayerNorm(neox_args.hidden_size)
+
+        ff_dim = ff_mult * neox_args.hidden_size
+        self.dense_h_to_4h = mpu.ColumnParallelLinear(
+            neox_args=neox_args,
+            input_size=neox_args.hidden_size,
+            output_size=ff_dim,
+            gather_output=False,
+            init_method=init_method,
+            skip_bias_add=True
+        )
+
+        self.num_shifts = getattr(neox_args, 'num_token_shifts', 1)
+        assert self.activation_type != "geglu"
+        hidden_dim = ff_dim // 2
+        self.gate_norm = nn.LayerNorm(hidden_dim)
+        self.to_gate = nn.Linear(hidden_dim, hidden_dim)
+        nn.init.constant_(self.to_gate.weight, eps)
+        nn.init.constant_(self.to_gate.bias, 1.)
+
+        # Project back to h.
+        self.dense_4h_to_h = mpu.RowParallelLinear(
+            neox_args=neox_args,
+            input_size=hidden_dim,
+            output_size=neox_args.hidden_size,
+            input_is_parallel=True,
+            init_method=output_layer_init_method,
+            skip_bias_add=True)
+        
+        self.use_discounted_cumsum = getattr(neox_args, 'token_shift_use_discounted_cumsum', False)
+        self.discount_gamma = getattr(neox_args, 'token_shift_discount_gamma', 0.9)
+
+
+
+    def forward(self, hidden_states):
+        
+        hidden_states = self.norm(hidden_states)
+
+        # [s, b, 4hp]
+        x, bias = self.dense_h_to_4h(hidden_states)
+
+        if self.activation_type == "gelu" and self.bias_gelu_fusion:
+            x = self.activation_func(x, bias)
+        else:
+            x = self.activation_func(x + bias)
+
+        x = x.transpose(0, 1) # -> [b, s, 4hp]
+        x, gate = x.chunk(2, dim=-1)
+
+        gate = self.gate_norm(gate)
+
+        if self.use_discounted_cumsum:
+            gate = shift(gate, 1, dim=-2)
+            gate = discounted_cumsum(gate, self.discount_gamma)
+        else:
+            gate = shift_tokens(gate, self.num_shifts)
+        
+        x = x * self.to_gate(gate)
+
+        # [s, b, h]
+        return self.dense_4h_to_h(x)
 
 class ParallelLinear(nn.Module):
     """
