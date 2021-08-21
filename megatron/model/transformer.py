@@ -39,6 +39,8 @@ except ImportError as e:
     print('unable to import torch_discounted_cumsum - please run `pip install torch-discounted-cumsum`')
     raise e
 
+from einops import rearrange
+
 # flags required to enable jit fusion kernels
 torch._C._jit_set_profiling_mode(False)
 torch._C._jit_set_profiling_executor(False)
@@ -132,6 +134,7 @@ class ParallelMLP(nn.Module):
 def shift(x, amt, dim = -1):
     return F.pad(x, (*((0, 0) * (-dim - 1)), amt, -amt), value = 0.)
 
+
 def shift_tokens(x, amt, eps = 1e-5):
     n, device = x.shape[1], x.device
 
@@ -154,6 +157,7 @@ def shift_tokens(x, amt, eps = 1e-5):
 
     return torch.cat((*shifts, x_pass), dim = -1)
 
+
 def discounted_cumsum(t, gamma):
     b, n, d = t.shape
     t = rearrange(t, 'b n d -> (b d) n')
@@ -161,6 +165,7 @@ def discounted_cumsum(t, gamma):
     t = rearrange(t, '(b d) n -> b n d', b = b)
     return t
     
+
 class ParallelTokenShiftMLP(nn.Module):
     """
     MLP + token shifting.
@@ -242,6 +247,7 @@ class ParallelTokenShiftMLP(nn.Module):
 
         # [s, b, h]
         return self.dense_4h_to_h(x)
+
 
 class ParallelLinear(nn.Module):
     """
@@ -568,11 +574,18 @@ class ParallelTransformerLayer(nn.Module):
             eps=eps)
 
         # MLP
-        self.mlp = ParallelMLP(
-            neox_args=neox_args,
-            init_method=init_method,
-            output_layer_init_method=output_layer_init_method
-        )
+        if neox_args.num_token_shifts <= 0:
+            self.mlp = ParallelMLP(
+                neox_args=neox_args,
+                init_method=init_method,
+                output_layer_init_method=output_layer_init_method
+            )
+        else:
+            self.mlp = ParallelMLP(
+                neox_args=neox_args,
+                init_method=init_method,
+                output_layer_init_method=output_layer_init_method
+            )
 
     def forward(self, hidden_states, attention_mask, layer_past=None):
         # hidden_states: [b, s, h]

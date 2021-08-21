@@ -266,6 +266,25 @@ class NeoXArgsModel(NeoXArgsTemplate):
     If None - gmlp model doesn't use attention.
     """
 
+    num_token_shifts: int = 0
+    """
+    Whether to use token shifting (see https://github.com/lucidrains/token-shift-gpt/) - basically gating along 
+    the feature dimension, then shifting tokens forward in time in the sequence dimension on one side of the gate.
+    
+    0 = normal transformer MLP
+    1+ = replaces MLP with token shift MLP
+    """
+
+    token_shift_use_discounted_cumsum: int = 0
+    """
+    Whether to use the discounted cumsum approach when token shifting
+    """
+
+    token_shift_discount_gamma: float = 0.9
+    """
+    Discount gamma for discounted cumsum in token shifting
+    """
+
 
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):
