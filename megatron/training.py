@@ -141,12 +141,10 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
     labels = tokens_[:, 1:].contiguous()
     tokens = tokens_[:, :-1].contiguous()
 
-    # Get the masks and postition ids.
+    # Get the masks and position ids.
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
         tokens,
         tokenizer.eod,
-        neox_args.reset_position_ids,
-        neox_args.reset_attention_mask,
         neox_args.eod_mask_loss)
 
     return tokens, labels, loss_mask, attention_mask, position_ids

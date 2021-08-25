@@ -433,16 +433,6 @@ class NeoXArgsOther(NeoXArgsTemplate):
     Probability of producing a short sequence.
     """
 
-    reset_position_ids: bool = False
-    """
-    Reset posistion ids after end-of-document token.
-    """
-
-    reset_attention_mask: bool = False
-    """
-    Reset self attention mask after end-of-document token.
-    """
-
     eod_mask_loss: bool = False
     """
     Mask loss for the end of document tokens.
