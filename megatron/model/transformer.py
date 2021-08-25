@@ -411,8 +411,6 @@ class ParallelTransformerLayer(nn.Module):
         super(ParallelTransformerLayer, self).__init__()
         self.layer_number = layer_number
 
-        self.apply_residual_connection_post_layernorm = neox_args.apply_residual_connection_post_layernorm
-
         # Layernorm on the input data.
         norm, eps = get_norm(neox_args)
         self.input_layernorm = norm(neox_args.hidden_size, eps=eps)
@@ -450,6 +448,7 @@ class ParallelTransformerLayer(nn.Module):
 
         # Layer norm at the begining of the transformer layer.
         layernorm_output = self.input_layernorm(hidden_states)
+
         # Self attention.
         attention_output, attention_bias = \
             self.attention(layernorm_output,
@@ -460,10 +459,7 @@ class ParallelTransformerLayer(nn.Module):
             attention_output, presents = attention_output
 
         # Residual connection.
-        if self.apply_residual_connection_post_layernorm:
-            residual = layernorm_output
-        else:
-            residual = hidden_states
+        residual = hidden_states
 
         # jit scripting for a nn.module (with dropout) is not 
         # trigerring the fusion kernel. For now, we use two 
@@ -492,10 +488,7 @@ class ParallelTransformerLayer(nn.Module):
         mlp_output, mlp_bias = self.mlp(layernorm_output)
 
         # Second residual connection.
-        if self.apply_residual_connection_post_layernorm:
-            residual = layernorm_output
-        else:
-            residual = layernorm_input
+        residual = layernorm_input
 
         # re-enable torch grad to enable fused optimization.
         with torch.enable_grad():

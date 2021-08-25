@@ -183,11 +183,6 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Pad the vocab size to be divisible by this value. This is added for computational efficiency reasons.
     """
 
-    apply_residual_connection_post_layernorm: bool = False
-    """
-    If set, use original BERT residual connection ordering.
-    """
-
     activation : Literal["gelu", "geglu", "relu", "softsign", "swish", "mish"] = "gelu"
     """
     Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish"]
