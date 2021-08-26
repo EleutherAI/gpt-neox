@@ -1,4 +1,5 @@
 import torch
+import math 
 
 class SinusoidalPositionalEmbedding(torch.nn.Module):
 
@@ -65,7 +66,7 @@ def apply_rotary_pos_emb_torch(q, k, cos, sin, offset: int = 0): # jitting fails
     return (q * cos) + (rotate_half(q) * sin), (k * cos) + (rotate_half(k) * sin)
 
 
-class AliBi(nn.Module):
+class AliBi(torch.nn.Module):
 
   def __init__(self, num_heads, mp_size=1, mp_rank=1):
     super().__init__()
@@ -78,12 +79,11 @@ class AliBi(nn.Module):
     self.slice_size = num_heads // mp_size
     self.cached_matrix = None
     self.cached_seq_len = None
-    slopes = torch.Tensor(self._get_slopes(num_heads))
-    slopes = slopes[(mp_rank - 1) * self.slice_size : mp_rank  * self.slice_size]
+    slopes = torch.Tensor(self._get_slopes(num_heads))[mp_rank * self.slice_size : (mp_rank + 1)  * self.slice_size]
     self.register_buffer('slopes', slopes)
+
   
-  @staticmethod
-  def _get_slopes(n):
+  def _get_slopes(self, n):
     """
     Get slopes for Alibi positional embedding
     n : int = number of heads. 
@@ -98,17 +98,18 @@ class AliBi(nn.Module):
         return get_slopes_power_of_2(n)                   
     else:                                                 
         closest_power_of_2 = 2**math.floor(math.log2(n)) 
-        return get_slopes_power_of_2(closest_power_of_2) + get_slopes(2*closest_power_of_2)[0::2][:n-closest_power_of_2]
+        return get_slopes_power_of_2(closest_power_of_2) + self._get_slopes(2*closest_power_of_2)[0::2][:n-closest_power_of_2]
 
   def forward(self, x):
     # [b, np, sq, sk]
     seq_len = x.shape[-1]
     if self.cached_seq_len != seq_len:
-      a = -torch.tril(torch.arange(seq_len).view(seq_len, 1).repeat(1, seq_len) + torch.arange(0, -seq_len, -1))
-      a = a * self.slopes.view(self.slopes.shape[0], 1, 1)
-      a = a.to(x.device).to(x.dtype)
-      self.cached_seq_len = seq_len
-      self.cached_matrix = a
+        a = -torch.tril(torch.arange(seq_len).view(seq_len, 1).repeat(1, seq_len) + torch.arange(0, -seq_len, -1))
+        a = a.to(x.device).to(x.dtype)
+        slopes = self.slopes.to(a.device).to(a.dtype)
+        a = a * slopes.view(self.slopes.shape[0], 1, 1)
+        self.cached_seq_len = seq_len
+        self.cached_matrix = a
     else:
       a = self.cached_matrix
     return x + a
