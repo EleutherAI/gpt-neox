@@ -60,6 +60,18 @@ def report_memory(name):
         torch.cuda.max_memory_reserved() / mega_bytes)
     print_rank_0(string)
 
+def get_attn_mask(seq_length, device):
+    """
+    Get triangular attention mask for a given sequence length / device.
+    """
+    # lower triangular attention mask
+    mask = torch.tril(torch.ones(
+        (1, seq_length, seq_length), device=device)).view(
+        1, 1, seq_length, seq_length)
+    
+    # convert to binary
+    return (mask < 0.5)
+
 
 def get_ltor_masks_and_position_ids(data,
                                     eod_token,
@@ -70,9 +82,7 @@ def get_ltor_masks_and_position_ids(data,
     batch_size, seq_length = data.size()
 
     # Attention mask (lower triangular).
-    attention_mask = torch.tril(torch.ones(
-        (1, seq_length, seq_length), device=data.device)).view(
-        1, 1, seq_length, seq_length)
+    attention_mask = get_attn_mask(seq_length=seq_length, device=data.device)
 
     # Loss mask.
     loss_mask = torch.ones(data.size(), dtype=torch.float, device=data.device)
@@ -83,9 +93,6 @@ def get_ltor_masks_and_position_ids(data,
     position_ids = torch.arange(seq_length, dtype=torch.long,
                                 device=data.device)
     position_ids = position_ids.unsqueeze(0).expand_as(data)
-
-    # Convert attention mask to binary:
-    attention_mask = (attention_mask < 0.5)
 
     return attention_mask, loss_mask, position_ids
 
