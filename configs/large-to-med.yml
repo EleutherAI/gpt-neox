@@ -14,9 +14,9 @@
 
    "student_model_args" :{
       # model settings
-      "num_layers": 12,
+      "num_layers": 24,
       "hidden_size": 1024,
-      "num_attention_heads": 8,
+      "num_attention_heads": 16,
       "seq_length": 2048,
       "max_position_embeddings": 2048,
       "norm": "layernorm",
@@ -62,8 +62,8 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 3,
-   "gradient_accumulation_steps": 8,
+   "train_micro_batch_size_per_gpu": 1,
+   "gradient_accumulation_steps": 24,
    "data-impl": "mmap",
    "split": "949,50,1",
 
