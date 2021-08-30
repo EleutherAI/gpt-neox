@@ -268,8 +268,8 @@ class NeoXArgsModel(NeoXArgsTemplate):
     parameters in the dict are:
         'enabled': bool = True # enables soft prompting
         'num_tokens': int = 10 # length of the soft prompt in tokens
-        # below are all still TODO:
-        'init_method': Literal["vocab", "random"] # init method of the soft prompt, either initializes from the model's vocab, or randomly
+        'init_string': str = '' # if provided, initialize the soft prompt with the word embeddings of this string
+        'init_range': float = 0.5 # if no init string is provided, initialize the soft prompt with a uniform distribution between -init_range and init_rang
     """
 
 

@@ -1,4 +1,5 @@
 import torch
+import math
 from torch.nn.parameter import Parameter
 
 from megatron import mpu
@@ -141,18 +142,24 @@ class SoftEmbedding(torch.nn.Module):
                 wte,
                 n_tokens: int = 10, 
                 init_range: float = 0.5,
-                initialize_from_vocab: bool = True):
+                init_string: str = ''):
         super(SoftEmbedding, self).__init__()
         self.n_tokens = n_tokens
         self.neox_args = neox_args
         self.init_range = init_range
-        self.initialize_from_vocab = initialize_from_vocab
+        self.init_string = init_string
         self.soft_embedding_weight = torch.nn.parameter.Parameter(self.initialize_embedding(wte))
 
     def initialize_embedding(self, 
                              wte: torch.nn.Embedding):
-        if self.initialize_from_vocab:
-            return wte.weight[:self.n_tokens].clone().detach()
+        if self.init_string:
+            embeds = torch.LongTensor(self.neox_args.tokenizer.tokenize(self.init_string)).to(wte.weight.device)
+            embeds = wte(embeds)
+            if embeds.shape[0] >= self.n_tokens:
+                embeds = embeds[:self.n_tokens, :] # slice
+            else:
+                embeds = embeds.repeat(math.ceil(self.n_tokens / embeds.shape[0]), 1)[:self.n_tokens, :] # pad up to n_tokens
+            return embeds
         return torch.Tensor(n_tokens, neox_args.hidden_size).uniform_(-self.random_range, self.random_range)
             
     def forward(self, args: tuple):

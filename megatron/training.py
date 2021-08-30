@@ -212,7 +212,7 @@ def get_model(neox_args, inference=False, get_key_value=True):
         soft_prompt = SoftEmbedding(neox_args, 
                                     wte = getattr(model, '0').word_embeddings,
                                     n_tokens=neox_args.soft_prompt_tuning.get("n_tokens", 10),
-                                    initialize_from_vocab=neox_args.soft_prompt_tuning.get("initialize_from_vocab", True),
+                                    init_string=neox_args.soft_prompt_tuning.get("init_string", ""),
                                     init_range=neox_args.soft_prompt_tuning.get("init_range", 0.5))
         model.insert_layers(layers=soft_prompt, idx=1) # insert the soft prompt layer directly after the word embeddings
         
