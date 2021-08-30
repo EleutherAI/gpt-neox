@@ -28,7 +28,7 @@ from megatron import mpu
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
 from megatron.model.activations import get_activation
 from megatron.model.utils import exists
-from megatron.model.positional_embeddings import RotaryEmbedding, apply_rotary_pos_emb, apply_rotary_pos_emb_torch
+from megatron.model.positional_embeddings import RotaryEmbedding, apply_rotary_pos_emb, apply_rotary_pos_emb_torch, AliBi
 from megatron.model.fused_bias_dropout import get_bias_dropout_add, bias_dropout_add_fused_train, \
     bias_dropout_add_fused_inference
 from megatron.model.utils import configure_sparse_attention
@@ -52,12 +52,12 @@ torch._C._jit_override_can_fuse_on_gpu(True)
     Transformer takes input of size [s, b, h] and returns a
     tensor of the same size. We use the following arguments:
         hyperparameters: transformer hyperparameters
-        attention_mask_func: a function that takes `unmaksed-attention-scores`
+        attention_mask_func: a function that takes `unmasked-attention-scores`
             with size [b, np, s, s] and an `attention-mask` and will apply
             the masking. The function should return a masked score of the
             same size [b, np, s, s].
                masked-attention-scores = attention_mask_func(
-                                     unmaksed-attention-scores, attention-mask)
+                                     unmasked-attention-scores, attention-mask)
 """
 
 
@@ -164,6 +164,7 @@ class ParallelSelfAttention(nn.Module):
             neox_args.hidden_size, neox_args.num_attention_heads)
         self.num_attention_heads_per_partition = mpu.divide(
             neox_args.num_attention_heads, world_size)
+        self.pos_emb = neox_args.pos_emb
 
         # Strided linear layer.
         self.query_key_value = mpu.ColumnParallelLinear(
@@ -180,7 +181,11 @@ class ParallelSelfAttention(nn.Module):
             self.norm_factor *= coeff
 
         self.rpe = rpe
-
+        
+        if self.pos_emb == "alibi":
+            self.alibi_embed = AliBi(neox_args.num_attention_heads, neox_args.model_parallel_size, mpu.get_model_parallel_rank())
+        
+        # TODO: this arg shouldn't need to be passed in - get from neox_args
         if rotary:
             if neox_args.rotary_pct == 1:
                 self.rotary_ndims = None
@@ -272,6 +277,9 @@ class ParallelSelfAttention(nn.Module):
             rpe = self.rpe(query_layer.size(0), key_layer.size(0))
             attention_scores += rpe  # [1, np, sq, sk]
 
+        if self.pos_emb == "alibi":
+            attention_scores = self.alibi_embed(attention_scores)
+            
         # attention scores and attention mask [b, np, sq, sk]
         attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
 
@@ -411,8 +419,6 @@ class ParallelTransformerLayer(nn.Module):
         super(ParallelTransformerLayer, self).__init__()
         self.layer_number = layer_number
 
-        self.apply_residual_connection_post_layernorm = neox_args.apply_residual_connection_post_layernorm
-
         # Layernorm on the input data.
         norm, eps = get_norm(neox_args)
         self.input_layernorm = norm(neox_args.hidden_size, eps=eps)
@@ -450,6 +456,7 @@ class ParallelTransformerLayer(nn.Module):
 
         # Layer norm at the begining of the transformer layer.
         layernorm_output = self.input_layernorm(hidden_states)
+
         # Self attention.
         attention_output, attention_bias = \
             self.attention(layernorm_output,
@@ -460,10 +467,7 @@ class ParallelTransformerLayer(nn.Module):
             attention_output, presents = attention_output
 
         # Residual connection.
-        if self.apply_residual_connection_post_layernorm:
-            residual = layernorm_output
-        else:
-            residual = hidden_states
+        residual = hidden_states
 
         # jit scripting for a nn.module (with dropout) is not 
         # trigerring the fusion kernel. For now, we use two 
@@ -492,10 +496,7 @@ class ParallelTransformerLayer(nn.Module):
         mlp_output, mlp_bias = self.mlp(layernorm_output)
 
         # Second residual connection.
-        if self.apply_residual_connection_post_layernorm:
-            residual = layernorm_output
-        else:
-            residual = layernorm_input
+        residual = layernorm_input
 
         # re-enable torch grad to enable fused optimization.
         with torch.enable_grad():
