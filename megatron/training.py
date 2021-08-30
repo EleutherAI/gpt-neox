@@ -33,7 +33,7 @@ from megatron import print_rank_0
 
 from megatron import mpu
 
-from megatron.model import GPT2ModelPipe
+from megatron.model import GPT2ModelPipe, SoftEmbedding
 from megatron.checkpointing import load_checkpoint, save_checkpoint
 from megatron.data.data_utils import build_train_valid_test_data_iterators
 
@@ -206,6 +206,21 @@ def get_model(neox_args, inference=False, get_key_value=True):
     # Build model on cpu.
     model = GPT2ModelPipe(neox_args=neox_args, num_tokentypes=0, parallel_output=True, topology=mpu.get_topology(),
                             inference=inference, get_key_value=get_key_value)
+    
+    ### soft prompt tuning stuff ###
+    if neox_args.soft_prompt_tuning is not None and neox_args.soft_prompt_tuning.get('enabled', False):
+        soft_prompt = SoftEmbedding(neox_args, 
+                                    wte = getattr(model, '0').word_embeddings,
+                                    n_tokens=neox_args.soft_prompt_tuning.get("n_tokens", 10),
+                                    initialize_from_vocab=neox_args.soft_prompt_tuning.get("initialize_from_vocab", True),
+                                    init_range=neox_args.soft_prompt_tuning.get("init_range", 0.5))
+        model.insert_layers(layers=soft_prompt, idx=1) # insert the soft prompt layer directly after the word embeddings
+        
+        # freeze everything but the soft prompt
+        for name, param in model.named_parameters():
+            if not 'soft_embedding' in name:
+                param.requires_grad = False
+        
     if not neox_args.is_pipe_parallel:
         # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
         model = model.to_sequential()
@@ -228,11 +243,20 @@ def get_optimizer(model, neox_args):
     # Build parameter groups (weight decay and non-decay).
     param_groups = get_params_for_weight_decay_optimization(model, neox_args)
     print_rank_0(f'Configuring Optimizer type: {neox_args.optimizer_type} with params: {neox_args.optimizer["params"]}')
+    
     # Add model parallel attribute if it is not set.
     for param_group in param_groups:
         for param in param_group['params']:
             if not hasattr(param, 'model_parallel'):
                 param.model_parallel = False
+
+    # Filter out params that don't require a grad (for soft prompt tuning, etc.)
+    _param_groups = []
+    for param_group in param_groups:
+        trainable_params = [p for p in param_group['params'] if p.requires_grad]
+        param_group['params'] = trainable_params
+        _param_groups.append(param_group)
+    param_groups = _param_groups
 
     if neox_args.optimizer_type.lower() in ["cpu_adam", "cpu_torch_adam"]:
         if neox_args.optimizer == "cpu_torch_adam":
@@ -459,13 +483,20 @@ def train(neox_args, timers, model, optimizer, lr_scheduler,
         if neox_args.log_gradient_noise_scale:  # log noise scale if applicable
             noise_scale_logger.update()
 
+        # get learning rate (if present) - if doing soft prompt tuning + pipe parallel, you 
+        # may have no tunable parameters on a specific rank
+        if optimizer.param_groups:
+            lr = optimizer.param_groups[0].get('lr', 0)
+        else:
+            lr = 0
+
         # Logging.
         report_memory_flag = training_log(
             neox_args=neox_args,
             timers=timers,
             loss_dict=loss_dict,
             total_loss_dict=total_loss_dict,
-            learning_rate=optimizer.param_groups[0]['lr'],
+            learning_rate=lr,
             iteration=iteration,
             loss_scale=optimizer.cur_scale if neox_args.precision == "fp16" else None,
             report_memory_flag=report_memory_flag,

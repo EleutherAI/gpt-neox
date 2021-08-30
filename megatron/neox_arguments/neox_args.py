@@ -261,6 +261,17 @@ class NeoXArgsModel(NeoXArgsTemplate):
     If None - gmlp model doesn't use attention.
     """
 
+    soft_prompt_tuning: dict = None
+    """
+    Dictionary configuring the soft prompt tuning parameters. 
+    If enabled, will train *only* the soft prompt, and freezes the rest of the model.
+    parameters in the dict are:
+        'enabled': bool = True # enables soft prompting
+        'num_tokens': int = 10 # length of the soft prompt in tokens
+        # below are all still TODO:
+        'init_method': Literal["vocab", "random"] # init method of the soft prompt, either initializes from the model's vocab, or randomly
+    """
+
 
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):
