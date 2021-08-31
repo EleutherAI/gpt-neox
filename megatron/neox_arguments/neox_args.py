@@ -1,12 +1,22 @@
 import subprocess
 from dataclasses import dataclass
 from .template import NeoXArgsTemplate
+
 try:
     from typing import Literal
 except ImportError:
     from typing_extensions import Literal
 
-ATTENTION_TYPE_CHOICES = ['global', 'local', 'sparse_fixed', 'sparse_variable', 'bigbird', 'bslongformer', 'gmlp', 'amlp']
+ATTENTION_TYPE_CHOICES = [
+    "global",
+    "local",
+    "sparse_fixed",
+    "sparse_variable",
+    "bigbird",
+    "bslongformer",
+    "gmlp",
+    "amlp",
+]
 
 
 def get_git_commit_hash():
@@ -82,7 +92,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Maximum number of position embeddings to use. This is the size of position embedding.
     """
 
-    norm: Literal['layernorm', 'rmsnorm', 'scalenorm', 'apexlayernorm'] = "layernorm"
+    norm: Literal["layernorm", "rmsnorm", "scalenorm", "apexlayernorm"] = "layernorm"
     """
     Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm", "apexlayernorm".
     """
@@ -102,7 +112,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Scalenorm epsilon
     """
 
-    pos_emb: Literal['learned', 'rotary', 'sinusoidal', 'rpe', 'none'] = "learned"
+    pos_emb: Literal["learned", "rotary", "sinusoidal", "rpe", "none"] = "learned"
     """
     Type of positional embedding to use - choose from 'learned', 'rotary', 'sinusoidal', 'rpe', 'none'
     """
@@ -121,7 +131,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     """
     Disables weight tying between embedding weights and final Linear layer
     """
-    
+
     attention_config: list = None
 
     """
@@ -188,7 +198,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     If set, use original BERT residual connection ordering.
     """
 
-    activation : Literal["gelu", "geglu", "relu", "softsign", "swish", "mish"] = "gelu"
+    activation: Literal["gelu", "geglu", "relu", "softsign", "swish", "mish"] = "gelu"
     """
     Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish"]
     """
@@ -248,19 +258,37 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Base for rotary positional embedding
     """
 
-    init_method : Literal["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"] = "normal"
+    init_method: Literal[
+        "normal",
+        "scaled_normal",
+        "orthogonal",
+        "scaled_orthogonal",
+        "xavier_uniform",
+        "xavier_normal",
+        "wang_init",
+        "small_init",
+    ] = "normal"
     """
     Init function used on all layers except ff residual outputs - choose from 
     ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
     """
 
-    output_layer_init_method : Literal["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"] = "scaled_normal"
+    output_layer_init_method: Literal[
+        "normal",
+        "scaled_normal",
+        "orthogonal",
+        "scaled_orthogonal",
+        "xavier_uniform",
+        "xavier_normal",
+        "wang_init",
+        "small_init",
+    ] = "scaled_normal"
     """
     Init function used for ff residual outputs - choose from 
     ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
     """
 
-    gmlp_attn_dim : int = 64
+    gmlp_attn_dim: int = 64
     """
     the dimension of the single head self attention in gmlp model (not used in gpt models).
     If None - gmlp model doesn't use attention.
@@ -269,7 +297,9 @@ class NeoXArgsModel(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):
-    optimizer_type: Literal['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd'] = "adam"
+    optimizer_type: Literal[
+        "adam", "onebitadam", "cpu_adam", "cpu_torch_adam", "sm3", "madgrad_wd"
+    ] = "adam"
     """
     Type of optimizer to use. Choose from ['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd]
     """
@@ -307,7 +337,7 @@ class NeoXArgsOptimizer(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsLRScheduler(NeoXArgsTemplate):
-    lr_decay_style: Literal['constant', 'linear', 'cosine', 'exponential'] = "linear"
+    lr_decay_style: Literal["constant", "linear", "cosine", "exponential"] = "linear"
     """
     Learning rate decay function. Choose from 'constant', 'linear', 'cosine', 'exponential'.
     """
@@ -519,7 +549,9 @@ class NeoXArgsOther(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsTokenizer(NeoXArgsTemplate):
-    tokenizer_type: Literal["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "CharLevelTokenizer"] = "GPT2BPETokenizer"
+    tokenizer_type: Literal[
+        "GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "CharLevelTokenizer"
+    ] = "GPT2BPETokenizer"
     """
     Type of tokenizer to use - should be one of ["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "CharLevelTokenizer"]
     """
@@ -602,7 +634,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     as alpha -> inf, the probability of sampling from the groups with *the most samples* -> 1
     """
 
-    data_impl: str = 'infer'
+    data_impl: str = "infer"
     """
     Implementation of indexed datasets.
     """
@@ -855,4 +887,9 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     eval_tasks: list = None
     """
     Tasks to evaluate on using lm_eval_harness
+    """
+
+    char_level_ppl: bool = False
+    """
+    Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
     """
