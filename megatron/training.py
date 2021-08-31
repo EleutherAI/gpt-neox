@@ -36,6 +36,7 @@ from megatron.utils import (
     get_ltor_masks_and_position_ids,
     reduce_losses,
 )
+
 from megatron import print_rank_0, mpu
 from megatron.model import GPT2ModelPipe, get_params_for_weight_decay_optimization
 from megatron.checkpointing import load_checkpoint, save_checkpoint
@@ -234,6 +235,7 @@ def get_model(neox_args, inference=False, get_key_value=True):
         inference=inference,
         get_key_value=get_key_value,
     )
+
     if not neox_args.is_pipe_parallel:
         # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
         model = model.to_sequential()
