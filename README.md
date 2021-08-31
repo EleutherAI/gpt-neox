@@ -73,7 +73,6 @@ We currently offer four main functions:
 1. `train.py` is used for training and finetuning models.
 2. `evaluate.py` is used to evaluate a trained model using the evaluation harness.
 3. `generate.py` is used to sample text from a trained model.
-4. `distill.py` is used to distill a trained model into another model.
 
 For now, run `./deepy.py train.py -d configs small.yml local_configs.yml` to begin training a model and complete this tutorial.
 
@@ -227,8 +226,7 @@ To evaluate a trained model on the evaluation harness, use `./deepy.py evaluate.
 
 ## Distilling
 
-[WIP]
-
+Coming soon! Check out the `distill-gpt-neox` branch to try distilling a model.
 
 ## Monitoring
 
