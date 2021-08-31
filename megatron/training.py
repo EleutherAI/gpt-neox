@@ -160,7 +160,7 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
         tokens,
         tokenizer.eod,
         neox_args.eod_mask_loss)
-    
+
     return tokens, labels, loss_mask, attention_mask, position_ids
 
 

@@ -73,7 +73,6 @@ def get_attn_mask(seq_length, device):
     # convert to binary
     return (mask < 0.5)
 
-  
 def get_ltor_masks_and_position_ids(data,
                                     eod_token,
                                     eod_mask_loss=False):
