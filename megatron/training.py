@@ -654,7 +654,7 @@ def evaluate(
         # if neox_args.char_level_perplexity:
         # unwrap the data_iterator
         tokens_per_char = data_iterator.tokens_per_char()
-        print(f"Counting chars took {data_iterator.total_time} seconds")
+        print_rank_0(f"Counting chars took {data_iterator.total_time} seconds")
 
         data_iterator = data_iterator.data_iterator
         eval_results["lm_loss_char_lvl_ppl"] = math.exp(
