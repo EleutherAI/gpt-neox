@@ -64,11 +64,12 @@ def get_docs(module):
     return results
 
 
-def to_md(docs):
+def to_md(docs, intro_str=""):
     """
     Writes the docs dictionary to markdown format
     """
     lines = []
+    lines.append(intro_str)
     for name, doc in docs.items():
         lines.append(f"## {name}")
         lines.append(f"{doc['doc']}")
@@ -86,6 +87,7 @@ def to_md(docs):
 if __name__ == "__main__":
     docs = get_docs(neox_args)
     docs.update(get_docs(deepspeed_args))
-    md = to_md(docs)
+    intro_str = """Arguments for gpt-neox. All of the following can be specified in your .yml config file(s):\n"""
+    md = to_md(docs, intro_str=intro_str)
     with open(f"{pathlib.Path(__file__).parent.resolve()}/neox_arguments.md", "w") as f:
         f.write(md)

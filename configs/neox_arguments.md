@@ -1,3 +1,6 @@
+Arguments for gpt-neox. All of the following can be specified in your .yml config file(s):
+
+
 ## NeoXArgsLRScheduler
 
 LR Scheduler Arguments
@@ -100,7 +103,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 55c04f9
+    Default = 875f8ad
 
     current git hash of repository
 
