@@ -175,8 +175,19 @@ class EvalHarnessAdaptor(GPT2LM):
         self.model.micro_batches = 1
         if eval_tasks is None:
             eval_tasks = ["lambada", "piqa", "hellaswag", "winogrande", "mathqa", "pubmedqa"]
+            
+        # first get task dict on local main rank
+        # the tasks are downloaded *as they are initialized*, and the downloads don't like multithreading.
+        # so we download them once on the local main rank, wait, and then initialize them on all other ranks, which *should* load from the cache.
+        if self.is_local_main:
+            task_dict = tasks.get_task_dict(eval_tasks)
+        # torch barrier
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+        task_dict = tasks.get_task_dict(eval_tasks)
+
         results = evaluator.evaluate(lm=self,
-                                     task_dict=tasks.get_task_dict(eval_tasks),
+                                     task_dict=task_dict,
                                      provide_description=False,
                                      num_fewshot=0,
                                      limit=None,
