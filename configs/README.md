@@ -6,6 +6,8 @@ Parameters originate from either the [DeepSpeed runner CLI (DSL)](https://github
 ## Example Configuration (GPT3 Small):
 
 Below is an example configuration `.yaml` to train a ~160M parameter GPT model. This readme will go through each section in the configuration and the options available.
+
+For a detailed list of all the arguments available for neox, see [neox_arguments.md](neox_arguments.md)
 ```yaml
 # GPT-3 pretraining setup
 {
