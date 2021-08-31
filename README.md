@@ -70,10 +70,9 @@ GPT-NeoX parameters are defined in a YAML configuration file which is passed to 
 
 All functionality follows the pattern `./deepy.py main_function.py -d configs small.yml local_configs.yml`
 We currently offer four main functions:
-1. `train.py` is used for training and finetuning models.
+1. `train.py` is used for training, finetuning, and distilling models.
 2. `evaluate.py` is used to evaluate a trained model using the evaluation harness.
 3. `generate.py` is used to sample text from a trained model.
-4. `distill.py` is used to distill a trained model into another model.
 
 For now, run `./deepy.py train.py -d configs small.yml local_configs.yml` to begin training a model and complete this tutorial.
 
