@@ -36,6 +36,7 @@ from megatron.utils import (
     get_ltor_masks_and_position_ids,
     reduce_losses,
 )
+
 from megatron import print_rank_0, mpu
 from megatron.model import GPT2ModelPipe, get_params_for_weight_decay_optimization
 from megatron.checkpointing import load_checkpoint, save_checkpoint
@@ -154,14 +155,11 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
     labels = tokens_[:, 1:].contiguous()
     tokens = tokens_[:, :-1].contiguous()
 
-    # Get the masks and postition ids.
+    # Get the masks and position ids.
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
         tokens,
         tokenizer.eod,
-        neox_args.reset_position_ids,
-        neox_args.reset_attention_mask,
-        neox_args.eod_mask_loss,
-    )
+        neox_args.eod_mask_loss)
 
     return tokens, labels, loss_mask, attention_mask, position_ids
 
@@ -237,6 +235,7 @@ def get_model(neox_args, inference=False, get_key_value=True):
         inference=inference,
         get_key_value=get_key_value,
     )
+
     if not neox_args.is_pipe_parallel:
         # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
         model = model.to_sequential()
@@ -630,7 +629,8 @@ def evaluate(
 
             # although we're not accumulating gradients here, we count one iter as train_batch_size_per_gpu * g.a.s
             # to be consistent with deepspeed's pipe parallel engine
-            for _ in range(neox_args.gradient_accumulation_steps):
+            # since pipe parallel already takes gas into account - default to 1 here if pipe parallel is true
+            for _ in range(1 if neox_args.is_pipe_parallel else neox_args.gradient_accumulation_steps):
                 # Forward evaluation
                 loss = forward_step_fn(
                     model=model,
@@ -656,7 +656,7 @@ def evaluate(
         # if neox_args.char_level_perplexity:
         # unwrap the data_iterator
         tokens_per_char = data_iterator.tokens_per_char()
-        print(f"Counting chars took {data_iterator.total_time} seconds")
+        print_rank_0(f"Counting chars took {data_iterator.total_time} seconds")
 
         data_iterator = data_iterator.data_iterator
         eval_results["lm_loss_char_lvl_ppl"] = math.exp(
