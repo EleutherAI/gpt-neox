@@ -112,7 +112,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Scalenorm epsilon
     """
 
-    pos_emb: Literal["learned", "rotary", "sinusoidal", "rpe", "none"] = "learned"
+    pos_emb: Literal['learned', 'rotary', 'sinusoidal', 'rpe', 'alibi', 'none'] = "learned"
     """
     Type of positional embedding to use - choose from 'learned', 'rotary', 'sinusoidal', 'rpe', 'none'
     """
@@ -193,12 +193,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Pad the vocab size to be divisible by this value. This is added for computational efficiency reasons.
     """
 
-    apply_residual_connection_post_layernorm: bool = False
-    """
-    If set, use original BERT residual connection ordering.
-    """
-
-    activation: Literal["gelu", "geglu", "relu", "softsign", "swish", "mish"] = "gelu"
+    activation : Literal["gelu", "geglu", "relu", "softsign", "swish", "mish"] = "gelu"
     """
     Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish"]
     """
@@ -466,16 +461,6 @@ class NeoXArgsOther(NeoXArgsTemplate):
     short_seq_prob: float = 0.1
     """
     Probability of producing a short sequence.
-    """
-
-    reset_position_ids: bool = False
-    """
-    Reset posistion ids after end-of-document token.
-    """
-
-    reset_attention_mask: bool = False
-    """
-    Reset self attention mask after end-of-document token.
     """
 
     eod_mask_loss: bool = False

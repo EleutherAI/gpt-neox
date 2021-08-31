@@ -154,15 +154,12 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
     labels = tokens_[:, 1:].contiguous()
     tokens = tokens_[:, :-1].contiguous()
 
-    # Get the masks and postition ids.
+    # Get the masks and position ids.
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
         tokens,
         tokenizer.eod,
-        neox_args.reset_position_ids,
-        neox_args.reset_attention_mask,
-        neox_args.eod_mask_loss,
-    )
-
+        neox_args.eod_mask_loss)
+    
     return tokens, labels, loss_mask, attention_mask, position_ids
 
 
@@ -630,7 +627,8 @@ def evaluate(
 
             # although we're not accumulating gradients here, we count one iter as train_batch_size_per_gpu * g.a.s
             # to be consistent with deepspeed's pipe parallel engine
-            for _ in range(neox_args.gradient_accumulation_steps):
+            # since pipe parallel already takes gas into account - default to 1 here if pipe parallel is true
+            for _ in range(1 if neox_args.is_pipe_parallel else neox_args.gradient_accumulation_steps):
                 # Forward evaluation
                 loss = forward_step_fn(
                     model=model,
