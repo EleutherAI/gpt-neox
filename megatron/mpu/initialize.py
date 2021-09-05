@@ -43,7 +43,7 @@ _MPU_TOPOLOGY = None
 _FP32_ALLREDUCE = None
 
 
-def is_unitialized():
+def is_uninitialized():
     """Useful for code segments that may be accessed with or without mpu initialization"""
     return _DATA_PARALLEL_GROUP is None
 

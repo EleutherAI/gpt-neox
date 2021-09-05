@@ -21,7 +21,7 @@ from megatron.tokenizer import build_tokenizer
 from megatron.utils import obtain_resource_pool, expand_attention_types
 from .deepspeed_args import NeoXArgsDeepspeedConfig, NeoXArgsDeepspeedRunner
 from .neox_args import NeoXArgsModel, NeoXArgsTokenizer, NeoXArgsTraining, NeoXArgsParallelism, \
-    NeoXArgsLogging, NeoXArgsOther, NeoXArgsTextgen, NeoXArgsOptimizer, NeoXArgsLRScheduler, ATTENTION_TYPE_CHOICES
+    NeoXArgsLogging, NeoXArgsOther, NeoXArgsTextgen, NeoXArgsOptimizer, NeoXArgsLRScheduler, ATTENTION_TYPE_CHOICES, VALID_STAGEABLE_PARAMS
 
 # ZERO defaults by deespeed
 # These values should not be changed unless defaults in deepspeed are changed
@@ -748,6 +748,12 @@ class NeoXArgs(*BASE_CLASSES):
             assert len(self.valid_data_paths) == len(self.valid_data_weights)
         if self.test_data_paths is not None:
             assert len(self.test_data_paths) == len(self.test_data_weights)
+
+        if self.stages is not None:
+            assert sum([i[1] for i in self.stages]) == 1.0, "sum of percentages in staged training must == 1.0"
+            for stage in self.stages:
+                for k, v in stage[0].items():
+                    assert k in VALID_STAGEABLE_PARAMS, f"{k} not in valid stageable parameters ({VALID_STAGEABLE_PARAMS})"
 
         return True
 
