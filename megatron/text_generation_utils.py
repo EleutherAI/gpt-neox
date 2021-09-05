@@ -35,7 +35,7 @@ def get_batch(neox_args, context_tokens: torch.Tensor):
     """
     Generate batch from context tokens. Attention mask and position ids are created. Returned tensors will be on CUDA.
     
-    neox_args: NeoXArgs with tokenizer, reset_position_ids, reset_attention_mask and eod_mask_loss
+    neox_args: NeoXArgs.
     context_tokens: torch tensor with dimensions [batch, context_size]
 
     returns: tuple of torch tensors (tokens, attention_mask, position_ids) on CUDA
@@ -47,8 +47,6 @@ def get_batch(neox_args, context_tokens: torch.Tensor):
     attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
         tokens,
         neox_args.tokenizer.eod,
-        neox_args.reset_position_ids,
-        neox_args.reset_attention_mask,
         neox_args.eod_mask_loss)
     return tokens, attention_mask, position_ids
 
@@ -148,12 +146,25 @@ def broadcast_terminate_signal(terminate_runs: int):
                                 group=mpu.get_model_parallel_group())
     return terminate_runs_tensor[0].item()
 
+def stop_tokens_in_completion(stop_tokens, context_tokens, batch_index, current_index):
+    if stop_tokens is None:
+        return False
+    res = []
+    for token_group in stop_tokens:
+        context = context_tokens[batch_index, :current_index + 1]
+        context = context[-len(token_group):]
+        if context.shape[0] == token_group.shape[0]:
+            res.append(all(token_group == context))
+        else:
+            res.append(False)
+    return any(res)
+
 def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_id: int = None, 
-                    maximum_tokens: int = None, recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0):
+                    maximum_tokens: int = None, recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0, stop_tokens=None):
     """
     iterator producing text completions
 
-    neox_args: NeoXArgs with tokenizer, reset_position_ids, reset_attention_mask and eod_mask_loss
+    neox_args: NeoXArgs.
     model: a Megatron model.
     context_tokens: the prompt to complete; unpadded list of lists of tokens ids
 
@@ -193,6 +204,11 @@ def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_i
 
     # convert to tensor and broadcast
     context_tokens = torch.cuda.LongTensor(context_tokens)
+    if stop_tokens:
+        stop_tokens = torch.cuda.LongTensor(stop_tokens)
+        if stop_tokens.ndim == 1:
+            stop_tokens = stop_tokens.unsqueeze(0)
+
     token_generation_start_index = torch.cuda.LongTensor(context_lengths)
 
     torch.distributed.broadcast(context_tokens,
@@ -203,7 +219,7 @@ def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_i
                                 group=mpu.get_model_parallel_group())
     
     # produce batch relevant attention_mask and position_ids
-    tokens, attention_mask, position_ids = get_batch(neox_args, context_tokens)
+    context_tokens, attention_mask, position_ids = get_batch(neox_args, context_tokens)
 
     # determine the smallest context length at which first output is produced
     context_length = token_generation_start_index.min().item()
@@ -248,14 +264,14 @@ def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_i
                 # not choosing recompute assumes that any number of tokens can be forwarded
                 # this is not the case for sparse attention
                 if token_index_to_generate == first_token_index_to_generate:
-                    tokens_to_use = tokens[:, :token_index_to_generate]
+                    tokens_to_use = context_tokens[:, :token_index_to_generate]
                     positions_to_use = position_ids[:, :token_index_to_generate]
                 else:
-                    tokens_to_use = tokens[:, token_index_to_generate - 1].view(
+                    tokens_to_use = context_tokens[:, token_index_to_generate - 1].view(
                         batch_size, -1)
                     positions_to_use = position_ids[:, token_index_to_generate - 1].view(
                         batch_size, -1)
-                # we have to use neox_args instead of kwargs here because deepspeed :|
+                    # we have to use neox_args instead of kwargs here because deepspeed :|
                 model_inputs = (tokens_to_use,  # input_ids
                                 positions_to_use,  # position_ids
                                 attention_mask,  # attention_mask
@@ -283,16 +299,26 @@ def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_i
                 next_token_log_probs = F.softmax(generated_token_logits, dim=-1)
                 generated_tokens = torch.multinomial(next_token_log_probs, num_samples=1).view(-1)
 
-        	# determine state for each batch item
+
+            # determine if state has started for eahc batch item
             state_started = token_generation_start_index <= token_index_to_generate # check which batch items have been started
-            state_done = (generated_tokens == eos_token_id).byte() & state_started.byte() # check which batch items produce an eos_token in the current iteration
-            state_just_finished = (state_done & ~state_is_done).bool()
-            state_is_done = state_is_done | state_done
-            token_generation_end_index[(state_started.byte() & ~state_is_done).bool()] = token_index_to_generate
+
 
             # switch out only padding tokens (the batch items that have been started)
             context_tokens[:, token_index_to_generate] = switch(context_tokens[:, token_index_to_generate].view(-1), generated_tokens, state_started) 
-            
+
+
+            # determine if state has finished for each batch item
+            state_done = (generated_tokens == eos_token_id).byte() & state_started.byte() # check which batch items produce an eos_token in the current iteration
+            state_just_finished = (state_done & ~state_is_done).bool()
+            state_is_done = state_is_done | state_done
+            stop_tokens_produced = torch.zeros_like(state_is_done)
+            for batch_idx, ctx in enumerate(context_tokens):
+                stop_tokens_produced[batch_idx] = stop_tokens_in_completion(stop_tokens, context_tokens, batch_idx, token_index_to_generate)
+            state_is_done = state_is_done | stop_tokens_produced
+
+            token_generation_end_index[(state_started.byte() & ~state_is_done).bool()] = token_index_to_generate
+
             token_index_to_generate += 1
             
             
@@ -300,11 +326,11 @@ def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_i
             if torch.all(state_is_done): break
 
 def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], eos_token_id: int = None, 
-                                    maximum_tokens: int = 64, recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0):
+                                    maximum_tokens: int = 64, recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0, stop_tokens=None):
     """
     Generates samples from raw text and returns them in a dictionary.
 
-    neox_args: NeoXArgs with tokenizer, reset_position_ids, reset_attention_mask and eod_mask_loss
+    neox_args: NeoXArgs.
     model: a Megatron model
     text: either a single prompt (str) or a list of prompts (List[str]).
 
@@ -362,7 +388,7 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], 
                 if context_length >= (neox_args.seq_length // 2):
                     print_rank_0("\nWarning! Context length", context_length,
                                  "\nPlease give smaller context (e.g. half of the "
-                                 "max sequence length)!", flush=True)
+                                 "max sequence length)!")
         else:
             context_tokens = neox_args.tokenizer.tokenize("EMPTY TEXT")
             context_length = len(context_tokens)
@@ -380,7 +406,8 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], 
             recompute=recompute,
             temperature=temperature,
             top_k=top_k,
-            top_p=top_p
+            top_p=top_p,
+            stop_tokens=stop_tokens
             ):
             pass # finish generation and use all results below
 
@@ -398,7 +425,8 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], 
                     generated_text = None
                     message = "WARNING: generated token which doesn't exist."
             else:
-                generated_tokens = list()
+                generated_text = None
+                generated_tokens = []
                 message = "WARNING: text generation did not start; try different batching or adjust parameters"
             if is_mp_rank_0():
                 data = {
@@ -420,7 +448,7 @@ def generate_samples_input_from_file(neox_args, model, input_file, output_file=N
 
     Reads prompts from neox_args.sample_input_file and writes completions to neox_args.sample_output_file
 
-    neox_args: NeoXArgs with tokenizer, reset_position_ids, reset_attention_mask and eod_mask_loss
+    neox_args: NeoXArgs.
     model: a Megatron model
 
     input_file: path to input file. Each line in the input file will be treated as separate prompt. The line break at the end of the line is not included in the prompt.
@@ -484,7 +512,7 @@ def generate_samples_unconditional(neox_args, model, number_of_samples: int = 10
     """
     Generates samples unconditionially (no prompt) and yields them in a dictionary.
 
-    neox_args: NeoXArgs with tokenizer, reset_position_ids, reset_attention_mask and eod_mask_loss
+    neox_args: NeoXArgs.
     model: a Megatron model
 
     number_of_samples (default 10): number of unconditional samples to be generated
@@ -537,7 +565,7 @@ def generate_samples_interactive(neox_args, model, maximum_tokens: int = 64, eos
     """
     Generates samples unconditionially (no prompt) and yields them in a dictionary.
 
-    neox_args: NeoXArgs with tokenizer, reset_position_ids, reset_attention_mask and eod_mask_loss
+    neox_args: NeoXArgs.
     model: a Megatron model
 
     maximum_tokens: maximum number of tokens to be generated
