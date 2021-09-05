@@ -447,26 +447,28 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
             )
             timers("forward").stop()
             losses.append(loss)
-            # Calculate gradients, reduce across processes, and clip.
-            timers("backward").start()
-            backward_step(
+        
+        # Calculate gradients, reduce by gradient accumulation steps, and clip.
+        reduced_loss = torch.cat([loss.clone().detach().view(1) for loss in losses]).mean()
+        
+        timers("backward").start()
+        backward_step(
                 neox_args=neox_args,
                 timers=timers,
                 optimizer=optimizer,
                 model=model,
-                loss=loss,
-            )
-            timers("backward").stop()
-            # Update parameters.
-            timers("optimizer").start()
-            if neox_args.deepspeed:
-                model.step()
-            else:
-                raise ValueError("Must be using deepspeed to run neox")
-            timers("optimizer").stop()
-        reduced_loss = {
-            "lm_loss": reduce_losses(losses).mean()
-        }  # reduces losses across machines for logging
+                loss=reduced_loss,
+        )
+        timers("backward").stop()
+        # Update parameters.
+        timers("optimizer").start()
+        if neox_args.deepspeed:
+            model.step()
+        else:
+            raise ValueError("Must be using deepspeed to run neox")
+        timers("optimizer").stop()
+        reduced_loss = {"lm_loss": reduced_loss}  
+        # reduces losses across machines for logging
 
     if neox_args.precision == "fp16" and model.optimizer.overflow:
         skipped_iter = 1
@@ -648,7 +650,7 @@ def evaluate(
                 deepspeed.checkpointing.reset()
 
     # reduces losses across processes for logging & run eval harness tasks
-    eval_results = {"lm_loss": reduce_losses(losses).mean().item()}
+    eval_results = {"lm_loss": torch.cat([loss.clone().detach().view(1) for loss in losses]).mean().item()}
     eval_results["lm_loss_ppl"] = math.exp(eval_results["lm_loss"])
 
     if neox_args.char_level_ppl:
