@@ -1,12 +1,26 @@
 import subprocess
 from dataclasses import dataclass
-from .template import NeoXArgsTemplate
+try:
+    from .template import NeoXArgsTemplate
+except ImportError:
+    from template import NeoXArgsTemplate
+
 try:
     from typing import Literal
 except ImportError:
     from typing_extensions import Literal
 
-ATTENTION_TYPE_CHOICES = ['global', 'local', 'sparse_fixed', 'sparse_variable', 'bigbird', 'bslongformer']
+ATTENTION_TYPE_CHOICES = [
+    "global",
+    "local",
+    "sparse_fixed",
+    "sparse_variable",
+    "bigbird",
+    "bslongformer",
+    "gmlp",
+    "amlp",
+]
+
 VALID_STAGEABLE_PARAMS = ['seq_length', 'train_micro_batch_size_per_gpu']
 
 
