@@ -36,6 +36,10 @@ def get_git_commit_hash():
 
 @dataclass
 class NeoXArgsParallelism(NeoXArgsTemplate):
+    """
+    Parallelism Arguments
+    """
+    
     pipe_parallel_size: int = 0
     """
     Number of pipeline parallel stages. Disable with 0.
@@ -63,7 +67,6 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     """
 
 
-@dataclass
 @dataclass
 class NeoXArgsModel(NeoXArgsTemplate):
     """
@@ -297,9 +300,57 @@ class NeoXArgsModel(NeoXArgsTemplate):
     If None - gmlp model doesn't use attention.
     """
 
+    
+@dataclass
+class NeoXArgsOptimizer(NeoXArgsTemplate):
+    """
+    Optimizer Arguments
+    """
+
+    optimizer_type: Literal[
+        "adam", "onebitadam", "cpu_adam", "cpu_torch_adam", "sm3", "madgrad_wd"
+    ] = "adam"
+    """
+    Type of optimizer to use. Choose from ['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd]
+    """
+
+    zero_stage: int = None
+    """
+    Zero Optimizer stage
+    """
+
+    zero_reduce_scatter: bool = None
+    """
+    Zero: Uses reduce or reduce scatter instead of allreduce to average gradients
+    """
+
+    zero_contiguous_gradients: bool = None
+    """
+    Zero: Copies the gradients to a contiguous buffer as they are produced. Avoids memory fragmentation during backward pass. Only useful when running very large models.
+    """
+
+    zero_reduce_bucket_size: int = None
+    """
+    Zero: Number of elements reduced/allreduced at a time. Limits the memory required for the allgather for large model sizes
+    """
+
+    zero_allgather_bucket_size: int = None
+    """
+    Zero: Number of elements allgathered at a time. Limits the memory required for the allgather for large model sizes
+    """
+
+    lr: float = None
+    """
+    Max Learning rate during training
+    """
+    
 
 @dataclass
 class NeoXArgsLRScheduler(NeoXArgsTemplate):
+    """
+    LR Scheduler Arguments
+    """
+    
     lr_decay_style: Literal['constant', 'linear', 'cosine', 'exponential'] = "linear"
     """
     Learning rate decay function. Choose from 'constant', 'linear', 'cosine', 'exponential'.
@@ -333,6 +384,10 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsLogging(NeoXArgsTemplate):
+    """
+    Logging Arguments
+    """
+    
     use_wandb: bool = None
     """Flag indicating if wandb is to be used."""
 
@@ -406,6 +461,10 @@ class NeoXArgsLogging(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsOther(NeoXArgsTemplate):
+    """
+    Misc. Arguments
+    """
+    
     distributed_backend: str = "nccl"
     """
     Which backend to use for distributed training.
@@ -429,16 +488,6 @@ class NeoXArgsOther(NeoXArgsTemplate):
     short_seq_prob: float = 0.1
     """
     Probability of producing a short sequence.
-    """
-
-    reset_position_ids: bool = False
-    """
-    Reset posistion ids after end-of-document token.
-    """
-
-    reset_attention_mask: bool = False
-    """
-    Reset self attention mask after end-of-document token.
     """
 
     eod_mask_loss: bool = False
@@ -512,7 +561,13 @@ class NeoXArgsOther(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsTokenizer(NeoXArgsTemplate):
-    tokenizer_type: Literal["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "CharLevelTokenizer"] = "GPT2BPETokenizer"
+    """
+    Tokenizer Arguments
+    """
+
+    tokenizer_type: Literal[
+        "GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "CharLevelTokenizer"
+    ] = "GPT2BPETokenizer"
     """
     Type of tokenizer to use - should be one of ["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "CharLevelTokenizer"]
     """
@@ -531,6 +586,10 @@ class NeoXArgsTokenizer(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsTraining(NeoXArgsTemplate):
+    """
+    Training Arguments
+    """
+    
     data_path: str = None
     """
     Path to combined dataset to split.
@@ -806,6 +865,10 @@ class NeoXArgsTraining(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsTextgen(NeoXArgsTemplate):
+    """
+    Text Generation arguments
+    """
+    
     text_gen_type: str = None
     """
     How to generate text/sample the model.
@@ -851,4 +914,19 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     """
     During generation recompute all attention instead of using previously computed keys/values.
     Should be set to true for sparse attention models
+    """
+    
+    eval_results_prefix: str = ""
+    """
+    prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
+    """
+
+    eval_tasks: list = None
+    """
+    Tasks to evaluate on using lm_eval_harness
+    """
+
+    char_level_ppl: bool = False
+    """
+    Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
     """
