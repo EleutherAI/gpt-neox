@@ -64,8 +64,13 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
 
 
 @dataclass
+@dataclass
 class NeoXArgsModel(NeoXArgsTemplate):
-    precision: Literal["fp16", "fp32"] = None
+    """
+    Model Arguments
+    """
+
+    precision: Literal["fp16", "fp32", "bfloat16"] = None
     """
     description of the used precision, either one of fp16 or fp32 (and in the future bf16).
     """
@@ -95,9 +100,9 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Maximum number of position embeddings to use. This is the size of position embedding.
     """
 
-    norm: Literal['layernorm', 'rmsnorm', 'scalenorm'] = "layernorm"
+    norm: Literal["layernorm", "rmsnorm", "scalenorm", "apexlayernorm"] = "layernorm"
     """
-    Normalization layer to use. Choose from "layernorm", "rmsnorm" and "scalenorm".
+    Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm", "apexlayernorm".
     """
 
     layernorm_epsilon: float = 1.0e-5
@@ -115,7 +120,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Scalenorm epsilon
     """
 
-    pos_emb: Literal['learned', 'rotary', 'sinusoidal', 'rpe', 'none'] = "learned"
+    pos_emb: Literal['learned', 'rotary', 'sinusoidal', 'rpe', 'alibi', 'none'] = "learned"
     """
     Type of positional embedding to use - choose from 'learned', 'rotary', 'sinusoidal', 'rpe', 'none'
     """
@@ -134,7 +139,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     """
     Disables weight tying between embedding weights and final Linear layer
     """
-    
+
     attention_config: list = None
 
     """
@@ -194,11 +199,6 @@ class NeoXArgsModel(NeoXArgsTemplate):
     make_vocab_size_divisible_by: int = 128
     """
     Pad the vocab size to be divisible by this value. This is added for computational efficiency reasons.
-    """
-
-    apply_residual_connection_post_layernorm: bool = False
-    """
-    If set, use original BERT residual connection ordering.
     """
 
     activation : Literal["gelu", "geglu", "relu", "softsign", "swish", "mish"] = "gelu"
@@ -261,54 +261,40 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Base for rotary positional embedding
     """
 
-    init_method : Literal["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"] = "normal"
+    init_method: Literal[
+        "normal",
+        "scaled_normal",
+        "orthogonal",
+        "scaled_orthogonal",
+        "xavier_uniform",
+        "xavier_normal",
+        "wang_init",
+        "small_init",
+    ] = "normal"
     """
     Init function used on all layers except ff residual outputs - choose from 
     ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
     """
 
-    output_layer_init_method : Literal["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"] = "scaled_normal"
+    output_layer_init_method: Literal[
+        "normal",
+        "scaled_normal",
+        "orthogonal",
+        "scaled_orthogonal",
+        "xavier_uniform",
+        "xavier_normal",
+        "wang_init",
+        "small_init",
+    ] = "scaled_normal"
     """
     Init function used for ff residual outputs - choose from 
     ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
     """
 
-
-@dataclass
-class NeoXArgsOptimizer(NeoXArgsTemplate):
-    optimizer_type: Literal['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd'] = "adam"
+    gmlp_attn_dim: int = 64
     """
-    Type of optimizer to use. Choose from ['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd]
-    """
-
-    zero_stage: int = None
-    """
-    Zero Optimizer stage
-    """
-
-    zero_reduce_scatter: bool = None
-    """
-    Zero: Uses reduce or reduce scatter instead of allreduce to average gradients
-    """
-
-    zero_contiguous_gradients: bool = None
-    """
-    Zero: Copies the gradients to a contiguous buffer as they are produced. Avoids memory fragmentation during backward pass. Only useful when running very large models.
-    """
-
-    zero_reduce_bucket_size: int = None
-    """
-    Zero: Number of elements reduced/allreduced at a time. Limits the memory required for the allgather for large model sizes
-    """
-
-    zero_allgather_bucket_size: int = None
-    """
-    Zero: Number of elements allgathered at a time. Limits the memory required for the allgather for large model sizes
-    """
-
-    lr: float = None
-    """
-    Max Learning rate during training
+    the dimension of the single head self attention in gmlp model (not used in gpt models).
+    If None - gmlp model doesn't use attention.
     """
 
 
