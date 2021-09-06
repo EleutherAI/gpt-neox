@@ -453,7 +453,7 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
                 timers=timers,
                 optimizer=optimizer,
                 model=model,
-                loss=reduced_loss,
+                loss=loss,
             )
             timers("backward").stop()
                 
