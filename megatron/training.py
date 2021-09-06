@@ -447,19 +447,16 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
             )
             timers("forward").stop()
             losses.append(loss)
-        
-        # Calculate gradients, reduce by gradient accumulation steps, and clip.
-        reduced_loss = torch.cat([loss.clone().detach().view(1) for loss in losses]).mean()
-        
-        timers("backward").start()
-        backward_step(
+            timers("backward").start()
+            backward_step(
                 neox_args=neox_args,
                 timers=timers,
                 optimizer=optimizer,
                 model=model,
                 loss=reduced_loss,
-        )
-        timers("backward").stop()
+            )
+            timers("backward").stop()
+                
         # Update parameters.
         timers("optimizer").start()
         if neox_args.deepspeed:
@@ -467,8 +464,11 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
         else:
             raise ValueError("Must be using deepspeed to run neox")
         timers("optimizer").stop()
-        reduced_loss = {"lm_loss": reduced_loss}  
+
+        # Calculate gradients, reduce by gradient accumulation steps, and clip.
+        reduced_loss = torch.cat([loss.clone().detach().view(1) for loss in losses]).mean()        
         # reduces losses across machines for logging
+        reduced_loss = {"lm_loss": reduced_loss}  
 
     if neox_args.precision == "fp16" and model.optimizer.overflow:
         skipped_iter = 1
@@ -649,7 +649,7 @@ def evaluate(
             if neox_args.deepspeed and neox_args.deepspeed_activation_checkpointing:
                 deepspeed.checkpointing.reset()
 
-    # reduces losses across processes for logging & run eval harness tasks
+    # reduces losses by reduce by gradient accumulation steps for logging & run eval harness tasks
     eval_results = {"lm_loss": torch.cat([loss.clone().detach().view(1) for loss in losses]).mean().item()}
     eval_results["lm_loss_ppl"] = math.exp(eval_results["lm_loss"])
 
