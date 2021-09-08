@@ -3,7 +3,7 @@
 
 # GPT-NeoX
 
-This repository records [EleutherAI](www.eleuther.ai)'s work-in-progress for training large scale GPU language models. Our current framework is based on NVIDIA's [Megatron Language Model](https://github.com/NVIDIA/Megatron-LM) and has been augmented with techniques from [DeepSpeed](https://www.deepspeed.ai) as well as some novel optimizations. 
+This repository records [EleutherAI](https://www.eleuther.ai)'s work-in-progress for training large scale GPU language models. Our current framework is based on NVIDIA's [Megatron Language Model](https://github.com/NVIDIA/Megatron-LM) and has been augmented with techniques from [DeepSpeed](https://www.deepspeed.ai) as well as some novel optimizations. 
 
 We aim to make this repo a centralized and accessible place to gather techniques for training large scale autoregressive language models, and accelerate research into large scale training. Additionally, we hope to train and open source a 175B parameter GPT3 replication along the way. 
 
@@ -70,11 +70,11 @@ GPT-NeoX parameters are defined in a YAML configuration file which is passed to 
 
 All functionality follows the pattern `./deepy.py main_function.py -d configs small.yml local_configs.yml`
 We currently offer four main functions:
-1. `train.py` is used for training and finetuning models.
-2. `evaluate.py` is used to evaluate a trained model using the evaluation harness.
-3. `generate.py` is used to sample text from a trained model.
+1. `pretrain_gpt2.py` is used for training and finetuning models.
+2. `eval_tasks/run.py` is used to evaluate a trained model using the evaluation harness.
+3. `text_gen_gpt2.py` is used to sample text from a trained model.
 
-For now, run `./deepy.py train.py -d configs small.yml local_configs.yml` to begin training a model and complete this tutorial.
+For now, run `./deepy.py pretrain_gpt2.py -d configs small.yml local_configs.yml` to begin training a model and complete this tutorial.
 
 ## Features
 
