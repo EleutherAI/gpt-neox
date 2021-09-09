@@ -61,38 +61,46 @@ def report_memory(name):
     )
     print_rank_0(string)
 
-def get_attn_mask(seq_length, device):
-    """
-    Get triangular attention mask for a given sequence length / device.
-    """
-    # lower triangular attention mask
-    mask = torch.tril(torch.ones(
-        (1, seq_length, seq_length), device=device)).view(
-        1, 1, seq_length, seq_length)
-    
-    # convert to binary
-    return (mask < 0.5)
-
 def get_ltor_masks_and_position_ids(data,
                                     eod_token,
                                     eod_mask_loss=False):
-    """Build masks and position id for left to right model."""
 
-    # Extract batch size and sequence length.
-    batch_size, seq_length = data.size()
+    # generate empty mask
+    attention_mask = torch.zeros((data.shape[0], data.shape[-1], data.shape[-1]), dtype=torch.bool, device=data.device)
 
-    # Attention mask (lower triangular).
-    attention_mask = get_attn_mask(seq_length=seq_length, device=data.device)
+    # generate normal position ids
+    position_ids = torch.zeros_like(data, dtype=torch.long, device=data.device)
+    #position_ids = position_ids.unsqueeze(0).expand_as(data)
 
+    for d_idx, tokens in enumerate(data):
+        # get indicies equal to the EOD token
+        indicies = (tokens == eod_token).nonzero(as_tuple=True)[0]
+
+        c = 0
+        for idx in indicies:
+            #increment idx to include EOD token in string
+            idx += 1
+
+            #overwrite section of mask with lower triangle
+            attention_mask[d_idx, c:idx, c:idx] = torch.tril(torch.ones(idx-c, idx-c))
+
+            #overwrite position ids
+            position_ids[d_idx, c:idx] = torch.arange(idx-c)
+
+            #update starting position
+            c = idx
+
+        #overwrite the remainder of mask with a triangle (as no EOD token will be specified)
+        attention_mask[d_idx, idx:, idx:] = torch.tril(torch.ones(data.shape[-1]-idx, data.shape[-1]-idx))
+
+        #much like above, overwrite position ids
+        position_ids[d_idx, idx:] = torch.arange(data.shape[-1]-idx)
+        
     # Loss mask.
     loss_mask = torch.ones(data.size(), dtype=torch.float, device=data.device)
     if eod_mask_loss:
         loss_mask[data == eod_token] = 0.0
-
-    # Position ids.
-    position_ids = torch.arange(seq_length, dtype=torch.long, device=data.device)
-    position_ids = position_ids.unsqueeze(0).expand_as(data)
-
+        
     return attention_mask, loss_mask, position_ids
 
 
