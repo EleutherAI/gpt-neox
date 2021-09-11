@@ -42,6 +42,19 @@ def gpt2_attention_mask_func(attention_scores, ltor_mask):
     attention_scores.masked_fill_(ltor_mask, -10000.0)
     return attention_scores
 
+def get_topk_mask(teacher_logits, topk=1024):
+    device = teacher_logits.device
+    batch_size, seq_len, hidden_size = teacher_logits.shape
+    start_indicies = torch.arange(batch_size*seq_len) * hidden_size
+
+    top_k_indicies = torch.topk(teacher_logits, topk, sorted=False)[1]
+    top_k_indicies = top_k_indicies.to(device).view(-1,topk) + start_indicies.to(device).unsqueeze(-1).expand(-1,topk)
+    top_k_indicies = top_k_indicies.flatten()
+
+    mask = torch.zeros_like(teacher_logits, dtype=torch.bool).to(device).flatten()
+    mask[top_k_indicies.long()] = True
+    mask = mask.view(batch_size, seq_len, hidden_size)
+    return mask, topk
 
 def cross_entropy(output, labels, _fp16=False):
     """ From pretrain_gpt2:forward_step() """
@@ -64,14 +77,42 @@ def cross_entropy(output, labels, _fp16=False):
     return loss
 
 
-def kldiv_loss_fn(output, labels, _fp16=False):
+def topk_kldiv(output, labels, topk):
+
+    soft_output = torch.nn.Softmax(dim=2)(output)
+    soft_labels = torch.nn.Softmax(dim=2)(labels)
+
+    mask, topk = get_topk_mask(soft_labels, topk)
+    masked_logits_shape = (-1, topk)
+    #masked_logits_shape = soft_labels.shape[:-1] + (topk,)
+    #print_rank_0("2output:", soft_output[mask].float().sum())
+    #print_rank_0("2labels",soft_labels[mask].float().sum())
+    losses = torch.nn.KLDivLoss(reduction='none')(soft_output[mask].view(*masked_logits_shape).log(),
+                                 soft_labels[mask].view(*masked_logits_shape)).sum()
+    return losses
+
+
+def kldiv_loss_fn(output, labels, topk=None, _fp16=False):
 
     labels, loss_mask = labels[0], labels[1]
+
+    output = output.float().contiguous() if _fp16 else output.contiguous()
+    labels = labels.float().contiguous() if _fp16 else labels.contiguous()
+    
     if _fp16:
         assert (output.dtype == torch.half and labels.dtype == torch.half and loss_mask.dtype == torch.half)
-        losses = mpu.loss.vocab_parallel_KLDivLoss(output.contiguous(), labels.contiguous())
+
+    if topk is not None:
+        #mask, topk = get_topk_mask(labels, topk)
+        #masked_logits_shape = labels.shape[:-1] + (topk,)
+
+        #losses = mpu.loss.vocab_parallel_KLDivLoss(output[mask].view(*masked_logits_shape),
+        #                                           labels[mask].view(*masked_logits_shape))
+
+        return topk_kldiv(output, labels, topk)
     else:
-        losses = mpu.loss.vocab_parallel_KLDivLoss(output.float().contiguous(), labels.float().contiguous())
+        losses = mpu.loss.vocab_parallel_KLDivLoss(output, labels)
+
     loss_mask = loss_mask.view(-1)
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
     return loss
@@ -91,8 +132,8 @@ def mse_loss_fn(output, labels, _fp16=False):
 def combined_loss_fn(output, labels, self, alpha_lm=0, alpha_kld=0, alpha_mse=0, _fp16=False):
     labels, loss_mask = labels[0], labels[1]
     teacher_hidden_states ,teacher_logits, student_hidden_states, student_logits = output
-
-    # CosineEmbeddingLoss(teacher_hidden_states, student_hidden_states) to be implemented 
+    
+    # CosineEmbeddingLoss(teacher_hidden_states, student_hidden_states) to be implemented
     del teacher_hidden_states
     del student_hidden_states
 
@@ -103,14 +144,15 @@ def combined_loss_fn(output, labels, self, alpha_lm=0, alpha_kld=0, alpha_mse=0,
 
     kld_loss = torch.tensor(0).to(student_logits)
     if alpha_kld > 0:
-        kld_loss = kldiv_loss_fn(student_logits, (teacher_logits, loss_mask),  _fp16=_fp16)
+        kld_loss = kldiv_loss_fn(student_logits, (teacher_logits, loss_mask), topk=128, _fp16=_fp16)
+        #kld_loss = kldiv_loss_fn(student_logits, (teacher_logits, loss_mask), _fp16=_fp16)
         kld_loss += alpha_kld * kld_loss
-        
+    
     lm_loss = torch.tensor(0).to(student_logits)
     if alpha_lm > 0:
         lm_loss = cross_entropy(student_logits, (labels, loss_mask), _fp16=_fp16)
         lm_loss = alpha_lm * lm_loss
-
+    
     loss = lm_loss + kld_loss + mse_loss
     count = torch.tensor(1).to(lm_loss.device)
 
@@ -121,8 +163,8 @@ def combined_loss_fn(output, labels, self, alpha_lm=0, alpha_kld=0, alpha_mse=0,
 
     count = count * self.gradient_accumulation_steps
     if self._losses==None:
-        self._losses = [lm_loss.clone().detach()/count, 
-                        kld_loss.clone().detach()/count, 
+        self._losses = [lm_loss.clone().detach()/count,
+                        kld_loss.clone().detach()/count,
                         mse_loss.clone().detach()/count]
     else:
         self._losses[0] += lm_loss.clone().detach()/count
@@ -145,7 +187,7 @@ def _pre_transformer_block(args):
     # using a custom function means we don't have to have this _inference mode which makes everything tricky
     in_inference = len(args) == 3
     in_train = len(args) == 2
-    in_teacher_model = len(args)==4 
+    in_teacher_model = len(args)==4
     in_student_model = len(args)==5
 
     # data format change for hidden_states to avoid explicit tranposes : [b s h] --> [s b h]
@@ -162,7 +204,7 @@ def _pre_transformer_block(args):
 def _post_transformer_block_distillation(args):
     # used instead of a lambda layer to pass outputs of the transformer block to the final layer
     # using a custom function means we don't have to have this _inference mode which makes everything tricky
-    in_teacher_model = len(args)==4 
+    in_teacher_model = len(args)==4
     in_student_model = len(args)==5
     if in_teacher_model or in_student_model:
         fn = lambda x: (x[0].transpose(0, 1).contiguous(), *x[1:])
@@ -209,10 +251,10 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         if self.do_distillation:
             if self._inference == True:
                 raise AssertionError("Cannot use distiling model for inference !")
-            list_neox_args = [substitue_args(neox_args, set_student_args=False), 
+            list_neox_args = [substitue_args(neox_args, set_student_args=False),
                               substitue_args(neox_args, set_student_args=True)]
         else:
-            list_neox_args = [neox_args] 
+            list_neox_args = [neox_args]
 
         for neox_args in list_neox_args:
             self.neox_args = neox_args
@@ -225,10 +267,10 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
 
         if self.do_distillation:
             loss_fn = partial(combined_loss_fn,
-                            self=self, 
-                            alpha_lm=self.neox_args.alpha_lm, 
-                            alpha_kld=self.neox_args.alpha_kld, 
-                            alpha_mse=self.neox_args.alpha_mse, 
+                            self=self,
+                            alpha_lm=self.neox_args.alpha_lm,
+                            alpha_kld=self.neox_args.alpha_kld,
+                            alpha_mse=self.neox_args.alpha_mse,
                             _fp16=self.fp16_lm_cross_entropy)
 
         else:
@@ -279,7 +321,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                                         self.init_method,
                                         self.num_tokentypes))
 
-        # NB: in inference, the attention mask always needs to be the *last* item in the args when being passed from 
+        # NB: in inference, the attention mask always needs to be the *last* item in the args when being passed from
         # one stage to the next, because deepspeed is hacks on top of hacks.
         #
         # outputs are now

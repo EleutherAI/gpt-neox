@@ -8,7 +8,7 @@
    #related to distillation
    "do_distillation" : true,
    "reduce_loss_fp16" : false,
-   "alpha_lm" : 1.0,
+   "alpha_lm" : 0,
    "alpha_kld" : 1.0,
    "alpha_mse" : 0.0,
 
@@ -62,8 +62,8 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 5,
-   "gradient_accumulation_steps": 27,
+   "train_micro_batch_size_per_gpu": 1,
+   "gradient_accumulation_steps": 67,
    "data-impl": "mmap",
    "split": "949,50,1",
 
