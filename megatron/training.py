@@ -39,7 +39,11 @@ from megatron.utils import (
 
 
 from megatron import print_rank_0, mpu
-from megatron.model import GPT2ModelPipe, SoftEmbedding, get_params_for_weight_decay_optimization
+from megatron.model import (
+    GPT2ModelPipe,
+    SoftEmbedding,
+    get_params_for_weight_decay_optimization,
+)
 from megatron.checkpointing import load_checkpoint, save_checkpoint
 from megatron.data.data_utils import build_train_valid_test_data_iterators
 from megatron.initialize import initialize_megatron
@@ -158,9 +162,8 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
 
     # Get the masks and position ids.
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
-        tokens,
-        tokenizer.eod,
-        neox_args.eod_mask_loss)
+        tokens, tokenizer.eod, neox_args.eod_mask_loss
+    )
 
     return tokens, labels, loss_mask, attention_mask, position_ids
 
@@ -222,29 +225,68 @@ def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
     return loss
 
 
+def add_adapters(model, neox_args):
+    ### Adapter stuff ##
+    # The actual adapter layer gets initialized within the model class.
+    # All we need to do here is to freeze all the other weights so only the adapter layer gets tuned.
+    if neox_args.adapter_config.get("freeze_model", True):
+        for name, param in model.named_parameters():
+            if (not "adapter" in name) and (
+                not "embeddings" in name
+            ):  # For some reason I need to also tune the embeddings or things break
+                param.requires_grad = False
+    return model
+
+
+def add_soft_prompt(model, neox_args):
+    ### Soft prompt stuff ##
+    soft_prompt = SoftEmbedding(
+        neox_args,
+        wte=getattr(model, "0").word_embeddings,
+        n_tokens=neox_args.soft_prompt_tuning.get("n_tokens", 10),
+        init_string=neox_args.soft_prompt_tuning.get("init_string", ""),
+        init_range=neox_args.soft_prompt_tuning.get("init_range", 0.5),
+    )
+    model.insert_layers(
+        layers=soft_prompt, idx=1
+    )  # insert the soft prompt layer directly after the word embeddings
+
+    if neox_args.soft_prompt_tuning.get("freeze_model", True):
+        # freeze everything but the soft prompt
+        for name, param in model.named_parameters():
+            if not "soft_embedding" in name:
+                param.requires_grad = False
+
+    return model
+
+
 def get_model(neox_args, inference=False, get_key_value=True):
     """Build the model."""
 
     print_rank_0("building GPT2 model ...")
 
     # Build model on cpu.
-    model = GPT2ModelPipe(neox_args=neox_args, num_tokentypes=0, parallel_output=True, topology=mpu.get_topology(),
-                            inference=inference, get_key_value=get_key_value)
-    
+    model = GPT2ModelPipe(
+        neox_args=neox_args,
+        num_tokentypes=0,
+        parallel_output=True,
+        topology=mpu.get_topology(),
+        inference=inference,
+        get_key_value=get_key_value,
+    )
+
+    if neox_args.adapter_config is not None and neox_args.adapter_config.get(
+        "enabled", False
+    ):
+        model = add_adapters(model, neox_args)
+
     ### soft prompt tuning stuff ###
-    if neox_args.soft_prompt_tuning is not None and neox_args.soft_prompt_tuning.get('enabled', False):
-        soft_prompt = SoftEmbedding(neox_args, 
-                                    wte = getattr(model, '0').word_embeddings,
-                                    n_tokens=neox_args.soft_prompt_tuning.get("n_tokens", 10),
-                                    init_string=neox_args.soft_prompt_tuning.get("init_string", ""),
-                                    init_range=neox_args.soft_prompt_tuning.get("init_range", 0.5))
-        model.insert_layers(layers=soft_prompt, idx=1) # insert the soft prompt layer directly after the word embeddings
-        
-        # freeze everything but the soft prompt
-        for name, param in model.named_parameters():
-            if not 'soft_embedding' in name:
-                param.requires_grad = False
-        
+    if neox_args.soft_prompt_tuning is not None and neox_args.soft_prompt_tuning.get(
+        "enabled", False
+    ):
+        # TODO: this messes up the layerwise checkpoint loading
+        model = add_soft_prompt(model, neox_args)
+
     if not neox_args.is_pipe_parallel:
         # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
         model = model.to_sequential()
@@ -260,13 +302,23 @@ def get_model(neox_args, inference=False, get_key_value=True):
         raise ValueError("Must be using deepspeed to run neox")
 
 
+def count_parameters(param_groups):
+    total = 0
+    for param_group in param_groups:
+        for param in param_group["params"]:
+            total += param.numel()
+    return total
+
+
 def get_optimizer(model, neox_args):
     """Set up the optimizer."""
     if neox_args.no_load_optim:
         return None, None
     # Build parameter groups (weight decay and non-decay).
     param_groups = get_params_for_weight_decay_optimization(model, neox_args)
-    print_rank_0(f'Configuring Optimizer type: {neox_args.optimizer_type} with params: {neox_args.optimizer["params"]}')
+    print_rank_0(
+        f'Configuring Optimizer type: {neox_args.optimizer_type} with params: {neox_args.optimizer["params"]}'
+    )
 
     # Add model parallel attribute if it is not set.
     for param_group in param_groups:
@@ -274,13 +326,14 @@ def get_optimizer(model, neox_args):
             if not hasattr(param, "model_parallel"):
                 param.model_parallel = False
 
-    # Filter out params that don't require a grad (for soft prompt tuning, etc.)
+    # # Filter out params that don't require a grad (for soft prompt tuning, etc.)
     _param_groups = []
     for param_group in param_groups:
-        trainable_params = [p for p in param_group['params'] if p.requires_grad]
-        param_group['params'] = trainable_params
+        trainable_params = [p for p in param_group["params"] if p.requires_grad]
+        param_group["params"] = trainable_params
         _param_groups.append(param_group)
     param_groups = _param_groups
+    print_rank_0(f"{count_parameters(param_groups):,} total trainable parameters")
 
     if neox_args.optimizer_type.lower() in ["cpu_adam", "cpu_torch_adam"]:
         if neox_args.optimizer == "cpu_torch_adam":
@@ -554,10 +607,10 @@ def train(
         if neox_args.log_gradient_noise_scale:  # log noise scale if applicable
             noise_scale_logger.update()
 
-        # get learning rate (if present) - if doing soft prompt tuning + pipe parallel, you 
+        # get learning rate (if present) - if doing soft prompt tuning + pipe parallel, you
         # may have no tunable parameters on a specific rank
         if optimizer.param_groups:
-            lr = optimizer.param_groups[0].get('lr', 0)
+            lr = optimizer.param_groups[0].get("lr", 0)
         else:
             lr = 0
 
@@ -653,7 +706,11 @@ def evaluate(
             # although we're not accumulating gradients here, we count one iter as train_batch_size_per_gpu * g.a.s
             # to be consistent with deepspeed's pipe parallel engine
             # since pipe parallel already takes gas into account - default to 1 here if pipe parallel is true
-            for _ in range(1 if neox_args.is_pipe_parallel else neox_args.gradient_accumulation_steps):
+            for _ in range(
+                1
+                if neox_args.is_pipe_parallel
+                else neox_args.gradient_accumulation_steps
+            ):
                 # Forward evaluation
                 loss = forward_step_fn(
                     model=model,

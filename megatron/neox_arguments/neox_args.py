@@ -124,7 +124,9 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Scalenorm epsilon
     """
 
-    pos_emb: Literal['learned', 'rotary', 'sinusoidal', 'rpe', 'alibi', 'none'] = "learned"
+    pos_emb: Literal[
+        "learned", "rotary", "sinusoidal", "rpe", "alibi", "none"
+    ] = "learned"
     """
     Type of positional embedding to use - choose from 'learned', 'rotary', 'sinusoidal', 'rpe', 'none'
     """
@@ -205,7 +207,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Pad the vocab size to be divisible by this value. This is added for computational efficiency reasons.
     """
 
-    activation : Literal["gelu", "geglu", "relu", "softsign", "swish", "mish"] = "gelu"
+    activation: Literal["gelu", "geglu", "relu", "softsign", "swish", "mish"] = "gelu"
     """
     Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish"]
     """
@@ -310,6 +312,17 @@ class NeoXArgsModel(NeoXArgsTemplate):
         'num_tokens': int = 10 # length of the soft prompt in tokens
         'init_string': str = '' # if provided, initialize the soft prompt with the word embeddings of this string
         'init_range': float = 0.5 # if no init string is provided, initialize the soft prompt with a uniform distribution between -init_range and init_rang
+    """
+
+    adapters_config: dict = None
+    """
+    Dictionary configuring parameters for finetuning with adapters.
+    If enabled, will train *only* the adapters, and freezes the rest of the model.
+    parameters in the dict are:
+        'enabled': bool = True # enables adapters
+        'downsample_factor': int = 4 # downsample factor for adapters
+        'freeze_model': bool = True # if True, will freeze the model and only train adapters. If False, will train the whole model + adapters.
+        'add_norm': bool = False # if True, will add a layernorm to the beginning of the adapter layers
     """
 
 
