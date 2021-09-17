@@ -6,6 +6,6 @@ git+git://github.com/EleutherAI/DeeperSpeed.git@c45ec1c0ac05803c02763d7e43be6791
 wandb==0.12.2
 transformers==4.10.0
 tokenizers==0.10.3
-lm_dataformat==0.0.20
+lm_dataformat==0.0.19
 ftfy==6.0.3
 lm_eval==0.0.1
