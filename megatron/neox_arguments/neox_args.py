@@ -314,7 +314,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
         'init_range': float = 0.5 # if no init string is provided, initialize the soft prompt with a uniform distribution between -init_range and init_rang
     """
 
-    adapters_config: dict = None
+    adapter_config: dict = None
     """
     Dictionary configuring parameters for finetuning with adapters.
     If enabled, will train *only* the adapters, and freezes the rest of the model.
