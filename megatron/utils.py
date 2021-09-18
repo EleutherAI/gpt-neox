@@ -26,8 +26,11 @@ import socket
 from typing import Dict, List
 
 import requests
-import wandb
-from wandb import UsageError
+
+try:
+    import wandb
+except ModuleNotFoundError:
+    wandb = None
 
 import torch
 
@@ -61,21 +64,21 @@ def report_memory(name):
     )
     print_rank_0(string)
 
+
 def get_attn_mask(seq_length, device):
     """
     Get triangular attention mask for a given sequence length / device.
     """
     # lower triangular attention mask
-    mask = torch.tril(torch.ones(
-        (1, seq_length, seq_length), device=device)).view(
-        1, 1, seq_length, seq_length)
-    
-    # convert to binary
-    return (mask < 0.5)
+    mask = torch.tril(torch.ones((1, seq_length, seq_length), device=device)).view(
+        1, 1, seq_length, seq_length
+    )
 
-def get_ltor_masks_and_position_ids(data,
-                                    eod_token,
-                                    eod_mask_loss=False):
+    # convert to binary
+    return mask < 0.5
+
+
+def get_ltor_masks_and_position_ids(data, eod_token, eod_mask_loss=False):
     """Build masks and position id for left to right model."""
 
     # Extract batch size and sequence length.
@@ -97,7 +100,7 @@ def get_ltor_masks_and_position_ids(data,
 
 
 def local_rank():
-    """ Local rank of process """
+    """Local rank of process"""
     local_rank = os.environ.get("LOCAL_RANK")
     if local_rank is None:
         print(
@@ -109,7 +112,7 @@ def local_rank():
 
 
 def is_local_main():
-    """ True if is the local main process """
+    """True if is the local main process"""
     return local_rank() == 0
 
 
@@ -119,7 +122,7 @@ def is_mp_rank_0():
 
 
 def get_wandb_api_key(neox_args):
-    """ Get Weights and Biases API key from ENV or .netrc file. Otherwise return None """
+    """Get Weights and Biases API key from ENV or .netrc file. Otherwise return None"""
     if "WANDB_LOCAL" in os.environ:
         return "LOCAL"
     if "WANDB_API_KEY" in os.environ:
@@ -133,6 +136,10 @@ def get_wandb_api_key(neox_args):
 
 def init_wandb(neox_args):
     # Wandb. (one worker per machine)
+    if wandb is None:
+        neox_args.update_value("use_wandb", False)
+        print("wandb not installed, skipping wandb.")
+
     if neox_args.use_wandb == False:
         return
 
@@ -150,7 +157,7 @@ def init_wandb(neox_args):
                 force=False,
                 entity=neox_args.wandb_team,
             )
-        except UsageError as e:
+        except wandb.UsageError as e:
             neox_args.update_value("use_wandb", False)
             print(e)
             print(
