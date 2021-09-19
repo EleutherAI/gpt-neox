@@ -76,21 +76,21 @@ def cross_entropy(output, labels, _fp16=False):
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
     return loss
 
-
 def topk_kldiv(output, labels, topk):
 
+	batch_size, seq_len, hidden_size = output.shape
     soft_output = torch.nn.Softmax(dim=2)(output)
     soft_labels = torch.nn.Softmax(dim=2)(labels)
 
     mask, topk = get_topk_mask(soft_labels, topk)
     masked_logits_shape = (-1, topk)
-    #masked_logits_shape = soft_labels.shape[:-1] + (topk,)
-    #print_rank_0("2output:", soft_output[mask].float().sum())
-    #print_rank_0("2labels",soft_labels[mask].float().sum())
-    losses = torch.nn.KLDivLoss(reduction='none')(soft_output[mask].view(*masked_logits_shape).log(),
-                                 soft_labels[mask].view(*masked_logits_shape)).sum()
-    return losses
 
+    masked_soft_output = soft_output[mask].view(*masked_logits_shape)
+	masked_soft_output = masked_soft_output.add(1e-5)
+    masked_soft_labels = soft_labels[mask].view(*masked_logits_shape)
+    masked_soft_labels = torch.nn.Softmax()(masked_soft_labels)
+    losses = torch.nn.KLDivLoss(reduction='sum')(masked_soft_output.log(), masked_soft_labels)/(batch_size * seq_len)
+	return losses
 
 def kldiv_loss_fn(output, labels, topk=None, _fp16=False):
 
