@@ -124,7 +124,9 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Scalenorm epsilon
     """
 
-    pos_emb: Literal['learned', 'rotary', 'sinusoidal', 'rpe', 'alibi', 'none'] = "learned"
+    pos_emb: Literal[
+        "learned", "rotary", "sinusoidal", "rpe", "alibi", "none"
+    ] = "learned"
     """
     Type of positional embedding to use - choose from 'learned', 'rotary', 'sinusoidal', 'rpe', 'none'
     """
@@ -205,9 +207,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Pad the vocab size to be divisible by this value. This is added for computational efficiency reasons.
     """
 
-    activation : Literal["gelu", "geglu", "relu", "softsign", "swish", "mish"] = "gelu"
+    activation: Literal[
+        "gelu", "geglu", "relu", "softsign", "swish", "mish", "relu_squared"
+    ] = "gelu"
     """
-    Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish"]
+    Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish", "relu_squared"]
     """
 
     scaled_upper_triang_masked_softmax_fusion: bool = False
@@ -310,6 +314,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
         'num_tokens': int = 10 # length of the soft prompt in tokens
         'init_string': str = '' # if provided, initialize the soft prompt with the word embeddings of this string
         'init_range': float = 0.5 # if no init string is provided, initialize the soft prompt with a uniform distribution between -init_range and init_rang
+    """
+
+    qkv_conv: bool = False
+    """
+    Whether to apply a depth-wise convolution to the query, key and value layers. (see https://arxiv.org/pdf/2109.08668.pdf)
     """
 
 
