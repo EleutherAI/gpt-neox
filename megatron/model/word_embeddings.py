@@ -83,16 +83,16 @@ class Embedding(torch.nn.Module):
         ### soft prompt tuning stuff ###
         self.add_soft_prompt = False
         if (
-            neox_args.soft_prompt_tuning is not None
-            and neox_args.soft_prompt_tuning.get("enabled", False)
+            neox_args.soft_prompt_config is not None
+            and neox_args.soft_prompt_config.get("enabled", False)
         ):
             self.add_soft_prompt = True
             self.soft_prompt = SoftEmbedding(
                 neox_args,
                 wte=self.word_embeddings,
-                n_tokens=neox_args.soft_prompt_tuning.get("n_tokens", 10),
-                init_string=neox_args.soft_prompt_tuning.get("init_string", ""),
-                init_range=neox_args.soft_prompt_tuning.get("init_range", 0.5),
+                n_tokens=neox_args.soft_prompt_config.get("n_tokens", 10),
+                init_string=neox_args.soft_prompt_config.get("init_string", ""),
+                init_range=neox_args.soft_prompt_config.get("init_range", 0.5),
             )
 
     def add_tokentype_embeddings(self, num_tokentypes):

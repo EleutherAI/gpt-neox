@@ -98,12 +98,14 @@ class Adapter(nn.Module):
         )
 
     def forward(self, x):
+
         residual = x
         if self.add_norm:
             x = self.norm(x)
         x, _ = self.in_proj(x)
         x = self.activation(x)
         x, _ = self.out_proj(x)
+
         return x + residual
 
 
@@ -148,7 +150,10 @@ class ParallelMLP(nn.Module):
             init_method=output_layer_init_method,
             skip_bias_add=True,
         )
-        self.add_adapter = neox_args.adapter_config is not None and neox_args.adapter_config.get("enabled", False)
+        self.add_adapter = (
+            neox_args.adapter_config is not None
+            and neox_args.adapter_config.get("enabled", False)
+        )
         if self.add_adapter:
             self.adapter = Adapter(neox_args)
 

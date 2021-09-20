@@ -303,7 +303,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     If None - gmlp model doesn't use attention.
     """
 
-    soft_prompt_tuning: dict = None
+    soft_prompt_config: dict = None
     """
     Dictionary configuring the soft prompt tuning parameters. 
     If enabled, will train *only* the soft prompt, and freezes the rest of the model.

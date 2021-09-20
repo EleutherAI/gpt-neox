@@ -103,7 +103,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 875f8ad
+    Default = 7b02a4d
 
     current git hash of repository
 
@@ -269,7 +269,7 @@ Model Arguments
 
 
 
-- **pos_emb**: typing.Literal['learned', 'rotary', 'sinusoidal', 'rpe', 'none']
+- **pos_emb**: typing.Literal['learned', 'rotary', 'sinusoidal', 'rpe', 'alibi', 'none']
 
     Default = learned
 
@@ -372,14 +372,6 @@ Model Arguments
     Default = 128
 
     Pad the vocab size to be divisible by this value. This is added for computational efficiency reasons.
-
-
-
-- **apply_residual_connection_post_layernorm**: bool
-
-    Default = False
-
-    If set, use original BERT residual connection ordering.
 
 
 
@@ -506,6 +498,34 @@ Model Arguments
 
 
 
+- **soft_prompt_config**: dict
+
+    Default = None
+
+    Dictionary configuring the soft prompt tuning parameters. 
+    If enabled, will train *only* the soft prompt, and freezes the rest of the model.
+    parameters in the dict are:
+        'enabled': bool = True # enables soft prompting
+        'num_tokens': int = 10 # length of the soft prompt in tokens
+        'init_string': str = '' # if provided, initialize the soft prompt with the word embeddings of this string
+        'init_range': float = 0.5 # if no init string is provided, initialize the soft prompt with a uniform distribution between -init_range and init_rang
+
+
+
+- **adapter_config**: dict
+
+    Default = None
+
+    Dictionary configuring parameters for finetuning with adapters.
+    If enabled, will train *only* the adapters, and freezes the rest of the model.
+    parameters in the dict are:
+        'enabled': bool = True # enables adapters
+        'downsample_factor': int = 4 # downsample factor for adapters
+        'freeze_model': bool = True # if True, will freeze the model and only train adapters. If False, will train the whole model + adapters.
+        'add_norm': bool = False # if True, will add a layernorm to the beginning of the adapter layers
+
+
+
 ## NeoXArgsOptimizer
 
 Optimizer Arguments
@@ -611,22 +631,6 @@ Misc. Arguments
     Default = 0.1
 
     Probability of producing a short sequence.
-
-
-
-- **reset_position_ids**: bool
-
-    Default = False
-
-    Reset posistion ids after end-of-document token.
-
-
-
-- **reset_attention_mask**: bool
-
-    Default = False
-
-    Reset self attention mask after end-of-document token.
 
 
 

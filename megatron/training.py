@@ -240,7 +240,7 @@ def add_adapters(model, neox_args):
 
 def add_soft_prompt(model, neox_args):
 
-    if neox_args.soft_prompt_tuning.get("freeze_model", True):
+    if neox_args.soft_prompt_config.get("freeze_model", True):
         # freeze everything but the soft prompt
         for name, param in model.named_parameters():
             if not "soft_embedding" in name:
@@ -270,7 +270,7 @@ def get_model(neox_args, inference=False, get_key_value=True):
         model = add_adapters(model, neox_args)
 
     ### soft prompt tuning stuff ###
-    if neox_args.soft_prompt_tuning is not None and neox_args.soft_prompt_tuning.get(
+    if neox_args.soft_prompt_config is not None and neox_args.soft_prompt_config.get(
         "enabled", False
     ):
         # TODO: this messes up the layerwise checkpoint loading

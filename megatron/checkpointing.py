@@ -212,8 +212,8 @@ def load_checkpoint(neox_args, model, optimizer, lr_scheduler, inference=False):
         )  # TODO: These should be configured by separate args
 
         soft_prompt_enabled = (
-            neox_args.soft_prompt_tuning is not None
-            and neox_args.soft_prompt_tuning.get("enabled", False)
+            neox_args.soft_prompt_config is not None
+            and neox_args.soft_prompt_config.get("enabled", False)
         )
         adapter_enabled = (
             neox_args.adapter_config is not None

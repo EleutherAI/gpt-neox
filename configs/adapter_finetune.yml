@@ -1,0 +1,10 @@
+{
+  "adapter_config":
+    {"enabled": True,  # enables adapters
+     "downsample_factor": 4, # amount to downsample by in adapter layer
+     "freeze_model": True, # freezes the whole model aside from the adapter layers
+     "add_norm": False # If true, adds a layernorm to each adapter layer
+     },
+     
+   "finetune": True
+}

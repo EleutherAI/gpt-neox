@@ -1,0 +1,9 @@
+{
+  "soft_prompt_config":
+    {"enabled": True,  # enables adapters
+     "num_tokens": 10, # amount to downsample by in adapter layer
+     "freeze_model": True, # freezes the whole model aside from the adapter layers
+     },
+     
+   "finetune": True
+}
