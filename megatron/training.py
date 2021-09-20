@@ -231,25 +231,14 @@ def add_adapters(model, neox_args):
     # All we need to do here is to freeze all the other weights so only the adapter layer gets tuned.
     if neox_args.adapter_config.get("freeze_model", True):
         for name, param in model.named_parameters():
-            if (not "adapter" in name) and (
-                not "embeddings" in name
-            ):  # For some reason I need to also tune the embeddings or things break
+            if (
+                not "adapter" in name
+            ): 
                 param.requires_grad = False
     return model
 
 
 def add_soft_prompt(model, neox_args):
-    ### Soft prompt stuff ##
-    soft_prompt = SoftEmbedding(
-        neox_args,
-        wte=getattr(model, "0").word_embeddings,
-        n_tokens=neox_args.soft_prompt_tuning.get("n_tokens", 10),
-        init_string=neox_args.soft_prompt_tuning.get("init_string", ""),
-        init_range=neox_args.soft_prompt_tuning.get("init_range", 0.5),
-    )
-    model.insert_layers(
-        layers=soft_prompt, idx=1
-    )  # insert the soft prompt layer directly after the word embeddings
 
     if neox_args.soft_prompt_tuning.get("freeze_model", True):
         # freeze everything but the soft prompt

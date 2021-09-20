@@ -80,6 +80,21 @@ class Embedding(torch.nn.Module):
         # Embeddings dropout
         self.embedding_dropout = torch.nn.Dropout(embedding_dropout_prob)
 
+        ### soft prompt tuning stuff ###
+        self.add_soft_prompt = False
+        if (
+            neox_args.soft_prompt_tuning is not None
+            and neox_args.soft_prompt_tuning.get("enabled", False)
+        ):
+            self.add_soft_prompt = True
+            self.soft_prompt = SoftEmbedding(
+                neox_args,
+                wte=self.word_embeddings,
+                n_tokens=neox_args.soft_prompt_tuning.get("n_tokens", 10),
+                init_string=neox_args.soft_prompt_tuning.get("init_string", ""),
+                init_range=neox_args.soft_prompt_tuning.get("init_range", 0.5),
+            )
+
     def add_tokentype_embeddings(self, num_tokentypes):
         """Add token-type embedding. This function is provided so we can add
         token-type embeddings in case the pretrained model does not have it.
@@ -96,7 +111,7 @@ class Embedding(torch.nn.Module):
         # Initialize the token-type embeddings.
         self.init_method(self.tokentype_embeddings.weight)
 
-    def forward(self, input_ids, position_ids, tokentype_ids=None):
+    def forward(self, input_ids, position_ids, tokentype_ids=None, layer_past=None):
         # Embeddings.
         words_embeddings = self.word_embeddings(input_ids)
         if self.use_pos_emb and self.embedding_type in ["learned", "sinusoidal"]:
@@ -112,6 +127,8 @@ class Embedding(torch.nn.Module):
 
         # Dropout.
         embeddings = self.embedding_dropout(embeddings)
+        if self.add_soft_prompt:
+            embeddings = self.soft_prompt(embeddings, layer_past)
         return embeddings
 
 
@@ -132,6 +149,7 @@ class EmbeddingPipe(Embedding):
         input_ids = args[0]
         position_ids = args[1]
         attention_mask = args[2]
+        layer_past = None
         if in_inference:
             layer_past = args[3]
         elif in_train:
@@ -141,7 +159,7 @@ class EmbeddingPipe(Embedding):
                 f"Incorrect number of args passed to {self.__class__.__name__}"
             )
 
-        embeddings = super().forward(input_ids, position_ids)
+        embeddings = super().forward(input_ids, position_ids, layer_past=layer_past)
         if in_inference:
             return embeddings, layer_past, attention_mask
         else:
@@ -183,25 +201,13 @@ class SoftEmbedding(torch.nn.Module):
             -self.init_range, self.init_range
         )
 
-    def forward(self, args: tuple):
-        in_inference = len(args) == 3  # embeddings, layer_past, attention_mask
-        in_train = len(args) == 2  # embeddings, attention_mask
-        if in_train:
-            embedding, attention_mask = args
-        else:
-            embedding, layer_past, attention_mask = args
+    def forward(self, embedding, layer_past):
         soft_embedding = self.soft_embedding_weight.repeat(
             embedding.shape[0], 1, 1
         )  # repeat batch_size times
-        if in_train:
-            # append soft embedding at the beginning in training
+        if not (exists(layer_past) and layer_past.numel() > 0):
+            # if in inference, on the first forward pass, we want to do the same as in training (append soft embedding)
             embedding = torch.cat((soft_embedding, embedding), dim=1)
             embedding = embedding[:, : self.neox_args.seq_length, ...]
-            return embedding, attention_mask
-        else:
-            if not (exists(layer_past) and layer_past.numel() > 0):
-                # if in inference, on the first forward pass, we want to do the same as in training (append soft embedding)
-                embedding = torch.cat((soft_embedding, embedding), dim=1)
-                embedding = embedding[:, : self.neox_args.seq_length, ...]
-            # otherwise, we're in incremental mode, and just want to forward the single embedding (since the soft prompt has already been cached)
-            return embedding, layer_past, attention_mask
+        # otherwise, we're in incremental mode, and just want to forward the single embedding (since the soft prompt has already been cached)
+        return embedding
