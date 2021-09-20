@@ -12,7 +12,6 @@ If you are interested in contributing, please [join our discord](https://discord
 If you're looking for our TPU codebase, see [GPT-Neo](https://github.com/EleutherAI/gpt-neo).
 
 - [GPT-NeoX](#gpt-neox)
-  * [Why GPT-NeoX](#why-gpt-neox)
   * [Quick Start](#quick-start)
   * [Features](#features)
     + [3D Parallelism](#3d-parallelism)
@@ -35,28 +34,14 @@ If you're looking for our TPU codebase, see [GPT-Neo](https://github.com/Eleuthe
     + [Licensing](#licensing)
     + [Acknowledgements](#acknowledgements)
 
-## Why GPT-NeoX
-
-**Straightforward configuration:** Other libraries such as Megatron-LM require you configure them using command line arguments and global variables, which can often be difficult to work with and iterate upon. We offer straightforward configuration using .yaml files, which enables you to launch training runs across 100s of GPUs with a single line bash script. Additionally, we hope to make data preparation easier on the user by providing scripts to automatically download and pretokenize a number of large-scale datasets.
-
-**Diverse Modeling Options:** We provide a wide collections of options for constructing your model.
-
-**HuggingFace Integration:** Our code is designed to work with the HuggingFace `transformers` library. All models trained using this codebase can be uploaded to a custom HuggingFace class with ease, and all HuggingFace tokenizers and datasets can be used to train models.
-
-**Large Pretrained Models:** We offer several large, pretrained models to iterate on. For people who are unable to train billion parameter scale models themselves, this framework allows you to easily interact with models that we have released.
-
 ## Quick Start
-
-**Google Colab**
-
-Coming soon: a colab notebook for trying out the model.
 
 **Warning:** Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), our fork of the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library with some added changes. We strongly recommend using Anaconda, a virtual machine, or some other form of environment isolation before installing from `requirements/requirements.txt`. Failure to do so may cause other repositories that rely on DeepSpeed to break.
 
 First make sure you are in an environment with Python 3.8 or later and `torch>=1.8` installed. Then run `pip install -r requirements/requirements.txt`. 
 You may need to change the version of `cupy-cudaxxx` to match your machine's cuda version.
 
-Some features rely on apex, which you can install with the command below:
+You can (optionally) install apex, which offers a slight speedup by fusing the Adam optimizer. If it's not installed, torch's Adam will be used as a fallback:
 
 ```bash
 pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@e2083df5eb96643c61613b9df48dd4eea6b07690
@@ -64,12 +49,12 @@ pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp
 
 We also host a Docker Image on Dockerhub at `leogao2/gpt-neox`, which enables easy multi-node training.
 
-Once you've installed all the requirements and set up your model configuration, the next step is obtaining and preprocessing your dataset. We provide a data processing library that is easily interfaced with via the function `prepare_data.py`. Calling `python prepare_data.py enron -t CharLevelTokenizer -d ./data/` will download the dataset `enron`, tokenize it with a character-level tokenizer, and save the results to `./data/`. 
+Once you've installed all the requirements and set up your model configuration, the next step is obtaining and preprocessing your dataset. We provide a data processing library that is easily interfaced with via the function `prepare_data.py`. Calling `python prepare_data.py enron -d ./data/` will download the dataset `enron`, tokenize it with the gpt2 tokenizer, and save the results to `./data/`. 
 
 GPT-NeoX parameters are defined in a YAML configuration file which is passed to the `deepy.py` launcher. We provide baseline examples for the models found in the paper [Language Models are Few Shot Learners](https://arxiv.org/abs/2005.14165). Configs such as file locations that are dependant on your particular system go in `local_configs.yml`. We have filled it out with some placeholder examples, but you will need to update this for your system.
 
 All functionality follows the pattern `./deepy.py main_function.py -d configs small.yml local_configs.yml`
-We currently offer four main functions:
+We currently offer three main functions:
 1. `pretrain_gpt2.py` is used for training and finetuning models.
 2. `eval_tasks/run.py` is used to evaluate a trained model using the evaluation harness.
 3. `text_gen_gpt2.py` is used to sample text from a trained model.
@@ -131,6 +116,13 @@ Next make sure to download the GPT2 tokenizer vocab, and merge files from the fo
 - Merge: https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-merges.txt
 
 ### Using Custom Data
+
+To use a custom dataset, format your data as a .jsonl file, or a folder of .jsonl files, with the text in the json under the key 'text'. I.E:
+
+```jsonl
+{"text": "words words words ... "}
+{"text": "more words ... "}
+```
 
 ### Using and Training Tokenizers
 
@@ -216,13 +208,79 @@ This will deploy the `pretrain_gpt2.py` script on all nodes with one process per
 
 ## Inference
 
-[WIP]
+To generate text with a trained model, you can simply run
 
+```bash
+./deepy.py text_gen_gpt2.py -d configs <your configs> text_generation.yml
+```
+
+where `<your configs>` are the .yml configuration files you used during training, i.e `small.yml local_setup.yml` and `text_generation.yml` is an extra .yml file configuring text generation.
+
+The text generation .yml should configure the following settings:
+
+```yaml
+# Parameters used for text generation
+# Make sure `load` is specified somewhere else
+{
+  # text-gen-type: `input-file`, `unconditional` or `interactive`
+  # configures what type of text generation to do, either generating 
+  # samples from text in a text file, unconditionally, or in an interactive terminal.
+  "text-gen-type": "unconditional",
+ 
+  "maximum_tokens": 102, # maximum number of tokens to generate for each batch
+  "temperature": 1.0, # sample temperature
+  "top_p": 0.0, # top_p sampling setting
+  "top_k": 0, # top_k sampling setting
+  "recompute": false, # whether to cache inputs (false, default), or recompute at every step (true)
+  
+  "num-samples": 10, # batch size
+
+  # input/output file, if generating from file
+  "sample-input-file": "sample_input.txt",
+  "sample-output-file": "sample_output.txt",
+}
+```
 ## Evaluation
 
 GPT-NeoX supports evaluation on downstream tasks through the [language model evaluation harness](https://github.com/EleutherAI/lm-evaluation-harness).
 
 To evaluate a trained model on the evaluation harness, use `./deepy.py evaluate.py configs/your_config.yml`
+
+## Finetuning
+
+To finetune a model, simply add 
+```yaml
+"finetune": True
+"data-path": "data/finetune_dataset",
+"save": "finetuned_checkpoints"
+```
+to your .yml configuration file. This will reset the iteration counter to 0, reset all optimizer states, and start finetuning from your new dataset, saving weights out to `"./finetuned_checkpoints"`.
+
+You can also finetune either using adapters, or soft prompts.
+To use adapters, do the same as above, but also add an `adapters_config` to your .yml. E.G: 
+
+```yaml
+  "adapter_config":
+    {"enabled": True,  # enables adapters
+     "downsample_factor": 4, # amount to downsample by in adapter layer
+     "freeze_model": True, # freezes the whole model aside from the adapter layers
+     "add_norm": False # If true, adds a layernorm to each adapter layer
+     },
+```
+
+And to use soft prompting, add a `soft_promp_config` to your .yml file. E.G:
+
+```yaml
+  "soft_prompt_config":
+    {"enabled": True,  # enables adapters
+     "num_tokens": 10, # amount to downsample by in adapter layer
+     "freeze_model": True, # freezes the whole model aside from the adapter layers
+     },
+```
+
+Currently, the weights of the entire model are saved out to the checkpoint even when only finetuning certain layers. Saving out only the soft prompt / adapters and then loading them at inference is on our TODO list.
+
+Additionally, you should ensure your finetuning dataset is *padded*. A PR to enabled padding instead of packing in the dataloader is in progress.
 
 ## Distilling
 
