@@ -2,7 +2,7 @@ pybind11==2.6.2
 six
 regex
 numpy==1.20.2
-git+git://github.com/EleutherAI/DeeperSpeed.git@c45ec1c0ac05803c02763d7e43be67919e475a2c#egg=deepspeed
+git+git://github.com/EleutherAI/DeeperSpeed.git@95a5f00c8953d9765eb054614fdd58e1fba3a373#egg=deepspeed
 mpi4py==3.0.3
 wandb==0.10.28
 einops==0.3.0
@@ -11,3 +11,4 @@ tokenizers==0.10.2
 lm_dataformat==0.0.19
 ftfy==6.0.1
 git+https://github.com/EleutherAI/lm-evaluation-harness.git@142ee24fa3c66d595b803641d9fed51ab96a3e91
+git+https://github.com/sdtblck/lm_dataloader.git@cd4e5a7a0d4e6de651d8dbfce704efc495c0d9ec
