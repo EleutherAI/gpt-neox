@@ -74,18 +74,19 @@ def shift(x: torch.Tensor, amt: int, dim: int = -1):
 
 
 class CausalDepthwiseConv(torch.nn.Module):
-    def __init__(self, dim, init_method, kernel_size=3):
+    def __init__(self, dim, head_dim, kernel_size=3, dtype=torch.half):
         super().__init__()
         self.kernel_size = kernel_size
-        self.weight = (
-            torch.nn.Parameter(torch.empty(size=(kernel_size, dim))).cuda().half()
+        self.weight = torch.nn.Parameter(
+            torch.empty(size=(kernel_size, head_dim, dim), dtype=dtype)
         )
-        init_method(self.weight)
+        torch.nn.init.uniform_(self.weight)  # TODO: what init?
 
-    def forward(self, x):
+    def forward(self, x, seq_dim=1):
+        # x should be [b, s, np, hp]
         ret = x * self.weight[0]
         for shift_distance in range(1, self.kernel_size):
-            x = shift(x, 1, dim=-2)
+            x = shift(x, 1, dim=seq_dim)
             ret += x * self.weight[shift_distance]
         return ret
 
@@ -227,11 +228,24 @@ class ParallelSelfAttention(nn.Module):
         )
 
         neox_args.qkv_conv = True
+        self.qkv_conv = True
         if neox_args.qkv_conv:
-            print("ADDING QKV CONV")
-            self.qkv_conv = CausalDepthwiseConv(
-                3 * neox_args.hidden_size, kernel_size=3, init_method=init_method
+            self.q_conv = CausalDepthwiseConv(
+                self.hidden_size_per_attention_head,
+                self.num_attention_heads_per_partition,
+                kernel_size=3,
             )
+            self.k_conv = CausalDepthwiseConv(
+                self.hidden_size_per_attention_head,
+                self.num_attention_heads_per_partition,
+                kernel_size=3,
+            )
+            self.v_conv = CausalDepthwiseConv(
+                self.hidden_size_per_attention_head,
+                self.num_attention_heads_per_partition,
+                kernel_size=3,
+            )
+
         else:
             self.qkv_conv = None
 
@@ -442,9 +456,6 @@ class ParallelSelfAttention(nn.Module):
         # Attention heads [sq, b, h] --> [sq, b, (np * 3 * hn)]
         mixed_x_layer, _ = self.query_key_value(hidden_states)
 
-        if self.qkv_conv is not None:
-            mixed_x_layer = self.qkv_conv(mixed_x_layer.transpose(0, 1)).transpose(0, 1)
-
         # [sq, b, (np * 3 * hn)] --> [sq, b, np, 3 * hn]
         new_tensor_shape = mixed_x_layer.size()[:-1] + (
             self.num_attention_heads_per_partition,
@@ -456,6 +467,15 @@ class ParallelSelfAttention(nn.Module):
         (query_layer, key_layer, value_layer) = mpu.split_tensor_along_last_dim(
             mixed_x_layer, 3
         )
+
+        # =========================
+        # QKV Conv layers
+        # =========================
+
+        if self.qkv_conv:
+            query_layer = self.q_conv(query_layer.transpose(0, 1)).transpose(0, 1)
+            key_layer = self.k_conv(key_layer.transpose(0, 1)).transpose(0, 1)
+            value_layer = self.v_conv(value_layer.transpose(0, 1)).transpose(0, 1)
 
         if exists(self.rotary_emb):
             if exists(self.rotary_ndims):
