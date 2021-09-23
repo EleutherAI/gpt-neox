@@ -80,7 +80,9 @@ class CausalDepthwiseConv(torch.nn.Module):
         self.weight = torch.nn.Parameter(
             torch.empty(size=(kernel_size, head_dim, dim), dtype=dtype)
         )
-        torch.nn.init.uniform_(self.weight)  # TODO: what init?
+        # weird init from https://github.com/google-research/google-research/blob/3e1a06764ff52e33e3523d82ae836441df701c5d/primer/t5_models.py#L35
+        torch.nn.init.constant_(self.weight, 0.5 / kernel_size)
+        torch.nn.init.constant_(self.weight[0], 0.5)
 
     def forward(self, x, seq_dim=1):
         # x should be [b, s, np, hp]
@@ -227,7 +229,7 @@ class ParallelSelfAttention(nn.Module):
             init_method=init_method,
         )
 
-        neox_args.qkv_conv = True
+        neox_args.qkv_conv = True  # 0.6~
         self.qkv_conv = True
         if neox_args.qkv_conv:
             self.q_conv = CausalDepthwiseConv(
