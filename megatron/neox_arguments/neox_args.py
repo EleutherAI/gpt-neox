@@ -570,6 +570,11 @@ class NeoXArgsOther(NeoXArgsTemplate):
     Set during training
     """
 
+    global_num_gpus: int = None
+    """
+    Set during launching
+    """
+
 
 @dataclass
 class NeoXArgsTokenizer(NeoXArgsTemplate):
@@ -861,6 +866,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Minimum loss scale for dynamic loss scale.
     """
 
+    char_level_ppl: bool = False
+    """
+    Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
+    """
+
 
 @dataclass
 class NeoXArgsTextgen(NeoXArgsTemplate):
@@ -923,9 +933,4 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     eval_tasks: list = None
     """
     Tasks to evaluate on using lm_eval_harness
-    """
-
-    char_level_ppl: bool = False
-    """
-    Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
     """
