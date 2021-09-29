@@ -71,7 +71,7 @@ class ParallelMLP(nn.Module):
     """
 
     def __init__(self, neox_args, init_method, output_layer_init_method):
-        super(ParallelMLP, self).__init__()
+        super().__init__()
 
         self.activation_func = get_activation(neox_args)
         self.activation_type = neox_args.activation
@@ -120,16 +120,28 @@ class ParallelLinear(nn.Module):
     """
 
     def __init__(self, neox_args, parallel_output=True, init_method=nn.init.xavier_normal_):
-        super(ParallelLinear, self).__init__()
-        self.final_linear = mpu.RowParallelLinear(
-            neox_args=neox_args,
-            input_size=neox_args.hidden_size,
-            output_size=neox_args.padded_vocab_size,
-            bias=False,
-            input_is_parallel=False,
-            init_method=init_method,
-            parallel_output=parallel_output,
-            skip_bias_add=False)
+        super().__init__()
+        parallelism = neox_args.output_layer_parallelism
+        if parallelism == "column":
+            self.final_linear = mpu.ColumnParallelLinear(
+                neox_args=neox_args,
+                input_size=neox_args.hidden_size,
+                output_size=neox_args.padded_vocab_size,
+                bias=False,
+                init_method=init_method,
+                gather_output=not parallel_output,
+                skip_bias_add=False)
+        else:
+            self.final_linear = mpu.RowParallelLinear(
+                neox_args=neox_args,
+                input_size=neox_args.hidden_size,
+                output_size=neox_args.padded_vocab_size,
+                bias=False,
+                input_is_parallel=False,
+                init_method=init_method,
+                parallel_output=parallel_output,
+                skip_bias_add=False)
+
 
     def forward(self, hidden_states):
         return self.final_linear(hidden_states)
@@ -145,7 +157,7 @@ class ParallelSelfAttention(nn.Module):
     def __init__(self, neox_args, attention_mask_func, init_method,
                  output_layer_init_method, layer_number,
                  rpe=None, rotary=False, get_key_value=False):
-        super(ParallelSelfAttention, self).__init__()
+        super().__init__()
 
         self.fp16 = neox_args.precision == "fp16"
         self.bf16 = neox_args.precision == "bfloat16"
@@ -416,7 +428,7 @@ class ParallelTransformerLayer(nn.Module):
     def __init__(self, neox_args, attention_mask_func, init_method,
                  output_layer_init_method, layer_number, rpe=None, rotary=False, get_key_value=False):
 
-        super(ParallelTransformerLayer, self).__init__()
+        super().__init__()
         self.layer_number = layer_number
 
         norm, eps = get_norm(neox_args)
