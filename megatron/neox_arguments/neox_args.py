@@ -1,12 +1,26 @@
 import subprocess
 from dataclasses import dataclass
-from .template import NeoXArgsTemplate
+
+try:
+    from .template import NeoXArgsTemplate
+except ImportError:
+    from template import NeoXArgsTemplate
+
 try:
     from typing import Literal
 except ImportError:
     from typing_extensions import Literal
 
-ATTENTION_TYPE_CHOICES = ['global', 'local', 'sparse_fixed', 'sparse_variable', 'bigbird', 'bslongformer', 'gmlp', 'amlp']
+ATTENTION_TYPE_CHOICES = [
+    "global",
+    "local",
+    "sparse_fixed",
+    "sparse_variable",
+    "bigbird",
+    "bslongformer",
+    "gmlp",
+    "amlp",
+]
 
 
 def get_git_commit_hash():
@@ -21,6 +35,10 @@ def get_git_commit_hash():
 
 @dataclass
 class NeoXArgsParallelism(NeoXArgsTemplate):
+    """
+    Parallelism Arguments
+    """
+
     pipe_parallel_size: int = 0
     """
     Number of pipeline parallel stages. Disable with 0.
@@ -52,6 +70,10 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsModel(NeoXArgsTemplate):
+    """
+    Model Arguments
+    """
+
     precision: Literal["fp16", "fp32", "bfloat16"] = None
     """
     description of the used precision, either one of fp16 or fp32 (and in the future bf16).
@@ -82,7 +104,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Maximum number of position embeddings to use. This is the size of position embedding.
     """
 
-    norm: Literal['layernorm', 'rmsnorm', 'scalenorm', 'apexlayernorm'] = "layernorm"
+    norm: Literal["layernorm", "rmsnorm", "scalenorm", "apexlayernorm"] = "layernorm"
     """
     Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm", "apexlayernorm".
     """
@@ -102,7 +124,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Scalenorm epsilon
     """
 
-    pos_emb: Literal['learned', 'rotary', 'sinusoidal', 'rpe', 'none'] = "learned"
+    pos_emb: Literal['learned', 'rotary', 'sinusoidal', 'rpe', 'alibi', 'none'] = "learned"
     """
     Type of positional embedding to use - choose from 'learned', 'rotary', 'sinusoidal', 'rpe', 'none'
     """
@@ -121,7 +143,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     """
     Disables weight tying between embedding weights and final Linear layer
     """
-    
+
     attention_config: list = None
 
     """
@@ -181,11 +203,6 @@ class NeoXArgsModel(NeoXArgsTemplate):
     make_vocab_size_divisible_by: int = 128
     """
     Pad the vocab size to be divisible by this value. This is added for computational efficiency reasons.
-    """
-
-    apply_residual_connection_post_layernorm: bool = False
-    """
-    If set, use original BERT residual connection ordering.
     """
 
     activation : Literal["gelu", "geglu", "relu", "softsign", "swish", "mish"] = "gelu"
@@ -248,19 +265,37 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Base for rotary positional embedding
     """
 
-    init_method : Literal["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"] = "normal"
+    init_method: Literal[
+        "normal",
+        "scaled_normal",
+        "orthogonal",
+        "scaled_orthogonal",
+        "xavier_uniform",
+        "xavier_normal",
+        "wang_init",
+        "small_init",
+    ] = "normal"
     """
     Init function used on all layers except ff residual outputs - choose from 
     ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
     """
 
-    output_layer_init_method : Literal["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"] = "scaled_normal"
+    output_layer_init_method: Literal[
+        "normal",
+        "scaled_normal",
+        "orthogonal",
+        "scaled_orthogonal",
+        "xavier_uniform",
+        "xavier_normal",
+        "wang_init",
+        "small_init",
+    ] = "scaled_normal"
     """
     Init function used for ff residual outputs - choose from 
     ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
     """
 
-    gmlp_attn_dim : int = 64
+    gmlp_attn_dim: int = 64
     """
     the dimension of the single head self attention in gmlp model (not used in gpt models).
     If None - gmlp model doesn't use attention.
@@ -275,11 +310,28 @@ class NeoXArgsModel(NeoXArgsTemplate):
       x = ln(x)
       x = x + attn(x) + mlp(x)
     """
+    
+    soft_prompt_tuning: dict = None
+    """
+    Dictionary configuring the soft prompt tuning parameters. 
+    If enabled, will train *only* the soft prompt, and freezes the rest of the model.
+    parameters in the dict are:
+        'enabled': bool = True # enables soft prompting
+        'num_tokens': int = 10 # length of the soft prompt in tokens
+        'init_string': str = '' # if provided, initialize the soft prompt with the word embeddings of this string
+        'init_range': float = 0.5 # if no init string is provided, initialize the soft prompt with a uniform distribution between -init_range and init_rang
+    """
 
 
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):
-    optimizer_type: Literal['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd'] = "adam"
+    """
+    Optimizer Arguments
+    """
+
+    optimizer_type: Literal[
+        "adam", "onebitadam", "cpu_adam", "cpu_torch_adam", "sm3", "madgrad_wd"
+    ] = "adam"
     """
     Type of optimizer to use. Choose from ['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd]
     """
@@ -317,7 +369,11 @@ class NeoXArgsOptimizer(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsLRScheduler(NeoXArgsTemplate):
-    lr_decay_style: Literal['constant', 'linear', 'cosine', 'exponential'] = "linear"
+    """
+    LR Scheduler Arguments
+    """
+
+    lr_decay_style: Literal["constant", "linear", "cosine", "exponential"] = "linear"
     """
     Learning rate decay function. Choose from 'constant', 'linear', 'cosine', 'exponential'.
     """
@@ -350,6 +406,10 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsLogging(NeoXArgsTemplate):
+    """
+    Logging Arguments
+    """
+
     use_wandb: bool = None
     """Flag indicating if wandb is to be used."""
 
@@ -423,6 +483,10 @@ class NeoXArgsLogging(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsOther(NeoXArgsTemplate):
+    """
+    Misc. Arguments
+    """
+
     distributed_backend: str = "nccl"
     """
     Which backend to use for distributed training.
@@ -446,16 +510,6 @@ class NeoXArgsOther(NeoXArgsTemplate):
     short_seq_prob: float = 0.1
     """
     Probability of producing a short sequence.
-    """
-
-    reset_position_ids: bool = False
-    """
-    Reset posistion ids after end-of-document token.
-    """
-
-    reset_attention_mask: bool = False
-    """
-    Reset self attention mask after end-of-document token.
     """
 
     eod_mask_loss: bool = False
@@ -526,10 +580,21 @@ class NeoXArgsOther(NeoXArgsTemplate):
     Set during training
     """
 
+    global_num_gpus: int = None
+    """
+    Set during launching
+    """
+
 
 @dataclass
 class NeoXArgsTokenizer(NeoXArgsTemplate):
-    tokenizer_type: Literal["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "CharLevelTokenizer"] = "GPT2BPETokenizer"
+    """
+    Tokenizer Arguments
+    """
+
+    tokenizer_type: Literal[
+        "GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "CharLevelTokenizer"
+    ] = "GPT2BPETokenizer"
     """
     Type of tokenizer to use - should be one of ["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "CharLevelTokenizer"]
     """
@@ -548,6 +613,10 @@ class NeoXArgsTokenizer(NeoXArgsTemplate):
 
 @dataclass
 class NeoXArgsTraining(NeoXArgsTemplate):
+    """
+    Training Arguments
+    """
+
     data_path: str = None
     """
     Path to combined dataset to split.
@@ -612,7 +681,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     as alpha -> inf, the probability of sampling from the groups with *the most samples* -> 1
     """
 
-    data_impl: str = 'infer'
+    data_impl: str = "infer"
     """
     Implementation of indexed datasets.
     """
@@ -807,9 +876,18 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Minimum loss scale for dynamic loss scale.
     """
 
+    char_level_ppl: bool = False
+    """
+    Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
+    """
+
 
 @dataclass
 class NeoXArgsTextgen(NeoXArgsTemplate):
+    """
+    Text Generation arguments
+    """
+
     text_gen_type: str = None
     """
     How to generate text/sample the model.
