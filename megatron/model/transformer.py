@@ -77,7 +77,7 @@ class ParallelMLP(nn.Module):
     state back into h hidden dimension. At the end, dropout is also
     applied.
     """
-
+    
     def __init__(
         self, neox_args, init_method, output_layer_init_method, parallel_output=False
     ):
