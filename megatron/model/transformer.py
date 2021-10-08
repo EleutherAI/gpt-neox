@@ -141,7 +141,7 @@ class ParallelLinear(nn.Module):
     """
 
     def __init__(
-        self, neox_args, parallel_output=True, init_method=nn.init.xavier_normal_
+        self, neox_args, parallel_output=True, inference=False, init_method=nn.init.xavier_normal_
     ):
         super().__init__()
         parallelism = neox_args.output_layer_parallelism
@@ -163,7 +163,7 @@ class ParallelLinear(nn.Module):
                 bias=False,
                 input_is_parallel=False,
                 init_method=init_method,
-                parallel_output=parallel_output,
+                parallel_output=False if inference else parallel_output,
                 skip_bias_add=False,
             )
 

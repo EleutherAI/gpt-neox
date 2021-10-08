@@ -274,7 +274,8 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                     ParallelLinearPipe,
                     neox_args=self.neox_args,
                     init_method=self.init_method,
-                    parallel_output=self.parallel_output
+                    parallel_output=self.parallel_output,
+                    inference=self._inference
                 )
             )
         # output in training should just be logits
