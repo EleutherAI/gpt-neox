@@ -21,8 +21,14 @@
 from abc import ABC
 from abc import abstractmethod
 
-from tokenizers import Tokenizer
-from transformers import GPT2Tokenizer, GPT2TokenizerFast
+try:
+    from tokenizers import Tokenizer as _HFTokenizer
+    from transformers import GPT2Tokenizer as _HFGPT2Tokenizer, GPT2TokenizerFast as _HFGPT2TokenizerFast
+except ModuleNotFoundError:
+    _HFTokenizer = None
+    _HFGPT2Tokenizer = None
+    _HFGPT2TokenizerFast = None
+
 import numpy as np
 from typing import List, Union
 from .gpt2_tokenization import GPT2Tokenizer
@@ -39,11 +45,13 @@ def build_tokenizer(args):
         assert args.merge_file is not None
         tokenizer = _GPT2BPETokenizer(args.vocab_file, args.merge_file)
     elif args.tokenizer_type.lower() == 'HFTokenizer'.lower():
+        assert _HFTokenizer is not None, 'Install `transformers` and `tokenizers` to use a Hugging Face Tokenizer'
         assert args.vocab_file is not None
         tokenizer = HFTokenizer(args.vocab_file)
     elif args.tokenizer_type.lower() == 'HFGPT2Tokenizer'.lower():
+        assert _HFGPT2Tokenizer is not None, 'Install `transformers` and `tokenizers` to use the Hugging Face GPT2Tokenizer'
         if args.vocab_file is None:
-            print("WARNING: No vocab file found, loading Huggingface's pretrained GPT2Tokenizer")
+            print("WARNING: No vocab file found, loading the pretrained Hugging Face GPT2Tokenizer")
         tokenizer = HFGPT2Tokenizer(args.vocab_file)
     elif args.tokenizer_type.lower() == "CharLevelTokenizer".lower():
         tokenizer = CharLevelTokenizer(vocab_size=512)
@@ -173,7 +181,7 @@ class HFTokenizer(AbstractTokenizer):
         name = 'HFTokenizer'
         super().__init__(name)
 
-        self.tokenizer = Tokenizer.from_file(vocab_file)
+        self.tokenizer = _HFTokenizer.from_file(vocab_file)
         self.eod_id = self.tokenizer.token_to_id('<|endoftext|>')
         self.pad_id = self.tokenizer.token_to_id('<|padding|>')
 
@@ -213,9 +221,9 @@ class HFGPT2Tokenizer(AbstractTokenizer):
         if vocab_file is None:
             vocab_file = 'gpt2'
         if fast:
-            self.tokenizer = GPT2TokenizerFast.from_pretrained(vocab_file)
+            self.tokenizer = _HFGPT2TokenizerFast.from_pretrained(vocab_file)
         else:
-            self.tokenizer = GPT2Tokenizer.from_pretrained(vocab_file)
+            self.tokenizer = _HFGPT2Tokenizer.from_pretrained(vocab_file)
 
         self.tokenizer.add_special_tokens({'pad_token': '<|padding|>'})
         self.eod_id = self.tokenizer.eos_token_id
