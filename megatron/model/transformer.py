@@ -86,6 +86,7 @@ class ParallelMLP(nn.Module):
         self.activation_func = get_activation(neox_args)
         self.activation_type = neox_args.activation
         self.bias_gelu_fusion = neox_args.bias_gelu_fusion
+        self.normformer = neox_args.normformer
 
         # auto scale so geglu has equal parameters
         ff_mult = 4 * 2 / 3 if self.activation_type == "geglu" else 4
@@ -114,6 +115,10 @@ class ParallelMLP(nn.Module):
             parallel_output=parallel_output,
         )
 
+        if self.normformer:
+            norm, eps = get_norm(neox_args)
+            self.ln = norm(mpu.divide(ff_dim, mpu.get_model_parallel_world_size()), eps=eps)
+
     def forward(self, hidden_states):
 
         # [s, b, 4hp]
@@ -129,6 +134,9 @@ class ParallelMLP(nn.Module):
             intermediate_parallel = self.activation_func(
                 intermediate_parallel + bias_parallel
             )
+
+        if self.normformer:
+            intermediate_parallel = self.ln(intermediate_parallel)
 
         # [s, b, h]
         output, output_bias = self.dense_4h_to_h(intermediate_parallel)
@@ -291,6 +299,10 @@ class ParallelSelfAttention(nn.Module):
             skip_bias_add=True,
             parallel_output=parallel_output,
         )
+
+        self.normformer = neox_args.normformer
+        if self.normformer:
+            self.head_scale = nn.Parameter(torch.ones(self.num_attention_heads_per_partition).view(1, self.num_attention_heads_per_partition, 1, 1))
 
     def attention(
         self, query_layer, key_layer, value_layer, layer_past, attention_mask
@@ -496,6 +508,9 @@ class ParallelSelfAttention(nn.Module):
                 query_layer, key_layer, value_layer, attention_mask
             )
 
+        if self.normformer:
+            context_layer = context_layer *  self.head_scale
+
         # [b, np, sq, hn] --> [sq, b, np, hn]
         context_layer = context_layer.permute(2, 0, 1, 3).contiguous()
 
@@ -583,6 +598,11 @@ class ParallelTransformerLayer(nn.Module):
 
         if self.gpt_j_residual:
             self.reduce = mpu.mappings.reduce_from_model_parallel_region
+        
+        self.normformer = neox_args.normformer
+        if self.normformer:
+            self.res_scale = nn.Parameter(torch.ones(1))
+            self.post_attn_layernorm = norm(neox_args.hidden_size, eps=eps)
 
     def _get_bias_dropout(self):
         if self.bias_dropout_fusion:
@@ -600,6 +620,9 @@ class ParallelTransformerLayer(nn.Module):
         # x: [b, s, h]
 
         residual, x = x, self.input_layernorm(x)
+        if self.normformer:
+            residual = residual * self.res_scale
+
         attention_output, attention_bias = self.attention(
             x, attention_mask, layer_past=layer_past
         )
@@ -617,6 +640,9 @@ class ParallelTransformerLayer(nn.Module):
                 prob=self.hidden_dropout,
             )
 
+        if self.normformer:
+            attention_output = self.post_attn_layernorm(attention_output)
+
         # MLP.
         mlp_input = self.post_attention_layernorm(x) if self.gpt_j_residual else self.post_attention_layernorm(attention_output)
         mlp_residual = attention_output
@@ -630,7 +656,7 @@ class ParallelTransformerLayer(nn.Module):
                 bias=mlp_bias.expand_as(attention_output),
                 residual=mlp_residual,
                 prob=self.hidden_dropout,
-            )
+            ) 
 
         if self.gpt_j_residual:
             # reduce from model parallel region and add residual

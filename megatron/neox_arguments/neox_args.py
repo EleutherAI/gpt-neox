@@ -328,6 +328,13 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
     """
 
+    normformer: bool = False
+    """
+    If true, adds an extra layernorm after MHA / FF activation, as well as a scaled residual + headscale.
+    Initializes to identity operation, so can be added part way through training.
+    See https://openreview.net/pdf?id=GMYWzWztDx5
+    """
+
 
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):
