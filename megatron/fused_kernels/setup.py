@@ -20,11 +20,8 @@ srcpath = Path(__file__).parent.absolute()
 cc_flag = []
 _, bare_metal_major, _ = _get_cuda_bare_metal_version(
     cpp_extension.CUDA_HOME)
-if int(bare_metal_major) >= 11:
-    cc_flag.append('-gencode')
-    cc_flag.append('arch=compute_80,code=sm_80')
 
-nvcc_flags = ['-O3','-gencode', 'arch=compute_70,code=sm_70', '--use_fast_math', '-U__CUDA_NO_HALF_OPERATORS__', '-U__CUDA_NO_HALF_CONVERSIONS__',
+nvcc_flags = ['-O3', '--use_fast_math', '-U__CUDA_NO_HALF_OPERATORS__', '-U__CUDA_NO_HALF_CONVERSIONS__',
               '--expt-relaxed-constexpr', '--expt-extended-lambda']
 cuda_ext_args = {'cxx': ['-O3'],
             'nvcc': nvcc_flags + cc_flag
