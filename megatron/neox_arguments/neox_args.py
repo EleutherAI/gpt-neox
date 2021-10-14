@@ -301,6 +301,16 @@ class NeoXArgsModel(NeoXArgsTemplate):
     If None - gmlp model doesn't use attention.
     """
 
+    gpt_j_residual : bool = False
+    """
+    If false, we use the conventional residual path:
+      x = x + attn(ln1(x))
+      x = x + mlp(ln2(x))
+    Otherwise, we use the residual path from GPT-J, which offers a slight speedup:
+      x = ln(x)
+      x = x + attn(x) + mlp(x)
+    """
+    
     soft_prompt_tuning: dict = None
     """
     Dictionary configuring the soft prompt tuning parameters. 
@@ -310,6 +320,12 @@ class NeoXArgsModel(NeoXArgsTemplate):
         'num_tokens': int = 10 # length of the soft prompt in tokens
         'init_string': str = '' # if provided, initialize the soft prompt with the word embeddings of this string
         'init_range': float = 0.5 # if no init string is provided, initialize the soft prompt with a uniform distribution between -init_range and init_rang
+    """
+
+    output_layer_parallelism: Literal["row", "column"] = "row"
+
+    """
+    Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
     """
 
 
@@ -471,6 +487,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     """
 
 
+
 @dataclass
 class NeoXArgsOther(NeoXArgsTemplate):
     """
@@ -568,6 +585,11 @@ class NeoXArgsOther(NeoXArgsTemplate):
     do_test: int = None
     """
     Set during training
+    """
+
+    global_num_gpus: int = None
+    """
+    Set during launching
     """
 
 
@@ -861,6 +883,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Minimum loss scale for dynamic loss scale.
     """
 
+    char_level_ppl: bool = False
+    """
+    Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
+    """
+
 
 @dataclass
 class NeoXArgsTextgen(NeoXArgsTemplate):
@@ -923,9 +950,4 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     eval_tasks: list = None
     """
     Tasks to evaluate on using lm_eval_harness
-    """
-
-    char_level_ppl: bool = False
-    """
-    Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
     """

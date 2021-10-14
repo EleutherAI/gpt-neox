@@ -25,25 +25,15 @@ from megatron.neox_arguments import NeoXArgs
 from megatron.utils import get_wandb_api_key
 
 
+
 neox_args = NeoXArgs.consume_deepy_args()
-if neox_args.use_wandb and neox_args.wandb_group is not None:
-    try:
-        import wandb
-
-        # concat the wandb group name with a uid to make sure it's unique
-        neox_args.wandb_group += "_" + wandb.util.generate_id()
-        wandb_token = get_wandb_api_key(neox_args=neox_args)
-
-        if wandb_token is not None:
-            # Extract wandb API key and inject into worker environments
-            deepspeed.launcher.runner.EXPORT_ENVS.append("WANDB_API_KEY")
-            os.environ["WANDB_API_KEY"] = wandb_token
-
-    except ModuleNotFoundError:
-        pass
-
-neox_args.print()
 deepspeed_main_args = neox_args.get_deepspeed_main_args()
 
-if __name__ == "__main__":
+# Extract wandb API key and inject into worker environments
+wandb_token = get_wandb_api_key(neox_args=neox_args)
+if wandb_token is not None:
+    deepspeed.launcher.runner.EXPORT_ENVS.append('WANDB_API_KEY')
+    os.environ['WANDB_API_KEY'] = wandb_token
+
+if __name__ == '__main__':
     main(deepspeed_main_args)

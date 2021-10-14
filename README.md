@@ -54,7 +54,7 @@ Coming soon: a colab notebook for trying out the model.
 **Warning:** Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), our fork of the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library with some added changes. We strongly recommend using Anaconda, a virtual machine, or some other form of environment isolation before installing from `requirements/requirements.txt`. Failure to do so may cause other repositories that rely on DeepSpeed to break.
 
 First make sure you are in an environment with Python 3.8 or later and `torch>=1.8` installed. Then run `pip install -r requirements/requirements.txt`. 
-You may need to change the version of `cupy-cudaxxx` to match your machine's cuda version.
+You may need to change the version of `cupy-cudaxxx` to match your machine's cuda version. Afterwards, run `python /home/mchorse/gpt-neox/megatron/fused_kernels/setup.py install` to install fused kernels. It is currently necessary to install fused kernels even if you aren't using them; we plan to fix this in the future.
 
 Some features rely on apex, which you can install with the command below:
 
@@ -214,9 +214,14 @@ This will deploy the `pretrain_gpt2.py` script on all nodes with one process per
 * Data path parameters are defined in the config file `configs/local_setup.yml`. If you are an EleutherAI member and using the [Kubernetes cluster](kubernetes), the `eleutherai_cluster.yml` config should be instead.
 
 
-## Inference
+## Text Generation
 
-[WIP]
+We support three types of generation from a pretrained model:
+1. Unconditional generation
+2. Conditional generation based on an input read from a file
+3. Interactive generation, which allows for multiple rounds of back-and-forth between a user and the language model via a command line interface
+
+All three types of text generation can be launched via `./deepy.py text_gen_gpt2.py -d configs small.yml local_cluster.yml text_generation.yml` with the appropriate values set in `configs/text_generation.yml`.
 
 ## Evaluation
 
@@ -279,5 +284,5 @@ For full terms, see the `LICENSE` file. If you have any questions, comments, or 
 
 We run our experiments on a Kubernetes cluster generously provided by [CoreWeave](https://coreweave.com/).
 
-<small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>
+Table of contents generated with <a href='http://ecotrust-canada.github.io/markdown-toc/'>markdown-toc</a>
 
