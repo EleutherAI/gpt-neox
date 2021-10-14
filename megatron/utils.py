@@ -30,7 +30,7 @@ import requests
 try:
     import wandb
 except ModuleNotFoundError:
-    wandb = None
+    pass
 
 import torch
 
@@ -136,10 +136,6 @@ def get_wandb_api_key(neox_args):
 
 def init_wandb(neox_args):
     # Wandb. (one worker per machine)
-    if wandb is None:
-        neox_args.update_value("use_wandb", False)
-        print("wandb not installed, skipping wandb.")
-
     if neox_args.use_wandb == False:
         return
 

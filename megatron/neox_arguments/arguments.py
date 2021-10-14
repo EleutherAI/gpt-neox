@@ -258,10 +258,15 @@ class NeoXArgs(*BASE_CLASSES):
                 with open(os.path.join(configs_directory, conf_file_name), "w") as f:
                     f.write(conf_data)
 
-        if neox_args.wandb_group is not None:
-            # concat the wandb group name with a uid to make sure it's unique
-            import wandb
-            neox_args.wandb_group += "_" + wandb.util.generate_id()
+        if neox_args.use_wandb and neox_args.wandb_group is not None:
+            try:
+                # concat the wandb group name with a uid to make sure it's unique
+                import wandb
+                neox_args.wandb_group += "_" + wandb.util.generate_id()
+            except (ModuleNotFoundError, ImportError):
+                print("`wandb` is not installed. Install `wandb` to enable Weights & Biases support.")
+                neox_args.update_value("use_wandb", False)
+
         neox_args.print()
 
         return neox_args
