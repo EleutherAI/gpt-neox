@@ -37,7 +37,6 @@ from .mappings import scatter_to_model_parallel_region
 from .random import get_cuda_rng_tracker
 from .utils import divide
 from .utils import VocabUtility
-from einops import rearrange
 
 def _initialize_affine_weight_gpu(weight, init_method,
                                   partition_dim, stride=1):
@@ -251,7 +250,7 @@ class ParallelRelativePositionBias(torch.nn.Module):
             rp_bucket = self._rel_pos_bucket_cached
         values = F.embedding(rp_bucket, self.weight, self.padding_idx,
                              self.max_norm, self.norm_type, self.scale_grad_by_freq, self.sparse)
-        bias = rearrange(values, 'i j h -> () h i j')
+        bias = values.movedim(2,0).unsqueeze(0)
         return bias
 
 
