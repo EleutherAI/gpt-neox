@@ -1,9 +1,6 @@
 import subprocess
 from dataclasses import dataclass
-<<<<<<< HEAD
 
-=======
->>>>>>> origin/staged_seq_len
 try:
     from .template import NeoXArgsTemplate
 except ImportError:
