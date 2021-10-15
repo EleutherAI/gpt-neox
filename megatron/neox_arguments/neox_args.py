@@ -303,6 +303,32 @@ class NeoXArgsModel(NeoXArgsTemplate):
     If None - gmlp model doesn't use attention.
     """
 
+    gpt_j_residual : bool = False
+    """
+    If false, we use the conventional residual path:
+      x = x + attn(ln1(x))
+      x = x + mlp(ln2(x))
+    Otherwise, we use the residual path from GPT-J, which offers a slight speedup:
+      x = ln(x)
+      x = x + attn(x) + mlp(x)
+    """
+    
+    soft_prompt_tuning: dict = None
+    """
+    Dictionary configuring the soft prompt tuning parameters. 
+    If enabled, will train *only* the soft prompt, and freezes the rest of the model.
+    parameters in the dict are:
+        'enabled': bool = True # enables soft prompting
+        'num_tokens': int = 10 # length of the soft prompt in tokens
+        'init_string': str = '' # if provided, initialize the soft prompt with the word embeddings of this string
+        'init_range': float = 0.5 # if no init string is provided, initialize the soft prompt with a uniform distribution between -init_range and init_rang
+    """
+
+    output_layer_parallelism: Literal["row", "column"] = "row"
+
+    """
+    Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
+    """
 
     
 @dataclass
@@ -358,6 +384,7 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
     lr_decay_style: Literal["constant", "linear", "cosine", "exponential"] = "linear"
     
     lr_decay_style: Literal['constant', 'linear', 'cosine', 'exponential'] = "linear"
+
     """
     Learning rate decay function. Choose from 'constant', 'linear', 'cosine', 'exponential'.
     """
@@ -466,6 +493,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     """
 
 
+
 @dataclass
 class NeoXArgsOther(NeoXArgsTemplate):
     """
@@ -564,6 +592,11 @@ class NeoXArgsOther(NeoXArgsTemplate):
     do_test: int = None
     """
     Set during training
+    """
+
+    global_num_gpus: int = None
+    """
+    Set during launching
     """
 
 
@@ -863,10 +896,13 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     params for staged training, in the form of [[{'param_to_stage': param_value}, pct_of_total_training], [{'param_to_stage': param_value}, pct_of_total_training]]
     i.e neox_args.stages = [[{'seq_length': 512}, 0.9], [{'seq_length': 2048}, 0.1]]
         will train for 90% of the training steps with seq_length 512 - then the rest with seq_length 2048
-
     """
 
 
+    char_level_ppl: bool = False
+    """
+    Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
+    """
     stage: int = 0
     """
     stage no for staged training - incremented during training and only used if neox_args.stages is not None

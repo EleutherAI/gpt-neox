@@ -1,8 +1,10 @@
 import torch
+import math
+from torch.nn.parameter import Parameter
 
 from megatron import mpu
 from megatron.model.positional_embeddings import SinusoidalPositionalEmbedding
-
+from megatron.model.init_functions import get_init_methods
 
 class Embedding(torch.nn.Module):
     """Language model embeddings.
@@ -133,3 +135,50 @@ class EmbeddingPipe(Embedding):
         else:
             return embeddings, attention_mask
 
+class SoftEmbedding(torch.nn.Module):
+
+    def __init__(self, 
+                neox_args,
+                wte,
+                n_tokens: int = 10, 
+                init_range: float = 0.5,
+                init_string: str = ''):
+        super(SoftEmbedding, self).__init__()
+        self.n_tokens = n_tokens
+        self.neox_args = neox_args
+        self.init_range = init_range
+        self.init_string = init_string
+        self.soft_embedding_weight = torch.nn.parameter.Parameter(self.initialize_embedding(wte))
+
+    def initialize_embedding(self, 
+                             wte: torch.nn.Embedding):
+        if self.init_string:
+            embeds = torch.LongTensor(self.neox_args.tokenizer.tokenize(self.init_string)).to(wte.weight.device)
+            embeds = wte(embeds)
+            if embeds.shape[0] >= self.n_tokens:
+                embeds = embeds[:self.n_tokens, :] # slice
+            else:
+                embeds = embeds.repeat(math.ceil(self.n_tokens / embeds.shape[0]), 1)[:self.n_tokens, :] # pad up to n_tokens
+            return embeds
+        return torch.Tensor(n_tokens, neox_args.hidden_size).uniform_(-self.random_range, self.random_range)
+            
+    def forward(self, args: tuple):
+        in_inference = len(args) == 3  # embeddings, layer_past, attention_mask
+        in_train = len(args) == 2 # embeddings, attention_mask
+        if in_train:
+            embedding, attention_mask = args
+        else:
+            embedding, layer_past, attention_mask = args 
+        soft_embedding = self.soft_embedding_weight.repeat(embedding.shape[0], 1, 1) # repeat batch_size times
+        if in_train:
+            # append soft embedding at the beginning in training
+            embedding = torch.cat((soft_embedding, embedding), dim=1)
+            embedding = embedding[:, :self.neox_args.seq_length, ...]
+            return embedding, attention_mask
+        else:
+            if not (exists(layer_past) and layer_past.numel() > 0):
+                # if in inference, on the first forward pass, we want to do the same as in training (append soft embedding)
+                embedding = torch.cat((soft_embedding, embedding), dim=1)
+                embedding = embedding[:, :self.neox_args.seq_length, ...]
+            # otherwise, we're in incremental mode, and just want to forward the single embedding (since the soft prompt has already been cached)
+            return embedding, layer_past, attention_mask

@@ -257,7 +257,13 @@ class NeoXArgs(*BASE_CLASSES):
             for conf_file_name, conf_data in conf_files_memory.items():
                 with open(os.path.join(configs_directory, conf_file_name), "w") as f:
                     f.write(conf_data)
-            
+
+        if neox_args.wandb_group is not None:
+            # concat the wandb group name with a uid to make sure it's unique
+            import wandb
+            neox_args.wandb_group += "_" + wandb.util.generate_id()
+        neox_args.print()
+
         return neox_args
 
     @classmethod
@@ -297,14 +303,22 @@ class NeoXArgs(*BASE_CLASSES):
 
         args_list = list()
 
-        # add user script
-        args_list.append(self.user_script)
-
         # get deepspeed runner args, and only pass them in to deepspeed launcher if they differ from defaults
         for key, default_value in NeoXArgsDeepspeedRunner().defaults():
             configured_value = getattr(self, key)
             if configured_value != default_value:
                 args_list.extend(self.convert_key_value_to_command_line_arg(key, configured_value))
+
+        if ('--include' in args_list or '--exclude' in args_list) and '--num_gpus' in args_list:
+            print('WARNING: both --include/--exclude and num_gpus were specified simultaneously - overriding num_gpus with --include/--exclude')
+            # cannot specify these both simultaneously, remove num_gpus from list
+            idx = args_list.index('--num_gpus')
+            # pop twice, once for the arg, once for its value
+            args_list.pop(idx)
+            args_list.pop(idx)
+
+        # add user script
+        args_list.append(self.user_script)
 
         # get deepspeed_config
         args_list.append("--deepspeed_config")
@@ -479,6 +493,7 @@ class NeoXArgs(*BASE_CLASSES):
 
     @staticmethod
     def check_batch_parameters(dp_world_size, train_batch, micro_batch, grad_acc):
+
         assert train_batch > 0, \
             f'Train batch size: {train_batch} has to be greater than 0'
 
@@ -490,7 +505,7 @@ class NeoXArgs(*BASE_CLASSES):
 
         assert train_batch == micro_batch * grad_acc * dp_world_size, \
             (f'Check batch related parameters. train_batch_size is not equal'
-             ' to micro_batch_per_gpu * gradient_acc_step * world_size'
+             ' to micro_batch_per_gpu * gradient_acc_step * world_size \n'
              f'{train_batch} != {micro_batch} * {grad_acc} * {dp_world_size}')
 
     def calculate_derived(self):
@@ -506,20 +521,22 @@ class NeoXArgs(*BASE_CLASSES):
 
         # number of gpus
         # Get number of GPUs param or hostfile to determine train_batch_size
-        num_gpus = self.num_gpus
-        if num_gpus is None:
-            num_gpus = -1  # set -1 for backwards compatibility to old default value
-        if num_gpus < 1:
+        global_num_gpus = getattr(self, "global_num_gpus", None)
+        if global_num_gpus is None:
             if self.hostfile is not None or os.path.exists(DLTS_HOSTFILE):
                 hostfile_path = self.hostfile or DLTS_HOSTFILE
                 resources = obtain_resource_pool(hostfile_path, self.include or "", self.exclude or "")
-                num_gpus = sum(map(len, resources.values()))
+                if self.num_nodes is not None and self.num_nodes > 0:
+                    resources = {k:resources[k] for k in list(resources.keys())[:self.num_nodes]}
+                global_num_gpus = sum(map(len, resources.values()))
+                if self.num_gpus is not None and self.num_gpus > 0:
+                    global_num_gpus = self.num_gpus * len(resources)
             else:
-                num_gpus = torch.cuda.device_count()
-        self.update_value("num_gpus", num_gpus)
+                global_num_gpus = torch.cuda.device_count()
+            self.update_value("global_num_gpus", global_num_gpus)
 
         logging.info(
-            self.__class__.__name__ + ".calculate_derived() " + f"Total number of GPUs determined to be: {self.num_gpus}")
+            self.__class__.__name__ + ".calculate_derived() " + f"Total number of GPUs determined to be: {global_num_gpus}")
 
         # get world size in the model/pipe parallel case, the actual `world size` deepspeed uses is the size of the
         # data-parallel group, or (num_gpus / mp_size) / pp_size
@@ -530,13 +547,13 @@ class NeoXArgs(*BASE_CLASSES):
         self.update_value("model_parallel_size", mp_size)
 
         # pp_size and mp_size are only used here to compute dp world size and nowhere else.
-        dp_world_size = ((num_gpus / pp_size) / mp_size)
+        dp_world_size = ((global_num_gpus / pp_size) / mp_size)
         if not (dp_world_size % 1 == 0):
-            error_message = self.__class__.__name__ + ".calculate_derived() " + f"(num_gpus / pp_size) / mp_size [({num_gpus} / {pp_size}) / {mp_size}] must be a whole number"
+            error_message = self.__class__.__name__ + ".calculate_derived() " + f"(global_num_gpus / pp_size) / mp_size [({global_num_gpus} / {pp_size}) / {mp_size}] must be a whole number"
             logging.error(error_message)
             raise AssertionError(error_message)
 
-        # Automatically derive train_batch_size = train_micro_batch_size_per_gpu*num_gpus*gradient_accumulation_steps
+        # Automatically derive train_batch_size = train_micro_batch_size_per_gpu*global_num_gpus*gradient_accumulation_steps
         train_batch_size, train_micro_batch_size_per_gpu, gradient_accumulation_steps = self.calculate_batch_parameters(
             dp_world_size=dp_world_size,
             train_batch=self.train_batch_size,
