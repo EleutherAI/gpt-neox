@@ -22,6 +22,7 @@ ATTENTION_TYPE_CHOICES = [
     "amlp",
 ]
 
+VALID_STAGEABLE_PARAMS = ['seq_length', 'train_micro_batch_size_per_gpu']
 
 def get_git_commit_hash():
     """ Gets the git commit hash of your current repo (if it exists) """
@@ -38,7 +39,7 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     """
     Parallelism Arguments
     """
-
+    
     pipe_parallel_size: int = 0
     """
     Number of pipeline parallel stages. Disable with 0.
@@ -328,7 +329,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
     """
 
-
+    
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):
     """
@@ -371,7 +372,7 @@ class NeoXArgsOptimizer(NeoXArgsTemplate):
     """
     Max Learning rate during training
     """
-
+    
 
 @dataclass
 class NeoXArgsLRScheduler(NeoXArgsTemplate):
@@ -380,6 +381,9 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
     """
 
     lr_decay_style: Literal["constant", "linear", "cosine", "exponential"] = "linear"
+    
+    lr_decay_style: Literal['constant', 'linear', 'cosine', 'exponential'] = "linear"
+
     """
     Learning rate decay function. Choose from 'constant', 'linear', 'cosine', 'exponential'.
     """
@@ -882,13 +886,24 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     """
     Minimum loss scale for dynamic loss scale.
     """
+    
+    stages: list = None
+    """
+    params for staged training, in the form of [[{'param_to_stage': param_value}, pct_of_total_training], [{'param_to_stage': param_value}, pct_of_total_training]]
+    i.e neox_args.stages = [[{'seq_length': 512}, 0.9], [{'seq_length': 2048}, 0.1]]
+        will train for 90% of the training steps with seq_length 512 - then the rest with seq_length 2048
+    """
 
     char_level_ppl: bool = False
     """
     Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
     """
-
-
+    stage: int = 0
+    """
+    stage no for staged training - incremented during training and only used if neox_args.stages is not None
+    """
+    
+    
 @dataclass
 class NeoXArgsTextgen(NeoXArgsTemplate):
     """
@@ -950,4 +965,9 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     eval_tasks: list = None
     """
     Tasks to evaluate on using lm_eval_harness
+    """
+
+    char_level_ppl: bool = False
+    """
+    Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
     """

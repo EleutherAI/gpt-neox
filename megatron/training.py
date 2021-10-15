@@ -55,7 +55,7 @@ from megatron.model.gpt2_model import cross_entropy
 from eval_tasks import run_eval_harness
 
 
-def pretrain(neox_args):
+def pretrain(neox_args, start_iter_mod=None, is_initialized=False):
     """Main training program.
 
     This function will run the followings in the order provided:
@@ -68,14 +68,22 @@ def pretrain(neox_args):
         neox_args: an instance of NeoXArgs containing the configuration for pretrain
 
     """
+
     # setup logging and timers
+<<<<<<< HEAD
     init_wandb(neox_args=neox_args)
     timers = Timers(
         use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer
     )
+=======
+    if not is_initialized:
+        init_wandb(neox_args=neox_args)
+    timers = Timers(use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
+>>>>>>> origin/staged_seq_len
 
     # Initalize and get arguments, timers, and Tensorboard writer.
-    initialize_megatron(neox_args=neox_args)
+    if not is_initialized:
+        initialize_megatron(neox_args=neox_args)
 
     # Model, optimizer, and learning rate.
     timers("model and optimizer").start()
@@ -141,10 +149,58 @@ def pretrain(neox_args):
             forward_step_func=forward_step,
             data_iterator=test_data_iterator,
             model=model,
-            iteration=0,  # iteration 0 in order to always use full test data
+            iteration=iteration,  # iteration 0 in order to always use full test data
             verbose=True,
             timers=timers,
         )
+
+
+def pretrain_staged(neox_args):
+    # neox_args.stages = [[{'seq_length': 512}, 0.9], [{'seq_length': 2048}, 0.1]]
+    # neox_args.stage = 0
+
+    # set staged training variables
+    total_train_iters = 0
+    start_iter_mod = 1 # modifies the start iteration for the dataloaders so we don't repeat / skip data points
+    is_initialized = False # flag that controls whether mpu / wandb should be reinitialized
+
+    # TODO: checkpoint loading is problematic rn :thinking:... probably have it read neox_args.stage value from checkpoint - and if it's larger than the current
+    # value - skip to that stage?
+
+    for i in range(len(neox_args.stages)):
+
+        if neox_args.local_rank == 0:
+            print_rank_0('-'*100)
+            print_rank_0(f'ENTERING TRAINING STAGE {neox_args.stage}...')
+            print_rank_0('-'*100)
+
+        for k, v in neox_args.stages[i][0].items():
+            if k == 'train_micro_batch_size_per_gpu':
+                train_batch, micro_batch, grad_acc = neox_args.calculate_batch_parameters(((neox_args.num_gpus / neox_args.pipe_parallel_size) / neox_args.model_parallel_size),
+                                                                                            micro_batch=v, grad_acc=neox_args.gradient_accumulation_steps)
+                neox_args.update_value("train_batch_size", train_batch)
+                neox_args.update_value("train_micro_batch_size_per_gpu", micro_batch)
+            else:
+                neox_args.update_value(k, v)
+        
+        # adjust total train iters for stage
+        total_train_iters += int(neox_args.train_iters * neox_args.stages[i][1])
+        neox_args.train_iters = total_train_iters
+
+        # run pretraining for stage
+        pretrain(neox_args, start_iter_mod, is_initialized)
+
+        # update staged training variables
+        is_initialized = True
+        neox_args.stage += 1
+        if i + 1 < len(neox_args.stages):
+            start_iter_mod = 1
+            if 'seq_length' in neox_args.stages[i+1][0]:
+                seq_length_mod = neox_args.seq_length / neox_args.stages[i+1][0]['seq_length']
+                start_iter_mod *= seq_length_mod
+            if 'train_micro_batch_size_per_gpu' in neox_args.stages[i+1][0]:
+                batch_size_mod = neox_args.train_micro_batch_size_per_gpu / neox_args.stages[i+1][0]['train_micro_batch_size_per_gpu']
+                start_iter_mod *= batch_size_mod
 
 
 def _get_batch(neox_args, tokenizer, keys, data, datatype):
@@ -539,6 +595,11 @@ def train(
 
     # to monitor if we've skipped many iterations in a row and trigger an early exit
     overflow_monitor = OverflowMonitor(optimizer)
+    if neox_args.stages is None:
+        train_iters = neox_args.train_iters
+    else:
+        train_iters = int(neox_args.stages[neox_args.stage][1] * neox_args.train_iters)
+
     while iteration < neox_args.train_iters:
         loss_dict, skipped_iter = train_step(
             neox_args=neox_args,

@@ -20,7 +20,6 @@ def make_data_loader(dataset, neox_args):
     world_size = mpu.get_data_parallel_world_size()
     rank = mpu.get_data_parallel_rank()
     global_batch_size = neox_args.batch_size * world_size
-    num_workers = neox_args.num_workers
 
     # Use a simple sampler with distributed batch sampler.
     sampler = torch.utils.data.SequentialSampler(dataset)
@@ -32,7 +31,7 @@ def make_data_loader(dataset, neox_args):
     # Torch dataloader.
     return torch.utils.data.DataLoader(dataset,
                                        batch_sampler=batch_sampler,
-                                       num_workers=num_workers,
+                                       num_workers=neox_args.num_workers,
                                        pin_memory=True)
 
 
@@ -222,7 +221,7 @@ def weights_by_num_docs(l, alpha=0.3):
 
 
 
-def build_train_valid_test_data_iterators(neox_args):
+def build_train_valid_test_data_iterators(neox_args, start_iter_mod=None):
     """XXX"""
 
     (train_dataloader, valid_dataloader, test_dataloader) = (None, None, None)
@@ -326,6 +325,11 @@ def build_train_valid_test_data_iterators(neox_args):
     if train_dataloader is not None:
         train_dataloader.batch_sampler.start_iter = (neox_args.iteration * neox_args.gradient_accumulation_steps) % \
                                                     len(train_dataloader)
+
+        # if we're doing staged sequence length training and have just e.g doubled the seq len - we want to make sure we're not skipping data
+        if start_iter_mod is not None:
+            train_dataloader.batch_sampler.start_iter = int(train_dataloader.batch_sampler.start_iter * start_iter_mod)
+        
         print_rank_0('setting training data start iteration to {}'.
                      format(train_dataloader.batch_sampler.start_iter))
     if valid_dataloader is not None:
@@ -333,6 +337,11 @@ def build_train_valid_test_data_iterators(neox_args):
                          neox_args.eval_iters
         valid_dataloader.batch_sampler.start_iter = start_iter_val % \
                                                     len(valid_dataloader)
+        
+        # if we're doing staged sequence length training and have just e.g doubled the seq len - we want to make sure we're not skipping data
+        if start_iter_mod is not None:
+            train_dataloader.batch_sampler.start_iter = int(train_dataloader.batch_sampler.start_iter * start_iter_mod)
+        
         print_rank_0('setting validation data start iteration to {}'.
                      format(valid_dataloader.batch_sampler.start_iter))
 
