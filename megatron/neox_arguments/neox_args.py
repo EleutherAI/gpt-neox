@@ -39,11 +39,8 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     """
     Parallelism Arguments
     """
-<<<<<<< HEAD
 
-=======
     
->>>>>>> origin/staged_seq_len
     pipe_parallel_size: int = 0
     """
     Number of pipeline parallel stages. Disable with 0.
@@ -305,10 +302,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     the dimension of the single head self attention in gmlp model (not used in gpt models).
     If None - gmlp model doesn't use attention.
     """
-<<<<<<< HEAD
 
-=======
->>>>>>> origin/staged_seq_len
 
     
 @dataclass
@@ -360,13 +354,10 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
     """
     LR Scheduler Arguments
     """
-<<<<<<< HEAD
 
     lr_decay_style: Literal["constant", "linear", "cosine", "exponential"] = "linear"
-=======
     
     lr_decay_style: Literal['constant', 'linear', 'cosine', 'exponential'] = "linear"
->>>>>>> origin/staged_seq_len
     """
     Learning rate decay function. Choose from 'constant', 'linear', 'cosine', 'exponential'.
     """
@@ -402,11 +393,8 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     """
     Logging Arguments
     """
-<<<<<<< HEAD
 
-=======
     
->>>>>>> origin/staged_seq_len
     use_wandb: bool = None
     """Flag indicating if wandb is to be used."""
 
@@ -483,11 +471,8 @@ class NeoXArgsOther(NeoXArgsTemplate):
     """
     Misc. Arguments
     """
-<<<<<<< HEAD
 
-=======
     
->>>>>>> origin/staged_seq_len
     distributed_backend: str = "nccl"
     """
     Which backend to use for distributed training.
@@ -612,11 +597,8 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     """
     Training Arguments
     """
-<<<<<<< HEAD
 
-=======
     
->>>>>>> origin/staged_seq_len
     data_path: str = None
     """
     Path to combined dataset to split.
@@ -884,26 +866,20 @@ class NeoXArgsTraining(NeoXArgsTemplate):
 
     """
 
-<<<<<<< HEAD
 
-=======
     stage: int = 0
     """
     stage no for staged training - incremented during training and only used if neox_args.stages is not None
     """
     
     
->>>>>>> origin/staged_seq_len
 @dataclass
 class NeoXArgsTextgen(NeoXArgsTemplate):
     """
     Text Generation arguments
     """
-<<<<<<< HEAD
 
-=======
     
->>>>>>> origin/staged_seq_len
     text_gen_type: str = None
     """
     How to generate text/sample the model.
@@ -950,11 +926,8 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     During generation recompute all attention instead of using previously computed keys/values.
     Should be set to true for sparse attention models
     """
-<<<<<<< HEAD
 
-=======
     
->>>>>>> origin/staged_seq_len
     eval_results_prefix: str = ""
     """
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
@@ -968,8 +941,4 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     char_level_ppl: bool = False
     """
     Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
-<<<<<<< HEAD
     """
-=======
-    """
->>>>>>> origin/staged_seq_len
