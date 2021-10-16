@@ -135,6 +135,7 @@ class EmbeddingPipe(Embedding):
         else:
             return embeddings, attention_mask
 
+<<<<<<< HEAD
 class SoftEmbedding(torch.nn.Module):
 
     def __init__(self, 
@@ -182,3 +183,31 @@ class SoftEmbedding(torch.nn.Module):
                 embedding = embedding[:, :self.neox_args.seq_length, ...]
             # otherwise, we're in incremental mode, and just want to forward the single embedding (since the soft prompt has already been cached)
             return embedding, layer_past, attention_mask
+=======
+class EmbeddingDistilPipe(Embedding):
+    """Extends Embedding to forward attention_mask through the pipeline."""
+
+    def forward(self, args):
+        # we dont inference on distillation model
+
+        in_teacher_model = len(args) == 3
+        in_student_model = len(args) == 5
+
+        if not (in_student_model or in_teacher_model):
+            raise ValueError(f'Incorrect number of args passed to {self.__class__.__name__}')
+
+        input_ids = args[0]
+        position_ids = args[1]
+        attention_mask = args[2]
+        if in_student_model:
+            teacher_hidden_states = args[3]
+            teacher_logits = args[4]
+
+        embeddings = super().forward(input_ids, position_ids)
+        if in_teacher_model:
+            # return embeddings, (input_ids, position_ids, attention_mask)
+            return embeddings, input_ids, position_ids, attention_mask
+        else:
+            # return embeddings, attention_mask,  teacher_hidden_states ,teacher_logits
+            return embeddings, attention_mask, teacher_hidden_states ,teacher_logits, None
+>>>>>>> origin/distill-gpt-neox

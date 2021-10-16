@@ -1,19 +1,40 @@
-# GPT-2 pretraining setup
+# distil-GPT-Neox setup
 {
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
    "pipe-parallel-size": 1,
    "model-parallel-size": 1,
 
-   # model settings
-   "num-layers": 4,
-   "hidden-size": 768,
-   "num-attention-heads": 12,
-   "seq-length": 2048,
-   "max-position-embeddings": 2048,
-   "norm": "layernorm",
-   "pos-emb": "rotary",
-   "no-weight-tying": true,
+   #related to distillation
+   "do_distillation" : true,
+   "reduce_loss_fp16" : false,
+   "alpha_lm" : 1.0,
+   "alpha_kld" : 1.0,
+   "alpha_mse" : 0.0,
+
+   "student_model_args" :{
+      # model settings
+      "num_layers": 24,
+      "hidden_size": 1024,
+      "num_attention_heads": 16,
+      "seq_length": 2048,
+      "max_position_embeddings": 2048,
+      "norm": "layernorm",
+      "pos_emb": "rotary",
+      "no_weight_tying": true
+    },
+  
+   "teacher_model_args" :{
+     # model settings
+      "num-layers": 24,
+      "hidden-size": 1536,
+      "num-attention-heads": 16,
+      "seq-length": 2048,
+      "max-position-embeddings": 2048,
+      "norm": "layernorm",
+      "pos-emb": "rotary",
+      "no-weight-tying": true
+   },
 
    # these should provide some speedup but takes a while to build, set to true if desired
    "scaled-upper-triang-masked-softmax-fusion": false,
@@ -24,13 +45,13 @@
    "optimizer": {
      "type": "Adam",
      "params": {
-       "lr": 0.0006,
+       "lr": 0.0003,
        "betas": [0.9, 0.999],
        "eps": 1.0e-8,
      }
    },
    "zero_optimization": {
-    "stage": 0,
+    "stage": 1,
     "allgather_partitions": True,
     "allgather_bucket_size": 500000000,
     "overlap_comm": True,
@@ -41,7 +62,8 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 4,
+   "train_micro_batch_size_per_gpu": 1,
+   "gradient_accumulation_steps": 24,
    "data-impl": "mmap",
    "split": "949,50,1",
 
@@ -53,7 +75,7 @@
 
    # regularization
    "gradient_clipping": 1.0,
-   "weight-decay": 0.0,
+   "weight-decay": 0.1,
    "hidden-dropout": 0.0,
    "attention-dropout": 0.0,
 
@@ -67,8 +89,8 @@
    },
 
    # misc. training settings
-   "train-iters": 320000,
-   "lr-decay-iters": 320000,
+   "train-iters": 250000,
+   "lr-decay-iters": 250000,
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,

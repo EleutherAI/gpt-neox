@@ -157,6 +157,10 @@ def save_ds_checkpoint(iteration, model, neox_args):
 def save_checkpoint(neox_args, iteration, model, optimizer, lr_scheduler):
     """Save a model checkpoint."""
 
+    if neox_args.do_distillation:
+        _ = save_checkpoint_student(model, neox_args.load_teacher, \
+                                    neox_args.save, "distillGPTNeo")
+
     if neox_args.deepspeed:
         save_ds_checkpoint(iteration, model, neox_args)
     else:
@@ -170,14 +174,149 @@ def save_checkpoint(neox_args, iteration, model, optimizer, lr_scheduler):
     # Wait so everyone is done (not necessary)
     torch.distributed.barrier()
 
+def _get_path_to_pt_files(load):
+    # Get path of dir containing pt files
+    if "latest" in os.listdir(load):
+        with open(os.path.join(load, "latest"), "r") as f:
+            latest_folder = f.read()
+        load = os.path.join(load, latest_folder)
+    return load
+
+def _get_layer_number_from_ckt(filename):
+    # Extract layer number from the pt filename
+    # layer_21-model_00-model_states.pt
+    return int(filename.split("-")[0].split("_")[1])
+
+def _get_last_layer_number_from_ckt(list_of_filename):
+    ckt_layer_file_re = r"layer_\d+-model_\d+-model_states.pt"
+    list_of_filename = sorted([filename for filename in list_of_filename 
+                            if bool(re.match(ckt_layer_file_re, filename))])
+    return _get_layer_number_from_ckt(list_of_filename[-1])
+
+def _sort_and_remove_mp_rank_ckpt(checkpoint_files):
+    # return sorted lis of layers pt files from ckpt without mp_rank ckpt
+    layer_ckpts = []; mp_rank_ckpt= None
+    for ckpt_file in checkpoint_files:
+        if "mp_rank" in ckpt_file:
+            mp_rank_ckpt = ckpt_file
+        else:
+            layer_ckpts.append(ckpt_file)
+    return sorted(layer_ckpts), mp_rank_ckpt 
+
+def save_checkpoint_student(model, load_teacher, save_dir, tag):
+    """Extract student mdoel from the distil model and save aa model checkpoint."""
+
+    print_rank_0(f"Extracting and saving student model in {save_dir} as checkpoint from distil model")
+    # Save entire model and remove teacher layer checkpoint files only
+    model.save_checkpoint(save_dir=save_dir, tag=tag)
+    load_dir = os.path.join(save_dir, tag)
+
+    if torch.distributed.is_initialized():
+        if torch.distributed.get_rank() == 0:
+            pt_files, _ = _sort_and_remove_mp_rank_ckpt(
+                                os.listdir(_get_path_to_pt_files(load_dir)))
+            teacher_pt_files, _ = _sort_and_remove_mp_rank_ckpt(
+                                os.listdir(_get_path_to_pt_files(load_teacher)))
+            teacher_last_layer = _get_last_layer_number_from_ckt(teacher_pt_files) + 1
+            leading_zeros = len(str(teacher_last_layer))
+            for pt_file in pt_files:
+                layer_num = _get_layer_number_from_ckt(pt_file)
+                if layer_num < teacher_last_layer:
+                    # Removing the teacher layers checkpoint files
+                    os.remove(os.path.join(load_dir, pt_file))
+                else:
+                    # Renaming the student layer checkpoint files
+                    new_layer_num = layer_num - teacher_last_layer
+                    new_layer_num = str(new_layer_num).zfill(leading_zeros)
+                    new_pt_file = f"layer_{new_layer_num}-model_00-model_states.pt"
+                    os.rename(os.path.join(load_dir, pt_file), 
+                              os.path.join(load_dir, new_pt_file))
+    
+    torch.distributed.barrier()
+    return load_dir
+
+def combine_checkpoints(model, optimizer, lr_scheduler, load_teacher, load_student, save_dir):
+    """For distillation the layers of teacher model and student model 
+    are appended to create a single distillation model. Since to make 
+    use of pretrained model for distillation teacher model and student 
+    model ckpt files are merged into single ckpt folder"""
+    teacher_checkpoint_files, _ = _sort_and_remove_mp_rank_ckpt(os.listdir(_get_path_to_pt_files(load_teacher)))
+    teacher_last_layer = _get_last_layer_number_from_ckt(teacher_checkpoint_files) + 1
+
+    load_student = load_student if load_student is not None \
+                else save_checkpoint_student(model, load_teacher, save_dir, tag="temp_student_model")
+
+    student_checkpoint_files, _ = _sort_and_remove_mp_rank_ckpt(os.listdir(_get_path_to_pt_files(load_student)))
+    student_last_layer = _get_last_layer_number_from_ckt(student_checkpoint_files) + 1
+
+    load_dir = os.path.join(save_dir, "temp")
+
+    if torch.distributed.is_initialized():
+        if torch.distributed.get_rank() == 0:
+            if not os.path.exists(load_dir):
+                os.makedirs(load_dir)
+
+            print_rank_0(f"Creating temp checkpoint for distillation "
+                         f"using {load_teacher}, {load_student} at {load_dir}")
+            leading_zeros = len(str(teacher_last_layer+student_last_layer))
+            for model_number in [0,1]:
+                checkpoint_files = teacher_checkpoint_files if model_number==0 \
+                                                            else student_checkpoint_files
+                for ckpt_filename in checkpoint_files:
+                    layer_num = _get_layer_number_from_ckt(ckpt_filename)
+                    model_dir = _get_path_to_pt_files(load_teacher) if model_number==0 \
+                                                       else _get_path_to_pt_files(load_student)
+                    new_layer_num = layer_num if model_number==0 \
+                                              else layer_num + teacher_last_layer
+                    new_layer_num = str(new_layer_num).zfill(leading_zeros)
+                    new_ckpt_filename = f"layer_{new_layer_num}-model_00-model_states.pt"
+                    shutil.copy(os.path.join(model_dir, ckpt_filename), 
+                                os.path.join(load_dir, new_ckpt_filename))
+
+            # Initialized mp_rank state and save it in checkpoint folder
+            dp_world_size = torch.distributed.get_world_size() \
+                                    if mpu is None \
+                                    else mpu.get_data_parallel_world_size()
+            mp_world_size = 1 if mpu is None \
+                              else mpu.get_model_parallel_world_size()
+            client_sd = {'module': None, 
+                        'optimizer': optimizer.state_dict(),  
+                        'lr_scheduler': lr_scheduler.state_dict(), 
+                        'csr_tensor_module_names': set(), 
+                        'skipped_steps': 0, 
+                        'global_steps': 0, 
+                        'global_samples': 0, 
+                        'dp_world_size': dp_world_size, 
+                        'mp_world_size': mp_world_size}
+            torch.save(client_sd, os.path.join(load_dir, "mp_rank_00_model_states.pt"))
+
+    torch.distributed.barrier()
+    return save_dir, "temp"
+
 def load_checkpoint(neox_args, model, optimizer, lr_scheduler, inference=False):
     """Load a model checkpoint and return the iteration."""
 
     if neox_args.deepspeed:
         load_optim_and_scheduler = not neox_args.no_load_optim  # TODO: These should be configured by separate args
+        load_module_strict = True
+        tag = None
+
+        if neox_args.do_distillation is not None and neox_args.load is None:
+            load_module_strict = False
+            load_optim_and_scheduler = True
+            if neox_args.load_teacher is not None:
+                neox_args.load, tag = combine_checkpoints(model, optimizer, lr_scheduler,
+                                                          neox_args.load_teacher, 
+                                                          neox_args.load_student, 
+                                                          neox_args.save)
+            else:
+                raise ValueError('Please provide path of the teacher model checkpoint')
+
         checkpoint_name, state_dict = model.load_checkpoint(neox_args.load,
                                                             load_optimizer_states=load_optim_and_scheduler,
-                                                            load_lr_scheduler_states=load_optim_and_scheduler)
+                                                            load_lr_scheduler_states=load_optim_and_scheduler,
+                                                            load_module_strict=load_module_strict,
+                                                            tag=tag)
 
         if checkpoint_name is None:
             if mpu.get_data_parallel_rank() == 0:

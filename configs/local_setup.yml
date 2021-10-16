@@ -21,6 +21,12 @@
   "save": "checkpoints",
   "load": "checkpoints",
   "checkpoint_validation_with_forward_pass": False,
+
+  # for Distillation
+  # "finetune": True,
+  # "load": "/path/of/distillation/checkpoint/from/previous/run"
+  # "load_student": "/path/of/pretrained-model/as/student",
+  # "load_teacher": "/path/of/pretrained-model/as/teacher",
   
   "tensorboard-dir": "tensorboard",
   "log-dir": "logs",

@@ -239,7 +239,13 @@ To evaluate a trained model on the evaluation harness, use `./deepy.py evaluate.
 
 ## Distilling
 
+<<<<<<< HEAD
 Coming soon! Check out the `distill-gpt-neox` branch to try distilling a model.
+=======
+[WIP]
+`./deepy.py pretrain_gpt2.py -d configs med-to-small.yml local_setup.yml`
+
+>>>>>>> origin/distill-gpt-neox
 
 ## Monitoring
 

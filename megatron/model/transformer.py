@@ -255,7 +255,6 @@ class ParallelSelfAttention(nn.Module):
             )
         else:
             self.rotary_emb = None
-
         self.attention_type = neox_args.attention_config[layer_number]
         self.sparse = self.attention_type != "global"
         if self.sparse:
@@ -735,4 +734,77 @@ def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=Non
     if parallel_output:
         return logits_parallel
 
+<<<<<<< HEAD
     return mpu.gather_from_model_parallel_region(logits_parallel)
+=======
+    return mpu.gather_from_model_parallel_region(logits_parallel)
+
+class ParallelTransformerLayerDistilPipe(ParallelTransformerLayer):
+    """Extends ParallelTransformerLayer to forward attention_mask through the pipeline for distillation. """
+
+    def forward(self, args):
+        # we dont inference on distillation model
+        in_teacher_model = len(args)==4
+        in_student_model = len(args)==5
+
+        if in_teacher_model:
+            embeddings, input_ids, position_ids, attention_mask = args
+            # passing the data through layer
+            # input_ids, position_ids, attention_mask are required for input to student model
+            return super().forward(embeddings, attention_mask), input_ids, position_ids, attention_mask
+        elif in_student_model:
+            embeddings, attention_mask, teacher_hidden_states ,teacher_logits, _ = args
+            # passing the data through layer
+            # teacher_hidden_states ,teacher_logits are required to compute student loss
+            return super().forward(embeddings, attention_mask), attention_mask, teacher_hidden_states ,teacher_logits,  None
+        else:
+            raise ValueError(
+                f'In layer {self.layer_number} - Incorrect number of arguments ({len(args)}) for {self.__class__.__name__}')
+
+class NormDistilPipe(nn.Module):
+    """Just a helper class to pass presents through to the output when doing inference with a Pipe Parallel model for distillation."""
+
+    def __init__(self, norm_class, hidden_size, eps):
+        super().__init__()
+        self.norm = norm_class(hidden_size, eps=eps)
+
+    def forward(self, args):
+        if not isinstance(args, tuple):
+            # in training, args = hidden_state (tensor, so we check if object isn't a tuple and pass through here)
+            hidden_state = args
+            return self.norm(hidden_state)
+
+        in_teacher_model = len(args)==4
+        in_student_model = len(args)==5
+
+        if in_teacher_model or in_student_model:
+            hidden_states= args[0]
+            hidden_states = self.norm(hidden_states)
+            return hidden_states, *args[1:]
+        else:
+            raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
+
+class ParallelLinearDistilPipe(ParallelLinear):
+    """Another helper class to pass presents through to the output when doing inference with a Pipe Parallel model for distillation."""
+
+    def forward(self, args):
+        if not isinstance(args, tuple):
+            # in training, args = hidden_state (tensor, so we check if object isn't a tuple and pass through here)
+            hidden_state = args
+            logits, bias = super().forward(hidden_state)
+            return logits
+        in_teacher_model = len(args)==4
+        in_student_model = len(args)==5
+
+        hidden_states = args[0]
+        logits, bias = super().forward(hidden_states)
+
+        if in_teacher_model:
+            input_ids, position_ids, attention_mask = args[1:]
+            return input_ids, position_ids, attention_mask, hidden_states, logits
+        elif in_student_model:
+            attention_mask, teacher_hidden_states ,teacher_logits, _ = args[1:]
+            return teacher_hidden_states, teacher_logits, hidden_states, logits
+        else:
+            raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
+>>>>>>> origin/distill-gpt-neox

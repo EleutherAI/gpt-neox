@@ -328,6 +328,52 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
     """
 
+@dataclass
+class NeoXArgsDistillation(NeoXArgsTemplate):
+    do_distillation : bool = False
+    """
+    Set flag to run distillation
+    """
+
+    teacher_model_args : NeoXArgsModel = None
+    """
+    Defining teacher model architecture. Should follow NeoXArgsModel
+    """
+
+    student_model_args : NeoXArgsModel = None
+    """
+    Defining student model architecture. Should follow NeoXArgsModel
+    """
+
+    load_teacher: str = None
+    """
+    Directory containing a model checkpoint.
+    """
+
+    load_student: str = None
+    """
+    Directory containing a model checkpoint.
+    """
+
+    alpha_mse: float = 0.0
+    """
+    Weight for mse loss range 0-1.
+    """
+
+    alpha_lm: float = 0.0
+    """
+    Weight for cross entropy loss range 0-1.
+    """
+
+    alpha_kld: float = 0.0
+    """
+    Weight for kl-div loss range 0-1.
+    """
+
+    reduce_loss_fp16: bool = False
+    """
+    Move the cross entropy unreduced loss calculation for lm head to fp16.
+    """
 
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):

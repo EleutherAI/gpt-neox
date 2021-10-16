@@ -117,3 +117,26 @@ class GMLPBlock(nn.Module):
             return x, attention_mask
         elif in_inference:
             return x, layer_past, presents, attention_mask
+
+class GMLPBlockDistil(GMLPBlock):
+    def __init__(self, neox_args, init_method, output_layer_init_method, layer_number, ff_mult=4, mask_fn=None):
+        super().__init__(neox_args, init_method, output_layer_init_method, layer_number, ff_mult=4, mask_fn=None)
+
+    def forward(self, args):
+        # we dont inference on distillation model
+        in_teacher_model = len(args)==4
+        in_student_model = len(args)==5
+
+        if in_teacher_model:
+            embeddings, input_ids, position_ids, attention_mask = args
+            # passing the data through layer
+            # input_ids, position_ids, attention_mask are required for input to student model
+            return super().forward((embeddings, attention_mask)), input_ids, position_ids, attention_mask
+        elif in_student_model:
+            embeddings, attention_mask, teacher_hidden_states ,teacher_logits, _ = args
+            # passing the data through layer
+            # teacher_hidden_states ,teacher_logits are required to compute student loss
+            return super().forward((embeddings, attention_mask)), attention_mask, teacher_hidden_states ,teacher_logits, None
+        else:
+            raise ValueError(
+                f'In layer {self.layer_number} - Incorrect number of arguments ({len(args)}) for {self.__class__.__name__}')

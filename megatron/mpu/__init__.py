@@ -15,7 +15,9 @@
 
 """Model parallel utility interface."""
 
-from .cross_entropy import vocab_parallel_cross_entropy
+from .loss import vocab_parallel_cross_entropy
+from .loss import vocab_parallel_KLDivLoss
+from .loss import vocab_parallel_MSELoss
 
 from .data import broadcast_data
 
