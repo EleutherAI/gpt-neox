@@ -30,15 +30,10 @@ from megatron.model.init_functions import get_init_methods
 from megatron import mpu, print_rank_0
 from megatron.mpu import ParallelRelativePositionBias
 from megatron.model.transformer import ParallelTransformerLayerPipe, NormPipe, ParallelLinearPipe, parallel_lm_logits
-<<<<<<< HEAD
-from megatron.model.gmlp import GMLPBlock
-from megatron.model.word_embeddings import EmbeddingPipe, SoftEmbedding
-=======
 from megatron.model.transformer import ParallelTransformerLayerDistilPipe, NormDistilPipe, ParallelLinearDistilPipe
 
 from megatron.model.gmlp import GMLPBlock, GMLPBlockDistil
-from megatron.model.word_embeddings import EmbeddingPipe, EmbeddingDistilPipe
->>>>>>> origin/distill-gpt-neox
+from megatron.model.word_embeddings import EmbeddingPipe, EmbeddingDistilPipe, SoftEmbedding
 
 # Pipeline parallelism
 from deepspeed.pipe import PipelineModule, LayerSpec, TiedLayerSpec
@@ -249,17 +244,14 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         self._inference = inference
         self.get_key_value = get_key_value if inference else False
         self.parallel_output = parallel_output
-<<<<<<< HEAD
         self.hidden_size = self.neox_args.hidden_size
         self.num_tokentypes = num_tokentypes
         self.init_method, self.output_layer_init_method = get_init_methods(self.neox_args)
         self.embedding_type = self.neox_args.pos_emb
         self.__topology__ = topology
 
-=======
         self.do_distillation = self.neox_args.do_distillation
         self.gradient_accumulation_steps = self.neox_args.gradient_accumulation_steps
->>>>>>> origin/distill-gpt-neox
         self.specs = []
         self._losses = None
 
