@@ -734,9 +734,6 @@ def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=Non
     if parallel_output:
         return logits_parallel
 
-<<<<<<< HEAD
-    return mpu.gather_from_model_parallel_region(logits_parallel)
-=======
     return mpu.gather_from_model_parallel_region(logits_parallel)
 
 class ParallelTransformerLayerDistilPipe(ParallelTransformerLayer):
@@ -807,4 +804,3 @@ class ParallelLinearDistilPipe(ParallelLinear):
             return teacher_hidden_states, teacher_logits, hidden_states, logits
         else:
             raise ValueError(f'Incorrect number of arguments for {self.__class__.__name__}')
->>>>>>> origin/distill-gpt-neox
