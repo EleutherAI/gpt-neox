@@ -30,7 +30,7 @@ If you're looking for our TPU codebase, see [GPT-Neo](https://github.com/Eleuthe
   * [Monitoring](#monitoring)
     + [WandB](#wandb)
     + [Tensorboard](#tensorboard)
-  * [Placeholder Name](#placeholder-name)
+  * [Administrative Notes](#administrative-notes)
     + [Citing GPT-NeoX](#citing-gpt-neox)
     + [Licensing](#licensing)
     + [Acknowledgements](#acknowledgements)
@@ -251,7 +251,7 @@ EleutherAI is currently using [Weights & Biases to record experiments](https://w
 
 We also support using Tensorboard via the `tensorboard-dir` argument. To use tensorboard, install the optional packages found at `requirements/requirements-tensorboard.txt`
 
-## Placeholder Name
+## Administrative Notes
 
 ### Citing GPT-NeoX
 
