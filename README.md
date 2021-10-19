@@ -81,10 +81,10 @@ Once you've installed all the requirements and set up your model configuration, 
 GPT-NeoX parameters are defined in a YAML configuration file which is passed to the `deepy.py` launcher. We provide baseline examples for the models found in the paper [Language Models are Few Shot Learners](https://arxiv.org/abs/2005.14165). Configs such as file locations that are dependant on your particular system go in `local_setup.yml`. We have filled it out with some placeholder examples, but you will need to update this for your system.
 
 All functionality follows the pattern `./deepy.py main_function.py -d configs small.yml local_setup.yml`
-We currently offer four main functions:
-1. `pretrain_gpt2.py` is used for training and finetuning models.
-2. `eval_tasks/run.py` is used to evaluate a trained model using the evaluation harness.
-3. `text_gen_gpt2.py` is used to sample text from a trained model.
+We currently offer three main functions:
+1. `pretrain.py` is used for training and finetuning models.
+2. `evaluate.py` is used to evaluate a trained model using the [evaluation harness](https://github.com/EleutherAI/lm-evaluation-harness).
+3. `generate.py` is used to sample text from a trained model.
 
 For now, run `./deepy.py pretrain_gpt2.py -d configs small.yml local_setup.yml` to begin training a model and complete this tutorial.
 
@@ -234,7 +234,7 @@ This will deploy the `pretrain_gpt2.py` script on all nodes with one process per
 
 GPT-NeoX supports evaluation on downstream tasks through the [language model evaluation harness](https://github.com/EleutherAI/lm-evaluation-harness).
 
-To evaluate a trained model on the evaluation harness, use `./deepy.py evaluate.py configs/your_config.yml`
+To evaluate a trained model on the evaluation harness, add a `eval_tasks` field to your config file and call `./deepy.py evaluate.py -d configs your_configs.yml`.
 
 ## Distilling
 
