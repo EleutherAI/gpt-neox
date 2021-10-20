@@ -377,6 +377,12 @@ def stream_tokens(
             ] = token_index_to_generate
 
             token_index_to_generate += 1
+<<<<<<< HEAD
+=======
+            if torch.all(state_is_done): break
+        
+        return all_logits
+>>>>>>> Initial memorization commit
 
             yield context_tokens, token_generation_start_index, token_generation_end_index, state_is_done.bool()
             if torch.all(state_is_done):

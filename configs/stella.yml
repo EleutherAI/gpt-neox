@@ -8,7 +8,7 @@
    # model settings
    "num-layers": 12,
    "hidden-size": 768,
-   "num-attention-heads": 6,
+   "num-attention-heads": 12,
    "seq-length": 2048,
    "max-position-embeddings": 2048,
    "norm": "layernorm",
@@ -26,7 +26,7 @@
      "params": {
        "lr": 0.0006,
        "betas": [0.9, 0.999],
-       "eps": 1e-8,
+       "eps": 1.0e-8,
      }
    },
    "zero_optimization": {
@@ -58,7 +58,7 @@
    "attention-dropout": 0.0,
 
    # precision settings
-   "fp16": {
+   "fp16": { 
      "enabled": true,
      "loss_scale": 0,
      "loss_scale_window": 1000,
