@@ -86,7 +86,7 @@ class ParallelMLP(nn.Module):
         self.activation_func = get_activation(neox_args)
         self.activation_type = neox_args.activation
         self.bias_gelu_fusion = neox_args.bias_gelu_fusion
-        self.normformer = neox_args.normformer
+        self.normformer_post_ff_layernorm = neox_args.normformer_post_ff_layernorm
 
         # auto scale so geglu has equal parameters
         ff_mult = 4 * 2 / 3 if self.activation_type == "geglu" else 4
@@ -115,7 +115,7 @@ class ParallelMLP(nn.Module):
             parallel_output=parallel_output,
         )
 
-        if self.normformer:
+        if self.normformer_post_ff_layernorm:
             norm, eps = get_norm(neox_args)
             self.ln = norm(mpu.divide(ff_dim, mpu.get_model_parallel_world_size()), eps=eps)
 
@@ -135,7 +135,7 @@ class ParallelMLP(nn.Module):
                 intermediate_parallel + bias_parallel
             )
 
-        if self.normformer:
+        if self.normformer_post_ff_layernorm:
             intermediate_parallel = self.ln(intermediate_parallel)
 
         # [s, b, h]
@@ -300,8 +300,8 @@ class ParallelSelfAttention(nn.Module):
             parallel_output=parallel_output,
         )
 
-        self.normformer = neox_args.normformer
-        if self.normformer:
+        self.normformer_head_scale = neox_args.normformer_head_scale
+        if self.normformer_head_scale:
             self.head_scale = nn.Parameter(torch.ones(self.num_attention_heads_per_partition).view(1, self.num_attention_heads_per_partition, 1, 1))
 
     def attention(
@@ -508,7 +508,7 @@ class ParallelSelfAttention(nn.Module):
                 query_layer, key_layer, value_layer, attention_mask
             )
 
-        if self.normformer:
+        if self.normformer_head_scale:
             context_layer = context_layer *  self.head_scale
 
         # [b, np, sq, hn] --> [sq, b, np, hn]
@@ -599,9 +599,12 @@ class ParallelTransformerLayer(nn.Module):
         if self.gpt_j_residual:
             self.reduce = mpu.mappings.reduce_from_model_parallel_region
         
-        self.normformer = neox_args.normformer
-        if self.normformer:
+        self.normformer_res_scale = neox_args.normformer_res_scale
+        if self.normformer_res_scale:
             self.res_scale = nn.Parameter(torch.ones(1))
+
+        self.normformer_post_attn_layernorm = neox_args.normformer_post_attn_layernorm
+        if self.normformer_post_attn_layernorm:
             self.post_attn_layernorm = norm(neox_args.hidden_size, eps=eps)
 
     def _get_bias_dropout(self):
@@ -620,7 +623,7 @@ class ParallelTransformerLayer(nn.Module):
         # x: [b, s, h]
 
         residual, x = x, self.input_layernorm(x)
-        if self.normformer:
+        if self.normformer_res_scale:
             residual = residual * self.res_scale
 
         attention_output, attention_bias = self.attention(
@@ -640,7 +643,7 @@ class ParallelTransformerLayer(nn.Module):
                 prob=self.hidden_dropout,
             )
 
-        if self.normformer:
+        if self.normformer_post_attn_layernorm:
             attention_output = self.post_attn_layernorm(attention_output)
 
         # MLP.
