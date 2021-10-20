@@ -51,8 +51,9 @@ If you're looking for our TPU codebase, see [GPT-Neo](https://github.com/Eleuthe
 
 Coming soon: a colab notebook for trying out the model.
 
-**Warning:** Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), our fork of the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library with some added changes. We strongly recommend using Anaconda, a virtual machine, or some other form of environment isolation before installing from `requirements/requirements.txt`. Failure to do so may cause other repositories that rely on DeepSpeed to break.
+**Warning:** Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), our fork of the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library with some added changes. We strongly recommend using Anaconda, a [virtual machine](#using-docker), or some other form of environment isolation before installing from `requirements/requirements.txt`. Failure to do so may cause other repositories that rely on DeepSpeed to break.
 
+### Local Environment
 First make sure you are in an environment with Python 3.8 or later and `torch>=1.8` installed. Then run `pip install -r requirements/requirements.txt`. 
 You may need to change the version of `cupy-cudaxxx` to match your machine's cuda version.
 
@@ -62,19 +63,31 @@ Some features rely on apex, which you can install with the command below:
 pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@e2083df5eb96643c61613b9df48dd4eea6b07690
 ```
 
+### Using Docker
+It may be preferable to use this code through a Docker image based on the Dockerfile we provide, which takes care of most of the installation process. To use this option, first build an image named `gptneox-image` from the repository root directory using:
+```
+docker build -t gptneox-image -f Dockerfile .
+```
+You can then run a container based on this image. For instance, the below snippet mounts the cloned repository (`gpt-neox`) directory to `/gpt-neox` in the container and uses [NVidia-Docker](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) to make four GPUs (numbers 0-3) accessible to the container. Note the `--shm-size=1g --ulimit memlock=-1` flags: in our epxerience, without these the container allocates far too little shared memory for training.
+```
+nvidia-docker run --rm -it -e NVIDIA_VISIBLE_DEVICES=0,1,2,3 --shm-size=1g --ulimit memlock=-1 --mount type=bind,src=$PWD,dst=/gpt-neox gptneox-image
+```
+After navigating to `/gpt-neox` within this container, you should then be able to run the code as described below. Upon the first run, you may be prompted to "install the fused kernels" with a provided command. Additionally, extra requirements, such as TensorBoard, are not installed by default. You are strongly encouraged (and often required) to run every command as root (using `sudo`).
+
 We also host a Docker Image on Dockerhub at `leogao2/gpt-neox`, which enables easy multi-node training.
 
+### Running the Code
 Once you've installed all the requirements and set up your model configuration, the next step is obtaining and preprocessing your dataset. We provide a data processing library that is easily interfaced with via the function `prepare_data.py`. Calling `python prepare_data.py enron -t CharLevelTokenizer -d ./data/` will download the dataset `enron`, tokenize it with a character-level tokenizer, and save the results to `./data/`. 
 
-GPT-NeoX parameters are defined in a YAML configuration file which is passed to the `deepy.py` launcher. We provide baseline examples for the models found in the paper [Language Models are Few Shot Learners](https://arxiv.org/abs/2005.14165). Configs such as file locations that are dependant on your particular system go in `local_configs.yml`. We have filled it out with some placeholder examples, but you will need to update this for your system.
+GPT-NeoX parameters are defined in a YAML configuration file which is passed to the `deepy.py` launcher. We provide baseline examples for the models found in the paper [Language Models are Few Shot Learners](https://arxiv.org/abs/2005.14165). Configs such as file locations that are dependant on your particular system go in `local_setup.yml`. We have filled it out with some placeholder examples, but you will need to update this for your system.
 
-All functionality follows the pattern `./deepy.py main_function.py -d configs small.yml local_configs.yml`
+All functionality follows the pattern `./deepy.py main_function.py -d configs small.yml local_setup.yml`
 We currently offer four main functions:
 1. `pretrain_gpt2.py` is used for training and finetuning models.
 2. `eval_tasks/run.py` is used to evaluate a trained model using the evaluation harness.
 3. `text_gen_gpt2.py` is used to sample text from a trained model.
 
-For now, run `./deepy.py pretrain_gpt2.py -d configs small.yml local_configs.yml` to begin training a model and complete this tutorial.
+For now, run `./deepy.py pretrain_gpt2.py -d configs small.yml local_setup.yml` to begin training a model and complete this tutorial.
 
 ## Features
 
