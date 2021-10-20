@@ -236,7 +236,7 @@ def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_i
     last_token_index_to_generate = min(
         neox_args.seq_length - 1, # never generate more than the model's sequence length
         token_index_to_generate + maximum_tokens -1
-    )
+    ) 
 
     all_logits = torch.zeros((batch_size, neox_args.seq_length, neox_args.padded_vocab_size))
 
@@ -320,10 +320,9 @@ def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_i
             token_generation_end_index[(state_started.byte() & ~state_is_done).bool()] = token_index_to_generate
 
             token_index_to_generate += 1
-            
-            
-            yield context_tokens, token_generation_start_index, token_generation_end_index, all_logits, state_is_done.bool()
             if torch.all(state_is_done): break
+        
+        return all_logits
 
 def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], eos_token_id: int = None, 
                                     maximum_tokens: int = 64, recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0, stop_tokens=None):
