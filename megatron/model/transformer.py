@@ -650,16 +650,14 @@ class ParallelTransformerLayer(nn.Module):
 
             # output = mlp(ln2(x)) + attention_output
             mlp_output, mlp_bias = self.mlp(self.post_attention_layernorm(x))
-            mlp_residual = residual
-
             if self.normformer_res_scale:
-                mlp_residual = mlp_residual * self.res_scale
+                attention_output = attention_output * self.res_scale
 
             with torch.enable_grad():
                 output = bias_dropout_fn(
                     mlp_output,
                     bias=mlp_bias.expand_as(mlp_output),
-                    residual=mlp_residual,
+                    residual=attention_output,
                     prob=self.hidden_dropout,
                 )
 
