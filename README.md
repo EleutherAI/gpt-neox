@@ -57,7 +57,7 @@ Coming soon: a colab notebook for trying out the model.
 First make sure you are in an environment with Python 3.8 or later and `torch>=1.8` installed. Then run `pip install -r requirements/requirements.txt`. 
 You may need to change the version of `cupy-cudaxxx` to match your machine's cuda version.
 
-Some features rely on apex, which you can install with the command below:
+nvidia's apex is an optional extra (used only for FusedAdam, which may offer some performance improvement):
 
 ```bash
 pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@e2083df5eb96643c61613b9df48dd4eea6b07690
