@@ -601,11 +601,11 @@ class ParallelTransformerLayer(nn.Module):
         
         self.normformer_res_scale = neox_args.normformer_res_scale
         if self.normformer_res_scale:
-            self.res_scale = nn.Parameter(torch.ones(1))
+            self.res_scale = nn.Parameter(torch.tensor(1.0, dtype=torch.float))
 
         self.normformer_post_attn_layernorm = neox_args.normformer_post_attn_layernorm
         if self.normformer_post_attn_layernorm:
-            self.post_attn_layernorm = norm(neox_args.hidden_size, eps=eps)
+            self.pre_residual_layernorm = norm(neox_args.hidden_size, eps=eps)
 
     def _get_bias_dropout(self):
         if self.bias_dropout_fusion:
@@ -623,8 +623,6 @@ class ParallelTransformerLayer(nn.Module):
         # x: [b, s, h]
 
         residual, x = x, self.input_layernorm(x)
-        if self.normformer_res_scale:
-            residual = residual * self.res_scale
 
         attention_output, attention_bias = self.attention(
             x, attention_mask, layer_past=layer_past
@@ -634,21 +632,27 @@ class ParallelTransformerLayer(nn.Module):
 
         attention_residual = None if self.gpt_j_residual else residual
 
+        if self.normformer_post_attn_layernorm:
+            attention_output = self.pre_residual_layernorm(attention_output+attention_bias.expand_as(x))
+            attention_bias = None
+        else:
+            attention_bias = attention_bias.expand_as(x)
+
         # re-enable torch grad to enable fused optimization.
         with torch.enable_grad():  # x, bias, residual, prob
             attention_output = bias_dropout_fn(
                 attention_output,
-                bias=attention_bias.expand_as(x),
+                bias=attention_bias,
                 residual=attention_residual,
                 prob=self.hidden_dropout,
             )
-
-        if self.normformer_post_attn_layernorm:
-            attention_output = self.post_attn_layernorm(attention_output)
-
+        
         # MLP.
-        mlp_input = self.post_attention_layernorm(x) if self.gpt_j_residual else self.post_attention_layernorm(attention_output)
+        mlp_input = self.post_attention_layernorm(residual) if self.gpt_j_residual else self.post_attention_layernorm(attention_output)
         mlp_residual = attention_output
+
+        if self.normformer_res_scale:
+            mlp_residual = mlp_residual * self.res_scale
 
         mlp_output, mlp_bias = self.mlp(mlp_input)
 
