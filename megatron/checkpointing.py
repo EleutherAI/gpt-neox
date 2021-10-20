@@ -175,6 +175,8 @@ def load_checkpoint(neox_args, model, optimizer, lr_scheduler, inference=False):
 
     if neox_args.deepspeed:
         load_optim_and_scheduler = not neox_args.no_load_optim  # TODO: These should be configured by separate args
+        if neox_args.finetune:
+            load_optim_and_scheduler = False
         checkpoint_name, state_dict = model.load_checkpoint(neox_args.load,
                                                             load_optimizer_states=load_optim_and_scheduler,
                                                             load_lr_scheduler_states=load_optim_and_scheduler)
@@ -192,7 +194,7 @@ def load_checkpoint(neox_args, model, optimizer, lr_scheduler, inference=False):
     else:
         iteration = state_dict.get('iteration') or state_dict.get("total_iters") # total_iters backward compatible with older checkpoints
         if iteration is None:
-            raise ValueError('Unable to load iteration from checkpoint {}, exiting'.format(checkpoint_name))
+            raise ValueError(f'Unable to load iteration from checkpoint {checkpoint_name} with keys {state_dict.keys()}, exiting')
 
     # Check arguments.
     if 'args' in state_dict:
