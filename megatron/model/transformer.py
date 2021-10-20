@@ -77,7 +77,7 @@ class ParallelMLP(nn.Module):
     state back into h hidden dimension. At the end, dropout is also
     applied.
     """
-    
+
     def __init__(
         self, neox_args, init_method, output_layer_init_method, parallel_output=False
     ):
@@ -149,7 +149,11 @@ class ParallelLinear(nn.Module):
     """
 
     def __init__(
-        self, neox_args, parallel_output=True, inference=False, init_method=nn.init.xavier_normal_
+        self,
+        neox_args,
+        parallel_output=True,
+        inference=False,
+        init_method=nn.init.xavier_normal_,
     ):
         super().__init__()
         parallelism = neox_args.output_layer_parallelism
@@ -509,7 +513,7 @@ class ParallelSelfAttention(nn.Module):
             )
 
         if self.normformer_head_scale:
-            context_layer = context_layer *  self.head_scale
+            context_layer = context_layer * self.head_scale
 
         # [b, np, sq, hn] --> [sq, b, np, hn]
         context_layer = context_layer.permute(2, 0, 1, 3).contiguous()
@@ -564,13 +568,8 @@ class ParallelTransformerLayer(nn.Module):
         self.bias_dropout_fusion = neox_args.bias_dropout_fusion
         self.gpt_j_residual = neox_args.gpt_j_residual
 
-        # normal:
-        # x = x + attn(ln1(x))
-        # x = x + mlp(ln2(x))
-        # gptj:
-        # x = x + attn(ln1(x)) + mlp(ln2(x))
-        # this means we can avoid doing the allreduce in the attn / mlp outputs
-        # to save communication time (we can do a single allreduce after we add mlp / attn outputs).
+        if self.gpt_j_residual:
+            self.reduce = mpu.mappings.reduce_from_model_parallel_region
 
         # Self attention.
         self.attention = ParallelSelfAttention(
@@ -596,9 +595,6 @@ class ParallelTransformerLayer(nn.Module):
             parallel_output=self.gpt_j_residual,
         )
 
-        if self.gpt_j_residual:
-            self.reduce = mpu.mappings.reduce_from_model_parallel_region
-        
         self.normformer_res_scale = neox_args.normformer_res_scale
         if self.normformer_res_scale:
             self.res_scale = nn.Parameter(torch.tensor(1.0, dtype=torch.float))
@@ -622,53 +618,97 @@ class ParallelTransformerLayer(nn.Module):
         bias_dropout_fn = self._get_bias_dropout()
         # x: [b, s, h]
 
-        residual, x = x, self.input_layernorm(x)
-
-        attention_output, attention_bias = self.attention(
-            x, attention_mask, layer_past=layer_past
-        )
-        if self.get_key_value:
-            attention_output, presents = attention_output
-
-        attention_residual = None if self.gpt_j_residual else residual
-
-        if self.normformer_post_attn_layernorm:
-            attention_output = self.pre_residual_layernorm(attention_output+attention_bias.expand_as(x))
-            attention_bias = None
-        else:
-            attention_bias = attention_bias.expand_as(x)
-
-        # re-enable torch grad to enable fused optimization.
-        with torch.enable_grad():  # x, bias, residual, prob
-            attention_output = bias_dropout_fn(
-                attention_output,
-                bias=attention_bias,
-                residual=attention_residual,
-                prob=self.hidden_dropout,
-            )
-        
-        # MLP.
-        mlp_input = self.post_attention_layernorm(residual) if self.gpt_j_residual else self.post_attention_layernorm(attention_output)
-        mlp_residual = attention_output
-
-        if self.normformer_res_scale:
-            mlp_residual = mlp_residual * self.res_scale
-
-        mlp_output, mlp_bias = self.mlp(mlp_input)
-
-        # re-enable torch grad to enable fused optimization.
-        with torch.enable_grad():
-            output = bias_dropout_fn(
-                mlp_output,
-                bias=mlp_bias.expand_as(attention_output),
-                residual=mlp_residual,
-                prob=self.hidden_dropout,
-            ) 
-
         if self.gpt_j_residual:
-            # reduce from model parallel region and add residual
-            output = self.reduce(output)
-            output = residual + output
+            # pseudocode:
+            # x = x + attn(ln1(x)) + mlp(ln2(x))
+            # this means we can avoid doing the allreduce in the attn / mlp outputs
+            # to save communication time (we can do a single allreduce after we add mlp / attn outputs).
+            
+            # attention_output = attn(ln1(x))
+            residual = x
+            attention_output, attention_bias = self.attention(
+                self.input_layernorm(x), attention_mask, layer_past=layer_past
+            )
+            if self.get_key_value:
+                attention_output, presents = attention_output
+
+            if self.normformer_post_attn_layernorm:
+                attention_output = self.pre_residual_layernorm(attention_output+attention_bias.expand_as(attention_output))
+                attention_bias = None
+            else:
+                attention_bias = attention_bias.expand_as(attention_output)
+
+            with torch.enable_grad():
+                attention_output = bias_dropout_fn(
+                    attention_output,
+                    bias=attention_bias,
+                    residual=None,
+                    prob=self.hidden_dropout,
+                )
+
+            
+
+            # output = mlp(ln2(x)) + attention_output
+            mlp_output, mlp_bias = self.mlp(self.post_attention_layernorm(x))
+            mlp_residual = residual
+
+            if self.normformer_res_scale:
+                mlp_residual = mlp_residual * self.res_scale
+
+            with torch.enable_grad():
+                output = bias_dropout_fn(
+                    mlp_output,
+                    bias=mlp_bias.expand_as(mlp_output),
+                    residual=mlp_residual,
+                    prob=self.hidden_dropout,
+                )
+
+            # output = output + residual
+            output = residual + self.reduce(output)
+        else:
+            # pseudocode:
+            # x = x + attn(ln1(x))
+            # x = x + mlp(ln2(x))
+
+            residual = x
+
+            # x = x + attn(ln1(x))
+            attention_output, attention_bias = self.attention(
+                self.input_layernorm(x), attention_mask, layer_past=layer_past
+            )
+
+            if self.normformer_post_attn_layernorm:
+                attention_output = self.pre_residual_layernorm(attention_output+attention_bias.expand_as(residual))
+                attention_bias = None
+            else:
+                attention_bias = attention_bias.expand_as(residual)
+                
+            if self.get_key_value:
+                attention_output, presents = attention_output
+            with torch.enable_grad():
+                attention_output = bias_dropout_fn(
+                    attention_output,
+                    bias=attention_bias,
+                    residual=residual,
+                    prob=self.hidden_dropout,
+                )
+
+            # output = x + mlp(ln2(x))
+            mlp_output, mlp_bias = self.mlp(
+                self.post_attention_layernorm(attention_output)
+            )
+            mlp_residual = attention_output
+
+            if self.normformer_res_scale:
+                mlp_residual = mlp_residual * self.res_scale
+                
+            with torch.enable_grad():
+                output = bias_dropout_fn(
+                    mlp_output,
+                    bias=mlp_bias.expand_as(attention_output),
+                    residual=mlp_residual,
+                    prob=self.hidden_dropout,
+                )
 
         if self.get_key_value:
             output = [output, presents]
