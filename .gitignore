@@ -150,3 +150,8 @@ test_logs/
 logs/
 tensorboard/
 src/
+
+#Any tfrecords created
+*.tfrecord
+*.tfrecords
+*.tfrec
