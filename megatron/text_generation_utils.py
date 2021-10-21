@@ -238,7 +238,7 @@ def stream_tokens(neox_args, model, context_tokens: List[List[int]], eos_token_i
         token_index_to_generate + maximum_tokens -1
     ) 
 
-    all_logits = torch.zeros((batch_size, neox_args.seq_length, neox_args.padded_vocab_size))
+    all_logits = torch.zeros((batch_size, 256, neox_args.padded_vocab_size))
 
     with torch.no_grad():
         # initialize generation variables
