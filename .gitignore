@@ -155,3 +155,6 @@ src/
 *.tfrecord
 *.tfrecords
 *.tfrec
+
+#miscellaneous generated files
+core

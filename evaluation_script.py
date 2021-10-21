@@ -47,7 +47,7 @@ class BatchedDataset(Thread):
                 data_prefix="/mnt/ssd-1/data/pile/pile_text_document",
                 data_impl="mmap",
                 splits_string="949,50,1",
-                train_valid_test_num_samples=[210604984, 0, 0],
+                train_valid_test_num_samples=[1, 0, 0],
                 seq_length=2048,
                 seed=1234,
                 skip_warmup=True
@@ -97,9 +97,9 @@ def score(neox_args,model,data,token_size=64):
 
 
 def main():
-    BATCH_SIZE = 128
+    BATCH_SIZE = 256
     RESULTS_PATH = '/home/mchorse/gpt-neox/memorization_results_neox_dense_small.tfrecords'
-    TOKEN_SIZE = 128
+    TOKEN_SIZE = 64
     TAKE_EVERY = 50
 
     records = TFrecordCreator(RESULTS_PATH) #store results

@@ -269,18 +269,11 @@ def stream_tokens(
     token_index_to_generate = token_generation_start_index.min().item()
     first_token_index_to_generate = token_index_to_generate
     last_token_index_to_generate = min(
-<<<<<<< HEAD
-        neox_args.seq_length
-        - 1,  # never generate more than the model's sequence length
-        token_index_to_generate + maximum_tokens - 1,
-    )
-=======
         neox_args.seq_length - 1, # never generate more than the model's sequence length
         token_index_to_generate + maximum_tokens -1
     ) 
 
     all_logits = torch.zeros((batch_size, 256, neox_args.padded_vocab_size))
->>>>>>> efficient token generation
 
     with torch.no_grad():
         # initialize generation variables
@@ -385,12 +378,9 @@ def stream_tokens(
             ] = token_index_to_generate
 
             token_index_to_generate += 1
-<<<<<<< HEAD
-=======
             if torch.all(state_is_done): break
         
         return all_logits
->>>>>>> Initial memorization commit
 
             yield context_tokens, token_generation_start_index, token_generation_end_index, state_is_done.bool()
             if torch.all(state_is_done):
