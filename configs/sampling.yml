@@ -19,7 +19,7 @@
   "sample-input-file":"/home/mchorse/gpt-neox/samplefile.txt",
   "sample-output-file":"/home/mchorse/gpt-neox/sampleoutput.txt",
   "text-gen-type": "input-file",
-  "maximum_tokens": 40,
+  "maximum_tokens": 256,
   "temperature": 1.0,
   "top_p": 0.0,
   "top_k": 0,
