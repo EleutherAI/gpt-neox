@@ -20,7 +20,7 @@ from megatron.utils import print_rank_0, setup_for_inference_or_eval
 
 from megatron.text_generation_utils import generate_samples_input_from_file, generate_samples_from_prompt, generate_samples_unconditional, generate_samples_interactive
 
-if __name__ == "__main__":
+def main():
     """
     Generate text/sample model
     """
@@ -61,6 +61,7 @@ if __name__ == "__main__":
             model=model,
             recompute = neox_args.recompute, 
             temperature = neox_args.temperature,
+            maximum_tokens = neox_args.maximum_tokens, 
             top_k = neox_args.top_k, 
             top_p = neox_args.top_p
         )
@@ -68,3 +69,6 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"`text-gen-type` either not specified or not recognised: {neox_args.text_gen_type}")
 
+
+if __name__ == "__main__":
+    main()
