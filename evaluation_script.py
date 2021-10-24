@@ -52,7 +52,7 @@ class BatchedDataset(Thread):
         idx = 0
         print_rank_0("Iterating through the dataset")
         for doc in self.ds:
-            idx += 1
+            idx += 4 #Batch size of dataset is 4
             if(idx%self.take_every != 0):
                 continue
             [tokens.append(i) for i in doc['text'][:self.token_size].numpy().tolist()]
@@ -65,6 +65,8 @@ class BatchedDataset(Thread):
                 indicies = []
                 tokens = []
             val += 1
+        self.q.put((None,None))
+        self.q.task_done()
 
 
 
@@ -93,7 +95,7 @@ def main():
     BATCH_SIZE = 128
     RESULTS_PATH = '/home/mchorse/gpt-neox/memorization_results_neox_dense_small_v2.tfrecords'
     TOKEN_SIZE = 64
-    TAKE_EVERY = 50
+    TAKE_EVERY = 32
 
     records = TFrecordCreator(RESULTS_PATH) #store results
     
@@ -116,7 +118,7 @@ def main():
                 
         print_rank_0(f'Current model generation time: {time.time() - start_time:.3}s for index {indicies[-1]}')
         start_time = time.time()
-        batch,indicies = ds.q.get()
+        batch,indicies = ds.q.get(10)
         step += 1
     records.close()
     
