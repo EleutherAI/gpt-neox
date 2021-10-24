@@ -29,7 +29,7 @@ from result_records import TFrecordCreator
 from threading import Thread
 import queue
 import torch.distributed as dist
-from megatron.data.data_utils import build_train_valid_test_datasets
+from megatron.data.data_utils import build_train_valid_test_data_iterators
 from megatron import mpu
 from megatron.text_generation_utils import stream_tokens
 from megatron.utils import print_rank_0, setup_for_inference_or_eval
@@ -37,21 +37,13 @@ import os
 import time
 
 class BatchedDataset(Thread):
-    def __init__(self,batch_size,take_every,token_size):
+    def __init__(self,batch_size,take_every,token_size,neox_args):
         super().__init__()
         self.batch_size = batch_size
         self.take_every = take_every
         self.token_size = token_size
         self.q = queue.Queue()
-        self.ds, valid_ds, test_ds = build_train_valid_test_datasets(
-                data_prefix="/mnt/ssd-1/data/pile/pile_text_document",
-                data_impl="mmap",
-                splits_string="949,50,1",
-                train_valid_test_num_samples=[1, 0, 0],
-                seq_length=2048,
-                seed=1234,
-                skip_warmup=True
-            )
+        self.ds, valid_ds, test_ds = build_train_valid_test_data_iterators(neox_args=neox_args)
     def run(self):
         
         tokens = []
@@ -65,10 +57,10 @@ class BatchedDataset(Thread):
             idx += 1
             if(idx%self.take_every != 0):
                 continue
-            tokens.append(i[:self.token_size].tolist())
+            tokens.append(i[:self.token_size])
             indicies.append(idx)
             if(val%self.batch_size == 0):
-                self.q.put((tokens,indicies))
+                self.q.put((torch.vstack(tokens),indicies))
                 indicies = []
                 tokens = []
             val += 1
@@ -79,11 +71,11 @@ def score(neox_args,model,data,token_size=64):
     '''Calculates the memorization metric for the given input tokens
     '''
     
-    inp = [i[:token_size//2] for i in data]
+    inp = data[:,:token_size//2]
     res = stream_tokens(
         neox_args=neox_args, 
         model=model,
-        context_tokens = inp,
+        context_tokens = inp.numpy().tolist(),
         maximum_tokens = token_size, 
         recompute = neox_args.recompute, 
         temperature = neox_args.temperature,
@@ -91,14 +83,14 @@ def score(neox_args,model,data,token_size=64):
         top_p = neox_args.top_p
     )
     res = res[:,token_size//2:token_size,:].cpu().transpose(0,1)
-    ground_truth = [i[token_size//2:token_size] for i in data]
+    ground_truth = data[:,token_size//2:token_size]
     return memorization_metric(res,torch.tensor(ground_truth))
 
 
 
 def main():
-    BATCH_SIZE = 256
-    RESULTS_PATH = '/home/mchorse/gpt-neox/memorization_results_neox_dense_small.tfrecords'
+    BATCH_SIZE = 128
+    RESULTS_PATH = '/home/mchorse/gpt-neox/memorization_results_neox_dense_small_v2.tfrecords'
     TOKEN_SIZE = 64
     TAKE_EVERY = 50
 
@@ -106,7 +98,7 @@ def main():
     
     model, neox_args = setup_for_inference_or_eval()    
 
-    ds = BatchedDataset(BATCH_SIZE,TAKE_EVERY,TOKEN_SIZE)
+    ds = BatchedDataset(BATCH_SIZE,TAKE_EVERY,TOKEN_SIZE,neox_args)
     ds.start()
     
 
