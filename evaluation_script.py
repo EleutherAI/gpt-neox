@@ -50,12 +50,13 @@ class BatchedDataset(Thread):
         indicies = []
         val = 1
         idx = 0
+        print_rank_0("Iterating through the dataset")
         for doc in self.ds:
             while(self.q.qsize() > 10):
-                pass
+                time.sleep(10)
             idx += 1
             if(idx%self.take_every != 0):
-                time.sleep(10)
+                continue
             [tokens.append(i) for i in doc['text'][:self.token_size].numpy().tolist()]
             indicies.append(idx)
             if(val%self.batch_size == 0):
