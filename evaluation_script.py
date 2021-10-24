@@ -52,8 +52,6 @@ class BatchedDataset(Thread):
         idx = 0
         print_rank_0("Iterating through the dataset")
         for doc in self.ds:
-            while(self.q.qsize() > 10):
-                pass
             idx += 1
             if(idx%self.take_every != 0):
                 continue
@@ -61,6 +59,9 @@ class BatchedDataset(Thread):
             indicies.append(idx)
             if(val%self.batch_size == 0):
                 self.q.put((tokens,indicies))
+                
+                while(self.q.qsize() > 10):
+                    pass
                 indicies = []
                 tokens = []
             val += 1
