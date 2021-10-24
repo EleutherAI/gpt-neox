@@ -53,7 +53,7 @@ class BatchedDataset(Thread):
         print_rank_0("Iterating through the dataset")
         for doc in self.ds:
             while(self.q.qsize() > 10):
-                time.sleep(10)
+                pass
             idx += 1
             if(idx%self.take_every != 0):
                 continue
