@@ -82,11 +82,11 @@ GPT-NeoX parameters are defined in a YAML configuration file which is passed to 
 
 All functionality follows the pattern `./deepy.py main_function.py -d configs small.yml local_setup.yml`
 We currently offer three main functions:
-1. `pretrain.py` is used for training and finetuning models.
+1. `train.py` is used for training and finetuning models.
 2. `evaluate.py` is used to evaluate a trained model using the [evaluation harness](https://github.com/EleutherAI/lm-evaluation-harness).
 3. `generate.py` is used to sample text from a trained model.
 
-For now, run `./deepy.py pretrain_gpt2.py -d configs small.yml local_setup.yml` to begin training a model and complete this tutorial.
+For now, run `./deepy.py train.py -d configs small.yml local_setup.yml` to begin training a model and complete this tutorial.
 
 ## Features
 
@@ -208,7 +208,7 @@ Training is launched using `deepy.py`, a wrapper around Deepspeed's launcher, wh
 The general usage pattern is:
 
 ```bash
-./deepy.py [TRAINING_SCRIPT] [path/to/config1.yml] [path/to/config2.yml] ...
+./deepy.py train.py [path/to/config2.yml] [path/to/config2.yml] ...
 ```
 
 You can pass in an arbritrary number of configs which will all be merged at runtime.
@@ -218,10 +218,10 @@ You can also optionally pass in a config prefix, which will assume all your conf
 Example usage:
 
 ```bash
-./deepy.py pretrain_gpt2.py -d configs small.yml local_setup.yml
+./deepy.py train.py -d configs small.yml local_setup.yml
 ```
 
-This will deploy the `pretrain_gpt2.py` script on all nodes with one process per GPU. The worker nodes and number of GPUs are specified in the `/job/hostfile` file (see [parameter documentation](configs)), or can simply be passed in as the `num_gpus` arg if running on a single node setup.
+This will deploy the `train.py` script on all nodes with one process per GPU. The worker nodes and number of GPUs are specified in the `/job/hostfile` file (see [parameter documentation](configs)), or can simply be passed in as the `num_gpus` arg if running on a single node setup.
 * Model parameters are defined in the config file `configs/small.yml`.
 * Data path parameters are defined in the config file `configs/local_setup.yml`. If you are an EleutherAI member and using the [Kubernetes cluster](kubernetes), the `eleutherai_cluster.yml` config should be instead.
 
