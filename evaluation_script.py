@@ -52,15 +52,14 @@ class BatchedDataset(Thread):
         idx = 0
         for doc in self.ds:
             while(self.q.qsize() > 10):
-                time.sleep(100)
-            i = doc['text']
+                pass
             idx += 1
             if(idx%self.take_every != 0):
-                continue
-            tokens.append(i[:self.token_size])
+                time.sleep(10)
+            [tokens.append(i) for i in doc['text'][:self.token_size].numpy().tolist()]
             indicies.append(idx)
             if(val%self.batch_size == 0):
-                self.q.put((torch.vstack(tokens),indicies))
+                self.q.put((tokens,indicies))
                 indicies = []
                 tokens = []
             val += 1
@@ -71,11 +70,11 @@ def score(neox_args,model,data,token_size=64):
     '''Calculates the memorization metric for the given input tokens
     '''
     
-    inp = data[:,:token_size//2]
+    inp = [i[:token_size//2] for i in data]
     res = stream_tokens(
         neox_args=neox_args, 
         model=model,
-        context_tokens = inp.numpy().tolist(),
+        context_tokens = inp,
         maximum_tokens = token_size, 
         recompute = neox_args.recompute, 
         temperature = neox_args.temperature,
@@ -83,7 +82,7 @@ def score(neox_args,model,data,token_size=64):
         top_p = neox_args.top_p
     )
     res = res[:,token_size//2:token_size,:].cpu().transpose(0,1)
-    ground_truth = data[:,token_size//2:token_size]
+    ground_truth = [i[token_size//2:token_size] for i in data]
     return memorization_metric(res,torch.tensor(ground_truth))
 
 
