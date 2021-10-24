@@ -61,7 +61,7 @@ class BatchedDataset(Thread):
                 self.q.put((tokens,indicies))
                 
                 while(self.q.qsize() > 10):
-                    pass
+                    time.sleep(50)
                 indicies = []
                 tokens = []
             val += 1
