@@ -3,7 +3,7 @@
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
    "pipe-parallel-size": 1,
-   "model-parallel-size": 1,
+   "model-parallel-size": 4,
 
    # model settings
    "num-layers": 24,
@@ -19,18 +19,18 @@
    "scaled-upper-triang-masked-softmax-fusion": false,
    "bias-gelu-fusion": false,
 
-   
+
    # optimizer settings
    "optimizer": {
      "type": "Adam",
      "params": {
        "lr": 0.00025,
-       "betas": [0.9, 0.999],
+       "betas": [0.9, 0.95],
        "eps": 1.0e-8,
      }
    },
    "zero_optimization": {
-    "stage": 1,
+    "stage": 0,
     "allgather_partitions": True,
     "allgather_bucket_size": 500000000,
     "overlap_comm": True,
@@ -41,7 +41,8 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 4,
+   "gas": 3125,
+   "train_micro_batch_size_per_gpu": 40,
    "data-impl": "mmap",
    "split": "949,50,1",
 
@@ -53,13 +54,12 @@
 
    # regularization
    "gradient_clipping": 1.0,
-   "weight-decay": 0,
-   "hidden-dropout": 0,
-   "attention-dropout": 0,
+   "weight-decay": 0.1,
+   "hidden-dropout": 0.0,
+   "attention-dropout": 0.0,
 
    # precision settings
    "fp16": { 
-     "fp16": true,
      "enabled": true,
      "loss_scale": 0,
      "loss_scale_window": 1000,
@@ -68,8 +68,8 @@
    },
 
    # misc. training settings
-   "train-iters": 320000,
-   "lr-decay-iters": 320000,
+   "train-iters": 300000,
+   "lr-decay-iters": 260000,
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
@@ -80,6 +80,6 @@
    # logging
    "log-interval": 100,
    "steps_per_print": 10,
-   "keep-last-n-checkpoints": 4,
+   "keep-last-n-checkpoints": 50,
    "wall_clock_breakdown": true,
 }
