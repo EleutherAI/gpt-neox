@@ -162,9 +162,9 @@ def training_log(neox_args, timers, loss_dict, total_loss_dict, learning_rate, i
                     grad = model.stored_gradients[i]
                     if grad is not None:
                         tb_wandb_log(f'gradient_norms/{name}', torch.norm(grad), iteration,
-                                     use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
+                                     use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer, all_ranks=True)
             if neox_args.log_param_norm:
-                tb_wandb_log(f'parameter_norms/{name}', torch.norm(param), iteration, use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer)
+                tb_wandb_log(f'parameter_norms/{name}', torch.norm(param), iteration, use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer, all_ranks=True)
 
     if iteration % neox_args.log_interval == 0:
         # log other stuff every neox_args.log_interval iters
@@ -210,9 +210,10 @@ def training_log(neox_args, timers, loss_dict, total_loss_dict, learning_rate, i
     return report_memory_flag
 
 
-def tb_wandb_log(key, value, iteration_no, use_wandb, tensorboard_writer=None):
+def tb_wandb_log(key, value, iteration_no, use_wandb, tensorboard_writer=None, all_ranks=False):
     # logs to both tb and wandb (if present) from the zeroth rank
-    if torch.distributed.get_rank() == 0 and value is not None:
+    do_log  =  torch.distributed.get_rank() == 0 or all_ranks
+    if do_log and value is not None:
         if tensorboard_writer:
             tensorboard_writer.add_scalar(key, value, iteration_no)
         if use_wandb:

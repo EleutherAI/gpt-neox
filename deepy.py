@@ -27,11 +27,6 @@ from megatron.utils import get_wandb_api_key
 
 
 neox_args = NeoXArgs.consume_deepy_args()
-if neox_args.wandb_group is not None:
-    # concat the wandb group name with a uid to make sure it's unique
-    import wandb
-    neox_args.wandb_group += "_" + wandb.util.generate_id()
-neox_args.print()
 deepspeed_main_args = neox_args.get_deepspeed_main_args()
 
 # Extract wandb API key and inject into worker environments
