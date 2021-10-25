@@ -234,7 +234,7 @@ This will deploy the `train.py` script on all nodes with one process per GPU. Th
 
 GPT-NeoX supports evaluation on downstream tasks through the [language model evaluation harness](https://github.com/EleutherAI/lm-evaluation-harness).
 
-To evaluate a trained model on the evaluation harness, add a `eval_tasks` field to your config file and call `./deepy.py evaluate.py -d configs your_configs.yml`.
+To evaluate a trained model on the evaluation harness, add an `eval_tasks` field to your config file and call `./deepy.py evaluate.py -d configs your_configs.yml`.
 
 ## Distilling
 
