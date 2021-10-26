@@ -11,29 +11,28 @@ If you are interested in contributing, please [join our discord](https://discord
 
 If you're looking for our TPU codebase, see [GPT-Neo](https://github.com/EleutherAI/gpt-neo).
 
-- [GPT-NeoX](#gpt-neox)
-  * [Why GPT-NeoX](#why-gpt-neox)
-  * [Quick Start](#quick-start)
-  * [Features](#features)
-    + [3D Parallelism](#3d-parallelism)
-    + [Model Structure](#model-structure)
-    + [Optimizers](#optimizers)
-    + [High-Precision Training](#high-precision-training)
-  * [Datasets](#datasets)
-    + [Preconfigured Datasets](#preconfigured-datasets)
-    + [Using Custom Data](#using-custom-data)
-    + [Using and Training Tokenizers](#using-and-training-tokenizers)
-  * [Training and Finetuning](#training-and-finetuning)
-  * [Inference](#inference)
-  * [Evaluation](#evaluation)
-  * [Distilling](#distilling)
-  * [Monitoring](#monitoring)
-    + [WandB](#wandb)
-    + [Tensorboard](#tensorboard)
-  * [Placeholder Name](#placeholder-name)
-    + [Citing GPT-NeoX](#citing-gpt-neox)
-    + [Licensing](#licensing)
-    + [Acknowledgements](#acknowledgements)
+- [Why GPT-NeoX](#why-gpt-neox)
+- [Quick Start](#quick-start)
+- [Features](#features)
+  * [3D Parallelism](#3d-parallelism)
+  * [Model Structure](#model-structure)
+  * [Optimizers](#optimizers)
+  * [High-Precision Training](#high-precision-training)
+- [Datasets](#datasets)
+  * [Preconfigured Datasets](#preconfigured-datasets)
+  * [Using Custom Data](#using-custom-data)
+  * [Using and Training Tokenizers](#using-and-training-tokenizers)
+- [Training and Finetuning](#training-and-finetuning)
+- [Inference](#inference)
+- [Evaluation](#evaluation)
+- [Distilling](#distilling)
+- [Monitoring](#monitoring)
+  * [WandB](#wandb)
+  * [Tensorboard](#tensorboard)
+- [Administrative Notes](#administrative-notes)
+  * [Citing GPT-NeoX](#citing-gpt-neox)
+  * [Licensing](#licensing)
+  * [Acknowledgements](#acknowledgements)
 
 ## Why GPT-NeoX
 
@@ -82,12 +81,12 @@ Once you've installed all the requirements and set up your model configuration, 
 GPT-NeoX parameters are defined in a YAML configuration file which is passed to the `deepy.py` launcher. We provide baseline examples for the models found in the paper [Language Models are Few Shot Learners](https://arxiv.org/abs/2005.14165). Configs such as file locations that are dependant on your particular system go in `local_setup.yml`. We have filled it out with some placeholder examples, but you will need to update this for your system.
 
 All functionality follows the pattern `./deepy.py main_function.py -d configs small.yml local_setup.yml`
-We currently offer four main functions:
-1. `pretrain_gpt2.py` is used for training and finetuning models.
-2. `eval_tasks/run.py` is used to evaluate a trained model using the evaluation harness.
-3. `text_gen_gpt2.py` is used to sample text from a trained model.
+We currently offer three main functions:
+1. `train.py` is used for training and finetuning models.
+2. `evaluate.py` is used to evaluate a trained model using the [evaluation harness](https://github.com/EleutherAI/lm-evaluation-harness).
+3. `generate.py` is used to sample text from a trained model.
 
-For now, run `./deepy.py pretrain_gpt2.py -d configs small.yml local_setup.yml` to begin training a model and complete this tutorial.
+For now, run `./deepy.py train.py -d configs small.yml local_setup.yml` to begin training a model and complete this tutorial.
 
 ## Features
 
@@ -209,7 +208,7 @@ Training is launched using `deepy.py`, a wrapper around Deepspeed's launcher, wh
 The general usage pattern is:
 
 ```bash
-./deepy.py [TRAINING_SCRIPT] [path/to/config1.yml] [path/to/config2.yml] ...
+./deepy.py train.py [path/to/config2.yml] [path/to/config2.yml] ...
 ```
 
 You can pass in an arbritrary number of configs which will all be merged at runtime.
@@ -219,10 +218,10 @@ You can also optionally pass in a config prefix, which will assume all your conf
 Example usage:
 
 ```bash
-./deepy.py pretrain_gpt2.py -d configs small.yml local_setup.yml
+./deepy.py train.py -d configs small.yml local_setup.yml
 ```
 
-This will deploy the `pretrain_gpt2.py` script on all nodes with one process per GPU. The worker nodes and number of GPUs are specified in the `/job/hostfile` file (see [parameter documentation](configs)), or can simply be passed in as the `num_gpus` arg if running on a single node setup.
+This will deploy the `train.py` script on all nodes with one process per GPU. The worker nodes and number of GPUs are specified in the `/job/hostfile` file (see [parameter documentation](configs)), or can simply be passed in as the `num_gpus` arg if running on a single node setup.
 * Model parameters are defined in the config file `configs/small.yml`.
 * Data path parameters are defined in the config file `configs/local_setup.yml`. If you are an EleutherAI member and using the [Kubernetes cluster](kubernetes), the `eleutherai_cluster.yml` config should be instead.
 
@@ -235,7 +234,7 @@ This will deploy the `pretrain_gpt2.py` script on all nodes with one process per
 
 GPT-NeoX supports evaluation on downstream tasks through the [language model evaluation harness](https://github.com/EleutherAI/lm-evaluation-harness).
 
-To evaluate a trained model on the evaluation harness, use `./deepy.py evaluate.py configs/your_config.yml`
+To evaluate a trained model on the evaluation harness, add an `eval_tasks` field to your config file and call `./deepy.py evaluate.py -d configs your_configs.yml`.
 
 ## Distilling
 
@@ -251,7 +250,7 @@ EleutherAI is currently using [Weights & Biases to record experiments](https://w
 
 We also support using Tensorboard via the `tensorboard-dir` argument. To use tensorboard, install the optional packages found at `requirements/requirements-tensorboard.txt`
 
-## Placeholder Name
+## Administrative Notes
 
 ### Citing GPT-NeoX
 
