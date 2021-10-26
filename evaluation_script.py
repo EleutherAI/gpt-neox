@@ -56,7 +56,7 @@ class BatchedDataset(Thread):
             if(idx%self.take_every != 0):
                 continue
             [tokens.append(i) for i in doc['text'][:self.token_size].numpy().tolist()]
-            indicies.append(idx)
+            [indicies.append(i) for i in range(idx,idx+4)]
             if(val%self.batch_size == 0):
                 self.q.put((tokens,indicies))
                 
@@ -92,10 +92,10 @@ def score(neox_args,model,data,token_size=64):
 
 
 def main():
-    BATCH_SIZE = 128
-    RESULTS_PATH = '/home/mchorse/gpt-neox/memorization_results_neox_dense_small_v2.tfrecords'
+    BATCH_SIZE = 32
+    RESULTS_PATH = '/home/mchorse/gpt-neox/memorization_results_neox_dense_large_v2.tfrecords'
     TOKEN_SIZE = 64
-    TAKE_EVERY = 32
+    TAKE_EVERY = 1
 
     records = TFrecordCreator(RESULTS_PATH) #store results
     
