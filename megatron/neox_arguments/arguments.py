@@ -2,7 +2,6 @@ import os
 import yaml
 import json
 import logging
-import shortuuid
 import copy
 import torch
 import argparse
@@ -191,19 +190,19 @@ class NeoXArgs(*BASE_CLASSES):
         group.add_argument("--conf_dir", '-d',
                            type=str,
                            default=None,
-                           help="Directory to prefix to all configuration file paths")
+                           help="Directory to prefix to all configuration file paths.")
 
         group.add_argument("conf_file",
                            type=str,
                            nargs='+',
                            help="Configuration file path. Multiple files can be provided and will be merged.")
 
-        group = parser.add_argument_group(title='Weights and Biases monitoring args')
+        group = parser.add_argument_group(title='Weights & Biases monitoring args')
 
         group.add_argument('--wandb_group', type=str, default=None,
-                           help='Weights and Biases group name - used to group together "runs".')
+                           help='Weights & Biases group name - used to group together "runs".')
         group.add_argument('--wandb_team', type=str, default=None,
-                           help='Team name for Weights and Biases.')
+                           help='Weights & Biases team name.')
 
         args_parsed = parser.parse_args()
 
@@ -263,8 +262,8 @@ class NeoXArgs(*BASE_CLASSES):
                 # concat the wandb group name with a uid to make sure it's unique
                 import wandb
                 neox_args.wandb_group += "_" + wandb.util.generate_id()
-            except (ModuleNotFoundError, ImportError):
-                print("`wandb` is not installed. Install `wandb` to enable Weights & Biases support.")
+            except ModuleNotFoundError:
+                print("WARNING: Weights & Biases monitoring requested but `wandb` is not installed. Install `wandb` to enable support for Weights & Biases monitoring.")
                 neox_args.update_value("use_wandb", False)
 
         neox_args.print()
@@ -520,9 +519,13 @@ class NeoXArgs(*BASE_CLASSES):
 
         # wandb
         # sets a unique wandb group
-        if self.wandb_group is None:
+        if self.use_wandb and self.wandb_group is None:
             # if none is defined a uuid is set for the run
-            self.wandb_group = shortuuid.uuid()
+            try:
+                import shortuuid
+                self.wandb_group = shortuuid.uuid()
+            except ModuleNotFoundError as exc:
+                raise RuntimeError("Weights & Biases monitoring requested, but `wandb_group` is not set and `shortuuid` is not installed to generate a group name. Install `shortuuid` or set `wandb_group` manually to use Weights & Biases monitoring.") from exc
 
         # number of gpus
         # Get number of GPUs param or hostfile to determine train_batch_size
