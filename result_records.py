@@ -1,4 +1,6 @@
 import tensorflow as tf
+import pandas as pd
+import numpy as np
 class TFrecordCreator:
     """
     Creates TFRecord Dataset to store the memorization metric
@@ -46,6 +48,7 @@ class TFRecordLoader:
         self.path = path
         self.reader = tf.data.TFRecordDataset([path])
         self.reader = self.reader.map(self._parse_fn)
+        self.reader = self.reader.apply(tf.data.experimental.ignore_errors())
     
     def _parse_fn(self,example_proto):
 
@@ -58,16 +61,44 @@ class TFRecordLoader:
     def __iter__(self):
         return iter(self.reader)
 
+
+class DataFrameCreator:
+    def __init__(self,path):
+        self.path = path
+        self.indicies = []
+        self.results = []
+    
+    def write(self,result,index):
+        self.results.append(result)
+        self.indicies.append(index)
+    
+    def close(self):
+        csv = pd.DataFrame()
+        csv['index'] = self.indicies
+        csv['result'] = self.results
+        csv.to_csv(self.path,index=False)
+
+class DataFrameLoader:
+    def __init__(self,path):
+        csv = pd.read_csv(path)
+        self.csv = np.array(csv)
+    
+    def __getitem__(self,idx):
+        return self.csv[idx,:]
+    
+    def __len__(self):
+        return len(self.csv)
+    
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
+
 if __name__ == '__main__':
-    rec = TFrecordCreator('temp.tfrecord')
+    ds = DataFrameCreator('temp.csv')
     for i in range(10):
-        rec.write(float(i),i)
-    
-    rec.close()
-    reader = TFRecordLoader('temp.tfrecord')
-    for i in reader:
-        res,idx = i
-        print(res.numpy(),idx.numpy())
-    
-    import os
-    os.remove('temp.tfrecord')
+        ds.write(i,i)
+    ds.close()
+    del ds
+    ds = DataFrameLoader('/home/mchorse/gpt-neox/memorization_results_neox_dense_large_v2.csv')
+    for i in ds:
+        print(i)

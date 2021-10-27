@@ -156,5 +156,8 @@ src/
 *.tfrecords
 *.tfrec
 
+#Any csv files
+*.csv
+
 #miscellaneous generated files
 core

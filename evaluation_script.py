@@ -25,7 +25,7 @@ import numpy as np
 import wandb
 from memorization_metric import memorization_metric
 import argparse
-from result_records import TFrecordCreator
+from result_records import DataFrameCreator
 from threading import Thread
 import queue
 import torch.distributed as dist
@@ -59,6 +59,9 @@ class BatchedDataset(Thread):
             [indicies.append(i) for i in range(idx,idx+4)]
             if(val%self.batch_size == 0):
                 self.q.put((tokens,indicies))
+                self.q.put((None,None))
+                self.q.task_done()
+                return
                 
                 while(self.q.qsize() > 10):
                     time.sleep(50)
@@ -93,11 +96,11 @@ def score(neox_args,model,data,token_size=64):
 
 def main():
     BATCH_SIZE = 32
-    RESULTS_PATH = '/home/mchorse/gpt-neox/memorization_results_neox_dense_large_v2.tfrecords'
+    RESULTS_PATH = 'memorization_results_dense_large.csv'
     TOKEN_SIZE = 64
-    TAKE_EVERY = 1
+    TAKE_EVERY = 32
 
-    records = TFrecordCreator(RESULTS_PATH) #store results
+    records = DataFrameCreator(RESULTS_PATH) #store results
     
     model, neox_args = setup_for_inference_or_eval()    
 
