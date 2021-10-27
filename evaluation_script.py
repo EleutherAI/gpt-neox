@@ -95,8 +95,8 @@ def score(neox_args,model,data,token_size=64):
 
 
 def main():
-    BATCH_SIZE = 32
-    RESULTS_PATH = 'memorization_results_dense_large.csv'
+    BATCH_SIZE = 128
+    RESULTS_PATH = 'memorization_results_dense_small.csv'
     TOKEN_SIZE = 64
     TAKE_EVERY = 32
 
