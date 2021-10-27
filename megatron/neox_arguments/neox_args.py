@@ -104,9 +104,9 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Maximum number of position embeddings to use. This is the size of position embedding.
     """
 
-    norm: Literal["layernorm", "rmsnorm", "scalenorm", "apexlayernorm"] = "layernorm"
+    norm: Literal["layernorm", "rmsnorm", "scalenorm"] = "layernorm"
     """
-    Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm", "apexlayernorm".
+    Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm".
     """
 
     layernorm_epsilon: float = 1.0e-5
@@ -124,7 +124,9 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Scalenorm epsilon
     """
 
-    pos_emb: Literal['learned', 'rotary', 'sinusoidal', 'rpe', 'alibi', 'none'] = "learned"
+    pos_emb: Literal[
+        "learned", "rotary", "sinusoidal", "rpe", "alibi", "none"
+    ] = "learned"
     """
     Type of positional embedding to use - choose from 'learned', 'rotary', 'sinusoidal', 'rpe', 'none'
     """
@@ -205,7 +207,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Pad the vocab size to be divisible by this value. This is added for computational efficiency reasons.
     """
 
-    activation : Literal["gelu", "geglu", "relu", "softsign", "swish", "mish"] = "gelu"
+    activation: Literal["gelu", "geglu", "relu", "softsign", "swish", "mish"] = "gelu"
     """
     Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish"]
     """
@@ -301,7 +303,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     If None - gmlp model doesn't use attention.
     """
 
-    gpt_j_residual : bool = False
+    gpt_j_residual: bool = False
     """
     If false, we use the conventional residual path:
       x = x + attn(ln1(x))
@@ -310,7 +312,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
       x = ln(x)
       x = x + attn(x) + mlp(x)
     """
-    
+
     soft_prompt_tuning: dict = None
     """
     Dictionary configuring the soft prompt tuning parameters. 
@@ -485,7 +487,6 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     """
     Whether to offload the buffered gradients to cpu when measuring gradient noise scale.
     """
-
 
 
 @dataclass
