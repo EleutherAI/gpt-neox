@@ -67,7 +67,7 @@ It may be preferable to use this code through a Docker image based on the Docker
 ```
 docker build -t gptneox-image -f Dockerfile .
 ```
-You can then run a container based on this image. For instance, the below snippet mounts the cloned repository (`gpt-neox`) directory to `/gpt-neox` in the container and uses [NVidia-Docker](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) to make four GPUs (numbers 0-3) accessible to the container. Note the `--shm-size=1g --ulimit memlock=-1` flags: in our epxerience, without these the container allocates far too little shared memory for training.
+You can then run a container based on this image. For instance, the below snippet mounts the cloned repository (`gpt-neox`) directory to `/gpt-neox` in the container and uses [NVidia-Docker](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) to make four GPUs (numbers 0-3) accessible to the container. Note the `--shm-size=1g --ulimit memlock=-1` flags: in our experience, without these the container allocates far too little shared memory for training.
 ```
 nvidia-docker run --rm -it -e NVIDIA_VISIBLE_DEVICES=0,1,2,3 --shm-size=1g --ulimit memlock=-1 --mount type=bind,src=$PWD,dst=/gpt-neox gptneox-image
 ```
@@ -100,7 +100,7 @@ GPT-NeoX offers a wide variety of state-of-the-art and bespoke features
 
 - **Positional Encodings:** 
 
-    - Choose between T5-style relative positional encodings, learned encoding added to the input (GPT2-style), sinusoidal positional encoding, [rotary positional encodings](https://arxiv.org/abs/2104.09864), and no positional encodings at all (which [recent](https://arxiv.org/abs/1905.04226) [research](https://arxiv.org/abs/2102.11174) has found to be competetive with other positional encodings in autoregressive models). Use the `pos-emb` field to select a positional encoding.
+    - Choose between T5-style relative positional encodings, learned encoding added to the input (GPT2-style), sinusoidal positional encoding, [rotary positional encodings](https://arxiv.org/abs/2104.09864), and no positional encodings at all (which [recent](https://arxiv.org/abs/1905.04226) [research](https://arxiv.org/abs/2102.11174) has found to be competitive with other positional encodings in autoregressive models). Use the `pos-emb` field to select a positional encoding.
 
 - **Sparsity:** 
 
@@ -121,7 +121,7 @@ GPT-NeoX offers a wide variety of state-of-the-art and bespoke features
 
 ### High-Precision Training
 
- - Choose between `fp16`, `bf16`, and `fp32` operations to get the most performance out of your avaliable compute. Use the `precision` field to configure your precision settings, by adding `"type": "bfloat16"` in the config.
+ - Choose between `fp16`, `bf16`, and `fp32` operations to get the most performance out of your available compute. Use the `precision` field to configure your precision settings, by adding `"type": "bfloat16"` in the config.
  - Due to a known issue with `PyTorch`, `bf16` models require doing the all-reduce operation in `fp32`. If you have a patch for this problem, you can turn off the default`"fp32_allreduce": True`.
  - Additionally, you have to run `python /megatron/fused_kernels/setup.py install` (assuming you're inside `gpt-neox/`) to be able to use bf16 (may require root access).
 
