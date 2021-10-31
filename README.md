@@ -242,11 +242,11 @@ Coming soon! Check out the `distill-gpt-neox` branch to try distilling a model.
 
 ## Monitoring
 
-In addition to storing logs locally, we provide built-in support for two popular experiment monitoring Weights & Biases 
+In addition to storing logs locally, we provide built-in support for two popular experiment monitoring systems: [Weights & Biases](wandb.com) and [Tensorboard](https://tensorboard.dev/).
 
-### Weights & Biases
+### WandB
 
-EleutherAI is currently using [Weights & Biases to record experiments](https://wandb.ai/eleutherai/neox). If you are logged into Weights & Biases on your machine - you can do this by executing `wandb login` - your runs will automatically be recorded. There are two optional parameters associated with Weights & Biases: `wandb_group` allows you to name the run group and `wandb_team` allows you to assign your runs to an organization or team you are a memeber of.
+EleutherAI is currently using [WandB to record our experiments](https://wandb.ai/eleutherai/neox). If you are logged into WandB on your machine - you can do this by executing `wandb login` - your runs will automatically be recorded. There are two optional parameters associated with WandB: `wandb_group` allows you to name the run group and `wandb_team` allows you to assign your runs to an organization or team you are a memeber of.
 
 ### Tensorboard
 
@@ -260,7 +260,7 @@ If you have found GPT-Neo helpful in your work, you can cite this repository as
 
 ```
 @software{gpt-neo,
-  author = {Andonian, Alex and Biderman, Stella and Black, Sid and Gali, Preetham and Gao, Leo and Hallahan, Eric and Levy-Kramer, Josh and Leahy, Connor and Nestler, Lucas and Parker, Kip and Pieler, Michael and Purohit, Shivanshu and Songz, Tri and Wang, Phil and Weinbach, Samuel},
+  author = {Andonian, Alex and Anthony, Quentin and Biderman, Stella and Black, Sid and Gali, Preetham and Gao, Leo and Hallahan, Eric and Levy-Kramer, Josh and Leahy, Connor and Nestler, Lucas and Parker, Kip and Pieler, Michael and Purohit, Shivanshu and Songz, Tri and Wang, Phil and Weinbach, Samuel},
   title = {{GPT-NeoX}: Large Scale Autoregressive Language Modeling in PyTorch},
   url = {http://github.com/eleutherai/gpt-neox},
   year = {2021}
