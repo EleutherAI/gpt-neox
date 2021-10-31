@@ -242,9 +242,11 @@ Coming soon! Check out the `distill-gpt-neox` branch to try distilling a model.
 
 ## Monitoring
 
-### WandB
+In addition to storing logs locally, we provide built-in support for two popular experiment monitoring Weights & Biases 
 
-EleutherAI is currently using [Weights & Biases to record experiments](https://wandb.ai/eleutherai/neox). If you are logged into Weights & Biases on your machine - you can do this by executing `wandb login` - your runs will automatically be recorded. Additionally, set the config parameter `wandb_team` if you would like the run to be added to an organisation/team account.
+### Weights & Biases
+
+EleutherAI is currently using [Weights & Biases to record experiments](https://wandb.ai/eleutherai/neox). If you are logged into Weights & Biases on your machine - you can do this by executing `wandb login` - your runs will automatically be recorded. There are two optional parameters associated with Weights & Biases: `wandb_group` allows you to name the run group and `wandb_team` allows you to assign your runs to an organization or team you are a memeber of.
 
 ### Tensorboard
 
