@@ -107,6 +107,9 @@ def local_rank():
         local_rank = 0
     return int(local_rank)
 
+def is_bnb_available():
+    """ True if bitsandbytes optimizers are available """
+    return importlib.util.find_spec("bitsandbytes") is not None
 
 def is_local_main():
     """ True if is the local main process """
