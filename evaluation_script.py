@@ -59,15 +59,12 @@ class BatchedDataset(Thread):
             [indicies.append(i) for i in range(idx,idx+4)]
             if(val%self.batch_size == 0):
                 self.q.put((tokens,indicies))
-                self.q.put((None,None))
-                self.q.task_done()
-                return
                 
                 while(self.q.qsize() > 10):
                     time.sleep(50)
                 indicies = []
                 tokens = []
-            val += 1
+            val +=1
         self.q.put((None,None))
         self.q.task_done()
 
@@ -95,8 +92,8 @@ def score(neox_args,model,data,token_size=64):
 
 
 def main():
-    BATCH_SIZE = 128
-    RESULTS_PATH = 'memorization_results_dense_small.csv'
+    BATCH_SIZE = 32
+    RESULTS_PATH = 'memorization_results_dense_medium.csv'
     TOKEN_SIZE = 64
     TAKE_EVERY = 32
 
