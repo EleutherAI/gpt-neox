@@ -1,6 +1,6 @@
 # Data paths and options when using EleutherAI cluster
 {
-  "data-path": "/mnt/ssd-1/data/enron/enron_text_document",
+  "data-path": "/mnt/ssd-1/data/pile/pile_text_document",
   # or for weighted datasets: 
   # "train-data-paths": ["/mnt/ssd-1/data/enron/enron_text_document", "/mnt/ssd-cluster/data/enron/enron_text_document"],
   # "test-data-paths": ["/mnt/ssd-1/data/enron/enron_text_document", "/mnt/ssd-cluster/data/enron/enron_text_document"],
@@ -11,8 +11,8 @@
 
   "vocab-file": "/mnt/ssd-1/data/gpt2-vocab.json",
   "merge-file": "/mnt/ssd-1/data/gpt2-merges.txt",
-  "save": "/mnt/ssd-1/neox_checkpoints/dense_small_checkpoints",
-  "load": "/mnt/ssd-1/neox_checkpoints/dense_small_checkpoints",
+  # "save": "/home/mchorse/neox_checkpoints/test_checkpoints",
+  "load": "/mnt/ssd-1/neox_checkpoints/dense_medium_checkpoints",
   "tensorboard-dir": "/mnt/ssd-1/tensorboard",
   "log-dir": "/mnt/ssd-1/logs",
   "wandb_team": "eleutherai",
