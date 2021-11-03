@@ -36,6 +36,7 @@
     "contiguous_gradients": True,
     "cpu_offload": False
   },
+    "zero_allow_untested_optimizer": true,
 
    # batch / data settings
    "train_micro_batch_size_per_gpu": 4,
@@ -59,7 +60,7 @@
      "fp16": true,
      "enabled": true,
      "loss_scale": 0,
-     "loss_scale_window": 1000,
+     "loss_scale_window": 500,
      "hysteresis": 2,
      "min_loss_scale": 1
    },
