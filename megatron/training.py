@@ -310,6 +310,14 @@ def get_optimizer(model, neox_args):
             weight_decay=neox_args.weight_decay,
             **neox_args.optimizer["params"],
         )
+    elif neox_args.optimizer_type.lower() == "adafactor":
+        from .optimizers import Adafactor
+
+        optimizer = Adafactor(
+            param_groups,
+            weight_decay=neox_args.weight_decay,
+            **neox_args.optimizer["params"]
+        ) 
     elif neox_args.optimizer_type.lower() == "adam":
         # Use Adam
         try:
@@ -345,6 +353,10 @@ def get_learning_rate_scheduler(optimizer, neox_args):
             "Make sure one is added to your deepspeed config"
         )
         return None
+    elif neox_args.optimizer_type.lower() == "adafactor":
+        print_rank_0(
+            "WARNING: Adafactor has an adaptive learning rate"
+        )
 
     # Add linear learning rate scheduler.
     if neox_args.lr_decay_iters is not None:
