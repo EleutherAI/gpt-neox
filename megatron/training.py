@@ -123,7 +123,7 @@ def pretrain(neox_args):
             timers=timers,
         )
 
-    if neox_args.save and iteration != 0:
+    if neox_args.save:
         save_checkpoint(
             neox_args=neox_args,
             iteration=iteration,
