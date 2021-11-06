@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.3.1-devel-ubuntu20.04
+FROM nvidia/cuda:11.1.1-devel-ubuntu20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -72,7 +72,7 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
     echo 'export PATH=/home/mchorse/.local/bin:$PATH' >> /home/mchorse/.bashrc
 
 #### Python packages
-RUN pip install torch==1.10.0+cu113 -f https://download.pytorch.org/whl/torch_stable.html && pip cache purge
+RUN pip install torch==1.8.1+cu111 -f https://download.pytorch.org/whl/torch_stable.html && pip cache purge
 COPY requirements/requirements.txt .
 COPY requirements/requirements-onebitadam.txt .
 COPY requirements/requirements-sparseattention.txt .
@@ -84,7 +84,7 @@ RUN pip install -r requirements.txt && \
     pip cache purge
 
 ## Install APEX
-RUN pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@ae757634efa26a4ed852324f1d32f2159774997b
+RUN pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@9ce0a10fb6c2537ef6a59f27b7875e32a9e9b8b8
 
 # Clear staging
 RUN mkdir -p /tmp && chmod 0777 /tmp
