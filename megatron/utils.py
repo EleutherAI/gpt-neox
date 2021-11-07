@@ -110,6 +110,9 @@ def local_rank():
         local_rank = 0
     return int(local_rank)
 
+def is_bnb_available():
+    """ True if bitsandbytes optimizers are available """
+    return importlib.util.find_spec("bitsandbytes") is not None
 
 def is_local_main():
     """True if is the local main process"""
@@ -387,6 +390,16 @@ def get_total_params(model):
 def setup_for_inference_or_eval(
     inference=True, get_key_value=True, overwrite_values=None
 ):
+    """
+    Initializes the model for evaluation or inference (doesn't load optimizer states, etc.) from command line args.
+
+    inference: bool
+        Whether to initialize in inference mode
+    get_key_value: bool
+        Whether to use key value caching in inference.
+    overwrite_values: dict
+        Optional Values to overwrite in the model config.
+    """
 
     from megatron.neox_arguments import NeoXArgs
     from megatron.initialize import initialize_megatron
@@ -396,6 +409,7 @@ def setup_for_inference_or_eval(
         "checkpoint_activations": False,
         "partition_activations": False,
         "no_load_optim": True,
+        'zero_optimization': None, # disable zero optimization (won't be used in inference, and loading zero optimizer can cause errors)
     }
     if overwrite_values:
         _overwrite_values.update(overwrite_values)

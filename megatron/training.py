@@ -312,14 +312,23 @@ def get_optimizer(model, neox_args):
         )
     elif neox_args.optimizer_type.lower() == "adam":
         # Use Adam
-        try:
-            # default to apex as it's slightly faster
-            from apex.optimizers import FusedAdam as Adam
-        except ImportError:
-            # if apex isn't installed, use deepspeed's FusedAdam
-            print("WARNING: APEX not installed - defaulting to deepspeed's fused adam")
-            from deepspeed.ops.adam import FusedAdam as Adam
-        optimizer = Adam(
+        if neox_args.use_bnb_optimizer:
+            try:
+                import bitsandbytes as bnb
+                adam_optimizer = bnb.optim.Adam8bit
+            except ModuleNotFoundError:
+                print("Please install bitsandbytes following https://github.com/facebookresearch/bitsandbytes.")
+                raise Exception
+        else:
+            try:
+                # default to apex as it's slightly faster
+                from apex.optimizers import FusedAdam as Adam
+            except ImportError:
+                # if apex isn't installed, use deepspeed's FusedAdam
+                print("WARNING: APEX not installed - defaulting to deepspeed's fused adam")
+                from deepspeed.ops.adam import FusedAdam as Adam
+            adam_optimizer = Adam
+        optimizer = adam_optimizer(
             param_groups,
             weight_decay=neox_args.weight_decay,
             **neox_args.optimizer["params"],

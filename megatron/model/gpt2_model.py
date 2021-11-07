@@ -23,13 +23,13 @@ import torch.nn as nn
 from collections import defaultdict
 
 from functools import partial
-from megatron.model.utils import Lambda, SequentialWrapper, _set_get_key_value
+from megatron.model.utils import Lambda, SequentialWrapper, recursive_setattr
 from megatron.model.norms import get_norm
 from megatron.model.init_functions import get_init_methods
 
 from megatron import mpu
 from megatron.mpu import ParallelRelativePositionBias
-from megatron.model.transformer import ParallelTransformerLayerPipe, NormPipe, ParallelLinearPipe, parallel_lm_logits
+from megatron.model.transformer import ParallelTransformerLayerPipe, NormPipe, ParallelLinearPipe, parallel_lm_logits, ParallelLinear
 from megatron.model.gmlp import GMLPBlock
 from megatron.model.word_embeddings import EmbeddingPipe, SoftEmbedding
 
@@ -281,11 +281,25 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         # output in training should just be logits
         # in inference it will be (logits, presents) (assuming get_key_value) is true
 
-    def inference_mode(self, cache=True):
-        _set_get_key_value(self.forward_funcs, cache)
+    def _set_parallel_output(self, value):
+        # sets the parallel output value of the final layer to value
+        final_layer = list(self.forward_funcs)[-1]
+        if isinstance(final_layer, (ParallelLinearPipe, ParallelLinear)):
+            final_layer.final_linear.set_parallel_output(value)
 
+    def inference_mode(self, cache=True):
+        # first set caching to true if specified
+        recursive_setattr(self.forward_funcs, "get_key_value", cache, assert_type=bool)
+        # then set parallel output of the final layer to false so we don't have to gather the output manually
+        self._set_parallel_output(False)
+
+    
     def train_mode(self):
-        _set_get_key_value(self.forward_funcs, False)
+        # set caching to false
+        recursive_setattr(self.forward_funcs, "get_key_value", False)
+        # then set parallel output to true (more efficient training)
+        self._set_parallel_output(True)
+
 
     def to_sequential(self):
         """

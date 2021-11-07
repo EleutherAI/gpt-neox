@@ -26,11 +26,11 @@ from lm_eval.base import CacheHook
 from lm_eval.models.gpt2 import GPT2LM
 from lm_eval import tasks, evaluator, utils
 from megatron.text_generation_utils import generate_samples_from_prompt
-
+from megatron.mpu.mappings import gather_from_model_parallel_region
 
 # TODO: add data parallel
 
-class EvalHarnessAdaptor(GPT2LM):
+class EvalHarnessAdapter(GPT2LM):
 
     def __init__(self, model, forward_step_fn, neox_args, batch_size=None):
         self.device = torch.device(f'cuda:{neox_args.local_rank}')
@@ -48,6 +48,7 @@ class EvalHarnessAdaptor(GPT2LM):
         self.cache_hook = CacheHook(None)
         self.is_main = neox_args.rank == 0
         self.is_local_main = neox_args.local_rank == 0
+        self.is_model_parallel = neox_args.model_parallel_size > 1
         self.is_pipe_parallel = self.model.is_pipe_parallel
         self.is_data_parallel = self.model.is_data_parallel
         self.is_last_stage = True if not self.is_pipe_parallel else model.is_last_stage()  # only the last stage of the pipeline model will receive the logits
@@ -55,7 +56,7 @@ class EvalHarnessAdaptor(GPT2LM):
                                 maximum_tokens=self.max_gen_toks)
 
     def greedy_until(self, requests):
-        self.model.module.inference_mode()
+        self.model.module.inference_mode(cache=True) # tell model to cache kv pairs
         res = []
 
         def _collate(x):
@@ -81,10 +82,12 @@ class EvalHarnessAdaptor(GPT2LM):
 
             res.append(s)
 
-        self.model.module.train_mode()
+        self.model.module.train_mode() # set back to train mode
         return reord.get_original(res)
 
-    def _loglikelihood_tokens(self, requests, disable_tqdm=False):
+    def _loglikelihood_tokens(self, requests, disable_tqdm=False):  
+        self.model.module.inference_mode(cache=False) # tell model to gather parallel outputs, but not cache
+
         disable_tqdm = disable_tqdm if self.is_main else True
         res = []
         res_len = 0  # storing the result length for later
@@ -157,10 +160,11 @@ class EvalHarnessAdaptor(GPT2LM):
             logits_sums = logits_sums.tolist()
             res = list(zip(logits_sums, max_equals))
 
+        self.model.module.train_mode() # set back to train mode
         return reord.get_original(res)
 
     def _model_call(self, inps):
-        data_wrapped = iter([{'text': F.pad(inps, pad=(0, 1))}])
+        data_wrapped = iter([{'text': F.pad(inps, pad=(0, 1))}]) # make a dummy dataloader / iterator to pass to model
         if self.neox_args.is_pipe_parallel:
             # need these flags to stop deepspeed from hanging
             self.model.first_output_send = True
@@ -200,5 +204,5 @@ class EvalHarnessAdaptor(GPT2LM):
 
 def run_eval_harness(model, forward_step_fn, neox_args, batch_size=None, eval_tasks=None):
     print_rank_0('Running evaluation harness...')
-    adaptor = EvalHarnessAdaptor(model, forward_step_fn, neox_args, batch_size)
-    return adaptor.run_eval(eval_tasks=eval_tasks)
+    adapter = EvalHarnessAdapter(model, forward_step_fn, neox_args, batch_size)
+    return adapter.run_eval(eval_tasks=eval_tasks)

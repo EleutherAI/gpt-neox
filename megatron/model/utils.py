@@ -20,7 +20,7 @@
 
 import torch
 from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
-
+from types import GeneratorType
 
 def get_params_for_weight_decay_optimization(module, neox_args):
     """Divide params into with-weight-decay and without-weight-decay groups.
@@ -151,17 +151,32 @@ class SequentialWrapper(torch.nn.Module):
                     x = exec_range_func(start_idx, end_idx)(*x)
         return x
 
-
-def _set_get_key_value(base, value):
-    # utility used to recursively set the get key attribute value to true/false
-    # (i.e switch between inference and train mode)
-
-    assert isinstance(value, bool)
-    for m in base:
-        if hasattr(m, "get_key_value"):
-            m.get_key_value = value
+def recursive_setattr(m, attr, value, assert_type=None, type_filter=None):
+    """
+    Recursively set attributes on a pytorch module or an iterable of modules.
+    If an assert_type is provided, it will assert that the type of the value is the same as the assert_type.
+    If a type_filter is provided, it will only set attributes on modules that match that type.
+    """
+    if assert_type is not None:
+        assert isinstance(value, assert_type), "Value is not the correct type."
+    
+    # if m is a list or a generator, iterate over the elements
+    if isinstance(m, (list, GeneratorType)):
+        for i in m:
+            recursive_setattr(i, attr, value, assert_type, type_filter)
+    elif isinstance(m, torch.nn.Module):
+        if hasattr(m, attr):
+            if type_filter is None or isinstance(m, type_filter):
+                setattr(m, attr, value)
         if hasattr(m, "children"):
-            _set_get_key_value(m.children(), value)
+            recursive_setattr(m.children(), attr, value, assert_type, type_filter)
+
+def _set_get_key_value(modules, value: bool):
+    """
+    Recursively sets an get_key_value to `value` on a list of pytorch modules, if they have a get_key_value attribute.
+    get_key_value is used to decide whether we cache past key value activations or not in inference.
+    """
+    recursive_setattr(modules, "get_key_value", value, assert_type=bool)
 
 
 def configure_sparse_attention(neox_args, attention_type, num_attention_heads, mpu):

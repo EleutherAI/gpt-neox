@@ -344,6 +344,11 @@ class NeoXArgsOptimizer(NeoXArgsTemplate):
     Type of optimizer to use. Choose from ['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd]
     """
 
+    use_bnb_optimizer: bool = False
+    """
+    Whether to enable the bitsandbytes optimizers
+    """
+
     zero_stage: int = None
     """
     Zero Optimizer stage

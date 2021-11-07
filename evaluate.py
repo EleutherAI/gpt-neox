@@ -24,11 +24,10 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
                                              os.path.pardir)))
 from megatron.training import forward_step
 from megatron.utils import setup_for_inference_or_eval
-from adaptor import run_eval_harness
+from eval_tasks import run_eval_harness
 from pprint import pprint
 from datetime import datetime
-
-import json 
+import json
 
 def main():
     model, neox_args = setup_for_inference_or_eval(inference=False, get_key_value=False)
