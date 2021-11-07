@@ -30,7 +30,7 @@ from megatron.mpu.mappings import gather_from_model_parallel_region
 
 # TODO: add data parallel
 
-class EvalHarnessAdaptor(GPT2LM):
+class EvalHarnessAdapter(GPT2LM):
 
     def __init__(self, model, forward_step_fn, neox_args, batch_size=None):
         self.device = torch.device(f'cuda:{neox_args.local_rank}')
@@ -56,7 +56,7 @@ class EvalHarnessAdaptor(GPT2LM):
                                 maximum_tokens=self.max_gen_toks)
 
     def greedy_until(self, requests):
-        self.model.module.inference_mode()
+        self.model.module.inference_mode(cache=True) # tell model to cache kv pairs
         res = []
 
         def _collate(x):
@@ -82,10 +82,12 @@ class EvalHarnessAdaptor(GPT2LM):
 
             res.append(s)
 
-        self.model.module.train_mode()
+        self.model.module.train_mode() # set back to train mode
         return reord.get_original(res)
 
-    def _loglikelihood_tokens(self, requests, disable_tqdm=False):
+    def _loglikelihood_tokens(self, requests, disable_tqdm=False):  
+        self.model.module.inference_mode(cache=False) # tell model to gather parallel outputs, but not cache
+
         disable_tqdm = disable_tqdm if self.is_main else True
         res = []
         res_len = 0  # storing the result length for later
@@ -158,18 +160,16 @@ class EvalHarnessAdaptor(GPT2LM):
             logits_sums = logits_sums.tolist()
             res = list(zip(logits_sums, max_equals))
 
+        self.model.module.train_mode() # set back to train mode
         return reord.get_original(res)
 
     def _model_call(self, inps):
-        data_wrapped = iter([{'text': F.pad(inps, pad=(0, 1))}])
+        data_wrapped = iter([{'text': F.pad(inps, pad=(0, 1))}]) # make a dummy dataloader / iterator to pass to model
         if self.neox_args.is_pipe_parallel:
             # need these flags to stop deepspeed from hanging
             self.model.first_output_send = True
             self.model.pipe_recv_buf = None
         _, logits = self._forward_step_fn(model=self.model, data_iterator=data_wrapped)
-        # gather from model parallel region if the model is model parallel
-        if self.is_model_parallel and logits is not None:
-            logits = gather_from_model_parallel_region(logits)
         return logits
 
     def run_eval(self, eval_tasks=None):

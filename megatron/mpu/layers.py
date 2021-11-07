@@ -331,6 +331,10 @@ class ColumnParallelLinear(torch.nn.Module):
         else:
             self.register_parameter('bias', None)
 
+    def set_parallel_output(self, value: bool):
+        assert isinstance(value, bool)
+        self.gather_output = not value # if gather_output is True, parallel output is False, so we set the opposite
+
     def forward(self, input_):
         # Set up backprop all-reduce.
         input_parallel = copy_to_model_parallel_region(input_)
@@ -426,6 +430,10 @@ class RowParallelLinear(torch.nn.Module):
                 self.bias.zero_()
         else:
             self.register_parameter('bias', None)
+
+    def set_parallel_output(self, parallel_output: bool):
+        assert isinstance(parallel_output, bool)
+        self.parallel_output = parallel_output
 
     def forward(self, input_):
         # Set up backprop all-reduce.

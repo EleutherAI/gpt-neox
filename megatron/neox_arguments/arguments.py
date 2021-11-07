@@ -204,6 +204,7 @@ class NeoXArgs(*BASE_CLASSES):
                            help='Weights and Biases group name - used to group together "runs".')
         group.add_argument('--wandb_team', type=str, default=None,
                            help='Team name for Weights and Biases.')
+        group.add_argument('--eval_tasks', type=str, nargs='+', default=None, help='Optionally overwrite eval tasks to run for evaluate.py')
 
         args_parsed = parser.parse_args()
 
@@ -226,6 +227,8 @@ class NeoXArgs(*BASE_CLASSES):
             overwrite_values["wandb_team"] = args_parsed.wandb_team
         if args_parsed.user_script is not None:
             overwrite_values["user_script"] = args_parsed.user_script
+        if args_parsed.eval_tasks is not None:
+            overwrite_values["eval_tasks"] = args_parsed.eval_tasks
 
         # load args
         neox_args = cls.from_ymls(paths_to_yml_files=conf_files, overwrite_values=overwrite_values)
