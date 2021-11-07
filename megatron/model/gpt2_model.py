@@ -285,9 +285,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         # sets the parallel output value of the final layer to value
         final_layer = list(self.forward_funcs)[-1]
         if isinstance(final_layer, (ParallelLinearPipe, ParallelLinear)):
-            print('BEFORE: ', not final_layer.final_linear.gather_output)
             final_layer.final_linear.set_parallel_output(value)
-            print('AFTER: ', not final_layer.final_linear.gather_output)
 
     def inference_mode(self, cache=True):
         # first set caching to true if specified
