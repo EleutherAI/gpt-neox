@@ -26,7 +26,7 @@ from lm_eval.base import CacheHook
 from lm_eval.models.gpt2 import GPT2LM
 from lm_eval import tasks, evaluator, utils
 from megatron.text_generation_utils import generate_samples_from_prompt
-
+from megatron.mpu.mappings import gather_from_model_parallel_region
 
 # TODO: add data parallel
 
@@ -48,6 +48,7 @@ class EvalHarnessAdaptor(GPT2LM):
         self.cache_hook = CacheHook(None)
         self.is_main = neox_args.rank == 0
         self.is_local_main = neox_args.local_rank == 0
+        self.is_model_parallel = neox_args.model_parallel_size > 1
         self.is_pipe_parallel = self.model.is_pipe_parallel
         self.is_data_parallel = self.model.is_data_parallel
         self.is_last_stage = True if not self.is_pipe_parallel else model.is_last_stage()  # only the last stage of the pipeline model will receive the logits
@@ -166,6 +167,9 @@ class EvalHarnessAdaptor(GPT2LM):
             self.model.first_output_send = True
             self.model.pipe_recv_buf = None
         _, logits = self._forward_step_fn(model=self.model, data_iterator=data_wrapped)
+        # gather from model parallel region if the model is model parallel
+        if self.is_model_parallel and logits is not None:
+            logits = gather_from_model_parallel_region(logits)
         return logits
 
     def run_eval(self, eval_tasks=None):
