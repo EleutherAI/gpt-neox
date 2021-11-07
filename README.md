@@ -40,9 +40,7 @@ If you're looking for our TPU codebase, see [GPT-Neo](https://github.com/Eleuthe
 
 **Diverse Modeling Options:** We provide a wide collections of options for constructing your model.
 
-**Hugging Face Integration:** Our code is designed to work with the Hugging Face Transformers library. All models trained using this codebase can be uploaded to a custom Hugging Face class with ease, and all Hugging Face tokenizers and datasets can be used to train models.
-
-**Large Pretrained Models:** We offer several large, pretrained models to iterate on. For people who are unable to train billion parameter scale models themselves, this framework allows you to easily interact with models that we have released.
+**Scalability:** Our codebase is efficient for and effective at training transformers with tens of billions of parameters.
 
 ## Quick Start
 
