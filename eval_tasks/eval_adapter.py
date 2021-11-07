@@ -204,5 +204,5 @@ class EvalHarnessAdapter(GPT2LM):
 
 def run_eval_harness(model, forward_step_fn, neox_args, batch_size=None, eval_tasks=None):
     print_rank_0('Running evaluation harness...')
-    adaptor = EvalHarnessAdaptor(model, forward_step_fn, neox_args, batch_size)
-    return adaptor.run_eval(eval_tasks=eval_tasks)
+    adapter = EvalHarnessAdapter(model, forward_step_fn, neox_args, batch_size)
+    return adapter.run_eval(eval_tasks=eval_tasks)
