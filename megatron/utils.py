@@ -410,7 +410,7 @@ def setup_for_inference_or_eval(
     }
     if overwrite_values:
         _overwrite_values.update(overwrite_values)
-    neox_args = NeoXArgs.consume_neox_args(overwrite_values=_overwrite_values)
+    neox_args = NeoXArgs.from_launcher_args(overwrite_values=_overwrite_values)
     neox_args.configure_distributed_args()
     neox_args.build_tokenizer()
 

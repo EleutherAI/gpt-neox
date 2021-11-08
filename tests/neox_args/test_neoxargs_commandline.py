@@ -88,7 +88,7 @@ def test_neoxargs_consume_neox_args():
 
     # patch sys.argv so that args can be access by set_global_variables within initialize_megatron
     with patch('sys.argv', deepspeed_main_args):
-        args_loaded = NeoXArgs.consume_neox_args()
+        args_loaded = NeoXArgs.from_launcher_args()
 
     #TODO is the wandb group really to be changed?
     args_loaded.wandb_group = args_baseline.wandb_group
