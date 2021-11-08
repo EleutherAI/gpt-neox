@@ -342,7 +342,13 @@ class NeoXArgs(*BASE_CLASSES):
         return neox_args
 
     @classmethod
-    def from_launcher_args(cls, overwrite_values: dict = None):
+    def from_launcher_args(
+        cls,
+        overwrite_values: dict = None,
+        configure_distributed_args=True,
+        build_tokenizer=True,
+        initialize_tensorboard_writer=True,
+    ):
         """
         Parses the .json megatron config sent by the deepspeed launcher to all workers and returns a NeoXArgs object.
 
@@ -355,6 +361,9 @@ class NeoXArgs(*BASE_CLASSES):
         Args:
             cls: self
             overwrite_values: dict of values to overwrite in the config.
+            configure_distributed_args: whether to parse distributed args from environment variables (e.g. `world_size` and `rank`).
+            build_tokenizer: whether to build the tokenizer specified in the config.
+            initialize_tensorboard_writer: whether to initialize a tensorboard writer (if specified in the config).
 
         Returns:
             neox_args: a new NeoXArgs instance
@@ -374,7 +383,14 @@ class NeoXArgs(*BASE_CLASSES):
         megatron_config = json.loads(args_parsed.megatron_config)
         if overwrite_values is not None:
             megatron_config.update(overwrite_values)
-        return cls.from_dict(args_dict=megatron_config)
+        neox_args = cls.from_dict(args_dict=megatron_config)
+        if configure_distributed_args:
+            neox_args.configure_distributed_args()
+        if build_tokenizer:
+            neox_args.build_tokenizer()
+        if initialize_tensorboard_writer:
+            neox_args.initialize_tensorboard_writer()
+        return neox_args
 
     @staticmethod
     def convert_key_value_to_command_line_arg(k, v):

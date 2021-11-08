@@ -61,21 +61,21 @@ def report_memory(name):
     )
     print_rank_0(string)
 
+
 def get_attn_mask(seq_length, device):
     """
     Get triangular attention mask for a given sequence length / device.
     """
     # lower triangular attention mask
-    mask = torch.tril(torch.ones(
-        (1, seq_length, seq_length), device=device)).view(
-        1, 1, seq_length, seq_length)
-    
-    # convert to binary
-    return (mask < 0.5)
+    mask = torch.tril(torch.ones((1, seq_length, seq_length), device=device)).view(
+        1, 1, seq_length, seq_length
+    )
 
-def get_ltor_masks_and_position_ids(data,
-                                    eod_token,
-                                    eod_mask_loss=False):
+    # convert to binary
+    return mask < 0.5
+
+
+def get_ltor_masks_and_position_ids(data, eod_token, eod_mask_loss=False):
     """Build masks and position id for left to right model."""
 
     # Extract batch size and sequence length.
@@ -97,7 +97,7 @@ def get_ltor_masks_and_position_ids(data,
 
 
 def local_rank():
-    """ Local rank of process """
+    """Local rank of process"""
     local_rank = os.environ.get("LOCAL_RANK")
     if local_rank is None:
         print(
@@ -107,12 +107,14 @@ def local_rank():
         local_rank = 0
     return int(local_rank)
 
+
 def is_bnb_available():
-    """ True if bitsandbytes optimizers are available """
+    """True if bitsandbytes optimizers are available"""
     return importlib.util.find_spec("bitsandbytes") is not None
 
+
 def is_local_main():
-    """ True if is the local main process """
+    """True if is the local main process"""
     return local_rank() == 0
 
 
@@ -122,7 +124,7 @@ def is_mp_rank_0():
 
 
 def get_wandb_api_key(neox_args):
-    """ Get Weights and Biases API key from ENV or .netrc file. Otherwise return None """
+    """Get Weights and Biases API key from ENV or .netrc file. Otherwise return None"""
     if "WANDB_LOCAL" in os.environ:
         return "LOCAL"
     if "WANDB_API_KEY" in os.environ:
@@ -406,14 +408,13 @@ def setup_for_inference_or_eval(
         "checkpoint_activations": False,
         "partition_activations": False,
         "no_load_optim": True,
-        'zero_optimization': None, # disable zero optimization (won't be used in inference, and loading zero optimizer can cause errors)
+        "zero_optimization": None,  # disable zero optimization (won't be used in inference, and loading zero optimizer can cause errors)
     }
     if overwrite_values:
         _overwrite_values.update(overwrite_values)
-    neox_args = NeoXArgs.from_launcher_args(overwrite_values=_overwrite_values)
-    neox_args.configure_distributed_args()
-    neox_args.build_tokenizer()
-
+    neox_args = NeoXArgs.from_launcher_args(
+        overwrite_values=_overwrite_values, initialize_tensorboard_writer=False
+    )
     if neox_args.load is None:
         raise ValueError("`load` parameter must be supplied to load a model`")
 
