@@ -17,7 +17,7 @@ def test_neoxargs_consume_deepy_args_with_config_dir():
 
     # load neox args with command line
     with patch('sys.argv', [str(get_root_directory() / "deepy.py"), "pretrain_gpt2.py"] + get_configs_with_path(["small.yml", "local_setup.yml"])):
-        args_loaded_consume = NeoXArgs.consume_deepy_args()
+        args_loaded_consume = NeoXArgs.parse_args()
 
 
     # load neox args directly from yaml files
@@ -39,7 +39,7 @@ def test_neoxargs_consume_deepy_args_without_yml_suffix():
 
     # load neox args with command line
     with patch('sys.argv', [str(get_root_directory() / "deepy.py"), "pretrain_gpt2.py"] + get_configs_with_path(["small", "local_setup"])):
-        args_loaded_consume = NeoXArgs.consume_deepy_args()
+        args_loaded_consume = NeoXArgs.parse_args()
 
 
     # load neox args directly from yaml files
@@ -61,7 +61,7 @@ def test_neoxargs_consume_deepy_args_with_config_dir():
 
     # load neox args with command line
     with patch('sys.argv', [str(get_root_directory() / "deepy.py"), "pretrain_gpt2.py", '-d', str(get_config_directory())] + ["small.yml", "local_setup.yml"]):
-        args_loaded_consume = NeoXArgs.consume_deepy_args()
+        args_loaded_consume = NeoXArgs.parse_args()
 
 
     # load neox args directly from yaml files

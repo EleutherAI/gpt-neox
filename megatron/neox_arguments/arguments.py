@@ -199,11 +199,28 @@ class NeoXArgs(*BASE_CLASSES):
     # start of command line args interface
 
     @classmethod
-    def consume_deepy_args(cls):
+    def parse_args(cls):
         """
-        entry point for deepy.py configuring and consuming command line arguments.
+        Parses command line arguments from ./deepy.py or the deepspeed launcher (user script, configs, etc.) and returns a NeoXArgs object.
 
-        We can use `--wandb_group` / `--wandb_team` to overwrite those args from the command line, otherwise the value from the config is taken.
+        GPT-NeoX Configuration
+
+        optional arguments:
+          -h, --help            show this help message and exit
+
+        Training Configuration:
+          user_script           User script to launch, followed by any required arguments.
+          --conf_dir CONF_DIR, -d CONF_DIR
+                                Directory to prefix to all configuration file paths
+          conf_file             Configuration file path. Multiple files can be provided and will be merged.
+
+        Weights and Biases monitoring args:
+          --wandb_group WANDB_GROUP
+                                Weights and Biases group name - used to group together runs.
+          --wandb_team WANDB_TEAM
+                                Team name for Weights and Biases.
+          --eval_tasks EVAL_TASKS [EVAL_TASKS ...]
+                                Optionally overwrite eval tasks to run for evaluate.py
         """
 
         parser = argparse.ArgumentParser(
@@ -239,7 +256,7 @@ class NeoXArgs(*BASE_CLASSES):
             "--wandb_group",
             type=str,
             default=None,
-            help='Weights and Biases group name - used to group together "runs".',
+            help="Weights and Biases group name - used to group together runs.",
         )
         group.add_argument(
             "--wandb_team",
