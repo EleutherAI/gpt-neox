@@ -22,12 +22,10 @@ import os
 import sys
 import re
 import time
-import socket
 from typing import Dict, List
 
 import requests
 import wandb
-from wandb import UsageError
 
 import torch
 
@@ -134,35 +132,6 @@ def get_wandb_api_key(neox_args):
 
     if wandb_token is not None:
         return wandb_token[1]
-
-
-def init_wandb(neox_args):
-    # Wandb. (one worker per machine)
-    if neox_args.use_wandb == False:
-        return
-
-    use_wandb = is_local_main() and (get_wandb_api_key(neox_args=neox_args) is not None)
-    neox_args.update_value("use_wandb", use_wandb)
-    if neox_args.use_wandb:
-        group_name = neox_args.wandb_group
-        name = f"{socket.gethostname()}-{local_rank()}" if group_name else None
-        try:
-            wandb.init(
-                project=neox_args.wandb_project,
-                group=group_name,
-                name=name,
-                save_code=False,
-                force=False,
-                entity=neox_args.wandb_team,
-            )
-        except UsageError as e:
-            neox_args.update_value("use_wandb", False)
-            print(e)
-            print(
-                "Skipping wandb. Execute `wandb login` on local or main node machine to enable.",
-                flush=True,
-            )
-        wandb.config.update(neox_args.all_config)
 
 
 def obtain_resource_pool(
@@ -412,9 +381,7 @@ def setup_for_inference_or_eval(
     }
     if overwrite_values:
         _overwrite_values.update(overwrite_values)
-    neox_args = NeoXArgs.from_launcher_args(
-        overwrite_values=_overwrite_values, initialize_tensorboard_writer=False
-    )
+    neox_args = NeoXArgs.from_launcher_args(overwrite_values=_overwrite_values)
     if neox_args.load is None:
         raise ValueError("`load` parameter must be supplied to load a model`")
 

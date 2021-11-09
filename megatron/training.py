@@ -32,14 +32,17 @@ import numpy as np
 
 from megatron.utils import (
     Timers,
-    init_wandb,
     get_ltor_masks_and_position_ids,
     reduce_losses,
 )
 
 
 from megatron import print_rank_0, mpu
-from megatron.model import GPT2ModelPipe, SoftEmbedding, get_params_for_weight_decay_optimization
+from megatron.model import (
+    GPT2ModelPipe,
+    SoftEmbedding,
+    get_params_for_weight_decay_optimization,
+)
 from megatron.checkpointing import load_checkpoint, save_checkpoint
 from megatron.data.data_utils import build_train_valid_test_data_iterators
 from megatron.initialize import initialize_megatron
@@ -56,11 +59,17 @@ from eval_tasks import run_eval_harness
 
 
 def pretrain(neox_args):
-    """Main training program.
+    """
+    Main training program.
 
-    This function will run the followings in the order provided:
+    This function will run the following in this order:
+        - Initializes the model
+        - Initializes the optimizer and learning rate scheduler
+        - Initializes the data iterators
+        - Runs the training loop
+
         1) initialize Megatron.
-        2) setup model, optimizer and lr schedule
+        2) setup the model, optimizer and lr schedule
         3) call train_val_test_data_provider to get train/val/test datasets.
         4) train the model.
 
@@ -68,34 +77,24 @@ def pretrain(neox_args):
         neox_args: an instance of NeoXArgs containing the configuration for pretrain
 
     """
-    # setup logging and timers
-    init_wandb(neox_args=neox_args)
-    timers = Timers(
-        use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer
-    )
 
-    # Initalize and get arguments, timers, and Tensorboard writer.
+    # Initalize megatron (distributed args, logging, etc.)
     initialize_megatron(neox_args=neox_args)
 
     # Model, optimizer, and learning rate.
-    timers("model and optimizer").start()
     model, optimizer, lr_scheduler = setup_model_and_optimizer(
         neox_args=neox_args, inference=False, get_key_value=True
     )
-    timers("model and optimizer").stop()
 
     # Data stuff.
-    timers("train/valid/test data iterators").start()
     (
         train_data_iterator,
         valid_data_iterator,
         test_data_iterator,
     ) = build_train_valid_test_data_iterators(neox_args=neox_args)
-    timers("train/valid/test data iterators").stop()
 
     # Print setup timing.
     print_rank_0("done with setups ...")
-    timers.log(["model and optimizer", "train/valid/test data iterators"])
     print_rank_0("training ...")
 
     iteration = 0
@@ -158,9 +157,8 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
 
     # Get the masks and position ids.
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
-        tokens,
-        tokenizer.eod,
-        neox_args.eod_mask_loss)
+        tokens, tokenizer.eod, neox_args.eod_mask_loss
+    )
 
     return tokens, labels, loss_mask, attention_mask, position_ids
 
@@ -187,7 +185,7 @@ def get_batch(neox_args, data_iterator):
 
 
 def get_batch_pipe(data, neox_args):
-    """A modification of get_batch() to work with the latest batch instead of an iterator. """
+    """A modification of get_batch() to work with the latest batch instead of an iterator."""
     # Items and their type.
     keys = ["text"]
     datatype = torch.int64
@@ -228,23 +226,35 @@ def get_model(neox_args, inference=False, get_key_value=True):
     print_rank_0("building GPT2 model ...")
 
     # Build model on cpu.
-    model = GPT2ModelPipe(neox_args=neox_args, num_tokentypes=0, parallel_output=True, topology=mpu.get_topology(),
-                            inference=inference, get_key_value=get_key_value)
-    
+    model = GPT2ModelPipe(
+        neox_args=neox_args,
+        num_tokentypes=0,
+        parallel_output=True,
+        topology=mpu.get_topology(),
+        inference=inference,
+        get_key_value=get_key_value,
+    )
+
     ### soft prompt tuning stuff ###
-    if neox_args.soft_prompt_tuning is not None and neox_args.soft_prompt_tuning.get('enabled', False):
-        soft_prompt = SoftEmbedding(neox_args, 
-                                    wte = getattr(model, '0').word_embeddings,
-                                    n_tokens=neox_args.soft_prompt_tuning.get("n_tokens", 10),
-                                    init_string=neox_args.soft_prompt_tuning.get("init_string", ""),
-                                    init_range=neox_args.soft_prompt_tuning.get("init_range", 0.5))
-        model.insert_layers(layers=soft_prompt, idx=1) # insert the soft prompt layer directly after the word embeddings
-        
+    if neox_args.soft_prompt_tuning is not None and neox_args.soft_prompt_tuning.get(
+        "enabled", False
+    ):
+        soft_prompt = SoftEmbedding(
+            neox_args,
+            wte=getattr(model, "0").word_embeddings,
+            n_tokens=neox_args.soft_prompt_tuning.get("n_tokens", 10),
+            init_string=neox_args.soft_prompt_tuning.get("init_string", ""),
+            init_range=neox_args.soft_prompt_tuning.get("init_range", 0.5),
+        )
+        model.insert_layers(
+            layers=soft_prompt, idx=1
+        )  # insert the soft prompt layer directly after the word embeddings
+
         # freeze everything but the soft prompt
         for name, param in model.named_parameters():
-            if not 'soft_embedding' in name:
+            if not "soft_embedding" in name:
                 param.requires_grad = False
-        
+
     if not neox_args.is_pipe_parallel:
         # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
         model = model.to_sequential()
@@ -266,7 +276,9 @@ def get_optimizer(model, neox_args):
         return None, None
     # Build parameter groups (weight decay and non-decay).
     param_groups = get_params_for_weight_decay_optimization(model, neox_args)
-    print_rank_0(f'Configuring Optimizer type: {neox_args.optimizer_type} with params: {neox_args.optimizer["params"]}')
+    print_rank_0(
+        f'Configuring Optimizer type: {neox_args.optimizer_type} with params: {neox_args.optimizer["params"]}'
+    )
 
     # Add model parallel attribute if it is not set.
     for param_group in param_groups:
@@ -277,8 +289,8 @@ def get_optimizer(model, neox_args):
     # Filter out params that don't require a grad (for soft prompt tuning, etc.)
     _param_groups = []
     for param_group in param_groups:
-        trainable_params = [p for p in param_group['params'] if p.requires_grad]
-        param_group['params'] = trainable_params
+        trainable_params = [p for p in param_group["params"] if p.requires_grad]
+        param_group["params"] = trainable_params
         _param_groups.append(param_group)
     param_groups = _param_groups
 
@@ -315,9 +327,12 @@ def get_optimizer(model, neox_args):
         if neox_args.use_bnb_optimizer:
             try:
                 import bitsandbytes as bnb
+
                 adam_optimizer = bnb.optim.Adam8bit
             except ModuleNotFoundError:
-                print("Please install bitsandbytes following https://github.com/facebookresearch/bitsandbytes.")
+                print(
+                    "Please install bitsandbytes following https://github.com/facebookresearch/bitsandbytes."
+                )
                 raise Exception
         else:
             try:
@@ -325,7 +340,9 @@ def get_optimizer(model, neox_args):
                 from apex.optimizers import FusedAdam as Adam
             except ImportError:
                 # if apex isn't installed, use deepspeed's FusedAdam
-                print("WARNING: APEX not installed - defaulting to deepspeed's fused adam")
+                print(
+                    "WARNING: APEX not installed - defaulting to deepspeed's fused adam"
+                )
                 from deepspeed.ops.adam import FusedAdam as Adam
             adam_optimizer = Adam
         optimizer = adam_optimizer(
@@ -502,7 +519,7 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
 
 
 def train_step_pipe(neox_args, timers, model, data_iterator):
-    """Single training step with DeepSpeed's pipeline parallel engine. """
+    """Single training step with DeepSpeed's pipeline parallel engine."""
 
     assert neox_args.deepspeed
     loss = model.train_batch(data_iter=data_iterator)
@@ -563,10 +580,10 @@ def train(
         if neox_args.log_gradient_noise_scale:  # log noise scale if applicable
             noise_scale_logger.update()
 
-        # get learning rate (if present) - if doing soft prompt tuning + pipe parallel, you 
+        # get learning rate (if present) - if doing soft prompt tuning + pipe parallel, you
         # may have no tunable parameters on a specific rank
         if optimizer.param_groups:
-            lr = optimizer.param_groups[0].get('lr', 0)
+            lr = optimizer.param_groups[0].get("lr", 0)
         else:
             lr = 0
 
@@ -662,7 +679,11 @@ def evaluate(
             # although we're not accumulating gradients here, we count one iter as train_batch_size_per_gpu * g.a.s
             # to be consistent with deepspeed's pipe parallel engine
             # since pipe parallel already takes gas into account - default to 1 here if pipe parallel is true
-            for _ in range(1 if neox_args.is_pipe_parallel else neox_args.gradient_accumulation_steps):
+            for _ in range(
+                1
+                if neox_args.is_pipe_parallel
+                else neox_args.gradient_accumulation_steps
+            ):
                 # Forward evaluation
                 loss = forward_step_fn(
                     model=model,

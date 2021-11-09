@@ -19,7 +19,7 @@ except ImportError:
 from deepspeed.launcher.runner import DLTS_HOSTFILE
 from megatron.logging import Tee
 from megatron.tokenizer import build_tokenizer
-from megatron.utils import obtain_resource_pool, expand_attention_types
+from megatron.utils import obtain_resource_pool, expand_attention_types, Timers
 from .deepspeed_args import NeoXArgsDeepspeedConfig, NeoXArgsDeepspeedRunner
 from .neox_args import (
     NeoXArgsModel,
@@ -117,8 +117,17 @@ class NeoXArgs(*BASE_CLASSES):
                 + ".__post_init__() NeoXArgs values cannot be validated"
             )
 
+        # initialize non-configurable values
+        self.timers = None
+
     def build_tokenizer(self):
         self.tokenizer = build_tokenizer(self)
+
+    def initialize_timers(self):
+        self.timers = Timers(
+            use_wandb=self.use_wandb,
+            tensorboard_writer=self.tensorboard_writer,
+        )
 
     def initialize_tensorboard_writer(self):
         if self.tensorboard_dir and self.rank == 0:
@@ -132,6 +141,45 @@ class NeoXArgs(*BASE_CLASSES):
                     "WARNING: TensorBoard writing requested but is not "
                     "available (are you using PyTorch 1.1.0 or later and do you have tensorboard installed?), "
                     "no TensorBoard logs will be written.",
+                    flush=True,
+                )
+
+    def initialize_wandb(self):
+        """
+        Initialize wandb if configured.
+        """
+        # Wandb. (one worker per machine)
+        if self.use_wandb == False:
+            return
+
+        import wandb
+        import socket
+        from ..utils import is_local_main, get_wandb_api_key
+
+        # only initialize wandb if we are the main process for the local rank and a valid api key is provided
+        use_wandb = is_local_main() and (get_wandb_api_key(neox_args=self) is not None)
+        self.update_value("use_wandb", use_wandb)
+        if self.use_wandb:
+            group_name = self.wandb_group
+            # get a unique name for each rank
+            name = f"{socket.gethostname()}-{self.local_rank}" if group_name else None
+
+            # initialize wandb
+            try:
+                wandb.init(
+                    project=self.wandb_project,
+                    group=group_name,
+                    name=name,
+                    save_code=False,
+                    force=False,
+                    entity=self.wandb_team,
+                )
+                wandb.config.update(self.all_config)
+            except wandb.UsageError as e:
+                self.update_value("use_wandb", False)
+                print(e)
+                print(
+                    "Skipping wandb. Execute `wandb login` on local or main node machine to enable.",
                     flush=True,
                 )
 
@@ -345,9 +393,11 @@ class NeoXArgs(*BASE_CLASSES):
     def from_launcher_args(
         cls,
         overwrite_values: dict = None,
-        configure_distributed_args=True,
-        build_tokenizer=True,
-        initialize_tensorboard_writer=True,
+        configure_distributed_args: bool = True,
+        build_tokenizer: bool = True,
+        initialize_tensorboard_writer: bool = False,
+        initialize_wandb: bool = False,
+        initialize_timers: bool = False,
     ):
         """
         Parses the .json megatron config sent by the deepspeed launcher to all workers and returns a NeoXArgs object.
@@ -364,6 +414,7 @@ class NeoXArgs(*BASE_CLASSES):
             configure_distributed_args: whether to parse distributed args from environment variables (e.g. `world_size` and `rank`).
             build_tokenizer: whether to build the tokenizer specified in the config.
             initialize_tensorboard_writer: whether to initialize a tensorboard writer (if specified in the config).
+            initialize_wandb: whether to initialize wandb (if specified in the config).
 
         Returns:
             neox_args: a new NeoXArgs instance
@@ -390,6 +441,10 @@ class NeoXArgs(*BASE_CLASSES):
             neox_args.build_tokenizer()
         if initialize_tensorboard_writer:
             neox_args.initialize_tensorboard_writer()
+        if initialize_wandb:
+            neox_args.initialize_wandb()
+        if initialize_timers:
+            neox_args.initialize_timers()
         return neox_args
 
     @staticmethod
