@@ -346,9 +346,26 @@ def count_params(model: torch.nn.Module) -> int:
     Returns:
         int: The number of parameters in the model.
     """
-    n_params = sum(p.numel() for p in model.parameters())
     if torch.distributed.is_initialized():
-        torch.distributed.barrier()  # wait for all ranks to finish counting
+        # if our model parameters are distributed, we need to sum the parameters across all ranks
+        # on the plus side, this is also more efficient :)
+        if mpu.get_data_parallel_rank() == 0:
+            n_params = sum([p.nelement() for p in model.parameters()])
+            print(
+                " > number of parameters on model parallel rank {}: {}".format(
+                    mpu.get_model_parallel_rank(), n_params
+                ),
+                flush=True,
+            )
+        else:
+            n_params = 0
+
+        n_params = torch.tensor([n_params]).cuda(torch.cuda.current_device())
+        torch.distributed.all_reduce(n_params)
+        n_params = n_params.item()
+    else:
+        n_params = sum(p.numel() for p in model.parameters())
+
     return n_params
 
 

@@ -166,6 +166,10 @@ class NeoXArgs(*BASE_CLASSES):
 
             # initialize wandb
             try:
+                config = self.all_config
+                config["num_params"] = getattr(
+                    self, "total_params", None
+                )  # get number of parameters in the model, if it's been calculated
                 wandb.init(
                     project=self.wandb_project,
                     group=group_name,
@@ -173,8 +177,8 @@ class NeoXArgs(*BASE_CLASSES):
                     save_code=False,
                     force=False,
                     entity=self.wandb_team,
+                    config=config,
                 )
-                wandb.config.update(self.all_config)
             except wandb.UsageError as e:
                 self.update_value("use_wandb", False)
                 print(e)

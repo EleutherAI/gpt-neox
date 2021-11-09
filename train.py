@@ -24,7 +24,6 @@ if __name__ == "__main__":
     # initializes the tokenizer, and returns a NeoXArgs object used to access the arguments during training.
     neox_args = NeoXArgs.from_launcher_args(
         initialize_tensorboard_writer=True,
-        initialize_wandb=True,
         initialize_timers=True,
     )
 

@@ -75,9 +75,9 @@ def human_readable_flops(num):
     return "%.1f%s" % (num, "Yi")
 
 
-def get_flops(neox_args, model, iter_time_s):
+def get_flops(neox_args, iter_time_s):
     world_size = torch.distributed.get_world_size()
-    ff = model.total_params * 6
+    ff = neox_args.total_params * 6
     attn = neox_args.seq_length * neox_args.hidden_size * neox_args.num_layers * 60
     flops = (
         neox_args.train_batch_size
@@ -279,9 +279,7 @@ def training_log(
         )
 
         # log tflop / gpu
-        flops_per_s_per_gpu = get_flops(
-            neox_args=neox_args, model=model, iter_time_s=iteration_time
-        )
+        flops_per_s_per_gpu = get_flops(neox_args=neox_args, iter_time_s=iteration_time)
         log_string += (
             f" approx flops per GPU: {human_readable_flops(flops_per_s_per_gpu)} |"
         )

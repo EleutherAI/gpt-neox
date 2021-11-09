@@ -52,7 +52,7 @@ from megatron.logging import tb_wandb_log, training_log
 from megatron.utils import (
     OverflowMonitor,
     get_noise_scale_logger,
-    get_total_params,
+    count_params,
     CharCounter,
 )
 from megatron.model.gpt2_model import cross_entropy
@@ -98,8 +98,13 @@ def pretrain(neox_args):
     print_rank_0("done with setups ...")
     print_rank_0("training ...")
 
+    # launch wandb after everything is set up, so if any error occurs in the setup process, the run isn't logged to wandb
+    neox_args.initialize_wandb()
+
     iteration = 0
     if neox_args.do_train and neox_args.train_iters > 0:
+        # run training
+
         iteration = train(
             neox_args=neox_args,
             model=model,
@@ -110,10 +115,10 @@ def pretrain(neox_args):
         )
 
     if neox_args.do_valid:
-        prefix = "the end of training for val data"
+        # run validation at the end of training
         evaluate_and_print_results(
             neox_args=neox_args,
-            prefix=prefix,
+            prefix="the end of training for val data",
             forward_step_func=forward_step,
             data_iterator=valid_data_iterator,
             model=model,
@@ -122,6 +127,7 @@ def pretrain(neox_args):
         )
 
     if neox_args.save and iteration != 0:
+        # save checkpoint at the end of training
         save_checkpoint(
             neox_args=neox_args,
             iteration=iteration,
@@ -268,10 +274,6 @@ def get_model(neox_args, inference=False, get_key_value=True) -> torch.nn.Module
     if not neox_args.is_pipe_parallel:
         # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
         model = model.to_sequential()
-    else:
-        # This is a hack to give us a reference to get_batch_pipe from within training.py
-        # We need to call model.set_batch_fn after deepspeed.initialize
-        model._megatron_batch_fn = partial(get_batch_pipe, neox_args=neox_args)
 
     return model
 
@@ -440,12 +442,11 @@ def setup_model_and_optimizer(neox_args, inference=False, get_key_value=True):
         config_params=neox_args.deepspeed_config,
         mpu=mpu if not neox_args.is_pipe_parallel else None,
     )
-    model.total_params = get_total_params(model.module)
-    print_rank_0(f' > total params: {"{:,}".format(model.total_params)}')
 
     if neox_args.is_pipe_parallel:
+        # we need to set these values after deepspeed.initialize, so we do it here
         model.set_has_attention_mask(True)
-        model.set_batch_fn(model.module._megatron_batch_fn)
+        model.set_batch_fn(partial(get_batch_pipe, neox_args=neox_args))
 
     if neox_args.load is not None:
         neox_args.iteration = load_checkpoint(
@@ -461,6 +462,9 @@ def setup_model_and_optimizer(neox_args, inference=False, get_key_value=True):
     else:
         neox_args.iteration = 0
 
+    # count the number of parameters in the model
+    neox_args.total_params = count_params(model.module)
+    print_rank_0(f' > total params: {"{:,}".format(model.total_params)}')
     return model, optimizer, lr_scheduler
 
 
