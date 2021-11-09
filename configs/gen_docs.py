@@ -89,5 +89,5 @@ if __name__ == "__main__":
     docs.update(get_docs(deepspeed_args))
     intro_str = """Arguments for gpt-neox. All of the following can be specified in your .yml config file(s):\n"""
     md = to_md(docs, intro_str=intro_str)
-    with open(f"{pathlib.Path(__file__).parent.resolve()}/neox_arguments.md", "w") as f:
+    with open(f"{pathlib.Path(__file__).parent.resolve()}/neox_arguments.md", "w", encoding="utf-8") as f:
         f.write(md)
