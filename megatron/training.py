@@ -95,8 +95,7 @@ def pretrain(neox_args):
     ) = build_train_valid_test_data_iterators(neox_args=neox_args)
 
     # Print setup timing.
-    print_rank_0("done with setups ...")
-    print_rank_0("training ...")
+    print_rank_0("Done with setups. \nStarting training ...")
 
     # launch wandb after everything is set up, so if any error occurs in the setup process, the run isn't logged to wandb
     neox_args.initialize_wandb()

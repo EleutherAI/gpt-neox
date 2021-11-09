@@ -29,7 +29,13 @@ from megatron.model.init_functions import get_init_methods
 
 from megatron import mpu
 from megatron.mpu import ParallelRelativePositionBias
-from megatron.model.transformer import ParallelTransformerLayerPipe, NormPipe, ParallelLinearPipe, parallel_lm_logits, ParallelLinear
+from megatron.model.transformer import (
+    ParallelTransformerLayerPipe,
+    NormPipe,
+    ParallelLinearPipe,
+    parallel_lm_logits,
+    ParallelLinear,
+)
 from megatron.model.gmlp import GMLPBlock
 from megatron.model.word_embeddings import EmbeddingPipe, SoftEmbedding
 
@@ -37,13 +43,14 @@ from megatron.model.word_embeddings import EmbeddingPipe, SoftEmbedding
 from deepspeed.pipe import PipelineModule, LayerSpec, TiedLayerSpec
 from typing import Union, List
 
+
 def gpt2_attention_mask_func(attention_scores, ltor_mask):
     attention_scores.masked_fill_(ltor_mask, -10000.0)
     return attention_scores
 
 
 def cross_entropy(output, labels, _fp16=False):
-    """ From pretrain_gpt2:forward_step() """
+    """From pretrain_gpt2:forward_step()"""
     """
     if self.fp16_lm_cross_entropy:
         assert output.dtype == torch.half
@@ -54,7 +61,7 @@ def cross_entropy(output, labels, _fp16=False):
     """
     labels, loss_mask = labels[0], labels[1]
     if _fp16:
-        assert (output.dtype == torch.half and loss_mask.dtype == torch.half)
+        assert output.dtype == torch.half and loss_mask.dtype == torch.half
         losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels)
     else:
         losses = mpu.vocab_parallel_cross_entropy(output.float().contiguous(), labels)
@@ -76,7 +83,7 @@ def _pre_transformer_block(args):
     elif in_train:
         fn = lambda x: (x[0].transpose(0, 1).contiguous(), *x[1:])
     else:
-        raise ValueError('Incorrect number of args in `_pre_transformer_block`')
+        raise ValueError("Incorrect number of args in `_pre_transformer_block`")
     return fn(args)
 
 
@@ -94,99 +101,151 @@ def _post_transformer_block(args):
         # Undo data format change and drop mask
         fn = lambda x: x[0].transpose(0, 1).contiguous()
     else:
-        raise ValueError('Incorrect number of args in `_post_transformer_block`')
+        raise ValueError("Incorrect number of args in `_post_transformer_block`")
     return fn(args)
 
 
 class GPT2ModelPipe(PipelineModule, torch.nn.Module):
-    """GPT2Model adapted for pipeline parallelism.
-
-    The largest change is flattening the GPTModel class so we can express it as a
-    sequence of layers including embedding, transformer layers, and output.
     """
 
-    def __init__(self, neox_args, num_tokentypes=0, parallel_output=True, topology=None, inference=False,
-                 get_key_value=True):
-        self.neox_args = neox_args
+    GPT2Model adapted for pipeline parallelism.
 
+    In order to work with Deepspeed's PipelineModule, the model must be expressible as a sequence of layers (like a sequential module).
+
+    This is done in `init_specs`, which creates a list of LayerSpec objects for each layer in the model, based on the
+    yaml config specified at startup.
+
+    Arguments:
+
+        neox_args: NeoXArguments object containing the model configuration.
+        num_tokentypes: Deprecated argument leftover from megatron. TODO: remove [deprecated]
+        parallel_output: If True, the logits will be parallelized across model parallel partitions when returned.
+                         If False, the logits will be gathered across ranks.
+        topology: A deepspeed 3D topology object specifying the data / model / pipe parallel layout.
+        inference: Whether to launch the model in inference mode. TODO: expand on this - what does it mean specifically?
+        get_key_value: Whether to cache key value pairs during inference.
+    """
+
+    def __init__(
+        self,
+        neox_args,
+        num_tokentypes: int = 0,
+        parallel_output: bool = True,
+        topology=None,
+        inference: bool = False,
+        get_key_value: bool = True,
+    ):
+        # initialize variables
+        self.neox_args = neox_args
         self._inference = inference
         self.get_key_value = get_key_value if inference else False
         self.parallel_output = parallel_output
         self.hidden_size = self.neox_args.hidden_size
         self.num_tokentypes = num_tokentypes
-        self.init_method, self.output_layer_init_method = get_init_methods(self.neox_args)
-        self.embedding_type = self.neox_args.pos_emb
         self.__topology__ = topology
+        self.embedding_type = self.neox_args.pos_emb
+        self.init_method, self.output_layer_init_method = get_init_methods(
+            self.neox_args
+        )
 
-        self.specs = []
+        # initialize layerspecs - this is where the layers are built
         self.init_specs()
+
+        # initialize loss function
         loss_fn = partial(cross_entropy, _fp16=self.neox_args.fp16_lm_cross_entropy)
         if self.neox_args.checkpoint_activations:
             interval = self.neox_args.checkpoint_num_layers
         else:
             interval = 0
-        super().__init__(layers=self.specs,
-                         loss_fn=loss_fn if not self._inference else None,
-                         topology=topology,
-                         activation_checkpoint_interval=interval,
-                         partition_method=neox_args.pipe_partition_method,
-                         checkpointable_layers=['GMLPBlock', 'ParallelTransformerLayerPipe'])
+        super().__init__(
+            layers=self.specs,
+            loss_fn=loss_fn if not self._inference else None,
+            topology=topology,
+            activation_checkpoint_interval=interval,
+            partition_method=neox_args.pipe_partition_method,
+            checkpointable_layers=["GMLPBlock", "ParallelTransformerLayerPipe"],
+        )
 
-    def insert_layers(self, layers: Union[nn.Module, nn.ModuleList, nn.Sequential, List], idx):
+    def insert_layers(
+        self, layers: Union[nn.Module, nn.ModuleList, nn.Sequential, List], idx
+    ):
         """
         inserts the layers in `layers` into the pipe model at `idx`.
         """
         if isinstance(layers, nn.Module):
             self.specs.insert(idx, layers)
-        elif any([isinstance(layers, nn.ModuleList), isinstance(layers, nn.Sequential)]):
+        elif any(
+            [isinstance(layers, nn.ModuleList), isinstance(layers, nn.Sequential)]
+        ):
             self.specs[idx:idx] = layers
         elif isinstance(layers, list):
-            assert all([hasattr(l, '__call__') for l in layers]), "all items in `layers` must be Callables"
+            assert all(
+                [hasattr(l, "__call__") for l in layers]
+            ), "all items in `layers` must be Callables"
             self.specs[idx:idx] = layers
         else:
-            raise ValueError(f'layer passed into {self.__class__.__name__}.insert_layer() should be either an nn.Module, an nn.ModuleList, an nn.Sequential object, or a list of callables not a {type(layers)}')
-        
+            raise ValueError(
+                f"layer passed into {self.__class__.__name__}.insert_layer() should be either an nn.Module, an nn.ModuleList, an nn.Sequential object, or a list of callables not a {type(layers)}"
+            )
+
         # re-initialize parent class
-        super().__init__(layers=self.specs,
-                         loss_fn=self.loss_fn,
-                         topology=self.__topology__,
-                         activation_checkpoint_interval=self.activation_checkpoint_interval,
-                         partition_method=self.neox_args.pipe_partition_method,
-                         checkpointable_layers=['GMLPBlock', 'ParallelTransformerLayerPipe'])
+        super().__init__(
+            layers=self.specs,
+            loss_fn=self.loss_fn,
+            topology=self.__topology__,
+            activation_checkpoint_interval=self.activation_checkpoint_interval,
+            partition_method=self.neox_args.pipe_partition_method,
+            checkpointable_layers=["GMLPBlock", "ParallelTransformerLayerPipe"],
+        )
 
     def init_specs(self):
+        """
+        Initializes the list of LayerSpec objects that constitute the model.
+        Basically a fancy nn.Sequential.
+        """
         weight_tying = not self.neox_args.no_weight_tying
-        if self.embedding_type == 'rpe':
-            rpe_emb = ParallelRelativePositionBias(neox_args=self.neox_args, causal=True,
-                                                   num_buckets=self.neox_args.rpe_num_buckets,
-                                                   max_distance=self.neox_args.rpe_max_distance,
-                                                   heads=self.neox_args.num_attention_heads)
+        if self.embedding_type == "rpe":
+            rpe_emb = ParallelRelativePositionBias(
+                neox_args=self.neox_args,
+                causal=True,
+                num_buckets=self.neox_args.rpe_num_buckets,
+                max_distance=self.neox_args.rpe_max_distance,
+                heads=self.neox_args.num_attention_heads,
+            )
         self.specs = []
         # Embedding layer
         # input will be (input_ids, position_ids, attention_mask) in Training
         # and (input_ids, position_ids, attention_mask, layer_past) in Inference
         if weight_tying:
-            self.specs.append(TiedLayerSpec('embed',
-                                            EmbeddingPipe,
-                                            self.neox_args,
-                                            self.hidden_size,
-                                            self.neox_args.padded_vocab_size,
-                                            self.neox_args.max_position_embeddings,
-                                            self.neox_args.hidden_dropout,
-                                            self.init_method,
-                                            self.num_tokentypes,
-                                            tied_weight_attr='word_embeddings_weight'))
+            self.specs.append(
+                TiedLayerSpec(
+                    "embed",
+                    EmbeddingPipe,
+                    self.neox_args,
+                    self.hidden_size,
+                    self.neox_args.padded_vocab_size,
+                    self.neox_args.max_position_embeddings,
+                    self.neox_args.hidden_dropout,
+                    self.init_method,
+                    self.num_tokentypes,
+                    tied_weight_attr="word_embeddings_weight",
+                )
+            )
         else:
-            self.specs.append(LayerSpec(EmbeddingPipe,
-                                        self.neox_args,
-                                        self.hidden_size,
-                                        self.neox_args.padded_vocab_size,
-                                        self.neox_args.max_position_embeddings,
-                                        self.neox_args.hidden_dropout,
-                                        self.init_method,
-                                        self.num_tokentypes))
+            self.specs.append(
+                LayerSpec(
+                    EmbeddingPipe,
+                    self.neox_args,
+                    self.hidden_size,
+                    self.neox_args.padded_vocab_size,
+                    self.neox_args.max_position_embeddings,
+                    self.neox_args.hidden_dropout,
+                    self.init_method,
+                    self.num_tokentypes,
+                )
+            )
 
-        # NB: in inference, the attention mask always needs to be the *last* item in the args when being passed from 
+        # NB: in inference, the attention mask always needs to be the *last* item in the args when being passed from
         # one stage to the next, because deepspeed is hacks on top of hacks.
         #
         # outputs are now
@@ -206,7 +265,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                         layer_number=i,
                         output_layer_init_method=self.output_layer_init_method,
                         neox_args=self.neox_args,
-                        mask_fn=gpt2_attention_mask_func
+                        mask_fn=gpt2_attention_mask_func,
                     )
                 )
             else:
@@ -218,9 +277,9 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                         init_method=self.init_method,
                         output_layer_init_method=self.output_layer_init_method,
                         layer_number=i,
-                        rpe=rpe_emb if self.neox_args.pos_emb == 'rpe' else None,
-                        rotary=self.neox_args.pos_emb == 'rotary',
-                        get_key_value=self.get_key_value
+                        rpe=rpe_emb if self.neox_args.pos_emb == "rpe" else None,
+                        rotary=self.neox_args.pos_emb == "rotary",
+                        get_key_value=self.get_key_value,
                     )
                 )
 
@@ -229,44 +288,44 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         # NormPipe is a helper class to pass presents through to the output when doing inference
         norm, eps = get_norm(self.neox_args)
         self.specs.append(
-            LayerSpec(NormPipe,
-                      norm,
-                      self.neox_args.hidden_size,
-                      eps=eps))
+            LayerSpec(NormPipe, norm, self.neox_args.hidden_size, eps=eps)
+        )
 
         # outputs are now
         #           Train: hidden_states
         #           Inference: (hidden_states, presents)
 
         def _logits_helper(embedding, lm_output):
-            """Just a wrapper to massage inputs/outputs from pipeline. """
+            """Just a wrapper to massage inputs/outputs from pipeline."""
             if self._inference and len(lm_output) == 2:
                 hidden_states, presents = lm_output
                 logits = parallel_lm_logits(
                     hidden_states,
                     embedding.word_embeddings_weight,
-                    self.parallel_output)
+                    self.parallel_output,
+                )
                 return logits, presents
             else:
                 logits = parallel_lm_logits(
-                    lm_output,
-                    embedding.word_embeddings_weight,
-                    self.parallel_output)
+                    lm_output, embedding.word_embeddings_weight, self.parallel_output
+                )
                 return logits
 
         if weight_tying:
             self.specs.append(
-                TiedLayerSpec('embed',
-                              EmbeddingPipe,
-                              self.neox_args,
-                              self.hidden_size,
-                              self.neox_args.padded_vocab_size,
-                              self.neox_args.max_position_embeddings,
-                              self.neox_args.hidden_dropout,
-                              self.init_method,
-                              self.num_tokentypes,
-                              forward_fn=_logits_helper,
-                              tied_weight_attr='word_embeddings_weight')
+                TiedLayerSpec(
+                    "embed",
+                    EmbeddingPipe,
+                    self.neox_args,
+                    self.hidden_size,
+                    self.neox_args.padded_vocab_size,
+                    self.neox_args.max_position_embeddings,
+                    self.neox_args.hidden_dropout,
+                    self.init_method,
+                    self.num_tokentypes,
+                    forward_fn=_logits_helper,
+                    tied_weight_attr="word_embeddings_weight",
+                )
             )
         else:
             self.specs.append(
@@ -275,7 +334,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                     neox_args=self.neox_args,
                     init_method=self.init_method,
                     parallel_output=self.parallel_output,
-                    inference=self._inference
+                    inference=self._inference,
                 )
             )
         # output in training should just be logits
@@ -293,13 +352,11 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         # then set parallel output of the final layer to false so we don't have to gather the output manually
         self._set_parallel_output(False)
 
-    
     def train_mode(self):
         # set caching to false
         recursive_setattr(self.forward_funcs, "get_key_value", False)
         # then set parallel output to true (more efficient training)
         self._set_parallel_output(True)
-
 
     def to_sequential(self):
         """
@@ -312,7 +369,9 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             if isinstance(spec, TiedLayerSpec):
                 if spec.key in tied_layers:
                     # receiver
-                    layers.append(Lambda(lambda x: spec.forward_fn(tied_layers[spec.key][0], x)))
+                    layers.append(
+                        Lambda(lambda x: spec.forward_fn(tied_layers[spec.key][0], x))
+                    )
                 else:
                     # owner
                     module = spec.build(log=False)
@@ -320,13 +379,15 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                     tied_layers[spec.key].append(module)
             elif isinstance(spec, LayerSpec):
                 layers.append(spec.build(log=False))
-            elif hasattr(spec, '__call__'):
+            elif hasattr(spec, "__call__"):
                 # check that it's a callable function
                 layers.append(Lambda(spec))
             else:
-                raise ValueError(f'Layer number {n} ({spec}) Not recognized')
-        model = SequentialWrapper(layers,
-                                  self.activation_checkpoint_interval,
-                                  self.activation_checkpoint_func,
-                                  parent_class_name=self.__class__.__name__)
+                raise ValueError(f"Layer number {n} ({spec}) Not recognized")
+        model = SequentialWrapper(
+            layers,
+            self.activation_checkpoint_interval,
+            self.activation_checkpoint_func,
+            parent_class_name=self.__class__.__name__,
+        )
         return model
