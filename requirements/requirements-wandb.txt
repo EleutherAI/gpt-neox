@@ -1,2 +1,1 @@
 wandb>=0.10.28
-shortuuid

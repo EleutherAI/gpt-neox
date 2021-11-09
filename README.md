@@ -247,10 +247,12 @@ In addition to storing logs locally, we provide built-in support for two popular
 <h3 id="wandb">Weights & Biases</h3>
 
 EleutherAI is currently using [Weights & Biases to record our experiments](https://wandb.ai/eleutherai/neox). If you are logged into Weights & Biases on your machine&mdash;you can do this by executing `wandb login`&mdash;your runs will automatically be recorded. There are two optional fields associated with Weights & Biases: <code><var>wandb_group</var></code> allows you to name the run group and <code><var>wandb_team</var></code> allows you to assign your runs to an organization or team account.
+Dependencies for Weights & Biases monitoring can be found in and installed from `./requirements/requirements-wandb.txt`. 
 
 ### TensorBoard
 
-We also support using TensorBoard via the <code><var>tensorboard-dir</var></code> field. Dependencies required for TensorBoard monitoring can be found in and installed from  `./requirements/requirements-tensorboard.txt`.
+We support using TensorBoard via the <code><var>tensorboard_dir</var></code> field.
+Dependencies required for TensorBoard monitoring can be found in and installed from `./requirements/requirements-tensorboard.txt`.
 
 ## Administrative Notes
 

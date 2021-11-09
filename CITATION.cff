@@ -5,6 +5,9 @@ authors:
     family-names: Andonian
     given-names: Alex
   - affiliation: EleutherAI
+    family-names: Anthony
+    given-names: Quentin
+  - affiliation: EleutherAI
     family-names: Biderman
     given-names: Stella
   - affiliation: EleutherAI
