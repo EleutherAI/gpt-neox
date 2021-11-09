@@ -129,7 +129,6 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
     def __init__(
         self,
         neox_args,
-        num_tokentypes: int = 0,
         parallel_output: bool = True,
         topology=None,
         inference: bool = False,
@@ -141,14 +140,13 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         self.get_key_value = get_key_value if inference else False
         self.parallel_output = parallel_output
         self.hidden_size = self.neox_args.hidden_size
-        self.num_tokentypes = num_tokentypes
         self.__topology__ = topology
         self.init_method, self.output_layer_init_method = get_init_methods(
             self.neox_args
         )
 
         # initialize layerspecs - this is where the layers are built
-        self.init_specs()
+        self.specs = self.init_specs()
 
         # initialize loss function
         loss_fn = partial(cross_entropy, _fp16=self.neox_args.fp16_lm_cross_entropy)
@@ -170,6 +168,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
     ):
         """
         inserts the layers in `layers` into the pipe model at `idx`.
+        Warning: Experimental, might break things.
         """
         if isinstance(layers, nn.Module):
             self.specs.insert(idx, layers)
@@ -197,45 +196,50 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             checkpointable_layers=["GMLPBlock", "ParallelTransformerLayerPipe"],
         )
 
-    def init_specs(self):
+    def init_specs(self) -> List[LayerSpec]:
         """
         Initializes the list of LayerSpec objects that constitute the model.
         Basically a fancy nn.Sequential.
+
+        Returns:
+            List of LayerSpec objects.
         """
         weight_tying = not self.neox_args.no_weight_tying
-        self.specs = []
-        # Embedding layer
+        specs = []
+
+        #####################
+        # WORD EMBEDDINGS:  #
+        #####################
+
         # input will be (input_ids, position_ids, attention_mask) in Training
         # and (input_ids, position_ids, attention_mask, layer_past) in Inference
         if weight_tying:
-            self.specs.append(
+            # If weight tying is enabled, we need to use deepspeed's `TiedLayerSpec` class
+            specs.append(
                 TiedLayerSpec(
                     "embed",
                     EmbeddingPipe,
                     self.neox_args,
-                    self.hidden_size,
-                    self.neox_args.padded_vocab_size,
-                    self.neox_args.max_position_embeddings,
-                    self.neox_args.hidden_dropout,
-                    self.init_method,
-                    self.num_tokentypes,
                     tied_weight_attr="word_embeddings_weight",
                 )
             )
         else:
-            self.specs.append(
+            # otherwise, we use the standard `LayerSpec` class
+            specs.append(
                 LayerSpec(
                     EmbeddingPipe,
                     self.neox_args,
-                    self.hidden_size,
-                    self.neox_args.padded_vocab_size,
-                    self.neox_args.max_position_embeddings,
-                    self.neox_args.hidden_dropout,
-                    self.init_method,
-                    self.num_tokentypes,
                 )
             )
 
+        ##########################
+        # PRE TRANSFORMER BLOCK  #
+        ##########################
+
+        # We append this function before the transformer block to rearrange the outputs of the embedding layer
+        # Basically, it verifies the number of arguments is as expected, and, if in inference mode, initializes the cache
+        # for key value pairs.
+        #
         # NB: in inference, the attention mask always needs to be the *last* item in the args when being passed from
         # one stage to the next, because deepspeed is hacks on top of hacks.
         #
@@ -243,13 +247,17 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         #           Train: (hidden_states,  attention_mask)
         #           Inference: (hidden_states, layer_past, attention_mask)
 
-        self.specs.append(_pre_transformer_block)
+        specs.append(_pre_transformer_block)
 
-        # Transformer layers
+        ######################
+        # TRANSFORMER LAYERS #
+        ######################
+
+        # initializes the transformer layers
         for i in range(self.neox_args.num_layers):
             layer_type = self.neox_args.attention_config[i]
             if layer_type in ["gmlp", "amlp"]:
-                self.specs.append(
+                specs.append(
                     LayerSpec(
                         GMLPBlock,
                         init_method=self.init_method,
@@ -260,7 +268,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                     )
                 )
             else:
-                self.specs.append(
+                specs.append(
                     LayerSpec(
                         ParallelTransformerLayerPipe,
                         neox_args=self.neox_args,
@@ -272,52 +280,64 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                     )
                 )
 
-        self.specs.append(_post_transformer_block)
+        ###########################
+        # POST TRANSFORMER BLOCK  #
+        ###########################
 
-        # NormPipe is a helper class to pass presents through to the output when doing inference
+        # Has a similar function as the pre transformer block.
+        # Specifically, it drops the attention mask + layer_past and transposes the hidden states
+        specs.append(_post_transformer_block)
+
+        ###################
+        # FINAL LAYERNORM #
+        ###################
+
+        # The final normalization layer after the transformer block.
         norm, eps = get_norm(self.neox_args)
-        self.specs.append(
-            LayerSpec(NormPipe, norm, self.neox_args.hidden_size, eps=eps)
-        )
+        specs.append(LayerSpec(NormPipe, norm, self.neox_args.hidden_size, eps=eps))
 
         # outputs are now
         #           Train: hidden_states
         #           Inference: (hidden_states, presents)
 
-        def _logits_helper(embedding, lm_output):
-            """Just a wrapper to massage inputs/outputs from pipeline."""
-            if self._inference and len(lm_output) == 2:
-                hidden_states, presents = lm_output
-                logits = parallel_lm_logits(
-                    hidden_states,
-                    embedding.word_embeddings_weight,
-                    self.parallel_output,
-                )
-                return logits, presents
-            else:
-                logits = parallel_lm_logits(
-                    lm_output, embedding.word_embeddings_weight, self.parallel_output
-                )
-                return logits
+        ###########
+        # LM HEAD #
+        ###########
+
+        # The Language Model Head.
+        # Either tied to the embedding layer, or a linear layer.
 
         if weight_tying:
-            self.specs.append(
+
+            def _logits_helper(embedding, lm_output):
+                """Just a wrapper to massage inputs/outputs from pipeline."""
+                if self._inference and len(lm_output) == 2:
+                    hidden_states, presents = lm_output
+                    logits = parallel_lm_logits(
+                        hidden_states,
+                        embedding.word_embeddings_weight,
+                        self.parallel_output,
+                    )
+                    return logits, presents
+                else:
+                    logits = parallel_lm_logits(
+                        lm_output,
+                        embedding.word_embeddings_weight,
+                        self.parallel_output,
+                    )
+                    return logits
+
+            specs.append(
                 TiedLayerSpec(
                     "embed",
                     EmbeddingPipe,
                     self.neox_args,
-                    self.hidden_size,
-                    self.neox_args.padded_vocab_size,
-                    self.neox_args.max_position_embeddings,
-                    self.neox_args.hidden_dropout,
-                    self.init_method,
-                    self.num_tokentypes,
                     forward_fn=_logits_helper,
                     tied_weight_attr="word_embeddings_weight",
                 )
             )
         else:
-            self.specs.append(
+            specs.append(
                 LayerSpec(
                     ParallelLinearPipe,
                     neox_args=self.neox_args,
@@ -326,8 +346,10 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                     inference=self._inference,
                 )
             )
+
         # output in training should just be logits
         # in inference it will be (logits, presents) (assuming get_key_value) is true
+        return specs
 
     def _set_parallel_output(self, value):
         # sets the parallel output value of the final layer to value
