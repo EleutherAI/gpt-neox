@@ -225,7 +225,7 @@ Model Arguments
 
     Default = None
 
-    Maximum sequence length to process. This is the size of the position embedding.
+    Maximum sequence length to process. This is also the size of the position embedding.
 
 
 
