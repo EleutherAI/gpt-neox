@@ -336,23 +336,20 @@ def get_noise_scale_logger(neox_args):
     return noise_scale_logger
 
 
-def get_total_params(model):
-    # Print number of parameters.
-    if mpu.get_data_parallel_rank() == 0:
-        params = sum([p.nelement() for p in model.parameters()])
-        print(
-            " > number of parameters on model parallel rank {}: {}".format(
-                mpu.get_model_parallel_rank(), params
-            ),
-            flush=True,
-        )
-    else:
-        params = 0
+def count_params(model: torch.nn.Module) -> int:
+    """
+    Returns the number of parameters in the model.
 
-    total_n_parameters = torch.tensor([params]).cuda(torch.cuda.current_device())
-    torch.distributed.all_reduce(total_n_parameters)
-    total_n_parameters = total_n_parameters.item()
-    return total_n_parameters
+    Arguments:
+        model (torch.nn.Module): The model to count the parameters of.
+
+    Returns:
+        int: The number of parameters in the model.
+    """
+    n_params = sum(p.numel() for p in model.parameters())
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()  # wait for all ranks to finish counting
+    return n_params
 
 
 def filter_trainable_params(param_groups: List[Dict]) -> List[Dict]:
