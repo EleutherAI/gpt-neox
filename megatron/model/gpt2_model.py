@@ -101,7 +101,6 @@ def _post_transformer_block(args):
 
 class GPT2ModelPipe(PipelineModule, torch.nn.Module):
     """
-
     GPT2Model adapted for pipeline parallelism.
 
     In order to work with Deepspeed's PipelineModule, the model must be expressible as a sequence of layers (like a sequential module).
@@ -338,27 +337,43 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         return specs
 
     def _set_parallel_output(self, value):
-        # sets the parallel output value of the final layer to value
+        """
+        Sets the parallel output value of the final layer to `value`
+        """
         final_layer = list(self.forward_funcs)[-1]
         if isinstance(final_layer, (ParallelLinearPipe, ParallelLinear)):
             final_layer.final_linear.set_parallel_output(value)
 
     def inference_mode(self, cache=True):
+        """
+        Sets the model to inference mode.
+
+        Specifically, recursively sets `get_key_value` to `True` for all layers if `cache` is `True`. (enables caching).
+        Also sets `parallel_output` to `False` for the final layer, so the output is gathered across ranks
+
+        """
         # first set caching to true if specified
         recursive_setattr(self.forward_funcs, "get_key_value", cache, assert_type=bool)
         # then set parallel output of the final layer to false so we don't have to gather the output manually
         self._set_parallel_output(False)
 
     def train_mode(self):
+        """
+        Sets the model to training mode.
+
+        Specifically, recursively sets `get_key_value` to `False` for all layers.
+        Also sets `parallel_output` to `True` for the final layer, so the output is *not* gathered across ranks.
+        """
         # set caching to false
         recursive_setattr(self.forward_funcs, "get_key_value", False)
         # then set parallel output to true (more efficient training)
         self._set_parallel_output(True)
 
-    def to_sequential(self):
+    def to_sequential(self) -> torch.nn.Sequential:
         """
         Transforms the PipelineModule to a plain nn.Sequential module
-        :return:
+        Returns:
+            torch.nn.Sequential: the sequential module
         """
         layers = []
         tied_layers = defaultdict(list)
