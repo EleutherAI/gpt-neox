@@ -203,14 +203,6 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         Basically a fancy nn.Sequential.
         """
         weight_tying = not self.neox_args.no_weight_tying
-        if self.embedding_type == "rpe":
-            rpe_emb = ParallelRelativePositionBias(
-                neox_args=self.neox_args,
-                causal=True,
-                num_buckets=self.neox_args.rpe_num_buckets,
-                max_distance=self.neox_args.rpe_max_distance,
-                heads=self.neox_args.num_attention_heads,
-            )
         self.specs = []
         # Embedding layer
         # input will be (input_ids, position_ids, attention_mask) in Training
