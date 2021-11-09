@@ -133,7 +133,7 @@ def save_ds_checkpoint(iteration, model, neox_args):
             'num_layers': neox_args.num_layers,
             'hidden_size': neox_args.hidden_size,
             'num_attention_heads': neox_args.num_attention_heads,
-            'max_position_embeddings': neox_args.max_position_embeddings,
+            'seq_length': neox_args.seq_length,
             'make_vocab_size_divisible_by': neox_args.make_vocab_size_divisible_by,
             'padded_vocab_size': neox_args.padded_vocab_size,
             'tokenizer_type': neox_args.tokenizer_type,

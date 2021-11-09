@@ -10,7 +10,6 @@
    "hidden_size": 192,
    "num_attention_heads": 6,
    "seq_length": 1024,
-   "max_position_embeddings": 1024,
    "norm": "layernorm",
    "pos_emb": "rotary",
    "no_weight_tying": true,

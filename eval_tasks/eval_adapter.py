@@ -39,7 +39,7 @@ class EvalHarnessAdapter(GPT2LM):
         self.EOT_TOKEN_ID = neox_args.tokenizer.eod_id
         self.model = model
         self._forward_step_fn = partial(forward_step_fn, neox_args=neox_args, timers=None, return_logits=True)
-        self.max_length = neox_args.max_position_embeddings // 2
+        self.max_length = neox_args.seq_length // 2
         self.max_gen_toks = 128
         self.tokenizer.encode = self.tokenizer.tokenize  # patch tokenizer encode + decode methods
         self.tokenizer.decode = self.tokenizer.detokenize

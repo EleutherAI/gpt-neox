@@ -10,7 +10,6 @@
    "hidden-size": 5120,
    "num-attention-heads": 40,
    "seq-length": 2048,
-   "max-position-embeddings": 2048,
    "norm": "layernorm",
    "pos-emb": "rotary",
    "no-weight-tying": true,

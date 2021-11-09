@@ -96,12 +96,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
 
     seq_length: int = None
     """
-    Maximum sequence length to process.
-    """
-
-    max_position_embeddings: int = None
-    """
-    Maximum number of position embeddings to use. This is the size of position embedding.
+    Maximum sequence length to process. This is also the size of position the embedding.
     """
 
     norm: Literal["layernorm", "rmsnorm", "scalenorm"] = "layernorm"

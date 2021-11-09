@@ -225,15 +225,7 @@ Model Arguments
 
     Default = None
 
-    Maximum sequence length to process.
-
-
-
-- **max_position_embeddings**: int
-
-    Default = None
-
-    Maximum number of position embeddings to use. This is the size of position embedding.
+    Maximum sequence length to process. This is the size of the position embedding.
 
 
 

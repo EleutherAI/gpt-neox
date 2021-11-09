@@ -690,7 +690,7 @@ class NeoXArgs(*BASE_CLASSES):
             return False
 
         # required arguments
-        required_args = ['num_layers', 'hidden_size', 'num_attention_heads', 'max_position_embeddings']
+        required_args = ['num_layers', 'hidden_size', 'num_attention_heads', 'seq_length']
         for req_arg in required_args:
             if getattr(self, req_arg) is None:
                 error_message = self.__class__.__name__ + ".validate_values() " + req_arg + " is None."
@@ -704,13 +704,6 @@ class NeoXArgs(*BASE_CLASSES):
             logging.error(error_message)
             raise ValueError(error_message)
             return False
-
-        if self.seq_length is not None:
-            if not (self.max_position_embeddings >= self.seq_length):
-                error_message = self.__class__.__name__ + ".validate_values() max_position_embeddings must be bigger or equal seq_length"
-                logging.error(error_message)
-                raise ValueError(error_message)
-                return False
 
         if not (self.min_lr <= self.lr):
             error_message = self.__class__.__name__ + ".validate_values() min_lr must be smaller or equal lr"

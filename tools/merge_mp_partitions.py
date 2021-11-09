@@ -191,8 +191,7 @@ def main():
     print('    hidden sise ..................... {}'.format(args.hidden_size))
     print('    number of attention heads ....... {}'.format(
         args.num_attention_heads))
-    print('    maximum position embeddings ..... {}'.format(
-        args.max_position_embeddings))
+    print('    sequence length ..... {}'.format(args.seq_length))
 
     # Full model.
     print('> building the full model ...')
