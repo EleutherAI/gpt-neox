@@ -30,6 +30,7 @@ from megatron.mpu import ParallelRelativePositionBias
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
 from megatron.model.activations import get_activation
 from megatron.model.utils import exists
+from megatron.model.init_functions import get_init_methods
 from megatron.model.positional_embeddings import (
     RotaryEmbedding,
     apply_rotary_pos_emb,
@@ -80,16 +81,16 @@ class ParallelMLP(nn.Module):
     applied.
     """
 
-    def __init__(
-        self, neox_args, init_method, output_layer_init_method, parallel_output=False
-    ):
+    def __init__(self, neox_args, parallel_output=False):
         super().__init__()
 
         self.activation_func = get_activation(neox_args)
         self.activation_type = neox_args.activation
         self.bias_gelu_fusion = neox_args.bias_gelu_fusion
+        init_method, output_layer_init_method = get_init_methods(neox_args)
 
         # auto scale so geglu has equal parameters
+        # TODO: remove this, it's dumb and over-complicated
         ff_mult = 4 * 2 / 3 if self.activation_type == "geglu" else 4
         ff_dim = (
             int(ff_mult * neox_args.hidden_size) * 2
@@ -147,10 +148,10 @@ class ParallelLinear(nn.Module):
         neox_args,
         parallel_output=True,
         inference=False,
-        init_method=nn.init.xavier_normal_,
     ):
         super().__init__()
         parallelism = neox_args.output_layer_parallelism
+        init_method, _ = get_init_methods(neox_args)
         if parallelism == "column":
             self.final_linear = mpu.ColumnParallelLinear(
                 neox_args=neox_args,
@@ -178,7 +179,8 @@ class ParallelLinear(nn.Module):
 
 
 class ParallelSelfAttention(nn.Module):
-    """Parallel self-attention layer abstract class.
+    """
+    Parallel self-attention layer.
 
     Self-attention layer takes input with size [b, s, h]
     and returns output of the same size.
@@ -188,14 +190,14 @@ class ParallelSelfAttention(nn.Module):
         self,
         neox_args,
         attention_mask_func,
-        init_method,
-        output_layer_init_method,
         layer_number,
         get_key_value=False,
         parallel_output=False,
     ):
         super().__init__()
 
+        # Init variables
+        # TODO: Simplify - a lot of the variables are not used / can be got from neox_args
         self.fp16 = neox_args.precision == "fp16"
         self.bf16 = neox_args.precision == "bfloat16"
         self.attention_mask_func = attention_mask_func
@@ -205,7 +207,6 @@ class ParallelSelfAttention(nn.Module):
         if self.apply_query_key_layer_scaling:
             self.attention_softmax_in_fp32 = True
         self.layer_number = layer_number
-        # Per attention head and per partition values.
         world_size = mpu.get_model_parallel_world_size()
         self.hidden_size_per_partition = mpu.divide(neox_args.hidden_size, world_size)
         self.hidden_size_per_attention_head = mpu.divide(
@@ -215,22 +216,25 @@ class ParallelSelfAttention(nn.Module):
             neox_args.num_attention_heads, world_size
         )
         self.pos_emb = neox_args.pos_emb
+        init_method, output_layer_init_method = get_init_methods(neox_args)
 
-        # Strided linear layer.
+        # QKV projection layer.
         self.query_key_value = mpu.ColumnParallelLinear(
             neox_args=neox_args,
             input_size=neox_args.hidden_size,
             output_size=3 * neox_args.hidden_size,
-            gather_output=False,
             init_method=init_method,
+            gather_output=False,
         )
 
+        # scaling
         coeff = None
         self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
         if self.apply_query_key_layer_scaling:
             coeff = max(1, self.layer_number)
             self.norm_factor *= coeff
 
+        # positional embeddings
         if self.pos_emb == "rpe":
             self.rpe = ParallelRelativePositionBias(
                 neox_args=self.neox_args,
@@ -528,7 +532,8 @@ class ParallelSelfAttention(nn.Module):
 
 
 class ParallelTransformerLayer(nn.Module):
-    """A single transformer layer.
+    """
+    A single transformer layer.
 
     Transformer layer takes input with size [b, s, h] and returns an
     output of the same size.
@@ -538,24 +543,20 @@ class ParallelTransformerLayer(nn.Module):
         self,
         neox_args,
         attention_mask_func,
-        init_method,
-        output_layer_init_method,
         layer_number,
         get_key_value=False,
     ):
 
         super().__init__()
         self.layer_number = layer_number
-
-        norm, eps = get_norm(neox_args)
-
-        # Layernorm on the input data.
-        self.input_layernorm = norm(neox_args.hidden_size, eps=eps)
         self.get_key_value = get_key_value
-
         self.hidden_dropout = neox_args.hidden_dropout
         self.bias_dropout_fusion = neox_args.bias_dropout_fusion
         self.gpt_j_residual = neox_args.gpt_j_residual
+
+        # Layernorm on the input data.
+        norm, eps = get_norm(neox_args)
+        self.input_layernorm = norm(neox_args.hidden_size, eps=eps)
 
         if self.gpt_j_residual:
             self.reduce = mpu.mappings.reduce_from_model_parallel_region
@@ -564,8 +565,6 @@ class ParallelTransformerLayer(nn.Module):
         self.attention = ParallelSelfAttention(
             neox_args=neox_args,
             attention_mask_func=attention_mask_func,
-            init_method=init_method,
-            output_layer_init_method=output_layer_init_method,
             layer_number=layer_number,
             get_key_value=self.get_key_value,
             parallel_output=self.gpt_j_residual,
@@ -577,8 +576,6 @@ class ParallelTransformerLayer(nn.Module):
         # MLP
         self.mlp = ParallelMLP(
             neox_args=neox_args,
-            init_method=init_method,
-            output_layer_init_method=output_layer_init_method,
             parallel_output=self.gpt_j_residual,
         )
 

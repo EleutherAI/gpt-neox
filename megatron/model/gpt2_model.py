@@ -16,19 +16,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""GPT-2 model."""
+"""GPT model."""
 
 import torch
 import torch.nn as nn
 from collections import defaultdict
-
 from functools import partial
 from megatron.model.utils import Lambda, SequentialWrapper, recursive_setattr
 from megatron.model.norms import get_norm
-from megatron.model.init_functions import get_init_methods
-
 from megatron import mpu
-from megatron.mpu import ParallelRelativePositionBias
 from megatron.model.transformer import (
     ParallelTransformerLayerPipe,
     NormPipe,
@@ -37,9 +33,7 @@ from megatron.model.transformer import (
     ParallelLinear,
 )
 from megatron.model.gmlp import GMLPBlock
-from megatron.model.word_embeddings import EmbeddingPipe, SoftEmbedding
-
-# Pipeline parallelism
+from megatron.model.word_embeddings import EmbeddingPipe
 from deepspeed.pipe import PipelineModule, LayerSpec, TiedLayerSpec
 from typing import Union, List
 
@@ -141,9 +135,6 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         self.parallel_output = parallel_output
         self.hidden_size = self.neox_args.hidden_size
         self.__topology__ = topology
-        self.init_method, self.output_layer_init_method = get_init_methods(
-            self.neox_args
-        )
 
         # initialize layerspecs - this is where the layers are built
         self.specs = self.init_specs()
@@ -260,9 +251,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                 specs.append(
                     LayerSpec(
                         GMLPBlock,
-                        init_method=self.init_method,
                         layer_number=i,
-                        output_layer_init_method=self.output_layer_init_method,
                         neox_args=self.neox_args,
                         mask_fn=gpt2_attention_mask_func,
                     )
@@ -273,8 +262,6 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                         ParallelTransformerLayerPipe,
                         neox_args=self.neox_args,
                         attention_mask_func=gpt2_attention_mask_func,
-                        init_method=self.init_method,
-                        output_layer_init_method=self.output_layer_init_method,
                         layer_number=i,
                         get_key_value=self.get_key_value,
                     )
@@ -341,7 +328,6 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                 LayerSpec(
                     ParallelLinearPipe,
                     neox_args=self.neox_args,
-                    init_method=self.init_method,
                     parallel_output=self.parallel_output,
                     inference=self._inference,
                 )
