@@ -143,7 +143,6 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         self.hidden_size = self.neox_args.hidden_size
         self.num_tokentypes = num_tokentypes
         self.__topology__ = topology
-        self.embedding_type = self.neox_args.pos_emb
         self.init_method, self.output_layer_init_method = get_init_methods(
             self.neox_args
         )
@@ -277,8 +276,6 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                         init_method=self.init_method,
                         output_layer_init_method=self.output_layer_init_method,
                         layer_number=i,
-                        rpe=rpe_emb if self.neox_args.pos_emb == "rpe" else None,
-                        rotary=self.neox_args.pos_emb == "rotary",
                         get_key_value=self.get_key_value,
                     )
                 )

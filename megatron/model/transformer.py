@@ -25,6 +25,8 @@ import torch.nn as nn
 
 from .norms import get_norm
 from megatron import mpu
+from megatron.mpu import ParallelRelativePositionBias
+
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
 from megatron.model.activations import get_activation
 from megatron.model.utils import exists
@@ -189,8 +191,6 @@ class ParallelSelfAttention(nn.Module):
         init_method,
         output_layer_init_method,
         layer_number,
-        rpe=None,
-        rotary=False,
         get_key_value=False,
         parallel_output=False,
     ):
@@ -231,17 +231,21 @@ class ParallelSelfAttention(nn.Module):
             coeff = max(1, self.layer_number)
             self.norm_factor *= coeff
 
-        self.rpe = rpe
-
-        if self.pos_emb == "alibi":
+        if self.pos_emb == "rpe":
+            self.rpe = ParallelRelativePositionBias(
+                neox_args=self.neox_args,
+                causal=True,
+                num_buckets=self.neox_args.rpe_num_buckets,
+                max_distance=self.neox_args.rpe_max_distance,
+                heads=self.neox_args.num_attention_heads,
+            )
+        elif self.pos_emb == "alibi":
             self.alibi_embed = AliBi(
                 neox_args.num_attention_heads,
                 neox_args.model_parallel_size,
                 mpu.get_model_parallel_rank(),
             )
-
-        # TODO: this arg shouldn't need to be passed in - get from neox_args
-        if rotary:
+        elif self.pos_emb == "rotary":
             if neox_args.rotary_pct == 1:
                 self.rotary_ndims = None
             else:
@@ -258,6 +262,8 @@ class ParallelSelfAttention(nn.Module):
                 dim, base=neox_args.rotary_emb_base, precision=neox_args.params_dtype
             )
         else:
+            self.alibi_embed = None
+            self.rpe = None
             self.rotary_emb = None
 
         self.attention_type = neox_args.attention_config[layer_number]
@@ -535,8 +541,6 @@ class ParallelTransformerLayer(nn.Module):
         init_method,
         output_layer_init_method,
         layer_number,
-        rpe=None,
-        rotary=False,
         get_key_value=False,
     ):
 
@@ -563,9 +567,7 @@ class ParallelTransformerLayer(nn.Module):
             init_method=init_method,
             output_layer_init_method=output_layer_init_method,
             layer_number=layer_number,
-            rpe=rpe,
             get_key_value=self.get_key_value,
-            rotary=rotary,
             parallel_output=self.gpt_j_residual,
         )
 
@@ -599,7 +601,7 @@ class ParallelTransformerLayer(nn.Module):
             # x = x + attn(ln1(x)) + mlp(ln2(x))
             # this means we can avoid doing the allreduce in the attn / mlp outputs
             # to save communication time (we can do a single allreduce after we add mlp / attn outputs).
-            
+
             # attention_output = attn(ln1(x))
             residual = x
             attention_output, attention_bias = self.attention(
@@ -668,7 +670,7 @@ class ParallelTransformerLayer(nn.Module):
 
 
 class ParallelTransformerLayerPipe(ParallelTransformerLayer):
-    """Extends ParallelTransformerLayer to forward attention_mask through the pipeline. """
+    """Extends ParallelTransformerLayer to forward attention_mask through the pipeline."""
 
     def forward(self, args):
         in_inference = len(args) == 4  # length of the args in inference == 4
