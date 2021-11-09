@@ -355,6 +355,24 @@ def get_total_params(model):
     return total_n_parameters
 
 
+def filter_trainable_params(param_groups: List[Dict]) -> List[Dict]:
+    """
+    Filter out the non-trainable parameters from the list of parameter groups.
+
+    Arguments:
+        param_groups: List of parameter groups.
+
+    Returns:
+        List of trainable parameter groups.
+    """
+    output_param_groups = []
+    for param_group in param_groups:
+        trainable_params = [p for p in param_group["params"] if p.requires_grad]
+        param_group["params"] = trainable_params
+        output_param_groups.append(param_group)
+    return output_param_groups
+
+
 def setup_for_inference_or_eval(
     inference=True, get_key_value=True, overwrite_values=None
 ):
