@@ -368,8 +368,17 @@ def get_optimizer(model, neox_args):
     return optimizer, param_groups
 
 
-def get_learning_rate_scheduler(optimizer, neox_args):
-    """Build the learning rate scheduler."""
+def get_learning_rate_scheduler(optimizer, neox_args) -> AnnealingLR:
+    """
+    Initialize the learning rate scheduler.
+
+    Arguments:
+        optimizer: a torch.optim.Optimizer.
+        neox_args: NeoX arguments.
+
+    Returns:
+        AnnealingLR: a learning rate scheduler.
+    """
     if neox_args.no_load_optim:
         # TODO: this should be configured as a separate arg
         return None
@@ -385,22 +394,18 @@ def get_learning_rate_scheduler(optimizer, neox_args):
         num_iters = neox_args.lr_decay_iters
     else:
         num_iters = neox_args.train_iters
-    num_iters = max(1, num_iters)
-    init_step = 0
-    warmup_iter = neox_args.warmup * num_iters
-    lr_scheduler = AnnealingLR(
+
+    return AnnealingLR(
         optimizer,
         start_lr=neox_args.lr,
-        warmup_iter=warmup_iter,
-        total_iters=num_iters,
+        warmup_iter=neox_args.warmup * num_iters,
+        total_iters=max(1, num_iters),
         decay_style=neox_args.lr_decay_style,
-        last_iter=init_step,
+        last_iter=0,
         min_lr=neox_args.min_lr,
         use_checkpoint_lr_scheduler=neox_args.use_checkpoint_lr_scheduler,
         override_lr_scheduler=neox_args.override_lr_scheduler,
     )
-
-    return lr_scheduler
 
 
 def setup_model_and_optimizer(neox_args, inference=False, get_key_value=True):
