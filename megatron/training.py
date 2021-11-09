@@ -25,7 +25,7 @@ from functools import partial
 
 import math
 import sys
-from typing import Tuple
+from typing import Dict, Tuple, List
 
 import torch
 import deepspeed
@@ -276,7 +276,7 @@ def get_model(neox_args, inference=False, get_key_value=True) -> torch.nn.Module
     return model
 
 
-def get_optimizer(model, neox_args):
+def get_optimizer(model, neox_args) -> Tuple[torch.optim.Optimizer, List[Dict]]:
     """
     Sets up the optimizer for training.
 
@@ -368,7 +368,9 @@ def get_optimizer(model, neox_args):
     return optimizer, param_groups
 
 
-def get_learning_rate_scheduler(optimizer, neox_args) -> AnnealingLR:
+def get_learning_rate_scheduler(
+    optimizer: torch.optim.Optimizer, neox_args
+) -> AnnealingLR:
     """
     Initialize the learning rate scheduler.
 
@@ -423,22 +425,18 @@ def setup_model_and_optimizer(neox_args, inference=False, get_key_value=True):
     optimizer, param_groups = get_optimizer(model=model, neox_args=neox_args)
     lr_scheduler = get_learning_rate_scheduler(optimizer=optimizer, neox_args=neox_args)
 
-    print_rank_0("DeepSpeed is enabled.")
     if neox_args.no_load_optim:
-        assert optimizer is None
-        _model_params = None
-        _lr_scheduler = None
+        model_parameters = None
     else:
-        _model_params = param_groups if optimizer is None else None
-        _lr_scheduler = lr_scheduler
+        model_parameters = param_groups if optimizer is None else None
 
     model, optimizer, _, lr_scheduler = deepspeed.initialize(
         model=model,
         optimizer=optimizer,
         args=neox_args,
-        lr_scheduler=_lr_scheduler,
+        lr_scheduler=lr_scheduler,
         dist_init_required=False,
-        model_parameters=_model_params,
+        model_parameters=model_parameters,
         config_params=neox_args.deepspeed_config,
         mpu=mpu if not neox_args.is_pipe_parallel else None,
     )
