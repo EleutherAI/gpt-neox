@@ -279,8 +279,8 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         ###################
 
         # The final normalization layer after the transformer block.
-        norm, eps = get_norm(self.neox_args)
-        specs.append(LayerSpec(NormPipe, norm, self.neox_args.hidden_size, eps=eps))
+
+        specs.append(LayerSpec(NormPipe, self.neox_args))
 
         # outputs are now
         #           Train: hidden_states

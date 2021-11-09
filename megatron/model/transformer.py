@@ -723,9 +723,10 @@ class ParallelLinearPipe(ParallelLinear):
 class NormPipe(nn.Module):
     """Just a helper class to pass presents through to the output when doing inference with a Pipe Parallel model"""
 
-    def __init__(self, norm_class, hidden_size, eps):
+    def __init__(self, neox_args):
         super().__init__()
-        self.norm = norm_class(hidden_size, eps=eps)
+        norm, eps = get_norm(self.neox_args)
+        self.norm = norm(neox_args.hidden_size, eps=eps)
 
     def forward(self, args):
         if not isinstance(args, tuple):
