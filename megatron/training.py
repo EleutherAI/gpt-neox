@@ -243,7 +243,6 @@ def get_model(neox_args, inference=False, get_key_value=True) -> torch.nn.Module
     # Build model on cpu.
     model = GPT2ModelPipe(
         neox_args=neox_args,
-        num_tokentypes=0,
         parallel_output=True,
         topology=mpu.get_topology(),
         inference=inference,
