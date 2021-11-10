@@ -233,7 +233,7 @@ Model Arguments
 
     Default = None
 
-    Maximum number of position embeddings to use. This is the size of position embedding.
+    Maximum number of position embeddings to use. This is the size of the position embedding.
 
 
 
