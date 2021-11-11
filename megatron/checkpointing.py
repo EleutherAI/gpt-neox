@@ -152,10 +152,7 @@ def save_ds_checkpoint(iteration, model, neox_args):
         logits = do_forward_pass(neox_args=neox_args, model=model)
         sd['checkpoint_validation_logits'] = logits
     
-    # Derive tag 
-    # The tag is usually automatically derived in the same way in deepspeed
-    # As the save_checkpoint function does not return such derived tag, we 
-    # do it manually in order to use the subdirectory to save config files
+    # checkpoint folder name
     tag = f"global_step{iteration}"
 
     # save checkpoint
