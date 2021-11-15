@@ -45,14 +45,6 @@ IGNORED_LAYERS = [
                     "dp_world_size"
                 ]
 
-# maps layer names to their partitioned dimension
-# if the layer name isn't in this list, we assume the partitioned dimension is 0
-PARTITION_DIM_MAP = {
-    "attention.dense.weight": 1,
-    "mlp.dense_4h_to_h.weight": 1,
-    "final_linear.weight": 0, # TODO: make this dependent on output_layer paralism "column" => 0/"row" => 1
-}
-
 def parse_args():
     parser = argparse.ArgumentParser(
         "Merge or split model parallel groups in a pretrained model"
@@ -249,6 +241,17 @@ if __name__ == "__main__":
 
     # load modified configs
     config = get_output_config(args)
+
+    # create partition dim map dependent on config
+    # maps layer names to their partitioned dimension
+    # if the layer name isn't in this list, we assume the partitioned dimension is 0
+
+    output_layer_parallelism = config.get("output_layer_parallelism") or config.get("output-layer-parallelism") or "row"
+    PARTITION_DIM_MAP = {
+        "attention.dense.weight": 1,
+        "mlp.dense_4h_to_h.weight": 1,
+        "final_linear.weight": 0 if output_layer_parallelism == "column" else 1,
+    }
 
     # prepare output directories
     if args.output_weights_dir.is_dir():
