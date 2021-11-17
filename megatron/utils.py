@@ -419,6 +419,7 @@ def setup_for_inference_or_eval(
 
     # initialize megatron
     initialize_megatron(neox_args)
+    init_wandb(neox_args)
 
     # set up model and load checkpoint.
     model, _, _ = setup_model_and_optimizer(
