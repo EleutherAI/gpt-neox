@@ -47,7 +47,7 @@
 
    # batch / data settings
    "train_micro_batch_size_per_gpu": 4,
-   "gradient_accumulation_steps": 1,
+   "gradient_accumulation_steps": 4,
    "data-impl": "mmap",
    "split": "949,50,1",
 
