@@ -27,6 +27,7 @@ from lm_eval.models.gpt2 import GPT2LM
 from lm_eval import tasks, evaluator, utils
 from megatron.text_generation_utils import generate_samples_from_prompt
 from megatron.mpu.mappings import gather_from_model_parallel_region
+from megatron import mpu 
 
 # TODO: add data parallel
 
@@ -164,12 +165,31 @@ class EvalHarnessAdapter(GPT2LM):
         return reord.get_original(res)
 
     def _model_call(self, inps):
-        data_wrapped = iter([{'text': F.pad(inps, pad=(0, 1))}]) # make a dummy dataloader / iterator to pass to model
+        print(inps.shape)
+        ######## DATA PARALLEL STUFF ########
+        world_size = mpu.get_data_parallel_world_size()
+        assert inps.shape[0] % world_size == 0, f"batch size ({inps.shape[0]}) must be divisible by world size ({world_size})"
+        # get a chunk for each data parallel rank
+        chunk_size = inps.shape[0] // world_size
+        rank = mpu.get_data_parallel_rank()
+        inps = inps[rank * chunk_size:(rank + 1) * chunk_size]
+        #####################################
+
+        # make a dummy dataloader / iterator to pass to model
+        data_wrapped = iter([{'text': F.pad(inps, pad=(0, 1))}]) 
         if self.neox_args.is_pipe_parallel:
             # need these flags to stop deepspeed from hanging
             self.model.first_output_send = True
             self.model.pipe_recv_buf = None
         _, logits = self._forward_step_fn(model=self.model, data_iterator=data_wrapped)
+
+        ######## DATA PARALLEL STUFF ########
+        # gather logits from all ranks
+        if logits is not None:
+            tensor_list = [torch.zeros_like(logits) for _ in range(world_size)]
+            torch.distributed.all_gather(tensor_list, logits)
+            logits = torch.cat(tensor_list, dim=0)
+
         return logits
 
     def run_eval(self, eval_tasks=None):
