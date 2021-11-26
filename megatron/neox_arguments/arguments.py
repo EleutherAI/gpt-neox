@@ -281,9 +281,9 @@ class NeoXArgs(*BASE_CLASSES):
         # determine overwrite values
         overwrite_values = dict()
         for k, v in vars(args_parsed).items():
-            if k not in ["user_script", "conf_dir", "conf_file"] and v is not None:
+            if k not in ["conf_dir", "conf_file"] and v is not None:
                 overwrite_values[k] = v
-                
+
         # load args
         neox_args = cls.from_ymls(
             paths_to_yml_files=conf_files, overwrite_values=overwrite_values
