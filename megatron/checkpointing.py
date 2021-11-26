@@ -209,7 +209,6 @@ def load_checkpoint(
     neox_args, model, optimizer, lr_scheduler, inference=False, iteration=None
 ):
     """Load a model checkpoint and return the iteration."""
-    print("ITER IN LOAD CHKPT: ", iteration)
     if neox_args.deepspeed:
         load_optim_and_scheduler = (
             not neox_args.no_load_optim
@@ -231,10 +230,12 @@ def load_checkpoint(
             # if an iteration is specified, we want to raise an error here rather than
             # continuing silently, since we are trying to load a specific checkpoint
             if iteration is not None:
-                available_checkpoints = [
-                    i.name.replace("global_step", "")
-                    for i in Path(neox_args.load).glob("global_step*")
-                ]
+                available_checkpoints = sorted(
+                    [
+                        int(i.name.replace("global_step", ""))
+                        for i in Path(neox_args.load).glob("global_step*")
+                    ]
+                )
                 raise ValueError(
                     f"Unable to load checkpoint for iteration {iteration}. \nAvailable iterations: {pformat(available_checkpoints)}"
                 )
