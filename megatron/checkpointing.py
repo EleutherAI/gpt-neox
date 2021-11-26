@@ -232,7 +232,7 @@ def load_checkpoint(
             # continuing silently, since we are trying to load a specific checkpoint
             if iteration is not None:
                 available_checkpoints = [
-                    i.replace("global_step", "")
+                    str(i).replace("global_step", "")
                     for i in Path(neox_args.load).glob("global_step*")
                 ]
                 raise ValueError(
