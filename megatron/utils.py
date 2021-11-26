@@ -422,6 +422,10 @@ def setup_for_inference_or_eval(
     # initialize megatron
     initialize_megatron(neox_args)
 
+    print("NEOX ARGS ITERATION: ", neox_args.iteration)
+    import time
+
+    time.sleep(10)
     # set up model and load checkpoint.
     model, _, _ = setup_model_and_optimizer(
         neox_args=neox_args,

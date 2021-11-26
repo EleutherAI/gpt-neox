@@ -207,7 +207,7 @@ def load_checkpoint(
     neox_args, model, optimizer, lr_scheduler, inference=False, iteration=None
 ):
     """Load a model checkpoint and return the iteration."""
-
+    print("ITER IN LOAD CHKPT: ", iteration)
     if neox_args.deepspeed:
         load_optim_and_scheduler = (
             not neox_args.no_load_optim
