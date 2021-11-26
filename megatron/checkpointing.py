@@ -232,11 +232,11 @@ def load_checkpoint(
             # continuing silently, since we are trying to load a specific checkpoint
             if iteration is not None:
                 available_checkpoints = [
-                    str(i).replace("global_step", "")
+                    i.name.replace("global_step", "")
                     for i in Path(neox_args.load).glob("global_step*")
                 ]
                 raise ValueError(
-                    f"Unable to load checkpoint for iteration {iteration}. \nAvailable checkpoints: {pformat(available_checkpoints)}"
+                    f"Unable to load checkpoint for iteration {iteration}. \nAvailable iterations: {pformat(available_checkpoints)}"
                 )
             if mpu.get_data_parallel_rank() == 0:
                 print("Unable to load checkpoint.")
