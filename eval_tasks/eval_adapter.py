@@ -165,7 +165,6 @@ class EvalHarnessAdapter(GPT2LM):
         return reord.get_original(res)
 
     def _model_call(self, inps):
-        print(inps.shape)
         ######## DATA PARALLEL STUFF ########
         world_size = mpu.get_data_parallel_world_size()
         assert inps.shape[0] % world_size == 0, f"batch size ({inps.shape[0]}) must be divisible by world size ({world_size})"
