@@ -248,7 +248,7 @@ class NeoXArgs(*BASE_CLASSES):
             help="Team name for Weights and Biases.",
         )
 
-        group = parser.add_argument_group(title="Misc. args")
+        group = parser.add_argument_group(title="Eval args")
 
         group.add_argument(
             "--eval_tasks",
@@ -262,6 +262,12 @@ class NeoXArgs(*BASE_CLASSES):
             type=int,
             default=None,
             help="Iteration to load checkpoint from in evaluate.py / generate.py. If None is provided, uses the latest iteration.",
+        )
+        group.add_argument(
+            "--eval_results_prefix",
+            type=str,
+            default=None,
+            help="prefix to append to eval results file",
         )
         args_parsed = parser.parse_args()
 
