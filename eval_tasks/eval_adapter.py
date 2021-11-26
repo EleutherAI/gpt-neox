@@ -187,7 +187,7 @@ class EvalHarnessAdapter(GPT2LM):
         # gather logits from all ranks
         if logits is not None:
             tensor_list = [torch.zeros_like(logits) for _ in range(world_size)]
-            torch.distributed.all_gather(tensor_list, logits)
+            torch.distributed.all_gather(tensor_list, logits, group=mpu.get_data_parallel_group())
             logits = torch.cat(tensor_list, dim=0)
 
         return logits
