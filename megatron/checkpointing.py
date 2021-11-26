@@ -32,6 +32,8 @@ from megatron import mpu
 from megatron import print_rank_0
 from megatron.utils import natural_sort
 from megatron.text_generation_utils import get_batch, forward_model
+from pathlib import Path
+from pprint import pformat
 
 
 def check_checkpoint_args(neox_args, checkpoint_args):
@@ -226,8 +228,19 @@ def load_checkpoint(
         )
 
         if checkpoint_name is None:
+            # if an iteration is specified, we want to raise an error here rather than
+            # continuing silently, since we are trying to load a specific checkpoint
+            if iteration is not None:
+                available_checkpoints = [
+                    i.replace("global_step", "")
+                    for i in Path(neox_args.load).glob("global_step*")
+                ]
+                raise ValueError(
+                    f"Unable to load checkpoint for iteration {iteration}. \nAvailable checkpoints: {pformat(available_checkpoints)}"
+                )
             if mpu.get_data_parallel_rank() == 0:
                 print("Unable to load checkpoint.")
+
             return 0  # iteration 0, if not checkpoint loaded
     else:
         raise ValueError("Must be using deepspeed to use neox")
