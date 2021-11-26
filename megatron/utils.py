@@ -387,7 +387,7 @@ def get_total_params(model):
 
 
 def setup_for_inference_or_eval(
-    inference=True, get_key_value=True, overwrite_values=None, iteration=None
+    inference=True, get_key_value=True, overwrite_values=None
 ):
     """
     Initializes the model for evaluation or inference (doesn't load optimizer states, etc.) from command line args.
@@ -427,7 +427,7 @@ def setup_for_inference_or_eval(
         neox_args=neox_args,
         inference=inference,
         get_key_value=get_key_value,
-        iteration=iteration,
+        iteration=neox_args.iteration,
     )  # we use setup_model_and_optimizer instead of get_model in order to initialize deepspeed
     print_rank_0("Finished loading model")
     return model, neox_args
