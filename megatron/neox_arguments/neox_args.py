@@ -335,11 +335,9 @@ class NeoXArgsOptimizer(NeoXArgsTemplate):
     Optimizer Arguments
     """
 
-    optimizer_type: Literal[
-        "adam", "onebitadam", "cpu_adam", "cpu_torch_adam", "sm3", "madgrad_wd"
-    ] = "adam"
+    optimizer_type: Literal["adam", "onebitadam", "cpu_adam", "cpu_torch_adam", "sm3", "madgrad_wd","shampoo"] = "adam"
     """
-    Type of optimizer to use. Choose from ['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd]
+    Type of optimizer to use. Choose from ['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd', 'shampoo']
     """
 
     zero_stage: int = None

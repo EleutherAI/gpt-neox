@@ -310,6 +310,15 @@ def get_optimizer(model, neox_args):
             weight_decay=neox_args.weight_decay,
             **neox_args.optimizer["params"],
         )
+
+    elif neox_args.optimizer_type.lower() == "shampoo":
+        from .optimizers import Shampoo
+        neox_args.optimizer["params"]["weight_decay"]=neox_args.weight_decay
+        optimizer = Shampoo(
+            param_groups,
+            **neox_args.optimizer["params"],
+        )
+
     elif neox_args.optimizer_type.lower() == "adam":
         # Use Adam
         try:

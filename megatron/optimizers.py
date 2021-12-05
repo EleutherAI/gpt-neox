@@ -403,9 +403,14 @@ class madgrad_wd(torch.optim.Optimizer):
 #date-released: 2020-01-11
 
 import torch
+from torch import Tensor
 from torch.optim.optimizer import Optimizer
+from typing import Any, Callable, Dict, Iterable, Optional, Tuple, Union
 
-from .types import OptFloat, OptLossClosure, Params
+LossClosure = Callable[[], float]
+OptFloat = Optional[float]
+OptLossClosure = Optional[LossClosure]
+Params = Union[Iterable[Tensor], Iterable[Dict[str, Any]]]
 
 
 def _matrix_power(matrix: torch.Tensor, power: float) -> torch.Tensor:
@@ -447,7 +452,7 @@ class Shampoo(Optimizer):
         momentum: float = 0.0,
         weight_decay: float = 0.0,
         epsilon: float = 1e-4,
-        update_freq: int = 1,
+        update_freq: int = 1, # make it permanent
     ):
 
         if lr <= 0.0:
