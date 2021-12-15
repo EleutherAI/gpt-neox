@@ -570,7 +570,8 @@ class ParallelTransformerLayer(nn.Module):
         )
 
         # Layernorm on the output of the attention layer.
-        self.post_attention_layernorm = norm(neox_args.hidden_size, eps=eps)
+        if not self.gpt_j_residual:
+            self.post_attention_layernorm = norm(neox_args.hidden_size, eps=eps)
 
         # MLP
         self.mlp = ParallelMLP(
@@ -602,8 +603,9 @@ class ParallelTransformerLayer(nn.Module):
             
             # attention_output = attn(ln1(x))
             residual = x
+            x = self.input_layernorm(x)
             attention_output, attention_bias = self.attention(
-                self.input_layernorm(x), attention_mask, layer_past=layer_past
+                x, attention_mask, layer_past=layer_past
             )
             if self.get_key_value:
                 attention_output, presents = attention_output
@@ -617,7 +619,7 @@ class ParallelTransformerLayer(nn.Module):
                 )
 
             # output = mlp(ln2(x)) + attention_output
-            mlp_output, mlp_bias = self.mlp(self.post_attention_layernorm(x))
+            mlp_output, mlp_bias = self.mlp(x)
             with torch.enable_grad():
                 output = bias_dropout_fn(
                     mlp_output,
