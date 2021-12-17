@@ -8,7 +8,8 @@ RUN apt-get update -y && \
         git python3 python3-dev libpython3-dev python3-pip sudo pdsh \
         htop llvm-9-dev tmux zstd software-properties-common build-essential autotools-dev \
         nfs-common pdsh cmake g++ gcc curl wget vim less unzip htop iftop iotop ca-certificates ssh \
-        rsync iputils-ping net-tools libcupti-dev && \
+        rsync iputils-ping net-tools libcupti-dev libmlx4-1 infiniband-diags ibutils ibverbs-utils \
+        rdmacm-utils perftest rdma-core nano && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3 1 && \
     update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1 && \
     pip install --upgrade pip && \
@@ -29,6 +30,7 @@ RUN echo 'password' >> password.txt && \
     echo "Set disable_coredump false" >> /etc/sudo.conf && \
     # Clean up
     rm password.txt
+
 # Expose SSH port
 EXPOSE 22
 
@@ -46,9 +48,11 @@ RUN mkdir -p /build && \
     test -f /usr/local/mpi/bin/mpic++ && \
     cd ~ && \
     rm -rf /build
+
 # Needs to be in docker PATH if compiling other items & bashrc PATH (later)
 ENV PATH=/usr/local/mpi/bin:${PATH} \
     LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:${LD_LIBRARY_PATH}
+
 # Create a wrapper for OpenMPI to allow running as root by default
 RUN mv /usr/local/mpi/bin/mpirun /usr/local/mpi/bin/mpirun.real && \
     echo '#!/bin/bash' > /usr/local/mpi/bin/mpirun && \

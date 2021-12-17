@@ -1,1 +1,1 @@
-from .adaptor import EvalHarnessAdaptor, run_eval_harness
+from .eval_adapter import EvalHarnessAdapter, run_eval_harness
