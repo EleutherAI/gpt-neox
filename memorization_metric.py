@@ -2,10 +2,16 @@ import numpy as np
 import torch
 from torch import nn
 def memorization_metric(predictions,ground_truth):
-    '''
-    ground_truth: tuple of pytorch tensors of shape (batch_size,token_probabilites) of length num_tokens, the shape of scores of generate method
-    predictions: array of shape (batch_size,num_tokens)
-    Out: torch array of shape (batch_size)
+    '''Returns the memorization metric for the generated predictions 
+    
+    Attributes:
+        ground_truth: tuple of pytorch tensors of shape 
+            (batch_size,token_probabilites) and of length num_tokens, 
+            the shape of scores of generate method
+        predictions: array of shape (batch_size,num_tokens)
+    
+    Returns:
+        torch array of shape (batch_size)
     '''
 
     loss = nn.NLLLoss(reduction='none')

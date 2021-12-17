@@ -37,6 +37,16 @@ import os
 import time
 
 class BatchedDataset(Thread):
+    '''Generates Threaded batched records for evaluation
+    
+    Generates batched records by uniformly sampling records from the dataset
+
+    Attributes:
+        batch_size: Number of records per batch in the returned batch
+        take_every: Every 4 of take_every are taken from training dataset for evaluation
+        token_size: Number of tokens used for both prompt and evaluation
+        neox_args: an instance of NeoXArgs containing the configuration for evaluation
+    '''
     def __init__(self,batch_size,take_every,token_size,neox_args):
         super().__init__()
         self.batch_size = batch_size
@@ -45,7 +55,7 @@ class BatchedDataset(Thread):
         self.q = queue.Queue()
         self.ds, valid_ds, test_ds = build_train_valid_test_data_iterators(neox_args=neox_args)
     def run(self):
-        
+        """Generates batched dataset for evaluation by adding batches into a queue"""
         tokens = []
         indicies = []
         val = 1
@@ -72,6 +82,12 @@ class BatchedDataset(Thread):
 
 def score(neox_args,model,data,token_size=64):
     '''Calculates the memorization metric for the given input tokens
+
+    Arguments:
+        neox_args: an instance of NeoXArgs containing the configuration for evaluation
+        model: Megatron model for evaluation
+        data: a single batch of evaluation dataset for evaluation
+        token_size: Number of tokens used for both prompt and evaluation
     '''
     
     inp = [i[:token_size//2] for i in data]
@@ -92,23 +108,31 @@ def score(neox_args,model,data,token_size=64):
 
 
 def main():
+    
+    # Driver parameters
+    
     BATCH_SIZE = 32
     RESULTS_PATH = 'memorization_results_dense_medium.csv'
     TOKEN_SIZE = 64
     TAKE_EVERY = 32
 
+    # Result records
     records = DataFrameCreator(RESULTS_PATH) #store results
     
     model, neox_args = setup_for_inference_or_eval()    
 
     ds = BatchedDataset(BATCH_SIZE,TAKE_EVERY,TOKEN_SIZE,neox_args)
-    ds.start()
+    ds.start() 
     
 
     start_time = time.time()
     batch,indicies = ds.q.get()
     step = 1
-    while(batch is not None):
+
+
+    # Evaluation driver code
+
+    while(batch is not None): 
         print_rank_0(f'time taken to generate batch: {time.time() - start_time:.3}s')
         start_time = time.time()
 
