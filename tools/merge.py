@@ -1,7 +1,7 @@
 """
 script to merge or split model parallel checkpoints 
 
-This script...
+This script:
 - assumes a checkpoint directory with pipeline parallel checkpoints (i.e. a global_step directory with files named like 'layer_00-model_00-model_states.pt')
 - assumes that the checkpoint names haven't been changed, since it makes the script much cleaner. If you've changed the name from the default `layer_nn-model_nn-model_states.pt` pattern - *this script will not work*
 - assumes the config files are saved to a subdirectory in the global_step directory
@@ -85,66 +85,57 @@ def parse_args():
         type=str,
         help="Where to save the merged model",
     )
-    args = parser.parse_args()
 
-   
-    checkpoint_dir = Path(args.checkpoint_dir)
-    assert checkpoint_dir.is_dir(), "checkpoint dir does not exist: "+str(checkpoint_dir)
+    return parser.parse_args()
 
-    if args.global_step is None:
-        if os.path.isfile(checkpoint_dir / "latest"):
-            with open(checkpoint_dir / "latest") as f:
-                args.global_step = int(f.read().strip().replace("global_step", ""))
-        else:
-            raise ValueError("No global step provided")
 
-    args.weights_dir = checkpoint_dir / f"global_step{args.global_step}"
+def replace(d, key, value): 
+    # function to replace a k/v pair in a dict, that's agnostic to the difference between '-' and '_'
+    k_alt = key.replace('-', '_')
+    if key in d:
+        d[key] = value
+    elif k_alt in d:
+        d[k_alt] = value
 
-    args.output_dir = Path(args.output_dir)
-    args.output_weights_dir = args.output_dir / f"global_step{args.global_step}"
-    args.output_configs_dir = args.output_weights_dir / "configs"
-
-    return args
-
-def get_output_config(args: argparse.Namespace):
+def get_output_config(checkpoint_dir, model_parallel_size, pipe_parallel_size, remove_zero_optimizer=True):
     """
-    read config files from source directory and change values to match the target for inference
+    read config files from source directory and change values to match the desired output.
+
+    Args:
+        checkpoint_dir: the original checkpoint directory
+        model_parallel_size: the output model parallel size
+        pipe_parallel_size: the output pipe parallel_size
+        remove_zero_optimizer: remove zero optimizer settings from the output dict. 
+                               Not doing so may result in errors due to size mismatches in optimizer states.
     """
 
     # load all config files
     result = dict()
-    for config in (args.weights_dir / "configs").glob("*.yml"):
+    for config in (checkpoint_dir / "configs").glob("*.yml"):
         with open(config) as f:
             data = yaml.full_load(f)
             result.update(data)
 
     # update model parallel size dependent on args
-    if "model-parallel-size" in result:
-        result["model-parallel-size"] = args.model_parallel
-    elif "model_parallel_size" in result:
-        result["model_parallel_size"] = args.model_parallel
-
-    # update pipe parallel size dependent on args
-    if "pipe-parallel-size" in result:
-        result["pipe-parallel-size"] = args.pipe_parallel
-    elif "pipe_parallel_size" in result:
-        result["pipe_parallel_size"] = args.pipe_parallel
-
+    replace(result, "model-parallel-size", model_parallel_size)
+    replace(result, "pipe-parallel-size", pipe_parallel_size)
+    
     # remove zero optimizer
     # Loading a zero optimizer in inference results in an error due to attempted weight load
-    if "zero_optimization" in result:
-        if "stage" in result["zero_optimization"]:
-            result["zero_optimization"]["stage"] = 0
-    if "zero-optimization" in result:
-        if "stage" in result["zero-optimization"]:
-            result["zero-optimization"]["stage"] = 0
+    if remove_zero_optimizer:
+        if "zero_optimization" in result:
+            if "stage" in result["zero_optimization"]:
+                result["zero_optimization"]["stage"] = 0
+        if "zero-optimization" in result:
+            if "stage" in result["zero-optimization"]:
+                result["zero-optimization"]["stage"] = 0
 
     return result
 
-def get_weight_paths_by_layer(args: argparse.Namespace):
+def get_weight_paths_by_layer(weights_dir: Path) -> List[Path]:
 
     # load list of source weight files
-    paths = list(args.weights_dir.glob("*.pt"))
+    paths = list(weights_dir.glob("*.pt"))
     
     # group checkpoint paths by layer index
     paths_by_layer = defaultdict(list)
@@ -224,7 +215,7 @@ def merge_partitions(partitions, partition_dim, stride=1, mp=1, current_mp=None)
 
 def all_equal(iterator):
     """
-    Check if all tensors in a list is equal
+    Check if all tensors in an iterator are equal
     """
     iterator = iter(iterator)
     try:
@@ -233,14 +224,29 @@ def all_equal(iterator):
         return True
     return all(torch.allclose(first, x) for x in iterator)
 
-if __name__ == "__main__":
-    # get arguments
-    args = parse_args()
-    print(f"* Merging from {args.weights_dir}", flush=True)
-    print(f"* Merging to {args.output_weights_dir}", flush=True)
+def merge_checkpoints(checkpoint_dir, model_parallel_size, pipe_parallel_size, output_dir, global_step=None):
+    checkpoint_dir = Path(checkpoint_dir)
+    assert checkpoint_dir.is_dir(), f"checkpoint dir does not exist: {str(checkpoint_dir)}"
+    output_dir = Path(output_dir)
+
+    if global_step is None:
+        if os.path.isfile(checkpoint_dir / "latest"):
+            with open(checkpoint_dir / "latest") as f:
+                global_step = int(f.read().strip().replace("global_step", ""))
+        else:
+            raise ValueError("No global step provided")
+
+    weights_dir = checkpoint_dir / f"global_step{global_step}"
+
+    
+    output_weights_dir = output_dir / f"global_step{global_step}"
+    output_configs_dir = output_dir / "configs"
+
+    print(f"* Merging from {weights_dir}", flush=True)
+    print(f"* Merging to {output_weights_dir}", flush=True)
 
     # load modified configs
-    config = get_output_config(args)
+    config = get_output_config(checkpoint_dir, model_parallel_size, pipe_parallel_size)
 
     # create partition dim map dependent on config
     # maps layer names to their partitioned dimension
@@ -254,20 +260,23 @@ if __name__ == "__main__":
     }
 
     # prepare output directories
-    if args.output_weights_dir.is_dir():
-        print("* Output weights dir already exists. It is deleted to guarantee integrity.", flush=True)
-        shutil.rmtree(args.output_weights_dir)
-    os.makedirs(args.output_dir, exist_ok=True)
-    os.makedirs(args.output_weights_dir, exist_ok=True)
-    os.makedirs(args.output_configs_dir, exist_ok=True)
+    if output_weights_dir.is_dir():
+        resp = input(f"* Output weights dir ({output_weights_dir}) already exists. Do you want to overwrite it? (yes/no) ")
+        if resp.lower() in ['yes', 'y']:
+            shutil.rmtree(output_weights_dir)
+        else:
+            exit()
+
+    for p in [output_weights_dir, output_configs_dir]:
+        p.mkdir(exist_ok=True, parents=True)
 
     # save modified config
-    with open(args.output_configs_dir / "config.yml", "w") as f:
+    with open(output_configs_dir / "config.yml", "w") as f:
         json.dump(config, f, indent=4)
 
     # load weight paths grouped by layer
     # so that we can merge layer by layer
-    weight_paths_by_layer = get_weight_paths_by_layer(args)
+    weight_paths_by_layer = get_weight_paths_by_layer(weights_dir)
 
 
     # iterate over layers and produce a merged checkpoint
@@ -283,36 +292,33 @@ if __name__ == "__main__":
         # each checkpoint file.
         # The one time merge can live with a little inefficiency.
         out_sd = {}
-        for mp in range(args.model_parallel):
+        for mp in range(model_parallel_size):
             for layer_name, partitions in grouped_weights.items():
                 if layer == "model_states":
                     if layer_name in IGNORED_LAYERS:
                         # don't copy over optimizer / rng states as they won't be valid
                         continue
                     elif layer_name == "mp_world_size":
-                        # overwrite  mp
-                        out_sd[layer_name] = args.model_parallel
+                        # overwrite mp in sd
+                        out_sd[layer_name] = model_parallel_size
                     elif layer_name == "args":
                         # change mp size in sd args
                         p = partitions[0]
-                        if "model-parallel-size" in p:
-                            p["model-parallel-size"] = args.model_parallel
-                        elif "model_parallel_size" in p:
-                            p["model_parallel_size"] = args.model_parallel
+                        replace(p, "model-parallel-size", model_parallel_size)
                     else:
                         out_sd[layer_name] = partitions[0]
-                elif all_equal(partitions):
+                elif all_equal(partitions): # if all partitions are equal anyway, we can naively merge them
                     out_sd[layer_name] = partitions[0]
                 else:
                     partition_dim = PARTITION_DIM_MAP.get(layer_name, 0)
-                    merged = merge_partitions(partitions, partition_dim=partition_dim, mp=args.model_parallel, current_mp=mp)
+                    merged = merge_partitions(partitions, partition_dim=partition_dim, mp=model_parallel_size, current_mp=mp)
                     out_sd[layer_name] = merged
             
             # save output
             if layer == "model_states":
                 for pp in range(args.pipe_parallel):
                     out_path = (
-                        args.output_weights_dir
+                        output_weights_dir
                         / f"mp_rank_{str(pp).zfill(2)}_model_states.pt"
                     )
                     torch.save(out_sd, out_path)
@@ -320,10 +326,16 @@ if __name__ == "__main__":
 
             else:
                 out_path = (
-                    args.output_weights_dir
+                    output_weights_dir
                     / f"layer_{layer}-model_{str(mp).zfill(2)}-model_states.pt"
                 )
                 torch.save(out_sd, out_path)
                 print(f"* merged weights for layer {layer} and mp {mp}")
 
     print("* DONE!")
+
+if __name__ == "__main__":
+    # get arguments
+    args = parse_args()
+    merge_checkpoints(args.checkpoint_dir, args.model_parallel, args.pipe_parallel, args.output_dir, args.global_step)
+    
