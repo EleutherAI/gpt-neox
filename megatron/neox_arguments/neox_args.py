@@ -709,6 +709,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Output directory to save checkpoints to.
     """
 
+    config_files: dict = None
+    """
+    Store of original config files mapping config filename to file contents
+    """
+
     load: str = None
     """
     Directory containing a model checkpoint.

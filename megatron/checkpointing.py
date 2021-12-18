@@ -183,10 +183,21 @@ def save_ds_checkpoint(iteration, model, neox_args):
 
     if neox_args.checkpoint_validation_with_forward_pass:
         logits = do_forward_pass(neox_args=neox_args, model=model)
-        sd["checkpoint_validation_logits"] = logits
+        sd['checkpoint_validation_logits'] = logits
+    
+    # checkpoint folder name
+    tag = f"global_step{iteration}"
 
-    model.save_checkpoint(neox_args.save, client_state=sd)
+    # save checkpoint
+    model.save_checkpoint(neox_args.save, tag=tag, client_state=sd)
 
+    # save config files
+    if  torch.distributed.get_rank() == 0 and neox_args.config_files is not None:
+        configs_directory = os.path.join(neox_args.save, tag, "configs")
+        os.makedirs(configs_directory)
+        for config_filename, config_data in neox_args.config_files.items():
+            with open(os.path.join(configs_directory, config_filename), "w") as f:
+                f.write(config_data)
 
 def save_checkpoint(neox_args, iteration, model, optimizer, lr_scheduler):
     """Save a model checkpoint."""
