@@ -255,18 +255,6 @@ def merge_partitions(partitions, partition_dim, stride=1, mp=1):
         raise NotImplementedError
 
 
-def all_equal(iterator):
-    """
-    Check if all tensors in an iterator are equal
-    """
-    iterator = iter(iterator)
-    try:
-        first = next(iterator)
-    except StopIteration:
-        return True
-    return all(torch.allclose(first, x) for x in iterator)
-
-
 # weights of these layers will not be copied as they won't be valid after merging
 IGNORED_LAYERS = [
     "optimizer",
