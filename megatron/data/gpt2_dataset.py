@@ -179,7 +179,7 @@ def _num_tokens(documents, sizes):
 
 
 def _num_epochs(tokens_per_epoch, seq_length, num_samples):
-    """Based on number of samples and sequence lenght, calculate how many
+    """Based on number of samples and sequence length, calculate how many
     epochs will be needed."""
     num_epochs = 0
     total_tokens = 0
@@ -194,7 +194,7 @@ def _num_epochs(tokens_per_epoch, seq_length, num_samples):
 
 
 def _build_doc_idx(documents, num_epochs, np_rng):
-    """Build an array with length = number-of-epochs * number-of-dcuments.
+    """Build an array with length = number-of-epochs * number-of-documents.
     Each index is mapped to a corresponding document."""
     doc_idx = np.mgrid[0:num_epochs, 0:len(documents)][1]
     doc_idx[:] = documents
@@ -219,7 +219,7 @@ def _build_sample_idx(sizes, doc_idx, seq_length,
     sample_index = 0
     # Index into doc_idx.
     doc_idx_index = 0
-    # Begining offset for each document.
+    # Beginning offset for each document.
     doc_offset = 0
     # Start with first document and no offset.
     sample_idx[sample_index][0] = doc_idx_index
@@ -242,7 +242,7 @@ def _build_sample_idx(sizes, doc_idx, seq_length,
                 doc_offset += (remaining_seq_length + doc_length - 1)
                 remaining_seq_length = 0
             else:
-                # Otherwise, start from the begining of the next document.
+                # Otherwise, start from the beginning of the next document.
                 doc_idx_index += 1
                 doc_offset = 0
         # Record the sequence.
