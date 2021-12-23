@@ -3,7 +3,7 @@
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
    "pipe-parallel-size": 1,
-   "model-parallel-size": 1,
+   "model-parallel-size": 2,
 
    # model settings
    "num-layers": 32,
@@ -42,6 +42,7 @@
 
    # batch / data settings
    "train_micro_batch_size_per_gpu": 4,
+   "gradient_accuumulation_steps": 64,
    "data-impl": "mmap",
    "split": "949,50,1",
 
@@ -68,17 +69,17 @@
    },
 
    # misc. training settings
-   "train-iters": 320000,
-   "lr-decay-iters": 320000,
+   "train-iters": 142500,
+   "lr-decay-iters": 142500,
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
-   "save-interval": 10000,
-   "eval-interval": 1000,
+   "save-interval": 750,
+   "eval-interval": 750,
    "eval-iters": 10,
 
    # logging
-   "log-interval": 100,
+   "log-interval": 50,
    "steps_per_print": 10,
    "keep-last-n-checkpoints": 4,
    "wall_clock_breakdown": true,
