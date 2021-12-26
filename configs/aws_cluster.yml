@@ -1,0 +1,17 @@
+# Suggested data paths when using GPT-NeoX on the EAI AWS cluster
+{
+  "data-path": "/fsx/1/the_pile/pile_text_document",
+
+  "vocab-file": "/fsx/1/neox/gpt2-vocab.json",
+  "merge-file": "/fsx/1/neox/gpt2-merges.txt",
+
+  "save": "/fsx/1/neox/scaling_checkpoints",
+  "load": "/fsx/1/neox/scaling_checkpoints",
+  "checkpoint_validation_with_forward_pass": False,
+  
+  "tensorboard-dir": "tensorboard",
+  "log-dir": "/fsx/1/neox/logs",
+  "use_wandb": True,
+  "wandb_host": "https://api.wandb.ai",
+  "wandb_project": "aws_scaling"
+}
