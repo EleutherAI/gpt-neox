@@ -14,10 +14,12 @@
    "norm": "layernorm",
    "pos-emb": "rotary",
    "no-weight-tying": true,
+   "gpt_j_residual": true,
+   "output_layer_parallelism": "column",
 
    # these should provide some speedup but takes a while to build, set to true if desired
-   "scaled-upper-triang-masked-softmax-fusion": false,
-   "bias-gelu-fusion": false,
+   "scaled-upper-triang-masked-softmax-fusion": true,
+   "bias-gelu-fusion": true,
 
 
    # optimizer settings
@@ -30,7 +32,7 @@
      }
    },
    "zero_optimization": {
-    "stage": 0,
+    "stage": 1,
     "allgather_partitions": True,
     "allgather_bucket_size": 500000000,
     "overlap_comm": True,
@@ -73,13 +75,13 @@
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
-   "save-interval": 10000,
-   "eval-interval": 1000,
+   "save-interval": 750,
+   "eval-interval": 750,
    "eval-iters": 10,
 
    # logging
    "log-interval": 50,
    "steps_per_print": 10,
-   "keep-last-n-checkpoints": 4,
+   "keep-last-n-checkpoints": 200,
    "wall_clock_breakdown": true,
 }
