@@ -2,8 +2,7 @@ import tensorflow as tf
 import pandas as pd
 import numpy as np
 class TFrecordCreator:
-    """
-    Creates TFRecord Dataset to store the memorization metric
+    """Creates TFRecord Dataset to store the memorization metric
     """
     def __init__(self,path):
         self.path = path
@@ -34,8 +33,8 @@ class TFrecordCreator:
         self.writer.write(value)
     
     def close(self):
-        """
-        Closes the tfrecord stream
+        """Closes the tfrecord stream
+        
         For some reason, using __del__ doesn't work
         """
         self.writer.close()
@@ -44,6 +43,9 @@ class TFrecordCreator:
 
 
 class TFRecordLoader:
+    """Loads the data created by  TFrecordCreator
+
+    """
     def __init__(self,path):
         self.path = path
         self.reader = tf.data.TFRecordDataset([path])

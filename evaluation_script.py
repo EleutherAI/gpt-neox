@@ -23,6 +23,7 @@ import torch
 import tensorflow as tf
 import numpy as np
 import wandb
+from tqdm import tqdm
 from memorization_metric import memorization_metric
 import argparse
 from result_records import DataFrameCreator
@@ -47,13 +48,16 @@ class BatchedDataset(Thread):
         token_size: Number of tokens used for both prompt and evaluation
         neox_args: an instance of NeoXArgs containing the configuration for evaluation
     '''
-    def __init__(self,batch_size,take_every,token_size,neox_args):
+    def __init__(self,batch_size,take_every,token_size,neox_args,num_iterations=36000000):
         super().__init__()
         self.batch_size = batch_size
         self.take_every = take_every
         self.token_size = token_size
         self.q = queue.Queue()
+        neox_args.train_iters = num_iterations # Overriding default value here
+        neox_args.iteration = 0 # Start evaluating from 0th iteration of dataset
         self.ds, valid_ds, test_ds = build_train_valid_test_data_iterators(neox_args=neox_args)
+        self.num_iterations = num_iterations
     def run(self):
         """Generates batched dataset for evaluation by adding batches into a queue"""
         tokens = []
@@ -65,8 +69,8 @@ class BatchedDataset(Thread):
             idx += 4 #Batch size of dataset is 4
             if(idx%self.take_every != 0):
                 continue
-            [tokens.append(i) for i in doc['text'][:self.token_size].numpy().tolist()]
-            [indicies.append(i) for i in range(idx,idx+4)]
+            tokens.append(doc['text'][:self.token_size].numpy().tolist()[0])
+            indicies.append(idx)
             if(val%self.batch_size == 0):
                 self.q.put((tokens,indicies))
                 
@@ -111,16 +115,15 @@ def main():
     
     # Driver parameters
     
-    BATCH_SIZE = 32
-    RESULTS_PATH = 'memorization_results_dense_medium.csv'
+    BATCH_SIZE = 512
+    RESULTS_PATH = 'memorization_results_dense_small.csv'
     TOKEN_SIZE = 64
     TAKE_EVERY = 32
 
     # Result records
     records = DataFrameCreator(RESULTS_PATH) #store results
     
-    model, neox_args = setup_for_inference_or_eval()    
-
+    model, neox_args = setup_for_inference_or_eval()  
     ds = BatchedDataset(BATCH_SIZE,TAKE_EVERY,TOKEN_SIZE,neox_args)
     ds.start() 
     
