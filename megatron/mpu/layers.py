@@ -37,7 +37,6 @@ from .mappings import scatter_to_model_parallel_region
 from .random import get_cuda_rng_tracker
 from .utils import divide
 from .utils import VocabUtility
-from einops import rearrange
 
 def _initialize_affine_weight_gpu(weight, init_method,
                                   partition_dim, stride=1):
@@ -163,14 +162,16 @@ class ParallelRelativePositionBias(torch.nn.Module):
     and adapted for megatron's model parallelism
 
     Arguments:
+        scale: scaling factor for the bias
         causal: flag for causal/non-causal language modelling.
         num_buckets: number of rp buckets.
         max_distance: max distance in sequence dim for each bucket.
         heads: number of attention heads (total)
     """
 
-    def __init__(self, neox_args, causal=True, num_buckets=32, max_distance=128, heads=8, init_method=init.xavier_normal_):
+    def __init__(self, neox_args, scale, causal=True, num_buckets=32, max_distance=128, heads=8, init_method=init.xavier_normal_):
         super().__init__()
+        self.scale = scale
         self.causal = causal
         self.num_buckets = num_buckets
         self.max_distance = max_distance
@@ -251,8 +252,8 @@ class ParallelRelativePositionBias(torch.nn.Module):
             rp_bucket = self._rel_pos_bucket_cached
         values = F.embedding(rp_bucket, self.weight, self.padding_idx,
                              self.max_norm, self.norm_type, self.scale_grad_by_freq, self.sparse)
-        bias = rearrange(values, 'i j h -> () h i j')
-        return bias
+        bias = values.movedim(2,0).unsqueeze(0)
+        return bias * self.scale
 
 
 class ColumnParallelLinear(torch.nn.Module):

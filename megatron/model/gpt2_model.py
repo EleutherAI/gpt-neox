@@ -157,7 +157,10 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
     def init_specs(self):
         weight_tying = not self.neox_args.no_weight_tying
         if self.embedding_type == 'rpe':
-            rpe_emb = ParallelRelativePositionBias(neox_args=self.neox_args, causal=True,
+            scale = (self.neox_args.hidden_size / self.neox_args.num_attention_heads) ** 0.5
+            rpe_emb = ParallelRelativePositionBias(neox_args=self.neox_args,
+                                                   scale=scale,
+                                                   causal=True,
                                                    num_buckets=self.neox_args.rpe_num_buckets,
                                                    max_distance=self.neox_args.rpe_max_distance,
                                                    heads=self.neox_args.num_attention_heads)
