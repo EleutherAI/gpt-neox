@@ -18,6 +18,7 @@
 
 """GPT-2 model."""
 
+import math
 import torch
 import torch.nn as nn
 from collections import defaultdict
@@ -160,7 +161,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             hidden_size_per_attention_head = mpu.divide(
                     self.neox_args.hidden_size, self.neox_args.num_attention_heads
                     )
-            rpe_scale = hidden_size_per_attention_head ** 0.5
+            rpe_scale = math.sqrt(hidden_size_per_attention_head)
             rpe_emb = ParallelRelativePositionBias(neox_args=self.neox_args,
                                                    scale=rpe_scale,
                                                    causal=True,
