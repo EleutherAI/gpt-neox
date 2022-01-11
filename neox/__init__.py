@@ -23,6 +23,6 @@ def print_rank_0(*message):
         print(*message, flush=True)
 
 
-from .initialize import initialize_megatron
+from .initialize import initialize_neox
 from .neox_arguments import NeoXArgs
 

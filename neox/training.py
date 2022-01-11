@@ -46,7 +46,7 @@ from neox.model import (
 )
 from neox.checkpointing import load_checkpoint, save_checkpoint
 from neox.data.data_utils import build_train_valid_test_data_iterators
-from neox.initialize import initialize_megatron
+from neox.initialize import initialize_neox
 from neox.learning_rates import AnnealingLR
 from neox.logging import tb_wandb_log, training_log
 from neox.utils import (
@@ -80,7 +80,7 @@ def pretrain(neox_args):
     """
 
     # Initalize megatron (distributed args, logging, etc.)
-    initialize_megatron(neox_args=neox_args)
+    initialize_neox(neox_args=neox_args)
 
     # Setup model, optimizer, and learning rate.
     model, optimizer, lr_scheduler = setup_model_and_optimizer(

@@ -155,7 +155,7 @@ def distributed_test(world_size=2, backend='nccl'):
 def model_setup(yaml_list=None, param_dict=None, clear_data=True, inference=False):
     from neox.neox_arguments import NeoXArgs
     from neox.mpu import destroy_model_parallel
-    from neox import initialize_megatron
+    from neox import initialize_neox
     from neox.training import setup_model_and_optimizer
 
     destroy_model_parallel()  # mpu model parallel contains remaining global vars
@@ -183,7 +183,7 @@ def model_setup(yaml_list=None, param_dict=None, clear_data=True, inference=Fals
 
     args_loaded.build_tokenizer()
 
-    initialize_megatron(neox_args=args_loaded)
+    initialize_neox(neox_args=args_loaded)
     model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=args_loaded, inference=inference,
                                                                get_key_value=True)
     return model, optimizer, lr_scheduler, args_loaded

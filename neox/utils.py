@@ -402,7 +402,7 @@ def setup_for_inference_or_eval(
     """
 
     from neox.neox_arguments import NeoXArgs
-    from neox.initialize import initialize_megatron
+    from neox.initialize import initialize_neox
     from neox.training import setup_model_and_optimizer
 
     _overwrite_values = {
@@ -418,7 +418,7 @@ def setup_for_inference_or_eval(
         raise ValueError("`load` parameter must be supplied to load a model`")
 
     # initialize megatron
-    initialize_megatron(neox_args)
+    initialize_neox(neox_args)
 
     # set up model and load checkpoint.
     model, _, _ = setup_model_and_optimizer(

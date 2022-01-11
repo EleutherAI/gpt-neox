@@ -16,7 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Megatron initialization."""
+"""Neox initialization."""
 
 import random
 import os
@@ -34,7 +34,7 @@ import inspect
 from deepspeed.utils import distributed
 
 
-def initialize_megatron(neox_args, allow_no_cuda=False):
+def initialize_neox(neox_args, allow_no_cuda=False):
     """
     This function does the following:
         1. Initializes torch distributed and the mpu (Model Parallel Utilities).
@@ -78,9 +78,6 @@ def initialize_megatron(neox_args, allow_no_cuda=False):
     else:
         # Megatron's MPU is the master. Complete initialization right away.
         finish_mpu_init()
-
-        # Autoresume.
-        _init_autoresume(neox_args)
 
         # Compile dataset C++ code.
         if neox_args.local_rank == 0:
@@ -206,26 +203,6 @@ def _initialize_distributed(neox_args):
 
     # Init DeepSpeed Activation Checkpointing Features
     setup_deepspeed_random_and_activation_checkpointing(neox_args=neox_args)
-
-
-def _init_autoresume(neox_args):
-    """Set autoresume start time."""
-
-    if neox_args.adlr_autoresume:
-        print_rank_0("> enabling autoresume ...")
-        sys.path.append(os.environ.get("SUBMIT_SCRIPTS", "."))
-        try:
-            from userlib.auto_resume import AutoResume
-        except BaseException:
-            print("> ADLR autoresume is not available, exiting ...", flush=True)
-            sys.exit()
-        neox_args.adlr_autoresume_object = AutoResume
-
-    if neox_args.adlr_autoresume_object:
-        torch.distributed.barrier()
-        neox_args.adlr_autoresume_object.init()
-        torch.distributed.barrier()
-
 
 def _set_random_seed(seed):
     """Set random seed for reproducability."""
