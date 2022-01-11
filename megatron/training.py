@@ -410,7 +410,7 @@ def get_learning_rate_scheduler(
     )
 
 
-def setup_model_and_optimizer(neox_args, inference=False, get_key_value=True):
+def setup_model_and_optimizer(neox_args, inference=False, get_key_value=True, iteration=None):
     """
     Sets up the model, optimizer and learning rate scheduler, as well as initializing the deepspeed engine.
 
@@ -443,7 +443,7 @@ def setup_model_and_optimizer(neox_args, inference=False, get_key_value=True):
 
     if neox_args.is_pipe_parallel:
         # we need to set these values after deepspeed.initialize, so we do it here
-        model.set_has_attention_mask(True)
+        model.set_has_bool_tensors(True)
         model.set_batch_fn(partial(get_batch_pipe, neox_args=neox_args))
 
     if neox_args.load is not None:
@@ -463,7 +463,7 @@ def setup_model_and_optimizer(neox_args, inference=False, get_key_value=True):
 
     # count the number of parameters in the model
     neox_args.total_params = count_params(model.module)
-    print_rank_0(f' > total params: {"{:,}".format(model.total_params)}')
+    print_rank_0(f' > total params: {"{:,}".format(neox_args.total_params)}')
     return model, optimizer, lr_scheduler
 
 
