@@ -153,39 +153,6 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             checkpointable_layers=["GMLPBlock", "ParallelTransformerLayerPipe"],
         )
 
-    def insert_layers(
-        self, layers: Union[nn.Module, nn.ModuleList, nn.Sequential, List], idx
-    ):
-        """
-        inserts the layers in `layers` into the pipe model at `idx`.
-        Warning: Experimental, might break things.
-        """
-        if isinstance(layers, nn.Module):
-            self.specs.insert(idx, layers)
-        elif any(
-            [isinstance(layers, nn.ModuleList), isinstance(layers, nn.Sequential)]
-        ):
-            self.specs[idx:idx] = layers
-        elif isinstance(layers, list):
-            assert all(
-                [hasattr(l, "__call__") for l in layers]
-            ), "all items in `layers` must be Callables"
-            self.specs[idx:idx] = layers
-        else:
-            raise ValueError(
-                f"layer passed into {self.__class__.__name__}.insert_layer() should be either an nn.Module, an nn.ModuleList, an nn.Sequential object, or a list of callables not a {type(layers)}"
-            )
-
-        # re-initialize parent class
-        super().__init__(
-            layers=self.specs,
-            loss_fn=self.loss_fn,
-            topology=self.__topology__,
-            activation_checkpoint_interval=self.activation_checkpoint_interval,
-            partition_method=self.neox_args.pipe_partition_method,
-            checkpointable_layers=["GMLPBlock", "ParallelTransformerLayerPipe"],
-        )
-
     def init_specs(self) -> List[LayerSpec]:
         """
         Initializes the list of LayerSpec objects that constitute the model.
