@@ -30,23 +30,24 @@ from megatron.text_generation_utils import generate_samples_from_prompt
 from megatron import mpu
 
 
+
 class EvalHarnessAdapter(GPT2LM):
-    """
-    An adapter to run NeoX models on LM Evaluation Harness (https://github.com/EleutherAI/lm-evaluation-harness) tasks.
-
-    Args:
-        model: A NeoX Model
-        forward_step_fn: A function that runs a forward pass through the model, returning `tuple(loss, logits)`.
-        neox_args: a NeoXArgs object containing the model configuration.
-        batch_size (optional): An argument to override the batch size, which defaults to batch size per gpu * dp world size.
-    """
     def __init__(self, model, forward_step_fn, neox_args, batch_size=None):
-
         self.device = torch.device(f"cuda:{neox_args.local_rank}")
         self.VOCAB_SIZE = neox_args.padded_vocab_size
         self.tokenizer = neox_args.tokenizer
         self.EOT_TOKEN_ID = neox_args.tokenizer.eod_id
         self.model = model
+        self._forward_step_fn = partial(
+            forward_step_fn, neox_args=neox_args, return_logits=True
+        )
+        self.max_length = neox_args.max_position_embeddings // 2
+        self.max_gen_toks = 128
+        self.tokenizer.encode = (
+            self.tokenizer.tokenize
+        )  # patch tokenizer encode + decode methods
+        self.tokenizer.decode = self.tokenizer.detokenize
+        self.batch_size = batch_size or neox_args.batch_size
         self.neox_args = neox_args
         self.cache_hook = CacheHook(None)
         self.max_length = neox_args.max_position_embeddings // 2
@@ -61,40 +62,14 @@ class EvalHarnessAdapter(GPT2LM):
         self.is_last_stage = (
             True if not self.is_pipe_parallel else model.is_last_stage()
         )  # only the last stage of the pipeline model will receive the logits
-        self.dp_world_size = mpu.get_data_parallel_world_size()
-        self.dp_rank = mpu.get_data_parallel_rank()
-        self.dp_group = mpu.get_data_parallel_group()
-        self.is_mp_rank_0 = mpu.get_model_parallel_rank() == 0
-
-        self.batch_size = batch_size or (neox_args.batch_size * self.dp_world_size) # default batch size to bs per gpu * dp size
-
-        # some utility functions:
-        # we need to patch tokenizer methods, because lm_eval uses them internally:
-        self.tokenizer.encode = self.tokenizer.tokenize
-        self.tokenizer.decode = self.tokenizer.detokenize
-        self._forward_step_fn = partial(
-            forward_step_fn, neox_args=neox_args, timers=None, return_logits=True
-        )
         self.generate = partial(
             generate_samples_from_prompt,
             neox_args=neox_args,
             model=model,
             maximum_tokens=self.max_gen_toks,
-            temperature=0.0,
-            broadcast_generated_tokens=True,
         )
 
     def greedy_until(self, requests):
-        """
-        Greedy until is lm_eval harness' way to say "do greedy generation" - necessary for some tasks.
-        the eval harness dispatches requests to the model, and the model does argmax generation, the results of which
-        are returned to the eval harness to evaluate.
-
-        TODO: batched / data parallel generation
-
-        :param requests: Dictionary of requests containing the context (prompt) and 'until' - a token or
-                         list of stop tokens.
-        """
         self.model.module.inference_mode(cache=True)  # tell model to cache kv pairs
         res = []
 
@@ -112,10 +87,8 @@ class EvalHarnessAdapter(GPT2LM):
                 stop_tokens=stop_tokens,
                 recompute=self.neox_args.recompute,
             )
-            if cont:
-                s = cont[0]["text"] or ""
-            else:
-                s = ""
+
+            s = cont[0]["text"] or ""
 
             for term in until:
                 s = s.split(term)[0]
@@ -129,16 +102,9 @@ class EvalHarnessAdapter(GPT2LM):
         return reord.get_original(res)
 
     def _loglikelihood_tokens(self, requests, disable_tqdm=False):
-        """
-        In this method, the model doesn't do any generation, but just returns log likelihoods
-        for the next token, which eval harness uses to evaluate.
-
-        :param requests: Dictionary of requests containing the context and the expected continuation.
-        :param disable_tqdm: If True, disable tqdm progress bar.
-        """
         self.model.module.inference_mode(
             cache=False
-        )  # tell model to gather parallel outputs, but not cache key-value pairs
+        )  # tell model to gather parallel outputs, but not cache
 
         disable_tqdm = disable_tqdm if self.is_main else True
         res = []
@@ -219,21 +185,21 @@ class EvalHarnessAdapter(GPT2LM):
 
                         res.append(answer)
 
-            # broadcast results to all ranks
-            if self.is_pipe_parallel:
-                src_rank = self.model.grid.stage_to_global(self.model.num_stages - 1)
-                if res:
-                    logits_sums, max_equals = list(zip(*res))
-                    logits_sums = torch.FloatTensor(logits_sums).cuda()
-                    max_equals = torch.LongTensor(max_equals).cuda()
-                else:
-                    logits_sums = torch.zeros(res_len, dtype=torch.float32).cuda()
-                    max_equals = torch.zeros(res_len, dtype=torch.int64).cuda()
-                torch.distributed.broadcast(tensor=logits_sums, src=src_rank)
-                torch.distributed.broadcast(tensor=max_equals, src=src_rank)
-                max_equals = [bool(i) for i in max_equals.tolist()]
-                logits_sums = logits_sums.tolist()
-                res = list(zip(logits_sums, max_equals))
+        # broadcast results to all ranks
+        if self.is_pipe_parallel:
+            src_rank = self.model.grid.stage_to_global(self.model.num_stages - 1)
+            if res:
+                logits_sums, max_equals = list(zip(*res))
+                logits_sums = torch.FloatTensor(logits_sums).cuda()
+                max_equals = torch.LongTensor(max_equals).cuda()
+            else:
+                logits_sums = torch.zeros(res_len, dtype=torch.float32).cuda()
+                max_equals = torch.zeros(res_len, dtype=torch.int64).cuda()
+            torch.distributed.broadcast(tensor=logits_sums, src=src_rank)
+            torch.distributed.broadcast(tensor=max_equals, src=src_rank)
+            max_equals = [bool(i) for i in max_equals.tolist()]
+            logits_sums = logits_sums.tolist()
+            res = list(zip(logits_sums, max_equals))
 
         self.model.module.train_mode()  # set back to train mode
         return reord.get_original(res)
@@ -280,11 +246,9 @@ class EvalHarnessAdapter(GPT2LM):
             return logits 
 
     def _model_call(self, inps):
-        batch_size = inps.shape[0]
-
-        # scatter inputs to all dp ranks:
-        inps, padded = self._dp_scatter(inps)
-
+        data_wrapped = iter(
+            [{"text": F.pad(inps, pad=(0, 1))}]
+        )  # make a dummy dataloader / iterator to pass to model
         if self.neox_args.is_pipe_parallel:
             # need these flags to stop deepspeed pipe parallel from hanging
             self.model.first_output_send = True
@@ -307,7 +271,7 @@ class EvalHarnessAdapter(GPT2LM):
         self.model.eval()
         in_micro_batches = (
             self.model.micro_batches
-        )  # store input microbatches - we need to set to 1 during eval, but want to return to its original value after
+        )  # store input microbatches - we need to set to 1 during eval
         self.model.micro_batches = 1
         if eval_tasks is None:
             eval_tasks = [
@@ -319,7 +283,6 @@ class EvalHarnessAdapter(GPT2LM):
                 "pubmedqa",
             ]
 
-        # **HACK INCOMING**:
         # first get task dict on local main rank
         # the tasks are downloaded *as they are initialized*, and the downloads don't like multithreading.
         # so we download them once on the local main rank, wait, and then initialize them on all other ranks, which *should* load from the cache.
@@ -328,17 +291,15 @@ class EvalHarnessAdapter(GPT2LM):
         # torch barrier
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
-        task_dict = tasks.get_task_dict(eval_tasks)
 
         results = evaluator.evaluate(
             lm=self,
             task_dict=tasks.get_task_dict(eval_tasks),
             provide_description=False,
-            num_fewshot=num_fewshot,
+            num_fewshot=0,
             limit=None,
             bootstrap_iters=2,
         ).get("results")
-
         if was_training:
             self.model.train()
         self.model.micro_batches = in_micro_batches
@@ -346,7 +307,7 @@ class EvalHarnessAdapter(GPT2LM):
 
 
 def run_eval_harness(
-    model, forward_step_fn, neox_args, batch_size=None, eval_tasks=None, num_fewshot=0,
+    model, forward_step_fn, neox_args, batch_size=None, eval_tasks=None
 ):
     print_rank_0("Running evaluation harness...")
     adapter = EvalHarnessAdapter(model, forward_step_fn, neox_args, batch_size)

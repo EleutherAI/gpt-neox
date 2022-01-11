@@ -19,7 +19,7 @@ except ImportError:
 from deepspeed.launcher.runner import DLTS_HOSTFILE
 from megatron.logging import Tee
 from megatron.tokenizer import build_tokenizer
-from megatron.utils import obtain_resource_pool, expand_attention_types
+from megatron.utils import obtain_resource_pool, expand_attention_types, Timers
 from .deepspeed_args import NeoXArgsDeepspeedConfig, NeoXArgsDeepspeedRunner
 from .neox_args import (
     NeoXArgsModel,
@@ -117,8 +117,17 @@ class NeoXArgs(*BASE_CLASSES):
                 + ".__post_init__() NeoXArgs values cannot be validated"
             )
 
+        # initialize non-configurable values
+        self.timers = None
+
     def build_tokenizer(self):
         self.tokenizer = build_tokenizer(self)
+
+    def initialize_timers(self):
+        self.timers = Timers(
+            use_wandb=self.use_wandb,
+            tensorboard_writer=self.tensorboard_writer,
+        )
 
     def initialize_tensorboard_writer(self):
         if self.tensorboard_dir and self.rank == 0:
@@ -132,6 +141,49 @@ class NeoXArgs(*BASE_CLASSES):
                     "WARNING: TensorBoard writing requested but is not "
                     "available (are you using PyTorch 1.1.0 or later and do you have tensorboard installed?), "
                     "no TensorBoard logs will be written.",
+                    flush=True,
+                )
+
+    def initialize_wandb(self):
+        """
+        Initialize wandb if configured.
+        """
+        # Wandb. (one worker per machine)
+        if self.use_wandb == False:
+            return
+
+        import wandb
+        import socket
+        from ..utils import is_local_main, get_wandb_api_key
+
+        # only initialize wandb if we are the main process for the local rank and a valid api key is provided
+        use_wandb = is_local_main() and (get_wandb_api_key(neox_args=self) is not None)
+        self.update_value("use_wandb", use_wandb)
+        if self.use_wandb:
+            group_name = self.wandb_group
+            # get a unique name for each rank
+            name = f"{socket.gethostname()}-{self.local_rank}" if group_name else None
+
+            # initialize wandb
+            try:
+                config = self.all_config
+                config["num_params"] = getattr(
+                    self, "total_params", None
+                )  # get number of parameters in the model, if it's been calculated
+                wandb.init(
+                    project=self.wandb_project,
+                    group=group_name,
+                    name=name,
+                    save_code=False,
+                    force=False,
+                    entity=self.wandb_team,
+                    config=config,
+                )
+            except wandb.UsageError as e:
+                self.update_value("use_wandb", False)
+                print(e)
+                print(
+                    "Skipping wandb. Execute `wandb login` on local or main node machine to enable.",
                     flush=True,
                 )
 
@@ -209,11 +261,28 @@ class NeoXArgs(*BASE_CLASSES):
     # start of command line args interface
 
     @classmethod
-    def consume_deepy_args(cls):
+    def parse_args(cls):
         """
-        entry point for deepy.py configuring and consuming command line arguments.
+        Parses command line arguments from ./deepy.py or the deepspeed launcher (user script, configs, etc.) and returns a NeoXArgs object.
 
-        We can use `--wandb_group` / `--wandb_team` to overwrite those args from the command line, otherwise the value from the config is taken.
+        GPT-NeoX Configuration
+
+        optional arguments:
+          -h, --help            show this help message and exit
+
+        Training Configuration:
+          user_script           User script to launch, followed by any required arguments.
+          --conf_dir CONF_DIR, -d CONF_DIR
+                                Directory to prefix to all configuration file paths
+          conf_file             Configuration file path. Multiple files can be provided and will be merged.
+
+        Weights and Biases monitoring args:
+          --wandb_group WANDB_GROUP
+                                Weights and Biases group name - used to group together runs.
+          --wandb_team WANDB_TEAM
+                                Team name for Weights and Biases.
+          --eval_tasks EVAL_TASKS [EVAL_TASKS ...]
+                                Optionally overwrite eval tasks to run for evaluate.py
         """
 
         parser = argparse.ArgumentParser(
@@ -249,7 +318,7 @@ class NeoXArgs(*BASE_CLASSES):
             "--wandb_group",
             type=str,
             default=None,
-            help='Weights and Biases group name - used to group together "runs".',
+            help="Weights and Biases group name - used to group together runs.",
         )
         group.add_argument(
             "--wandb_team",
@@ -257,8 +326,13 @@ class NeoXArgs(*BASE_CLASSES):
             default=None,
             help="Team name for Weights and Biases.",
         )
-
-        group = parser.add_argument_group(title="Eval args")
+        group.add_argument(
+            "--eval_tasks",
+            type=str,
+            nargs="+",
+            default=None,
+            help="Optionally overwrite eval tasks to run for evaluate.py",
+        )
 
         group.add_argument(
             "--eval_tasks",
@@ -301,8 +375,39 @@ class NeoXArgs(*BASE_CLASSES):
                 overwrite_values[k] = v
 
         # load args
-        neox_args = cls.from_ymls(paths_to_yml_files=conf_files, overwrite_values=overwrite_values)
-        
+        neox_args = cls.from_ymls(
+            paths_to_yml_files=conf_files, overwrite_values=overwrite_values
+        )
+
+        # save a copy of yaml configs to the save directory
+        if neox_args.save is not None:
+            configs_directory = os.path.join(neox_args.save, "configs")
+
+            # If loading the conf files from the save directory
+            # deleting the conf files in the following step would
+            # naturally prevent the later copy. Therefore we are first
+            # loading the files into memory.
+            conf_files_memory = dict()
+            for conf_file in conf_files:
+                conf_files_memory[os.path.basename(conf_file)] = open(
+                    conf_file, "r"
+                ).read()
+
+            # Delete the configs subdirectory in save if it already exists.
+            # Reason: only the latest version of the configs are stored
+            # All files are deleted because selecting a subset of configs
+            # is a valid option. We would like to prevent keeping files
+            # which are not part of the latest config. If data is saved to
+            # a previously non-empty save directory.
+            if os.path.isdir(configs_directory):
+                shutil.rmtree(configs_directory)
+
+            # create configs directory and save config files
+            os.makedirs(configs_directory)
+            for conf_file_name, conf_data in conf_files_memory.items():
+                with open(os.path.join(configs_directory, conf_file_name), "w") as f:
+                    f.write(conf_data)
+
         if neox_args.wandb_group is not None:
             # concat the wandb group name with a uid to make sure it's unique
             import wandb
@@ -313,14 +418,34 @@ class NeoXArgs(*BASE_CLASSES):
         return neox_args
 
     @classmethod
-    def consume_neox_args(cls, overwrite_values=None):
+    def from_launcher_args(
+        cls,
+        overwrite_values: dict = None,
+        configure_distributed_args: bool = True,
+        build_tokenizer: bool = True,
+        initialize_tensorboard_writer: bool = False,
+        initialize_wandb: bool = False,
+        initialize_timers: bool = False,
+    ):
         """
-        Deepspeed launcher needs to pass the arguments for `pretrain_gpt2.py` across to all machines.
+        Parses the .json megatron config sent by the deepspeed launcher to all workers and returns a NeoXArgs object.
 
-        In order not to have any problems with different configs being mismatched across machines, we instead read the .yaml configuration file from the main rank,
-        then serialize the arguments to a dictionary, which the deepspeed launcher broadcasts to all machines (`--megatron_config`).
+        The .yaml configuration is first read from the main rank, then serialized into a dictionary, which the deepspeed launcher then broadcasts
+        to all machines (`--megatron_config`).
 
-        We then instantiate a new NeoXArgs from the dictionary (`.from_dict`). This should ensure args are never inconsistent across machines.
+        We then instantiate a new NeoXArgs from the dictionary (`.from_dict`). This should ensure args are never inconsistent across machines,
+        as they may be if a config file was loaded from the disks of each worker.
+
+        Args:
+            cls: self
+            overwrite_values: dict of values to overwrite in the config.
+            configure_distributed_args: whether to parse distributed args from environment variables (e.g. `world_size` and `rank`).
+            build_tokenizer: whether to build the tokenizer specified in the config.
+            initialize_tensorboard_writer: whether to initialize a tensorboard writer (if specified in the config).
+            initialize_wandb: whether to initialize wandb (if specified in the config).
+
+        Returns:
+            neox_args: a new NeoXArgs instance
         """
 
         parser = argparse.ArgumentParser(
@@ -337,7 +462,18 @@ class NeoXArgs(*BASE_CLASSES):
         megatron_config = json.loads(args_parsed.megatron_config)
         if overwrite_values is not None:
             megatron_config.update(overwrite_values)
-        return cls.from_dict(args_dict=megatron_config)
+        neox_args = cls.from_dict(args_dict=megatron_config)
+        if configure_distributed_args:
+            neox_args.configure_distributed_args()
+        if build_tokenizer:
+            neox_args.build_tokenizer()
+        if initialize_tensorboard_writer:
+            neox_args.initialize_tensorboard_writer()
+        if initialize_wandb:
+            neox_args.initialize_wandb()
+        if initialize_timers:
+            neox_args.initialize_timers()
+        return neox_args
 
     @staticmethod
     def convert_key_value_to_command_line_arg(k, v):
@@ -504,7 +640,7 @@ class NeoXArgs(*BASE_CLASSES):
 
     def configure_distributed_args(self):
         """
-        Configures distributed training arguments from local variables set by deepspeed launcher.
+        Parses the distributed training arguments (local rank, rank, world size, etc.) set as environment variables by the deepspeed launcher.
         """
         if self.deepspeed_mpi:
             from deepspeed.utils.distributed import mpi_discovery

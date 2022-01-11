@@ -22,12 +22,10 @@ import os
 import sys
 import re
 import time
-import socket
 from typing import Dict, List
 
 import requests
 import wandb
-from wandb import UsageError
 
 import torch
 
@@ -97,7 +95,7 @@ def get_ltor_masks_and_position_ids(data, eod_token, eod_mask_loss=False):
 
 
 def local_rank():
-    """ Local rank of process """
+    """Local rank of process"""
     local_rank = os.environ.get("LOCAL_RANK")
     if local_rank is None:
         print(
@@ -109,12 +107,12 @@ def local_rank():
 
 
 def is_bnb_available():
-    """ True if bitsandbytes optimizers are available """
+    """True if bitsandbytes optimizers are available"""
     return importlib.util.find_spec("bitsandbytes") is not None
 
 
 def is_local_main():
-    """ True if is the local main process """
+    """True if is the local main process"""
     return local_rank() == 0
 
 
@@ -124,7 +122,7 @@ def is_mp_rank_0():
 
 
 def get_wandb_api_key(neox_args):
-    """ Get Weights and Biases API key from ENV or .netrc file. Otherwise return None """
+    """Get Weights and Biases API key from ENV or .netrc file. Otherwise return None"""
     if "WANDB_LOCAL" in os.environ:
         return "LOCAL"
     if "WANDB_API_KEY" in os.environ:
@@ -134,35 +132,6 @@ def get_wandb_api_key(neox_args):
 
     if wandb_token is not None:
         return wandb_token[1]
-
-
-def init_wandb(neox_args):
-    # Wandb. (one worker per machine)
-    if neox_args.use_wandb == False:
-        return
-
-    use_wandb = is_local_main() and (get_wandb_api_key(neox_args=neox_args) is not None)
-    neox_args.update_value("use_wandb", use_wandb)
-    if neox_args.use_wandb:
-        group_name = neox_args.wandb_group
-        name = f"{socket.gethostname()}-{local_rank()}" if group_name else None
-        try:
-            wandb.init(
-                project=neox_args.wandb_project,
-                group=group_name,
-                name=name,
-                save_code=False,
-                force=False,
-                entity=neox_args.wandb_team,
-            )
-        except UsageError as e:
-            neox_args.update_value("use_wandb", False)
-            print(e)
-            print(
-                "Skipping wandb. Execute `wandb login` on local or main node machine to enable.",
-                flush=True,
-            )
-        wandb.config.update(neox_args.all_config)
 
 
 def obtain_resource_pool(
@@ -367,23 +336,55 @@ def get_noise_scale_logger(neox_args):
     return noise_scale_logger
 
 
-def get_total_params(model):
-    # Print number of parameters.
-    if mpu.get_data_parallel_rank() == 0:
-        params = sum([p.nelement() for p in model.parameters()])
-        print(
-            " > number of parameters on model parallel rank {}: {}".format(
-                mpu.get_model_parallel_rank(), params
-            ),
-            flush=True,
-        )
-    else:
-        params = 0
+def count_params(model: torch.nn.Module) -> int:
+    """
+    Returns the number of parameters in the model.
 
-    total_n_parameters = torch.tensor([params]).cuda(torch.cuda.current_device())
-    torch.distributed.all_reduce(total_n_parameters)
-    total_n_parameters = total_n_parameters.item()
-    return total_n_parameters
+    Arguments:
+        model (torch.nn.Module): The model to count the parameters of.
+
+    Returns:
+        int: The number of parameters in the model.
+    """
+    if torch.distributed.is_initialized():
+        # if our model parameters are distributed, we need to sum the parameters across all ranks
+        # on the plus side, this is also more efficient :)
+        if mpu.get_data_parallel_rank() == 0:
+            n_params = sum([p.nelement() for p in model.parameters()])
+            print(
+                " > number of parameters on model parallel rank {}: {}".format(
+                    mpu.get_model_parallel_rank(), n_params
+                ),
+                flush=True,
+            )
+        else:
+            n_params = 0
+
+        n_params = torch.tensor([n_params]).cuda(torch.cuda.current_device())
+        torch.distributed.all_reduce(n_params)
+        n_params = n_params.item()
+    else:
+        n_params = sum(p.numel() for p in model.parameters())
+
+    return n_params
+
+
+def filter_trainable_params(param_groups: List[Dict]) -> List[Dict]:
+    """
+    Filter out the non-trainable parameters from the list of parameter groups.
+
+    Arguments:
+        param_groups: List of parameter groups.
+
+    Returns:
+        List of trainable parameter groups.
+    """
+    output_param_groups = []
+    for param_group in param_groups:
+        trainable_params = [p for p in param_group["params"] if p.requires_grad]
+        param_group["params"] = trainable_params
+        output_param_groups.append(param_group)
+    return output_param_groups
 
 
 def setup_for_inference_or_eval(
@@ -412,10 +413,7 @@ def setup_for_inference_or_eval(
     }
     if overwrite_values:
         _overwrite_values.update(overwrite_values)
-    neox_args = NeoXArgs.consume_neox_args(overwrite_values=_overwrite_values)
-    neox_args.configure_distributed_args()
-    neox_args.build_tokenizer()
-
+    neox_args = NeoXArgs.from_launcher_args(overwrite_values=_overwrite_values)
     if neox_args.load is None:
         raise ValueError("`load` parameter must be supplied to load a model`")
 
