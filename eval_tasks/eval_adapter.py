@@ -1,7 +1,7 @@
 from megatron.utils import is_local_main, print_rank_0
 import best_download
 
-# patch best_download (eval harness downloader) to only happen on the first rank
+# patch best_download (eval harness downloader) to only happen on the first local rank
 fn = best_download.download_file
 
 
@@ -27,9 +27,8 @@ from lm_eval.base import CacheHook
 from lm_eval.models.gpt2 import GPT2LM
 from lm_eval import tasks, evaluator, utils
 from megatron.text_generation_utils import generate_samples_from_prompt
-from megatron.mpu.mappings import gather_from_model_parallel_region
+from megatron import mpu
 
-# TODO: add data parallel
 
 
 class EvalHarnessAdapter(GPT2LM):
@@ -51,6 +50,10 @@ class EvalHarnessAdapter(GPT2LM):
         self.batch_size = batch_size or neox_args.batch_size
         self.neox_args = neox_args
         self.cache_hook = CacheHook(None)
+        self.max_length = neox_args.max_position_embeddings // 2
+        self.max_gen_toks = 128
+
+        # parallelism args:
         self.is_main = neox_args.rank == 0
         self.is_local_main = neox_args.local_rank == 0
         self.is_model_parallel = neox_args.model_parallel_size > 1
@@ -75,7 +78,7 @@ class EvalHarnessAdapter(GPT2LM):
             return (len(toks), x[0])
 
         reord = utils.Reorderer(requests, _collate)
-        for context, until in tqdm(reord.get_reordered()):
+        for context, until in tqdm(reord.get_reordered(), "Running greedy generation"):
             if isinstance(until, str):
                 until = [until]
             stop_tokens = [self.tokenizer.encode(i) for i in until]
@@ -201,18 +204,69 @@ class EvalHarnessAdapter(GPT2LM):
         self.model.module.train_mode()  # set back to train mode
         return reord.get_original(res)
 
+    def _dp_scatter(self, inps):
+        """
+        Scatters the inputs to all data parallel ranks.
+        """
+
+        batch_size = inps.shape[0]
+        padded = False
+        if batch_size % self.dp_world_size != 0:
+            # The last batch could potentially not fill the full batch size (if the dataset size is not divisible by batch size)
+            # In this case we pad the batch
+            padded_size = self.dp_world_size - (batch_size % self.dp_world_size)
+
+            print_rank_0(f'WARNING: Batch size ({batch_size}) must be divisible by dp world size ({self.dp_world_size}). Padding inputs to {padded_size}.')
+            
+            inps = torch.cat([inps] + [ inps[0:1, ...] for _ in range(padded_size) ], dim=0) # pad with first inp item
+            padded = True
+
+        assert (
+            inps.shape[0] % self.dp_world_size == 0
+        ), f"batch size ({inps.shape[0]}) must be divisible by dp world size ({self.dp_world_size})"
+
+        # get a chunk for each data parallel rank
+        chunk_size = inps.shape[0] // self.dp_world_size
+        inps = inps[self.dp_rank * chunk_size : (self.dp_rank + 1) * chunk_size]
+        # make a dummy dataloader / iterator to pass to model
+        # we need to do this because deepspeed pipe parallel only takes an iterator
+        # in this format
+        return iter([{"text": F.pad(inps, pad=(0, 1))}]), padded
+
+    def _dp_gather(self, logits):
+        """
+        Gather logits from all data parallel ranks
+        """
+        if logits is not None:
+            tensor_list = [torch.zeros_like(logits) for _ in range(self.dp_world_size)]
+            torch.distributed.all_gather(
+                tensor_list, logits, group=mpu.get_data_parallel_group()
+            )
+            logits = torch.cat(tensor_list, dim=0)
+            return logits 
+
     def _model_call(self, inps):
         data_wrapped = iter(
             [{"text": F.pad(inps, pad=(0, 1))}]
         )  # make a dummy dataloader / iterator to pass to model
         if self.neox_args.is_pipe_parallel:
-            # need these flags to stop deepspeed from hanging
+            # need these flags to stop deepspeed pipe parallel from hanging
             self.model.first_output_send = True
             self.model.pipe_recv_buf = None
-        _, logits = self._forward_step_fn(model=self.model, data_iterator=data_wrapped)
+
+        _, logits = self._forward_step_fn(model=self.model, data_iterator=inps)
+
+        # gather outputs from all dp ranks:
+        logits = self._dp_gather(logits)
+
+        # if logits have been padded (normally just last item where batch size is unequal)
+        # restore to original shape
+        if padded and logits is not None:
+            logits = logits[:batch_size, ...]
         return logits
 
-    def run_eval(self, eval_tasks=None):
+    @torch.no_grad()
+    def run_eval(self, eval_tasks=None, num_fewshot=0):
         was_training = self.model.training
         self.model.eval()
         in_micro_batches = (
@@ -257,4 +311,4 @@ def run_eval_harness(
 ):
     print_rank_0("Running evaluation harness...")
     adapter = EvalHarnessAdapter(model, forward_step_fn, neox_args, batch_size)
-    return adapter.run_eval(eval_tasks=eval_tasks)
+    return adapter.run_eval(eval_tasks=eval_tasks, num_fewshot=num_fewshot)

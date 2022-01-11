@@ -453,6 +453,7 @@ def setup_model_and_optimizer(neox_args, inference=False, get_key_value=True):
             optimizer=optimizer,
             lr_scheduler=lr_scheduler,
             inference=inference,
+            iteration=iteration,
         )
         print_rank_0(
             f"Loading checkpoint and starting from iteration {neox_args.iteration}"

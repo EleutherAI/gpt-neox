@@ -201,7 +201,7 @@ class NeoXArgs(*BASE_CLASSES):
 
         # initialize an empty config dictionary to be filled by yamls
         config = dict()
-
+        config_files = dict()
         # iterate of all to be loaded yaml files
         for conf_file_name in paths_to_yml_files:
 
@@ -221,6 +221,16 @@ class NeoXArgs(*BASE_CLASSES):
                 )  # TODO remove replace and update configuration files?
                 config[conf_key_converted] = conf_value
 
+            # load original config files to save unchanged with checkpoint
+            # saving the original config retains comments
+            filename = os.path.basename(conf_file_name)
+            assert filename not in config_files, "At least two config files have the same filename. This will result in conflicts when saving out configs with the checkpoint in one single directory. Please use unique names for configs."
+            config_files[filename] = open(conf_file_name).read()
+
+        # add config file content to neox args to make them accessible in code
+        # this is used when saving checkpoints
+        config["config_files"] = config_files
+        
         # Configuration parameters not specified
         params_not_in_config = sorted(
             list(set(cls.__dataclass_fields__.keys()) - set(config.keys()))
@@ -324,6 +334,25 @@ class NeoXArgs(*BASE_CLASSES):
             help="Optionally overwrite eval tasks to run for evaluate.py",
         )
 
+        group.add_argument(
+            "--eval_tasks",
+            type=str,
+            nargs="+",
+            default=None,
+            help="Optionally overwrite eval tasks to run for evaluate.py",
+        )
+        group.add_argument(
+            "--iteration",
+            type=int,
+            default=None,
+            help="Iteration to load checkpoint from in evaluate.py / generate.py. If None is provided, uses the latest iteration.",
+        )
+        group.add_argument(
+            "--eval_results_prefix",
+            type=str,
+            default=None,
+            help="prefix to append to eval results file",
+        )
         args_parsed = parser.parse_args()
 
         # Validate user_script exists
@@ -341,14 +370,9 @@ class NeoXArgs(*BASE_CLASSES):
 
         # determine overwrite values
         overwrite_values = dict()
-        if args_parsed.wandb_group is not None:
-            overwrite_values["wandb_group"] = args_parsed.wandb_group
-        if args_parsed.wandb_team is not None:
-            overwrite_values["wandb_team"] = args_parsed.wandb_team
-        if args_parsed.user_script is not None:
-            overwrite_values["user_script"] = args_parsed.user_script
-        if args_parsed.eval_tasks is not None:
-            overwrite_values["eval_tasks"] = args_parsed.eval_tasks
+        for k, v in vars(args_parsed).items():
+            if k not in ["conf_dir", "conf_file"] and v is not None:
+                overwrite_values[k] = v
 
         # load args
         neox_args = cls.from_ymls(

@@ -422,7 +422,10 @@ def setup_for_inference_or_eval(
 
     # set up model and load checkpoint.
     model, _, _ = setup_model_and_optimizer(
-        neox_args=neox_args, inference=inference, get_key_value=get_key_value
+        neox_args=neox_args,
+        inference=inference,
+        get_key_value=get_key_value,
+        iteration=neox_args.iteration,
     )  # we use setup_model_and_optimizer instead of get_model in order to initialize deepspeed
     print_rank_0("Finished loading model")
     return model, neox_args
