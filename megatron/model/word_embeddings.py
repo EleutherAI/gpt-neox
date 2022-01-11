@@ -28,7 +28,7 @@ class Embedding(torch.nn.Module):
         self.hidden_size = neox_args.hidden_size
         self.init_method, _ = get_init_methods(neox_args)
         self.num_tokentypes = num_tokentypes
-        self.vocab_size = neox_args.vocab_size
+        self.vocab_size = neox_args.padded_vocab_size
 
         # Word embeddings (parallel).
         self.word_embeddings = mpu.VocabParallelEmbedding(

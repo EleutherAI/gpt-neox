@@ -725,7 +725,7 @@ class NormPipe(nn.Module):
 
     def __init__(self, neox_args):
         super().__init__()
-        norm, eps = get_norm(self.neox_args)
+        norm, eps = get_norm(neox_args)
         self.norm = norm(neox_args.hidden_size, eps=eps)
 
     def forward(self, args):
