@@ -22,12 +22,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__),
 
 import torch
 
-from megatron import mpu
-from megatron.checkpointing import ensure_directory_exists
-from megatron.checkpointing import get_checkpoint_name
-from megatron.checkpointing import get_checkpoint_tracker_filename
-from megatron.global_vars import rebuild_tokenizer
-from megatron.global_vars import _parse_args
+from neox import mpu
+from neox.checkpointing import ensure_directory_exists
+from neox.checkpointing import get_checkpoint_name
+from neox.checkpointing import get_checkpoint_tracker_filename
+from neox.global_vars import rebuild_tokenizer
+from neox.global_vars import _parse_args
 
 
 def split_into_partitions(tensor, num_partitions, partition_dim, stride):

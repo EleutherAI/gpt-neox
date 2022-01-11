@@ -16,9 +16,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from megatron.utils import print_rank_0, setup_for_inference_or_eval
+from neox.utils import print_rank_0, setup_for_inference_or_eval
 
-from megatron.text_generation_utils import generate_samples_input_from_file, generate_samples_from_prompt, generate_samples_unconditional, generate_samples_interactive
+from neox.text_generation_utils import generate_samples_input_from_file, generate_samples_from_prompt, generate_samples_unconditional, generate_samples_interactive
 
 def main():
     """

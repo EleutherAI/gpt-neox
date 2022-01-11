@@ -1,2 +1,2 @@
-include megatron/data/Makefile
-include megatron/data/helpers.cpp
+include neox/data/Makefile
+include neox/data/helpers.cpp

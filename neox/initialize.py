@@ -24,9 +24,9 @@ import os
 import numpy as np
 import torch
 
-from megatron import fused_kernels
-from megatron import mpu
-from megatron.mpu import set_model_parallel_rank, set_model_parallel_world_size
+from neox import fused_kernels
+from neox import mpu
+from neox.mpu import set_model_parallel_rank, set_model_parallel_world_size
 
 import deepspeed
 import inspect
@@ -84,7 +84,7 @@ def initialize_megatron(neox_args, allow_no_cuda=False):
 
         # Compile dataset C++ code.
         if neox_args.local_rank == 0:
-            from megatron.data.data_utils import compile_helper
+            from neox.data.data_utils import compile_helper
 
             compile_helper()
 

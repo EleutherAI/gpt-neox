@@ -5,11 +5,11 @@ from typing import List, Tuple
 from itertools import zip_longest 
 from functools import partial 
 
-from megatron import mpu, print_rank_0
-from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
-from megatron.data.blendable_dataset import BlendableDataset
-from megatron.data.gpt2_dataset import GPT2Dataset
-from megatron.data.samplers import DistributedBatchSampler
+from neox import mpu, print_rank_0
+from neox.data.indexed_dataset import make_dataset as make_indexed_dataset
+from neox.data.blendable_dataset import BlendableDataset
+from neox.data.gpt2_dataset import GPT2Dataset
+from neox.data.samplers import DistributedBatchSampler
 
 
 def make_data_loader(dataset, neox_args):

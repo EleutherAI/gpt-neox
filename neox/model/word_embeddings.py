@@ -2,9 +2,9 @@ import torch
 import math
 from torch.nn.parameter import Parameter
 
-from megatron import mpu
-from megatron.model.positional_embeddings import SinusoidalPositionalEmbedding
-from megatron.model.init_functions import get_init_methods
+from neox import mpu
+from neox.model.positional_embeddings import SinusoidalPositionalEmbedding
+from neox.model.init_functions import get_init_methods
 
 
 class Embedding(torch.nn.Module):

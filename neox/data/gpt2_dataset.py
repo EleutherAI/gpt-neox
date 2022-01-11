@@ -24,7 +24,7 @@ import time
 import numpy as np
 import torch
 
-from megatron import mpu, print_rank_0
+from neox import mpu, print_rank_0
 
 class GPT2Dataset(torch.utils.data.Dataset):
 
@@ -126,7 +126,7 @@ def _build_index_mappings(name, data_prefix, documents, sizes,
             # sample-idx.
             start_time = time.time()
             # Use C++ implementation for speed.
-            from megatron.data import helpers
+            from neox.data import helpers
             assert doc_idx.dtype == np.int32
             assert sizes.dtype == np.int32
             sample_idx = helpers.build_sample_idx(sizes, doc_idx, seq_length,

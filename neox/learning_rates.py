@@ -17,7 +17,7 @@
 
 import math
 
-from megatron import print_rank_0
+from neox import print_rank_0
 
 
 class AnnealingLR(object):

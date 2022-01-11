@@ -31,8 +31,8 @@ import torch
 
 from deepspeed.launcher.runner import fetch_hostfile, parse_inclusion_exclusion
 
-from megatron import print_rank_0
-from megatron import mpu
+from neox import print_rank_0
+from neox import mpu
 from deepspeed import PipelineEngine, DeepSpeedEngine
 from collections import deque
 
@@ -401,9 +401,9 @@ def setup_for_inference_or_eval(
         Optional Values to overwrite in the model config.
     """
 
-    from megatron.neox_arguments import NeoXArgs
-    from megatron.initialize import initialize_megatron
-    from megatron.training import setup_model_and_optimizer
+    from neox.neox_arguments import NeoXArgs
+    from neox.initialize import initialize_megatron
+    from neox.training import setup_model_and_optimizer
 
     _overwrite_values = {
         "checkpoint_activations": False,

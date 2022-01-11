@@ -16,11 +16,11 @@
 # limitations under the License.
 
 """Pretrain"""
-from megatron.neox_arguments import NeoXArgs
-from megatron.training import pretrain
+from neox.neox_arguments import NeoXArgs
+from neox.training import pretrain
 
 if __name__ == "__main__":
-    # Parses the .json megatron config sent by the deepspeed launcher to all workers, parses distributed arguments (local_rank, etc),
+    # Parses the .json neox config sent by the deepspeed launcher to all workers, parses distributed arguments (local_rank, etc),
     # initializes the tokenizer, and returns a NeoXArgs object used to access the arguments during training.
     neox_args = NeoXArgs.from_launcher_args(
         initialize_tensorboard_writer=True,

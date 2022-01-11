@@ -21,8 +21,8 @@ from deepspeed.launcher.runner import main
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 
-from megatron.neox_arguments import NeoXArgs
-from megatron.utils import get_wandb_api_key
+from neox.neox_arguments import NeoXArgs
+from neox.utils import get_wandb_api_key
 
 
 

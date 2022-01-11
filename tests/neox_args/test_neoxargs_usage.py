@@ -10,7 +10,7 @@ def test_neoxargs_usage():
     """"
     checks for code pieces of the pattern "args.*" and verifies that such used arg is defined in NeoXArgs
     """
-    from megatron.neox_arguments import NeoXArgs
+    from neox.neox_arguments import NeoXArgs
     
     declared_all = True
     neox_args_attributes = set(NeoXArgs.__dataclass_fields__.keys())
@@ -19,7 +19,7 @@ def test_neoxargs_usage():
     exclude = set(['params_dtype', 'deepspeed_config', 'get', 'pop', 'get_deepspeed_main_args', 'optimizer["params"]', 'attention_config[layer_number]', 'adlr_autoresume_object', 'update_value', 'all_config', 'tensorboard_writer', 'tokenizer', 'train_batch_size]'])
 
     # test file by file
-    for filename in (get_root_directory() / "megatron").glob('**/*.py'):
+    for filename in (get_root_directory() / "neox").glob('**/*.py'):
         if filename.name in ["text_generation_utils.py", "train_tokenizer.py"]: continue
 
         # load file

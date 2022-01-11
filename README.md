@@ -56,7 +56,7 @@ If you're looking for our TPU codebase, see [GPT-Neo](https://github.com/Eleuthe
 
 First make sure you are in an environment with Python 3.8 or later with an appropriate version of PyTorch 1.8 or later installed.
 
-To install the remaining basic dependencies, run `pip install -r requirements/requirements.txt`. Afterwards, run `python ./megatron/fused_kernels/setup.py install` from the repository root to install fused kernels.
+To install the remaining basic dependencies, run `pip install -r requirements/requirements.txt`. Afterwards, run `python ./neox/fused_kernels/setup.py install` from the repository root to install fused kernels.
 
 There are other optional features we support when the required packages are installed. [Fused optimizers](https://nvidia.github.io/apex/optimizers.html) are available if [Apex](https://github.com/NVIDIA/apex) is installed. Features enabled by DeepSpeed/DeeperSpeed can be installed by installing DeepSpeed/DeeperSpeed with those features, or alternatively installing the corresponding requirements file found in `./requirements`. You may need to use the appropriate version of `cupy` to match the local CUDA version when installing the requirements for 1-bit Adam.
 

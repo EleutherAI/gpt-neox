@@ -22,18 +22,18 @@ import torch
 import torch.nn as nn
 from collections import defaultdict
 from functools import partial
-from megatron.model.utils import Lambda, SequentialWrapper, recursive_setattr
-from megatron.model.norms import get_norm
-from megatron import mpu
-from megatron.model.transformer import (
+from neox.model.utils import Lambda, SequentialWrapper, recursive_setattr
+from neox.model.norms import get_norm
+from neox import mpu
+from neox.model.transformer import (
     ParallelTransformerLayerPipe,
     NormPipe,
     ParallelLinearPipe,
     parallel_lm_logits,
     ParallelLinear,
 )
-from megatron.model.gmlp import GMLPBlock
-from megatron.model.word_embeddings import EmbeddingPipe
+from neox.model.gmlp import GMLPBlock
+from neox.model.word_embeddings import EmbeddingPipe
 from deepspeed.pipe import PipelineModule, LayerSpec, TiedLayerSpec
 from typing import Union, List
 

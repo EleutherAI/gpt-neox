@@ -28,10 +28,10 @@ import numpy as np
 import torch
 from glob import glob
 
-from megatron import mpu
-from megatron import print_rank_0
-from megatron.utils import natural_sort
-from megatron.text_generation_utils import get_batch, forward_model
+from neox import mpu
+from neox import print_rank_0
+from neox.utils import natural_sort
+from neox.text_generation_utils import get_batch, forward_model
 from pathlib import Path
 from pprint import pformat
 

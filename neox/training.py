@@ -31,31 +31,31 @@ import torch
 import deepspeed
 import numpy as np
 
-from megatron.utils import (
+from neox.utils import (
     get_ltor_masks_and_position_ids,
     reduce_losses,
     filter_trainable_params,
 )
 
 
-from megatron import print_rank_0, mpu
-from megatron.model import (
+from neox import print_rank_0, mpu
+from neox.model import (
     GPT2ModelPipe,
     SoftEmbedding,
     get_params_for_weight_decay_optimization,
 )
-from megatron.checkpointing import load_checkpoint, save_checkpoint
-from megatron.data.data_utils import build_train_valid_test_data_iterators
-from megatron.initialize import initialize_megatron
-from megatron.learning_rates import AnnealingLR
-from megatron.logging import tb_wandb_log, training_log
-from megatron.utils import (
+from neox.checkpointing import load_checkpoint, save_checkpoint
+from neox.data.data_utils import build_train_valid_test_data_iterators
+from neox.initialize import initialize_megatron
+from neox.learning_rates import AnnealingLR
+from neox.logging import tb_wandb_log, training_log
+from neox.utils import (
     OverflowMonitor,
     get_noise_scale_logger,
     count_params,
     CharCounter,
 )
-from megatron.model.gpt2_model import cross_entropy
+from neox.model.gpt2_model import cross_entropy
 from eval_tasks import run_eval_harness
 
 

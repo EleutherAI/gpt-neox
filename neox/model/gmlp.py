@@ -2,11 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from megatron.model.fused_softmax import FusedScaleMaskSoftmax
-from megatron.model.activations import get_activation
-from megatron.model.norms import get_norm
-from megatron.model.init_functions import get_init_methods
-from megatron import mpu
+from neox.model.fused_softmax import FusedScaleMaskSoftmax
+from neox.model.activations import get_activation
+from neox.model.norms import get_norm
+from neox.model.init_functions import get_init_methods
+from neox import mpu
 
 
 class TinyAttention(nn.Module):

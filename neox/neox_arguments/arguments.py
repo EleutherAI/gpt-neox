@@ -17,9 +17,9 @@ try:
 except ImportError:
     from typing_extensions import Literal
 from deepspeed.launcher.runner import DLTS_HOSTFILE
-from megatron.logging import Tee
-from megatron.tokenizer import build_tokenizer
-from megatron.utils import obtain_resource_pool, expand_attention_types, Timers
+from neox.logging import Tee
+from neox.tokenizer import build_tokenizer
+from neox.utils import obtain_resource_pool, expand_attention_types, Timers
 from .deepspeed_args import NeoXArgsDeepspeedConfig, NeoXArgsDeepspeedRunner
 from .neox_args import (
     NeoXArgsModel,
@@ -421,10 +421,10 @@ class NeoXArgs(*BASE_CLASSES):
         initialize_timers: bool = False,
     ):
         """
-        Parses the .json megatron config sent by the deepspeed launcher to all workers and returns a NeoXArgs object.
+        Parses the .json neox config sent by the deepspeed launcher to all workers and returns a NeoXArgs object.
 
         The .yaml configuration is first read from the main rank, then serialized into a dictionary, which the deepspeed launcher then broadcasts
-        to all machines (`--megatron_config`).
+        to all machines (`--neox_config`).
 
         We then instantiate a new NeoXArgs from the dictionary (`.from_dict`). This should ensure args are never inconsistent across machines,
         as they may be if a config file was loaded from the disks of each worker.
@@ -445,17 +445,17 @@ class NeoXArgs(*BASE_CLASSES):
             description="GPT-NeoX Configuration", allow_abbrev=False
         )
         parser.add_argument(
-            "--megatron_config",
+            "--neox_config",
             type=str,
             default=None,
             help="json dict dumped as string in NeoXArgs.get_deepspeed_main_args()",
         )
 
         args_parsed, _ = parser.parse_known_args()
-        megatron_config = json.loads(args_parsed.megatron_config)
+        neox_config = json.loads(args_parsed.neox_config)
         if overwrite_values is not None:
-            megatron_config.update(overwrite_values)
-        neox_args = cls.from_dict(args_dict=megatron_config)
+            neox_config.update(overwrite_values)
+        neox_args = cls.from_dict(args_dict=neox_config)
         if configure_distributed_args:
             neox_args.configure_distributed_args()
         if build_tokenizer:
@@ -511,7 +511,7 @@ class NeoXArgs(*BASE_CLASSES):
         args_list.append(json.dumps(self.deepspeed_config))
 
         # get all config values
-        args_list.append("--megatron_config")
+        args_list.append("--neox_config")
         neox_args = self.get_parent_class_value_dict(
             *self.__class__.__bases__, only_non_defaults=True
         )
@@ -539,7 +539,7 @@ class NeoXArgs(*BASE_CLASSES):
         return self.get_parent_class_value_dict(NeoXArgsDeepspeedRunner)
 
     @property
-    def megatron_config(self) -> dict:
+    def neox_config(self) -> dict:
         """
         returns variables within megatron args
         """

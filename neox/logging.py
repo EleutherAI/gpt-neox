@@ -17,8 +17,8 @@
 import sys
 import torch
 import wandb
-from megatron import mpu, print_rank_0
-from megatron.utils import report_memory
+from neox import mpu, print_rank_0
+from neox.utils import report_memory
 
 
 class Tee:

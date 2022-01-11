@@ -46,8 +46,8 @@ def test_train(param_dict):
 
 
 def run_generate_test(param_dict, prompt):
-    from megatron.text_generation_utils import generate_samples_from_prompt
-    from megatron.utils import is_mp_rank_0
+    from neox.text_generation_utils import generate_samples_from_prompt
+    from neox.utils import is_mp_rank_0
 
     fixed_params = {
             "num_samples": 3,

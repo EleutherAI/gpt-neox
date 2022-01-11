@@ -20,8 +20,8 @@ import time
 import numpy as np
 import torch
 
-from megatron import print_rank_0
-from megatron import mpu
+from neox import print_rank_0
+from neox import mpu
 
 
 class BlendableDataset(torch.utils.data.Dataset):
@@ -47,7 +47,7 @@ class BlendableDataset(torch.utils.data.Dataset):
         self.dataset_index = np.zeros(self.size, dtype=np.uint8)
         self.dataset_sample_index = np.zeros(self.size, dtype=np.int64)
 
-        from megatron.data import helpers
+        from neox.data import helpers
         helpers.build_blending_indices(self.dataset_index,
                                        self.dataset_sample_index,
                                        weights, num_datasets, self.size,

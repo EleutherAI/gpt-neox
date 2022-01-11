@@ -121,8 +121,8 @@ def test_train_optimizers(param_dict):
 
 
 def run_train_test(yaml_list=None, param_dict=None):
-    from megatron.training import train_step
-    from megatron.utils import Timers
+    from neox.training import train_step
+    from neox.utils import Timers
 
     max_steps = 64
 

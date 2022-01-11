@@ -44,8 +44,8 @@ def test_train(param_dict):
 
 def run_checkpoint_test(yaml_list=None, param_dict=None):
     
-    from megatron.checkpointing import load_checkpoint
-    from megatron.checkpointing import save_checkpoint
+    from neox.checkpointing import load_checkpoint
+    from neox.checkpointing import save_checkpoint
 
     model, optimizer, lr_scheduler, args_loaded = model_setup(yaml_list, param_dict, clear_data=True)
 

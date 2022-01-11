@@ -19,7 +19,7 @@
 """Utilities for models."""
 
 import torch
-from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
+from neox.model.norms import LayerNorm, RMSNorm, ScaleNorm
 from types import GeneratorType
 
 def get_params_for_weight_decay_optimization(module, neox_args):

@@ -15,11 +15,11 @@ Tests can be run using pytest.
 * A subset of tests can be selected by pointing to the module within tests
 
 ```bash
-# run all tests, output coverage report of megatron module in terminal
-pytest --forked --cov-report term --cov=megatron tests
+# run all tests, output coverage report of neox module in terminal
+pytest --forked --cov-report term --cov=neox tests
 
-# run tests in tests/model, output coverage report of megatron module as html
-pytest --forked --cov-report html --cov=megatron tests/model
+# run tests in tests/model, output coverage report of neox module as html
+pytest --forked --cov-report html --cov=neox tests/model
 
 # run tests in tests/model/test_model_generation.py, don't output coverage report
 pytest --forked tests/model/test_model_generation.py

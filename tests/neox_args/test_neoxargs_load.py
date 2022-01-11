@@ -6,7 +6,7 @@ import yaml
 from ..common import get_configs_with_path
 
 def run_neox_args_load_test(yaml_files):
-    from megatron.neox_arguments import NeoXArgs
+    from neox.neox_arguments import NeoXArgs
 
     yaml_list = get_configs_with_path(yaml_files)
     args_loaded = NeoXArgs.from_ymls(yaml_list)
@@ -116,7 +116,7 @@ def test_neoxargs_fail_instantiate_without_any_params():
     """
     verify assertion error if required arguments are not provided
     """
-    from megatron.neox_arguments import NeoXArgs
+    from neox.neox_arguments import NeoXArgs
     
     try:
         args_loaded = NeoXArgs()

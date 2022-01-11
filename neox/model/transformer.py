@@ -24,25 +24,25 @@ import torch.nn.functional as F
 import torch.nn as nn
 
 from .norms import get_norm
-from megatron import mpu
-from megatron.mpu import ParallelRelativePositionBias
+from neox import mpu
+from neox.mpu import ParallelRelativePositionBias
 
-from megatron.model.fused_softmax import FusedScaleMaskSoftmax
-from megatron.model.activations import get_activation
-from megatron.model.utils import exists
-from megatron.model.init_functions import get_init_methods
-from megatron.model.positional_embeddings import (
+from neox.model.fused_softmax import FusedScaleMaskSoftmax
+from neox.model.activations import get_activation
+from neox.model.utils import exists
+from neox.model.init_functions import get_init_methods
+from neox.model.positional_embeddings import (
     RotaryEmbedding,
     apply_rotary_pos_emb,
     apply_rotary_pos_emb_torch,
     AliBi,
 )
-from megatron.model.fused_bias_dropout import (
+from neox.model.fused_bias_dropout import (
     get_bias_dropout_add,
     bias_dropout_add_fused_train,
     bias_dropout_add_fused_inference,
 )
-from megatron.model.utils import configure_sparse_attention
+from neox.model.utils import configure_sparse_attention
 
 # flags required to enable jit fusion kernels
 torch._C._jit_set_profiling_mode(False)

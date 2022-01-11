@@ -19,7 +19,7 @@ from itertools import accumulate
 import numpy as np
 import torch
 
-from megatron import print_rank_0
+from neox import print_rank_0
 
 
 def __best_fitting_dtype(vocab_size=None):

@@ -29,8 +29,8 @@ import tqdm
 import torch
 import ftfy
 
-from megatron.tokenizer import build_tokenizer
-from megatron.data import indexed_dataset
+from neox.tokenizer import build_tokenizer
+from neox.data import indexed_dataset
 from threading import Semaphore
 
 

@@ -4,7 +4,7 @@ import os
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
 )
-from megatron.neox_arguments import neox_args, deepspeed_args
+from neox.neox_arguments import neox_args, deepspeed_args
 from inspect import getmembers, getsource
 from dataclasses import field, is_dataclass
 from itertools import tee, zip_longest
