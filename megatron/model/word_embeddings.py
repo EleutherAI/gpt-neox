@@ -230,7 +230,7 @@ class SoftEmbedding(torch.nn.Module):
             x = x[:, : self.neox_args.seq_length, ...]
             return x
         else:
-            raise NotImplementedError("Inference not implemented yet")
+            raise NotImplementedError("Inference not implemented yet") #TODO(sid): fix soft embedding in inference
             if not (layer_past is not None and layer_past.numel() > 0):
                 # if in inference, on the first forward pass, we want to do the same as in training (append soft embedding)
                 embedding = torch.cat((soft_embedding, embedding), dim=1)
