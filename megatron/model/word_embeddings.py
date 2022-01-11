@@ -29,7 +29,8 @@ class Embedding(torch.nn.Module):
         self.init_method, _ = get_init_methods(neox_args)
         self.num_tokentypes = num_tokentypes
         self.vocab_size = neox_args.padded_vocab_size
-
+        self.neox_args = neox_args
+        
         # Word embeddings (parallel).
         self.word_embeddings = mpu.VocabParallelEmbedding(
             neox_args=neox_args,
@@ -37,7 +38,6 @@ class Embedding(torch.nn.Module):
             embedding_dim=self.hidden_size,
             init_method=self.init_method,
         )
-        self._word_embeddings_key = "word_embeddings"
 
         if neox_args.use_bnb_optimizer:
             try:
@@ -60,7 +60,6 @@ class Embedding(torch.nn.Module):
                 self.position_embeddings = self.embedding_module(
                     neox_args.max_position_embeddings, self.hidden_size
                 )
-                self._position_embeddings_key = "position_embeddings"
                 # Initialize the position embeddings.
                 self.init_method(self.position_embeddings.weight)
             elif self.embedding_type == "sinusoidal":
@@ -84,6 +83,22 @@ class Embedding(torch.nn.Module):
 
         # Embeddings dropout
         self.embedding_dropout = torch.nn.Dropout(neox_args.hidden_dropout)
+
+
+        # soft prompts
+        soft_prompt_config = self.neox_args.soft_prompt_tuning
+        if soft_prompt_config is not None and soft_prompt_config.get("enabled", False):
+            self.soft_prompt_embeddings = SoftEmbedding(
+                self.neox_args,
+                wte=self.word_embeddings,
+                n_tokens=soft_prompt_config.get("n_tokens", 10),
+                init_string=soft_prompt_config.get("init_string", ""),
+                init_range=soft_prompt_config.get("init_range", 0.5),
+            )
+            if soft_prompt_config.get("freeze_model", False):
+                self.soft_prompt_embeddings.freeze_model()
+        else:
+            self.soft_prompt_embeddings = None
 
     def add_tokentype_embeddings(self, num_tokentypes):
         """Add token-type embedding. This function is provided so we can add
@@ -119,8 +134,20 @@ class Embedding(torch.nn.Module):
 
         # Dropout.
         embeddings = self.embedding_dropout(embeddings)
+    
+        # soft prompts
+        if self.soft_prompt_embeddings is not None:
+            embeddings = self.soft_prompt_embeddings(embeddings)
+
         return embeddings
 
+    def load_state_dict(
+        self, state_dict: "OrderedDict[str, Tensor]", strict: bool = True
+    ):
+        """Patch load_state_dict so it doesn't break when we add soft prompts"""
+        if self.soft_prompt_embeddings is not None:
+            strict = False
+        return super().load_state_dict(state_dict, strict=strict)
 
 class EmbeddingPipe(Embedding):
     """
@@ -175,12 +202,12 @@ class SoftEmbedding(torch.nn.Module):
             self.initialize_embedding(wte)
         )
 
-    def initialize_embedding(self):
+    def initialize_embedding(self, wte):
         if self.init_string:
             embeds = torch.LongTensor(
                 self.neox_args.tokenizer.tokenize(self.init_string)
-            ).to(self.embedding_module.weight.device)
-            embeds = self.embedding_module(embeds)
+            ).to(wte.weight.device)
+            embeds = wte(embeds)
             if embeds.shape[0] >= self.n_tokens:
                 embeds = embeds[: self.n_tokens, :]  # slice
             else:
@@ -188,27 +215,23 @@ class SoftEmbedding(torch.nn.Module):
                     : self.n_tokens, :
                 ]  # pad up to n_tokens
             return embeds
-        return torch.Tensor(n_tokens, neox_args.hidden_size).uniform_(
-            -self.random_range, self.random_range
+        return torch.Tensor(self.n_tokens, self.neox_args.hidden_size).uniform_(
+            -self.init_range, self.init_range
         )
 
-    def forward(self, args: tuple):
-        in_inference = len(args) == 3  # embeddings, layer_past, attention_mask
-        in_train = len(args) == 2  # embeddings, attention_mask
-        if in_train:
-            embedding, attention_mask = args
-        else:
-            embedding, layer_past, attention_mask = args
+    def forward(self, embedding):
         soft_embedding = self.soft_embedding_weight.repeat(
             embedding.shape[0], 1, 1
         )  # repeat batch_size times
+        in_train = True  # TODO: handle in inference
         if in_train:
             # append soft embedding at the beginning in training
-            embedding = torch.cat((soft_embedding, embedding), dim=1)
-            embedding = embedding[:, : self.neox_args.seq_length, ...]
-            return embedding, attention_mask
+            x = torch.cat((soft_embedding, embedding), dim=1)
+            x = x[:, : self.neox_args.seq_length, ...]
+            return x
         else:
-            if not (exists(layer_past) and layer_past.numel() > 0):
+            raise NotImplementedError("Inference not implemented yet")
+            if not (layer_past is not None and layer_past.numel() > 0):
                 # if in inference, on the first forward pass, we want to do the same as in training (append soft embedding)
                 embedding = torch.cat((soft_embedding, embedding), dim=1)
                 embedding = embedding[:, : self.neox_args.seq_length, ...]

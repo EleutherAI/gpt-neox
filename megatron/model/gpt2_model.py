@@ -370,3 +370,17 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             parent_class_name=self.__class__.__name__,
         )
         return model
+
+    @property
+    def is_first_stage(self):
+        """
+        Returns true if this is the first stage of the pipeline
+        """
+        return self.stage_id == 0
+
+    def get_word_embeddings(self):
+        """
+        Returns the word embeddings layer, if it's on the current stage
+        """
+        if self.is_first_stage:
+            return self.forward_funcs[0]
