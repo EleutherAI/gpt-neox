@@ -70,7 +70,7 @@ class AliBi(torch.nn.Module):
 
   def __init__(self, num_heads, mp_size=1, mp_rank=1):
     super().__init__()
-    # megatron splits across heads, so we need to make sure each
+    # NeoX splits across heads, so we need to make sure each
     # head receives the correct matrix
     assert mp_size <= num_heads and mp_rank <= mp_size
     self.mp_size = mp_size

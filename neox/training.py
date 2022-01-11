@@ -69,7 +69,7 @@ def pretrain(neox_args):
         - Initializes the data iterators
         - Runs the training loop
 
-        1) initialize Megatron.
+        1) initialize NeoX.
         2) setup the model, optimizer and lr schedule
         3) call train_val_test_data_provider to get train/val/test datasets.
         4) train the model.
@@ -79,7 +79,7 @@ def pretrain(neox_args):
 
     """
 
-    # Initalize megatron (distributed args, logging, etc.)
+    # Initalize NeoX (distributed args, logging, etc.)
     initialize_neox(neox_args=neox_args)
 
     # Setup model, optimizer, and learning rate.
@@ -556,7 +556,7 @@ def train_step_pipe(neox_args, model, data_iterator):
 
     loss = model.train_batch(data_iter=data_iterator)
     loss_dict = {"lm_loss": loss}
-    # Don't break Megatron's timers because we changed code paths.
+    # Don't break NeoX's timers because we changed code paths.
     for t in [
         "forward",
         "backward",

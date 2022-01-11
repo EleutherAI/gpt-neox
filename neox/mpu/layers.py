@@ -195,7 +195,7 @@ class ParallelRelativePositionBias(torch.nn.Module):
     """T5 Relative Position Bias parallelized in the heads dimension
 
     Based on https://github.com/lucidrains/x-transformers/blob/6b93c21be0d0a679da6f7b9621d9bb638ab18428/x_transformers/x_transformers.py#L106 (14.12.2021)
-    and adapted for megatron's model parallelism
+    and adapted for NeoX's model parallelism
 
     Arguments:
         causal: flag for causal/non-causal language modelling.

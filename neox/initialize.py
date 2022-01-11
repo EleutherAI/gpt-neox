@@ -52,7 +52,7 @@ def initialize_neox(neox_args, allow_no_cuda=False):
     """
     if not allow_no_cuda:
         # Make sure cuda is available.
-        assert torch.cuda.is_available(), "Megatron requires CUDA."
+        assert torch.cuda.is_available(), "Neox requires CUDA."
 
     # torch.distributed initialization
     def finish_mpu_init():
@@ -76,7 +76,7 @@ def initialize_neox(neox_args, allow_no_cuda=False):
         set_model_parallel_rank(neox_args.rank)
         return finish_mpu_init
     else:
-        # Megatron's MPU is the master. Complete initialization right away.
+        # Neox's MPU is the master. Complete initialization right away.
         finish_mpu_init()
 
         # Compile dataset C++ code.
@@ -97,7 +97,7 @@ def setup_deepspeed_random_and_activation_checkpointing(neox_args):
     and cpu checkpointing.
 
     Activation checkpoint requires keep track of the random states
-    and setting the random seed for each MP process. Megatron uses
+    and setting the random seed for each MP process. Neox uses
     mpu.get_cuda_rng_tracker and mpu.model_parallel_cuda_manual_seed
     for keeping track of the random states and setting the random seeds.
     Since they are used in places outside of activation checkpointing,

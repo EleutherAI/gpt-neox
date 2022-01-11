@@ -1,5 +1,5 @@
 """
-plausibility check for the usage of neox_args in the megatron codebase
+plausibility check for the usage of neox_args in the NeoX codebase
 """
 import pytest
 import re

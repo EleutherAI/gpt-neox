@@ -602,7 +602,7 @@ Misc. Arguments
 
     Default = False
 
-    If set to True, initialize_megatron() skips DDP initialization and returns function to complete it instead. Also turns on use-cpu-initialization flag. This is for external DDP manager.
+    If set to True, initialize_neox() skips DDP initialization and returns function to complete it instead. Also turns on use-cpu-initialization flag. This is for external DDP manager.
 
 
 

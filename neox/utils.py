@@ -417,7 +417,7 @@ def setup_for_inference_or_eval(
     if neox_args.load is None:
         raise ValueError("`load` parameter must be supplied to load a model`")
 
-    # initialize megatron
+    # initialize NeoX
     initialize_neox(neox_args)
 
     # set up model and load checkpoint.

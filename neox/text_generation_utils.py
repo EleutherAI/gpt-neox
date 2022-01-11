@@ -80,7 +80,7 @@ def filter_logits(logits, top_k=0, top_p=0.0, filter_value=-float("Inf")):
     This function has been mostly taken from huggingface conversational ai code at
     https://medium.com/huggingface/how-to-build-a-state-of-the-art-conversational-ai-with-transfer-learning-2d818ac26313
 
-    logits: torch.Tensor -> logits of megatron model.
+    logits: torch.Tensor -> logits of Neox model.
     top_k: integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
     top_p: float -> Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
 
@@ -124,7 +124,7 @@ def forward_model(neox_args, model, model_inputs):
 
     We need to create a wrapper for this function because deepspeed pipe parallel modules operate differently to normal models.
 
-    model: a Megatron model.
+    model: a Neox model.
     model_inputs: tuple containing model args
 
     returns: result of model.forward(model_inputs)
@@ -184,11 +184,11 @@ def stream_tokens(
     iterator producing text completions
 
     neox_args: NeoXArgs.
-    model: a Megatron model.
+    model: a NeoX model.
     context_tokens: the prompt to complete; unpadded list of lists of tokens ids
 
     context_lengths: lengths of context tokens of dimension [batch]; the context length records for each bach item how many non-padded tokens are provided
-    attention_mask: attention mask for megatron model.
+    attention_mask: attention mask for NeoX model.
     position_ids: position ids for positional encoding.
 
     eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
@@ -395,7 +395,7 @@ def generate_samples_from_prompt(
     Generates samples from raw text and returns them in a dictionary.
 
     neox_args: NeoXArgs.
-    model: a Megatron model
+    model: a NeoX model
     text: either a single prompt (str) or a list of prompts (List[str]).
 
     eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
@@ -556,7 +556,7 @@ def generate_samples_input_from_file(
     Reads prompts from neox_args.sample_input_file and writes completions to neox_args.sample_output_file
 
     neox_args: NeoXArgs.
-    model: a Megatron model
+    model: a NeoX model
 
     input_file: path to input file. Each line in the input file will be treated as separate prompt. The line break at the end of the line is not included in the prompt.
     output_file: file where generation results are to be stored in jsonl format. defaults to input_file+'.output.jsonl' if not defined
@@ -639,7 +639,7 @@ def generate_samples_unconditional(
     Generates samples unconditionially (no prompt) and yields them in a dictionary.
 
     neox_args: NeoXArgs.
-    model: a Megatron model
+    model: a NeoX model
 
     number_of_samples (default 10): number of unconditional samples to be generated
 
@@ -701,7 +701,7 @@ def generate_samples_interactive(
     Generates samples unconditionially (no prompt) and yields them in a dictionary.
 
     neox_args: NeoXArgs.
-    model: a Megatron model
+    model: a NeoX model
 
     maximum_tokens: maximum number of tokens to be generated
     eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached

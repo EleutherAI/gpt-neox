@@ -541,7 +541,7 @@ class NeoXArgs(*BASE_CLASSES):
     @property
     def neox_config(self) -> dict:
         """
-        returns variables within megatron args
+        returns variables within neox args
         """
         return self.get_parent_class_value_dict(*NEOX_ARG_CLASSES)
 
@@ -848,7 +848,7 @@ class NeoXArgs(*BASE_CLASSES):
 
         if self.optimizer_type.lower() == "onebitadam":
             # onebitadam needs to instantiated by deepspeed, and so we need to pass deepspeed scheduler args
-            # for all other optimizers, the scheduling is handled by megatron
+            # for all other optimizers, the scheduling is handled by NeoX
             self.scheduler = {
                 "type": "WarmupDecayLR",  # for now this is the only ds scheduler offering decay
                 "params": {

@@ -147,7 +147,7 @@ def training_log(
                 names=timers_to_log, iteration=iteration, normalizer=normalizer
             )
     else:
-        # with pipeline parallel, the megatron timers are overridden by the deepspeed ones.
+        # with pipeline parallel, the Neox timers are overridden by the deepspeed ones.
         # Try to grab timer values from model engine. Only recently added to deeperspeed, so check that the engine
         # has that attribute first
         if hasattr(model, "timer_values") and model.timer_values is not None:
