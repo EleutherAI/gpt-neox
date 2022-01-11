@@ -326,13 +326,6 @@ class NeoXArgs(*BASE_CLASSES):
             default=None,
             help="Team name for Weights and Biases.",
         )
-        group.add_argument(
-            "--eval_tasks",
-            type=str,
-            nargs="+",
-            default=None,
-            help="Optionally overwrite eval tasks to run for evaluate.py",
-        )
 
         group.add_argument(
             "--eval_tasks",
