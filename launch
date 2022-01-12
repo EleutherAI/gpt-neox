@@ -15,19 +15,13 @@
 
 import logging
 import os
-
+from neox.neox_arguments import NeoXArgs
+from neox.utils import get_wandb_api_key
 import deepspeed
 from deepspeed.launcher.runner import main
 
 logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
-
-from neox.neox_arguments import NeoXArgs
-from neox.utils import get_wandb_api_key
-
-
-
-neox_args = NeoXArgs.parse_args()
-deepspeed_main_args = neox_args.get_deepspeed_main_args()
+neox_args = NeoXArgs.parse_args() 
 
 # Extract wandb API key and inject into worker environments
 wandb_token = get_wandb_api_key(neox_args=neox_args)
@@ -36,4 +30,4 @@ if wandb_token is not None:
     os.environ['WANDB_API_KEY'] = wandb_token
 
 if __name__ == '__main__':
-    main(deepspeed_main_args)
+    main(neox_args.get_deepspeed_main_args())
