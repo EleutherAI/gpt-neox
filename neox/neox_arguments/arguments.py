@@ -346,6 +346,7 @@ class NeoXArgs(*BASE_CLASSES):
             default=None,
             help="prefix to append to eval results file",
         )
+        
         args_parsed = parser.parse_args()
 
         # Validate user_script exists
@@ -372,40 +373,11 @@ class NeoXArgs(*BASE_CLASSES):
             paths_to_yml_files=conf_files, overwrite_values=overwrite_values
         )
 
-        # save a copy of yaml configs to the save directory
-        if neox_args.save is not None:
-            configs_directory = os.path.join(neox_args.save, "configs")
-
-            # If loading the conf files from the save directory
-            # deleting the conf files in the following step would
-            # naturally prevent the later copy. Therefore we are first
-            # loading the files into memory.
-            conf_files_memory = dict()
-            for conf_file in conf_files:
-                conf_files_memory[os.path.basename(conf_file)] = open(
-                    conf_file, "r"
-                ).read()
-
-            # Delete the configs subdirectory in save if it already exists.
-            # Reason: only the latest version of the configs are stored
-            # All files are deleted because selecting a subset of configs
-            # is a valid option. We would like to prevent keeping files
-            # which are not part of the latest config. If data is saved to
-            # a previously non-empty save directory.
-            if os.path.isdir(configs_directory):
-                shutil.rmtree(configs_directory)
-
-            # create configs directory and save config files
-            os.makedirs(configs_directory)
-            for conf_file_name, conf_data in conf_files_memory.items():
-                with open(os.path.join(configs_directory, conf_file_name), "w") as f:
-                    f.write(conf_data)
-
         if neox_args.wandb_group is not None:
             # concat the wandb group name with a uid to make sure it's unique
             import wandb
-
             neox_args.wandb_group += "_" + wandb.util.generate_id()
+
         neox_args.print()
 
         return neox_args

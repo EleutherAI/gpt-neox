@@ -192,7 +192,7 @@ def save_ds_checkpoint(iteration, model, neox_args):
     model.save_checkpoint(neox_args.save, tag=tag, client_state=sd)
 
     # save config files
-    if  torch.distributed.get_rank() == 0 and neox_args.config_files is not None:
+    if torch.distributed.get_rank() == 0 and neox_args.config_files is not None:
         configs_directory = os.path.join(neox_args.save, tag, "configs")
         os.makedirs(configs_directory, exist_ok=True)
         for config_filename, config_data in neox_args.config_files.items():
