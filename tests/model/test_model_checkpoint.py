@@ -55,7 +55,7 @@ def run_checkpoint_test(yaml_list=None, param_dict=None):
 
     # reload model from checkpoint
     reloaded_model, reloaded_optimizer, reloaded_lr_scheduler, args_reloaded = model_setup(yaml_list, param_dict, clear_data=False)
-    iteration = load_checkpoint(neox_args=args_reloaded, model=reloaded_model, optimizer=reloaded_optimizer, lr_scheduler=reloaded_lr_scheduler)
+    iteration = load_checkpoint(neox_args=args_reloaded, model=reloaded_model)
 
     #ensure same checkpoint is loaded
     assert iteration == 42, "run_checkpoint_test() iteration loaded from checkpoint correct"

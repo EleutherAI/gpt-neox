@@ -76,13 +76,13 @@ Once you've installed all the requirements and set up your model configuration, 
 
 GPT-NeoX parameters are defined in a YAML configuration file which is passed to the `deepy.py` launcher. We provide baseline examples for the models found in the paper [Language Models are Few Shot Learners](https://arxiv.org/abs/2005.14165). Items such as file locations that are dependant on your particular system go in `local_setup.yml`. We have filled it out with some placeholder examples, but you will need to update this for your system.
 
-All functionality follows the pattern `python ./deepy.py [main_function.py] -d [config_dir] [path/to/config1.yml] [path/to/config2.yml] ...`. 
+All functionality follows the pattern `python ./launch [main_function.py] -d [config_dir] [path/to/config1.yml] [path/to/config2.yml] ...`. 
 We currently offer three main functions:
 1. `train.py` is used for training and finetuning models.
 2. `evaluate.py` is used to evaluate a trained model using the [language model evaluation harness](https://github.com/EleutherAI/lm-evaluation-harness).
 3. `generate.py` is used to sample text from a trained model.
 
-For now, run `python ./deepy.py train.py -d configs small.yml local_setup.yml` to begin training a model and complete this tutorial.
+For now, run `python ./launch train.py -d configs small.yml local_setup.yml` to begin training a model and complete this tutorial.
 
 ## Features
 
@@ -202,7 +202,7 @@ Training is launched using `deepy.py`, a wrapper around DeepSpeed's launcher, wh
 The general usage pattern is:
 
 ```bash
-python ./deepy.py train.py [path/to/config1.yml] [path/to/config2.yml] ...
+python ./launch train.py [path/to/config1.yml] [path/to/config2.yml] ...
 ```
 
 You can pass in an arbritrary number of configs which will all be merged at runtime.
@@ -212,7 +212,7 @@ You can also optionally pass in a config prefix, which will assume all your conf
 Example usage:
 
 ```bash
-python ./deepy.py train.py -d configs small.yml local_setup.yml
+python ./launch train.py -d configs small.yml local_setup.yml
 ```
 
 This will deploy the `train.py` script on all nodes with one process per GPU. The worker nodes and number of GPUs are specified in the `/job/hostfile` file (see [parameter documentation](configs)), or can simply be passed in as the `num_gpus` arg if running on a single node setup.
@@ -226,13 +226,13 @@ We support three types of generation from a pretrained model:
 2. Conditional generation based on an input read from a file
 3. Interactive generation, which allows for multiple rounds of back-and-forth between a user and the language model via a command line interface
 
-All three types of text generation can be launched via `python ./deepy.py generate.py -d configs small.yml local_setup.yml text_generation.yml` with the appropriate values set in `configs/text_generation.yml`.
+All three types of text generation can be launched via `python ./launch generate.py -d configs small.yml local_setup.yml text_generation.yml` with the appropriate values set in `configs/text_generation.yml`.
 
 ## Evaluation
 
 GPT-NeoX supports evaluation on downstream tasks through the [language model evaluation harness](https://github.com/EleutherAI/lm-evaluation-harness).
 
-To evaluate a trained model on the evaluation harness, add an <code><var>eval_tasks</var></code> field to your config file and call `python ./deepy.py evaluate.py -d configs your_configs.yml`.
+To evaluate a trained model on the evaluation harness, add an <code><var>eval_tasks</var></code> field to your config file and call `python ./launch evaluate.py -d configs your_configs.yml`.
 
 ## Distilling
 

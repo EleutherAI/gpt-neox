@@ -99,7 +99,6 @@ def training_log(
     skipped_iter,
     model,
     optimizer,
-    noise_scale_logger,
 ):
     """Log training information such as losses, timing, etc."""
 
@@ -191,17 +190,6 @@ def training_log(
             use_wandb=neox_args.use_wandb,
             tensorboard_writer=neox_args.tensorboard_writer,
         )
-
-    # log gradient noise scale
-    if neox_args.log_gradient_noise_scale:
-        if noise_scale_logger.noise_scale is not None:
-            tb_wandb_log(
-                f"train/noise_scale",
-                noise_scale_logger.noise_scale,
-                iteration,
-                use_wandb=neox_args.use_wandb,
-                tensorboard_writer=neox_args.tensorboard_writer,
-            )
 
     # (optional) Log optimizer states to wandb / tb every step
     if neox_args.log_optimizer_states:

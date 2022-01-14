@@ -217,45 +217,42 @@ def save_checkpoint(neox_args, iteration, model, optimizer, lr_scheduler):
 
 
 def load_checkpoint(
-    neox_args, model, optimizer, lr_scheduler, inference=False, iteration=None
+    neox_args, model, inference=False, iteration=None,
 ):
     """Load a model checkpoint and return the iteration."""
-    if neox_args.deepspeed:
-        load_optim_and_scheduler = (
-            not neox_args.no_load_optim
-        )  # TODO: These should be configured by separate args
-        if neox_args.finetune:
-            load_optim_and_scheduler = False
-        if iteration is not None:
-            tag = f"global_step{iteration}"
-        else:
-            tag = None
-        checkpoint_name, state_dict = model.load_checkpoint(
-            neox_args.load,
-            load_optimizer_states=load_optim_and_scheduler,
-            load_lr_scheduler_states=load_optim_and_scheduler,
-            tag=tag,
-        )
-
-        if checkpoint_name is None:
-            # if an iteration is specified, we want to raise an error here rather than
-            # continuing silently, since we are trying to load a specific checkpoint
-            if iteration is not None:
-                available_checkpoints = sorted(
-                    [
-                        int(i.name.replace("global_step", ""))
-                        for i in Path(neox_args.load).glob("global_step*")
-                    ]
-                )
-                raise ValueError(
-                    f"Unable to load checkpoint for iteration {iteration}. \nAvailable iterations: {pformat(available_checkpoints)}"
-                )
-            if mpu.get_data_parallel_rank() == 0:
-                print("Unable to load checkpoint.")
-
-            return 0  # iteration 0, if not checkpoint loaded
+    load_optim_and_scheduler = (
+        not neox_args.no_load_optim
+    )  # TODO: These should be configured by separate args
+    if neox_args.finetune:
+        load_optim_and_scheduler = False
+    if iteration is not None:
+        tag = f"global_step{iteration}"
     else:
-        raise ValueError("Must be using deepspeed to use neox")
+        tag = None
+    checkpoint_name, state_dict = model.load_checkpoint(
+        neox_args.load,
+        load_optimizer_states=load_optim_and_scheduler,
+        load_lr_scheduler_states=load_optim_and_scheduler,
+        tag=tag,
+    )
+
+    if checkpoint_name is None:
+        # if an iteration is specified, we want to raise an error here rather than
+        # continuing silently, since we are trying to load a specific checkpoint
+        if iteration is not None:
+            available_checkpoints = sorted(
+                [
+                    int(i.name.replace("global_step", ""))
+                    for i in Path(neox_args.load).glob("global_step*")
+                ]
+            )
+            raise ValueError(
+                f"Unable to load checkpoint for iteration {iteration}. \nAvailable iterations: {pformat(available_checkpoints)}"
+            )
+        if mpu.get_data_parallel_rank() == 0:
+            print("Unable to load checkpoint.")
+
+        return 0  # iteration 0, if not checkpoint loaded
 
     # Set iteration.
     if neox_args.finetune:

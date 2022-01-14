@@ -18,6 +18,7 @@
 
 """GPT model."""
 
+from cmath import inf
 import torch
 import torch.nn as nn
 from collections import defaultdict
@@ -34,9 +35,13 @@ from neox.model.transformer import (
 )
 from neox.model.gmlp import GMLPBlock
 from neox.model.word_embeddings import EmbeddingPipe
+from neox.initialize import initialize_neox
 from deepspeed.pipe import PipelineModule, LayerSpec, TiedLayerSpec
-from typing import Union, List
-
+from typing import Union, List, Optional, List, Any, Dict, Tuple
+from pathlib import Path
+from neox.checkpointing import load_checkpoint
+from neox.neox_arguments.arguments import NeoXArgs
+import deepspeed
 
 def gpt2_attention_mask_func(attention_scores, ltor_mask):
     attention_scores.masked_fill_(ltor_mask, -10000.0)
@@ -99,7 +104,7 @@ def _post_transformer_block(args):
     return fn(args)
 
 
-class GPT2ModelPipe(PipelineModule, torch.nn.Module):
+class GPTModelPipe(PipelineModule, torch.nn.Module):
     """
     GPT2Model adapted for pipeline parallelism.
 
@@ -152,6 +157,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             partition_method=neox_args.pipe_partition_method,
             checkpointable_layers=["GMLPBlock", "ParallelTransformerLayerPipe"],
         )
+        self.model_engine = None
 
     def init_specs(self) -> List[LayerSpec]:
         """
@@ -384,3 +390,156 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         """
         if self.is_first_stage:
             return self.forward_funcs[0]
+    
+    def freeze_params(self):
+        """
+        Freezes any parameters (if doing e.g soft prompt, or adapter finetuning)
+        """
+        soft_prompt_config = self.neox_args.soft_prompt_tuning
+        if (
+            soft_prompt_config is not None
+            and soft_prompt_config.get("enabled", False)
+            and soft_prompt_config.get("freeze_model", True)
+        ):
+            for name, param in self.named_parameters():
+                if not "soft_embedding" in name:
+                    param.requires_grad = False
+    
+    @classmethod
+    def from_neox_args(cls, 
+                    neox_args, 
+                    parallel_output: bool = True,
+                    topology=None,
+                    inference: bool = False,
+                    get_key_value: bool = True
+                    ):
+
+        # Build model on cpu.
+        model = cls(
+            neox_args=neox_args,
+            parallel_output=parallel_output,
+            topology=topology,
+            inference=inference,
+            get_key_value=get_key_value,
+        )
+
+        # freeze parameters, if specified in neoX args
+        model.freeze_params()
+
+        if not neox_args.is_pipe_parallel:
+            # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
+            model = model.to_sequential()
+        
+        return model
+
+    @classmethod
+    def from_checkpoint(cls,
+                        checkpoint_folder,
+                        config_files: Optional[List[str]],
+                        overwrite_values: Optional[Dict[str, Any]] = None,
+                        step: Optional[int] = None,
+                        neox_initialize: bool = True,
+                        inference: bool = False,
+                        ) -> Tuple["GPTModelPipe", deepspeed.DeepSpeedEngine]:
+        """
+        Loads a checkpoint from disk like so:
+        - checks `checkpoint_folder`/configs for config files, but if `config_files` is specified, it will use those.
+        - loads the config files, then initializes the model from the settings in the configs.
+        - Tries to load the .pt checkpoints from `checkpoint_folder`/`step`/*.pt, if no step is specified, it 
+          will load the checkpoint specified in `checkpoint_folder`/latest
+        
+        The config files must be accessible to, and identical across, all ranks.
+
+        Args:
+            checkpoint_folder (str): the folder to load the checkpoint from
+            config_files (Optional[List[str]]): a list of config files to load. If not specified, it will look for
+                config files in `checkpoint_folder`/configs
+            overwrite_values (Optional[Dict[str, Any]]): a dictionary of values to overwrite in the configs.
+            step (Optional[int]): the step to load the checkpoint from. If not specified, it will load the latest
+            neox_initialize (bool): whether to run the `initialize_neox` method to initialize mpu
+            inference (bool): whether to set the model to inference mode (i.e cache kv, parallel output = False for final layer)
+        Returns:
+            the loaded model, the deepspeed model engine and NeoXArgs parsed from the checkpoint
+        """
+        from neox.training import get_batch_pipe
+        if config_files is None:
+            config_files = list((Path(checkpoint_folder) / "configs").glob("*.yml")) + list((Path(checkpoint_folder) / "configs").glob("*.yaml"))
+            assert len(config_files) > 0, f"No config files found in {checkpoint_folder}/configs"
+
+        if inference:
+            if overwrite_values is None:
+                overwrite_values = {}
+            overwrite_values.update({
+                "checkpoint_activations": False,
+                "partition_activations": False,
+                "no_load_optim": True,
+                "zero_optimization": None,  # disable zero optimization (won't be used in inference, and loading zero optimizer can cause errors)
+            })
+        
+        neox_args = NeoXArgs.from_ymls(config_files, overwrite_values=overwrite_values, configure_distributed_args=True, build_tokenizer=True)
+
+        # modify the `load` argument to load the checkpoint to be the same as the one we're loading
+        neox_args.load = checkpoint_folder
+        
+        # initialize NeoX
+        if neox_initialize:
+            initialize_neox(neox_args)
+
+        model = cls(
+            neox_args=neox_args,
+            topology=mpu.get_topology(),
+        )
+
+        model_engine, _, _, _ = deepspeed.initialize(
+            model=model,
+            optimizer=None,
+            args=neox_args,
+            lr_scheduler=None,
+            dist_init_required=False,
+            model_parameters=None,
+            config_params=neox_args.deepspeed_config,
+            mpu=mpu if not neox_args.is_pipe_parallel else None,
+        )
+        
+        if neox_args.load is not None:
+            neox_args.iteration = load_checkpoint(
+                neox_args=neox_args,
+                model=model_engine,
+                iteration=step,
+            )
+        else:
+            neox_args.iteration = 0
+        
+        if inference:
+            model.inference_mode(cache=True)
+
+        if neox_args.is_pipe_parallel:
+            # we need to set these values after deepspeed.initialize, so we do it here
+            model_engine.set_has_bool_tensors(True)
+            model_engine.set_batch_fn(partial(get_batch_pipe, neox_args=neox_args)
+)
+        return model, model_engine
+    
+    @torch.no_grad()
+    def generate(self, model_engine, text: Optional[Union[List[str], str]], maximum_tokens=64, temperature=0.9, top_k=0.0, top_p=0.0, recompute=False, stop_tokens=None, broadcast_generated_tokens=True) -> List[str]:
+        """See `generate_samples_from_prompt` for docstring"""
+        from neox.text_generation_utils import generate_samples_from_prompt
+        if text is None:
+            text = [""]
+
+        torch.distributed.barrier()
+        print('start generate on rank {}'.format(torch.distributed.get_rank()))
+        data = generate_samples_from_prompt(
+            neox_args=self.neox_args,
+            model=model_engine,
+            text=text,
+            eos_token_id=self.neox_args.tokenizer.eod_id,
+            maximum_tokens=maximum_tokens,
+            recompute=recompute,
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+            stop_tokens=stop_tokens,
+            broadcast_generated_tokens=broadcast_generated_tokens
+        )
+        return [d['context'] + d['text'] for d in data]

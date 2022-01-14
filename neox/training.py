@@ -40,7 +40,7 @@ from neox.utils import (
 
 from neox import print_rank_0, mpu
 from neox.model import (
-    GPT2ModelPipe,
+    GPTModelPipe,
     SoftEmbedding,
     get_params_for_weight_decay_optimization,
 )
@@ -51,11 +51,10 @@ from neox.learning_rates import AnnealingLR
 from neox.logging import tb_wandb_log, training_log
 from neox.utils import (
     OverflowMonitor,
-    get_noise_scale_logger,
     count_params,
     CharCounter,
 )
-from neox.model.gpt2_model import cross_entropy
+from neox.model.neox_model import cross_entropy
 from eval_tasks import run_eval_harness
 
 
@@ -224,58 +223,6 @@ def forward_step(data_iterator, model, neox_args, return_logits=False):
     return loss
 
 
-def get_model(neox_args, inference=False, get_key_value=True) -> torch.nn.Module:
-    """
-    Initializes a GPT2ModelPipe model.
-    If specified, also initializes soft prompt tuning layers / adapters.
-
-    Arguments:
-        neox_args: NeoX arguments.
-        inference: Whether to initialize the model for inference.
-        get_key_value: Whether to cache key value pairs (in inference)
-
-    Returns:
-        model: The GPT2ModelPipe model (a torch.nn.Module).
-    """
-
-    print_rank_0("building GPT2 model ...")
-
-    # Build model on cpu.
-    model = GPT2ModelPipe(
-        neox_args=neox_args,
-        parallel_output=True,
-        topology=mpu.get_topology(),
-        inference=inference,
-        get_key_value=get_key_value,
-    )
-
-    ### soft prompt tuning stuff ###
-    if neox_args.soft_prompt_tuning is not None and neox_args.soft_prompt_tuning.get(
-        "enabled", False
-    ):
-        soft_prompt = SoftEmbedding(
-            neox_args,
-            wte=getattr(model, "0").word_embeddings,
-            n_tokens=neox_args.soft_prompt_tuning.get("n_tokens", 10),
-            init_string=neox_args.soft_prompt_tuning.get("init_string", ""),
-            init_range=neox_args.soft_prompt_tuning.get("init_range", 0.5),
-        )
-        model.insert_layers(
-            layers=soft_prompt, idx=1
-        )  # insert the soft prompt layer directly after the word embeddings
-
-        # freeze everything but the soft prompt
-        for name, param in model.named_parameters():
-            if not "soft_embedding" in name:
-                param.requires_grad = False
-
-    if not neox_args.is_pipe_parallel:
-        # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
-        model = model.to_sequential()
-
-    return model
-
-
 def get_optimizer(model, neox_args) -> Tuple[torch.optim.Optimizer, List[Dict]]:
     """
     Sets up the optimizer for training.
@@ -290,6 +237,7 @@ def get_optimizer(model, neox_args) -> Tuple[torch.optim.Optimizer, List[Dict]]:
     """
     if neox_args.no_load_optim:
         return None, None
+
     # Build parameter groups (weight decay and non-decay).
     param_groups = get_params_for_weight_decay_optimization(model, neox_args)
     print_rank_0(
@@ -306,7 +254,6 @@ def get_optimizer(model, neox_args) -> Tuple[torch.optim.Optimizer, List[Dict]]:
     param_groups = filter_trainable_params(param_groups)
 
     # init optimizer
-
     if neox_args.optimizer_type.lower() in ["cpu_adam", "cpu_torch_adam"]:
         if neox_args.optimizer == "cpu_torch_adam":
             cpu_adam_optimizer = torch.optim.Adam
@@ -334,9 +281,9 @@ def get_optimizer(model, neox_args) -> Tuple[torch.optim.Optimizer, List[Dict]]:
             weight_decay=neox_args.weight_decay,
             **neox_args.optimizer["params"],
         )
-    elif neox_args.optimizer_type.lower() == "adam":
+    elif neox_args.optimizer_type.lower() in ["adam", "torch_adam", "bnb_adam"]:
         # Use Adam
-        if neox_args.use_bnb_optimizer:
+        if neox_args.use_bnb_optimizer or neox_args.optimizer_type.lower() == "bnb_adam":
             try:
                 import bitsandbytes as bnb
 
@@ -346,6 +293,8 @@ def get_optimizer(model, neox_args) -> Tuple[torch.optim.Optimizer, List[Dict]]:
                     "Please install bitsandbytes following https://github.com/facebookresearch/bitsandbytes."
                 )
                 raise Exception
+        elif neox_args.optimizer_type.lower() == "torch_adam":
+            adam_optimizer = torch.optim.Adam
         else:
             try:
                 # default to apex as it's slightly faster
@@ -419,15 +368,22 @@ def setup_model_and_optimizer(neox_args, inference=False, get_key_value=True, it
         inference: Whether to setup the model for inference. TODO: expand on this - what is different specifically?
         get_key_value: Whether to cache key value pairs (in inference)
     """
-    model = get_model(
-        neox_args=neox_args, inference=inference, get_key_value=get_key_value
+    model = GPTModelPipe.from_neox_args(
+        neox_args=neox_args,
+        parallel_output=True,
+        topology=mpu.get_topology(),
+        inference=inference,
+        get_key_value=get_key_value,
     )
     optimizer, param_groups = get_optimizer(model=model, neox_args=neox_args)
     lr_scheduler = get_learning_rate_scheduler(optimizer=optimizer, neox_args=neox_args)
 
     if neox_args.no_load_optim:
+        # if we're not loading optim, we don't need to pass through model parameters
         model_parameters = None
     else:
+        # if we are loading an optimizer, but the optimizer is currently None, this means deepspeed
+        # is handling the optimizer, so we don't need to pass through model parameters
         model_parameters = param_groups if optimizer is None else None
 
     model, optimizer, _, lr_scheduler = deepspeed.initialize(
@@ -450,8 +406,6 @@ def setup_model_and_optimizer(neox_args, inference=False, get_key_value=True, it
         neox_args.iteration = load_checkpoint(
             neox_args=neox_args,
             model=model,
-            optimizer=optimizer,
-            lr_scheduler=lr_scheduler,
             inference=inference,
             iteration=iteration,
         )
@@ -604,11 +558,9 @@ def train(
     neox_args.timers("interval time").start()
     report_memory_flag = True
 
-    # get noise scale logger (if neox_args.log_gradient_noise_scale is True)
-    noise_scale_logger = get_noise_scale_logger(neox_args)
-
     # to monitor if we've skipped many iterations in a row and trigger an early exit
     overflow_monitor = OverflowMonitor(optimizer)
+
     while iteration < neox_args.train_iters:
         loss_dict, skipped_iter = train_step(
             neox_args=neox_args,
@@ -619,8 +571,6 @@ def train(
         iteration += 1
 
         overflow_monitor.check(skipped_iter)  # check for repeated overflow
-        if neox_args.log_gradient_noise_scale:  # log noise scale if applicable
-            noise_scale_logger.update()
 
         # get learning rate (if present) - if doing soft prompt tuning + pipe parallel, you
         # may have no tunable parameters on a specific rank
@@ -641,7 +591,6 @@ def train(
             skipped_iter=skipped_iter,
             model=model,
             optimizer=optimizer,
-            noise_scale_logger=noise_scale_logger,
         )
 
         # Checkpointing

@@ -95,8 +95,6 @@ class Embedding(torch.nn.Module):
                 init_string=soft_prompt_config.get("init_string", ""),
                 init_range=soft_prompt_config.get("init_range", 0.5),
             )
-            if soft_prompt_config.get("freeze_model", False):
-                self.soft_prompt_embeddings.freeze_model()
         else:
             self.soft_prompt_embeddings = None
 
@@ -176,13 +174,12 @@ class EmbeddingPipe(Embedding):
             raise ValueError(
                 f"Incorrect number of args passed to {self.__class__.__name__}"
             )
-
         embeddings = super().forward(input_ids, position_ids)
+
         if in_inference:
             return embeddings, layer_past, attention_mask
         else:
             return embeddings, attention_mask
-
 
 class SoftEmbedding(torch.nn.Module):
     def __init__(

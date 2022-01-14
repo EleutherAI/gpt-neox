@@ -316,26 +316,6 @@ class OverflowMonitor:
             )
 
 
-def get_noise_scale_logger(neox_args):
-    if neox_args.log_gradient_noise_scale:
-        if neox_args.zero_stage >= 1:
-            raise NotImplementedError(
-                "Gradient Noise Scale logging does not work with zero stage 2+, as the "
-                "gradients are distributed across ranks."
-            )
-        noise_scale_logger = GradientNoiseScale(
-            model=model,
-            batch_size_small=neox_args.train_batch_size,
-            n_batches=neox_args.gradient_noise_scale_n_batches,
-            cpu_offload=neox_args.gradient_noise_scale_cpu_offload,
-            neox_args=neox_args,
-            mpu=mpu,
-        )
-    else:
-        noise_scale_logger = None
-    return noise_scale_logger
-
-
 def count_params(model: torch.nn.Module) -> int:
     """
     Returns the number of parameters in the model.
@@ -427,7 +407,9 @@ def setup_for_inference_or_eval(
         get_key_value=get_key_value,
         iteration=neox_args.iteration,
     )  # we use setup_model_and_optimizer instead of get_model in order to initialize deepspeed
+
     print_rank_0("Finished loading model")
+    
     return model, neox_args
 
 

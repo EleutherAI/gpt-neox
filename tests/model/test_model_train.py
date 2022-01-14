@@ -32,7 +32,6 @@ PARAMS_TO_TEST = {
         [False, True],
     ],
     "checkpoint_activations": binary,
-    "log_gradient_noise_scale": [True],
     "sparsity_config": [
         {
             "block": 16,  # block size

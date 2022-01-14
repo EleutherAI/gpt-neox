@@ -188,7 +188,7 @@ class NeoXArgs(*BASE_CLASSES):
                 )
 
     @classmethod
-    def from_ymls(cls, paths_to_yml_files: List[str], overwrite_values: Dict = None):
+    def from_ymls(cls, paths_to_yml_files: List[str], overwrite_values: Dict = None, configure_distributed_args: bool = False, build_tokenizer = False):
         """
         instantiates NeoXArgs while reading values from yml files
 
@@ -248,7 +248,14 @@ class NeoXArgs(*BASE_CLASSES):
 
         # instantiate class and return
         # duplicate values and unrecognized keys are again checked upon instantiation
-        return cls(**config)
+        neox_args = cls(**config)
+
+        if configure_distributed_args:
+            neox_args.configure_distributed_args()
+        if build_tokenizer:
+            neox_args.build_tokenizer()
+        
+        return neox_args
 
     @classmethod
     def from_dict(cls, args_dict: Dict):
