@@ -128,8 +128,7 @@ For demonstrative purposes we've hosted the Enron Emails corpus and made it avai
 
 In the future we will also be adding a single command to preprocess our 800GB language modelling dataset, [The Pile](https://arxiv.org/abs/2101.00027), and all its constituent datasets.
 
-To prepare your own dataset for training, format it as one large [jsonl](https://jsonlines.org/)-formated file with each item in the list of dictionaries being a separate document.
-The document text should be grouped under one JSON key, i.e `"text"`. 
+To prepare your own dataset for training, format it as one large [jsonl](https://jsonlines.org/)-formated file with each item in the list of dictionaries being a separate document. The document text should be grouped under one JSON key, i.e `"text"`. Auxillery metadata can be stored in other fields without effecting language model training. This file should then be zipped using [zstd](https://github.com/facebook/zstd).
 
 Next make sure to download the GPT2 tokenizer vocab, and merge files from the following links:
 
@@ -145,13 +144,13 @@ You can now pretokenize your data using `tools/preprocess_data.py`.
 Usage:
 
 ```
-preprocess_data.py [-h] --input INPUT [--json-keys JSON_KEYS [JSON_KEYS ...]] [--split-sentences] [--keep-newlines] --tokenizer-type {BertWordPieceLowerCase,BertWordPieceCase,GPT2BPETokenizer} [--vocab-file VOCAB_FILE] [--merge-file MERGE_FILE] [--append-eod]
+preprocess_data.py [-h] --input INPUT [--jsonl-keys JSONL_KEYS [JSONL_KEYS ...]] [--split-sentences] [--keep-newlines] --tokenizer-type {BertWordPieceLowerCase,BertWordPieceCase,GPT2BPETokenizer} [--vocab-file VOCAB_FILE] [--merge-file MERGE_FILE] [--append-eod]
                           --output-prefix OUTPUT_PREFIX [--dataset-impl {lazy,cached,mmap}] [--workers WORKERS] [--log-interval LOG_INTERVAL]
 
 input data:
-  --input INPUT         Path to input JSON
-  --json-keys JSON_KEYS [JSON_KEYS ...]
-                        space separate listed of keys to extract from json. default = "text".
+  --input INPUT         Path to input jsonl.zst file
+  --jsonl-keys JSON_KEYS [JSONL_KEYS ...]
+                        space separate listed of keys to extract from jsonl. default = "text".
   --split-sentences     Split documents into sentences.
   --keep-newlines       Keep newlines between sentences when splitting.
 
@@ -180,7 +179,7 @@ For example:
 
 ```bash
 python tools/preprocess_data.py \
-            --input data/mydataset.jsonl \
+            --input data/mydataset.jsonl.zst \
             --output-prefix data/mydataset \
             --vocab data/gpt2-vocab.json \
             --dataset-impl mmap \
