@@ -43,12 +43,22 @@ class Embedding(torch.nn.Module):
             )
         self._word_embeddings_key = 'word_embeddings'
 
+        if neox_args.use_bnb_optimizer:
+            try:
+                import bitsandbytes as bnb
+                self.embedding_module = bnb.nn.StableEmbedding
+            except ModuleNotFoundError:
+                print("Please install bitsandbytes following https://github.com/facebookresearch/bitsandbytes.")
+                raise Exception
+        else:
+            self.embedding_module = torch.nn.Embedding
+
         # Position embedding (serial).
         self.use_pos_emb = use_pos_emb
         if self.use_pos_emb:
             self.embedding_type = neox_args.pos_emb
             if self.embedding_type == "learned":
-                self.position_embeddings = torch.nn.Embedding(
+                self.position_embeddings = self.embedding_module(
                     max_sequence_length, self.hidden_size)
                 self._position_embeddings_key = 'position_embeddings'
                 # Initialize the position embeddings.
@@ -62,7 +72,7 @@ class Embedding(torch.nn.Module):
         # token types and add them as needed.
         self._tokentype_embeddings_key = 'tokentype_embeddings'
         if self.num_tokentypes > 0:
-            self.tokentype_embeddings = torch.nn.Embedding(self.num_tokentypes,
+            self.tokentype_embeddings = self.embedding_module(self.num_tokentypes,
                                                            self.hidden_size)
             # Initialize the token-type embeddings.
             self.init_method(self.tokentype_embeddings.weight)
@@ -83,7 +93,7 @@ class Embedding(torch.nn.Module):
             print('adding embedding for {} tokentypes'.format(num_tokentypes),
                   flush=True)
         self.num_tokentypes = num_tokentypes
-        self.tokentype_embeddings = torch.nn.Embedding(num_tokentypes,
+        self.tokentype_embeddings = self.embedding_module(num_tokentypes,
                                                        self.hidden_size)
         # Initialize the token-type embeddings.
         self.init_method(self.tokentype_embeddings.weight)
@@ -150,11 +160,10 @@ class SoftEmbedding(torch.nn.Module):
         self.init_string = init_string
         self.soft_embedding_weight = torch.nn.parameter.Parameter(self.initialize_embedding(wte))
 
-    def initialize_embedding(self, 
-                             wte: torch.nn.Embedding):
+    def initialize_embedding(self):
         if self.init_string:
-            embeds = torch.LongTensor(self.neox_args.tokenizer.tokenize(self.init_string)).to(wte.weight.device)
-            embeds = wte(embeds)
+            embeds = torch.LongTensor(self.neox_args.tokenizer.tokenize(self.init_string)).to(self.embedding_module.weight.device)
+            embeds = self.embedding_module(embeds)
             if embeds.shape[0] >= self.n_tokens:
                 embeds = embeds[:self.n_tokens, :] # slice
             else:
