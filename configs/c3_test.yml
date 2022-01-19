@@ -1,23 +1,12 @@
 {
     "train-data-paths": [
         "/mnt/ssd-cluster/P3/hellaswag_Topic_without_the_ending_answer/train_text_document",
-        "/mnt/ssd-cluster/P3/adversarial_qa_droberta_answer_the_following_q/train_text_document",
-        "/mnt/ssd-cluster/P3/quoref_Answer_Question_Given_Context/train_text_document",
-        "/mnt/ssd-cluster/P3/anli_must_be_true_r3_score_eval/train_text_document",
-        "/mnt/ssd-cluster/P3/anli_does_this_imply_r3_score_eval/train_text_document",
-        "/mnt/ssd-cluster/P3/ag_news_classify/train_text_document",
-        "/mnt/ssd-cluster/P3/race_middle_Is_this_the_right_answer/train_text_document",
-        "/mnt/ssd-cluster/P3/quoref_Find_Answer/train_text_document",
-        "/mnt/ssd-cluster/P3/cos_e_v1.11_question_description_option_text/train_text_document",
     ],
     "test-data-paths": [
-        "/mnt/ssd-cluster/P3/amazon_polarity_convey_negative_or_positive_sentiment/test_text_document",
         "/mnt/ssd-cluster/P3/anli_does_this_imply_r3_score_eval/test_text_document",
     ],
     "valid-data-paths": [
         "/mnt/ssd-cluster/P3/wiki_hop_original_choose_best_object_affirmative_2/validation_text_document",
-        "/mnt/ssd-cluster/P3/duorc_SelfRC_decide_worth_it/validation_text_document",
-        "/mnt/ssd-cluster/P3/glue_mrpc_equivalent/validation_text_document",
     ],
     "vocab-file": "/mnt/ssd-1/data/20B_tokenizer.json",
     "merge-file": null,
