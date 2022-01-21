@@ -128,7 +128,7 @@ For demonstrative purposes we've hosted the Enron Emails corpus and made it avai
 
 In the future we will also be adding a single command to preprocess our 800GB language modelling dataset, [The Pile](https://arxiv.org/abs/2101.00027), and all its constituent datasets.
 
-To prepare your own dataset for training, format it as one large [jsonl](https://jsonlines.org/)-formated file with each item in the list of dictionaries being a separate document. The document text should be grouped under one JSON key, i.e `"text"`. Auxillery metadata can be stored in other fields without effecting language model training. This file should then be zipped using [zstd](https://github.com/facebook/zstd).
+To prepare your own dataset for training, format it as one large [jsonl](https://jsonlines.org/)-formated file with each item in the list of dictionaries being a separate document. The document text should be grouped under one JSON key, i.e `"text"`. Auxiliary metadata can be stored in other fields without affecting language model training. This file should then be compressed using [zstd](https://github.com/facebook/zstd).
 
 Next make sure to download the GPT2 tokenizer vocab, and merge files from the following links:
 
