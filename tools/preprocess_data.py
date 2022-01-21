@@ -63,8 +63,8 @@ def get_args():
     group.add_argument('--input', type=str, required=True,
                        help='Path to input lmd archive(s) - if using multiple archives, put them in a comma separated '
                             'list')
-    group.add_argument('--json-keys', nargs='+', default=['text'],
-                       help='space separate listed of keys to extract from json')
+    group.add_argument('--jsonl-keys', nargs='+', default=['text'],
+                       help='space separate listed of keys to extract from jsonl')
     group.add_argument('--num-docs', default=None,
                        help='Number of documents in the input data (if known) for an accurate progress bar.', type=int)
     group = parser.add_argument_group(title='tokenizer')
