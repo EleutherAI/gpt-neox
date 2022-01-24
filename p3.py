@@ -6,4 +6,4 @@ def save_config(config):
 if __name__ == '__main__':
     configs = get_dataset_config_names('bigscience/P3')
     with Pool(80) as p:
-        p.map(save_config,configs[481:])  
+        p.map(save_config,configs)  
