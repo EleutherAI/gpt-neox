@@ -1,7 +1,7 @@
 {
-    "train-data-path": "/mnt/ssd-cluster/P3_combined/train_text_document",
-    "test-data-path": "/mnt/ssd-cluster/P3_combined/test_text_document",
-    "valid-data-path": "/mnt/ssd-cluster/P3_combined/validation_text_document",
+    "train-data-paths": ["/mnt/ssd-1/P3_combined/train_text_document"],
+    "test-data-paths": ["/mnt/ssd-1/P3_combined/test_text_document"],
+    "valid-data-paths": ["/mnt/ssd-1/P3_combined/validation_text_document"],
     "vocab-file": "/mnt/ssd-1/data/20B_tokenizer.json",
     "merge-file": null,
     "save": "/mnt/ssd-cluster/small0/",
