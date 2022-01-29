@@ -28,6 +28,11 @@ namespace multihead_attn {
 namespace fused_softmax {
 namespace scaled_masked_softmax {
 
+int get_batch_per_block_cuda(int query_seq_len, int key_seq_len, int batches, int attn_heads){
+    return get_batch_per_block(query_seq_len, key_seq_len, batches, attn_heads);
+}
+
+
 torch::Tensor fwd_cuda(
     torch::Tensor const& input,
     torch::Tensor const& mask,
@@ -46,9 +51,9 @@ torch::Tensor fwd_cuda(
   TORCH_INTERNAL_ASSERT(mask.size(2) == query_seq_len);
   TORCH_INTERNAL_ASSERT(mask.size(3) == key_seq_len);
 
-  // Output
+  // Output 
   auto act_options = input.options().requires_grad(false);
-  torch::Tensor softmax_results =
+  torch::Tensor softmax_results = 
       torch::empty({batches, attn_heads, query_seq_len, key_seq_len}, act_options);
 
   // Softmax Intermediate Result Ptr
@@ -74,10 +79,10 @@ torch::Tensor fwd_cuda(
 }
 
 torch::Tensor bwd_cuda(
-    torch::Tensor const& output_grads_,
-    torch::Tensor const& softmax_results_,
+    torch::Tensor const& output_grads_, 
+    torch::Tensor const& softmax_results_, 
     float scale_factor)  {
-
+	
   auto output_grads = output_grads_.contiguous();
   auto softmax_results = softmax_results_.contiguous();
 
@@ -94,8 +99,8 @@ torch::Tensor bwd_cuda(
       output_grads_.scalar_type(),
       "dispatch_scaled_masked_softmax_backward",
       dispatch_scaled_masked_softmax_backward<scalar_t, scalar_t, float>(
-          reinterpret_cast<scalar_t*>(output_grads_ptr),
-	  reinterpret_cast<scalar_t*>(output_grads_ptr),
+          reinterpret_cast<scalar_t*>(output_grads_ptr), 
+	  reinterpret_cast<scalar_t*>(output_grads_ptr), 
 	  reinterpret_cast<scalar_t const*>(softmax_results.data_ptr()),
 	  scale_factor,
 	  query_seq_len,

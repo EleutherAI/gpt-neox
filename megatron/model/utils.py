@@ -20,6 +20,7 @@
 
 import torch
 from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
+from megatron.model.fused_softmax import SoftmaxFusionTypes
 from types import GeneratorType
 
 def get_params_for_weight_decay_optimization(module, neox_args):
@@ -280,3 +281,12 @@ def configure_sparse_attention(neox_args, attention_type, num_attention_heads, m
         attn_mask_mode="add",
         mpu=mpu,
     )
+
+
+def get_fusion_type(neox_args):
+    fusion_type = SoftmaxFusionTypes.none
+    if neox_args.scaled_upper_triang_masked_softmax_fusion:
+        fusion_type = SoftmaxFusionTypes.upper_triang
+    elif neox_args.scaled_masked_softmax_fusion:
+        fusion_type = SoftmaxFusionTypes.general
+    return fusion_type
