@@ -85,6 +85,7 @@ class EvalHarnessAdapter(GPT2LM):
         )
 
     def greedy_until(self, requests):
+        print("dsfdsfdsfdsfsd greedy_until", requests)
         """
         Greedy until is lm_eval harness' way to say "do greedy generation" - necessary for some tasks.
         the eval harness dispatches requests to the model, and the model does argmax generation, the results of which
@@ -107,9 +108,10 @@ class EvalHarnessAdapter(GPT2LM):
             if isinstance(until, str):
                 until = [until]
             stop_tokens = [self.tokenizer.encode(i) for i in until]
+            print("dsgdsfdsfds ctx", context)
             cont = self.generate(
                 text=context,
-                stop_tokens=stop_tokens,
+          #      stop_tokens=stop_tokens,
                 recompute=self.neox_args.recompute,
             )
             if cont:
@@ -344,10 +346,13 @@ class EvalHarnessAdapter(GPT2LM):
         self.model.micro_batches = in_micro_batches
         return results
 
-
+import eval_tasks.generate_gpt_codes as generate_gpt_codes
 def run_eval_harness(
     model, forward_step_fn, neox_args, batch_size=None, eval_tasks=None, num_fewshot=0,
 ):
     print_rank_0("Running evaluation harness...")
     adapter = EvalHarnessAdapter(model, forward_step_fn, neox_args, batch_size)
-    return adapter.run_eval(eval_tasks=eval_tasks, num_fewshot=num_fewshot)
+    adapter.model.eval()
+    adapter.model.micro_batches = 1
+
+    generate_gpt_codes.neox_eval_entrypoint(lambda x: adapter.greedy_until([[x, [" SolidGoldMagikarp"]]])[0])
