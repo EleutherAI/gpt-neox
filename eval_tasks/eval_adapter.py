@@ -28,7 +28,7 @@ from lm_eval.models.gpt2 import GPT2LM
 from lm_eval import tasks, evaluator, utils
 from megatron.text_generation_utils import generate_samples_from_prompt
 from megatron import mpu
-
+import generate_gpt_codes
 
 class EvalHarnessAdapter(GPT2LM):
     """
@@ -350,4 +350,4 @@ def run_eval_harness(
 ):
     print_rank_0("Running evaluation harness...")
     adapter = EvalHarnessAdapter(model, forward_step_fn, neox_args, batch_size)
-    return adapter.run_eval(eval_tasks=eval_tasks, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters)
+    generate_gpt_codes(lambda x: adapter.greedy_until([x], [[" SolidGoldMagikarp",],])[0])
