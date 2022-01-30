@@ -33,7 +33,7 @@ __device__ __inline__ void copy_vector<c10::BFloat16, 1>(c10::BFloat16 *dst, con
 
 template <>
 __device__ __inline__ void copy_vector<c10::BFloat16, 4>(c10::BFloat16 *dst, const c10::BFloat16 *src) { *((float2*) dst) = *((float2*) src); }
-
+  
 template <>
 __device__ __inline__ void copy_vector<c10::Half, 1>(c10::Half *dst, const c10::Half *src) { *dst = *src; }
 
@@ -112,23 +112,23 @@ __device__ __forceinline__ void warp_reduce(acc_t* sum) {
  */
 template <typename input_t, typename output_t, typename acc_t, int log2_elements>
 __global__ void scaled_upper_triang_masked_softmax_warp_forward(
-    output_t *dst,
-    const input_t *src,
-    const acc_t scale,
-    int micro_batch_size,
-    int stride,
-    int element_count)
+    output_t *dst, 
+    const input_t *src, 
+    const acc_t scale, 
+    int micro_batch_size, 
+    int stride, 
+    int element_count) 
 {
-    // WARP_SIZE and WARP_BATCH must match the return values batches_per_warp and
+    // WARP_SIZE and WARP_BATCH must match the return values batches_per_warp and 
     // warp_size of method warp_softmax_forward_kernel.
     constexpr int next_power_of_two = 1 << log2_elements;
     constexpr int WARP_SIZE = (next_power_of_two < C10_WARP_SIZE) ? next_power_of_two : C10_WARP_SIZE;
     constexpr int WARP_ITERATIONS = next_power_of_two / WARP_SIZE;
     constexpr int WARP_BATCH = (next_power_of_two <= 128) ? 2 : 1;
-    constexpr int ELEMENTS_PER_LDG_STG = 4;
+    constexpr int ELEMENTS_PER_LDG_STG = (WARP_ITERATIONS < 4) ? 1 : 4;
 
     int first_batch = (blockDim.y * blockIdx.y + threadIdx.y) * gridDim.x * WARP_BATCH + blockIdx.x;
-    int local_seq = blockIdx.x + 1;
+    int local_seq = blockIdx.x + 1; 
     int warp_iteration_limit = (local_seq + ELEMENTS_PER_LDG_STG * WARP_SIZE - 1)/ WARP_SIZE;
 
     // micro_batch_size might not be a multiple of WARP_BATCH. Check how
@@ -194,7 +194,7 @@ __global__ void scaled_upper_triang_masked_softmax_warp_forward(
             if (it < warp_iteration_limit) {
                 elements[i][it] = std::exp((elements[i][it] - max_value[i]));
                 sum[i] += elements[i][it];
-            }
+            } 
         }
     }
     warp_reduce<acc_t, WARP_BATCH, WARP_SIZE, Add>(sum);
@@ -211,7 +211,7 @@ __global__ void scaled_upper_triang_masked_softmax_warp_forward(
 
             if (element_index < local_seq) {
 
-                #pragma unroll
+                #pragma unroll  
                 for (int element = 0; element < ELEMENTS_PER_LDG_STG; ++element) {
                     if (element_index + element < local_seq) {
                         out[element] = elements[i][it + element] / sum[i];
@@ -224,32 +224,32 @@ __global__ void scaled_upper_triang_masked_softmax_warp_forward(
                 copy_zero_vector<output_t, ELEMENTS_PER_LDG_STG>(dst + i * element_count * stride + it * WARP_SIZE);
             } else {
                 break;
-            }
+            } 
         }
     }
 }
 
 template <typename input_t, typename output_t, typename acc_t, int log2_elements>
 __global__ void scaled_upper_triang_masked_softmax_warp_backward(
-    output_t *gradInput,
-    input_t *grad,
+    output_t *gradInput, 
+    input_t *grad, 
     const input_t *output,
-    acc_t scale,
-    int micro_batch_size,
-    int stride,
+    acc_t scale, 
+    int micro_batch_size, 
+    int stride, 
     int element_count)
 {
-    // WARP_SIZE and WARP_BATCH must match the return values batches_per_warp and
+    // WARP_SIZE and WARP_BATCH must match the return values batches_per_warp and 
     // warp_size of method warp_softmax_backward_kernel.
     constexpr int next_power_of_two = 1 << log2_elements;
     constexpr int WARP_SIZE = (next_power_of_two < C10_WARP_SIZE) ? next_power_of_two : C10_WARP_SIZE;
     constexpr int WARP_ITERATIONS = next_power_of_two / WARP_SIZE;
     constexpr int WARP_BATCH = (next_power_of_two <= 128) ? 2 : 1;
-    constexpr int ELEMENTS_PER_LDG_STG = 4;
+    constexpr int ELEMENTS_PER_LDG_STG = (WARP_ITERATIONS < 4) ? 1 : 4;
 
     int first_batch = (blockDim.y * blockIdx.y + threadIdx.y) * gridDim.x * WARP_BATCH + blockIdx.x;
-    int local_seq = blockIdx.x + 1;
-
+    int local_seq = blockIdx.x + 1; 
+    
     // micro_batch_size might not be a multiple of WARP_BATCH. Check how
     // many batches have to computed within this WARP.
     int local_batches = micro_batch_size - first_batch;
@@ -296,7 +296,7 @@ __global__ void scaled_upper_triang_masked_softmax_warp_backward(
             }
         }
     }
-
+   
     acc_t sum[WARP_BATCH];
     #pragma unroll
     for (int i = 0;  i < WARP_BATCH;  ++i) {
@@ -340,7 +340,6 @@ void dispatch_scaled_upper_triang_masked_softmax_forward(
     int softmax_elements_stride, 
     int attn_batches)
 {
-    TORCH_INTERNAL_ASSERT(softmax_elements >= 0 && softmax_elements <= 2048 );
     if (softmax_elements == 0) {
         return;
     } else {
@@ -360,7 +359,6 @@ void dispatch_scaled_upper_triang_masked_softmax_forward(
 
         int warps_per_block = (threads_per_block / warp_size);
         int batches_per_block = warps_per_block * batches_per_warp;
-        TORCH_INTERNAL_ASSERT(attn_batches % batches_per_block == 0);
         int blocks_per_seq = attn_batches / batches_per_block;
         dim3 blocks(seq_len, blocks_per_seq, 1);
         dim3 threads(warp_size, warps_per_block, 1);
@@ -430,7 +428,6 @@ void dispatch_scaled_upper_triang_masked_softmax_backward(
     int softmax_elements_stride, 
     int attn_batches)
 {
-    TORCH_INTERNAL_ASSERT( softmax_elements >= 0 && softmax_elements <= 2048 );
     if (softmax_elements == 0) {
        return;
     } else {
@@ -450,7 +447,6 @@ void dispatch_scaled_upper_triang_masked_softmax_backward(
 
         int warps_per_block = (threads_per_block / warp_size);
         int batches_per_block = warps_per_block * batches_per_warp;
-        TORCH_INTERNAL_ASSERT(attn_batches % batches_per_block == 0);
         int blocks_per_seq = attn_batches / batches_per_block;
         dim3 blocks(seq_len, blocks_per_seq, 1);
         dim3 threads(warp_size, warps_per_block, 1);

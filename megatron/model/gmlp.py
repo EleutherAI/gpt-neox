@@ -5,8 +5,9 @@ import torch.nn.functional as F
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
 from megatron.model.activations import get_activation
 from megatron.model.norms import get_norm
-from megatron import mpu
+from megatron.model.utils import get_fusion_type
 
+from megatron import mpu
 
 class TinyAttention(nn.Module):
     def __init__(self, neox_args, d_attn, d_ff, mask_fn):
@@ -16,11 +17,12 @@ class TinyAttention(nn.Module):
         self.proj_ffn = nn.Linear(d_attn, d_ff)
         self.softmax = FusedScaleMaskSoftmax(
             input_in_fp16=neox_args.precision == "fp16",
-            upper_triang_mask_fusion=neox_args.scaled_upper_triang_masked_softmax_fusion,
-            general_mask_fusion=neox_args.scaled_masked_softmax_fusion,
+            input_in_bf16=neox_args.precision == "bfloat16",
+            fusion_type=get_fusion_type(neox_args),
             mask_func=mask_fn,
             softmax_in_fp32=neox_args.attention_softmax_in_fp32,
-            scale=None)
+            scale=None
+            )
 
     def forward(self, x, attention_mask):
         q, k, v = torch.chunk(self.proj_qkv(x), 3, dim=-1)
