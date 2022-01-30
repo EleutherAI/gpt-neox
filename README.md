@@ -2,7 +2,7 @@
 [<img src="https://raw.githubusercontent.com/wandb/assets/main/wandb-github-badge-28.svg" alt="Weights & Biases monitoring" height=20>](https://wandb.ai/eleutherai/neox)
 
 # P3
-execute files `p3.py`, `p3_transform.py` and `prepare_data.py` in the same order to replicate creation of P3_combined data.
+execute files `p3.py`, `process_dataset` in the same order to replicate creation of P3_combined datasets.
 
 # GPT-NeoX
 
