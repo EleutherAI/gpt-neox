@@ -302,7 +302,7 @@ class EvalHarnessAdapter(GPT2LM):
         return logits
 
     @torch.no_grad()
-    def run_eval(self, eval_tasks=None, num_fewshot=0):
+    def run_eval(self, eval_tasks=None, num_fewshot=0, bootstrap_iters=2):
         was_training = self.model.training
         self.model.eval()
         in_micro_batches = (
@@ -336,8 +336,8 @@ class EvalHarnessAdapter(GPT2LM):
             provide_description=False,
             num_fewshot=num_fewshot,
             limit=None,
-            bootstrap_iters=2,
-        ).get("results")
+            bootstrap_iters=bootstrap_iters,
+        )
 
         if was_training:
             self.model.train()
@@ -346,8 +346,8 @@ class EvalHarnessAdapter(GPT2LM):
 
 
 def run_eval_harness(
-    model, forward_step_fn, neox_args, batch_size=None, eval_tasks=None, num_fewshot=0,
+    model, forward_step_fn, neox_args, batch_size=None, eval_tasks=None, num_fewshot=0, bootstrap_iters=2
 ):
     print_rank_0("Running evaluation harness...")
     adapter = EvalHarnessAdapter(model, forward_step_fn, neox_args, batch_size)
-    return adapter.run_eval(eval_tasks=eval_tasks, num_fewshot=num_fewshot)
+    return adapter.run_eval(eval_tasks=eval_tasks, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters)
