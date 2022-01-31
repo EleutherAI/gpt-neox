@@ -505,7 +505,6 @@ def generate_samples_from_prompt(
             if end_index >= start_index:
                 generated_tokens = tokens[start_index : end_index + 1]
                 if broadcast_generated_tokens:
-                    from copy import deepcopy
                     generated_tokens = torch.tensor(generated_tokens).cuda()
                     torch.distributed.broadcast(
                         generated_tokens,
@@ -523,7 +522,7 @@ def generate_samples_from_prompt(
                 generated_text = None
                 generated_tokens = []
                 # this will happen if the first generated token is a stop token or eos token
-                message = "WARNING: text generation did not start; try different batching or adjust parameters" 
+                message = "WARNING: text generation did not start; try different batching or adjust parameters"
             if is_mp_rank_0() or broadcast_generated_tokens:
                 data = {
                     "context": raw_text,
@@ -666,6 +665,7 @@ def generate_samples_unconditional(
     """
 
     print_rank_0("generate_samples_unconditional() generating...")
+    assert number_of_samples > 0, "number_of_samples must be > 0"
     generated_texts = generate_samples_from_prompt(
         neox_args=neox_args,
         model=model,

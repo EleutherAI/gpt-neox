@@ -24,7 +24,7 @@ ATTENTION_TYPE_CHOICES = [
 
 
 def get_git_commit_hash():
-    """ Gets the git commit hash of your current repo (if it exists) """
+    """Gets the git commit hash of your current repo (if it exists)"""
     try:
         git_hash = subprocess.check_output(["git", "describe", "--always"]).strip()
         git_hash = git_hash.decode()
@@ -906,7 +906,7 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     Text Generation arguments
     """
 
-    text_gen_type: str = None
+    text_gen_type: str = "unconditional"
     """
     How to generate text/sample the model.
     Options: `unconditional`, `input-file`, `interactive`
@@ -937,14 +937,14 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     Get input from file instead of interactive mode, each line is an input.
     """
 
-    sample_output_file: str = None
+    sample_output_file: str = "samples.txt"
     """
     Output file 
     """
 
-    num_samples: int = 0
+    num_samples: int = 1
     """
-    Number of samples to generate unconditionally, defaults to 0 and interactive conditional sampling
+    Number of samples to generate unconditionally, defaults to 1 and interactive conditional sampling
     """
 
     recompute: bool = False
@@ -962,5 +962,3 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     """
     Tasks to evaluate on using lm_eval_harness
     """
-
-    
