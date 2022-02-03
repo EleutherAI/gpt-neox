@@ -46,7 +46,7 @@ class Encoder(object):
         if self.args.ftfy:
             text = ftfy.fix_text(text)
         ids = {}
-        for key in self.args.json_keys:
+        for key in self.args.jsonl_keys:
             doc_ids = []
             text_ids = Encoder.tokenizer.tokenize(text)
             if len(text_ids) > 0:
@@ -142,12 +142,12 @@ def main():
         encoder.initializer()
         encoded_docs = (encoder.encode(doc) for doc in fin)
 
-    # make a dataset builder for each key in args.json_keys
+    # make a dataset builder for each key in args.jsonl_keys
     # each key will output to a different file beginning with args.output_prefix
     output_bin_files = {}
     output_idx_files = {}
     builders = {}
-    for key in args.json_keys:
+    for key in args.jsonl_keys:
         output_bin_files[key] = "{}_{}_{}.bin".format(args.output_prefix,
                                                       key, "document")
         output_idx_files[key] = "{}_{}_{}.idx".format(args.output_prefix,
@@ -184,7 +184,7 @@ def main():
                 pbar.update(args.log_interval)
 
     # save output file
-    for key in args.json_keys:
+    for key in args.jsonl_keys:
         builders[key].finalize(output_idx_files[key])
 
 
