@@ -593,7 +593,7 @@ class ParallelTransformerLayer(nn.Module):
         return fn
 
     def forward(self, x, attention_mask, layer_past=None):
-        layer_past = self.layer_past or layer_past
+        layer_past = layer_past if layer_past is not None else self.layer_past
         bias_dropout_fn = self._get_bias_dropout()
         # x: [b, s, h]
         if self.gpt_j_residual:

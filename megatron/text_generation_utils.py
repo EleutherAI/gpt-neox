@@ -275,7 +275,6 @@ def stream_tokens(
     with torch.no_grad():
         # initialize generation variables
         state_is_done = torch.zeros([batch_size]).byte().cuda()
-        layer_past = torch.Tensor().cuda()
         token_generation_end_index = torch.ones([batch_size]).long().cuda() * (-1)
 
         while token_index_to_generate <= last_token_index_to_generate:
@@ -311,10 +310,9 @@ def stream_tokens(
                     tokens_to_use,  # input_ids
                     positions_to_use,  # position_ids
                     attention_mask,  # attention_mask
-                    layer_past,  # layer_past
                 )
 
-                logits, layer_past = forward_model(neox_args, model, model_inputs)
+                logits = forward_model(neox_args, model, model_inputs)
                 # TODO: we are replicating computation across all machines here, which is really unecessary,
                 #  we should probably just do it on one rank then communicate the results?
                 generated_token_logits = logits[:, -1].view(batch_size, -1).contiguous()
@@ -460,7 +458,6 @@ def generate_samples_from_prompt(
             context_tokens = neox_args.tokenizer.tokenize("EMPTY TEXT")
             context_length = len(context_tokens)
             terminate_runs = 0
-
 
         terminate_runs = broadcast_terminate_signal(terminate_runs)
         if terminate_runs == 1:
