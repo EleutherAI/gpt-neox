@@ -248,7 +248,16 @@ def test_layer_norm():
     )
 
     fused_layernorm_layer = (
-        MixedFusedLayerNorm(normalized_shape=embedding_output.size(-1)).cuda().half()
+        FusedScaleMaskSoftmax(
+            input_in_fp16=True,
+            input_in_bf16=False,
+            mask_func=attention_mask_func,
+            fusion_type=SoftmaxFusionTypes.general,
+            scale=None,
+            softmax_in_fp32=False,
+        )
+        .cuda()
+        .half()
     )
 
     torch_layernorm_layer = (
