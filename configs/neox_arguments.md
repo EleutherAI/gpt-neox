@@ -899,11 +899,11 @@ Tokenizer Arguments
 
 
 
-- **tokenizer_type**: typing.Literal['GPT2BPETokenizer', 'HFTokenizer', 'HFGPT2Tokenizer', 'CharLevelTokenizer']
+- **tokenizer_type**: typing.Literal['GPT2BPETokenizer', 'HFTokenizer', 'HFGPT2Tokenizer', 'SPMTokenizer', 'CharLevelTokenizer']
 
     Default = GPT2BPETokenizer
 
-    Type of tokenizer to use - should be one of ["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "CharLevelTokenizer"]
+    Type of tokenizer to use - should be one of ["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "SPMTokenizer", "CharLevelTokenizer"]
 
 
 

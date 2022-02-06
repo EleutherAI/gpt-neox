@@ -61,21 +61,21 @@ def report_memory(name):
     )
     print_rank_0(string)
 
+
 def get_attn_mask(seq_length, device):
     """
     Get triangular attention mask for a given sequence length / device.
     """
     # lower triangular attention mask
-    mask = torch.tril(torch.ones(
-        (1, seq_length, seq_length), device=device)).view(
-        1, 1, seq_length, seq_length)
-    
-    # convert to binary
-    return (mask < 0.5)
+    mask = torch.tril(torch.ones((1, seq_length, seq_length), device=device)).view(
+        1, 1, seq_length, seq_length
+    )
 
-def get_ltor_masks_and_position_ids(data,
-                                    eod_token,
-                                    eod_mask_loss=False):
+    # convert to binary
+    return mask < 0.5
+
+
+def get_ltor_masks_and_position_ids(data, eod_token, eod_mask_loss=False):
     """Build masks and position id for left to right model."""
 
     # Extract batch size and sequence length.
@@ -107,9 +107,11 @@ def local_rank():
         local_rank = 0
     return int(local_rank)
 
+
 def is_bnb_available():
     """ True if bitsandbytes optimizers are available """
     return importlib.util.find_spec("bitsandbytes") is not None
+
 
 def is_local_main():
     """ True if is the local main process """
@@ -406,7 +408,7 @@ def setup_for_inference_or_eval(
         "checkpoint_activations": False,
         "partition_activations": False,
         "no_load_optim": True,
-        'zero_optimization': None, # disable zero optimization (won't be used in inference, and loading zero optimizer can cause errors)
+        "zero_optimization": None,  # disable zero optimization (won't be used in inference, and loading zero optimizer can cause errors)
     }
     if overwrite_values:
         _overwrite_values.update(overwrite_values)
@@ -422,7 +424,10 @@ def setup_for_inference_or_eval(
 
     # set up model and load checkpoint.
     model, _, _ = setup_model_and_optimizer(
-        neox_args=neox_args, inference=inference, get_key_value=get_key_value
+        neox_args=neox_args,
+        inference=inference,
+        get_key_value=get_key_value,
+        iteration=neox_args.iteration,
     )  # we use setup_model_and_optimizer instead of get_model in order to initialize deepspeed
     print_rank_0("Finished loading model")
     return model, neox_args

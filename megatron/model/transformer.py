@@ -27,7 +27,7 @@ from .norms import get_norm
 from megatron import mpu
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
 from megatron.model.activations import get_activation
-from megatron.model.utils import exists
+from megatron.model.utils import exists, get_fusion_type
 from megatron.model.positional_embeddings import (
     RotaryEmbedding,
     apply_rotary_pos_emb,
@@ -273,8 +273,7 @@ class ParallelSelfAttention(nn.Module):
             self.scale_mask_softmax = FusedScaleMaskSoftmax(
                 input_in_fp16=self.fp16,
                 input_in_bf16=self.bf16,
-                upper_triang_mask_fusion=neox_args.scaled_upper_triang_masked_softmax_fusion,
-                general_mask_fusion=neox_args.scaled_masked_softmax_fusion,
+                fusion_type=get_fusion_type(neox_args),
                 mask_func=self.attention_mask_func,
                 softmax_in_fp32=self.attention_softmax_in_fp32,
                 scale=coeff,
