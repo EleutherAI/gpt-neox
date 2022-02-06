@@ -45,7 +45,10 @@ def get_batch(neox_args, context_tokens: torch.Tensor):
     tokens = context_tokens.contiguous().cuda()
     # Get the attention mask and postition ids.
     attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
-        tokens, neox_args.tokenizer.eod, neox_args.eod_mask_loss
+        data=tokens,
+        eod_token=neox_args.tokenizer.eod,
+        max_position_embeddings=neox_args.max_position_embeddings,
+        eod_mask_loss=neox_args.eod_mask_loss,
     )
     return tokens, attention_mask, position_ids
 
@@ -118,7 +121,7 @@ def switch(val1, val2, boolean):
     return (1 - boolean) * val1 + boolean * val2
 
 
-def forward_model(neox_args, model, model_inputs):
+def forward_model(model, model_inputs, is_pipe_parallel=False) -> torch.Tensor:
     """
     Runs model.forward(model_inputs)
 
@@ -127,20 +130,30 @@ def forward_model(neox_args, model, model_inputs):
     model: a Megatron model.
     model_inputs: tuple containing model args
 
-    returns: result of model.forward(model_inputs)
+    returns: torch.Tensor containing the logits of the model
     """
     # because someone at deepspeed decided pipeline modules couldn't use kwargs,
     # we need to forward a pipe model differently to a normal model
-    if neox_args.pipe_parallel_size <= 1:
+    if not is_pipe_parallel:
         return model.module(model_inputs)
     else:
-        # make a dummy iterator to pass to the pipeline model
-        # because deepspeed pipe engine only accepts iterators
+        # we need to format inputs this way because:
+        # a) deepspeed pipeline only accepts iterables
+        # b) deepspeed pipeline *requires* that you pass in labels for the loss, it's not easy to get around this
+        # so we wrap the inputs in an iterable, and pad them (because internally, we get labels as inputs[:, 1:] and inputs as inputs[:, :-1])
         model_inputs = iter([{"text": F.pad(model_inputs[0], pad=(0, 1))}])
 
         # set num microbatches to 1 at inference time
         micro_batches_before = model.micro_batches
         model.micro_batches = 1
+
+        # deepspeed sends metadata across pipeline stages only once in the first step, then assumes it will stay
+        # constant. In inference, the metadata of the tensors being sent across pipe stages may change, so we need to set
+        # these two flags in order for deepspeed to send the metadata every step, otherwise torch.distributed hangs
+        # silently. Fun stuff.
+        model.first_output_send = True
+        model.pipe_recv_buf = None
+
         loss, logits = model.eval_batch(model_inputs, return_logits=True)
         model.micro_batches = micro_batches_before
         return logits
@@ -245,9 +258,6 @@ def stream_tokens(
     # get attention mask / position ids
     context_tokens, attention_mask, position_ids = get_batch(neox_args, context_tokens)
 
-    # determine the smallest context length at which first output is produced
-    context_length = token_generation_start_index.min().item()
-
     # set variables
     eos_token_id = eos_token_id or neox_args.tokenizer.eod
     maximum_tokens = maximum_tokens or (
@@ -271,21 +281,18 @@ def stream_tokens(
         token_generation_end_index = torch.ones([batch_size]).long().cuda() * (-1)
 
         while token_index_to_generate <= last_token_index_to_generate:
-            if recompute:
-                # recompute is needed for sparse attention at the moment
-                # because we can only forward multiples of the block size
-                # TODO The full padded context_tokens would not need to be forwarded, adjust to multiples of block size
-                # we need to use neox_args instead of kwargs here because deepspeed :|
+            if recompute:  # recompute all tokens
                 model_inputs = (
                     context_tokens,
                     position_ids,
                     attention_mask,
                 )
-                logits, _ = forward_model(neox_args, model, model_inputs)
-                generated_token_logits = logits[:, token_index_to_generate - 1, :]
-            else:
-                # not choosing recompute assumes that any number of tokens can be forwarded
-                # this is not the case for sparse attention
+                logits = forward_model(model, model_inputs, neox_args.is_pipe_parallel)
+                if logits is not None:  # if pipe parallel, not all ranks return logits
+                    generated_token_logits = logits[
+                        :, token_index_to_generate - 1, :
+                    ]  # [bs, seq, vocab_size] -> [bs, vocab_size]
+            else:  # use kv cache
                 if token_index_to_generate == first_token_index_to_generate:
                     tokens_to_use = context_tokens[:, :token_index_to_generate]
                     positions_to_use = position_ids[:, :token_index_to_generate]
@@ -304,8 +311,7 @@ def stream_tokens(
                 )
 
                 logits = forward_model(neox_args, model, model_inputs)
-                if logits is not None:
-                    # if pp > 1, not all ranks will have logits present
+                if logits is not None:  # if pipe parallel, not all ranks return logits
                     generated_token_logits = (
                         logits[:, -1].view(batch_size, -1).contiguous()
                     )  # [bs, seq, vocab_size] -> [bs, vocab_size]
@@ -327,7 +333,7 @@ def stream_tokens(
                     generated_tokens = torch.multinomial(
                         next_token_log_probs, num_samples=1
                     ).view(-1)
-                
+
             if neox_args.is_pipe_parallel:
                 # broadcast generated tokens to pipe parallel group
                 src_rank = model.grid.stage_to_global(model.num_stages - 1)

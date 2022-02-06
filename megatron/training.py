@@ -162,7 +162,10 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
 
     # Get the masks and position ids.
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
-        tokens, tokenizer.eod, neox_args.eod_mask_loss
+        data=tokens,
+        eod_token=neox_args.tokenizer.eod,
+        max_position_embeddings=neox_args.max_position_embeddings,
+        eod_mask_loss=neox_args.eod_mask_loss,
     )
 
     return tokens, labels, loss_mask, attention_mask, position_ids
@@ -198,6 +201,7 @@ def get_batch_pipe(data, neox_args):
     tokens, labels, loss_mask, attention_mask, position_ids = _get_batch(
         neox_args, neox_args.tokenizer, keys, data, datatype
     )
+
     # unpack data
     return (tokens, position_ids, attention_mask), (labels, loss_mask)
 

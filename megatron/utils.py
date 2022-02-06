@@ -75,14 +75,18 @@ def get_attn_mask(seq_length, device):
     return mask < 0.5
 
 
-def get_ltor_masks_and_position_ids(data, eod_token, eod_mask_loss=False):
+def get_ltor_masks_and_position_ids(
+    data, eod_token, max_position_embeddings, eod_mask_loss=False
+):
     """Build masks and position id for left to right model."""
 
     # Extract batch size and sequence length.
     batch_size, seq_length = data.size()
 
     # Attention mask (lower triangular).
-    attention_mask = get_attn_mask(seq_length=seq_length, device=data.device)
+    attention_mask = get_attn_mask(
+        seq_length=max_position_embeddings, device=data.device
+    )
 
     # Loss mask.
     loss_mask = torch.ones(data.size(), dtype=torch.float, device=data.device)
@@ -388,7 +392,6 @@ def get_total_params(model):
 
 def setup_for_inference_or_eval(
     get_key_value=True,
-    parallel_output=False,
     overwrite_values=None,
 ):
     """
@@ -398,8 +401,6 @@ def setup_for_inference_or_eval(
         Whether to use key value caching in inference.
     overwrite_values: dict
         Optional Values to overwrite in the model config.
-    parallel_output: bool
-        If true, don't gather the output logits, and calculate loss in parallel. Set to false for inference, so all the logits are equal across ranks.
     """
 
     from megatron.neox_arguments import NeoXArgs
@@ -432,8 +433,7 @@ def setup_for_inference_or_eval(
     )  # we use setup_model_and_optimizer instead of get_model in order to initialize deepspeed
     print_rank_0("Finished loading model")
 
-    if not parallel_output:
-        model.module.inference_mode(cache=get_key_value)
+    model.module.inference_mode(cache=get_key_value)
     return model, neox_args
 
 
