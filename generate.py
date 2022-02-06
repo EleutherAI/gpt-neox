@@ -31,9 +31,6 @@ def main():
     Generate text/sample model
     """
     model, neox_args = setup_for_inference_or_eval()
-    assert (
-        neox_args.pipe_parallel_size <= 1
-    ), "Pipe parallel size must be <= 1 in generation"
     if neox_args.text_gen_type == "unconditional":
         print_rank_0(
             f"Generating samples unconditionally and saving results to {neox_args.sample_output_file}"
