@@ -433,7 +433,7 @@ def setup_for_inference_or_eval(
     )  # we use setup_model_and_optimizer instead of get_model in order to initialize deepspeed
     print_rank_0("Finished loading model")
 
-    model.module.inference_mode(cache=use_cache)
+    model.module.inference_mode(use_cache=use_cache)
     return model, neox_args
 
 

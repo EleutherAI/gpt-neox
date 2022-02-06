@@ -97,7 +97,7 @@ class EvalHarnessAdapter(GPT2LM):
         :param requests: Dictionary of requests containing the context (prompt) and 'until' - a token or
                          list of stop tokens.
         """
-        self.model.module.inference_mode(cache=True)  # tell model to cache kv pairs
+        self.model.module.inference_mode(use_cache=True)  # tell model to cache kv pairs
         res = []
 
         def _collate(x):
@@ -139,7 +139,7 @@ class EvalHarnessAdapter(GPT2LM):
         :param disable_tqdm: If True, disable tqdm progress bar.
         """
         self.model.module.inference_mode(
-            cache=False
+            use_cache=False
         )  # tell model to gather parallel outputs, but not cache key-value pairs
 
         disable_tqdm = disable_tqdm if self.is_main else True

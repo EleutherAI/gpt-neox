@@ -302,7 +302,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         if isinstance(final_layer, (ParallelLinearPipe, ParallelLinear)):
             final_layer.final_linear.set_parallel_output(value)
 
-    def inference_mode(self, cache=True):
+    def inference_mode(self, use_cache=True):
         """
         Sets up the model for inference by turning on k/v caching (if specificied) and setting `parallel output` of the final layer to false,
         so logits are gathered across model parallel ranks.
@@ -310,7 +310,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         :param cache: (bool) True if you want to use caching during inference, False otherwise
         """
         # first set caching to true if specified
-        recursive_setattr(self.forward_funcs, "use_cache", cache, assert_type=bool)
+        recursive_setattr(self.forward_funcs, "use_cache", use_cache, assert_type=bool)
         # then set parallel output of the final layer to false so we don't have to gather the output manually
         self._set_parallel_output(False)
 

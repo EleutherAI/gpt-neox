@@ -106,14 +106,14 @@ class SequentialWrapper(torch.nn.Module):
         params = [f.parameters() for f in funcs if isinstance(f, torch.nn.Module)]
         return any(len(list(p)) > 0 for p in params)
 
-    def inference_mode(self, cache=True):
+    def inference_mode(self, use_cache=True):
         """
         Sets up the model for inference by turning on k/v caching (if specificied) and setting `parallel output` of the final layer to false,
         so logits are gathered across model parallel ranks.
 
         :param cache: (bool) True if you want to use caching during inference, False otherwise
         """
-        _set_use_cache(self.sequential, cache)
+        _set_use_cache(self.sequential, use_cache)
 
     def train_mode(self):
         """
