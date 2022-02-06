@@ -152,7 +152,7 @@ def distributed_test(world_size=2, backend='nccl'):
     return dist_wrap
 
 
-def model_setup(yaml_list=None, param_dict=None, clear_data=True, inference=False):
+def model_setup(yaml_list=None, param_dict=None, clear_data=True):
     from megatron.neox_arguments import NeoXArgs
     from megatron.mpu import destroy_model_parallel
     from megatron import initialize_megatron
@@ -184,7 +184,7 @@ def model_setup(yaml_list=None, param_dict=None, clear_data=True, inference=Fals
     args_loaded.build_tokenizer()
 
     initialize_megatron(neox_args=args_loaded)
-    model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=args_loaded, inference=inference,
+    model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=args_loaded, 
                                                                get_key_value=True)
     return model, optimizer, lr_scheduler, args_loaded
 

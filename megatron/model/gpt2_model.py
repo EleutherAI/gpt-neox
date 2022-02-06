@@ -91,6 +91,12 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
 
     The largest change is flattening the GPTModel class so we can express it as a
     sequence of layers including embedding, transformer layers, and output.
+
+    :param neox_args: NeoX arguments object (configuration)
+    :param num_tokentypes: number of token types (TODO: deprecated, remove)
+    :param parallel_output: if true, don't gather the output logits, and calculate loss in parallel. Set to true by default in training for efficiency, but set to false for inference.
+    :param topology: deepspeed topology object specifying pipe / model parallelism topology.
+    :param get_key_value: if true, cache key/value pairs for each layer in inference.
     """
 
     def __init__(
@@ -99,34 +105,29 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         num_tokentypes=0,
         parallel_output=True,
         topology=None,
-        inference=False,
-        get_key_value=True,
+        get_key_value=False,
     ):
         self.neox_args = neox_args
 
-        self._inference = inference
-        self.get_key_value = get_key_value if inference else False
+        self.get_key_value = get_key_value
         self.parallel_output = parallel_output
         self.hidden_size = self.neox_args.hidden_size
         self.num_tokentypes = num_tokentypes
         self.init_method, self.output_layer_init_method = get_init_methods(
             self.neox_args
         )
-        self.embedding_type = self.neox_args.pos_emb
         self.__topology__ = topology
 
         self.specs = []
-        self.init_specs()
-        loss_fn = partial(cross_entropy, _fp16=self.neox_args.fp16_lm_cross_entropy)
-        if self.neox_args.checkpoint_activations:
-            interval = self.neox_args.checkpoint_num_layers
-        else:
-            interval = 0
+        self.init_specs()  # initializes the layer specs (basically a fancy nn.Sequential)
+
         super().__init__(
             layers=self.specs,
-            loss_fn=loss_fn if not self._inference else None,
+            loss_fn=partial(cross_entropy, _fp16=self.neox_args.fp16_lm_cross_entropy),
             topology=topology,
-            activation_checkpoint_interval=interval,
+            activation_checkpoint_interval=self.neox_args.checkpoint_num_layers
+            if self.neox_args.checkpoint_activations
+            else 0,
             partition_method=neox_args.pipe_partition_method,
             checkpointable_layers=["GMLPBlock", "ParallelTransformerLayerPipe"],
         )
@@ -208,7 +209,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         self.specs.append(_pre_transformer_block)
 
         # T5 RPE positional embedding
-        if self.embedding_type == "rpe":
+        if self.neox_args.pos_emb == "rpe":
             hidden_size_per_attention_head = mpu.divide(
                 self.neox_args.hidden_size, self.neox_args.num_attention_heads
             )
@@ -292,7 +293,6 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                     neox_args=self.neox_args,
                     init_method=self.init_method,
                     parallel_output=self.parallel_output,
-                    inference=self._inference,
                 )
             )
 
@@ -303,12 +303,22 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             final_layer.final_linear.set_parallel_output(value)
 
     def inference_mode(self, cache=True):
+        """
+        Sets up the model for inference by turning on k/v caching (if specificied) and setting `parallel output` of the final layer to false,
+        so logits are gathered across model parallel ranks.
+
+        :param cache: (bool) True if you want to use caching during inference, False otherwise
+        """
         # first set caching to true if specified
         recursive_setattr(self.forward_funcs, "get_key_value", cache, assert_type=bool)
         # then set parallel output of the final layer to false so we don't have to gather the output manually
         self._set_parallel_output(False)
 
     def train_mode(self):
+        """
+        Sets up the model for training by turning off k/v caching and setting `parallel output` of the final layer to True,
+        so logits are not gathered across model parallel ranks, and loss is computed in parallel (more efficient).
+        """
         # set caching to false
         recursive_setattr(self.forward_funcs, "get_key_value", False)
         # then set parallel output to true (more efficient training)

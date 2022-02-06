@@ -84,7 +84,7 @@ def pretrain(neox_args):
     # Model, optimizer, and learning rate.
     timers("model and optimizer").start()
     model, optimizer, lr_scheduler = setup_model_and_optimizer(
-        neox_args=neox_args, inference=False, get_key_value=True
+        neox_args=neox_args, get_key_value=False
     )
     timers("model and optimizer").stop()
 
@@ -190,7 +190,7 @@ def get_batch(neox_args, data_iterator):
 
 
 def get_batch_pipe(data, neox_args):
-    """A modification of get_batch() to work with the latest batch instead of an iterator. """
+    """A modification of get_batch() to work with the latest batch instead of an iterator."""
     # Items and their type.
     keys = ["text"]
     datatype = torch.int64
@@ -225,7 +225,7 @@ def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
     return loss
 
 
-def get_model(neox_args, inference=False, get_key_value=True):
+def get_model(neox_args, get_key_value=False):
     """Build the model."""
 
     print_rank_0("building GPT2 model ...")
@@ -236,7 +236,6 @@ def get_model(neox_args, inference=False, get_key_value=True):
         num_tokentypes=0,
         parallel_output=True,
         topology=mpu.get_topology(),
-        inference=inference,
         get_key_value=get_key_value,
     )
 
@@ -400,13 +399,9 @@ def get_learning_rate_scheduler(optimizer, neox_args):
     return lr_scheduler
 
 
-def setup_model_and_optimizer(
-    neox_args, inference=False, get_key_value=True, iteration=None
-):
+def setup_model_and_optimizer(neox_args, get_key_value=False, iteration=None):
     """Setup model and optimizer."""
-    model = get_model(
-        neox_args=neox_args, inference=inference, get_key_value=get_key_value
-    )
+    model = get_model(neox_args=neox_args, get_key_value=get_key_value)
     optimizer, param_groups = get_optimizer(model=model, neox_args=neox_args)
     lr_scheduler = get_learning_rate_scheduler(optimizer=optimizer, neox_args=neox_args)
 
@@ -445,7 +440,6 @@ def setup_model_and_optimizer(
             model=model,
             optimizer=optimizer,
             lr_scheduler=lr_scheduler,
-            inference=inference,
             iteration=iteration,
         )
         print_rank_0(
@@ -527,7 +521,7 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
 
 
 def train_step_pipe(neox_args, timers, model, data_iterator):
-    """Single training step with DeepSpeed's pipeline parallel engine. """
+    """Single training step with DeepSpeed's pipeline parallel engine."""
 
     assert neox_args.deepspeed
     loss = model.train_batch(data_iter=data_iterator)

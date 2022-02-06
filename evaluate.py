@@ -30,7 +30,7 @@ from datetime import datetime
 import json
 
 def main():
-    model, neox_args = setup_for_inference_or_eval(inference=False, get_key_value=False)
+    model, neox_args = setup_for_inference_or_eval(get_key_value=False)
     results = run_eval_harness(model, forward_step, neox_args, eval_tasks=neox_args.eval_tasks, bootstrap_iters=10000)
     if neox_args.rank == 0:
         pprint(results)
