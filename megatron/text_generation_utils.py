@@ -47,7 +47,6 @@ def get_batch(neox_args, context_tokens: torch.Tensor):
     attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
         data=tokens,
         eod_token=neox_args.tokenizer.eod,
-        max_position_embeddings=neox_args.max_position_embeddings,
         eod_mask_loss=neox_args.eod_mask_loss,
     )
     return tokens, attention_mask, position_ids
@@ -310,7 +309,7 @@ def stream_tokens(
                     attention_mask,  # attention_mask
                 )
 
-                logits = forward_model(neox_args, model, model_inputs)
+                logits = forward_model(model, model_inputs, neox_args.is_pipe_parallel)
                 if logits is not None:  # if pipe parallel, not all ranks return logits
                     generated_token_logits = (
                         logits[:, -1].view(batch_size, -1).contiguous()

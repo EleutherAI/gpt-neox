@@ -76,7 +76,9 @@ def get_attn_mask(seq_length, device):
 
 
 def get_ltor_masks_and_position_ids(
-    data, eod_token, max_position_embeddings, eod_mask_loss=False
+    data,
+    eod_token,
+    eod_mask_loss=False,
 ):
     """Build masks and position id for left to right model."""
 
@@ -85,7 +87,8 @@ def get_ltor_masks_and_position_ids(
 
     # Attention mask (lower triangular).
     attention_mask = get_attn_mask(
-        seq_length=max_position_embeddings, device=data.device
+        seq_length=seq_length,
+        device=data.device,
     )
 
     # Loss mask.

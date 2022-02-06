@@ -342,14 +342,9 @@ class ParallelSelfAttention(nn.Module):
 
         if self.use_cache:
             with torch.no_grad():
-                if layer_past is not None and layer_past.numel() > 0:
-                    attention_mask = attention_mask[
-                        ..., attention_scores.size(3) - 1, : attention_scores.size(3)
-                    ].unsqueeze(2)
-                else:
-                    attention_mask = attention_mask[
-                        ..., : attention_scores.size(3), : attention_scores.size(3)
-                    ]
+                attention_mask = attention_mask[
+                    ..., : attention_scores.size(3), : attention_scores.size(3)
+                ]
 
         # ===========================
         # Attention probs and dropout

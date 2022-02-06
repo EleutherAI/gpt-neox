@@ -164,7 +164,6 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
         data=tokens,
         eod_token=neox_args.tokenizer.eod,
-        max_position_embeddings=neox_args.max_position_embeddings,
         eod_mask_loss=neox_args.eod_mask_loss,
     )
 
@@ -266,10 +265,6 @@ def get_model(neox_args, use_cache=False):
     if not neox_args.is_pipe_parallel:
         # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
         model = model.to_sequential()
-    else:
-        # This is a hack to give us a reference to get_batch_pipe from within training.py
-        # We need to call model.set_batch_fn after deepspeed.initialize
-        model._megatron_batch_fn = partial(get_batch_pipe, neox_args=neox_args)
 
     if neox_args.deepspeed:
         # DeepSpeed handles CUDA, FP16, and DDP components.
@@ -434,7 +429,7 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
 
         if neox_args.is_pipe_parallel:
             model.set_has_attention_mask(True)
-            model.set_batch_fn(model.module._megatron_batch_fn)
+            model.set_batch_fn(partial(get_batch_pipe, neox_args=neox_args))
     else:
         raise ValueError("Must be using deepspeed to run neox")
 
