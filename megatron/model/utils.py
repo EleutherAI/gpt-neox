@@ -23,6 +23,7 @@ from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
 from megatron.model.fused_softmax import SoftmaxFusionTypes
 from types import GeneratorType
 
+
 def get_params_for_weight_decay_optimization(module, neox_args):
     """Divide params into with-weight-decay and without-weight-decay groups.
     Layernorms and biases will have no weight decay but the rest will.
@@ -112,13 +113,13 @@ class SequentialWrapper(torch.nn.Module):
 
         :param cache: (bool) True if you want to use caching during inference, False otherwise
         """
-        _set_get_key_value(self.sequential, cache)
+        _set_use_cache(self.sequential, cache)
 
     def train_mode(self):
         """
         Sets up the model for training by turning off k/v caching.
         """
-        _set_get_key_value(self.sequential, False)
+        _set_use_cache(self.sequential, False)
 
     def forward(self, forward_input):
         def exec_range_func(start, end):
@@ -161,6 +162,7 @@ class SequentialWrapper(torch.nn.Module):
                     x = exec_range_func(start_idx, end_idx)(*x)
         return x
 
+
 def recursive_setattr(m, attr, value, assert_type=None, type_filter=None):
     """
     Recursively set attributes on a pytorch module or an iterable of modules.
@@ -169,7 +171,7 @@ def recursive_setattr(m, attr, value, assert_type=None, type_filter=None):
     """
     if assert_type is not None:
         assert isinstance(value, assert_type), "Value is not the correct type."
-    
+
     # if m is a list or a generator, iterate over the elements
     if isinstance(m, (list, GeneratorType)):
         for i in m:
@@ -181,12 +183,13 @@ def recursive_setattr(m, attr, value, assert_type=None, type_filter=None):
         if hasattr(m, "children"):
             recursive_setattr(m.children(), attr, value, assert_type, type_filter)
 
-def _set_get_key_value(modules, value: bool):
+
+def _set_use_cache(modules, value: bool):
     """
-    Recursively sets an get_key_value to `value` on a list of pytorch modules, if they have a get_key_value attribute.
-    get_key_value is used to decide whether we cache past key value activations or not in inference.
+    Recursively sets an use_cache to `value` on a list of pytorch modules, if they have a use_cache attribute.
+    use_cache is used to decide whether we cache past key value activations or not in inference.
     """
-    recursive_setattr(modules, "get_key_value", value, assert_type=bool)
+    recursive_setattr(modules, "use_cache", value, assert_type=bool)
 
 
 def configure_sparse_attention(neox_args, attention_type, num_attention_heads, mpu):

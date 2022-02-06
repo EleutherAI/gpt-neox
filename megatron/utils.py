@@ -391,13 +391,13 @@ def get_total_params(model):
 
 
 def setup_for_inference_or_eval(
-    get_key_value=True,
+    use_cache=True,
     overwrite_values=None,
 ):
     """
     Initializes the model for evaluation or inference (doesn't load optimizer states, etc.) from command line args.
 
-    get_key_value: bool
+    use_cache: bool
         Whether to use key value caching in inference.
     overwrite_values: dict
         Optional Values to overwrite in the model config.
@@ -428,12 +428,12 @@ def setup_for_inference_or_eval(
     # set up model and load checkpoint.
     model, _, _ = setup_model_and_optimizer(
         neox_args=neox_args,
-        get_key_value=get_key_value,
+        use_cache=use_cache,
         iteration=neox_args.iteration,
     )  # we use setup_model_and_optimizer instead of get_model in order to initialize deepspeed
     print_rank_0("Finished loading model")
 
-    model.module.inference_mode(cache=get_key_value)
+    model.module.inference_mode(cache=use_cache)
     return model, neox_args
 
 

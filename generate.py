@@ -30,7 +30,7 @@ def main():
     """
     Generate text/sample model
     """
-    model, neox_args = setup_for_inference_or_eval(get_key_value=True)
+    model, neox_args = setup_for_inference_or_eval(use_cache=True)
     if neox_args.recompute:
         model.module.inference_mode(cache=False)  # don't use kv cache if recomputing
     if neox_args.text_gen_type == "unconditional":

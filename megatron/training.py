@@ -84,7 +84,7 @@ def pretrain(neox_args):
     # Model, optimizer, and learning rate.
     timers("model and optimizer").start()
     model, optimizer, lr_scheduler = setup_model_and_optimizer(
-        neox_args=neox_args, get_key_value=False
+        neox_args=neox_args, use_cache=False
     )
     timers("model and optimizer").stop()
 
@@ -229,7 +229,7 @@ def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
     return loss
 
 
-def get_model(neox_args, get_key_value=False):
+def get_model(neox_args, use_cache=False):
     """Build the model."""
 
     print_rank_0("building GPT2 model ...")
@@ -240,7 +240,7 @@ def get_model(neox_args, get_key_value=False):
         num_tokentypes=0,
         parallel_output=True,
         topology=mpu.get_topology(),
-        get_key_value=get_key_value,
+        use_cache=use_cache,
     )
 
     ### soft prompt tuning stuff ###
@@ -403,9 +403,9 @@ def get_learning_rate_scheduler(optimizer, neox_args):
     return lr_scheduler
 
 
-def setup_model_and_optimizer(neox_args, get_key_value=False, iteration=None):
+def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
     """Setup model and optimizer."""
-    model = get_model(neox_args=neox_args, get_key_value=get_key_value)
+    model = get_model(neox_args=neox_args, use_cache=use_cache)
     optimizer, param_groups = get_optimizer(model=model, neox_args=neox_args)
     lr_scheduler = get_learning_rate_scheduler(optimizer=optimizer, neox_args=neox_args)
 

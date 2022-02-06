@@ -190,7 +190,7 @@ class ParallelSelfAttention(nn.Module):
         layer_number,
         rpe=None,
         rotary=False,
-        get_key_value=False,
+        use_cache=False,
         parallel_output=False,
     ):
         super().__init__()
@@ -199,7 +199,7 @@ class ParallelSelfAttention(nn.Module):
         self.bf16 = neox_args.precision == "bfloat16"
         self.attention_mask_func = attention_mask_func
         self.apply_query_key_layer_scaling = neox_args.apply_query_key_layer_scaling
-        self.get_key_value = get_key_value
+        self.use_cache = use_cache
         self.attention_softmax_in_fp32 = neox_args.attention_softmax_in_fp32
         if self.apply_query_key_layer_scaling:
             self.attention_softmax_in_fp32 = True
@@ -340,7 +340,7 @@ class ParallelSelfAttention(nn.Module):
         # Update attention mask for inference. [b, np, sq, sk]
         # ==================================================
 
-        if self.get_key_value:
+        if self.use_cache:
             with torch.no_grad():
                 if layer_past is not None and layer_past.numel() > 0:
                     attention_mask = attention_mask[
@@ -486,7 +486,7 @@ class ParallelSelfAttention(nn.Module):
                 (past_value.type_as(value_layer), value_layer), dim=0
             )
 
-        if self.get_key_value:
+        if self.use_cache:
             present = torch.stack((key_layer, value_layer))
 
         if not self.sparse:
@@ -513,7 +513,7 @@ class ParallelSelfAttention(nn.Module):
 
         output, bias = self.dense(context_layer)
 
-        if self.get_key_value:
+        if self.use_cache:
             output = [output, present]
 
         return output, bias
@@ -535,7 +535,7 @@ class ParallelTransformerLayer(nn.Module):
         layer_number,
         rpe=None,
         rotary=False,
-        get_key_value=False,
+        use_cache=False,
     ):
 
         super().__init__()
@@ -545,7 +545,7 @@ class ParallelTransformerLayer(nn.Module):
 
         # Layernorm on the input data.
         self.input_layernorm = norm(neox_args.hidden_size, eps=eps)
-        self.get_key_value = get_key_value
+        self.use_cache = use_cache
 
         self.hidden_dropout = neox_args.hidden_dropout
         self.bias_dropout_fusion = neox_args.bias_dropout_fusion
@@ -562,7 +562,7 @@ class ParallelTransformerLayer(nn.Module):
             output_layer_init_method=output_layer_init_method,
             layer_number=layer_number,
             rpe=rpe,
-            get_key_value=self.get_key_value,
+            use_cache=self.use_cache,
             rotary=rotary,
             parallel_output=self.gpt_j_residual,
         )
@@ -606,7 +606,7 @@ class ParallelTransformerLayer(nn.Module):
             attention_output, attention_bias = self.attention(
                 self.input_layernorm(x), attention_mask, layer_past=layer_past
             )
-            if self.get_key_value:
+            if self.use_cache:
                 attention_output, presents = attention_output
                 self.layer_past = presents
 
@@ -641,7 +641,7 @@ class ParallelTransformerLayer(nn.Module):
             attention_output, attention_bias = self.attention(
                 self.input_layernorm(x), attention_mask, layer_past=layer_past
             )
-            if self.get_key_value:
+            if self.use_cache:
                 attention_output, presents = attention_output
                 self.layer_past = presents
             with torch.enable_grad():

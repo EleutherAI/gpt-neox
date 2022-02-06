@@ -96,7 +96,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
     :param num_tokentypes: number of token types (TODO: deprecated, remove)
     :param parallel_output: if true, don't gather the output logits, and calculate loss in parallel. Set to true by default in training for efficiency, but set to false for inference.
     :param topology: deepspeed topology object specifying pipe / model parallelism topology.
-    :param get_key_value: if true, cache key/value pairs for each layer in inference.
+    :param use_cache: if true, cache key/value pairs for each layer in inference.
     """
 
     def __init__(
@@ -105,11 +105,11 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         num_tokentypes=0,
         parallel_output=True,
         topology=None,
-        get_key_value=False,
+        use_cache=False,
     ):
         self.neox_args = neox_args
 
-        self.get_key_value = get_key_value
+        self.use_cache = use_cache
         self.parallel_output = parallel_output
         self.hidden_size = self.neox_args.hidden_size
         self.num_tokentypes = num_tokentypes
@@ -248,7 +248,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                         layer_number=i,
                         rpe=rpe_emb if self.neox_args.pos_emb == "rpe" else None,
                         rotary=self.neox_args.pos_emb == "rotary",
-                        get_key_value=self.get_key_value,
+                        use_cache=self.use_cache,
                     )
                 )
 
@@ -310,7 +310,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         :param cache: (bool) True if you want to use caching during inference, False otherwise
         """
         # first set caching to true if specified
-        recursive_setattr(self.forward_funcs, "get_key_value", cache, assert_type=bool)
+        recursive_setattr(self.forward_funcs, "use_cache", cache, assert_type=bool)
         # then set parallel output of the final layer to false so we don't have to gather the output manually
         self._set_parallel_output(False)
 
@@ -320,7 +320,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         so logits are not gathered across model parallel ranks, and loss is computed in parallel (more efficient).
         """
         # set caching to false
-        recursive_setattr(self.forward_funcs, "get_key_value", False)
+        recursive_setattr(self.forward_funcs, "use_cache", False)
         # then set parallel output to true (more efficient training)
         self._set_parallel_output(True)
 
