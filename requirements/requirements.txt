@@ -8,7 +8,7 @@ wandb==0.10.28
 einops==0.3.0
 transformers==4.5.0
 tokenizers==0.10.2
-lm_dataformat==0.0.19
+lm_dataformat==0.0.20
 ftfy==6.0.1
 git+https://github.com/EleutherAI/lm-evaluation-harness.git@dcef7c8f630244f79a687f361db073dc58bd75c9#egg=lm_eval
 sentencepiece
