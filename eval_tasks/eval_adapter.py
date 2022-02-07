@@ -42,15 +42,15 @@ class EvalHarnessAdapter(GPT2LM):
     """
     def __init__(self, model, forward_step_fn, neox_args, batch_size=None):
 
-        self.device = torch.device(f"cuda:{neox_args.local_rank}")
+        self._device = torch.device(f"cuda:{neox_args.local_rank}")
         self.VOCAB_SIZE = neox_args.padded_vocab_size
         self.tokenizer = neox_args.tokenizer
         self.EOT_TOKEN_ID = neox_args.tokenizer.eod_id
         self.model = model
         self.neox_args = neox_args
         self.cache_hook = CacheHook(None)
-        self.max_length = neox_args.max_position_embeddings // 2
-        self.max_gen_toks = 128
+        self._max_length = neox_args.max_position_embeddings // 2
+        self._max_gen_toks = 128
 
         # parallelism args:
         self.is_main = neox_args.rank == 0
@@ -66,7 +66,7 @@ class EvalHarnessAdapter(GPT2LM):
         self.dp_group = mpu.get_data_parallel_group()
         self.is_mp_rank_0 = mpu.get_model_parallel_rank() == 0
 
-        self.batch_size = batch_size or (neox_args.batch_size * self.dp_world_size) # default batch size to bs per gpu * dp size
+        self._batch_size = batch_size or (neox_args.batch_size * self.dp_world_size) # default batch size to bs per gpu * dp size
 
         # some utility functions:
         # we need to patch tokenizer methods, because lm_eval uses them internally:
@@ -83,6 +83,33 @@ class EvalHarnessAdapter(GPT2LM):
             temperature=0.0,
             broadcast_generated_tokens=True,
         )
+
+    @property
+    def eot_token_id(self):
+        return self.EOT_TOKEN_ID
+
+    @property
+    def max_length(self):
+        return self._max_length
+
+    @property
+    def max_gen_toks(self):
+        return self._max_gen_toks
+
+    @property
+    def batch_size(self):
+        return self._batch_size
+    
+    @property
+    def device(self):
+        return self._device
+
+    def tok_encode(self, string: str):
+        return self.tokenizer.encode(string)
+    
+    def tok_decode(self, tokens):
+        return self.tokenizer.decode(tokens)
+
 
     def greedy_until(self, requests):
         """
