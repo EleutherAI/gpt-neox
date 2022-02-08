@@ -1,0 +1,13 @@
+{
+    "results": {
+        "openbookqa": {
+            "acc": 0.306,
+            "acc_stderr": 0.020629569998345407,
+            "acc_norm": 0.394,
+            "acc_norm_stderr": 0.02187429930168926
+        }
+    },
+    "versions": {
+        "openbookqa": 0
+    }
+}

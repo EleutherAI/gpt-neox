@@ -1,0 +1,13 @@
+{
+    "results": {
+        "arc_challenge": {
+            "acc": 0.38139931740614336,
+            "acc_stderr": 0.01419438908668527,
+            "acc_norm": 0.40273037542662116,
+            "acc_norm_stderr": 0.01433223630679014
+        }
+    },
+    "versions": {
+        "arc_challenge": 0
+    }
+}

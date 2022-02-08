@@ -1,0 +1,13 @@
+{
+    "results": {
+        "sciq": {
+            "acc": 0.93,
+            "acc_stderr": 0.0080724943583235,
+            "acc_norm": 0.89,
+            "acc_norm_stderr": 0.009899393819724447
+        }
+    },
+    "versions": {
+        "sciq": 0
+    }
+}

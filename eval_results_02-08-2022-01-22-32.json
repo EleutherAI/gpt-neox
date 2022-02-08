@@ -1,0 +1,11 @@
+{
+    "results": {
+        "ethics_cm": {
+            "acc": 0.571943371943372,
+            "acc_stderr": 0.00793939698714086
+        }
+    },
+    "versions": {
+        "ethics_cm": 0
+    }
+}

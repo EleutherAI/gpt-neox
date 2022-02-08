@@ -1,0 +1,11 @@
+{
+    "results": {
+        "winogrande": {
+            "acc": 0.6558800315706393,
+            "acc_stderr": 0.013352121905005941
+        }
+    },
+    "versions": {
+        "winogrande": 0
+    }
+}

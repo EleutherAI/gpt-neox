@@ -1,0 +1,11 @@
+{
+    "results": {
+        "copa": {
+            "acc": 0.84,
+            "acc_stderr": 0.03684529491774708
+        }
+    },
+    "versions": {
+        "copa": 0
+    }
+}

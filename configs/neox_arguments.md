@@ -39,7 +39,7 @@ LR Scheduler Arguments
 
 
 
-- **override_lr_scheduler**: bool
+- **dscheduler**: bool
 
     Default = False
 

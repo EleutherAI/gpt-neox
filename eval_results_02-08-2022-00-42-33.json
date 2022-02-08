@@ -1,0 +1,11 @@
+{
+    "results": {
+        "anli_r1": {
+            "acc": 0.333,
+            "acc_stderr": 0.01491084616422986
+        }
+    },
+    "versions": {
+        "anli_r1": 0
+    }
+}
