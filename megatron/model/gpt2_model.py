@@ -323,6 +323,12 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         recursive_setattr(self.forward_funcs, "use_cache", False)
         # then set parallel output to true (more efficient training)
         self._set_parallel_output(True)
+    
+    def clear_cache(self):
+        """
+        Recursively clears the kv cache on all layers
+        """
+        recursive_setattr(self.forward_funcs, "layer_past", None)
 
     def to_sequential(self):
         """
