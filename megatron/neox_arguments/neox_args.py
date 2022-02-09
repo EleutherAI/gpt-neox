@@ -1,5 +1,6 @@
 import subprocess
 from dataclasses import dataclass
+from typing import Optional
 
 try:
     from .template import NeoXArgsTemplate
@@ -897,6 +898,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     char_level_ppl: bool = False
     """
     Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
+    """
+
+    latest_step: int = None
+    """
+    If provided, load the checkpoint from this step.
     """
 
 
