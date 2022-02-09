@@ -205,7 +205,7 @@ def get_batch_pipe(data, neox_args):
 def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
     """Forward step."""
     if neox_args.is_pipe_parallel:
-        return model.eval_batch(data_iterator, return_logits=return_logits)
+        return model.eval_batch(data_iterator)
 
     # Get the batch.
     if timers is not None:
@@ -434,7 +434,6 @@ def setup_model_and_optimizer(
         print_rank_0(f' > total params: {"{:,}".format(model.total_params)}')
 
         if neox_args.is_pipe_parallel:
-            model.set_has_attention_mask(True)
             model.set_batch_fn(model.module._megatron_batch_fn)
     else:
         raise ValueError("Must be using deepspeed to run neox")
