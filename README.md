@@ -39,11 +39,23 @@ A 20 Billion Parameter autoregressive language model trained on the pile. For te
 
 The configuration file for the model is available [here](./configs/20B.yml), and is also included in the download links below.
 
-### Links:
+### Download Links
 
-[Slim weights](LINK) (No optimizer states, for inference or finetuning)
+[Slim weights](https://mystic.the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights/) - (No optimizer states, for inference or finetuning)
 
-[Full weights](LINK) (Including optimizer states)
+To download from the command line to a folder named `20B_checkpoints`, use the following command:
+
+```bash
+wget --cut-dirs=5 -nH -r --no-parent --reject "index.html*" https://mystic.the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights/ -P 20B_checkpoints
+```
+
+[Full weights](https://mystic.the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights/) - (Including optimizer states)
+
+To download from the command line to a folder named `20B_checkpoints`, use the following command:
+
+```bash
+wget --cut-dirs=5 -nH -r --no-parent --reject "index.html*" https://mystic.the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights/ -P 20B_checkpoints
+```
 
 # Quick Start
 
@@ -82,7 +94,7 @@ nvidia-docker run --rm -it -e NVIDIA_VISIBLE_DEVICES=0,1,2,3 --shm-size=1g --uli
 
 GPT-NeoX-20B (currently the only pretrained model we provide) **is a very large model**. The weights alone take up around 40GB in GPU memory and, due to the tensor parallelism scheme as well as the high memory usage, you will need **at minimum** 2 GPUs with a total of ~45GB of GPU VRAM to run inference, and significantly more for training. Unfortunately the model is not yet possible to use on a single consumer GPU.
 
-GPT-NeoX parameters are defined in a YAML configuration file which is passed to the `deepy.py` launcher. For more details on the configuration file, see [Configuration](#configuration). The configuration file for GPT-NeoX-20B is provided with the checkpoints - but you will likely need to edit some fields to specify where your model and tokenizer are saved. In the config file edit the following fields:
+GPT-NeoX parameters are defined in a YAML configuration file which is passed to the `deepy.py` launcher. For more details on the configuration file, see [Configuration](#configuration). The configuration file for GPT-NeoX-20B is at `./configs/20B.yml` - but you may need to edit some fields to specify where your model and tokenizer are saved. In the config file edit the following fields:
 
 ```yaml
   "vocab-file": "./20B_checkpoints/20B_tokenizer.json",
@@ -90,7 +102,21 @@ GPT-NeoX parameters are defined in a YAML configuration file which is passed to 
   "load": "./20B_checkpoints",   
 ```
 
-changing `./20B_checkpoints` to the path to the root folder of the downloaded checkpoints.
+changing `./20B_checkpoints` to the path to the root folder of the downloaded checkpoints. If the checkpoints exist at `./20B_checkpoints` you can leave this as is.
+
+Depending on the number of GPUs you're using, you may also need to change the parallelism settings. To run inference on the 20B model on 2 GPUs, change:
+
+```yaml
+   "pipe-parallel-size": 4,
+```
+
+to:
+
+```yaml
+   "pipe-parallel-size": 1,
+```
+
+If you're using 8 GPUs, you can leave this unchanged.
 
 All functionality (inference included), should be launched in parallel using `deepy.py`, a wrapper around the `deepspeed` launcher.
 
@@ -105,9 +131,9 @@ and can be launched with:
 ./deepy.py [script.py] [./path/to/config_1.yml] [./path/to/config_2.yml] ... [./path/to/config_n.yml] 
 ```
 
-E.G To generate text unconditionally with the GPT-NeoX-20B model, assuming the checkpoints are saved at `./20B_checkpoints`, you can use the following:
+E.G To generate text unconditionally with the GPT-NeoX-20B model, you can use the following:
 ```bash
-./deepy.py generate.py ./20B_checkpoints/configs/20B.yml
+./deepy.py generate.py ./configs/20B.yml
 ```
 
 Or optionally pass in a text file (e.g `prompt.txt`) to use as the prompt
@@ -171,7 +197,7 @@ Next make sure to download the GPT2 tokenizer vocab, and merge files from the fo
 
 Or use the 20B tokenizer (for which only a single Vocab file is needed):
 
-- Vocab: [LINK](LINK)
+- Vocab: https://mystic.the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights/20B_tokenizer.json
 
 (alternatively, you can provide any tokenizer file that can be loaded by Huggingface's tokenizers library with the `Tokenizer.from_pretrained()` command)
 

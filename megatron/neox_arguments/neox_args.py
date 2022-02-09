@@ -906,7 +906,7 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     Text Generation arguments
     """
 
-    text_gen_type: str = "unconditional"
+    text_gen_type: str = None
     """
     How to generate text/sample the model.
     Options: `unconditional`, `input-file`, `interactive`
