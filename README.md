@@ -136,18 +136,16 @@ E.G To generate text unconditionally with the GPT-NeoX-20B model, you can use th
 ./deepy.py generate.py ./configs/20B.yml
 ```
 
-Or optionally pass in a text file (e.g `prompt.txt`) to use as the prompt
+Or optionally pass in a text file (e.g `prompt.txt`) to use as the prompt, which should be a plain `.txt` file with each prompt separated by newline characters, also passing in the path to an output file.
 
 ```bash
-./deepy.py generate.py ./20B_checkpoints/configs/20B.yml --sample_input prompt.txt
+./deepy.py generate.py ./configs/20B.yml -i prompt.txt -o sample_outputs.txt
 ```
-
-(TODO(sid): Implement this)
 
 To reproduce our evaluation numbers on, for example, lambada and PIQA use:
 
 ```bash
-./deepy.py evaluate.py ./20B_checkpoints/configs/20B.yml --eval_tasks lambada piqa
+./deepy.py evaluate.py ./configs/20B.yml --eval_tasks lambada piqa
 ```
 
 You can add an arbitrary list of evaluation tasks here, for details of all tasks available, see [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness).
