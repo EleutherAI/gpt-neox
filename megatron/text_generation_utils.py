@@ -436,6 +436,7 @@ def generate_samples_from_prompt(
     # generate completions
     generated_texts = []
     while True:
+        model.module.clear_cache() # clear kv cache between batches
 
         start_time = time.time()
         # Tokenize text, and check whether we should terminate process
@@ -717,6 +718,7 @@ def generate_samples_interactive(
     """
 
     while True:
+        model.module.clear_cache() # clear kv cache between batches
         torch.distributed.barrier(group=mpu.get_model_parallel_group())
         terminate_runs = 0
 
