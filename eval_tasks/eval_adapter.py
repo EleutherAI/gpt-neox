@@ -40,6 +40,7 @@ class EvalHarnessAdapter(GPT2LM):
         neox_args: a NeoXArgs object containing the model configuration.
         batch_size (optional): An argument to override the batch size, which defaults to batch size per gpu * dp world size.
     """
+
     def __init__(self, model, forward_step_fn, neox_args, batch_size=None):
 
         self.device = torch.device(f"cuda:{neox_args.local_rank}")
@@ -66,7 +67,9 @@ class EvalHarnessAdapter(GPT2LM):
         self.dp_group = mpu.get_data_parallel_group()
         self.is_mp_rank_0 = mpu.get_model_parallel_rank() == 0
 
-        self.batch_size = batch_size or (neox_args.batch_size * self.dp_world_size) # default batch size to bs per gpu * dp size
+        self.batch_size = batch_size or (
+            neox_args.batch_size * self.dp_world_size
+        )  # default batch size to bs per gpu * dp size
 
         # some utility functions:
         # we need to patch tokenizer methods, because lm_eval uses them internally:
@@ -81,7 +84,6 @@ class EvalHarnessAdapter(GPT2LM):
             model=model,
             maximum_tokens=self.max_gen_toks,
             temperature=0.0,
-            broadcast_generated_tokens=True,
         )
 
     def greedy_until(self, requests):
@@ -95,7 +97,7 @@ class EvalHarnessAdapter(GPT2LM):
         :param requests: Dictionary of requests containing the context (prompt) and 'until' - a token or
                          list of stop tokens.
         """
-        self.model.module.inference_mode(cache=True)  # tell model to cache kv pairs
+        self.model.module.inference_mode(use_cache=True)  # tell model to cache kv pairs
         res = []
 
         def _collate(x):
@@ -137,7 +139,7 @@ class EvalHarnessAdapter(GPT2LM):
         :param disable_tqdm: If True, disable tqdm progress bar.
         """
         self.model.module.inference_mode(
-            cache=False
+            use_cache=False
         )  # tell model to gather parallel outputs, but not cache key-value pairs
 
         disable_tqdm = disable_tqdm if self.is_main else True
@@ -229,8 +231,14 @@ class EvalHarnessAdapter(GPT2LM):
                 else:
                     logits_sums = torch.zeros(res_len, dtype=torch.float32).cuda()
                     max_equals = torch.zeros(res_len, dtype=torch.int64).cuda()
-                torch.distributed.broadcast(tensor=logits_sums, src=src_rank)
-                torch.distributed.broadcast(tensor=max_equals, src=src_rank)
+                torch.distributed.broadcast(
+                    tensor=logits_sums,
+                    src=src_rank,
+                    group=mpu.get_pipe_parallel_group(),
+                )
+                torch.distributed.broadcast(
+                    tensor=max_equals, src=src_rank, group=mpu.get_pipe_parallel_group()
+                )
                 max_equals = [bool(i) for i in max_equals.tolist()]
                 logits_sums = logits_sums.tolist()
                 res = list(zip(logits_sums, max_equals))
@@ -250,9 +258,13 @@ class EvalHarnessAdapter(GPT2LM):
             # In this case we pad the batch
             padded_size = self.dp_world_size - (batch_size % self.dp_world_size)
 
-            print_rank_0(f'WARNING: Batch size ({batch_size}) must be divisible by dp world size ({self.dp_world_size}). Padding inputs to {padded_size}.')
-            
-            inps = torch.cat([inps] + [ inps[0:1, ...] for _ in range(padded_size) ], dim=0) # pad with first inp item
+            print_rank_0(
+                f"WARNING: Batch size ({batch_size}) must be divisible by dp world size ({self.dp_world_size}). Padding inputs to {padded_size}."
+            )
+
+            inps = torch.cat(
+                [inps] + [inps[0:1, ...] for _ in range(padded_size)], dim=0
+            )  # pad with first inp item
             padded = True
 
         assert (
@@ -277,7 +289,7 @@ class EvalHarnessAdapter(GPT2LM):
                 tensor_list, logits, group=mpu.get_data_parallel_group()
             )
             logits = torch.cat(tensor_list, dim=0)
-            return logits 
+            return logits
 
     def _model_call(self, inps):
         batch_size = inps.shape[0]
@@ -346,8 +358,16 @@ class EvalHarnessAdapter(GPT2LM):
 
 
 def run_eval_harness(
-    model, forward_step_fn, neox_args, batch_size=None, eval_tasks=None, num_fewshot=0, bootstrap_iters=2
+    model,
+    forward_step_fn,
+    neox_args,
+    batch_size=None,
+    eval_tasks=None,
+    num_fewshot=0,
+    bootstrap_iters=2,
 ):
     print_rank_0("Running evaluation harness...")
     adapter = EvalHarnessAdapter(model, forward_step_fn, neox_args, batch_size)
-    return adapter.run_eval(eval_tasks=eval_tasks, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters)
+    return adapter.run_eval(
+        eval_tasks=eval_tasks, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters
+    )

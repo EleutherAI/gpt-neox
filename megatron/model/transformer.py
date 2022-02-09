@@ -144,7 +144,6 @@ class ParallelLinear(nn.Module):
         self,
         neox_args,
         parallel_output=True,
-        inference=False,
         init_method=nn.init.xavier_normal_,
     ):
         super().__init__()
@@ -167,7 +166,7 @@ class ParallelLinear(nn.Module):
                 bias=False,
                 input_is_parallel=False,
                 init_method=init_method,
-                parallel_output=False if inference else parallel_output,
+                parallel_output=parallel_output,
                 skip_bias_add=False,
             )
 
@@ -191,7 +190,7 @@ class ParallelSelfAttention(nn.Module):
         layer_number,
         rpe=None,
         rotary=False,
-        get_key_value=False,
+        use_cache=False,
         parallel_output=False,
     ):
         super().__init__()
@@ -200,7 +199,7 @@ class ParallelSelfAttention(nn.Module):
         self.bf16 = neox_args.precision == "bfloat16"
         self.attention_mask_func = attention_mask_func
         self.apply_query_key_layer_scaling = neox_args.apply_query_key_layer_scaling
-        self.get_key_value = get_key_value
+        self.use_cache = use_cache
         self.attention_softmax_in_fp32 = neox_args.attention_softmax_in_fp32
         if self.apply_query_key_layer_scaling:
             self.attention_softmax_in_fp32 = True
@@ -341,16 +340,11 @@ class ParallelSelfAttention(nn.Module):
         # Update attention mask for inference. [b, np, sq, sk]
         # ==================================================
 
-        if self.get_key_value:
+        if self.use_cache:
             with torch.no_grad():
-                if layer_past is not None and layer_past.numel() > 0:
-                    attention_mask = attention_mask[
-                        ..., attention_scores.size(3) - 1, : attention_scores.size(3)
-                    ].unsqueeze(2)
-                else:
-                    attention_mask = attention_mask[
-                        ..., : attention_scores.size(3), : attention_scores.size(3)
-                    ]
+                attention_mask = attention_mask[
+                    ..., : attention_scores.size(3), : attention_scores.size(3)
+                ]
 
         # ===========================
         # Attention probs and dropout
@@ -487,7 +481,7 @@ class ParallelSelfAttention(nn.Module):
                 (past_value.type_as(value_layer), value_layer), dim=0
             )
 
-        if self.get_key_value:
+        if self.use_cache:
             present = torch.stack((key_layer, value_layer))
 
         if not self.sparse:
@@ -514,7 +508,7 @@ class ParallelSelfAttention(nn.Module):
 
         output, bias = self.dense(context_layer)
 
-        if self.get_key_value:
+        if self.use_cache:
             output = [output, present]
 
         return output, bias
@@ -536,7 +530,7 @@ class ParallelTransformerLayer(nn.Module):
         layer_number,
         rpe=None,
         rotary=False,
-        get_key_value=False,
+        use_cache=False,
     ):
 
         super().__init__()
@@ -546,7 +540,7 @@ class ParallelTransformerLayer(nn.Module):
 
         # Layernorm on the input data.
         self.input_layernorm = norm(neox_args.hidden_size, eps=eps)
-        self.get_key_value = get_key_value
+        self.use_cache = use_cache
 
         self.hidden_dropout = neox_args.hidden_dropout
         self.bias_dropout_fusion = neox_args.bias_dropout_fusion
@@ -563,7 +557,7 @@ class ParallelTransformerLayer(nn.Module):
             output_layer_init_method=output_layer_init_method,
             layer_number=layer_number,
             rpe=rpe,
-            get_key_value=self.get_key_value,
+            use_cache=self.use_cache,
             rotary=rotary,
             parallel_output=self.gpt_j_residual,
         )
@@ -579,6 +573,8 @@ class ParallelTransformerLayer(nn.Module):
             parallel_output=self.gpt_j_residual,
         )
 
+        self.layer_past = None  # used to cache k/v pairs in inference
+
     def _get_bias_dropout(self):
         if self.bias_dropout_fusion:
             fn = (
@@ -591,6 +587,7 @@ class ParallelTransformerLayer(nn.Module):
         return fn
 
     def forward(self, x, attention_mask, layer_past=None):
+        layer_past = layer_past if layer_past is not None else self.layer_past
         bias_dropout_fn = self._get_bias_dropout()
         # x: [b, s, h]
         if self.gpt_j_residual:
@@ -598,14 +595,15 @@ class ParallelTransformerLayer(nn.Module):
             # x = x + attn(ln1(x)) + mlp(ln2(x))
             # this means we can avoid doing the allreduce in the attn / mlp outputs
             # to save communication time (we can do a single allreduce after we add mlp / attn outputs).
-            
+
             # attention_output = attn(ln1(x))
             residual = x
             attention_output, attention_bias = self.attention(
                 self.input_layernorm(x), attention_mask, layer_past=layer_past
             )
-            if self.get_key_value:
+            if self.use_cache:
                 attention_output, presents = attention_output
+                self.layer_past = presents
 
             with torch.enable_grad():
                 attention_output = bias_dropout_fn(
@@ -638,8 +636,9 @@ class ParallelTransformerLayer(nn.Module):
             attention_output, attention_bias = self.attention(
                 self.input_layernorm(x), attention_mask, layer_past=layer_past
             )
-            if self.get_key_value:
+            if self.use_cache:
                 attention_output, presents = attention_output
+                self.layer_past = presents
             with torch.enable_grad():
                 attention_output = bias_dropout_fn(
                     attention_output,
@@ -660,64 +659,31 @@ class ParallelTransformerLayer(nn.Module):
                     prob=self.hidden_dropout,
                 )
 
-        if self.get_key_value:
-            output = [output, presents]
-
         return output
 
 
 class ParallelTransformerLayerPipe(ParallelTransformerLayer):
-    """Extends ParallelTransformerLayer to forward attention_mask through the pipeline. """
+    """Extends ParallelTransformerLayer to forward attention_mask through the pipeline."""
 
     def forward(self, args):
-        in_inference = len(args) == 4  # length of the args in inference == 4
-        in_train = len(args) == 2  # length of the args in training == 2
-        if in_train:
-            hidden_states, attention_mask = args
-            # we are returning just [hidden_states, mask]
-            return super().forward(hidden_states, attention_mask), attention_mask
-        elif in_inference:
-            # we are in inference
-            hidden_states, layer_past, presents, attention_mask = args
-            past = torch.Tensor()
-            if layer_past is not None and layer_past.numel() > 0:
-                past = layer_past[self.layer_number]
-            outputs = super().forward(hidden_states, attention_mask, layer_past=past)
-
-            if self.get_key_value:
-                # outputs = [hidden_states, present]
-                hidden_states, present = outputs
-                if presents.numel() == 0:
-                    presents = present.unsqueeze(dim=0)
-                else:
-                    presents = torch.cat((presents, present.unsqueeze(dim=0)))
-            else:
-                hidden_states = outputs
-            return hidden_states, layer_past, presents, attention_mask
-        else:
-            raise ValueError(
-                f"In layer {self.layer_number} - Incorrect number of arguments ({len(args)}) for {self.__class__.__name__}"
-            )
+        assert (
+            len(args) == 2
+        ), "ParallelTransformerLayerPipe expects 2 arguments - hidden_states and attention_mask"
+        hidden_states, attention_mask = args
+        # we are returning just [hidden_states, mask]
+        return super().forward(hidden_states, attention_mask), attention_mask
 
 
 class ParallelLinearPipe(ParallelLinear):
     """Another helper class to pass presents through to the output when doing inference with a Pipe Parallel model"""
 
     def forward(self, args):
-        if not isinstance(args, tuple):
-            # in training, args = hidden_state (tensor, so we check if object isn't a tuple and pass through here)
-            hidden_state = args
-            logits, bias = super().forward(hidden_state)
-            return logits
-        elif len(args) == 2:
-            # we are in inference, so input is (hidden_states, presents)
-            hidden_state, presents = args
-            logits, bias = super().forward(hidden_state)
-            return logits, presents
-        else:
-            raise ValueError(
-                f"Incorrect number of arguments for {self.__class__.__name__}"
-            )
+        assert isinstance(
+            args, torch.Tensor
+        ), "ParallelLinearPipe expects a single argument - hidden_states"
+        hidden_state = args
+        logits, bias = super().forward(hidden_state)
+        return logits
 
 
 class NormPipe(nn.Module):
@@ -728,19 +694,10 @@ class NormPipe(nn.Module):
         self.norm = norm_class(hidden_size, eps=eps)
 
     def forward(self, args):
-        if not isinstance(args, tuple):
-            # in training, args = hidden_state (tensor, so we check if object isn't a tuple and pass through here)
-            hidden_state = args
-            return self.norm(hidden_state)
-        elif len(args) == 2:
-            # in inference, args will be (hidden_state, presents)
-            hidden_state, presents = args
-            hidden_state = self.norm(hidden_state)
-            return hidden_state, presents
-        else:
-            raise ValueError(
-                f"Incorrect number of arguments for {self.__class__.__name__}"
-            )
+        assert not isinstance(
+            args, tuple
+        ), "NormPipe should only receive a single tensor as input"
+        return self.norm(args)
 
 
 def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=None):

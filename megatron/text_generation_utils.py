@@ -45,7 +45,9 @@ def get_batch(neox_args, context_tokens: torch.Tensor):
     tokens = context_tokens.contiguous().cuda()
     # Get the attention mask and postition ids.
     attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
-        tokens, neox_args.tokenizer.eod, neox_args.eod_mask_loss
+        data=tokens,
+        eod_token=neox_args.tokenizer.eod,
+        eod_mask_loss=neox_args.eod_mask_loss,
     )
     return tokens, attention_mask, position_ids
 
@@ -118,7 +120,7 @@ def switch(val1, val2, boolean):
     return (1 - boolean) * val1 + boolean * val2
 
 
-def forward_model(neox_args, model, model_inputs):
+def forward_model(model, model_inputs, is_pipe_parallel=False) -> torch.Tensor:
     """
     Runs model.forward(model_inputs)
 
@@ -127,20 +129,33 @@ def forward_model(neox_args, model, model_inputs):
     model: a Megatron model.
     model_inputs: tuple containing model args
 
-    returns: result of model.forward(model_inputs)
+    returns: torch.Tensor containing the logits of the model
     """
     # because someone at deepspeed decided pipeline modules couldn't use kwargs,
-    # we need to forward a pipe model by access model.module() instead of just model()
-
-    torch.distributed.barrier()
-    if neox_args.pipe_parallel_size <= 1:
+    # we need to forward a pipe model differently to a normal model
+    if not is_pipe_parallel:
         return model.module(model_inputs)
     else:
-        data_iterator = iter(
-            [[model_inputs, torch.Tensor(1)]]
-        )  # we need to feed in fake labels bc deepspeed is only built for training
-        x = model.inference_batch(data_iterator)
-        return x
+        # we need to format inputs this way because:
+        # a) deepspeed pipeline only accepts iterables
+        # b) deepspeed pipeline *requires* that you pass in labels for the loss, it's not easy to get around this
+        # so we wrap the inputs in an iterable, and pad them (because internally, we get labels as inputs[:, 1:] and inputs as inputs[:, :-1])
+        model_inputs = iter([{"text": F.pad(model_inputs[0], pad=(0, 1))}])
+
+        # set num microbatches to 1 at inference time
+        micro_batches_before = model.micro_batches
+        model.micro_batches = 1
+
+        # deepspeed sends metadata across pipeline stages only once in the first step, then assumes it will stay
+        # constant. In inference, the metadata of the tensors being sent across pipe stages may change, so we need to set
+        # these two flags in order for deepspeed to send the metadata every step, otherwise torch.distributed hangs
+        # silently. Fun stuff.
+        model.first_output_send = True
+        model.pipe_recv_buf = None
+
+        loss, logits = model.eval_batch(model_inputs, return_logits=True)
+        model.micro_batches = micro_batches_before
+        return logits
 
 
 def broadcast_terminate_signal(terminate_runs: int):
@@ -186,23 +201,17 @@ def stream_tokens(
     neox_args: NeoXArgs.
     model: a Megatron model.
     context_tokens: the prompt to complete; unpadded list of lists of tokens ids
-
     context_lengths: lengths of context tokens of dimension [batch]; the context length records for each bach item how many non-padded tokens are provided
+    eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
     attention_mask: attention mask for megatron model.
     position_ids: position ids for positional encoding.
-
-    eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
     maximum_tokens: maximum number of tokens to be generated; careful! if a batch input is provided maximum_tokens specifies the maximum number of forwards.
                     longer batch items get less generated tokens.
-
     recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
-
     temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
     top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
     top_p (default 0.0): float -> Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
-
     note: greedy decoding is used if temperature is 0.0, top_k is 0 and top_p is 0.0
-
     yields: (
                 tokens (completions from model),
                 token_generation_start_index (token index per batch item for the first generated token),
@@ -232,8 +241,8 @@ def stream_tokens(
         if stop_tokens.ndim == 1:
             stop_tokens = stop_tokens.unsqueeze(0)
 
+    # Make sure context tokens + start tokens are the same across all ranks
     token_generation_start_index = torch.cuda.LongTensor(context_lengths)
-
     torch.distributed.broadcast(
         context_tokens,
         mpu.get_model_parallel_src_rank(),
@@ -245,11 +254,8 @@ def stream_tokens(
         group=mpu.get_model_parallel_group(),
     )
 
-    # produce batch relevant attention_mask and position_ids
+    # get attention mask / position ids
     context_tokens, attention_mask, position_ids = get_batch(neox_args, context_tokens)
-
-    # determine the smallest context length at which first output is produced
-    context_length = token_generation_start_index.min().item()
 
     # set variables
     eos_token_id = eos_token_id or neox_args.tokenizer.eod
@@ -268,34 +274,24 @@ def stream_tokens(
         token_index_to_generate + maximum_tokens - 1,
     )
 
-    all_logits = torch.zeros(
-        (batch_size, neox_args.seq_length, neox_args.padded_vocab_size)
-    )
-
     with torch.no_grad():
         # initialize generation variables
         state_is_done = torch.zeros([batch_size]).byte().cuda()
-        layer_past = torch.Tensor().cuda()
         token_generation_end_index = torch.ones([batch_size]).long().cuda() * (-1)
 
         while token_index_to_generate <= last_token_index_to_generate:
-            if recompute:
-                # recompute is needed for sparse attention at the moment
-                # because we can only forward multiples of the block size
-                # TODO The full padded context_tokens would not need to be forwarded, adjust to multiples of block size
-                # we need to use neox_args instead of kwargs here because deepspeed :|
+            if recompute:  # recompute all tokens
                 model_inputs = (
                     context_tokens,
                     position_ids,
                     attention_mask,
-                    torch.Tensor(),
                 )
-                logits, _ = forward_model(neox_args, model, model_inputs)
-                generated_token_logits = logits[:, token_index_to_generate - 1, :]
-                all_logits = logits
-            else:
-                # not choosing recompute assumes that any number of tokens can be forwarded
-                # this is not the case for sparse attention
+                logits = forward_model(model, model_inputs, neox_args.is_pipe_parallel)
+                if logits is not None:  # if pipe parallel, not all ranks return logits
+                    generated_token_logits = logits[
+                        :, token_index_to_generate - 1, :
+                    ]  # [bs, seq, vocab_size] -> [bs, vocab_size]
+            else:  # use kv cache
                 if token_index_to_generate == first_token_index_to_generate:
                     tokens_to_use = context_tokens[:, :token_index_to_generate]
                     positions_to_use = position_ids[:, :token_index_to_generate]
@@ -306,48 +302,57 @@ def stream_tokens(
                     positions_to_use = position_ids[
                         :, token_index_to_generate - 1
                     ].view(batch_size, -1)
-                    # we have to use neox_args instead of kwargs here because deepspeed :|
+
                 model_inputs = (
                     tokens_to_use,  # input_ids
                     positions_to_use,  # position_ids
                     attention_mask,  # attention_mask
-                    layer_past,  # layer_past
                 )
 
-                logits, layer_past = forward_model(neox_args, model, model_inputs)
-                # TODO: we are replicating computation across all machines here, which is really unecessary,
-                #  we should probably just do it on one rank then communicate the results?
-                generated_token_logits = logits[:, -1].view(batch_size, -1).contiguous()
-                if token_index_to_generate == first_token_index_to_generate:
-                    all_logits[:, :token_index_to_generate, :] = logits[
-                        :, :token_index_to_generate, :
-                    ]
+                logits = forward_model(model, model_inputs, neox_args.is_pipe_parallel)
+                if logits is not None:  # if pipe parallel, not all ranks return logits
+                    generated_token_logits = (
+                        logits[:, -1].view(batch_size, -1).contiguous()
+                    )  # [bs, seq, vocab_size] -> [bs, vocab_size]
+
+            if logits is not None:
+                # sample token id of the to be generated token
+                if temperature == 0.0 and top_k == 0 and top_p == 0.0:
+                    generated_tokens = torch.argmax(
+                        generated_token_logits, dim=-1
+                    ).view(-1)
                 else:
-                    all_logits[:, token_index_to_generate - 1, :] = logits[
-                        :, 0, :
-                    ]  # only one token will be computed
+                    generated_token_logits = generated_token_logits.float()
+                    if temperature > 0.0:
+                        generated_token_logits /= temperature
+                    generated_token_logits = filter_logits(
+                        generated_token_logits, top_k=top_k, top_p=top_p
+                    )
+                    next_token_log_probs = F.softmax(generated_token_logits, dim=-1)
+                    generated_tokens = torch.multinomial(
+                        next_token_log_probs, num_samples=1
+                    ).view(-1)
 
-            # sample token id of the to be generated token
-            if temperature == 0.0 and top_k == 0 and top_p == 0.0:
-                generated_tokens = torch.argmax(generated_token_logits, dim=-1).view(-1)
-            else:
-                generated_token_logits = generated_token_logits.float()
-                if temperature > 0.0:
-                    generated_token_logits /= temperature
-                generated_token_logits = filter_logits(
-                    generated_token_logits, top_k=top_k, top_p=top_p
+            if neox_args.is_pipe_parallel:
+                # broadcast generated tokens to pipe parallel group
+                src_rank = model.grid.stage_to_global(model.num_stages - 1)
+                generated_tokens = (
+                    generated_tokens
+                    if logits is not None
+                    else torch.zeros(batch_size, dtype=torch.long).cuda()
                 )
-                next_token_log_probs = F.softmax(generated_token_logits, dim=-1)
-                generated_tokens = torch.multinomial(
-                    next_token_log_probs, num_samples=1
-                ).view(-1)
+                torch.distributed.broadcast(
+                    tensor=generated_tokens,
+                    src=src_rank,
+                    group=mpu.get_pipe_parallel_group(),
+                )
 
             # determine if state has started for each batch item
             state_started = (
                 token_generation_start_index <= token_index_to_generate
             )  # check which batch items have been started
 
-            # switch out only padding tokens (the batch items that have been started)
+            # switch out padding tokens for generated tokens
             context_tokens[:, token_index_to_generate] = switch(
                 context_tokens[:, token_index_to_generate].view(-1),
                 generated_tokens,
@@ -373,7 +378,7 @@ def stream_tokens(
 
             token_index_to_generate += 1
 
-            yield context_tokens, token_generation_start_index, token_generation_end_index, all_logits, state_is_done.bool()
+            yield context_tokens, token_generation_start_index, token_generation_end_index, state_is_done.bool()
             if torch.all(state_is_done):
                 break
 
@@ -389,7 +394,6 @@ def generate_samples_from_prompt(
     top_k: int = 0,
     top_p: float = 0.0,
     stop_tokens=None,
-    broadcast_generated_tokens=False,
 ):
     """
     Generates samples from raw text and returns them in a dictionary.
@@ -406,7 +410,6 @@ def generate_samples_from_prompt(
     temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
     top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
     top_p (default 0.0): float -> Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
-    broadcast_generated_tokens: If true, broadcasts the generated tokens to all ranks (normally they would only be available on mp_rank == 0)
     note: greedy decoding is used if temperature is 0.0, top_k is 0 and top_p is 0.0
 
     returns: List[dict] -> a list of dicts containing the following fields:
@@ -461,7 +464,6 @@ def generate_samples_from_prompt(
             context_length = len(context_tokens)
             terminate_runs = 0
 
-
         terminate_runs = broadcast_terminate_signal(terminate_runs)
         if terminate_runs == 1:
             return generated_texts
@@ -470,7 +472,6 @@ def generate_samples_from_prompt(
             batch_context_tokens,
             batch_token_generation_start_index,
             batch_token_generation_end_index,
-            batch_logits,
             is_done,
         ) in stream_tokens(
             neox_args=neox_args,
@@ -504,14 +505,6 @@ def generate_samples_from_prompt(
 
             if end_index >= start_index:
                 generated_tokens = tokens[start_index : end_index + 1]
-                if broadcast_generated_tokens:
-                    generated_tokens = torch.tensor(generated_tokens).cuda()
-                    torch.distributed.broadcast(
-                        generated_tokens,
-                        mpu.get_model_parallel_src_rank(),
-                        group=mpu.get_model_parallel_group(),
-                    )
-                    generated_tokens = generated_tokens.cpu().numpy().tolist()
                 try:
                     generated_text = neox_args.tokenizer.detokenize(generated_tokens)
                     message = None
@@ -523,7 +516,7 @@ def generate_samples_from_prompt(
                 generated_tokens = []
                 # this will happen if the first generated token is a stop token or eos token
                 message = "WARNING: text generation did not start; try different batching or adjust parameters"
-            if is_mp_rank_0() or broadcast_generated_tokens:
+            if is_mp_rank_0():
                 data = {
                     "context": raw_text,
                     "text": generated_text,
@@ -752,7 +745,6 @@ def generate_samples_interactive(
             batch_context_tokens,
             batch_token_generation_start_index,
             batch_token_generation_end_index,
-            batch_logits,
             is_done,
         ) in stream_tokens(
             neox_args=neox_args,

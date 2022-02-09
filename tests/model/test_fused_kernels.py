@@ -220,66 +220,6 @@ def test_fused_upper_triangle_mask_softmax():
             f"\n > torch_values={torch_softmax_output[-1][-1][-1][:5].tolist()}"
         )
 
-
-def test_layer_norm():
-    bert = BertModel.from_pretrained("bert-base-cased").cuda().half()
-    tokenizer = BertTokenizer.from_pretrained("bert-base-cased")
-    test_text = (
-        "Hello. How are you? I am fine thank you and you? yes Good. "
-        "hi hi hi hi hi hi hi hi hi hi hi hi hi"  # 32
-    )
-
-    tokens = tokenizer(
-        [test_text] * 4,
-        return_tensors="pt",
-    )
-
-    # [bsz, seq_len, d_model]
-    embedding_output = (
-        bert.embeddings(
-            input_ids=tokens["input_ids"].cuda(),
-            position_ids=None,
-            token_type_ids=tokens["token_type_ids"].cuda(),
-            inputs_embeds=None,
-            past_key_values_length=0,
-        )
-        .cuda()
-        .half()
-    )
-
-    fused_layernorm_layer = (
-        MixedFusedLayerNorm(normalized_shape=embedding_output.size(-1)).cuda().half()
-    )
-
-    torch_layernorm_layer = (
-        LayerNorm(normalized_shape=embedding_output.size(-1)).cuda().half()
-    )
-
-    fused_output = fused_layernorm_layer(embedding_output)
-    torch_output = torch_layernorm_layer(embedding_output)
-    test_result = (fused_output - torch_output).abs()
-
-    while test_result.dim() != 1:
-        test_result = test_result.mean(dim=-1)
-
-    diff = test_result.mean(dim=-1)
-
-    if diff <= 1e-3:
-        print(
-            f"\n[Success] test_layer_norm"
-            f"\n > mean_difference={diff}"
-            f"\n > fused_values={fused_output[-1][-1][:5].tolist()}"
-            f"\n > torch_values={torch_output[-1][-1][:5].tolist()}"
-        )
-    else:
-        print(
-            f"\n[Fail] test_layer_norm"
-            f"\n > mean_difference={diff}, "
-            f"\n > fused_values={fused_output[-1][-1][:5].tolist()}, "
-            f"\n > torch_values={torch_output[-1][-1][:5].tolist()}"
-        )
-
-
 if __name__ == "__main__":
     try:
         from transformers import BertTokenizer, GPT2Tokenizer
