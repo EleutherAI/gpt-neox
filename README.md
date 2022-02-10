@@ -35,7 +35,7 @@ If you're looking for our TPU codebase, see [GPT-Neo](https://github.com/Eleuthe
 
 ## GPT-NeoX-20B
 
-A 20 Billion Parameter autoregressive language model trained on the pile. For technical details about the model, see our paper [here](http://eaidata.bmk.sh/data/GPT_NeoX_20B.pdf).
+A 20 billion Parameter autoregressive language model trained on the pile. For technical details about the model, see our paper [here](http://eaidata.bmk.sh/data/GPT_NeoX_20B.pdf).
 
 The configuration file for the model is available [here](./configs/20B.yml), and is also included in the download links below.
 
