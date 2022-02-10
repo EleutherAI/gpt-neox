@@ -172,13 +172,15 @@ class NeoXArgs(*BASE_CLASSES):
             # load original config files to save unchanged with checkpoint
             # saving the original config retains comments
             filename = os.path.basename(conf_file_name)
-            assert filename not in config_files, "At least two config files have the same filename. This will result in conflicts when saving out configs with the checkpoint in one single directory. Please use unique names for configs."
+            assert (
+                filename not in config_files
+            ), "At least two config files have the same filename. This will result in conflicts when saving out configs with the checkpoint in one single directory. Please use unique names for configs."
             config_files[filename] = open(conf_file_name).read()
 
         # add config file content to neox args to make them accessible in code
         # this is used when saving checkpoints
         config["config_files"] = config_files
-        
+
         # Configuration parameters not specified
         params_not_in_config = sorted(
             list(set(cls.__dataclass_fields__.keys()) - set(config.keys()))
@@ -278,6 +280,21 @@ class NeoXArgs(*BASE_CLASSES):
             type=str,
             default=None,
             help="prefix to append to eval results file",
+        )
+        group = parser.add_argument_group(title="Generation args")
+        group.add_argument(
+            "-i",
+            "--sample_input_file",
+            type=str,
+            default=None,
+            help="Optionally overwrite `sample_input_file` for generate.py",
+        )
+        group.add_argument(
+            "-o",
+            "--sample_output_file",
+            type=str,
+            default=None,
+            help="Optionally overwrite `sample_output_file` for generate.py",
         )
         args_parsed = parser.parse_args()
 
@@ -769,6 +786,13 @@ class NeoXArgs(*BASE_CLASSES):
             self.valid_data_weights = [1.0] * len(self.valid_data_paths)
         if self.test_data_paths and (self.test_data_weights is None):
             self.test_data_weights = [1.0] * len(self.test_data_paths)
+
+        # if a sample input file is provided, default text_gen_type type to input-file
+        if self.text_gen_type is None:
+            if self.sample_input_file:
+                self.update_value("text_gen_type", "input-file")
+            else:
+                self.update_value("text_gen_type", "unconditional")
 
     ############################################################################################################################
     # start of validation functions

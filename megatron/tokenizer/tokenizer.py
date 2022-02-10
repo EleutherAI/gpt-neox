@@ -24,6 +24,7 @@ from abc import abstractmethod
 from tokenizers import Tokenizer
 from transformers import GPT2Tokenizer, GPT2TokenizerFast
 import numpy as np
+import sentencepiece as spm
 from typing import List, Union
 from .gpt2_tokenization import GPT2Tokenizer
 
@@ -38,6 +39,9 @@ def build_tokenizer(args):
         assert args.vocab_file is not None
         assert args.merge_file is not None
         tokenizer = _GPT2BPETokenizer(args.vocab_file, args.merge_file)
+    elif args.tokenizer_type.lower() == 'SPMTokenizer'.lower():
+        assert args.vocab_file is not None
+        tokenizer = SentencePieceTokenizer(args.vocab_file)
     elif args.tokenizer_type.lower() == 'HFTokenizer'.lower():
         assert args.vocab_file is not None
         tokenizer = HFTokenizer(args.vocab_file)
@@ -154,6 +158,39 @@ class _GPT2BPETokenizer(AbstractTokenizer):
     @property
     def inv_vocab(self):
         return self.tokenizer.decoder
+
+    def tokenize(self, text):
+        return self.tokenizer.encode(text)
+
+    def detokenize(self, token_ids):
+        return self.tokenizer.decode(token_ids)
+
+    @property
+    def eod(self):
+        return self.eod_id
+
+
+class SentencePieceTokenizer(AbstractTokenizer):
+    """Designed to Integrate SP's Tokenizer."""
+
+    def __init__(self, vocab_file):
+        name = 'SPM'
+        super().__init__(name)
+
+        self.tokenizer = spm.SentencePieceProcessor(model_file=vocab_file)
+        self.eod_id = self.tokenizer.piece_to_id('<|endoftext|>')
+
+    @property
+    def vocab_size(self):
+        return self.tokenizer.get_piece_size()
+
+    @property
+    def vocab(self):
+        return {self.tokenizer.id_to_piece(idx):idx for idx in range(self.tokenizer.get_piece_size())}
+
+    @property
+    def inv_vocab(self):
+        return {idx:self.tokenizer.id_to_piece(idx) for idx in range(self.tokenizer.get_piece_size())}
 
     def tokenize(self, text):
         return self.tokenizer.encode(text)
