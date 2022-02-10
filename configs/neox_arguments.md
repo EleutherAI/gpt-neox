@@ -103,7 +103,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 875f8ad
+    Default = a593ce2
 
     current git hash of repository
 
@@ -237,11 +237,11 @@ Model Arguments
 
 
 
-- **norm**: typing.Literal['layernorm', 'rmsnorm', 'scalenorm', 'apexlayernorm']
+- **norm**: typing.Literal['layernorm', 'rmsnorm', 'scalenorm']
 
     Default = layernorm
 
-    Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm", "apexlayernorm".
+    Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm".
 
 
 
@@ -269,7 +269,7 @@ Model Arguments
 
 
 
-- **pos_emb**: typing.Literal['learned', 'rotary', 'sinusoidal', 'rpe', 'none']
+- **pos_emb**: typing.Literal['learned', 'rotary', 'sinusoidal', 'rpe', 'alibi', 'none']
 
     Default = learned
 
@@ -372,14 +372,6 @@ Model Arguments
     Default = 128
 
     Pad the vocab size to be divisible by this value. This is added for computational efficiency reasons.
-
-
-
-- **apply_residual_connection_post_layernorm**: bool
-
-    Default = False
-
-    If set, use original BERT residual connection ordering.
 
 
 
@@ -506,6 +498,41 @@ Model Arguments
 
 
 
+- **gpt_j_residual**: bool
+
+    Default = False
+
+    If false, we use the conventional residual path:
+      x = x + attn(ln1(x))
+      x = x + mlp(ln2(x))
+    Otherwise, we use the residual path from GPT-J, which offers a slight speedup:
+      x = ln(x)
+      x = x + attn(x) + mlp(x)
+
+
+
+- **soft_prompt_tuning**: dict
+
+    Default = None
+
+    Dictionary configuring the soft prompt tuning parameters. 
+    If enabled, will train *only* the soft prompt, and freezes the rest of the model.
+    parameters in the dict are:
+        'enabled': bool = True # enables soft prompting
+        'num_tokens': int = 10 # length of the soft prompt in tokens
+        'init_string': str = '' # if provided, initialize the soft prompt with the word embeddings of this string
+        'init_range': float = 0.5 # if no init string is provided, initialize the soft prompt with a uniform distribution between -init_range and init_rang
+
+
+
+- **output_layer_parallelism**: typing.Literal['row', 'column']
+
+    Default = row
+
+    Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
+
+
+
 ## NeoXArgsOptimizer
 
 Optimizer Arguments
@@ -517,6 +544,14 @@ Optimizer Arguments
     Default = adam
 
     Type of optimizer to use. Choose from ['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd]
+
+
+
+- **use_bnb_optimizer**: bool
+
+    Default = False
+
+    Whether to enable the bitsandbytes optimizers
 
 
 
@@ -611,22 +646,6 @@ Misc. Arguments
     Default = 0.1
 
     Probability of producing a short sequence.
-
-
-
-- **reset_position_ids**: bool
-
-    Default = False
-
-    Reset posistion ids after end-of-document token.
-
-
-
-- **reset_attention_mask**: bool
-
-    Default = False
-
-    Reset self attention mask after end-of-document token.
 
 
 
@@ -734,6 +753,14 @@ Misc. Arguments
 
 
 
+- **global_num_gpus**: int
+
+    Default = None
+
+    Set during launching
+
+
+
 ## NeoXArgsParallelism
 
 Parallelism Arguments
@@ -797,7 +824,7 @@ Text Generation arguments
 
 - **text_gen_type**: str
 
-    Default = None
+    Default = unconditional
 
     How to generate text/sample the model.
     Options: `unconditional`, `input-file`, `interactive`
@@ -846,7 +873,7 @@ Text Generation arguments
 
 - **sample_output_file**: str
 
-    Default = None
+    Default = samples.txt
 
     Output file
 
@@ -854,9 +881,9 @@ Text Generation arguments
 
 - **num_samples**: int
 
-    Default = 0
+    Default = 1
 
-    Number of samples to generate unconditionally, defaults to 0 and interactive conditional sampling
+    Number of samples to generate unconditionally, defaults to 1 and interactive conditional sampling
 
 
 
@@ -882,14 +909,6 @@ Text Generation arguments
     Default = None
 
     Tasks to evaluate on using lm_eval_harness
-
-
-
-- **char_level_ppl**: bool
-
-    Default = False
-
-    Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
 
 
 
@@ -1034,6 +1053,14 @@ Training Arguments
     Default = None
 
     Output directory to save checkpoints to.
+
+
+
+- **config_files**: dict
+
+    Default = None
+
+    Store of original config files mapping config filename to file contents
 
 
 
@@ -1324,6 +1351,14 @@ Training Arguments
     Default = 1.0
 
     Minimum loss scale for dynamic loss scale.
+
+
+
+- **char_level_ppl**: bool
+
+    Default = False
+
+    Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
 
 
 
