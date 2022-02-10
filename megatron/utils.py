@@ -143,15 +143,55 @@ def get_wandb_api_key(neox_args):
         return wandb_token[1]
 
 
+
+# from: https://github.com/wandb/client/issues/982 to deal with wandb sweeps 
+# not handling nested parameters
+def flatten_json(json):
+    if type(json) == dict:
+        for k, v in list(json.items()):
+            if type(v) == dict:
+                flatten_json(v)
+                json.pop(k)
+                for k2, v2 in v.items():
+                    json[k+"."+k2] = v2
+    return json
+
+                    
+# from: https://github.com/wandb/client/issues/982 to deal with wandb sweeps 
+# not handling nested parameters
+def unflatten_json(json):
+    if type(json) == dict:
+        for k in sorted(json.keys(), reverse=True):
+            if "." in k:
+                key_parts = k.split(".")
+                json1 = json
+                for i in range(0, len(key_parts)-1):
+                    k1 = key_parts[i]
+                    if k1 in json1:
+                        json1 = json1[k1]
+                        if type(json1) != dict:
+                            conflicting_key = ".".join(key_parts[0:i+1])
+                            raise Exception('Key "{}" conflicts with key "{}"'.format(
+                                k, conflicting_key))
+                    else:
+                        json2 = dict()
+                        json1[k1] = json2
+                        json1 = json2
+                if type(json1) == dict:
+                    v = json.pop(k)
+                    json1[key_parts[-1]] = v
+    return json
+
 def init_wandb(neox_args):
     # Wandb. (one worker per machine)
     if neox_args.use_wandb == False:
-        return
+        return neox_args
 
     use_wandb = is_local_main() and (get_wandb_api_key(neox_args=neox_args) is not None)
     neox_args.update_value("use_wandb", use_wandb)
     if neox_args.use_wandb:
         group_name = neox_args.wandb_group
+        
         name = f"{socket.gethostname()}-{local_rank()}" if group_name else None
         try:
             wandb.init(
@@ -169,7 +209,10 @@ def init_wandb(neox_args):
                 "Skipping wandb. Execute `wandb login` on local or main node machine to enable.",
                 flush=True,
             )
-        wandb.config.update(neox_args.all_config)
+        print(flatten_json(neox_args.all_config))
+        wandb.config.update(flatten_json(neox_args.all_config))
+        print(unflatten_json(wandb.config.as_dict()))
+        return neox_args.from_dict(unflatten_json(wandb.config.as_dict()))
 
 
 def obtain_resource_pool(
