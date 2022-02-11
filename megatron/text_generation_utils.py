@@ -759,6 +759,7 @@ def generate_samples_interactive(
             top_k=top_k,
             top_p=top_p,
         ):
+            generated_text = ""
             if mpu.get_model_parallel_rank() == 0:
                 generated_tokens = (
                     batch_context_tokens[0]
