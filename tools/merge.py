@@ -437,5 +437,5 @@ if __name__ == "__main__":
         args.pipe_parallel,
         args.output_dir,
         args.global_step,
-        args.layernorm_mean,
+        args.parameter_mean,
     )
