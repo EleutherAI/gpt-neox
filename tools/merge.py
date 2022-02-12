@@ -342,7 +342,7 @@ def merge_checkpoints(
 
     # save modified config
     with open(output_configs_dir / "config.yml", "w") as f:
-        json.dump(config, f, indent=4)
+        yaml.dump(config, f)
 
     # load weight paths grouped by layer
     # so that we can merge layer by layer
