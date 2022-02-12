@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,7 +24,6 @@ from megatron import mpu
 
 
 class BlendableDataset(torch.utils.data.Dataset):
-
     def __init__(self, datasets, weights):
         self.datasets = datasets
         num_datasets = len(datasets)
@@ -48,13 +46,22 @@ class BlendableDataset(torch.utils.data.Dataset):
         self.dataset_sample_index = np.zeros(self.size, dtype=np.int64)
 
         from megatron.data import helpers
-        helpers.build_blending_indices(self.dataset_index,
-                                       self.dataset_sample_index,
-                                       weights, num_datasets, self.size,
-                                       torch.distributed.get_rank() == 0)
 
-        print('> RANK {} elapsed time for building blendable dataset indices: '
-              '{:.2f} (sec)'.format(torch.distributed.get_rank(), time.time() - start_time))
+        helpers.build_blending_indices(
+            self.dataset_index,
+            self.dataset_sample_index,
+            weights,
+            num_datasets,
+            self.size,
+            torch.distributed.get_rank() == 0,
+        )
+
+        print(
+            "> RANK {} elapsed time for building blendable dataset indices: "
+            "{:.2f} (sec)".format(
+                torch.distributed.get_rank(), time.time() - start_time
+            )
+        )
 
     def __len__(self):
         return self.size
@@ -67,5 +74,6 @@ class BlendableDataset(torch.utils.data.Dataset):
         except IndexError:
             new_idx = idx % len(self)
             print(
-                f'WARNING: Got index out of bounds error with index {idx} - taking modulo of index instead ({new_idx})')
+                f"WARNING: Got index out of bounds error with index {idx} - taking modulo of index instead ({new_idx})"
+            )
             return self[new_idx]

@@ -21,7 +21,7 @@ Steps to reproduce the behavior:
 A clear and concise description of what you expected to happen.
 
 **Proposed solution**
-If you have an idea for how we can fix this problem, describe it here. 
+If you have an idea for how we can fix this problem, describe it here.
 
 **Screenshots**
 If applicable, add screenshots to help explain your problem.

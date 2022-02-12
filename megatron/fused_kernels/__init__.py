@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,14 +28,17 @@ srcpath = Path(__file__).parent.absolute()
 # extra_cuda_cflags below
 os.environ["TORCH_CUDA_ARCH_LIST"] = ""
 
+
 def load_fused_kernels(neox_args):
     try:
         import scaled_upper_triang_masked_softmax_cuda
         import scaled_masked_softmax_cuda
     except (ImportError, ModuleNotFoundError):
-        print('\n')
-        print('='*100)
-        print(f'ERROR: Please run `python {str(srcpath / "setup.py")} install` to install the fused kernels')
-        print('='*100)
+        print("\n")
+        print("=" * 100)
+        print(
+            f'ERROR: Please run `python {str(srcpath / "setup.py")} install` to install the fused kernels'
+        )
+        print("=" * 100)
         exit()
     return
