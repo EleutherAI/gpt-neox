@@ -759,7 +759,6 @@ def generate_samples_interactive(
             top_k=top_k,
             top_p=top_p,
         ):
-            generated_text = ""
             if mpu.get_model_parallel_rank() == 0:
                 generated_tokens = (
                     batch_context_tokens[0]
@@ -772,7 +771,6 @@ def generate_samples_interactive(
                     ]
                 )
                 generated_text = neox_args.tokenizer.detokenize(generated_tokens)
-
-        print_rank_0("Generated Text: " + generated_text)
+                print_rank_0("Generated Text: " + generated_text)
         if torch.distributed.is_initialized() and torch.distributed.get_rank() == 0:
             _ = input("\n<press enter to continue>")
