@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright (c) 2021  Josh Levy-Kramer <josh@levykramer.co.uk>. All rights reserved.
 # This file is based on code by the authors denoted below and has been modified from its original version.
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
@@ -436,7 +435,7 @@ def generate_samples_from_prompt(
     # generate completions
     generated_texts = []
     while True:
-        model.module.clear_cache() # clear kv cache between batches
+        model.module.clear_cache()  # clear kv cache between batches
 
         start_time = time.time()
         # Tokenize text, and check whether we should terminate process
@@ -718,7 +717,7 @@ def generate_samples_interactive(
     """
 
     while True:
-        model.module.clear_cache() # clear kv cache between batches
+        model.module.clear_cache()  # clear kv cache between batches
         torch.distributed.barrier(group=mpu.get_model_parallel_group())
         terminate_runs = 0
 

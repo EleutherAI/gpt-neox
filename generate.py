@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# coding=utf-8
 # Copyright (c) 2021 Josh Levy-Kramer <josh@levykramer.co.uk>. All rights reserved.
 # This file is based on code by the authors denoted below and has been modified from its original version.
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
@@ -32,7 +31,9 @@ def main():
     """
     model, neox_args = setup_for_inference_or_eval(use_cache=True)
     if neox_args.recompute:
-        model.module.inference_mode(use_cache=False)  # don't use kv cache if recomputing
+        model.module.inference_mode(
+            use_cache=False
+        )  # don't use kv cache if recomputing
     if neox_args.text_gen_type == "unconditional":
         print_rank_0(
             f"Generating samples unconditionally and saving results to {neox_args.sample_output_file}"
