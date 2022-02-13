@@ -159,6 +159,13 @@ def pretty_print_double(contents1: dict, contents2: dict, args):
                     if not args.diff:
                         line += ", "
                         line += f"{c}dtype={v1.dtype} | dtype={v2.dtype}{COLORS.END}"
+                if list(v1.shape) == list(v2.shape):
+                    if torch.allclose(v1, v2):
+                        if not args.diff:
+                            line += f", {COLORS.CYAN}VALUES EQUAL{COLORS.END}"
+                    else:
+                        line += f", {COLORS.RED}VALUES DIFFER{COLORS.END}"
+
         if line.replace(" ", "") != "":
             line = prefix + line
             print(line)
@@ -251,8 +258,7 @@ def compare(args: Namespace):
     for file1, file2 in zip(files_1, files_2):
         file1 = Path(file1).absolute()
         file2 = Path(file2).absolute()
-        if not args.diff:
-            print(f"COMPARING {COLORS.GREEN}{file1.name} & {file2.name}:{COLORS.END}")
+        print(f"COMPARING {COLORS.GREEN}{file1.name} & {file2.name}:{COLORS.END}")
         selection_1 = get_selection(file1, args)
         selection_2 = get_selection(file2, args)
         diffs_found = pretty_print_double(selection_1, selection_2, args)
