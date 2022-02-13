@@ -8,7 +8,7 @@ pip install -r requirements/requirements-dev.txt
 
 # Run
 
-Tests can be run using pytest. 
+Tests can be run using pytest.
 
 * The argument --forked needs to be provided
 * A coverage report can be created using the optional arguments --cov-report and --cov (see pytest documentation)

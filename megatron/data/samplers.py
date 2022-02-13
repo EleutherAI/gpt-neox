@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -39,17 +38,22 @@ class RandomSampler(data.sampler.Sampler):
         self.epoch = -1
 
         if self._num_samples is not None and replacement is False:
-            raise ValueError("With replacement=False, num_samples should not "
-                             "be specified, since a random permute will be "
-                             "performed.")
+            raise ValueError(
+                "With replacement=False, num_samples should not "
+                "be specified, since a random permute will be "
+                "performed."
+            )
 
         if not isinstance(self.num_samples, int) or self.num_samples <= 0:
-            raise ValueError("num_samples should be a positive integer "
-                             "value, but got num_samples={}".format(
-                                 self.num_samples))
+            raise ValueError(
+                "num_samples should be a positive integer "
+                "value, but got num_samples={}".format(self.num_samples)
+            )
         if not isinstance(self.replacement, bool):
-            raise ValueError("replacement should be a boolean value, but got "
-                             "replacement={}".format(self.replacement))
+            raise ValueError(
+                "replacement should be a boolean value, but got "
+                "replacement={}".format(self.replacement)
+            )
 
     @property
     def num_samples(self):
@@ -64,8 +68,11 @@ class RandomSampler(data.sampler.Sampler):
         if self.epoch >= 0:
             g.manual_seed(self.epoch)
         if self.replacement:
-            return iter(torch.randint(high=n, size=(self.num_samples,),
-                                      dtype=torch.int64, generator=g).tolist())
+            return iter(
+                torch.randint(
+                    high=n, size=(self.num_samples,), dtype=torch.int64, generator=g
+                ).tolist()
+            )
         return iter(torch.randperm(n, generator=g).tolist())
 
     def __len__(self):
@@ -81,23 +88,30 @@ class DistributedBatchSampler(data.sampler.BatchSampler):
     sampler level. This allows wrapping of arbitrary data samplers
     (sequential, random, WeightedRandomSampler, etc.) with this batch
     sampler.
-    
+
     The `interleave` argument specifies how to distribute a batch. A value
     of True combined with the above random sampler is equivalent to pytorch's
     torch.utils.data.distributed.DistributedSampler.
 
-    For the following batch [0,1,2,3,4,5,6,7] and data parallelism of 2 
+    For the following batch [0,1,2,3,4,5,6,7] and data parallelism of 2
     specifying True will result in the following samples for each gpu:
         GPU0: [0,2,4,6] GPU1: [1,3,5,7]
     specifying False will result in the following samples:
         GPU0: [0,1,2,3] GPU1: [4,5,6,7]"""
 
-    def __init__(self, sampler, batch_size, drop_last, rank=-1,
-                 world_size=2, wrap_last=False, interleave=False):
-        super(DistributedBatchSampler, self).__init__(sampler, batch_size,
-                                                      drop_last)
+    def __init__(
+        self,
+        sampler,
+        batch_size,
+        drop_last,
+        rank=-1,
+        world_size=2,
+        wrap_last=False,
+        interleave=False,
+    ):
+        super(DistributedBatchSampler, self).__init__(sampler, batch_size, drop_last)
         if rank == -1:
-            assert False, 'should not be here'
+            assert False, "should not be here"
             rank = torch.distributed.get_rank()
         self.rank = rank
         self.world_size = world_size
@@ -122,8 +136,8 @@ class DistributedBatchSampler(data.sampler.BatchSampler):
         batch_len = len(batch)
         if batch_len > 0 and not self.drop_last:
             if self.wrap_last:
-                self.sampler.wrap_around -= (self.batch_size)
-                self.wrap_around += (len(batch))
+                self.sampler.wrap_around -= self.batch_size
+                self.wrap_around += len(batch)
                 self.wrap_around %= self.batch_size
             yield self._batch(batch)
         if self.wrap_last:
@@ -142,7 +156,7 @@ class DistributedBatchSampler(data.sampler.BatchSampler):
     def _batch(self, batch):
         """extracts samples only pertaining to this worker's batch"""
         if self.interleave:
-            return batch[self.rank:self.batch_size:self.world_size]
+            return batch[self.rank : self.batch_size : self.world_size]
         start = self.rank * self.batch_size // self.world_size
         end = (self.rank + 1) * self.batch_size // self.world_size
         return batch[start:end]

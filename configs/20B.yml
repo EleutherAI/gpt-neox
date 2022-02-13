@@ -2,44 +2,44 @@
 # GPUs. Depending on your system configuration, you may need to change some parameters in order to fit
 # the model in memory.
 
-{  
+{
   # Tokenizer /  checkpoint settings - you will need to change these to the location you have them saved in
   "vocab-file": "./20B_checkpoints/20B_tokenizer.json",
   "save": "./20B_checkpoints",
-  "load": "./20B_checkpoints",   
+  "load": "./20B_checkpoints",
 
   # If finetuning, edit the following to the location of your finetuning dataset:
   "data-path": "./data/pile_20B_tokenizer/pile_20B_tokenizer_text_document",
-                                                                                                                                                                     
-  # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages                                                                
-  # across the node boundaries )                                                                                                                                                        
-  "pipe-parallel-size": 4,                                                                                                                                                              
-  "model-parallel-size": 2,                                                                                                                                                             
-                                                                                                                                                                                        
-  # model settings                                                                                                                                                                      
-  "num-layers": 44,                                                                                                                                                                     
-  "hidden-size": 6144,                                                                                                                                                                  
-  "num-attention-heads": 64,                                                                                                                                                            
-  "seq-length": 2048,                                                                                                                                                                   
-  "max-position-embeddings": 2048,                                                                                                                                                      
-  "norm": "layernorm",                                                                                                                                                                  
+
+  # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
+  # across the node boundaries )
+  "pipe-parallel-size": 4,
+  "model-parallel-size": 2,
+
+  # model settings
+  "num-layers": 44,
+  "hidden-size": 6144,
+  "num-attention-heads": 64,
+  "seq-length": 2048,
+  "max-position-embeddings": 2048,
+  "norm": "layernorm",
   "pos-emb": "rotary",
   "rotary_pct": 0.25,
   "no-weight-tying": true,
-  "gpt_j_residual": true,                                                                                                                                                           
+  "gpt_j_residual": true,
   "output_layer_parallelism": "column",
-  "scaled-upper-triang-masked-softmax-fusion": true,                                                                                                                                   
-  "bias-gelu-fusion": true,  
+  "scaled-upper-triang-masked-softmax-fusion": true,
+  "bias-gelu-fusion": true,
 
   # init methods
   "init_method": "small_init",
   "output_layer_init_method": "wang_init",
-                                                                                                                                                                                                                                                                                                                                
-  # optimizer settings                                                                                                                                                                  
-  "optimizer": {                                                                                                                                                                        
-    "type": "Adam",                                                                                                                                                                     
-    "params": {                                                                                                                                                                         
-      "lr": 0.97e-4,  
+
+  # optimizer settings
+  "optimizer": {
+    "type": "Adam",
+    "params": {
+      "lr": 0.97e-4,
       "betas": [0.9, 0.95],
       "eps": 1.0e-8,
       }
@@ -76,7 +76,7 @@
   "attention-dropout": 0,
 
   # precision settings
-  "fp16": { 
+  "fp16": {
     "fp16": true,
     "enabled": true,
     "loss_scale": 0,

@@ -1,9 +1,9 @@
 """
-NeoX Arguments manages all configuration arguments. 
+NeoX Arguments manages all configuration arguments.
 
 **general**
 
-* The implementation makes use of the python dataclass. 
+* The implementation makes use of the python dataclass.
 * The main class 'NeoXArgs' (in ./arguments) exposes all configuration attributes that are relevant to GPT NeoX
 * No attributes are nested (apart from attributes with type dict)
 * Output functions (enable_logging, save_yml, print) are implemented
@@ -28,7 +28,7 @@ NeoX args can be instantiated with the following options
 * The Subclasses group args according to their purpose
 * The attributes of NeoXArgsDeepspeedRunner are directly mapped to the expected command line args of deepspeed.launcher.runner.main; no attributes unknown to deepspeed should be included; no arguments relevant for deepspeed should be ommitted
 * The attributes of NeoXArgsDeepspeedConfig are directly mapped to the expected keys of the deepspeed config; no arguments relevant for deepspeed should be ommitted
-* calculated attributes (decorator '@property') are available as attribute, but would not be included in dataclass fields (e.g. NeoXArgs().__dataclass_fields__.items()) 
+* calculated attributes (decorator '@property') are available as attribute, but would not be included in dataclass fields (e.g. NeoXArgs().__dataclass_fields__.items())
 * refer to docstrings in code for more information
 """
 

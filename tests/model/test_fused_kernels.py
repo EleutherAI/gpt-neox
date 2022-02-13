@@ -1,9 +1,9 @@
-
 import os
 
 if __name__ == "__main__":
     import sys
-    sys.path.append(os.path.abspath(''))
+
+    sys.path.append(os.path.abspath(""))
 
 import math
 
@@ -219,6 +219,7 @@ def test_fused_upper_triangle_mask_softmax():
             f"\n > fused_values={fused_softmax_output[-1][-1][-1][:5].tolist()}, "
             f"\n > torch_values={torch_softmax_output[-1][-1][-1][:5].tolist()}"
         )
+
 
 if __name__ == "__main__":
     try:

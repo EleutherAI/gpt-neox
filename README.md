@@ -3,7 +3,7 @@
 
 # GPT-NeoX
 
-This repository records [EleutherAI](https://www.eleuther.ai)'s work-in-progress for training large-scale language models on GPUs. Our current framework is based on NVIDIA's [Megatron Language Model](https://github.com/NVIDIA/Megatron-LM) and has been augmented with techniques from [DeepSpeed](https://www.deepspeed.ai) as well as some novel optimizations. 
+This repository records [EleutherAI](https://www.eleuther.ai)'s work-in-progress for training large-scale language models on GPUs. Our current framework is based on NVIDIA's [Megatron Language Model](https://github.com/NVIDIA/Megatron-LM) and has been augmented with techniques from [DeepSpeed](https://www.deepspeed.ai) as well as some novel optimizations.
 
 We aim to make this repo a centralized and accessible place to gather techniques for training large-scale autoregressive language models, and accelerate research into large-scale training. Additionally, we hope to train and open source a 175B parameter GPT-3 replication along the way. Please note, however, that this is a research codebase that is primarily designed for performance over ease of use. We endeavour to make it as easy to use as is feasible, but if there's anything in the readme that is unclear or you think you've found a bug, please open an issue.
 
@@ -65,12 +65,12 @@ wget --cut-dirs=5 -nH -r --no-parent --reject "index.html*" https://mystic.the-e
 
 First make sure you are in an environment with Python 3.8 or later with an appropriate version of PyTorch 1.8 or later installed.
 
-To install the remaining basic dependencies, run: 
+To install the remaining basic dependencies, run:
 
 ```bash
 pip install -r requirements/requirements.txt
 python ./megatron/fused_kernels/setup.py install # optional if not using fused kernels
-``` 
+```
 
 from the repository root.
 
@@ -99,7 +99,7 @@ GPT-NeoX parameters are defined in a YAML configuration file which is passed to 
 ```yaml
   "vocab-file": "./20B_checkpoints/20B_tokenizer.json",
   "save": "./20B_checkpoints",
-  "load": "./20B_checkpoints",   
+  "load": "./20B_checkpoints",
 ```
 
 changing `./20B_checkpoints` to the path to the root folder of the downloaded checkpoints. If the checkpoints exist at `./20B_checkpoints` you can leave this as is.
@@ -128,7 +128,7 @@ We currently offer three main functions:
 and can be launched with:
 
 ```bash
-./deepy.py [script.py] [./path/to/config_1.yml] [./path/to/config_2.yml] ... [./path/to/config_n.yml] 
+./deepy.py [script.py] [./path/to/config_1.yml] [./path/to/config_2.yml] ... [./path/to/config_n.yml]
 ```
 
 E.G To generate text unconditionally with the GPT-NeoX-20B model, you can use the following:
@@ -338,9 +338,9 @@ This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyri
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
     You may obtain a copy of the License at
-    
+
         http://www.apache.org/licenses/LICENSE-2.0
-    
+
     Unless required by applicable law or agreed to in writing, software
     distributed under the License is distributed on an "AS IS" BASIS,
     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
