@@ -150,3 +150,6 @@ test_logs/
 logs/
 tensorboard/
 src/
+
+P3/
+jsondata/
