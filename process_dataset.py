@@ -8,6 +8,7 @@ from concurrent.futures import ProcessPoolExecutor,ThreadPoolExecutor
 import random
 import json
 import os
+import shutil
 
 DATASETS = {
     'multiple_choice' : [
@@ -109,11 +110,13 @@ def process_hf_dataset(ds,key,config):
     with open(f'./jsondata/{key}/{config}.json','w') as f:
         json.dump(arr,f)
 
-def process(config):
+def process(config,lock):
     '''Driver function to process a single config file of P3 dataset'''
     
     print(f"processing {config}")
-    hf_ds = load_from_disk(f'/home/mchorse/P3/data/{config}')
+    with lock:
+        hf_ds = load_from_disk(f'/mnt/ssd-1/P3/hfdataset/{config}')
+        print(f"loaded {config}")
     for key in hf_ds.keys():
         if(key != 'train'):
             
@@ -135,20 +138,21 @@ def tokenize(key):
     if(key == 'train'):
         configs = [config for category in DATASETS for config in DATASETS[category]]
         configs = ','.join([f'/mnt/ssd-cluster/P3_configs/{config}' for config in configs])
-        path = "/mnt/ssd-1/P3_combined/train"
+        path = "/mnt/ssd-cluster/P3_combined/train"
     elif key == 'others':
         configs = f"/mnt/ssd-cluster/P3_configs/{key}"
-        path = f"/mnt/ssd-1/P3_combined/evaluation"
+        path = f"/mnt/ssd-cluster/P3_combined/evaluation"
     else:
         configs = f"/mnt/ssd-cluster/P3_configs/{key}"
-        path = f"/mnt/ssd-1/P3_combined/{key}"
+        path = f"/mnt/ssd-cluster/P3_combined/{key}"
     
     exec_command = f"cd /home/mchorse/gpt-neox && \
         python3 tools/preprocess_data.py \
             --input {configs} --output-prefix {path} \
             --tokenizer-type HFTokenizer \
             --vocab-file /mnt/ssd-1/data/20B_tokenizer.json \
-            --workers 45"
+            --workers 95\
+            --append-eod"
     
     print(f"tokenizing {key} dataset")
     
@@ -166,12 +170,16 @@ def load_from_json(filename):
     return arr
 if __name__ == '__main__':
     SEED = 1234 # seed used in shuffling to sample items
-    
+    lock = multiprocessing.Manager().Lock()
     with open('processed_configs.txt') as f: # convert documents to json
         configs = f.read().splitlines()
-    with ProcessPoolExecutor(40) as p: 
-        p.map(process,configs)
-            
+    futures = []
+    with ProcessPoolExecutor(95) as p: 
+        for config in configs:
+            futures.append(p.submit(process,config,lock,))
+    
+    for future in futures:
+        future.result()   
     
     global PROCESSED_DATASET_DICT # combine individual jsons into a specific config
     PROCESSED_DATASET_DICT = {}
@@ -183,7 +191,7 @@ if __name__ == '__main__':
     PROCESSED_DATASET_DICT['validation'] = []
     PROCESSED_DATASET_DICT['others'] = []
 
-    with ProcessPoolExecutor(40) as executor:
+    with ProcessPoolExecutor(95) as executor:
         futures = {}
         for key in PROCESSED_DATASET_DICT:
             futures[key] = []
@@ -200,6 +208,8 @@ if __name__ == '__main__':
     
     for key in PROCESSED_DATASET_DICT.keys(): # Sampling and archiving
         path = f'/mnt/ssd-cluster/P3_configs/{key}'
+        if(os.path.exists(path)):
+            shutil.rmtree(path)
         ar = lm_dataformat.Archive(path)
         if(key in ['test','validation','others']):
             
@@ -208,7 +218,8 @@ if __name__ == '__main__':
         else:
             random.seed(SEED)
             random.shuffle(PROCESSED_DATASET_DICT[key])
-            for i in range(min(len(PROCESSED_DATASET_DICT[key]),500000)):
+            # for i in range(min(len(PROCESSED_DATASET_DICT[key]),500000)): for sampled dataset
+            for i in range(len(PROCESSED_DATASET_DICT[key])):
                 text = PROCESSED_DATASET_DICT[key][i]
                 ar.add_data(text)
 
