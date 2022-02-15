@@ -89,4 +89,3 @@ RUN mkdir -p /tmp && chmod 0777 /tmp
 #### SWITCH TO mchorse USER
 USER mchorse
 WORKDIR /home/mchorse
-

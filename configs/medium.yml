@@ -20,7 +20,7 @@
    "bias-gelu-fusion": false,
 
 
-   
+
    # optimizer settings
    "optimizer": {
      "type": "Adam",
@@ -58,7 +58,7 @@
    "attention-dropout": 0,
 
    # precision settings
-   "fp16": { 
+   "fp16": {
      "fp16": true,
      "enabled": true,
      "loss_scale": 0,

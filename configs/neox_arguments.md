@@ -146,7 +146,7 @@ Logging Arguments
     Default = False
 
     Log the frob norm of the gradients to wandb / tensorboard (useful for debugging).
-    (N.B - this will only work with pp = 0 for now, as we don't have access to the gradients of the model because 
+    (N.B - this will only work with pp = 0 for now, as we don't have access to the gradients of the model because
     deepspeed.)
 
 
@@ -306,18 +306,18 @@ Model Arguments
     Default = None
 
     Attention configuration for gpt-neox
-    
-    The first item in the list specifies the attention type(s), and should be a list of strings. The second item 
+
+    The first item in the list specifies the attention type(s), and should be a list of strings. The second item
     specifies the number of times to repeat those attention types in the full list.
-    
+
     attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird]
-                                
+
     So a 12 layer network with only global attention could be specified like:
         [[[`global`], 12]]
-        
+
     or a 12 layer network with alternating global / local like:
         [[[`global`, `local`], 6]]
-        
+
     If none is specified, this defaults to
         [[[`global`], n_layers]]
 
@@ -328,13 +328,13 @@ Model Arguments
     Default = None
 
     Sparsity configuration dict as defined in https://www.deepspeed.ai/docs/config-json/#sparse-attention
-    
-    Note that since neox is autoregressive, attention is always "unidirectional" and `horizontal_global_attention` is 
+
+    Note that since neox is autoregressive, attention is always "unidirectional" and `horizontal_global_attention` is
     always false.
-    
-    The main difference between our sparsity config and deepspeed's is that `mode` is ignored - since it is instead 
+
+    The main difference between our sparsity config and deepspeed's is that `mode` is ignored - since it is instead
     specified in attention_config defining each layer.
-    
+
     An example config is given below:
           "sparse_attention": {
             "block": 16,
@@ -475,7 +475,7 @@ Model Arguments
 
     Default = normal
 
-    Init function used on all layers except ff residual outputs - choose from 
+    Init function used on all layers except ff residual outputs - choose from
     ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
 
 
@@ -484,7 +484,7 @@ Model Arguments
 
     Default = scaled_normal
 
-    Init function used for ff residual outputs - choose from 
+    Init function used for ff residual outputs - choose from
     ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
 
 
@@ -515,7 +515,7 @@ Model Arguments
 
     Default = None
 
-    Dictionary configuring the soft prompt tuning parameters. 
+    Dictionary configuring the soft prompt tuning parameters.
     If enabled, will train *only* the soft prompt, and freezes the rest of the model.
     parameters in the dict are:
         'enabled': bool = True # enables soft prompting
@@ -787,8 +787,8 @@ Parallelism Arguments
 
     Default = type:transformer|mlp
 
-    method used to distribute model layers across pipeline stages. Choose from "parameters", which balances the number 
-    of parameters on each pipeline stage, "uniform", which naively balances the number of layers per stage, or 
+    method used to distribute model layers across pipeline stages. Choose from "parameters", which balances the number
+    of parameters on each pipeline stage, "uniform", which naively balances the number of layers per stage, or
     "type:[regex]", which balances layers whose class names match [regex]
 
 
@@ -805,7 +805,7 @@ Parallelism Arguments
 
     Default = False
 
-    flag to determine whether pipeline parallelism is on - shouldn't be set by user, is automatically determined 
+    flag to determine whether pipeline parallelism is on - shouldn't be set by user, is automatically determined
     according to pipeline parallel size.
 
 
@@ -898,7 +898,7 @@ Text Generation arguments
 
 - **eval_results_prefix**: str
 
-    Default = 
+    Default =
 
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
 
@@ -930,7 +930,7 @@ Tokenizer Arguments
 
     Default = None
 
-    Total (padded) vocabulary size of tokenizer. Configured after launching of training, 
+    Total (padded) vocabulary size of tokenizer. Configured after launching of training,
     as it's dependent on the parallelism size.
 
 
@@ -1005,7 +1005,7 @@ Training Arguments
     Default = False
 
     If True, Builds dataset weights from a multinomial distribution over groups of data according to the number of
-    documents in each group. 
+    documents in each group.
 
     WARNING: setting this to True will override any user provided weights
 
@@ -1421,7 +1421,7 @@ Args for deepspeed config
     dict containing the keys type and params
 
     type: The scheduler name. See here (https://deepspeed.readthedocs.io/en/latest/schedulers.html) for list of support schedulers.
-    
+
     params: Dictionary of parameters to instantiate scheduler. The parameter names should match scheduler constructor signature.
 
 
@@ -1486,7 +1486,7 @@ Args for deepspeed config
 
     Default = None
 
-    
+
 
 
 
@@ -1542,7 +1542,7 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = None
 
     list of hostnames / ssh aliases and the number of GPUs per host
-    
+
     example file contents:
     worker-1 slots=4
     worker-2 slots=4
@@ -1612,4 +1612,3 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = False
 
     If true, autodetects nvlink pairs and remaps cuda visible devices to place them next to each other. This is an Eleuther addition to deepspeed, and should speed up model parallel training on setups with nvlink pairs when mp=2.
-
