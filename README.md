@@ -312,6 +312,41 @@ In addition to storing logs locally, we provide built-in support for two popular
 
 EleutherAI is currently using [Weights & Biases to record our experiments](https://wandb.ai/eleutherai/neox). If you are logged into Weights & Biases on your machine&mdash;you can do this by executing `wandb login`&mdash;your runs will automatically be recorded. There are two optional fields associated with Weights & Biases: <code><var>wandb_group</var></code> allows you to name the run group and <code><var>wandb_team</var></code> allows you to assign your runs to an organization or team account.
 
+## wandb sweeps 
+
+Hyperparameter searches can also be automated using the [wandb sweeps](https://docs.wandb.ai/guides/sweeps). This allows for automated seaches of hyperparameters. Nested configuration values from `configs/` need to be separated by periods (eg. `optimizer.params.lr`) and underscores must be used instead of dashes. 
+
+```yml
+program: deepy.py
+method: bayes
+metric:
+  name: validation/lm_loss
+  goal: minimize
+parameters:
+  optimizer.params.lr:
+    min: 0.00005
+    max: 0.00100
+  hidden_size:
+    values: [320, 640, 1280, 1920, 2560]
+  num_layers:
+    min: 12
+    max: 32
+  num_attention_heads:
+    values: [4, 8, 16, 32]
+  attention_config:
+    values: [null]
+
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}
+  - "train.py"
+  - "configs/small.yml"
+  - "configs/local_setup.yml"
+```
+
+Once this is saved as `sweep.yml`, the sweep can be started with `wandb sweep sweep.yaml` and wandb will give the agent command to run on each of the nodes. 
+
 ## TensorBoard
 
 We also support using TensorBoard via the <code><var>tensorboard-dir</var></code> field. Dependencies required for TensorBoard monitoring can be found in and installed from  `./requirements/requirements-tensorboard.txt`.
