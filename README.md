@@ -314,7 +314,7 @@ EleutherAI is currently using [Weights & Biases to record our experiments](https
 
 ## wandb sweeps 
 
-Hyperparameter searches can also be automated using the [wandb sweeps](https://docs.wandb.ai/guides/sweeps). This allows for automated seaches of hyperparameters. Nested configuration values from `configs/` need to be separated by periods (eg. `optimizer.params.lr`) and underscores must be used instead of dashes. 
+Hyperparameter searches can also be automated using the [wandb sweeps](https://docs.wandb.ai/guides/sweeps). This allows for automated searches of hyperparameters. Nested configuration values from `configs/` need to be separated by periods (eg. `optimizer.params.lr`) and underscores must be used instead of dashes. 
 
 ```yml
 program: deepy.py
