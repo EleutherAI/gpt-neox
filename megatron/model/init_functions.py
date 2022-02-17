@@ -2,7 +2,6 @@ import math
 
 import torch
 
-
 def init_method_normal(sigma):
     """Init method based on N(0, sigma)."""
 

@@ -67,6 +67,10 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     according to pipeline parallel size.
     """
 
+    small_emb: bool = False
+    """
+    BlinkDL small_emb experiment (https://discord.com/channels/729741769192767510/747850033994662000/942416759967850567)
+    """
 
 @dataclass
 class NeoXArgsModel(NeoXArgsTemplate):

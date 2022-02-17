@@ -4,7 +4,7 @@ from torch.nn.parameter import Parameter
 
 from megatron import mpu
 from megatron.model.positional_embeddings import SinusoidalPositionalEmbedding
-from megatron.model.init_functions import get_init_methods
+from megatron.model.init_functions import get_init_methods, init_method_normal
 
 
 class Embedding(torch.nn.Module):
@@ -36,6 +36,10 @@ class Embedding(torch.nn.Module):
         self.hidden_size = hidden_size
         self.init_method = init_method
         self.num_tokentypes = num_tokentypes
+        self.small_emb = neox_args.small_emb
+        if self.small_emb:
+            self.norm = torch.nn.LayerNorm(self.hidden_size)
+            self.init_method = init_method_normal(1e-4)
 
         # Word embeddings (parallel).
         self.word_embeddings = mpu.VocabParallelEmbedding(
@@ -113,6 +117,8 @@ class Embedding(torch.nn.Module):
     def forward(self, input_ids, position_ids, tokentype_ids=None):
         # Embeddings.
         words_embeddings = self.word_embeddings(input_ids)
+        if self.small_emb:
+            words_embeddings = self.norm(words_embeddings)
         if self.use_pos_emb and self.embedding_type in ["learned", "sinusoidal"]:
             position_embeddings = self.position_embeddings(position_ids)
             embeddings = words_embeddings + position_embeddings
