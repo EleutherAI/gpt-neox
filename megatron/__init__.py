@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +13,7 @@
 # limitations under the License.
 import torch
 
+
 def print_rank_0(*message):
     """If distributed is initialized print only on rank 0."""
     if torch.distributed.is_initialized():
@@ -25,4 +25,3 @@ def print_rank_0(*message):
 
 from .initialize import initialize_megatron
 from .neox_arguments import NeoXArgs
-

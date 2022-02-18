@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright (c) 2021, EleutherAI contributors
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
@@ -194,8 +193,23 @@ def _initialize_distributed(neox_args):
     # Init DeepSpeed Activation Checkpointing Features
     setup_deepspeed_random_and_activation_checkpointing(neox_args=neox_args)
 
+def _init_autoresume(neox_args):
+    """Set autoresume start time."""
 
+    if neox_args.adlr_autoresume:
+        print_rank_0("> enabling autoresume ...")
+        sys.path.append(os.environ.get("SUBMIT_SCRIPTS", "."))
+        try:
+            from userlib.auto_resume import AutoResume
+        except BaseException:
+            print("> ADLR autoresume is not available, exiting ...", flush=True)
+            sys.exit()
+        neox_args.adlr_autoresume_object = AutoResume
 
+    if neox_args.adlr_autoresume_object:
+        torch.distributed.barrier()
+        neox_args.adlr_autoresume_object.init()
+        torch.distributed.barrier()
 
 def _set_random_seed(seed):
     """Set random seed for reproducability."""

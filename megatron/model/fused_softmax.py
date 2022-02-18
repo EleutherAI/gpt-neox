@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +16,7 @@ import torch
 import torch.nn as nn
 import enum
 from ..fused_kernels import load_fused_kernels
+
 
 
 class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):
@@ -122,7 +122,7 @@ class FusedScaleMaskSoftmax(nn.Module):
 
         if fusion_type != SoftmaxFusionTypes.none:
             load_fused_kernels()  # check fused kernels are installed
-
+            
         self.upper_triang_mask_fusion = fusion_type == SoftmaxFusionTypes.upper_triang
         self.general_mask_fusion = fusion_type == SoftmaxFusionTypes.general
         self.fusion = fusion_type != SoftmaxFusionTypes.none

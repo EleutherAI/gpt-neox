@@ -46,7 +46,7 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     dict containing the keys type and params
 
     type: The scheduler name. See here (https://deepspeed.readthedocs.io/en/latest/schedulers.html) for list of support schedulers.
-    
+
     params: Dictionary of parameters to instantiate scheduler. The parameter names should match scheduler constructor signature.
     """
 
@@ -72,7 +72,7 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
 
     fp16: dict = None
     """
-    Configuration for using mixed precision/FP16 training that leverages NVIDIA’s Apex package. 
+    Configuration for using mixed precision/FP16 training that leverages NVIDIA’s Apex package.
     """
 
     amp: dict = None
@@ -124,7 +124,7 @@ class NeoXArgsDeepspeedRunner(NeoXArgsTemplate):
     hostfile: str = None
     """
     list of hostnames / ssh aliases and the number of GPUs per host
-    
+
     example file contents:
     worker-1 slots=4
     worker-2 slots=4
