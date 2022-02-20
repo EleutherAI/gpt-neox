@@ -39,6 +39,16 @@ A 20 billion Parameter autoregressive language model trained on the pile. For te
 
 The configuration file for the model is available [here](./configs/20B.yml), and is also included in the download links below.
 
+If you use the GPT-NeoX-20B model, please cite the paper as follows:
+
+```
+@article{neox-20b,
+  title={{GPT-NeoX-20B}: An Open-Source Autoregressive Language Model},
+  author={Black, Sid and Biderman, Stella and Hallahan, Eric and Anthony, Quentin and Gao, Leo and Golding, Laurence and He, Horace and Leahy, Connor and McDonell, Kyle and Phang, Jason and Pieler, Michael and Prashanth, USVSN Sai and Purohit, Shivanshu and Reynolds, Laria and Tow, Jonathan and Wang, Ben and Weinbach, Samuel},
+  year={2021}
+}
+```
+
 ### Download Links
 
 [Slim weights](https://mystic.the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights/) - (No optimizer states, for inference or finetuning, 39GB)
@@ -332,6 +342,8 @@ If you have found GPT-NeoX helpful in your work, you can cite this repository as
 ```
 
 In the above BibTex entry, names are in alphabetical order, and the year corresponds to the project's open-source release.
+
+To cite the NeoX-20B model, please use [this citation](#gpt-neox-20b).
 
 ## Licensing
 
