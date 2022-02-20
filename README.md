@@ -9,7 +9,7 @@ We aim to make this repo a centralized and accessible place to gather techniques
 
 If you are interested in contributing, please [join our Discord](https://discord.gg/zBGx3azzUn) and head to the `#gpt-neox` channel. We're working with cloud compute provider [CoreWeave](https://www.coreweave.com/) for training, and hope to release the weights of smaller models as we progress up to 175B parameters.
 
-If you're looking for our TPU codebase, see [GPT-Neo](https://github.com/EleutherAI/gpt-neo).
+For those looking for a TPU-centric codebase, we recommend [Mesh Transformer JAX](https://github.com/kingoflolz/mesh-transformer-jax).
 
 # Contents
 
@@ -19,13 +19,12 @@ If you're looking for our TPU codebase, see [GPT-Neo](https://github.com/Eleuthe
 - [Datasets](#datasets)
   * [Preconfigured Datasets](#preconfigured-datasets)
   * [Using Custom Data](#using-custom-data)
-  * [Using and Training Tokenizers](#using-and-training-tokenizers)
 - [Training and Finetuning](#training-and-finetuning)
 - [Inference](#inference)
 - [Evaluation](#evaluation)
 - [Monitoring](#monitoring)
   * [Weights & Biases](#wandb)
-  * [Tensorboard](#tensorboard)
+  * [TensorBoard](#tensorboard)
 - [Administrative Notes](#administrative-notes)
   * [Citing GPT-NeoX](#citing-gpt-neox)
   * [Licensing](#licensing)
@@ -35,17 +34,17 @@ If you're looking for our TPU codebase, see [GPT-Neo](https://github.com/Eleuthe
 
 ## GPT-NeoX-20B
 
-A 20 billion Parameter autoregressive language model trained on the pile. For technical details about the model, see our paper [here](http://eaidata.bmk.sh/data/GPT_NeoX_20B.pdf).
+A 20 billion parameter autoregressive language model trained on the Pile. More technical details about GPT-NeoX-20B can be found in our [whitepaper](http://eaidata.bmk.sh/data/GPT_NeoX_20B.pdf).
 
 The configuration file for the model is available [here](./configs/20B.yml), and is also included in the download links below.
 
-If you use the GPT-NeoX-20B model, please cite the paper as follows:
+To cite GPT-NeoX-20B, please cite the whitepaper as follows:
 
-```
-@article{neox-20b,
+```bibtex
+@article{gpt-neox-20b,
   title={{GPT-NeoX-20B}: An Open-Source Autoregressive Language Model},
   author={Black, Sid and Biderman, Stella and Hallahan, Eric and Anthony, Quentin and Gao, Leo and Golding, Laurence and He, Horace and Leahy, Connor and McDonell, Kyle and Phang, Jason and Pieler, Michael and Prashanth, USVSN Sai and Purohit, Shivanshu and Reynolds, Laria and Tow, Jonathan and Wang, Ben and Weinbach, Samuel},
-  year={2021}
+  year={2022}
 }
 ```
 
@@ -67,7 +66,7 @@ To download from the command line to a folder named `20B_checkpoints`, use the f
 wget --cut-dirs=5 -nH -r --no-parent --reject "index.html*" https://mystic.the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights/ -P 20B_checkpoints
 ```
 
-Alternatively, the models can be downloaded using a BitTorrent client. Torrent files can be downloaded here: [slim weights](https://mystic.the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights.torrent), [full_weights](https://mystic.the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights.torrent).
+Weights can be alternatively be downloaded using a BitTorrent client. Torrent files can be downloaded here: [slim weights](https://mystic.the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights.torrent), [full weights](https://mystic.the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights.torrent).
 
 # Quick Start
 
@@ -162,7 +161,7 @@ To reproduce our evaluation numbers on, for example, lambada and PIQA use:
 
 You can add an arbitrary list of evaluation tasks here, for details of all tasks available, see [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness).
 
-For more details on each entry point, see the [Training and finetuning](#training-and-finetuning), [Inference](#inference) and [Evaluation](#evaluation) sections.
+For more details on each entry point, see the [Training and Finetuning](#training-and-finetuning), [Inference](#inference) and [Evaluation](#evaluation) sections.
 
 # Configuration
 
@@ -343,7 +342,7 @@ If you have found GPT-NeoX helpful in your work, you can cite this repository as
 
 In the above BibTex entry, names are in alphabetical order, and the year corresponds to the project's open-source release.
 
-To cite the NeoX-20B model, please use [this citation](#gpt-neox-20b).
+To cite GPT-NeoX-20B (model), please use [this citation](#gpt-neox-20b).
 
 ## Licensing
 
