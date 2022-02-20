@@ -45,7 +45,7 @@ If you use the GPT-NeoX-20B model, please cite the paper as follows:
 @article{neox-20b,
   title={{GPT-NeoX-20B}: An Open-Source Autoregressive Language Model},
   author={Black, Sid and Biderman, Stella and Hallahan, Eric and Anthony, Quentin and Gao, Leo and Golding, Laurence and He, Horace and Leahy, Connor and McDonell, Kyle and Phang, Jason and Pieler, Michael and Prashanth, USVSN Sai and Purohit, Shivanshu and Reynolds, Laria and Tow, Jonathan and Wang, Ben and Weinbach, Samuel},
-  year={2021}
+  year={2022}
 }
 ```
 
