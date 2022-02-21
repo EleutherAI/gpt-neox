@@ -1,0 +1,28 @@
+program: deepy.py 
+method: bayes
+metric:
+  name: validation/lm_loss
+  goal: minimize
+parameters:
+  optimizer.params.lr:
+    min: 0.00005
+    max: 0.00100
+  hidden_size:
+    values: [320, 640, 1280, 1920, 2560]
+  num_layers:
+    min: 12
+    max: 32
+  num_attention_heads:
+    values: [4, 8, 16, 32]
+  attention_config:
+    values: [null]
+  train_iters:
+    values: [100]
+  
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}
+  - "train.py"
+  - "configs/small.yml"
+  - "configs/local_setup.yml"
