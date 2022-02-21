@@ -55,8 +55,12 @@ def initialize_megatron(neox_args, allow_no_cuda=False):
             print("> setting random seeds to {} ...".format(neox_args.seed))
         _set_random_seed(neox_args.seed)
 
-    # load scaled_upper_triang_masked_softmax_fusion kernel
-    fused_kernels.load_fused_kernels(neox_args)
+    # check fused kernels are installed:
+    if (
+        neox_args.scaled_upper_triang_masked_softmax_fusion
+        or neox_args.scaled_masked_softmax_fusion
+    ):
+        fused_kernels.load_fused_kernels()
 
     if neox_args.lazy_mpu_init:
         neox_args.use_cpu_initialization = True
@@ -69,9 +73,6 @@ def initialize_megatron(neox_args, allow_no_cuda=False):
     else:
         # Megatron's MPU is the master. Complete initialization right away.
         finish_mpu_init()
-
-        # Autoresume.
-        _init_autoresume(neox_args)
 
         # Compile dataset C++ code.
         if neox_args.local_rank == 0:
@@ -192,7 +193,6 @@ def _initialize_distributed(neox_args):
     # Init DeepSpeed Activation Checkpointing Features
     setup_deepspeed_random_and_activation_checkpointing(neox_args=neox_args)
 
-
 def _init_autoresume(neox_args):
     """Set autoresume start time."""
 
@@ -210,7 +210,6 @@ def _init_autoresume(neox_args):
         torch.distributed.barrier()
         neox_args.adlr_autoresume_object.init()
         torch.distributed.barrier()
-
 
 def _set_random_seed(seed):
     """Set random seed for reproducability."""
