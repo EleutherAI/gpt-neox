@@ -183,19 +183,18 @@ def unflatten_json(json):
 def init_wandb(neox_args):
     # Wandb. (one worker per machine)
     if neox_args.use_wandb == False:
-        return neox_args
+        return
 
     use_wandb = is_local_main() and (get_wandb_api_key(neox_args=neox_args) is not None)
     neox_args.update_value("use_wandb", use_wandb)
     if neox_args.use_wandb:
         group_name = neox_args.wandb_group
-        
         name = f"{socket.gethostname()}-{local_rank()}" if group_name else None
         try:
             wandb.init(
                 project=neox_args.wandb_project,
                 group=group_name,
-                name=name,
+                name=neox_args.wandb_run,
                 save_code=False,
                 force=False,
                 entity=neox_args.wandb_team,
@@ -207,10 +206,7 @@ def init_wandb(neox_args):
                 "Skipping wandb. Execute `wandb login` on local or main node machine to enable.",
                 flush=True,
             )
-        print(flatten_json(neox_args.all_config))
-        wandb.config.update(flatten_json(neox_args.all_config))
-        print(unflatten_json(wandb.config.as_dict()))
-        return neox_args.from_dict(unflatten_json(wandb.config.as_dict()))
+        wandb.config.update(neox_args.all_config)
 
 
 def obtain_resource_pool(

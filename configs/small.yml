@@ -73,7 +73,7 @@
    "lr-decay-style": "cosine",
    "warmup": 0.01,
    "save-interval": 10000,
-   "eval-interval": 1000,
+   "eval-interval": 100,
    "eval-iters": 10,
 
    # logging

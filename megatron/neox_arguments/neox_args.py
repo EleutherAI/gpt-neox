@@ -435,6 +435,9 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     wandb_project: str = "neox"
     """wandb project name"""
 
+    wandb_run: str = None
+    """run name for wandb, set automatically if using sweep"""
+
     wandb_host: str = "https://api.wandb.ai"
     """url of the wandb host"""
 

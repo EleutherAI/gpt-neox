@@ -31,6 +31,7 @@ import numpy as np
 
 from megatron.utils import (
     Timers,
+    init_wandb,
     get_ltor_masks_and_position_ids,
     reduce_losses,
 )
@@ -71,6 +72,7 @@ def pretrain(neox_args):
 
     """
     # setup logging and timers
+    init_wandb(neox_args=neox_args)
     timers = Timers(
         use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer
     )

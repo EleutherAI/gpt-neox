@@ -196,6 +196,20 @@ class NeoXArgs(*BASE_CLASSES):
             for k, v in overwrite_values.items():
                 config[k] = v
 
+        print(f"AYL: {json.dumps(config, indent=2)}")
+        if 'use_wandb' in config and config['use_wandb']:
+            import wandb
+            from megatron.utils import flatten_json, unflatten_json
+            wandb.init(
+                project=config['wandb_project'],
+                config = flatten_json(config)
+            )
+            config = unflatten_json(wandb.config.as_dict())
+            config['wandb_run'] = wandb.run.name
+
+        print(f"NEW AYL: {json.dumps(config, indent=2)}")
+
+
         # instantiate class and return
         # duplicate values and unrecognized keys are again checked upon instantiation
         return cls(**config)

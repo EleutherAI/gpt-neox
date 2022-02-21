@@ -196,7 +196,11 @@ def save_ds_checkpoint(iteration, model, neox_args):
         os.makedirs(configs_directory, exist_ok=True)
         for config_filename, config_data in neox_args.config_files.items():
             with open(os.path.join(configs_directory, config_filename), "w") as f:
-                f.write(config_data)
+                if type(config_data) == dict:
+                    import json
+                    f.write(json.dumps(config_data, indent=2))
+                else:
+                    f.write(config_data)
 
 
 def save_checkpoint(neox_args, iteration, model, optimizer, lr_scheduler):

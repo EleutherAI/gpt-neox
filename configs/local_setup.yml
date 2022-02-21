@@ -18,13 +18,12 @@
   "vocab-file": "data/gpt2-vocab.json",
   "merge-file": "data/gpt2-merges.txt",
 
-  "save": "checkpoints",
-  "load": "checkpoints",
   "checkpoint_validation_with_forward_pass": False,
 
   "tensorboard-dir": "tensorboard",
   "log-dir": "logs",
   "use_wandb": True,
   "wandb_host": "https://api.wandb.ai",
+  "wandb_group": "rungrp",
   "wandb_project": "neox"
 }
