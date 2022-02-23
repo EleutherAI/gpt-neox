@@ -15,11 +15,6 @@
 import torch
 import torch.nn.functional as F
 
-torch._C._jit_set_profiling_mode(False)
-torch._C._jit_set_profiling_executor(False)
-torch._C._jit_override_can_fuse_on_cpu(True)
-torch._C._jit_override_can_fuse_on_gpu(True)
-
 
 def get_activation(neox_args):
     """retrieves the activation function specified in neox_args"""
