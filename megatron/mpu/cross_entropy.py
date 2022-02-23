@@ -35,7 +35,7 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         # Subtract the maximum value.
         vocab_parallel_logits.sub_(logits_max.unsqueeze(dim=-1))
 
-        # Get the partition's vocab indecies
+        # Get the partition's vocab indices
         get_vocab_range = VocabUtility.vocab_range_from_per_partition_vocab_size
         partition_vocab_size = vocab_parallel_logits.size()[-1]
         rank = get_model_parallel_rank()
@@ -90,10 +90,10 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output):
 
-        # Retreive tensors from the forward path.
+        # Retrieve tensors from the forward path.
         softmax, target_mask, masked_target_1d = ctx.saved_tensors
 
-        # All the inputs have softmax as thier gradient.
+        # All the inputs have softmax as their gradient.
         grad_input = softmax
         # For simplicity, work with the 2D gradient.
         partition_vocab_size = softmax.size()[-1]

@@ -172,7 +172,7 @@ def _build_index_mappings(
             )
             # shuffle-idx.
             start_time = time.time()
-            # -1 is due to data structure used to retieve the index:
+            # -1 is due to data structure used to retrieve the index:
             #    sample i --> [sample_idx[i], sample_idx[i+1])
             shuffle_idx = _build_shuffle_idx(sample_idx.shape[0] - 1, np_rng)
             np.save(shuffle_idx_filename, shuffle_idx, allow_pickle=True)

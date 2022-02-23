@@ -16,7 +16,7 @@ def test_neoxargs_usage():
     declared_all = True
     neox_args_attributes = set(NeoXArgs.__dataclass_fields__.keys())
 
-    # we exlude a number of properties (implemented with the @property decorator) or functions that we know exists
+    # we exclude a number of properties (implemented with the @property decorator) or functions that we know exists
     exclude = set(
         [
             "params_dtype",

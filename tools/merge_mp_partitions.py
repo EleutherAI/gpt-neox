@@ -83,7 +83,7 @@ def merge_partitions(merged, partitions, partition_dim, stride):
                 assert merged_.size(partition_dim) == merged.size(partition_dim)
                 merged.data.copy_(merged_.data)
 
-    # If stride is 1, then do simple concatination.
+    # If stride is 1, then do simple concatenation.
     if stride == 1:
         concat_partitions(partitions)
         return
@@ -174,7 +174,7 @@ def get_mp_merge_args(parser):
         type=str,
         required=True,
         choices=["BERT", "GPT2", "RACE", "MNLI", "QQP"],
-        help="Type of the mdoel.",
+        help="Type of the model.",
     )
 
     return parser
@@ -195,7 +195,7 @@ def main():
     print(" > model parameters:")
     print("    number of tokens ................ {} ".format(tokenizer.vocab_size))
     print("    number of layers ................ {}".format(args.num_layers))
-    print("    hidden sise ..................... {}".format(args.hidden_size))
+    print("    hidden size ..................... {}".format(args.hidden_size))
     print("    number of attention heads ....... {}".format(args.num_attention_heads))
     print(
         "    maximum position embeddings ..... {}".format(args.max_position_embeddings)
@@ -256,7 +256,7 @@ def main():
             else:
                 print(
                     "     parallel parameter merge with stride {} along "
-                    "dimention {}".format(
+                    "dimension {}".format(
                         merged_param.stride, merged_param.partition_dim
                     )
                 )

@@ -81,7 +81,7 @@ def broadcast_data(keys, data, datatype):
     members of the same model parallel group.
 
     Arguments:
-        keys: list of keys in the data disctionary to be broadcasted
+        keys: list of keys in the data dictionary to be broadcasted
         data: data dictionary of string keys and cpu tensor values.
         datatype: torch data type of all tensors in data associated
                   with keys.
@@ -103,7 +103,7 @@ def broadcast_data(keys, data, datatype):
             total_numel, device=torch.cuda.current_device(), dtype=datatype
         )
 
-    # Boradcast
+    # Broadcast
     torch.distributed.broadcast(
         flatten_data, get_model_parallel_src_rank(), group=get_model_parallel_group()
     )
