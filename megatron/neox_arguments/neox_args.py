@@ -438,6 +438,9 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     wandb_host: str = "https://api.wandb.ai"
     """url of the wandb host"""
 
+    wandb_init_all_ranks: bool = False
+    """Initialize wandb on all ranks."""
+
     git_hash: str = get_git_commit_hash()
     """current git hash of repository"""
 
@@ -461,9 +464,14 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Interval between logging.
     """
 
+    log_grad_pct_zeros: bool = False
+    """
+    Log the percentage of zeros for the gradient of each parameter to wandb / tensorboard (useful for debugging). Needs wandb_init_all_ranks set to True if using pipeline parallelism to log all ranks.
+    """
+
     log_param_norm: bool = False
     """
-    Log the frob norm of the parameters to wandb / tensorboard (useful for debugging).
+    Log the frob norm of the parameters to wandb / tensorboard (useful for debugging). Needs wandb_init_all_ranks set to True if using pipeline parallelism to log all ranks.
     """
 
     log_grad_norm: bool = False
