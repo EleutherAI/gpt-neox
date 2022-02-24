@@ -11,6 +11,7 @@ import torch
 import torch.distributed as dist
 from torch.multiprocessing import Process
 from yaml import load
+
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
@@ -57,7 +58,7 @@ def clear_test_dirs():
         shutil.rmtree(tensorboard_dir)
 
 
-def distributed_test(world_size=2, backend='nccl'):
+def distributed_test(world_size=2, backend="nccl"):
     """A decorator for executing a function (e.g., a unit test) in a distributed manner.
     This decorator manages the spawning and joining of processes, initialization of
     torch.distributed, and catching of errors.
@@ -77,16 +78,16 @@ def distributed_test(world_size=2, backend='nccl'):
     """
 
     def dist_wrap(run_func):
-        """Second-level decorator for dist_test. This actually wraps the function. """
+        """Second-level decorator for dist_test. This actually wraps the function."""
 
         def dist_init(local_rank, num_procs, *func_args, **func_kwargs):
-            """Initialize torch.distributed and execute the user function. """
-            os.environ['MASTER_ADDR'] = '127.0.0.1'
-            os.environ['MASTER_PORT'] = '29503'
-            os.environ['LOCAL_RANK'] = str(local_rank)
+            """Initialize torch.distributed and execute the user function."""
+            os.environ["MASTER_ADDR"] = "127.0.0.1"
+            os.environ["MASTER_PORT"] = "29503"
+            os.environ["LOCAL_RANK"] = str(local_rank)
             # NOTE: unit tests don't support multi-node so local_rank == global rank
-            os.environ['RANK'] = str(local_rank)
-            os.environ['WORLD_SIZE'] = str(num_procs)
+            os.environ["RANK"] = str(local_rank)
+            os.environ["WORLD_SIZE"] = str(num_procs)
 
             deepspeed.init_distributed(dist_backend=backend)
 
@@ -96,16 +97,16 @@ def distributed_test(world_size=2, backend='nccl'):
             run_func(*func_args, **func_kwargs)
 
         def dist_launcher(num_procs, *func_args, **func_kwargs):
-            """Launch processes and gracefully handle failures. """
+            """Launch processes and gracefully handle failures."""
 
             # Spawn all workers on subprocesses.
             processes = []
             for local_rank in range(num_procs):
-                p = Process(target=dist_init,
-                            args=(local_rank,
-                                  num_procs,
-                                  *func_args),
-                            kwargs=func_kwargs)
+                p = Process(
+                    target=dist_init,
+                    args=(local_rank, num_procs, *func_args),
+                    kwargs=func_kwargs,
+                )
                 p.start()
                 processes.append(p)
 
@@ -127,16 +128,18 @@ def distributed_test(world_size=2, backend='nccl'):
                 # If it still hasn't terminated, kill it because it hung.
                 if p.exitcode is None:
                     p.terminate()
-                    pytest.fail(f'Worker {rank} hung.', pytrace=False)
+                    pytest.fail(f"Worker {rank} hung.", pytrace=False)
                 if p.exitcode < 0:
-                    pytest.fail(f'Worker {rank} killed by signal {-p.exitcode}',
-                                pytrace=False)
+                    pytest.fail(
+                        f"Worker {rank} killed by signal {-p.exitcode}", pytrace=False
+                    )
                 if p.exitcode > 0:
-                    pytest.fail(f'Worker {rank} exited with code {p.exitcode}',
-                                pytrace=False)
+                    pytest.fail(
+                        f"Worker {rank} exited with code {p.exitcode}", pytrace=False
+                    )
 
         def run_func_decorator(*func_args, **func_kwargs):
-            """Entry point for @distributed_test(). """
+            """Entry point for @distributed_test()."""
 
             if isinstance(world_size, int):
                 dist_launcher(world_size, *func_args, **func_kwargs)
@@ -145,21 +148,25 @@ def distributed_test(world_size=2, backend='nccl'):
                     dist_launcher(procs, *func_args, **func_kwargs)
                     time.sleep(0.5)
             else:
-                raise TypeError(f'world_size must be an integer or a list of integers.')
+                raise TypeError(f"world_size must be an integer or a list of integers.")
 
         return run_func_decorator
 
     return dist_wrap
 
 
-def model_setup(yaml_list=None, param_dict=None, clear_data=True, inference=False):
+def model_setup(yaml_list=None, param_dict=None, clear_data=True):
     from megatron.neox_arguments import NeoXArgs
     from megatron.mpu import destroy_model_parallel
     from megatron import initialize_megatron
     from megatron.training import setup_model_and_optimizer
 
     destroy_model_parallel()  # mpu model parallel contains remaining global vars
-    if clear_data and (not torch.distributed.is_initialized() or torch.distributed.get_world_size() == 1 or torch.distributed.get_rank() == 0):
+    if clear_data and (
+        not torch.distributed.is_initialized()
+        or torch.distributed.get_world_size() == 1
+        or torch.distributed.get_rank() == 0
+    ):
         clear_test_dirs()
 
     overwrite_values = {
@@ -184,8 +191,9 @@ def model_setup(yaml_list=None, param_dict=None, clear_data=True, inference=Fals
     args_loaded.build_tokenizer()
 
     initialize_megatron(neox_args=args_loaded)
-    model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args=args_loaded, inference=inference,
-                                                               get_key_value=True)
+    model, optimizer, lr_scheduler = setup_model_and_optimizer(
+        neox_args=args_loaded, use_cache=True
+    )
     return model, optimizer, lr_scheduler, args_loaded
 
 
@@ -207,7 +215,9 @@ def bounded_product(sequence, n=None, seed=None):
     return p if n is None else p[:n]
 
 
-def parametrize(params_to_test: dict, max_tests: int = 50, seed: int = None, with_names=True):
+def parametrize(
+    params_to_test: dict, max_tests: int = 50, seed: int = None, with_names=True
+):
     """
     Generates a random sample of max_tests length of all possible combinations of values in
     `params_to_test`.
@@ -234,7 +244,7 @@ def parametrize(params_to_test: dict, max_tests: int = 50, seed: int = None, wit
         to_add = {}
         for k, v in experiment.items():
             if "," in k:
-                keys_split = [i.strip() for i in k.split(',')]
+                keys_split = [i.strip() for i in k.split(",")]
                 values_separated = experiment[k]
                 to_pop.append(k)
                 assert len(values_separated) == len(keys_split)
@@ -252,10 +262,12 @@ def parametrize(params_to_test: dict, max_tests: int = 50, seed: int = None, wit
         return ret, [dict_repr(d) for d in experiments]
     return ret
 
+
 def dict_repr(d):
     return " ".join([f"{str(k)} : {str(v)}" for k, v in d.items()])
 
+
 binary = [True, False]
 
-with open(get_test_configs_with_path(["test_train_base.yml"])[0], 'r') as f:
+with open(get_test_configs_with_path(["test_train_base.yml"])[0], "r") as f:
     BASE_CONFIG = load(f, Loader=Loader)

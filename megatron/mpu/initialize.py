@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -68,8 +67,7 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
     ranks 8 to 15 belong to the second box.
     """
     if torch.distributed.get_rank() == 0:
-        print('> initializing model parallel with size {}'.format(
-            model_parallel_size))
+        print("> initializing model parallel with size {}".format(model_parallel_size))
     # Get world size and rank. Ensure some consistencies.
     assert torch.distributed.is_initialized()
     world_size = torch.distributed.get_world_size()
@@ -84,13 +82,12 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
 
     # Build the data parallel groups.
     global _DATA_PARALLEL_GROUP
-    assert _DATA_PARALLEL_GROUP is None, \
-        'data parallel group is already initialized'
+    assert _DATA_PARALLEL_GROUP is None, "data parallel group is already initialized"
     if topology:
-        for dp_group in topology.get_axis_comm_lists('data'):
+        for dp_group in topology.get_axis_comm_lists("data"):
             group = torch.distributed.new_group(ranks=dp_group)
             if rank == 0:
-                print(f'MPU DP:', dp_group)
+                print(f"MPU DP:", dp_group)
             if rank in dp_group:
                 _DATA_PARALLEL_GROUP = group
     else:
@@ -103,22 +100,22 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
     # Build pipeline parallel group
     if topology is not None:
         global _PIPE_PARALLEL_GROUP
-        for pp_group in topology.get_axis_comm_lists('pipe'):
+        for pp_group in topology.get_axis_comm_lists("pipe"):
             group = torch.distributed.new_group(ranks=pp_group)
             if rank == 0:
-                print(f'MPU PP:', pp_group)
+                print(f"MPU PP:", pp_group)
             if rank in pp_group:
                 _PIPE_PARALLEL_GROUP = group
 
     # Build IO group
     global _IO_PARALLEL_GROUP
-    if topology and topology.get_dim('pipe') > 1:
-        io_stages = [0, topology.get_dim('pipe') - 1]
+    if topology and topology.get_dim("pipe") > 1:
+        io_stages = [0, topology.get_dim("pipe") - 1]
         io_group = []
         for stage in io_stages:
             io_group.extend(topology.filter_match(pipe=stage, model=0))
         if rank == 0:
-            print(f'MPU IO:', io_group)
+            print(f"MPU IO:", io_group)
         group = torch.distributed.new_group(ranks=io_group)
         if rank in io_group:
             _IO_PARALLEL_GROUP = group
@@ -127,8 +124,7 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
 
     # Build the model parallel groups.
     global _MODEL_PARALLEL_GROUP
-    assert _MODEL_PARALLEL_GROUP is None, \
-        'model parallel group is already initialized'
+    assert _MODEL_PARALLEL_GROUP is None, "model parallel group is already initialized"
     if topology:
         # Short circuit case without model parallelism.
         # TODO: it would be nice  to avoid this branching case?
@@ -136,28 +132,27 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
             for group_rank in range(world_size):
                 group = torch.distributed.new_group(ranks=[group_rank])
                 if rank == 0:
-                    print(f'MPU MP:', [group_rank])
+                    print(f"MPU MP:", [group_rank])
                 if rank == group_rank:
                     _MODEL_PARALLEL_GROUP = group
             return
 
-        for mp_group in topology.get_axis_comm_lists('model'):
+        for mp_group in topology.get_axis_comm_lists("model"):
             group = torch.distributed.new_group(ranks=mp_group)
             if rank == 0:
-                print(f'MPU MP:', mp_group)
+                print(f"MPU MP:", mp_group)
             if rank in mp_group:
                 _MODEL_PARALLEL_GROUP = group
 
     else:
         for i in range(world_size // model_parallel_size):
-            ranks = range(i * model_parallel_size,
-                          (i + 1) * model_parallel_size)
+            ranks = range(i * model_parallel_size, (i + 1) * model_parallel_size)
             group = torch.distributed.new_group(ranks)
             if i == (rank // model_parallel_size):
                 _MODEL_PARALLEL_GROUP = group
 
     global _FP32_ALLREDUCE
-    assert _FP32_ALLREDUCE is None, 'fp32_allreduce is already initialized'
+    assert _FP32_ALLREDUCE is None, "fp32_allreduce is already initialized"
     _FP32_ALLREDUCE = fp32_allreduce
 
 
@@ -170,22 +165,19 @@ def model_parallel_is_initialized():
 
 def get_model_parallel_group():
     """Get the model parallel group the caller rank belongs to."""
-    assert _MODEL_PARALLEL_GROUP is not None, \
-        'model parallel group is not initialized'
+    assert _MODEL_PARALLEL_GROUP is not None, "model parallel group is not initialized"
     return _MODEL_PARALLEL_GROUP
 
 
 def get_data_parallel_group():
     """Get the data parallel group the caller rank belongs to."""
-    assert _DATA_PARALLEL_GROUP is not None, \
-        'data parallel group is not initialized'
+    assert _DATA_PARALLEL_GROUP is not None, "data parallel group is not initialized"
     return _DATA_PARALLEL_GROUP
 
 
 def get_io_parallel_group():
     """Get the IO parallel group the caller rank belongs to."""
-    assert _IO_PARALLEL_GROUP is not None, \
-        'IO parallel group is not initialized'
+    assert _IO_PARALLEL_GROUP is not None, "IO parallel group is not initialized"
     return _IO_PARALLEL_GROUP
 
 
@@ -235,7 +227,7 @@ def get_data_parallel_src_rank():
         return global_rank % get_model_parallel_world_size()
     else:
         # We are using pipeline parallel
-        d = topo.get_axis_comm_lists('data')
+        d = topo.get_axis_comm_lists("data")
         for l in d:
             if global_rank in l:
                 return l[0]
@@ -257,8 +249,7 @@ def get_topology():
 
 def get_pipe_parallel_group():
     """Get the pipe parallel group the caller rank belongs to."""
-    assert _PIPE_PARALLEL_GROUP is not None, \
-        'data parallel group is not initialized'
+    assert _PIPE_PARALLEL_GROUP is not None, "data parallel group is not initialized"
     return _PIPE_PARALLEL_GROUP
 
 
@@ -294,6 +285,5 @@ def destroy_model_parallel():
 
 def get_fp32_allreduce():
     """Get the fp32 allreduce flag"""
-    assert _FP32_ALLREDUCE is not None, \
-        'fp32_allreduce is not Initialized'
+    assert _FP32_ALLREDUCE is not None, "fp32_allreduce is not Initialized"
     return _FP32_ALLREDUCE

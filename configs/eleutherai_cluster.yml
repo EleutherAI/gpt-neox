@@ -1,7 +1,7 @@
 # Data paths and options when using EleutherAI cluster
 {
   "data-path": "/mnt/ssd-1/data/enron/enron_text_document",
-  # or for weighted datasets: 
+  # or for weighted datasets:
   # "train-data-paths": ["/mnt/ssd-1/data/enron/enron_text_document", "/mnt/ssd-cluster/data/enron/enron_text_document"],
   # "test-data-paths": ["/mnt/ssd-1/data/enron/enron_text_document", "/mnt/ssd-cluster/data/enron/enron_text_document"],
   # "valid-data-paths": ["/mnt/ssd-1/data/enron/enron_text_document", "/mnt/ssd-cluster/data/enron/enron_text_document"],

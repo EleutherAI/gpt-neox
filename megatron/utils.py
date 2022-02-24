@@ -1,5 +1,3 @@
-# coding=utf-8
-
 # Copyright (c) 2021 Josh Levy-Kramer <josh@levykramer.co.uk>.
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
@@ -61,28 +59,35 @@ def report_memory(name):
     )
     print_rank_0(string)
 
+
 def get_attn_mask(seq_length, device):
     """
     Get triangular attention mask for a given sequence length / device.
     """
     # lower triangular attention mask
-    mask = torch.tril(torch.ones(
-        (1, seq_length, seq_length), device=device)).view(
-        1, 1, seq_length, seq_length)
-    
-    # convert to binary
-    return (mask < 0.5)
+    mask = torch.tril(torch.ones((1, seq_length, seq_length), device=device)).view(
+        1, 1, seq_length, seq_length
+    )
 
-def get_ltor_masks_and_position_ids(data,
-                                    eod_token,
-                                    eod_mask_loss=False):
+    # convert to binary
+    return mask < 0.5
+
+
+def get_ltor_masks_and_position_ids(
+    data,
+    eod_token,
+    eod_mask_loss=False,
+):
     """Build masks and position id for left to right model."""
 
     # Extract batch size and sequence length.
     batch_size, seq_length = data.size()
 
     # Attention mask (lower triangular).
-    attention_mask = get_attn_mask(seq_length=seq_length, device=data.device)
+    attention_mask = get_attn_mask(
+        seq_length=seq_length,
+        device=data.device,
+    )
 
     # Loss mask.
     loss_mask = torch.ones(data.size(), dtype=torch.float, device=data.device)
@@ -97,7 +102,7 @@ def get_ltor_masks_and_position_ids(data,
 
 
 def local_rank():
-    """ Local rank of process """
+    """Local rank of process"""
     local_rank = os.environ.get("LOCAL_RANK")
     if local_rank is None:
         print(
@@ -107,12 +112,14 @@ def local_rank():
         local_rank = 0
     return int(local_rank)
 
+
 def is_bnb_available():
-    """ True if bitsandbytes optimizers are available """
+    """True if bitsandbytes optimizers are available"""
     return importlib.util.find_spec("bitsandbytes") is not None
 
+
 def is_local_main():
-    """ True if is the local main process """
+    """True if is the local main process"""
     return local_rank() == 0
 
 
@@ -122,7 +129,7 @@ def is_mp_rank_0():
 
 
 def get_wandb_api_key(neox_args):
-    """ Get Weights and Biases API key from ENV or .netrc file. Otherwise return None """
+    """Get Weights and Biases API key from ENV or .netrc file. Otherwise return None"""
     if "WANDB_LOCAL" in os.environ:
         return "LOCAL"
     if "WANDB_API_KEY" in os.environ:
@@ -386,14 +393,13 @@ def get_total_params(model):
 
 
 def setup_for_inference_or_eval(
-    inference=True, get_key_value=True, overwrite_values=None
+    use_cache=True,
+    overwrite_values=None,
 ):
     """
     Initializes the model for evaluation or inference (doesn't load optimizer states, etc.) from command line args.
 
-    inference: bool
-        Whether to initialize in inference mode
-    get_key_value: bool
+    use_cache: bool
         Whether to use key value caching in inference.
     overwrite_values: dict
         Optional Values to overwrite in the model config.
@@ -407,7 +413,7 @@ def setup_for_inference_or_eval(
         "checkpoint_activations": False,
         "partition_activations": False,
         "no_load_optim": True,
-        'zero_optimization': None, # disable zero optimization (won't be used in inference, and loading zero optimizer can cause errors)
+        "zero_optimization": None,  # disable zero optimization (won't be used in inference, and loading zero optimizer can cause errors)
     }
     if overwrite_values:
         _overwrite_values.update(overwrite_values)
@@ -423,9 +429,13 @@ def setup_for_inference_or_eval(
 
     # set up model and load checkpoint.
     model, _, _ = setup_model_and_optimizer(
-        neox_args=neox_args, inference=inference, get_key_value=get_key_value
+        neox_args=neox_args,
+        use_cache=use_cache,
+        iteration=neox_args.iteration,
     )  # we use setup_model_and_optimizer instead of get_model in order to initialize deepspeed
     print_rank_0("Finished loading model")
+
+    model.module.inference_mode(use_cache=use_cache)
     return model, neox_args
 
 

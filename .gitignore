@@ -131,7 +131,7 @@ dmypy.json
 # wandb logs
 wandb/
 
-# data files 
+# data files
 data/**/*.idx
 data/**/*.bin
 data/**/*.json*

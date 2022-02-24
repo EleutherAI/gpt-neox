@@ -1,8 +1,8 @@
 # Suggested data paths when using GPT-NeoX locally
 {
   "data-path": "data/enron/enron_text_document",
-  
-  # or for weighted datasets: 
+
+  # or for weighted datasets:
   # "train-data-paths": ["data/enron/enron_text_document", "data/enron/enron_text_document"],
   # "test-data-paths": ["data/enron/enron_text_document", "data/enron/enron_text_document"],
   # "valid-data-paths": ["data/enron/enron_text_document", "data/enron/enron_text_document"],
@@ -10,7 +10,7 @@
   # "test-data-weights": [2., 1.],
   # "valid-data-weights": [0.5, 0.4],
 
-  # If weight_by_num_documents is True, Builds dataset weights from a multinomial distribution over groups of data according to the number of documents in each group. 
+  # If weight_by_num_documents is True, Builds dataset weights from a multinomial distribution over groups of data according to the number of documents in each group.
   # WARNING: setting this to True will override any user provided weights
   # "weight_by_num_documents": false,
   # "weighted_sampler_alpha": 0.3,
@@ -21,7 +21,7 @@
   "save": "checkpoints",
   "load": "checkpoints",
   "checkpoint_validation_with_forward_pass": False,
-  
+
   "tensorboard-dir": "tensorboard",
   "log-dir": "logs",
   "use_wandb": True,
