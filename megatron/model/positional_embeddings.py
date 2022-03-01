@@ -31,7 +31,7 @@ class RotaryEmbedding(torch.nn.Module):
         self.sin_cached = None
         self.precision = precision
 
-    def forward(self, x, seq_dim=1, seq_len=None):
+    def get_cos_sin(self, x, seq_dim=1, seq_len=None):
         if seq_len is None:
             seq_len = x.shape[seq_dim]
         if seq_len != self.seq_len_cached:
@@ -47,6 +47,50 @@ class RotaryEmbedding(torch.nn.Module):
                 self.cos_cached = self.cos_cached.bfloat16()
                 self.sin_cached = self.sin_cached.bfloat16()
         return self.cos_cached, self.sin_cached
+
+    def forward(
+        self,
+        query_layer,
+        key_layer,
+        value_layer,
+        layer_past,
+        rotary_ndims=None,
+        seq_dim=0,
+    ):
+        if rotary_ndims is not None:
+            # partial rotary
+            query_rot, query_pass = (
+                query_layer[..., :rotary_ndims],
+                query_layer[..., rotary_ndims:],
+            )
+            key_rot, key_pass = (
+                key_layer[..., :rotary_ndims],
+                key_layer[..., rotary_ndims:],
+            )
+        else:
+            # full rotary
+            query_rot, key_rot = query_layer, key_layer
+        apply_rotary_fn = (
+            apply_rotary_pos_emb_torch
+            if self.precision == torch.bfloat16
+            else apply_rotary_pos_emb
+        )
+
+        seq_len = key_layer.shape[seq_dim]
+        offset = 0
+        if layer_past is not None and layer_past.numel() > 0:
+            offset = layer_past[0].shape[seq_dim]
+            seq_len += offset
+        cos, sin = self.get_cos_sin(value_layer, seq_len=seq_len)
+        query_layer, key_layer = apply_rotary_fn(
+            query_rot, key_rot, cos, sin, offset=offset
+        )
+
+        if rotary_ndims is not None:
+            query_layer = torch.cat((query_layer, query_pass), dim=-1)
+            key_layer = torch.cat((key_layer, key_pass), dim=-1)
+
+        return query_layer, key_layer
 
 
 # rotary pos emb helpers:
@@ -105,7 +149,7 @@ class AliBi(torch.nn.Module):
         def get_slopes_power_of_2(n):
             start = 2 ** (-(2 ** -(math.log2(n) - 3)))
             ratio = start
-            return [start * ratio ** i for i in range(n)]
+            return [start * ratio**i for i in range(n)]
 
         if math.log2(n).is_integer():
             return get_slopes_power_of_2(n)
