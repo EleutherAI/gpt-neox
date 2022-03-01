@@ -32,7 +32,7 @@ class SM3(Optimizer):
         if not 0.0 <= eps:
             raise ValueError("Invalid eps: {0}".format(eps))
 
-        defaults = {'lr': lr, 'momentum': momentum, 'beta': beta, 'eps': eps}
+        defaults = {"lr": lr, "momentum": momentum, "beta": beta, "eps": eps}
         super(SM3, self).__init__(params, defaults)
 
     @torch.no_grad()
@@ -48,10 +48,10 @@ class SM3(Optimizer):
                 loss = closure()
 
         for group in self.param_groups:
-            momentum = group['momentum']
-            beta = group['beta']
-            eps = group['eps']
-            for p in group['params']:
+            momentum = group["momentum"]
+            beta = group["beta"]
+            eps = group["eps"]
+            for p in group["params"]:
                 if p is None:
                     continue
                 grad = p.grad
@@ -62,8 +62,8 @@ class SM3(Optimizer):
 
                 # State initialization
                 if len(state) == 0:
-                    state['step'] = 0
-                    state['momentum_buffer'] = 0.
+                    state["step"] = 0
+                    state["momentum_buffer"] = 0.0
                     _add_initial_accumulators(state, grad)
 
                 if grad.is_sparse:
@@ -80,9 +80,13 @@ class SM3(Optimizer):
                         return constructor(grad_indices, values, grad.size())
 
                     acc = state[_key(0)]
-                    update_values = _compute_sparse_update(beta, acc, grad_values, grad_indices)
+                    update_values = _compute_sparse_update(
+                        beta, acc, grad_values, grad_indices
+                    )
 
-                    self._update_sparse_accumulator(beta, acc, make_sparse(update_values))
+                    self._update_sparse_accumulator(
+                        beta, acc, make_sparse(update_values)
+                    )
 
                     # Add small amount for numerical stability
                     update_values.add_(eps).rsqrt_().mul_(grad_values)
@@ -104,20 +108,20 @@ class SM3(Optimizer):
                     # Add small amount for numerical stability
                     update.add_(eps).rsqrt_().mul_(grad)
 
-                    if momentum > 0.:
-                        m = state['momentum_buffer']
-                        update.mul_(1. - momentum).add_(m, alpha=momentum)
-                        state['momentum_buffer'] = update.detach()
+                    if momentum > 0.0:
+                        m = state["momentum_buffer"]
+                        update.mul_(1.0 - momentum).add_(m, alpha=momentum)
+                        state["momentum_buffer"] = update.detach()
 
-                p.sub_(update, alpha=group['lr'])
-                state['step'] += 1
+                p.sub_(update, alpha=group["lr"])
+                state["step"] += 1
         return loss
 
     @staticmethod
     def _update_accumulator(beta, acc_list, update):
         for i, acc in enumerate(acc_list):
             nu_max = _max_reduce_except_dim(update, i)
-            if beta > 0.:
+            if beta > 0.0:
                 torch.max(acc, nu_max, out=acc)
             else:
                 # No need to compare - nu_max is bigger because of grad ** 2
@@ -126,7 +130,7 @@ class SM3(Optimizer):
     @staticmethod
     def _update_sparse_accumulator(beta, acc, update):
         nu_max = _max_reduce_except_dim(update.to_dense(), 0).squeeze()
-        if beta > 0.:
+        if beta > 0.0:
             torch.max(acc, nu_max, out=acc)
         else:
             # No need to compare - nu_max is bigger because of grad ** 2
@@ -136,9 +140,9 @@ class SM3(Optimizer):
 def _compute_sparse_update(beta, acc, grad_values, grad_indices):
     # In the sparse case, a single accumulator is used.
     update_values = torch.gather(acc, 0, grad_indices[0])
-    if beta > 0.:
+    if beta > 0.0:
         update_values.mul_(beta)
-    update_values.addcmul_(grad_values, grad_values, value=1. - beta)
+    update_values.addcmul_(grad_values, grad_values, value=1.0 - beta)
     return update_values
 
 
@@ -148,16 +152,16 @@ def _compute_update(beta, acc_list, grad):
     for i in range(1, rank):
         # We rely on broadcasting to get the proper end shape.
         update = torch.min(update, acc_list[i])
-    if beta > 0.:
+    if beta > 0.0:
         update.mul_(beta)
-    update.addcmul_(grad, grad, value=1. - beta)
+    update.addcmul_(grad, grad, value=1.0 - beta)
 
     return update
 
 
 def _key(i):
     # Returns key used for accessing accumulators
-    return 'accumulator_' + str(i)
+    return "accumulator_" + str(i)
 
 
 def _add_initial_accumulators(state, grad):
@@ -167,7 +171,7 @@ def _add_initial_accumulators(state, grad):
     # accumulator of shape (n,).
     shape = grad.shape
     rank = len(shape)
-    defaults = {'device': grad.device, 'dtype': grad.dtype}
+    defaults = {"device": grad.device, "dtype": grad.dtype}
     acc = {}
 
     if grad.is_sparse:
@@ -218,6 +222,7 @@ if TYPE_CHECKING:
     from torch.optim.optimizer import _params_t
 else:
     _params_t = Any
+
 
 class madgrad_wd(torch.optim.Optimizer):
     """

@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,7 +27,7 @@ def get_activation(neox_args):
         activation_func = GEGLU(neox_args=neox_args)
     elif neox_args.activation == "gelu":
         if neox_args.onnx_safe and neox_args.bias_gelu_fusion:
-            raise ValueError('onnx_safe + bias_gelu_fusion not compatible')
+            raise ValueError("onnx_safe + bias_gelu_fusion not compatible")
         if neox_args.onnx_safe:
             activation_func = erf_gelu
         elif neox_args.bias_gelu_fusion:
@@ -56,6 +55,7 @@ def get_activation(neox_args):
 # actual gelu is:
 # x * 0.5 * (1.0 + torch.erf(x * 0.70710678))
 
+
 @torch.jit.script
 def bias_gelu(bias, y):
     x = bias + y
@@ -70,7 +70,9 @@ def bias_gelu_back(g, bias, y):
     x = bias + y
     tanh_out = torch.tanh(0.79788456 * x * (1 + 0.044715 * x * x))
     # sqrt(2/pi) * 3 * 0.044715 -> 0.1070322243
-    ff = 0.5 * x * ((1 - tanh_out * tanh_out) * (0.79788456 + 0.1070322243 * x * x)) + 0.5 * (1 + tanh_out)
+    ff = 0.5 * x * (
+        (1 - tanh_out * tanh_out) * (0.79788456 + 0.1070322243 * x * x)
+    ) + 0.5 * (1 + tanh_out)
     return ff * g
 
 
@@ -94,7 +96,14 @@ bias_gelu_impl = GeLUFunction.apply
 # This is actually Python equivalent of torch.nn.functional.gelu(), also with type hints for ONNX exporter
 @torch.jit.script
 def erf_gelu(x):
-    return x * 0.5 * (torch.erf(x / 1.41421).to(dtype=x.dtype) + torch.ones_like(x).to(dtype=x.dtype))
+    return (
+        x
+        * 0.5
+        * (
+            torch.erf(x / 1.41421).to(dtype=x.dtype)
+            + torch.ones_like(x).to(dtype=x.dtype)
+        )
+    )
 
 
 @torch.jit.script
@@ -108,7 +117,6 @@ def mish(x):
 
 
 class GEGLU(torch.nn.Module):
-
     def __init__(self, neox_args):
         super(GEGLU, self).__init__()
         if neox_args.onnx_safe:

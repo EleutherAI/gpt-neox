@@ -3,7 +3,8 @@ import torch
 
 def ema(avg, beta, yi, i):
     """Exponential moving average"""
-    if avg is None: avg = 0
+    if avg is None:
+        avg = 0
     avg = beta * avg + (1 - beta) * yi
     return avg, avg / (1 - beta ** (i + 1))
 
@@ -40,7 +41,16 @@ class GradientNoiseScale:
     single-gpu environments. Unfortunately it does come with some memory overhead.
     """
 
-    def __init__(self, model, batch_size_small, n_batches=10, beta=0.99, cpu_offload=False, neox_args=None, mpu=None):
+    def __init__(
+        self,
+        model,
+        batch_size_small,
+        n_batches=10,
+        beta=0.99,
+        cpu_offload=False,
+        neox_args=None,
+        mpu=None,
+    ):
         self.batch_size_small = batch_size_small
         self.batch_size_large = batch_size_small * n_batches
         self.n_batches = n_batches
@@ -59,7 +69,9 @@ class GradientNoiseScale:
 
     def flatten_grads(self):
         grads = []
-        assert hasattr(self.model, 'stored_gradients'), "You might need to update DeeperSpeed"
+        assert hasattr(
+            self.model, "stored_gradients"
+        ), "You might need to update DeeperSpeed"
         if self.model.stored_gradients is not None:
             for g in self.model.stored_gradients:
                 if g is not None and not g.isnan().any() and not g.isinf().any():
@@ -78,9 +90,11 @@ class GradientNoiseScale:
             # Since each model parallel GPU carries only part of the model,
             # make sure overflow flag is synced across all the pipe parallel GPUs
             overflow_gpu = torch.cuda.ByteTensor([is_overflow])
-            torch.distributed.all_reduce(overflow_gpu,
-                                         op=torch.distributed.ReduceOp.MAX,
-                                         group=self.mpu.get_pipe_parallel_group())
+            torch.distributed.all_reduce(
+                overflow_gpu,
+                op=torch.distributed.ReduceOp.MAX,
+                group=self.mpu.get_pipe_parallel_group(),
+            )
             overflow = overflow_gpu[0].item()
         else:
             overflow = is_overflow
@@ -115,12 +129,16 @@ class GradientNoiseScale:
                     g_small = g_small.to(self.model.device)
 
                 # avg g_big / g_small across pipe parallel groups
-                torch.distributed.all_reduce(g_big,
-                                 op=torch.distributed.ReduceOp.SUM,
-                                 group=self.mpu.get_pipe_parallel_group())
-                torch.distributed.all_reduce(g_small,
-                                 op=torch.distributed.ReduceOp.SUM,
-                                 group=self.mpu.get_pipe_parallel_group())
+                torch.distributed.all_reduce(
+                    g_big,
+                    op=torch.distributed.ReduceOp.SUM,
+                    group=self.mpu.get_pipe_parallel_group(),
+                )
+                torch.distributed.all_reduce(
+                    g_small,
+                    op=torch.distributed.ReduceOp.SUM,
+                    group=self.mpu.get_pipe_parallel_group(),
+                )
                 g_big /= self.mpu.get_pipe_parallel_world_size()
                 g_small /= self.mpu.get_pipe_parallel_world_size()
 
@@ -129,24 +147,40 @@ class GradientNoiseScale:
                 g_small = torch.square(torch.norm(grad.to(torch.float)))
 
             # communicate any overflows
-            is_overflow = (g_small.isinf().any() or g_small.isnan().any() or g_big.isinf().any() or g_big.isnan().any())
+            is_overflow = (
+                g_small.isinf().any()
+                or g_small.isnan().any()
+                or g_big.isinf().any()
+                or g_big.isnan().any()
+            )
             is_overflow = self._sync_overflow(is_overflow)
             if is_overflow:
                 return
 
             # calculate noise / scale
-            noise = 1 / (self.batch_size_large - self.batch_size_small) * (
-                    self.batch_size_large * g_big - self.batch_size_small * g_small)
-            scale = 1 / (1 / self.batch_size_small - 1 / self.batch_size_large) * (g_small - g_big)
+            noise = (
+                1
+                / (self.batch_size_large - self.batch_size_small)
+                * (self.batch_size_large * g_big - self.batch_size_small * g_small)
+            )
+            scale = (
+                1
+                / (1 / self.batch_size_small - 1 / self.batch_size_large)
+                * (g_small - g_big)
+            )
 
             # calculate running average
-            self.ema_noise, noise = ema(self.ema_noise, self.beta, noise, self.n_updates)
-            self.ema_scale, scale = ema(self.ema_scale, self.beta, scale, self.n_updates)
+            self.ema_noise, noise = ema(
+                self.ema_noise, self.beta, noise, self.n_updates
+            )
+            self.ema_scale, scale = ema(
+                self.ema_scale, self.beta, scale, self.n_updates
+            )
 
             # calculate noise scale
             scale = scale.item()
             noise = noise.item()
-            self.noise_scale = (scale / noise)
+            self.noise_scale = scale / noise
 
         self.n_updates += 1
 

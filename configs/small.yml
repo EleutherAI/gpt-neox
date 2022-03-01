@@ -58,7 +58,7 @@
    "attention-dropout": 0.0,
 
    # precision settings
-   "fp16": { 
+   "fp16": {
      "enabled": true,
      "loss_scale": 0,
      "loss_scale_window": 1000,

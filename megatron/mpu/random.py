@@ -5,7 +5,9 @@ import deepspeed
 import deepspeed.runtime.activation_checkpointing.checkpointing as checkpointing
 
 # Default name for the model parallel rng tracker.
-_MODEL_PARALLEL_RNG_TRACKER_NAME = deepspeed.checkpointing._MODEL_PARALLEL_RNG_TRACKER_NAME
+_MODEL_PARALLEL_RNG_TRACKER_NAME = (
+    deepspeed.checkpointing._MODEL_PARALLEL_RNG_TRACKER_NAME
+)
 
 # Whether apply model parallelsim to checkpointed hidden states.
 _CHECKPOINTED_ACTIVATIONS_MEMORY_BUFFER = None
@@ -19,4 +21,3 @@ _set_cuda_rng_state = checkpointing._set_cuda_rng_state
 checkpoint = checkpointing.checkpoint
 model_parallel_cuda_manual_seed = checkpointing.model_parallel_cuda_manual_seed
 get_cuda_rng_tracker = checkpointing.get_cuda_rng_tracker
-
