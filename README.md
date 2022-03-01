@@ -34,7 +34,7 @@ For those looking for a TPU-centric codebase, we recommend [Mesh Transformer JAX
 
 ## GPT-NeoX-20B
 
-GPT-NeoX-20B is a 20 billion parameter autoregressive language model trained on the [Pile](https://arxiv.org/abs/2101.00027). Technical details about GPT-NeoX-20B can be found in our [whitepaper](http://eaidata.bmk.sh/data/GPT_NeoX_20B.pdf). The configuration file for the model is available [here](./configs/20B.yml), and is also included in the download links below.
+GPT-NeoX-20B is a 20 billion parameter autoregressive language model trained on [the Pile](https://arxiv.org/abs/2101.00027). Technical details about GPT-NeoX-20B can be found in our [whitepaper](http://eaidata.bmk.sh/data/GPT_NeoX_20B.pdf). The configuration file for this model is both available at [`./configs/20B.yml`](./configs/20B.yml) and included in the download links below.
 
 ### Download Links
 
