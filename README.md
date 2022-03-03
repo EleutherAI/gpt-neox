@@ -1,6 +1,6 @@
 # GPT NeoX
 
-Clean code implementation by Kevin Ko.
+new implementation by Kevin Ko.
 
 1. Replace all the parallelization related code to OSLO.
 2. Don't overuse `neox_args` everywhere. all the functions should be independent.
