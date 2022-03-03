@@ -17,8 +17,7 @@
 #include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <cuda.h>
-#include <cuda_fp16.h>
-#include <cuda_profiler_api.h>
+#include <hip/hip_fp16.h>
 #include <cuda_runtime.h>
 #include <torch/extension.h>
 #include "scaled_upper_triang_masked_softmax.h"
