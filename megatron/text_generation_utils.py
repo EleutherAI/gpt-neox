@@ -371,11 +371,11 @@ def stream_tokens(
                 )
             state_is_done = state_is_done | stop_tokens_produced
 
+            token_index_to_generate += 1
+
             token_generation_end_index[
                 (state_started.byte() & ~state_is_done).bool()
             ] = token_index_to_generate
-
-            token_index_to_generate += 1
 
             yield context_tokens, token_generation_start_index, token_generation_end_index, state_is_done.bool()
             if torch.all(state_is_done):
