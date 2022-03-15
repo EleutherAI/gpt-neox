@@ -854,7 +854,7 @@ class NeoXArgs(*BASE_CLASSES):
         if self.hidden_size % self.num_attention_heads != 0:
             error_message = (
                 self.__class__.__name__
-                + ".validate_values() hidden_size must be divisable by num_attention_heads"
+                + ".validate_values() hidden_size must be divisible by num_attention_heads"
             )
             logging.error(error_message)
             raise ValueError(error_message)

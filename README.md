@@ -265,7 +265,7 @@ The general usage pattern is:
 python ./deepy.py train.py [path/to/config1.yml] [path/to/config2.yml] ...
 ```
 
-You can pass in an arbritrary number of configs which will all be merged at runtime.
+You can pass in an arbitrary number of configs which will all be merged at runtime.
 
 You can also optionally pass in a config prefix, which will assume all your configs are in the same folder and append that prefix to their path.
 

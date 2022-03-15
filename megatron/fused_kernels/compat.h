@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-/*This code is copied fron NVIDIA apex:
+/*This code is copied from NVIDIA apex:
  *     https://github.com/NVIDIA/apex
  *     with minor changes. */
 

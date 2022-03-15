@@ -303,7 +303,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
 
     def inference_mode(self, use_cache=True):
         """
-        Sets up the model for inference by turning on k/v caching (if specificied) and setting `parallel output` of the final layer to false,
+        Sets up the model for inference by turning on k/v caching (if specified) and setting `parallel output` of the final layer to false,
         so logits are gathered across model parallel ranks.
 
         :param cache: (bool) True if you want to use caching during inference, False otherwise

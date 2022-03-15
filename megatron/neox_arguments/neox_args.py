@@ -398,7 +398,7 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
 
     min_lr: float = 0.0
     """
-    Minumum value for learning rate. The scheduler clips values below this threshold.
+    Minimum value for learning rate. The scheduler clips values below this threshold.
     """
 
     warmup: float = 0.01
@@ -632,7 +632,7 @@ class NeoXArgsTokenizer(NeoXArgsTemplate):
 
     tokenizer = None
     """
-    tokenizer object loaded into memory and accesible by other functions
+    tokenizer object loaded into memory and accessible by other functions
     """
 
 

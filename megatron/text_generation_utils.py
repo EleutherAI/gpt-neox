@@ -42,7 +42,7 @@ def get_batch(neox_args, context_tokens: torch.Tensor):
 
     # Move to GPU.
     tokens = context_tokens.contiguous().cuda()
-    # Get the attention mask and postition ids.
+    # Get the attention mask and position ids.
     attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
         data=tokens,
         eod_token=neox_args.tokenizer.eod,
@@ -635,7 +635,7 @@ def generate_samples_unconditional(
 
     number_of_samples (default 10): number of unconditional samples to be generated
 
-    output_file: file where generation results are to be stored in jsonl format. no file will be stored if ommitted
+    output_file: file where generation results are to be stored in jsonl format. no file will be stored if omitted
 
     eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
     maximum_tokens: maximum number of tokens to be generated
