@@ -706,7 +706,7 @@ def evaluate(
 
     if neox_args.char_level_ppl:
         # calculate character level perplexity, if specified
-        # if neox_args.char_level_perplexity:
+        # if neox_args.char_level_ppl:
         # unwrap the data_iterator
         tokens_per_char = data_iterator.tokens_per_char()
         print_rank_0(f"Counting chars took {data_iterator.total_time} seconds")

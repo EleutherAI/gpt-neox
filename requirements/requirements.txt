@@ -10,5 +10,5 @@ regex
 sentencepiece
 six
 tokenizers==0.10.2
-transformers==4.5.0
+transformers~=4.16.0
 wandb==0.10.28

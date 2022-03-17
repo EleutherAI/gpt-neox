@@ -7,15 +7,8 @@ to run in order to perform follow up tests. Joining in one test reduces runtime 
 
 
 import os
-
-if __name__ == "__main__":
-    import sys
-
-    sys.path.append(os.path.abspath(""))
-
 import pytest
-from tests.common import distributed_test, model_setup, parametrize, dict_repr
-import torch
+from tests.common import distributed_test, model_setup, parametrize
 
 PARAMS_TO_TEST = {
     "pipe_parallel_size,model_parallel_size,world_size": [
@@ -57,6 +50,7 @@ parameters, names = parametrize(
 )
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize("param_dict", parameters, ids=names)
 def test_train(param_dict):
     @distributed_test(world_size=param_dict.pop("world_size", 2))
@@ -82,9 +76,7 @@ def run_generate_test(param_dict, prompt):
 
     param_dict.update(fixed_params)
     # TODO: we don't need to reinstantiate the model every time if we're only changing sampling settings - should be a workaround for this
-    model, _, _, args_loaded = model_setup(
-        None, param_dict, clear_data=True, inference=True
-    )
+    model, _, _, args_loaded = model_setup(None, param_dict, clear_data=True)
     model.eval()
 
     prompts = [prompt for _ in range(args_loaded.num_samples)]
