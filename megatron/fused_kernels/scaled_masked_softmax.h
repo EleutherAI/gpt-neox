@@ -324,8 +324,8 @@ __global__ void scaled_masked_softmax_warp_backward(output_t* gradInput,
                 output_t out[ELEMENTS_PER_LDG_STG];
 #pragma unroll
                 for (int element = 0; element < ELEMENTS_PER_LDG_STG; ++element) {
-                    out[element] = (output_t)(
-                        scale * (grad_reg[i][it + element] - output_reg[i][it + element] * sum[i]));
+                    out[element] = (output_t)(scale * (grad_reg[i][it + element] -
+                                                       output_reg[i][it + element] * sum[i]));
                 }
                 copy_vector<output_t, ELEMENTS_PER_LDG_STG>(
                     gradInput + i * element_count + it * WARP_SIZE, out);

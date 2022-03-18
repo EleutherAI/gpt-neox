@@ -218,17 +218,30 @@ def training_log(
                     )
 
     # (optional) Log grad/param norms to wandb / tb every step
-    if neox_args.log_grad_pct_zeros or neox_args.log_grad_norm or neox_args.log_param_norm:
+    if (
+        neox_args.log_grad_pct_zeros
+        or neox_args.log_grad_norm
+        or neox_args.log_param_norm
+    ):
         if neox_args.log_grad_pct_zeros or neox_args.log_grad_norm:
             model.store_gradients = True  # start storing gradients
 
         for i, (name, param) in enumerate(model.module.named_parameters()):
             if neox_args.log_grad_pct_zeros:
-                if hasattr(model, 'stored_gradients') and model.stored_gradients is not None:
+                if (
+                    hasattr(model, "stored_gradients")
+                    and model.stored_gradients is not None
+                ):
                     grad = model.stored_gradients[i]
                     if grad is not None:
-                        tb_wandb_log(f'pct_grad_zeros/{name}', (grad == 0).float().mean().item()*100, iteration,
-                                     use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer, all_ranks=True)
+                        tb_wandb_log(
+                            f"pct_grad_zeros/{name}",
+                            (grad == 0).float().mean().item() * 100,
+                            iteration,
+                            use_wandb=neox_args.use_wandb,
+                            tensorboard_writer=neox_args.tensorboard_writer,
+                            all_ranks=True,
+                        )
             if neox_args.log_grad_norm:
                 if (
                     hasattr(model, "stored_gradients")

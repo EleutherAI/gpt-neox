@@ -18,7 +18,6 @@ import enum
 from ..fused_kernels import load_fused_kernels
 
 
-
 class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):
     """
     Fused operation which performs following three operations in sequence
@@ -122,7 +121,7 @@ class FusedScaleMaskSoftmax(nn.Module):
 
         if fusion_type != SoftmaxFusionTypes.none:
             load_fused_kernels()  # check fused kernels are installed
-            
+
         self.upper_triang_mask_fusion = fusion_type == SoftmaxFusionTypes.upper_triang
         self.general_mask_fusion = fusion_type == SoftmaxFusionTypes.general
         self.fusion = fusion_type != SoftmaxFusionTypes.none

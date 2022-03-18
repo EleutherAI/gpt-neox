@@ -193,6 +193,7 @@ def _initialize_distributed(neox_args):
     # Init DeepSpeed Activation Checkpointing Features
     setup_deepspeed_random_and_activation_checkpointing(neox_args=neox_args)
 
+
 def _init_autoresume(neox_args):
     """Set autoresume start time."""
 
@@ -210,6 +211,7 @@ def _init_autoresume(neox_args):
         torch.distributed.barrier()
         neox_args.adlr_autoresume_object.init()
         torch.distributed.barrier()
+
 
 def _set_random_seed(seed):
     """Set random seed for reproducability."""
