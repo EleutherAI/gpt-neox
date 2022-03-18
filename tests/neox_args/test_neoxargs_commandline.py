@@ -19,7 +19,7 @@ def test_neoxargs_consume_deepy_args_with_config_dir():
     # load neox args with command line
     with patch(
         "sys.argv",
-        [str(get_root_directory() / "deepy.py"), "pretrain_gpt2.py"]
+        [str(get_root_directory() / "deepy.py"), "train.py"]
         + get_configs_with_path(["small.yml", "local_setup.yml"]),
     ):
         args_loaded_consume = NeoXArgs.consume_deepy_args()
@@ -30,7 +30,7 @@ def test_neoxargs_consume_deepy_args_with_config_dir():
     )
 
     # update values from yaml files that cannot otherwise be matched
-    args_loaded_yamls.update_value("user_script", "pretrain_gpt2.py")
+    args_loaded_yamls.update_value("user_script", "train.py")
     args_loaded_yamls.wandb_group = args_loaded_consume.wandb_group
 
     assert args_loaded_yamls == args_loaded_consume
@@ -47,7 +47,7 @@ def test_neoxargs_consume_deepy_args_without_yml_suffix():
     # load neox args with command line
     with patch(
         "sys.argv",
-        [str(get_root_directory() / "deepy.py"), "pretrain_gpt2.py"]
+        [str(get_root_directory() / "deepy.py"), "train.py"]
         + get_configs_with_path(["small", "local_setup"]),
     ):
         args_loaded_consume = NeoXArgs.consume_deepy_args()
@@ -58,7 +58,7 @@ def test_neoxargs_consume_deepy_args_without_yml_suffix():
     )
 
     # update values from yaml files that cannot otherwise be matched
-    args_loaded_yamls.update_value("user_script", "pretrain_gpt2.py")
+    args_loaded_yamls.update_value("user_script", "train.py")
     args_loaded_yamls.wandb_group = args_loaded_consume.wandb_group
 
     assert args_loaded_yamls == args_loaded_consume
@@ -77,7 +77,7 @@ def test_neoxargs_consume_deepy_args_with_config_dir():
         "sys.argv",
         [
             str(get_root_directory() / "deepy.py"),
-            "pretrain_gpt2.py",
+            "train.py",
             "-d",
             str(get_config_directory()),
         ]
@@ -91,7 +91,7 @@ def test_neoxargs_consume_deepy_args_with_config_dir():
     )
 
     # update values from yaml files that cannot otherwise be matched
-    args_loaded_yamls.update_value("user_script", "pretrain_gpt2.py")
+    args_loaded_yamls.update_value("user_script", "train.py")
     args_loaded_yamls.wandb_group = args_loaded_consume.wandb_group
 
     assert args_loaded_yamls == args_loaded_consume
@@ -107,9 +107,7 @@ def test_neoxargs_consume_neox_args():
     # intitially load config from files as would be the case in deepy.py
     yaml_list = get_configs_with_path(["small.yml", "local_setup.yml"])
     args_baseline = NeoXArgs.from_ymls(yaml_list)
-    args_baseline.update_value(
-        "user_script", str(get_root_directory() / "pretrain_gpt2.py")
-    )
+    args_baseline.update_value("user_script", str(get_root_directory() / "train.py"))
     deepspeed_main_args = args_baseline.get_deepspeed_main_args()
 
     # patch sys.argv so that args can be access by set_global_variables within initialize_megatron

@@ -32,6 +32,11 @@ def test_neoxargs_usage():
             "tensorboard_writer",
             "tokenizer",
             "train_batch_size]",
+            "items",
+            "configure_distributed_args",
+            "build_tokenizer",
+            "attention_config[i]",
+            "print",
         ]
     )
 

@@ -5,11 +5,8 @@ This tests contain a relatively large number of functions. They are not split in
 to run in order to perform follow up tests. Joining in one test reduces runtime at the expense of decreased transparency of test results in case of failures.
 """
 import os
-
-if __name__ == "__main__":
-    import sys
-
-    sys.path.append(os.path.abspath(""))
+import shutil
+import torch
 
 import pytest
 from tests.common import (
@@ -54,8 +51,14 @@ parameters, names = parametrize(
 )
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize("param_dict", parameters, ids=names)
 def test_train(param_dict):
+    import tempfile
+
+    d = tempfile.mkdtemp()
+    param_dict["save"] = d
+
     @distributed_test(world_size=2)
     def wrapper():
         run_checkpoint_test(param_dict=param_dict)
@@ -110,9 +113,6 @@ def run_checkpoint_test(yaml_list=None, param_dict=None):
         assert n1 == n2
         params_equal = (p1 == p2).all().item()
         assert params_equal, "run_checkpoint_test() params equal: " + str(n1)
-
-    if torch.distributed.get_world_size() == 1 or torch.distributed.get_rank() == 0:
-        clear_test_dirs()
 
 
 if __name__ == "__main__":

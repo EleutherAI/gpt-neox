@@ -47,6 +47,7 @@ parameters, names = parametrize(
 )
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize("param_dict", parameters, ids=names)
 def test_train(param_dict):
     @distributed_test(world_size=2)
@@ -87,6 +88,7 @@ parameters, names = parametrize(
 )
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize("param_dict", parameters, ids=names)
 def test_train_bf16(param_dict):
     @distributed_test(world_size=2)
@@ -111,6 +113,7 @@ opt_params, opt_name = parametrize(
 )
 
 
+@pytest.mark.skip
 @pytest.mark.parametrize("param_dict", parameters, ids=names)
 def test_train_optimizers(param_dict):
     @distributed_test(world_size=2)
