@@ -912,6 +912,14 @@ Text Generation arguments
 
 
 
+- **generating_batch_size**: int
+
+    Default = 1
+
+    The number of samples to generate at the same time
+
+
+
 ## NeoXArgsTokenizer
 
 Tokenizer Arguments
