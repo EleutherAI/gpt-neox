@@ -13,7 +13,7 @@ from megatron.data.samplers import DistributedBatchSampler
 
 
 def make_data_loader(dataset, neox_args):
-    """Buld dataloader given an input dataset."""
+    """Build dataloader given an input dataset."""
     if dataset is None:
         return None
     # Data parallel arguments.

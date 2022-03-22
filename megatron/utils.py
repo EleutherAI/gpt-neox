@@ -146,8 +146,11 @@ def init_wandb(neox_args):
     if neox_args.use_wandb == False:
         return
 
-    use_wandb = is_local_main() and (get_wandb_api_key(neox_args=neox_args) is not None)
-    neox_args.update_value("use_wandb", use_wandb)
+    if not neox_args.wandb_init_all_ranks:
+        use_wandb = is_local_main() and (
+            get_wandb_api_key(neox_args=neox_args) is not None
+        )
+        neox_args.update_value("use_wandb", use_wandb)
     if neox_args.use_wandb:
         group_name = neox_args.wandb_group
         name = f"{socket.gethostname()}-{local_rank()}" if group_name else None
@@ -273,7 +276,7 @@ class Timers:
         """Write timers to a tensorboard writer"""
         # currently when using add_scalars,
         # torch.utils.add_scalars makes each timer its own run, which
-        # polutes the runs list, so we just add each as a scalar
+        # pollutes the runs list, so we just add each as a scalar
         assert normalizer > 0.0
         for name in names:
             value = self.timers[name].elapsed(reset=reset) / normalizer

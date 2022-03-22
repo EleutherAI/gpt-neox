@@ -55,8 +55,12 @@ def initialize_megatron(neox_args, allow_no_cuda=False):
             print("> setting random seeds to {} ...".format(neox_args.seed))
         _set_random_seed(neox_args.seed)
 
-    # load scaled_upper_triang_masked_softmax_fusion kernel
-    fused_kernels.load_fused_kernels(neox_args)
+    # check fused kernels are installed:
+    if (
+        neox_args.scaled_upper_triang_masked_softmax_fusion
+        or neox_args.scaled_masked_softmax_fusion
+    ):
+        fused_kernels.load_fused_kernels()
 
     if neox_args.lazy_mpu_init:
         neox_args.use_cpu_initialization = True
@@ -69,9 +73,6 @@ def initialize_megatron(neox_args, allow_no_cuda=False):
     else:
         # Megatron's MPU is the master. Complete initialization right away.
         finish_mpu_init()
-
-        # Autoresume.
-        _init_autoresume(neox_args)
 
         # Compile dataset C++ code.
         if neox_args.local_rank == 0:
@@ -213,7 +214,7 @@ def _init_autoresume(neox_args):
 
 
 def _set_random_seed(seed):
-    """Set random seed for reproducability."""
+    """Set random seed for reproducibility."""
     if seed is not None and seed > 0:
         random.seed(seed)
         np.random.seed(seed)

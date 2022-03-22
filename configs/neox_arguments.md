@@ -27,7 +27,7 @@ LR Scheduler Arguments
 
     Default = 0.0
 
-    Minumum value for learning rate. The scheduler clips values below this threshold.
+    Minimum value for learning rate. The scheduler clips values below this threshold.
 
 
 

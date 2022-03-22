@@ -15,6 +15,7 @@
 import torch
 import torch.nn as nn
 import enum
+from ..fused_kernels import load_fused_kernels
 
 
 class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):
@@ -117,9 +118,14 @@ class FusedScaleMaskSoftmax(nn.Module):
             SoftmaxFusionTypes.general,
             SoftmaxFusionTypes.none,
         ], f"Invalid fusion type {fusion_type}"
+
+        if fusion_type != SoftmaxFusionTypes.none:
+            load_fused_kernels()  # check fused kernels are installed
+
         self.upper_triang_mask_fusion = fusion_type == SoftmaxFusionTypes.upper_triang
         self.general_mask_fusion = fusion_type == SoftmaxFusionTypes.general
         self.fusion = fusion_type != SoftmaxFusionTypes.none
+
         self.mask_func = mask_func
         self.softmax_in_fp32 = softmax_in_fp32
         self.scale = scale
@@ -143,8 +149,8 @@ class FusedScaleMaskSoftmax(nn.Module):
             self.fusion  # user wants to fuse
             and self.input_in_float16  # input must be fp16
             and mask is not None  # mask tensor must not be None
-            and 16 < sq <= 2048  # sq must be 16 ~ 2048
-            and sk % 4 == 0  # sk must be divisor of 4
+            and 16 < sk <= 2048  # sk must be 16 ~ 2048
+            and sq % 4 == 0  # sq must be divisor of 4
             and attn_batches % 4 == 0  # np * b must be divisor of 4
         ):
             if 0 <= sk <= 2048:
@@ -190,7 +196,7 @@ class FusedScaleMaskSoftmax(nn.Module):
         return probs
 
     @staticmethod
-    def get_batch_per_block(b, np, sq, sk):
+    def get_batch_per_block(sq, sk, b, np):
         import scaled_masked_softmax_cuda
 
         return scaled_masked_softmax_cuda.get_batch_per_block(sq, sk, b, np)

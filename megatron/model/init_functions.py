@@ -123,6 +123,6 @@ def get_init_methods(args):
         elif name == "small_init":
             return small_init_init_method(args.hidden_size)
         else:
-            raise NotImplementedError(f"Unkown init method {name}")
+            raise NotImplementedError(f"Unknown init method {name}")
 
     return _get(args.init_method), _get(args.output_layer_init_method)

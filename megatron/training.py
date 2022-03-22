@@ -61,7 +61,7 @@ from eval_tasks import run_eval_harness
 def pretrain(neox_args):
     """Main training program.
 
-    This function will run the followings in the order provided:
+    This function will run the following in the order provided:
         1) initialize Megatron.
         2) setup model, optimizer and lr schedule
         3) call train_val_test_data_provider to get train/val/test datasets.
@@ -77,7 +77,7 @@ def pretrain(neox_args):
         use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer
     )
 
-    # Initalize and get arguments, timers, and Tensorboard writer.
+    # Initialize and get arguments, timers, and Tensorboard writer.
     initialize_megatron(neox_args=neox_args)
 
     # Model, optimizer, and learning rate.
@@ -706,7 +706,7 @@ def evaluate(
 
     if neox_args.char_level_ppl:
         # calculate character level perplexity, if specified
-        # if neox_args.char_level_perplexity:
+        # if neox_args.char_level_ppl:
         # unwrap the data_iterator
         tokens_per_char = data_iterator.tokens_per_char()
         print_rank_0(f"Counting chars took {data_iterator.total_time} seconds")

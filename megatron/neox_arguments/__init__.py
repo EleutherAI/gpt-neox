@@ -26,8 +26,8 @@ NeoX args can be instantiated with the following options
 
 * NeoX args (in ./arguments) inherits from the following subclasses: NeoXArgsDeepspeedRunner, NeoXArgsDeepspeedConfig, NeoXArgsModel, NeoXArgsTokenizer, NeoXArgsTraining, NeoXArgsParallelism, NeoXArgsLogging, NeoXArgsOther, NeoXArgsTextgen
 * The Subclasses group args according to their purpose
-* The attributes of NeoXArgsDeepspeedRunner are directly mapped to the expected command line args of deepspeed.launcher.runner.main; no attributes unknown to deepspeed should be included; no arguments relevant for deepspeed should be ommitted
-* The attributes of NeoXArgsDeepspeedConfig are directly mapped to the expected keys of the deepspeed config; no arguments relevant for deepspeed should be ommitted
+* The attributes of NeoXArgsDeepspeedRunner are directly mapped to the expected command line args of deepspeed.launcher.runner.main; no attributes unknown to deepspeed should be included; no arguments relevant for deepspeed should be omitted
+* The attributes of NeoXArgsDeepspeedConfig are directly mapped to the expected keys of the deepspeed config; no arguments relevant for deepspeed should be omitted
 * calculated attributes (decorator '@property') are available as attribute, but would not be included in dataclass fields (e.g. NeoXArgs().__dataclass_fields__.items())
 * refer to docstrings in code for more information
 """

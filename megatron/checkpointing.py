@@ -37,7 +37,7 @@ from pprint import pformat
 
 def check_checkpoint_args(neox_args, checkpoint_args):
     """Ensure fixed arguments for a model are the same for the input
-    arguments and the one retreived frm checkpoint."""
+    arguments and the one retrieved from checkpoint."""
 
     assert isinstance(checkpoint_args, dict), "args stored in checkpoint is a dict"
     for checkpoint_arg_name, checkpoint_arg_value in checkpoint_args.items():

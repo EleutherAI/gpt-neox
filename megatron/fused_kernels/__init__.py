@@ -22,14 +22,14 @@ from pathlib import Path
 srcpath = Path(__file__).parent.absolute()
 
 # Setting this param to a list has a problem of generating different
-# compilation commands (with diferent order of architectures) and
+# compilation commands (with different order of architectures) and
 # leading to recompilation of fused kernels. Set it to empty string
-# to avoid recompilation and assign arch flags explicity in
+# to avoid recompilation and assign arch flags explicitly in
 # extra_cuda_cflags below
 os.environ["TORCH_CUDA_ARCH_LIST"] = ""
 
 
-def load_fused_kernels(neox_args):
+def load_fused_kernels():
     try:
         import scaled_upper_triang_masked_softmax_cuda
         import scaled_masked_softmax_cuda
@@ -37,7 +37,7 @@ def load_fused_kernels(neox_args):
         print("\n")
         print("=" * 100)
         print(
-            f'ERROR: Please run `python {str(srcpath / "setup.py")} install` to install the fused kernels'
+            f'ERROR: Fused kernels configured but not installed. Please run `python {str(srcpath / "setup.py")} install` to install them'
         )
         print("=" * 100)
         exit()

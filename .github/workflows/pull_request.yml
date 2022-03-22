@@ -11,3 +11,12 @@ jobs:
         with:
           python-version: 3.8
       - uses: pre-commit/action@v2.0.3
+
+  run-tests:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v2
+      - name: prepare data
+        run: python prepare_data.py
+      - name: Run Tests
+        run: pytest --forked tests

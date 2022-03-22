@@ -1,4 +1,4 @@
-git+git://github.com/EleutherAI/DeeperSpeed.git@eb7f5cff36678625d23db8a8fe78b4a93e5d2c75#egg=deepspeed
+git+https://github.com/EleutherAI/DeeperSpeed.git@eb7f5cff36678625d23db8a8fe78b4a93e5d2c75#egg=deepspeed
 einops==0.3.0
 ftfy==6.0.1
 lm_dataformat==0.0.19
@@ -10,5 +10,5 @@ regex
 sentencepiece
 six
 tokenizers==0.10.2
-transformers==4.5.0
+transformers~=4.16.0
 wandb==0.10.28

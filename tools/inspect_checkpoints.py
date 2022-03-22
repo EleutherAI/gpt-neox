@@ -40,7 +40,7 @@ def sizeof_fmt(num, suffix="B"):
 
 
 def pretty_print(contents: dict):
-    """Prints a nice summary of the top-level contens in a checkpoint dictionary."""
+    """Prints a nice summary of the top-level contents in a checkpoint dictionary."""
     col_size = max(len(str(k)) for k in contents)
     for k, v in sorted(contents.items()):
         key_length = len(str(k))
@@ -78,7 +78,7 @@ def common_entries(*dcts):
 
 
 def pretty_print_double(contents1: dict, contents2: dict, args):
-    """Prints a nice summary of the top-level contens in a checkpoint dictionary."""
+    """Prints a nice summary of the top-level contents in a checkpoint dictionary."""
     col_size = max(
         max(len(str(k)) for k in contents1), max(len(str(k)) for k in contents2)
     )
