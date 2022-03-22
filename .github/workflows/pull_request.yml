@@ -12,6 +12,17 @@ jobs:
           python-version: 3.8
       - uses: pre-commit/action@v2.0.3
 
+  update-documentation:
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v3
+    - run: |
+        python configs/gen_docs.py
+        git config user.name github-actions
+        git config user.email github-actions@github.com
+        git add .
+        git commit -m "Update NeoXArgs docs automatically"
+        git push
   run-tests:
     runs-on: self-hosted
     steps:
