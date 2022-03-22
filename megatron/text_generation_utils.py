@@ -192,7 +192,7 @@ def stream_tokens(
     temperature: float = 0.0,
     top_k: int = 0,
     top_p: float = 0.0,
-    stop_tokens: List[List[int]]=None,
+    stop_tokens=None,
 ):
     """
     iterator producing text completions
@@ -236,6 +236,8 @@ def stream_tokens(
     # convert to tensor and broadcast
     context_tokens = torch.cuda.LongTensor(context_tokens)
     if stop_tokens:
+        if stop_tokens.ndim == 1:
+            stop_tokens = [stop_tokens]
         for i in range(0, len(stop_tokens)):
             stop_tokens[i] = torch.cuda.LongTensor(stop_tokens[i])
 
