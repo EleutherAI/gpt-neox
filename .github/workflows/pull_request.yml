@@ -17,10 +17,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - run: |
+          rm megatron/__init__.py
           python configs/gen_docs.py
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git add .
+          git add configs/neox_arguments.md
           git commit -m "Update NeoXArgs docs automatically"
           git push
   run-tests:
