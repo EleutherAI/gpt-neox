@@ -236,7 +236,7 @@ def stream_tokens(
     # convert to tensor and broadcast
     context_tokens = torch.cuda.LongTensor(context_tokens)
     if stop_tokens:
-        if stop_tokens.ndim == 1:
+        if len(stop_tokens) > 0 and type(stop_tokens[0]) is not list:
             stop_tokens = [stop_tokens]
         for i in range(0, len(stop_tokens)):
             stop_tokens[i] = torch.cuda.LongTensor(stop_tokens[i])
