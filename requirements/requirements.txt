@@ -12,3 +12,4 @@ six
 tokenizers==0.10.2
 transformers~=4.16.0
 wandb==0.10.28
+torchtyping
