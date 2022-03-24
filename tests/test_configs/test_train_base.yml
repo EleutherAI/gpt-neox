@@ -41,7 +41,7 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 4,
+   "micro_batch_size_per_gpu": 4,
    "data_impl": "mmap",
    "split": "949,50,1",
 

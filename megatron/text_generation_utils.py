@@ -443,7 +443,7 @@ def generate_samples_from_prompt(
 
         start_time = time.time()
         # Tokenize text, and check whether we should terminate process
-        batch_size = min(neox_args.generating_batch_size, input_count - input_pos)
+        batch_size = min(neox_args.micro_batch_size_per_gpu, input_count - input_pos)
         terminate_runs = 0
         if input_pos == input_count:
             terminate_runs = 1
@@ -467,7 +467,8 @@ def generate_samples_from_prompt(
             input_pos += batch_size
         if not is_mp_rank_0():
             context_tokens_list = [
-                neox_args.tokenizer.tokenize("EMPTY TEXT") for _ in range(batch_size)]
+                neox_args.tokenizer.tokenize("EMPTY TEXT") for _ in range(batch_size)
+            ]
             terminate_runs = 0
 
         terminate_runs = broadcast_terminate_signal(terminate_runs)

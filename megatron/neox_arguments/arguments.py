@@ -661,30 +661,30 @@ class NeoXArgs(*BASE_CLASSES):
             logging.error(error_message)
             raise AssertionError(error_message)
 
-        # Automatically derive train_batch_size = train_micro_batch_size_per_gpu*global_num_gpus*gradient_accumulation_steps
+        # Automatically derive train_batch_size = micro_batch_size_per_gpu*global_num_gpus*gradient_accumulation_steps
         (
             train_batch_size,
-            train_micro_batch_size_per_gpu,
+            micro_batch_size_per_gpu,
             gradient_accumulation_steps,
         ) = self.calculate_batch_parameters(
             dp_world_size=dp_world_size,
             train_batch=self.train_batch_size,
-            micro_batch=self.train_micro_batch_size_per_gpu,
+            micro_batch=self.micro_batch_size_per_gpu,
             grad_acc=self.gradient_accumulation_steps,
         )
         self.check_batch_parameters(
             dp_world_size=dp_world_size,
             train_batch=train_batch_size,
-            micro_batch=train_micro_batch_size_per_gpu,
+            micro_batch=micro_batch_size_per_gpu,
             grad_acc=gradient_accumulation_steps,
         )
         self.update_values(
             {
                 # batch size params
                 "train_batch_size": train_batch_size,
-                "train_micro_batch_size_per_gpu": train_micro_batch_size_per_gpu,
+                "micro_batch_size_per_gpu": micro_batch_size_per_gpu,
                 "gradient_accumulation_steps": gradient_accumulation_steps,
-                "batch_size": train_micro_batch_size_per_gpu,
+                "batch_size": micro_batch_size_per_gpu,
                 # duplicate items
                 "gas": self.gradient_accumulation_steps,
                 "clip_grad": self.gradient_clipping,

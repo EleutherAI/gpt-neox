@@ -974,8 +974,3 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     """
     Tasks to evaluate on using lm_eval_harness
     """
-
-    generating_batch_size: int = 1
-    """
-    The number of samples to generate at the same time.
-    """

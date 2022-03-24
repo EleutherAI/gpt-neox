@@ -912,14 +912,6 @@ Text Generation arguments
 
 
 
-- **generating_batch_size**: int
-
-    Default = 1
-
-    The number of samples to generate at the same time
-
-
-
 ## NeoXArgsTokenizer
 
 Tokenizer Arguments
@@ -1394,7 +1386,7 @@ Args for deepspeed config
 
 
 
-- **train_micro_batch_size_per_gpu**: int
+- **micro_batch_size_per_gpu**: int
 
     Default = None
 
