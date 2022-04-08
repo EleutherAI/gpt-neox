@@ -111,7 +111,7 @@ class EvalHarnessAdapter(GPT2LM):
 
     def tok_encode(self, string: str):
         return self.tokenizer.encode(string)
-    
+
     def tok_decode(self, tokens):
         return self.tokenizer.decode(tokens)
 
