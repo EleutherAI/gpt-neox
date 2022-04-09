@@ -14,6 +14,7 @@ best_download.download_file = _download_file
 
 import os
 import sys
+import dataclasses
 from functools import partial
 
 sys.path.append(
@@ -347,7 +348,16 @@ class EvalHarnessAdapter(GPT2LM):
         raise NotImplementedError()
 
     @torch.no_grad()
-    def run_eval(self, eval_tasks=None, num_fewshot=0, bootstrap_iters=2, description_dict=None, use_cache=True, name="gpt-neox"):
+    def run_eval(
+        self,
+        eval_tasks=None,
+        num_fewshot=0,
+        bootstrap_iters=2,
+        description_dict=None,
+        use_cache=True,
+        name="neox",
+        limit=None
+    ):
         was_training = self.model.training
         self.model.eval()
         in_micro_batches = (
@@ -377,6 +387,8 @@ class EvalHarnessAdapter(GPT2LM):
 
         lm = self
         if use_cache:
+            # TODO(jon-tow): Append a subset of `neox_args` to the cache database
+            # name arg to distinguish model runs that use different configurations.
             lm = base.CachingLM(lm, 'lm_cache/' + name + '.db')
 
         results = evaluator.evaluate(
@@ -384,9 +396,21 @@ class EvalHarnessAdapter(GPT2LM):
             task_dict=tasks.get_task_dict(eval_tasks),
             description_dict=description_dict,
             num_fewshot=num_fewshot,
-            limit=None,
+            limit=limit,
             bootstrap_iters=bootstrap_iters,
         )
+
+        results["config"] = {
+            "model": name,
+            "model_args": dataclasses.asdict(self.neox_args),
+            "num_fewshot": num_fewshot,
+            "batch_size": self.batch_size,
+            "device": str(self.device),
+            "no_cache": not use_cache,
+            "limit": limit,
+            "bootstrap_iters": bootstrap_iters,
+            "description_dict": description_dict
+        }
 
         if was_training:
             self.model.train()
