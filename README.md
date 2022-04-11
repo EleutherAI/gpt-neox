@@ -56,6 +56,8 @@ wget --cut-dirs=5 -nH -r --no-parent --reject "index.html*" https://mystic.the-e
 
 Weights can be alternatively be downloaded using a BitTorrent client. Torrent files can be downloaded here: [slim weights](https://mystic.the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights.torrent), [full weights](https://mystic.the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights.torrent).
 
+We additionally have 150 checkpoints saved throughout training, one every 1,000 steps. We are working on figuring out how to best serve these at scale, but in the meanwhile people interested in working with the partially trained checkpoints can email us at contact@eleuther.ai to arrange access.
+
 # Quick Start
 
 ## Environment and Dependencies
