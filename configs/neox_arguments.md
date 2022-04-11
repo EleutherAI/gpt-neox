@@ -101,9 +101,17 @@ Logging Arguments
 
 
 
+- **wandb_init_all_ranks**: bool
+
+    Default = False
+
+    Initialize wandb on all ranks.
+
+
+
 - **git_hash**: str
 
-    Default = a593ce2
+    Default = 959c13b
 
     current git hash of repository
 
@@ -133,11 +141,19 @@ Logging Arguments
 
 
 
+- **log_grad_pct_zeros**: bool
+
+    Default = False
+
+    Log the percentage of zeros for the gradient of each parameter to wandb / tensorboard (useful for debugging). Needs wandb_init_all_ranks set to True if using pipeline parallelism to log all ranks.
+
+
+
 - **log_param_norm**: bool
 
     Default = False
 
-    Log the frob norm of the parameters to wandb / tensorboard (useful for debugging).
+    Log the frob norm of the parameters to wandb / tensorboard (useful for debugging). Needs wandb_init_all_ranks set to True if using pipeline parallelism to log all ranks.
 
 
 
@@ -824,7 +840,7 @@ Text Generation arguments
 
 - **text_gen_type**: str
 
-    Default = unconditional
+    Default = None
 
     How to generate text/sample the model.
     Options: `unconditional`, `input-file`, `interactive`
@@ -898,7 +914,7 @@ Text Generation arguments
 
 - **eval_results_prefix**: str
 
-    Default =
+    Default = 
 
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
 
@@ -1486,7 +1502,7 @@ Args for deepspeed config
 
     Default = None
 
-
+    
 
 
 
@@ -1612,3 +1628,4 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = False
 
     If true, autodetects nvlink pairs and remaps cuda visible devices to place them next to each other. This is an Eleuther addition to deepspeed, and should speed up model parallel training on setups with nvlink pairs when mp=2.
+
