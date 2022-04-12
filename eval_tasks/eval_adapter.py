@@ -14,6 +14,7 @@ best_download.download_file = _download_file
 
 import os
 import sys
+import dataclasses
 from functools import partial
 
 sys.path.append(
@@ -23,9 +24,8 @@ from tqdm import tqdm
 import torch
 import torch.nn.functional as F
 
-from lm_eval.base import CacheHook
 from lm_eval.models.gpt2 import GPT2LM
-from lm_eval import tasks, evaluator, utils
+from lm_eval import tasks, evaluator, utils, base
 from megatron.text_generation_utils import generate_samples_from_prompt
 from megatron import mpu
 
@@ -42,16 +42,15 @@ class EvalHarnessAdapter(GPT2LM):
     """
 
     def __init__(self, model, forward_step_fn, neox_args, batch_size=None):
-
-        self.device = torch.device(f"cuda:{neox_args.local_rank}")
-        self.VOCAB_SIZE = neox_args.padded_vocab_size
-        self.tokenizer = neox_args.tokenizer
-        self.EOT_TOKEN_ID = neox_args.tokenizer.eod_id
+        self.cache_hook = base.CacheHook(None)
         self.model = model
         self.neox_args = neox_args
-        self.cache_hook = CacheHook(None)
-        self.max_length = neox_args.max_position_embeddings // 2
-        self.max_gen_toks = 128
+        self.tokenizer = neox_args.tokenizer
+        self._device = torch.device(f"cuda:{neox_args.local_rank}")
+        self._eot_token_id = neox_args.tokenizer.eod_id
+        self._max_length = neox_args.max_position_embeddings // 2
+        self._max_gen_toks = 128
+        self._vocab_size = neox_args.padded_vocab_size
 
         # parallelism args:
         self.is_main = neox_args.rank == 0
@@ -67,7 +66,7 @@ class EvalHarnessAdapter(GPT2LM):
         self.dp_group = mpu.get_data_parallel_group()
         self.is_mp_rank_0 = mpu.get_model_parallel_rank() == 0
 
-        self.batch_size = batch_size or (
+        self._batch_size = batch_size or (
             neox_args.batch_size * self.dp_world_size
         )  # default batch size to bs per gpu * dp size
 
@@ -82,9 +81,40 @@ class EvalHarnessAdapter(GPT2LM):
             generate_samples_from_prompt,
             neox_args=neox_args,
             model=model,
-            maximum_tokens=self.max_gen_toks,
+            maximum_tokens=self._max_gen_toks,
             temperature=0.0,
         )
+
+    @property
+    def vocab_size(self):
+        return self._vocab_size
+
+    @property
+    def eot_token_id(self):
+        # we use EOT because end of *text* is more accurate for what we're doing than end of *sentence*
+        return self._eos_token_id
+
+    @property
+    def max_length(self):
+        return self._max_length
+
+    @property
+    def max_gen_toks(self):
+        return self._max_gen_toks
+
+    @property
+    def batch_size(self):
+        return self._batch_size
+
+    @property
+    def device(self):
+        return self._device
+
+    def tok_encode(self, string: str):
+        return self.tokenizer.encode(string)
+
+    def tok_decode(self, tokens):
+        return self.tokenizer.decode(tokens)
 
     def greedy_until(self, requests):
         """
@@ -156,7 +186,7 @@ class EvalHarnessAdapter(GPT2LM):
                 tqdm(reord.get_reordered(), disable=disable_tqdm), self.batch_size
             ):
                 inps, contlens, inplens, padding_length = [], [], [], None
-                for _, context_enc, continuation_enc in chunk:
+                for cache_key, context_enc, continuation_enc in chunk:
                     # when too long to fit in context, truncate from the left
                     inp = torch.tensor(
                         (context_enc + continuation_enc)[-(self.max_length + 1) :][:-1],
@@ -313,8 +343,21 @@ class EvalHarnessAdapter(GPT2LM):
             logits = logits[:batch_size, ...]
         return logits
 
+    def _model_generate(self, context, max_length, eos_token_id):
+        # Isn't used because we override `greedy_until``.
+        raise NotImplementedError()
+
     @torch.no_grad()
-    def run_eval(self, eval_tasks=None, num_fewshot=0, bootstrap_iters=2):
+    def run_eval(
+        self,
+        eval_tasks=None,
+        num_fewshot=0,
+        bootstrap_iters=2,
+        description_dict=None,
+        use_cache=True,
+        name="neox",
+        limit=None
+    ):
         was_training = self.model.training
         self.model.eval()
         in_micro_batches = (
@@ -342,14 +385,32 @@ class EvalHarnessAdapter(GPT2LM):
             torch.distributed.barrier()
         task_dict = tasks.get_task_dict(eval_tasks)
 
+        lm = self
+        if use_cache:
+            # TODO(jon-tow): Append a subset of `neox_args` to the cache database
+            # name arg to distinguish model runs that use different configurations.
+            lm = base.CachingLM(lm, 'lm_cache/' + name + '.db')
+
         results = evaluator.evaluate(
-            lm=self,
+            lm=lm,
             task_dict=tasks.get_task_dict(eval_tasks),
-            provide_description=False,
+            description_dict=description_dict,
             num_fewshot=num_fewshot,
-            limit=None,
+            limit=limit,
             bootstrap_iters=bootstrap_iters,
         )
+
+        results["config"] = {
+            "model": name,
+            "model_args": dataclasses.asdict(self.neox_args),
+            "num_fewshot": num_fewshot,
+            "batch_size": self.batch_size,
+            "device": str(self.device),
+            "no_cache": not use_cache,
+            "limit": limit,
+            "bootstrap_iters": bootstrap_iters,
+            "description_dict": description_dict
+        }
 
         if was_training:
             self.model.train()
