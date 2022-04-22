@@ -290,7 +290,10 @@ def merge_checkpoints(
             raise ValueError("No global step provided")
 
     weights_dir = checkpoint_dir / f"global_step{global_step}"
-
+    assert (
+        weights_dir.is_dir()
+    ), f"weights dir does not exist: {str(weights_dir)}"
+        
     output_weights_dir = output_dir / f"global_step{global_step}"
     output_configs_dir = output_dir / "configs"
 
