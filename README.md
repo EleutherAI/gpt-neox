@@ -153,6 +153,16 @@ You can add an arbitrary list of evaluation tasks here, for details of all tasks
 
 For more details on each entry point, see the [Training and Finetuning](#training-and-finetuning), [Inference](#inference) and [Evaluation](#evaluation) sections.
 
+## Running on a single GPU
+
+We provide a simple script for merging the 20B checkpoints to be run on a single GPU. First, download the slim weights from [above](#download-links), and run the following script:
+
+```bash
+python tools/merge20b.py --input_dir ./20B_checkpoints --output_dir ./20B_checkpoints_merged
+```
+
+As an alternative, you can also use [Minimal GPT-NeoX-20B](https://github.com/zphang/minimal-gpt-neox-20b) implementation, which runs and pure PyTorch on a single GPU, and does not require DeepSpeed.
+
 # Configuration
 
 GPT-NeoX parameters are defined in a YAML configuration file which is passed to the deepy.py launcher. We have provided some example .yaml files in [configs](./configs/), including one for GPT-NeoX-20B, and example configuration files for other model sizes.
