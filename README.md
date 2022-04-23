@@ -34,7 +34,7 @@ For those looking for a TPU-centric codebase, we recommend [Mesh Transformer JAX
 
 ## GPT-NeoX-20B
 
-GPT-NeoX-20B is a 20 billion parameter autoregressive language model trained on [the Pile](https://arxiv.org/abs/2101.00027). Technical details about GPT-NeoX-20B can be found in our [whitepaper](http://eaidata.bmk.sh/data/GPT_NeoX_20B.pdf). The configuration file for this model is both available at [`./configs/20B.yml`](./configs/20B.yml) and included in the download links below.
+GPT-NeoX-20B is a 20 billion parameter autoregressive language model trained on [the Pile](https://arxiv.org/abs/2101.00027). Technical details about GPT-NeoX-20B can be found in [the associated paper](https://arxiv.org/abs/2204.06745). The configuration file for this model is both available at [`./configs/20B.yml`](./configs/20B.yml) and included in the download links below.
 
 ### Download Links
 
@@ -329,11 +329,11 @@ We also support using TensorBoard via the <code><var>tensorboard-dir</var></code
 
 ## Citing GPT-NeoX
 
-If you have found GPT-NeoX helpful in your work, you can cite this repository as
+If you have found the GPT-NeoX library helpful in your work, you can cite this repository as
 
 ```bibtex
 @software{gpt-neox,
-  author = {Andonian, Alex and Anthony, Quentin and Biderman, Stella and Black, Sid and Gali, Preetham and Gao, Leo and Hallahan, Eric and Levy-Kramer, Josh and Leahy, Connor and Nestler, Lucas and Parker, Kip and Pieler, Michael and Purohit, Shivanshu and Songz, Tri and Wang, Phil and Weinbach, Samuel},
+  author = {Black, Sid and Biderman, Stella and Andonian, Alex and Anthony, Quentin and Gali, Preetham and Gao, Leo and Hallahan, Eric and Levy-Kramer, Josh and Leahy, Connor and Nestler, Lucas and Parker, Kip and Phang, Jason and Pieler, Michael and Purohit, Shivanshu and Songz, Tri and Wang, Phil and Weinbach, Samuel},
   title = {{GPT-NeoX}: Large Scale Autoregressive Language Modeling in PyTorch},
   url = {http://github.com/eleutherai/gpt-neox},
   year = {2021}
@@ -343,9 +343,11 @@ If you have found GPT-NeoX helpful in your work, you can cite this repository as
 To cite our 20 billion parameter model, please use
 
 ```bibtex
-@article{gpt-neox-20b,
+@inproceedings{gpt-neox-20b,
   title={{GPT-NeoX-20B}: An Open-Source Autoregressive Language Model},
   author={Black, Sid and Biderman, Stella and Hallahan, Eric and Anthony, Quentin and Gao, Leo and Golding, Laurence and He, Horace and Leahy, Connor and McDonell, Kyle and Phang, Jason and Pieler, Michael and Prashanth, USVSN Sai and Purohit, Shivanshu and Reynolds, Laria and Tow, Jonathan and Wang, Ben and Weinbach, Samuel},
+  booktitle={Proceedings of the ACL Workshop on Challenges \& Perspectives in Creating Large Language Models},
+  url={https://arxiv.org/abs/2204.06745},
   year={2022}
 }
 ```
