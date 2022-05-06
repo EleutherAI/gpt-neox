@@ -73,12 +73,12 @@
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
-   "save-interval": 10000,
-   "eval-interval": 1000,
-   "eval-iters": 10,
+   "save-interval": 100,
+   "eval-interval": 10,
+   "eval-iters": 1,
 
    # logging
-   "log-interval": 100,
+   "log-interval": 10,
    "steps_per_print": 10,
    "keep-last-n-checkpoints": 4,
    "wall_clock_breakdown": true,
