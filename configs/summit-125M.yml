@@ -1,11 +1,16 @@
-# GPT-2 pretraining setup
+# GPT-3 pretraining setup
 {
-   # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
-   # across the node boundaries )
+   # parallelism settings
+   # model-parallel-size should divide 6
+   
    "pipe-parallel-size": 1,
    "model-parallel-size": 1,
+   
+   # Total batch size should be ~ 0.5 million TOKENS
    "train_micro_batch_size_per_gpu": 4,
    "gas": 1,
+   
+   #### Don't touch below here
 
    # model settings
    "num-layers": 12,
