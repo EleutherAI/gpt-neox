@@ -9,5 +9,4 @@
   "load": "/mnt/ssd-1/checkpoints",
   "tensorboard-dir": "/mnt/ssd-1/tensorboard",
   "log-dir": "/mnt/ssd-1/logs",
-  "wandb_team": "eleutherai",
 }
