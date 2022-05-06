@@ -4,6 +4,8 @@
    # across the node boundaries )
    "pipe-parallel-size": 1,
    "model-parallel-size": 1,
+   "train_micro_batch_size_per_gpu": 4,
+   "gas": 1,
 
    # model settings
    "num-layers": 12,
@@ -41,7 +43,6 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 4,
    "data-impl": "mmap",
    "split": "949,50,1",
 
