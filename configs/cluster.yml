@@ -1,1 +1,13 @@
+# Data paths and options
+# Replace /mnt/ssd-1 with the path to our mounted drive
 
+{
+  "data-path": "/mnt/ssd-1/data/enron/enron_text_document",
+  "vocab-file": "/mnt/ssd-1/data/gpt2-vocab.json",
+  "merge-file": "/mnt/ssd-1/data/gpt2-merges.txt",
+  "save": "/mnt/ssd-1/checkpoints",
+  "load": "/mnt/ssd-1/checkpoints",
+  "tensorboard-dir": "/mnt/ssd-1/tensorboard",
+  "log-dir": "/mnt/ssd-1/logs",
+  "wandb_team": "eleutherai",
+}
