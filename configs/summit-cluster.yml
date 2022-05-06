@@ -1,5 +1,5 @@
 # Data paths and options
-# Replace /mnt/ssd-1 with the path to our mounted drive
+# Replace /PATH/HERE/ with the path to our mounted drive
 
 {
   "data-path": "/PATH/HERE/data/enron/enron_text_document",
