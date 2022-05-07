@@ -1,6 +1,6 @@
 # Suggested data paths when using GPT-NeoX locally
 {
-  "data-path": "data/enron/enron_text_document",
+  "data-path": "/mnt/neox/chess/chess_amplified_text_document",
 
   # or for weighted datasets:
   # "train-data-paths": ["data/enron/enron_text_document", "data/enron/enron_text_document"],
@@ -15,11 +15,11 @@
   # "weight_by_num_documents": false,
   # "weighted_sampler_alpha": 0.3,
 
-  "vocab-file": "data/gpt2-vocab.json",
-  "merge-file": "data/gpt2-merges.txt",
-
-  "save": "checkpoints",
-  "load": "checkpoints",
+  "vocab-file": "/mnt/neox/chess/chess_66.model",
+  #"merge-file": "data/gpt2-merges.txt",
+  "tokenizer_type": "SPMTokenizer",
+  "save": "/mnt/neox/chess/checkpoints",
+  "load": "/mnt/neox/chess/checkpoints",
   "checkpoint_validation_with_forward_pass": False,
 
   "tensorboard-dir": "tensorboard",
