@@ -187,10 +187,10 @@ def merge(input_dir, output_dir):
         output_config_path=os.path.join(output_dir, "configs", "20B.yml"),
         output_dir=output_dir,
     )
-    # merge_model_weights(
-    #     input_checkpoint_path=input_checkpoint_path,
-    #     output_checkpoint_path=output_checkpoint_path,
-    # )
+    merge_model_weights(
+        input_checkpoint_path=input_checkpoint_path,
+        output_checkpoint_path=output_checkpoint_path,
+    )
     shutil.copyfile(
         os.path.join(input_dir, "20B_tokenizer.json"),
         os.path.join(output_dir, "20B_tokenizer.json"),
