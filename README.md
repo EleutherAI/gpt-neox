@@ -28,6 +28,7 @@ For those looking for a TPU-centric codebase, we recommend [Mesh Transformer JAX
 - [Administrative Notes](#administrative-notes)
   * [Citing GPT-NeoX](#citing-gpt-neox)
   * [Licensing](#licensing)
+  * [Publications](#publications)
   * [Acknowledgements](#acknowledgements)
 
 # Pretrained Models
