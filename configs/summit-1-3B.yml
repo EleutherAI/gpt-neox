@@ -6,6 +6,7 @@
    "model-parallel-size": 1,
    
    # Total batch size should be ~ 1 million TOKENS
+   # These numbers don't count the sequence length, so 1 million tokens ~= 488 inputs
    "train_micro_batch_size_per_gpu": 1,
    "gas": 1,
 
