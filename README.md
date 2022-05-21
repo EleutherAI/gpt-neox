@@ -28,6 +28,7 @@ For those looking for a TPU-centric codebase, we recommend [Mesh Transformer JAX
 - [Administrative Notes](#administrative-notes)
   * [Citing GPT-NeoX](#citing-gpt-neox)
   * [Licensing](#licensing)
+  * [Publications](#publications)
   * [Acknowledgements](#acknowledgements)
 
 # Pretrained Models
@@ -332,11 +333,14 @@ We also support using TensorBoard via the <code><var>tensorboard-dir</var></code
 If you have found the GPT-NeoX library helpful in your work, you can cite this repository as
 
 ```bibtex
-@software{gpt-neox,
-  author = {Black, Sid and Biderman, Stella and Andonian, Alex and Anthony, Quentin and Gali, Preetham and Gao, Leo and Hallahan, Eric and Levy-Kramer, Josh and Leahy, Connor and Nestler, Lucas and Parker, Kip and Phang, Jason and Pieler, Michael and Purohit, Shivanshu and Songz, Tri and Wang, Phil and Weinbach, Samuel},
-  title = {{GPT-NeoX}: Large Scale Autoregressive Language Modeling in PyTorch},
-  url = {http://github.com/eleutherai/gpt-neox},
-  year = {2021}
+@software{gpt-neox-library,
+  title = {{GPT-NeoX: Large Scale Autoregressive Language Modeling in PyTorch}},
+  author = {Andonian, Alex and Anthony, Quentin and Biderman, Stella and Black, Sid and Gali, Preetham and Gao, Leo and Hallahan, Eric and Levy-Kramer, Josh and Leahy, Connor and Nestler, Lucas and Parker, Kip and Pieler, Michael and Purohit, Shivanshu and Songz, Tri and Phil, Wang and Weinbach, Samuel},
+  url = {https://www.github.com/eleutherai/gpt-neox},
+  doi = {10.5281/zenodo.5879544},
+  month = {8},
+  year = {2021},
+  version = {0.0.1},
 }
 ```
 
@@ -371,6 +375,18 @@ This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyri
 This repository is based off code written by NVIDIA that is licensed under the Apache License, Version 2.0. In accordance with the Apache License, all files that are modifications of code originally written by NVIDIA maintain a NVIDIA copyright header. All files that do not contain such a header are original to EleutherAI contributors. When the NVIDIA code has been modified from its original version, that fact is noted in the copyright header. All derivative works of this repository must preserve these headers under the terms of the Apache License.
 
 For full terms, see the `LICENSE` file. If you have any questions, comments, or concerns about licensing please email us at contact@eleuther.ai.
+
+## Publications
+
+The following publications have come out of this project:
+
+ - Black, Biderman, Hallahan, Anthony, Gao, Golding, He, Leahy, McDonell, Phang, Pieler, Prashanth, Purohit, Reynolds, Tow, Wang, and Weinbach. "[GPT-NeoX-20B: An Open-Source Autoregressive Language Model](https://arxiv.org/abs/2204.06745)." In *Proceedings of the ACL Workshop on Challenges \& Perspectives in Creating Large Language Models*. 2022.
+
+The following publications by other research groups use this library:
+
+- Horawalavithana, Ayton, Sharma, Howland, Subramanian, Vasquez, Cosbey, Glenski, and Volkova. "[Foundation Models of Scientific Knowledge for Chemistry: Opportunities, Challenges and Lessons Learned](https://openreview.net/pdf?id=SLX-I2MHUZ9)." In *Proceedings of the ACL Workshop on Challenges \& Perspectives in Creating Large Language Models*. 2022.
+- Xu, Alon, Neubig, and Hellendoorn. "[A Systematic Evaluation of Large Language Models of Code](https://arxiv.org/abs/2202.13169)." In *Proceedings of the ICLR Workshop on Deep Learning For Code*. 2022.
+
 
 ## Acknowledgements
 
