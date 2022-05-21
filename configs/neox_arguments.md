@@ -115,8 +115,6 @@ Logging Arguments
 
     current git hash of repository
 
-
-
 - **log_dir**: str
 
     Default = None
