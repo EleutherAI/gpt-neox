@@ -50,7 +50,7 @@ For a detailed list of all the arguments available for neox, see [neox_arguments
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 4,
+   "micro_batch_size_per_gpu": 4,
    "gradient_accumulation_steps": 1,
    "data-impl": "mmap",
    "split": "949,50,1",
@@ -189,12 +189,12 @@ N.B - ZeRO stages 2+ are incompatible with pipeline parallelism. Please set `"pi
 
 ```yaml
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 4,
+   "micro_batch_size_per_gpu": 4,
    "gradient_accumulation_steps": 1,
 ```
-Our global batch size configuration follows deepspeed's and can be configured in a number of ways. At least any one of `"train_batch_size"` and `"train_micro_batch_size_per_gpu"`.
+Our global batch size configuration follows deepspeed's and can be configured in a number of ways. At least any one of `"train_batch_size"` and `"micro_batch_size_per_gpu"`.
 - `"train_batch_size"`: The effective training batch size. This is the amount of data samples that leads to one step of model update. train_batch_size is aggregated by the batch size that a single GPU processes in one forward/backward pass (a.k.a., train_step_batch_size), the gradient accumulation steps (a.k.a., gradient_accumulation_steps), and the number of GPUs.
-- `"train_micro_batch_size_per_gpu""`: Batch size to be processed by one GPU in one step (without gradient accumulation). When specified, `gradient_accumulation_steps` is automatically calculated using train_batch_size and number of GPUs.
+- `"micro_batch_size_per_gpu""`: Batch size to be processed by one GPU in one step (without gradient accumulation). When specified, `gradient_accumulation_steps` is automatically calculated using train_batch_size and number of GPUs.
 - `"gradient_accumulation_steps"`: Number of training steps to accumulate gradients before averaging and applying them. This feature is sometimes useful to improve scalability since it results in less frequent communication of gradients between steps. Another impact of this feature is the ability to train with larger batch sizes per GPU. When specified, train_step_batch_size is automatically calculated using train_batch_size and number of GPUs.
 
 ### Dataset / Tokenizer / Checkpoint / Logging Settings:

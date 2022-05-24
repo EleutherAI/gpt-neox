@@ -270,7 +270,7 @@ def stream_tokens(
     last_token_index_to_generate = min(
         neox_args.seq_length
         - 1,  # never generate more than the model's sequence length
-        token_index_to_generate + maximum_tokens - 1,
+        token_generation_start_index.max().item() + maximum_tokens - 1,
     )
 
     with torch.no_grad():
@@ -350,6 +350,10 @@ def stream_tokens(
             state_started = (
                 token_generation_start_index <= token_index_to_generate
             )  # check which batch items have been started
+
+            state_started = state_started & (
+                token_generation_start_index + maximum_tokens > token_index_to_generate
+            )  # check which batch items have been ended
 
             # switch out padding tokens for generated tokens
             context_tokens[:, token_index_to_generate] = switch(
@@ -439,29 +443,32 @@ def generate_samples_from_prompt(
 
         start_time = time.time()
         # Tokenize text, and check whether we should terminate process
+        batch_size = min(neox_args.micro_batch_size_per_gpu, input_count - input_pos)
         terminate_runs = 0
         if input_pos == input_count:
             terminate_runs = 1
         else:
-            raw_text = text[input_pos]
-            input_pos += 1
-
-            if raw_text == "":
-                context_tokens = [eos_token_id]
-            else:
-                context_tokens = neox_args.tokenizer.tokenize(raw_text)
-            context_length = len(context_tokens)
-
-            if context_length >= (neox_args.seq_length // 2):
-                print_rank_0(
-                    "\nWarning! Context length",
-                    context_length,
-                    "\nPlease give smaller context (e.g. half of the "
-                    "max sequence length)!",
-                )
+            context_tokens_list = []
+            for pos in range(input_pos, input_pos + batch_size):
+                raw_text = text[pos]
+                if raw_text == "":
+                    context_tokens = [eos_token_id]
+                else:
+                    context_tokens = neox_args.tokenizer.tokenize(raw_text)
+                context_length = len(context_tokens)
+                if context_length >= (neox_args.seq_length // 2):
+                    print_rank_0(
+                        "\nWarning! Context length",
+                        context_length,
+                        "\nPlease give smaller context (e.g. half of the "
+                        "max sequence length)!",
+                    )
+                context_tokens_list.append(context_tokens)
+            input_pos += batch_size
         if not is_mp_rank_0():
-            context_tokens = neox_args.tokenizer.tokenize("EMPTY TEXT")
-            context_length = len(context_tokens)
+            context_tokens_list = [
+                neox_args.tokenizer.tokenize("EMPTY TEXT") for _ in range(batch_size)
+            ]
             terminate_runs = 0
 
         terminate_runs = broadcast_terminate_signal(terminate_runs)
@@ -476,7 +483,7 @@ def generate_samples_from_prompt(
         ) in stream_tokens(
             neox_args=neox_args,
             model=model,
-            context_tokens=[context_tokens],
+            context_tokens=context_tokens_list,
             eos_token_id=eos_token_id,
             maximum_tokens=maximum_tokens,
             recompute=recompute,
@@ -496,12 +503,12 @@ def generate_samples_from_prompt(
         )
         batch_is_done = is_done.cpu().numpy().tolist()
 
-        for tokens, start_index, end_index, is_done in zip(
-            batch_context_tokens,
-            batch_token_generation_start_index,
-            batch_token_generation_end_index,
-            batch_is_done,
-        ):
+        for i in range(batch_size):
+            tokens = batch_context_tokens[i]
+            start_index = batch_token_generation_start_index[i]
+            end_index = batch_token_generation_end_index[i]
+            is_done = batch_is_done[i]
+            raw_text = text[input_pos - batch_size + i]
 
             if end_index >= start_index:
                 generated_tokens = tokens[start_index : end_index + 1]

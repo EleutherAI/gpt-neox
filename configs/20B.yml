@@ -58,7 +58,7 @@
   },
 
   # batch / data settings (assuming 96 GPUs)
-  "train_micro_batch_size_per_gpu": 4,
+  "micro_batch_size_per_gpu": 4,
   "gradient_accumulation_steps": 32,
   "data-impl": "mmap",
   "split": "995,4,1",

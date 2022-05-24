@@ -57,7 +57,7 @@ def do_forward_pass(neox_args, model, inference=False):
     # get context tokens
     # always forward full batch size
     context_tokens_tensor = (
-        torch.arange(2049).repeat((neox_args.train_micro_batch_size_per_gpu, 1)).cuda()
+        torch.arange(2049).repeat((neox_args.micro_batch_size_per_gpu, 1)).cuda()
     )
 
     # forward

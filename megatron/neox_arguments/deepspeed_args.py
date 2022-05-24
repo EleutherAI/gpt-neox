@@ -22,7 +22,7 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     The effective training batch size. This is the amount of data samples that leads to one step of model update. train_batch_size is aggregated by the batch size that a single GPU processes in one forward/backward pass (a.k.a., train_step_batch_size), the gradient accumulation steps (a.k.a., gradient_accumulation_steps), and the number of GPUs.
     """
 
-    train_micro_batch_size_per_gpu: int = None
+    micro_batch_size_per_gpu: int = None
     """
     Batch size to be processed by one GPU in one step (without gradient accumulation). When specified, gradient_accumulation_steps is automatically calculated using train_batch_size and number of GPUs. Should not be concurrently specified with gradient_accumulation_steps in the configuration JSON.
     """

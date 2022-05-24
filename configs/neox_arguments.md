@@ -1402,7 +1402,7 @@ Args for deepspeed config
 
 
 
-- **train_micro_batch_size_per_gpu**: int
+- **micro_batch_size_per_gpu**: int
 
     Default = None
 
