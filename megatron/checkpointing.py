@@ -57,13 +57,15 @@ def do_forward_pass(neox_args, model, inference=False):
     # get context tokens
     # always forward full batch size
     context_tokens_tensor = (
-        torch.arange(2049).repeat((neox_args.train_micro_batch_size_per_gpu, 1)).cuda()
+        torch.arange(neox_args.seq_length + 1)
+        .repeat((neox_args.train_micro_batch_size_per_gpu, 1))
+        .cuda()
     )
 
     # forward
     if inference:
         tokens, attention_mask, position_ids = get_batch(
-            neox_args, context_tokens_tensor[:, :2048]
+            neox_args, context_tokens_tensor[:, : neox_args.seq_length]
         )
         model_inputs = (
             tokens,
@@ -77,7 +79,7 @@ def do_forward_pass(neox_args, model, inference=False):
         _, logits = model.eval_batch(data_iter=data_iterator, return_logits=True)
     else:
         tokens, attention_mask, position_ids = get_batch(
-            neox_args, context_tokens_tensor[:, :2048]
+            neox_args, context_tokens_tensor[:, : neox_args.seq_length]
         )
         logits = model((tokens, position_ids, attention_mask))
 
