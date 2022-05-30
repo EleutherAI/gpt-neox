@@ -385,7 +385,9 @@ The following publications have come out of this project:
 The following publications by other research groups use this library:
 
 - Horawalavithana, Ayton, Sharma, Howland, Subramanian, Vasquez, Cosbey, Glenski, and Volkova. "[Foundation Models of Scientific Knowledge for Chemistry: Opportunities, Challenges and Lessons Learned](https://openreview.net/pdf?id=SLX-I2MHUZ9)." In *Proceedings of the ACL Workshop on Challenges \& Perspectives in Creating Large Language Models*. 2022.
+- Kolak, Martins, Le Goues, and Hellendoorn. "[Patch Generation with Language Models: Feasibility and Scaling Behavior](https://openreview.net/forum?id=rHlzJh_b1-5)"." In *Proceedings of the Deep Learning for Code Workshop at ICLR*. 2022.
 - Xu, Alon, Neubig, and Hellendoorn. "[A Systematic Evaluation of Large Language Models of Code](https://arxiv.org/abs/2202.13169)." In *Proceedings of the ICLR Workshop on Deep Learning For Code*. 2022.
+
 
 
 ## Acknowledgements
