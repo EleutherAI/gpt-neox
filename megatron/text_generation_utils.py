@@ -236,9 +236,10 @@ def stream_tokens(
     # convert to tensor and broadcast
     context_tokens = torch.cuda.LongTensor(context_tokens)
     if stop_tokens:
-        stop_tokens = torch.cuda.LongTensor(stop_tokens)
-        if stop_tokens.ndim == 1:
-            stop_tokens = stop_tokens.unsqueeze(0)
+        if len(stop_tokens) > 0 and type(stop_tokens[0]) is not list:
+            stop_tokens = [stop_tokens]
+        for i in range(0, len(stop_tokens)):
+            stop_tokens[i] = torch.cuda.LongTensor(stop_tokens[i])
 
     # Make sure context tokens + start tokens are the same across all ranks
     token_generation_start_index = torch.cuda.LongTensor(context_lengths)
