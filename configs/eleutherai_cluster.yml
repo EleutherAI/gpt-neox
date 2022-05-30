@@ -1,7 +1,7 @@
 # Data paths and options when using EleutherAI cluster
 {
 
-  "train-data-paths": ["/mnt/neox/data/pile_20B_tokenizer/pile_20B_tokenizer_train_text_document"],
+  "train-data-paths": ["/mnt/neox/data/pile_20B_tokenizer/pile_20B_tokenizer_text_document"],
   "valid-data-paths": ["/mnt/neox/data/pile_20B_tokenizer/pile_20B_tokenizer_valid_text_document"],
   "test-data-paths": ["/mnt/neox/data/pile_20B_tokenizer/pile_20B_tokenizer_test_text_document"],
   
