@@ -6,7 +6,6 @@ git+https://github.com/bigscience-workshop/lm-evaluation-harness.git#egg=lm_eval
 mpi4py==3.0.3
 numpy==1.21.0
 pybind11==2.6.2
-regex
 sentencepiece
 six
 tokenizers==0.10.2
