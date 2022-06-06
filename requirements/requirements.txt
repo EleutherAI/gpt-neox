@@ -2,7 +2,7 @@ git+https://github.com/EleutherAI/DeeperSpeed.git@eb7f5cff36678625d23db8a8fe78b4
 einops==0.3.0
 ftfy==6.0.1
 lm_dataformat==0.0.20
-lm_eval==0.2.0
+git+https://github.com/bigscience-workshop/lm-evaluation-harness.git#egg=lm_eval
 mpi4py==3.0.3
 numpy==1.21.0
 pybind11==2.6.2
