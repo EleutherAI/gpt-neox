@@ -159,11 +159,16 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
     labels = tokens_[:, 1:].contiguous()
     tokens = tokens_[:, :-1].contiguous()
 
+    # Prefix
+    if neox_args.prefix_lm:
+        prefix_indices = data_b["prefix_len"].cpu().tolist()
+    
     # Get the masks and position ids.
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
         data=tokens,
         eod_token=neox_args.tokenizer.eod,
         eod_mask_loss=neox_args.eod_mask_loss,
+        prefix_indices=prefix_indices,
     )
 
     return tokens, labels, loss_mask, attention_mask, position_ids
@@ -174,6 +179,8 @@ def get_batch(neox_args, data_iterator):
 
     # Items and their type.
     keys = ["text"]
+    if neox_args.prefix_lm:
+        keys += ["prefix_len"]
     datatype = torch.int64
 
     # Broadcast data.
