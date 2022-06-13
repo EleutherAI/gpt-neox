@@ -330,6 +330,12 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
     """
 
+    use_prefix_attention: bool = False
+    """
+    If true, model will use a prefix-based attention that fully attends for n tokens
+    and causally attends for the rest.
+    """
+
 
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):

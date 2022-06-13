@@ -18,173 +18,44 @@
 import os
 import time
 import random
-import collections
 
 import numpy as np
 import torch
 
 from megatron import mpu, print_rank_0, get_tokenizer
-from megatron.data.blendable_dataset import BlendableDataset
-from megatron.data.dataset_utils import get_datasets_weights_and_num_samples, create_masked_lm_predictions
-from megatron.data.dataset_utils import get_train_valid_test_split_, get_split_by_range_, get_indexed_dataset_
-from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
-
-
-def build_train_valid_test_datasets(data_prefix, data_impl, splits_string,
-                                    train_valid_test_num_samples,
-                                    max_seq_length,
-                                    masked_lm_prob, short_seq_prob, seed,
-                                    skip_warmup, binary_head=False,
-                                    max_seq_length_dec=None,
-                                    dataset_type='standard_bert'):
-    if len(data_prefix) == 1:
-        return _build_train_valid_test_datasets(data_prefix[0],
-                                                data_impl, splits_string,
-                                                train_valid_test_num_samples,
-                                                max_seq_length, masked_lm_prob,
-                                                short_seq_prob, seed,
-                                                skip_warmup,
-                                                binary_head,
-                                                max_seq_length_dec,
-                                                dataset_type=dataset_type)
-    # Blending dataset.
-    # Parse the values.
-    output = get_datasets_weights_and_num_samples(data_prefix,
-                                                  train_valid_test_num_samples)
-    prefixes, weights, datasets_train_valid_test_num_samples = output
-
-    # Build individual datasets.
-    train_datasets = []
-    valid_datasets = []
-    test_datasets = []
-    for i in range(len(prefixes)):
-        train_ds, valid_ds, test_ds = _build_train_valid_test_datasets(
-            prefixes[i], data_impl, splits_string,
-            datasets_train_valid_test_num_samples[i],
-            max_seq_length, masked_lm_prob, short_seq_prob,
-            seed, skip_warmup, binary_head, dataset_type=dataset_type)
-        if train_ds:
-            train_datasets.append(train_ds)
-        if valid_ds:
-            valid_datasets.append(valid_ds)
-        if test_ds:
-            test_datasets.append(test_ds)
-
-        # Blend.
-    blending_train_dataset = None
-    if train_datasets:
-        blending_train_dataset = BlendableDataset(train_datasets, weights)
-    blending_valid_dataset = None
-    if valid_datasets:
-        blending_valid_dataset = BlendableDataset(valid_datasets, weights)
-    blending_test_dataset = None
-    if test_datasets:
-        blending_test_dataset = BlendableDataset(test_datasets, weights)
-
-    return (blending_train_dataset, blending_valid_dataset,
-            blending_test_dataset)
-
-
-def _build_train_valid_test_datasets(data_prefix, data_impl, splits_string,
-                                     train_valid_test_num_samples,
-                                     max_seq_length,
-                                     masked_lm_prob, short_seq_prob, seed,
-                                     skip_warmup, binary_head,
-                                     max_seq_length_dec,
-                                     dataset_type='standard_bert'):
-    """Build train, valid, and test datasets."""
-
-
-    # Indexed dataset.
-    indexed_dataset = get_indexed_dataset_(data_prefix,
-                                           data_impl,
-                                           skip_warmup)
-
-    total_num_of_documents = indexed_dataset.sizes.shape[0] - 1
-    splits = get_train_valid_test_split_(splits_string, total_num_of_documents)
-    # Print stats about the splits.
-    print_rank_0(' > dataset split:')
-
-    def print_split_stats(name, index):
-        print_rank_0('    {}:'.format(name))
-        print_rank_0('     document indices in [{}, {}) total of {} '
-                     'documents'.format(splits[index], splits[index + 1],
-                                        splits[index + 1] - splits[index]))
-        start_index = indexed_dataset.doc_idx[splits[index]]
-        end_index = indexed_dataset.doc_idx[splits[index + 1]]
-        print_rank_0('     sentence indices in [{}, {}) total of {} '
-                     'sentences'.format(start_index, end_index,
-                                        end_index - start_index))
-    print_split_stats('train', 0)
-    print_split_stats('validation', 1)
-    print_split_stats('test', 2)
-
-    def build_dataset(index, name):
-        dataset = None
-        if splits[index + 1] > splits[index]:
-            # Get the pointer to the original doc-idx so we can set it later.
-            doc_idx_ptr = indexed_dataset.get_doc_idx()
-            # Slice the doc-idx
-            start_index = splits[index]
-            # Add +1 so we can index into the dataset to get the upper bound.
-            end_index = splits[index + 1] + 1
-            # New doc_idx view.
-            indexed_dataset.set_doc_idx(doc_idx_ptr[start_index:end_index])
-            # Build the dataset accordingly.
-            kwargs = dict(
-                name=name,
-                data_prefix=data_prefix,
-                num_epochs=None,
-                max_num_samples=train_valid_test_num_samples[index],
-                max_seq_length=max_seq_length,
-                seed=seed,
-            )
-            dataset = NonCausalMLMDataset(
-                    indexed_dataset=indexed_dataset,
-                    masked_lm_prob=masked_lm_prob,
-                    max_seq_length_dec=max_seq_length_dec,
-                    short_seq_prob=short_seq_prob,
-                    **kwargs
-            )
-            indexed_dataset.set_doc_idx(doc_idx_ptr)
-            # Checks.
-            # assert indexed_dataset.doc_idx[0] == 0
-            # assert indexed_dataset.doc_idx.shape[0] == \
-            #     (total_num_of_documents + 1)
-        return dataset
-
-    train_dataset = build_dataset(0, 'train')
-    valid_dataset = build_dataset(1, 'valid')
-    test_dataset = build_dataset(2, 'test')
-
-    return (train_dataset, valid_dataset, test_dataset)
 
 
 class NonCausalMLMDataset(torch.utils.data.Dataset):
 
-    def __init__(self, name, indexed_dataset, data_prefix,
-                 num_epochs, max_num_samples, masked_lm_prob,
-                 max_seq_length, max_seq_length_dec,
-                 short_seq_prob, seed):
+    def __init__(
+        self,
+        name,
+        data_prefix,
+        documents,
+        indexed_dataset,
+        max_seq_length,
+        seed,
+        masked_lm_prob=0.15,
+        max_ngrams=3,
+    ):
 
         # Params to store.
         self.name = name
-        self.seed = seed
-        self.masked_lm_prob = masked_lm_prob
-        self.max_seq_length = max_seq_length
-        self.max_seq_length_dec = max_seq_length_dec
-
-        # Dataset.
         self.indexed_dataset = indexed_dataset
 
-        max_ngrams = 3
+        self.masked_lm_prob = masked_lm_prob
+        self.max_seq_length = max_seq_length
+
+        # Dataset.
+
+        self.max_ngrams  = max_ngrams
         # T5-like span masked language modeling will fuse consecutively masked tokens to a single sentinel token.
         # To ensure that the input length is `max_seq_length`, we need to increase the maximum length
         # according to `masked_lm_prob` and `max_ngrams`. We can also define the label length accordingly.
         expanded_inputs_length, targets_length = compute_input_and_target_lengths(
             self.max_seq_length,
             self.masked_lm_prob,
-            max_ngrams
+            self.max_ngrams
             )
         self.expanded_inputs_length = expanded_inputs_length
         self.targets_length = targets_length
@@ -364,21 +235,6 @@ def get_samples_mapping(indexed_dataset, data_prefix, name, max_len=568):
         len(samples_mapping)))
 
     return samples_mapping
-
-
-def pad_and_convert_to_numpy(tokens, pad_id, max_seq_length):
-    """Pad sequences and convert them to numpy."""
-
-    # Some checks.
-    num_tokens = len(tokens)
-    padding_length = max_seq_length - num_tokens
-    assert padding_length >= 0
-
-    # Tokens and token types.
-    filler = np.array([pad_id] * padding_length, dtype=np.int64)
-    tokens_np = np.concatenate((tokens, filler), dtype=np.int64)
-
-    return tokens_np
 
 
 def create_sentinel_ids(mask_indices, vocab_len):
