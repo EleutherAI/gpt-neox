@@ -77,8 +77,15 @@ def get_ltor_masks_and_position_ids(
     data,
     eod_token,
     eod_mask_loss=False,
+    prefix_indices=None,    
 ):
-    """Build masks and position id for left to right model."""
+    """
+    Build masks and position id for left to right model.
+    :param prefix_indices: argument can have multiple types:
+        - None signifies that the model is fully autoregressive.
+        - List[int] the argument holds all prefix indices that split a row into an input and a target
+        - List[List[int]] the argument holds all prefix indices that split documents between input and target.
+    """
 
     # Extract batch size and sequence length.
     batch_size, seq_length = data.size()
@@ -97,6 +104,15 @@ def get_ltor_masks_and_position_ids(
     # Position ids.
     position_ids = torch.arange(seq_length, dtype=torch.long, device=data.device)
     position_ids = position_ids.unsqueeze(0).expand_as(data)
+
+    # Prefix lm per row.
+    if prefix_indices is not None:
+        # Loop through the batches
+        for b in range(batch_size):
+
+            assert isinstance(prefix_indices[b], int), \
+                f"prefix for a row has to be row specific, and consequently return an int, got {prefix_indices[b]}"
+            attention_mask[b, 0, :prefix_indices[b], :prefix_indices[b]] = 1
 
     return attention_mask, loss_mask, position_ids
 

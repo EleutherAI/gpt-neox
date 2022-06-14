@@ -249,7 +249,6 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                         rpe=rpe_emb if self.neox_args.pos_emb == "rpe" else None,
                         rotary=self.neox_args.pos_emb == "rotary",
                         use_cache=self.use_cache,
-                        self_attn_mask_type=AttnMaskType.prefix if self.neox_args.use_prefix_attention else AttnMaskType.causal
                     )
                 )
 
