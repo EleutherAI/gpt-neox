@@ -135,9 +135,9 @@ def build_training_sample(
     }
 
 
-def get_samples_mapping(indexed_dataset, data_prefix, name, max_len=568):
+def get_samples_mapping(indexed_dataset, data_prefix, name, max_len):
 
-    def breakdown(sample_len, idx_offset=None, idx_list=None, max_len=max_len):
+    def breakdown(sample_len, idx_offset=None, idx_list=None, max_len=None):
 
         if idx_list is None:
             idx_list = []
@@ -197,7 +197,7 @@ def get_samples_mapping(indexed_dataset, data_prefix, name, max_len=568):
 
             break_len = current_len + sample_len
 
-            indices = breakdown(sample_len)
+            indices = breakdown(sample_len, max_len=max_len)
             for _start_idx, _end_idx in indices:
                 _len = _end_idx - _start_idx
                 if _len == max_len:
