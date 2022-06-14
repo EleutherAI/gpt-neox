@@ -27,8 +27,8 @@
    "optimizer": {
      "type": "Adam",
      "params": {
-       "lr": 0.00016,
-       "betas": [0.9, 0.95],
+       "lr": 0.00064,
+       "betas": [0.9, 0.9],
        "eps": 1.0e-8,
      }
    },
@@ -44,8 +44,8 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 4,
-   "gradient_accumulation_steps": 32,
+   "train_micro_batch_size_per_gpu": 8,
+   "gradient_accumulation_steps": 1,
    "data-impl": "mmap",
 
    # activation checkpointing
@@ -72,7 +72,7 @@
    },
 
    # misc. training settings
-   "train-iters": 320000,
+   "train-iters": 143000,
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
