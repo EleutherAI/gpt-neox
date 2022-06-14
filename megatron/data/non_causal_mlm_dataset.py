@@ -219,11 +219,10 @@ def get_samples_mapping(indexed_dataset, data_prefix, name, max_len=568):
     # device_index=rank which is not the case for model
     # parallel case
     counts = torch.cuda.LongTensor([1])
-    torch.distributed.all_reduce(counts, group=mpu.get_data_parallel_group())
-    torch.distributed.all_reduce(counts, group=mpu.get_pipeline_model_parallel_group())
-    assert counts[0].item() == (
-        torch.distributed.get_world_size() //
-        torch.distributed.get_world_size(group=mpu.get_tensor_model_parallel_group()))
+    torch.distributed.all_reduce(counts, group=mpu.get_io_parallel_group())
+    assert counts[0].item() == torch.distributed.get_world_size(
+        group=mpu.get_io_parallel_group()
+    )
 
     # Load indexed dataset.
     print_rank_0(' > loading indexed mapping from {}'.format(
