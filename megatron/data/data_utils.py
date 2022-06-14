@@ -58,7 +58,7 @@ def build_the_dataset(
     print_rank_0("     no. of documents:{}".format(total_num_of_documents))
     dataset = None
     documents = np.arange(start=0, stop=total_num_of_documents, step=1, dtype=np.int32)
-    if neox_args.prefix_indices:
+    if neox_args.use_prefix_attention:
 
         if neox_args.input_seq_length is None:
             input_seq_length = neox_args.seq_length*int(512/626)
@@ -129,7 +129,7 @@ def build_train_valid_test_datasets(
                 start=splits[index], stop=splits[index + 1], step=1, dtype=np.int32
             )
 
-            if neox_args.prefix_indices:
+            if neox_args.use_prefix_attention:
 
                 if neox_args.input_seq_length is None:
                     input_seq_length = neox_args.seq_length*int(512/626)
