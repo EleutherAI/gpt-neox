@@ -62,6 +62,8 @@ def build_the_dataset(
 
         if neox_args.input_seq_length is None:
             input_seq_length = neox_args.seq_length*int(512/626)
+        else:
+            input_seq_length = neox_args.input_seq_length
 
         dataset = NonCausalMLMDataset(
             name=name,
@@ -133,6 +135,8 @@ def build_train_valid_test_datasets(
 
                 if neox_args.input_seq_length is None:
                     input_seq_length = neox_args.seq_length*int(512/626)
+                else:
+                    input_seq_length = neox_args.input_seq_length
 
                 dataset = NonCausalMLMDataset(
                     name=name,
