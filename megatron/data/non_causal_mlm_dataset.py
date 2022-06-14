@@ -71,8 +71,7 @@ class NonCausalMLMDataset(torch.utils.data.Dataset):
 
         # Vocab stuff.
         self.tokenizer = tokenizer
-        self.vocab_id_list = list(tokenizer.inv_vocab.keys())
-        self.vocab_id_to_token_dict = tokenizer.inv_vocab
+        self.vocab_id_list = list(tokenizer.vocab.items())
         self.cls_id = tokenizer.cls
         self.sep_id = tokenizer.sep
         self.mask_id = tokenizer.mask
