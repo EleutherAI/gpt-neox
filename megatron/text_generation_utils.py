@@ -767,7 +767,7 @@ def generate_samples_interactive(
                     .tolist()[
                         batch_token_generation_start_index[0]
                         .item() : batch_token_generation_end_index[0]
-                        .item()
+                        .item() + 1
                     ]
                 )
                 generated_text = neox_args.tokenizer.detokenize(generated_tokens)
