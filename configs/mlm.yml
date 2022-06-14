@@ -1,0 +1,24 @@
+# DISCLAIMER: This is the configuration file for the GPT-NeoX-20B model as it was trained on 96x 40GB A100
+# GPUs. Depending on your system configuration, you may need to change some parameters in order to fit
+# the model in memory.
+
+{
+  # Tokenizer /  checkpoint settings - you will need to change these to the location you have them saved in
+  "vocab-file": "./20B_checkpoints/20B_tokenizer.json",
+  "save": "./20B_checkpoints",
+  "load": "./20B_checkpoints",
+
+  # If finetuning, edit the following to the location of your finetuning dataset:
+  "data-path": "data/enron/enron_text_document",
+
+
+  "use_prefix_attention": True,
+  "input_seq_length": 1675,
+  "seq-length": 2048,
+
+  ### NEW DATA: ####
+  "tokenizer_type": "HFTokenizer",
+  "tensorboard-dir": "./tensorboard",
+  "log-dir": "./logs",
+
+}

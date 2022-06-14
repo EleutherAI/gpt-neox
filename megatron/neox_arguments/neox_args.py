@@ -330,6 +330,27 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
     """
 
+    use_prefix_attention: bool = False
+    """
+    If true, model will use a prefix-based attention that fully attends for n tokens
+    and causally attends for the rest.
+    """
+
+    masked_lm_prob: float = 0.15
+    """
+    Masking probability for MLM Adaptation
+    """
+    
+    max_ngrams: int = 3
+    """
+    Max sequence of ngrams to be mask back-to-back
+    """
+
+    input_seq_length: int = None
+    """
+    Input length for MLM adaptation. If None, will take the value of int(512/626*seq_lenth)
+    """
+
 
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):
