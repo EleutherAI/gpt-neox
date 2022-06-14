@@ -74,7 +74,7 @@ def build_the_dataset(
             input_seq_length=input_seq_length,
             seed=seed,
             masked_lm_prob=neox_args.masked_lm_prob,
-            max_ngrams=neox_args.masked_lm_prob,
+            max_ngrams=neox_args.max_ngrams,
         )
     else:
         dataset = GPT2Dataset(
@@ -147,7 +147,7 @@ def build_train_valid_test_datasets(
                     input_seq_length=input_seq_length,
                     seed=seed,
                     masked_lm_prob=neox_args.masked_lm_prob,
-                    max_ngrams=neox_args.masked_lm_prob,
+                    max_ngrams=neox_args.max_ngrams,
                 )
             else:
                 dataset = GPT2Dataset(
