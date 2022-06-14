@@ -60,13 +60,13 @@ def report_memory(name):
     print_rank_0(string)
 
 
-def get_attn_mask(seq_length, device):
+def get_attn_mask(seq_length, device, batch_size=1):
     """
     Get triangular attention mask for a given sequence length / device.
     """
     # lower triangular attention mask
-    mask = torch.tril(torch.ones((1, seq_length, seq_length), device=device)).view(
-        1, 1, seq_length, seq_length
+    mask = torch.tril(torch.ones((batch_size, seq_length, seq_length), device=device)).view(
+        batch_size, 1, seq_length, seq_length
     )
 
     # convert to binary
@@ -90,10 +90,16 @@ def get_ltor_masks_and_position_ids(
     # Extract batch size and sequence length.
     batch_size, seq_length = data.size()
 
+    if prefix_indices:
+        att_mask_batch = batch_size
+    else:
+        att_mask_batch = 1
+
     # Attention mask (lower triangular).
     attention_mask = get_attn_mask(
         seq_length=seq_length,
         device=data.device,
+        batch_size=att_mask_batch
     )
 
     # Loss mask.
