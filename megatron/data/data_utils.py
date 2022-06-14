@@ -96,6 +96,7 @@ def build_train_valid_test_datasets(
     seq_length,
     seed,
     skip_warmup,
+    neox_args=None
 ):
     """Build train, valid, and test datasets."""
 
@@ -128,15 +129,33 @@ def build_train_valid_test_datasets(
                 start=splits[index], stop=splits[index + 1], step=1, dtype=np.int32
             )
 
-            dataset = GPT2Dataset(
-                name,
-                data_prefix,
-                documents,
-                indexed_dataset,
-                train_valid_test_num_samples[index],
-                seq_length,
-                seed,
-            )
+            if neox_args.prefix_indices:
+
+                if neox_args.input_seq_length is None:
+                    input_seq_length = neox_args.seq_length*int(512/626)
+
+                dataset = NonCausalMLMDataset(
+                    name=name,
+                    data_prefix=data_prefix,
+                    documents=documents,
+                    indexed_dataset=indexed_dataset,
+                    tokenizer=neox_args.tokenizer,
+                    input_seq_length=input_seq_length,
+                    seed=seed,
+                    masked_lm_prob=neox_args.masked_lm_prob,
+                    max_ngrams=neox_args.masked_lm_prob,
+                )
+            else:
+                dataset = GPT2Dataset(
+                    name,
+                    data_prefix,
+                    documents,
+                    indexed_dataset,
+                    train_valid_test_num_samples[index],
+                    seq_length,
+                    seed,
+                )
+
         return dataset
 
     train_dataset = build_dataset(0, "train")
@@ -408,6 +427,7 @@ def build_train_valid_test_data_iterators(neox_args):
                 seq_length=neox_args.seq_length,
                 seed=neox_args.seed,
                 skip_warmup=(not neox_args.mmap_warmup),
+                neox_args=neox_args,
             )
 
         # Build dataloders.
