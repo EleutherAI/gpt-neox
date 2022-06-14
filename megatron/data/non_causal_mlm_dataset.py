@@ -72,9 +72,8 @@ class NonCausalMLMDataset(torch.utils.data.Dataset):
         # Vocab stuff.
         self.tokenizer = tokenizer
         self.vocab_id_list = list(tokenizer.vocab.items())
-        self.bos_id = tokenizer.bos_token_id
-        self.eos_id = tokenizer.eos_token_id
-        self.sentinel_tokens = tokenizer.additional_special_tokens_ids
+        self.eos_id = tokenizer.eod_id
+        # self.sentinel_tokens = tokenizer.additional_special_tokens_ids
         # assert len(self.sentinel_tokens) > 0, "Provide the argument --vocab-extra-ids 100 to the script"
 
     def __len__(self):
@@ -91,8 +90,8 @@ class NonCausalMLMDataset(torch.utils.data.Dataset):
             sample,
             self.expanded_inputs_length,
             self.vocab_id_list,
-            self.bos_id, self.eos_id,
-            self.sentinel_tokens
+            self.eos_id,
+            # self.sentinel_tokens
             )
 
 
@@ -100,7 +99,7 @@ def build_training_sample(
     sample,
     expanded_inputs_length,
     vocab_id_list,
-    bos_id=None, eos_id=None,
+    eos_id=None,
     sentinel_tokens=None
     ):
     """Build training sample.
