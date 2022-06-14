@@ -22,7 +22,7 @@ import random
 import numpy as np
 import torch
 
-from megatron import mpu, print_rank_0, get_tokenizer
+from megatron import mpu, print_rank_0
 
 
 class NonCausalMLMDataset(torch.utils.data.Dataset):
