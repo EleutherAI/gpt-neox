@@ -152,7 +152,7 @@ def get_samples_mapping(indexed_dataset, data_prefix, name, max_len):
             idx_list.append(idx_offset+max_len)
             idx_offset += max_len
 
-            breakdown(sample_len, idx_offset=idx_offset, idx_list=idx_list)
+            breakdown(sample_len, idx_offset=idx_offset, idx_list=idx_list, max_len=max_len)
 
         idx_list = [0]+idx_list
         return list(zip(idx_list[:-1], idx_list[1:]))
