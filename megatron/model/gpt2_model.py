@@ -28,7 +28,6 @@ from megatron.model.norms import get_norm
 from megatron.model.init_functions import get_init_methods
 
 from megatron import mpu
-from megatron.enums import AttnMaskType
 from megatron.mpu import ParallelRelativePositionBias
 from megatron.model.transformer import (
     ParallelTransformerLayerPipe,
