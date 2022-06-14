@@ -336,6 +336,21 @@ class NeoXArgsModel(NeoXArgsTemplate):
     and causally attends for the rest.
     """
 
+    masked_lm_prob: float = 0.15
+    """
+    Masking probability for MLM Adaptation
+    """
+    
+    max_ngrams: int = 3
+    """
+    Max sequence of ngrams to be mask back-to-back
+    """
+
+    input_seq_length: int = None
+    """
+    Input length for MLM adaptation. If None, will take the value of int(512/626*seq_lenth)
+    """
+
 
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):

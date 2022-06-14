@@ -9,6 +9,7 @@ from megatron import mpu, print_rank_0
 from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
 from megatron.data.blendable_dataset import BlendableDataset
 from megatron.data.gpt2_dataset import GPT2Dataset
+from megatron.data.non_causal_mlm_dataset import NonCausalMLMDataset
 from megatron.data.samplers import DistributedBatchSampler
 
 
@@ -46,6 +47,7 @@ def build_the_dataset(
     seed,
     skip_warmup,
     build_index_mappings=True,
+    neox_args=None
 ):
     """Build train/valid/test datasets."""
 
@@ -56,16 +58,32 @@ def build_the_dataset(
     print_rank_0("     no. of documents:{}".format(total_num_of_documents))
     dataset = None
     documents = np.arange(start=0, stop=total_num_of_documents, step=1, dtype=np.int32)
-    dataset = GPT2Dataset(
-        name,
-        data_prefix,
-        documents,
-        indexed_dataset,
-        num_samples,
-        seq_length,
-        seed,
-        build_index_mappings=build_index_mappings,
-    )
+    if neox_args.prefix_indices:
+
+        if neox_args.input_seq_length is None:
+            input_seq_length = neox_args.seq_length*int(512/626)
+
+        dataset = NonCausalMLMDataset(
+            name=name,
+            data_prefix=data_prefix,
+            documents=documents,
+            indexed_dataset=indexed_dataset,
+            seed=seed,
+            input_seq_length=input_seq_length,
+            masked_lm_prob=neox_args.masked_lm_prob,
+            max_ngrams=neox_args.masked_lm_prob,
+        )
+    else:
+        dataset = GPT2Dataset(
+            name,
+            data_prefix,
+            documents,
+            indexed_dataset,
+            num_samples,
+            seq_length,
+            seed,
+            build_index_mappings=build_index_mappings,
+        )
     return dataset
 
 
@@ -200,6 +218,7 @@ def build_weighted_datasets(
                     seed=neox_args.seed,
                     skip_warmup=(not neox_args.mmap_warmup),
                     build_index_mappings=build_index_mappings,
+                    neox_args=neox_args,
                 )
             )
 
@@ -214,6 +233,7 @@ def build_weighted_datasets(
                     seed=neox_args.seed,
                     skip_warmup=(not neox_args.mmap_warmup),
                     build_index_mappings=build_index_mappings,
+                    neox_args=neox_args,
                 )
             )
 
@@ -228,6 +248,7 @@ def build_weighted_datasets(
                     seed=neox_args.seed,
                     skip_warmup=(not neox_args.mmap_warmup),
                     build_index_mappings=build_index_mappings,
+                    neox_args=neox_args,
                 )
             )
     return train_datasets, valid_datasets, test_datasets
