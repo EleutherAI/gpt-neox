@@ -132,7 +132,7 @@ def build_training_sample(
 
     return {
         'text': text_tokens_ids,
-        'prefix_len': prefix_len
+        'prefix': prefix_len
     }
 
 
