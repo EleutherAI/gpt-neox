@@ -68,8 +68,9 @@ def build_the_dataset(
             data_prefix=data_prefix,
             documents=documents,
             indexed_dataset=indexed_dataset,
-            seed=seed,
+            tokenizer=neox_args.tokenizer,
             input_seq_length=input_seq_length,
+            seed=seed,
             masked_lm_prob=neox_args.masked_lm_prob,
             max_ngrams=neox_args.masked_lm_prob,
         )

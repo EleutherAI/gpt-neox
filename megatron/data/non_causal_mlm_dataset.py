@@ -33,7 +33,8 @@ class NonCausalMLMDataset(torch.utils.data.Dataset):
         data_prefix,
         documents,
         indexed_dataset,
-        max_seq_length,
+        tokenizer,
+        input_seq_length,
         seed,
         masked_lm_prob=0.15,
         max_ngrams=3,
@@ -44,16 +45,16 @@ class NonCausalMLMDataset(torch.utils.data.Dataset):
         self.indexed_dataset = indexed_dataset
 
         self.masked_lm_prob = masked_lm_prob
-        self.max_seq_length = max_seq_length
+        self.input_seq_length = input_seq_length
 
         # Dataset.
 
         self.max_ngrams  = max_ngrams
         # T5-like span masked language modeling will fuse consecutively masked tokens to a single sentinel token.
-        # To ensure that the input length is `max_seq_length`, we need to increase the maximum length
+        # To ensure that the input length is `input_seq_length`, we need to increase the maximum length
         # according to `masked_lm_prob` and `max_ngrams`. We can also define the label length accordingly.
         expanded_inputs_length, targets_length = compute_input_and_target_lengths(
-            self.max_seq_length,
+            self.input_seq_length,
             self.masked_lm_prob,
             self.max_ngrams
             )
@@ -69,7 +70,7 @@ class NonCausalMLMDataset(torch.utils.data.Dataset):
             )
 
         # Vocab stuff.
-        tokenizer = get_tokenizer()
+        self.tokenizer = tokenizer
         self.vocab_id_list = list(tokenizer.inv_vocab.keys())
         self.vocab_id_to_token_dict = tokenizer.inv_vocab
         self.cls_id = tokenizer.cls
