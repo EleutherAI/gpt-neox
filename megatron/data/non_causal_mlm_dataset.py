@@ -91,6 +91,8 @@ class NonCausalMLMDataset(torch.utils.data.Dataset):
             self.expanded_inputs_length,
             self.vocab_id_list,
             self.eos_id,
+            self.masked_lm_prob,
+            self.max_ngrams,
             # self.sentinel_tokens
             )
 
@@ -100,7 +102,9 @@ def build_training_sample(
     expanded_inputs_length,
     vocab_id_list,
     eos_id=None,
-    sentinel_tokens=None
+    masked_lm_prob=0.15,
+    max_ngrams=3
+    # sentinel_tokens=None
     ):
     """Build training sample.
 
@@ -113,8 +117,8 @@ def build_training_sample(
 
     mask_indices = np.asarray([random_spans_noise_mask(
         expanded_inputs_length,
-        noise_density=0.15,
-        mean_noise_span_length=3
+        noise_density=masked_lm_prob,
+        mean_noise_span_length=max_ngrams
         )])
     labels_mask = ~mask_indices
     
