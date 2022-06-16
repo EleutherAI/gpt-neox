@@ -273,7 +273,7 @@ def stream_tokens(
         token_index_to_generate + maximum_tokens -1
     ) 
 
-    all_logits = torch.zeros((batch_size, 256, neox_args.padded_vocab_size))
+    all_logits = torch.zeros((batch_size, 128, neox_args.padded_vocab_size))
 
     with torch.no_grad():
         # initialize generation variables
@@ -382,23 +382,8 @@ def stream_tokens(
         
         return all_logits
 
-            yield context_tokens, token_generation_start_index, token_generation_end_index, state_is_done.bool()
-            if torch.all(state_is_done):
-                break
-
-
-def generate_samples_from_prompt(
-    neox_args,
-    model,
-    text: Union[List[str], str],
-    eos_token_id: int = None,
-    maximum_tokens: int = 64,
-    recompute: bool = False,
-    temperature: float = 0.0,
-    top_k: int = 0,
-    top_p: float = 0.0,
-    stop_tokens=None,
-):
+def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], eos_token_id: int = None, 
+                                    maximum_tokens: int = 64, recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0, stop_tokens=None):
     """
     Generates samples from raw text and returns them in a dictionary.
 
