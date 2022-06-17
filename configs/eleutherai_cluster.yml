@@ -7,11 +7,11 @@
   "tokenizer_type": "HFTokenizer",
   "vocab-file": "/mnt/neox/data/20B_tokenizer.json",
   
-  "save": "/mnt/neox/checkpoints/pythia/2-7B",
-  "load": "/mnt/neox/checkpoints/pythia/2-7B",
+  "save": "/mnt/neox/checkpoints/pythia/2-7B-decay",
+  "load": "/mnt/neox/checkpoints/pythia/2-7B-decay",
   "tensorboard-dir": "/mnt/neox/tensorboard",
   "log-dir": "/mnt/neox/logs",
   "wandb_team": "eleutherai",
   "wandb_project": "pythia",
-  "wandb_group": "2-7B"
+  "wandb_group": "2-7B Decay"
 }
