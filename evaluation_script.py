@@ -25,7 +25,6 @@ import wandb
 import result_records
 import memorization_metric
 import numpy as np
-from tqdm import tqdm
 from megatron import mpu, print_rank_0
 from megatron.data import data_utils
 from megatron import text_generation_utils
@@ -90,7 +89,7 @@ def main():
 
     # Iteratating over the dataset
     t = time.time()
-    for batch in tqdm(ds):
+    for batch in ds:
         batch = batch['text'].numpy().tolist()
         
         memorization = torch.tensor(score(neox_args,model,batch,token_size)).cuda()
