@@ -89,23 +89,28 @@ def main():
     idx = 0
 
     # Iteratating over the dataset
+    t = time.time()
     for batch in tqdm(ds):
         batch = batch['text'].numpy().tolist()
         
         memorization = torch.tensor(score(neox_args,model,batch,token_size)).cuda()
-        results = [torch.zeros_like(memorization).cuda() for _ in range(mpu.get_data_parallel_world_size())]
-        torch.distributed.all_gather(results,memorization, group = mpu.get_io_parallel_group())
-        
-        if mpu.get_data_parallel_rank() == 0:
-            for memorization in results:
-                for i in memorization.cpu():
-                    records.write(index=idx, nll_loss=i[0], accuracy=i[1])
-                    wandb.log({
-                        'index': idx,
-                        'nll_loss':i[0],
-                        'accuracy':i[1]
-                    })
+
+        if mpu.get_data_parallel_rank() == mpu.get_data_parallel_src_rank():
+            for i in memorization:
+                records.write(idx, i[0], i[1])
+                idx+=1
+
+        for i in range(1, mpu.get_data_parallel_world_size()):
+            if i == mpu.get_data_parallel_rank():
+                torch.distributed.send(memorization, mpu.get_data_parallel_src_rank(), group=mpu.get_io_parallel_group())
+            if mpu.get_data_parallel_rank() == mpu.get_data_parallel_src_rank():
+                torch.distributed.recv(memorization, src=i, group = mpu.get_io_parallel_group())
+                
+                for i in memorization:
+                    records.write(idx, i[0], i[1])
                     idx+=1
+        print_rank_0(f"Generation took {time.time() - t:.3}s")
+        t = time.time()
         
     if mpu.get_data_parallel_rank() == 0:
         records.close()
