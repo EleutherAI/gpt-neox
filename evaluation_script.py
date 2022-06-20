@@ -113,6 +113,11 @@ def main():
                 
                 for i in memorization:
                     records.write(idx, i[0], i[1])
+                    wandb.log({
+                        'index':idx,
+                        'nll_loss':i[0],
+                        'accuracy':i[1]
+                    })
                     idx+=1
         print_rank_0(f"Generation took {time.time() - t:.3}s")
         t = time.time()
