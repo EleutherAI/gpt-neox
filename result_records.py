@@ -67,18 +67,16 @@ class TFRecordLoader:
 class DataFrameCreator:
     def __init__(self,path):
         self.path = path
-        self.indicies = []
-        self.results = []
+        self.fp = open(path,'w')
+        self.fp.write("index,nll_loss,accuracy\n")
+        self.fp.flush()
     
-    def write(self,result,index):
-        self.results.append(result)
-        self.indicies.append(index)
+    def write(self, index, nll_loss, accuracy):
+        self.fp.write(f'{index},{nll_loss},{accuracy}\n')
+        self.fp.flush()
     
     def close(self):
-        csv = pd.DataFrame()
-        csv['index'] = self.indicies
-        csv['result'] = self.results
-        csv.to_csv(self.path,index=False)
+        self.fp.close()
 
 class DataFrameLoader:
     def __init__(self,path):
@@ -98,9 +96,9 @@ class DataFrameLoader:
 if __name__ == '__main__':
     ds = DataFrameCreator('temp.csv')
     for i in range(10):
-        ds.write(i,i)
+        ds.write(i,i+0.5,i)
     ds.close()
     del ds
-    ds = DataFrameLoader('/home/mchorse/gpt-neox/memorization_results_neox_dense_large_v2.csv')
+    ds = DataFrameLoader('/home/mchorse/gpt-neox/memorization_results_dense_small_checkpoints.csv')
     for i in ds:
         print(i)

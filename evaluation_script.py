@@ -18,74 +18,26 @@
 
 #run it using the following command: ./deepy.py evaluation_script.py -d configs sampling.yml small.yml
 
-from tqdm import tqdm
-import torch
-import tensorflow as tf
-import numpy as np
-import wandb
-from tqdm import tqdm
-from memorization_metric import memorization_metric
-import argparse
-from result_records import DataFrameCreator
-from threading import Thread
-import queue
-import torch.distributed as dist
-from megatron.data.data_utils import build_train_valid_test_data_iterators
-from megatron import mpu
-from megatron.text_generation_utils import stream_tokens
-from megatron.utils import print_rank_0, setup_for_inference_or_eval
 import os
 import time
-
-class BatchedDataset(Thread):
-    '''Generates Threaded batched records for evaluation
-    
-    Generates batched records by uniformly sampling records from the dataset
-
-    Attributes:
-        batch_size: Number of records per batch in the returned batch
-        take_every: Every 4 of take_every are taken from training dataset for evaluation
-        token_size: Number of tokens used for both prompt and evaluation
-        neox_args: an instance of NeoXArgs containing the configuration for evaluation
-    '''
-    def __init__(self,batch_size,take_every,token_size,neox_args,num_iterations=36000000):
-        super().__init__()
-        self.batch_size = batch_size
-        self.take_every = take_every
-        self.token_size = token_size
-        self.q = queue.Queue()
-        neox_args.train_iters = num_iterations # Overriding default value here
-        neox_args.iteration = 0 # Start evaluating from 0th iteration of dataset
-        self.ds, valid_ds, test_ds = build_train_valid_test_data_iterators(neox_args=neox_args)
-        self.num_iterations = num_iterations
-    def run(self):
-        """Generates batched dataset for evaluation by adding batches into a queue"""
-        tokens = []
-        indicies = []
-        val = 1
-        idx = 0
-        print_rank_0("Iterating through the dataset")
-        for doc in self.ds:
-            idx += 4 #Batch size of dataset is 4
-            if(idx%self.take_every != 0):
-                continue
-            tokens.append(doc['text'][:self.token_size].numpy().tolist()[0])
-            indicies.append(idx)
-            if(val%self.batch_size == 0):
-                self.q.put((tokens,indicies))
-                
-                while(self.q.qsize() > 10):
-                    time.sleep(50)
-                indicies = []
-                tokens = []
-            val +=1
-        self.q.put((None,None))
-        self.q.task_done()
+import torch
+import wandb
+import result_records
+import memorization_metric
+import numpy as np
+from tqdm import tqdm
+from megatron import mpu, print_rank_0
+from megatron.data import data_utils
+from megatron import text_generation_utils
+from megatron import utils as megatron_utils 
 
 
 
 def score(neox_args,model,data,token_size=64):
     '''Calculates the memorization metric for the given input tokens
+
+    Memorization metric for input tokens is average NLL loss and accuracy
+    between input tokens and generated logits
 
     Arguments:
         neox_args: an instance of NeoXArgs containing the configuration for evaluation
@@ -93,61 +45,70 @@ def score(neox_args,model,data,token_size=64):
         data: a single batch of evaluation dataset for evaluation
         token_size: Number of tokens used for both prompt and evaluation
     '''
+    inputs = [i[:token_size//2] for i in data] # Use half of tokens for prompting
+    model.module.clear_cache()
     
-    inp = [i[:token_size//2] for i in data]
-    res = stream_tokens(
-        neox_args=neox_args, 
-        model=model,
-        context_tokens = inp,
-        maximum_tokens = token_size, 
-        recompute = neox_args.recompute, 
-        temperature = neox_args.temperature,
-        top_k = neox_args.top_k, 
-        top_p = neox_args.top_p
+    logits, context_tokens = text_generation_utils.stream_tokens( # Generation
+        neox_args = neox_args, 
+        model = model, 
+        context_tokens = inputs,
+        maximum_tokens=token_size,
+        recompute=neox_args.recompute
     )
-    res = res[:,token_size//2:token_size,:].cpu().transpose(0,1)
-    ground_truth = [i[token_size//2:token_size] for i in data]
-    return memorization_metric(res,torch.tensor(ground_truth))
+
+    t = time.time()
+    logits = logits[token_size//2:token_size]
+    ground_truth = torch.tensor([i[token_size//2:token_size] for i in data])
+    context_tokens = context_tokens[:,token_size//2:token_size].cpu()
+    nll_avg = memorization_metric.memorization_nll(logits, ground_truth)
+    accuracy_avg = memorization_metric.memorization_acc(context_tokens, ground_truth)
+    return np.stack((nll_avg, accuracy_avg), axis=-1)
 
 
 
 def main():
-    
-    # Driver parameters
-    
-    BATCH_SIZE = 512
-    RESULTS_PATH = 'memorization_results_dense_small.csv'
-    TOKEN_SIZE = 64
-    TAKE_EVERY = 32
+    # Initialization
+    model, neox_args = megatron_utils.setup_for_inference_or_eval()
+    model.eval()
+    neox_args.iteration = 0
+    results_path = 'memorization_results_' + neox_args.load.split('/')[-1] + '.csv'
+    token_size = neox_args.maximum_tokens
 
-    # Result records
-    records = DataFrameCreator(RESULTS_PATH) #store results
+    # Initialize wandb
+    os.environ['WANDB_LOCAL'] = 'true'
+    megatron_utils.init_wandb(neox_args)
     
-    model, neox_args = setup_for_inference_or_eval()  
-    ds = BatchedDataset(BATCH_SIZE,TAKE_EVERY,TOKEN_SIZE,neox_args)
-    ds.start() 
+    if mpu.get_data_parallel_rank() == 0:
+        records = result_records.DataFrameCreator(results_path) #store results on rank 0
     
-
-    start_time = time.time()
-    batch,indicies = ds.q.get()
-    step = 1
+    ds, _, _ = data_utils.build_train_valid_test_data_iterators(neox_args=neox_args)
 
 
     # Evaluation driver code
+    megatron_utils.print_rank_0("Starting Evaluation")
+    idx = 0
 
-    while(batch is not None): 
-        print_rank_0(f'time taken to generate batch: {time.time() - start_time:.3}s')
-        start_time = time.time()
-
-        res = score(neox_args,model,batch,TOKEN_SIZE)
-        for i,j in zip(res,indicies):
-            records.write(i,j)
-                
-        print_rank_0(f'Current model generation time: {time.time() - start_time:.3}s for index {indicies[-1]}')
-        start_time = time.time()
-        batch,indicies = ds.q.get(10)
-        step += 1
-    records.close()
+    # Iteratating over the dataset
+    for batch in tqdm(ds):
+        batch = batch['text'].numpy().tolist()
+        
+        memorization = torch.tensor(score(neox_args,model,batch,token_size)).cuda()
+        results = [torch.zeros_like(memorization).cuda() for _ in range(mpu.get_data_parallel_world_size())]
+        torch.distributed.all_gather(results,memorization, group = mpu.get_io_parallel_group())
+        
+        if mpu.get_data_parallel_rank() == 0:
+            for memorization in results:
+                for i in memorization.cpu():
+                    records.write(index=idx, nll_loss=i[0], accuracy=i[1])
+                    wandb.log({
+                        'index': idx,
+                        'nll_loss':i[0],
+                        'accuracy':i[1]
+                    })
+                    idx+=1
+        
+    if mpu.get_data_parallel_rank() == 0:
+        records.close()
     
     
 

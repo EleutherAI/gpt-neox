@@ -33,10 +33,8 @@ from megatron.utils import get_ltor_masks_and_position_ids, is_mp_rank_0
 def get_batch(neox_args, context_tokens: torch.Tensor):
     """
     Generate batch from context tokens. Attention mask and position ids are created. Returned tensors will be on CUDA.
-
     neox_args: NeoXArgs.
     context_tokens: torch tensor with dimensions [batch, context_size]
-
     returns: tuple of torch tensors (tokens, attention_mask, position_ids) on CUDA
     """
 
@@ -55,11 +53,9 @@ def pad_batch(context_tokens: List[List[int]], pad_id: int, pad_len: int):
     """
     pads context lengths in context_tokens with pad_id to equal neox_args.seq_length,
     and returns the padded batch and the new lengths.
-
     context_tokens: list of lists of tokens
     pad_id: int, integer to use as padding token
     pad_len: int, context length to be padded; all batch items will be padded to the same length
-
     returns: tuple of padded context tokens and a list of unpadded token count
     """
 
@@ -77,14 +73,11 @@ def pad_batch(context_tokens: List[List[int]], pad_id: int, pad_len: int):
 def filter_logits(logits, top_k=0, top_p=0.0, filter_value=-float("Inf")):
     """
     Filters the logits using top_k / top_p, filling any filtered vocab items with filter_value (defaults to -inf).
-
     This function has been mostly taken from huggingface conversational ai code at
     https://medium.com/huggingface/how-to-build-a-state-of-the-art-conversational-ai-with-transfer-learning-2d818ac26313
-
     logits: torch.Tensor -> logits of megatron model.
     top_k: integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
     top_p: float -> Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
-
     returns: (filtered) logits"""
 
     if top_k > 0:
@@ -122,12 +115,9 @@ def switch(val1, val2, boolean):
 def forward_model(model, model_inputs, is_pipe_parallel=False) -> torch.Tensor:
     """
     Runs model.forward(model_inputs)
-
     We need to create a wrapper for this function because deepspeed pipe parallel modules operate differently to normal models.
-
     model: a Megatron model.
     model_inputs: tuple containing model args
-
     returns: torch.Tensor containing the logits of the model
     """
     # because someone at deepspeed decided pipeline modules couldn't use kwargs,
@@ -196,7 +186,6 @@ def stream_tokens(
 ):
     """
     iterator producing text completions
-
     neox_args: NeoXArgs.
     model: a Megatron model.
     context_tokens: the prompt to complete; unpadded list of lists of tokens ids
@@ -218,7 +207,6 @@ def stream_tokens(
                 logits (logits which are so far computed, zeros otherwise),
                 is_done (flag for each bach item indicating whether an eod token was generated)
             )
-
             * each iteration adds a generated token to the context_tokens
             * output contains both context_tokens from input and generated tokens
             * if batch items have different lengths, the iterator will start at the first completion and return the unchanged input context token otherwise
@@ -269,11 +257,12 @@ def stream_tokens(
     token_index_to_generate = token_generation_start_index.min().item()
     first_token_index_to_generate = token_index_to_generate
     last_token_index_to_generate = min(
-        neox_args.seq_length - 1, # never generate more than the model's sequence length
-        token_index_to_generate + maximum_tokens -1
-    ) 
+        neox_args.seq_length
+        - 1,  # never generate more than the model's sequence length
+        token_index_to_generate + maximum_tokens - 1,
+    )
 
-    all_logits = torch.zeros((batch_size, 128, neox_args.padded_vocab_size))
+    generated_logits = []
 
     with torch.no_grad():
         # initialize generation variables
@@ -317,6 +306,8 @@ def stream_tokens(
                     )  # [bs, seq, vocab_size] -> [bs, vocab_size]
 
             if logits is not None:
+                generated_logits.append(generated_token_logits.detach().cpu())
+
                 # sample token id of the to be generated token
                 if temperature == 0.0 and top_k == 0 and top_p == 0.0:
                     generated_tokens = torch.argmax(
@@ -378,29 +369,38 @@ def stream_tokens(
             ] = token_index_to_generate
 
             token_index_to_generate += 1
-            if torch.all(state_is_done): break
-        
-        return all_logits
 
-def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], eos_token_id: int = None, 
-                                    maximum_tokens: int = 64, recompute: bool = False, temperature: float = 0.0, top_k: int = 0, top_p: float = 0.0, stop_tokens=None):
+            # yield context_tokens, token_generation_start_index, token_generation_end_index, state_is_done.bool()
+            if torch.all(state_is_done):
+                break
+            
+    return generated_logits, context_tokens
+
+
+def generate_samples_from_prompt(
+    neox_args,
+    model,
+    text: Union[List[str], str],
+    eos_token_id: int = None,
+    maximum_tokens: int = 64,
+    recompute: bool = False,
+    temperature: float = 0.0,
+    top_k: int = 0,
+    top_p: float = 0.0,
+    stop_tokens=None,
+):
     """
     Generates samples from raw text and returns them in a dictionary.
-
     neox_args: NeoXArgs.
     model: a Megatron model
     text: either a single prompt (str) or a list of prompts (List[str]).
-
     eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
     maximum_tokens: maximum number of tokens to be generated
-
     recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
-
     temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
     top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
     top_p (default 0.0): float -> Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
     note: greedy decoding is used if temperature is 0.0, top_k is 0 and top_p is 0.0
-
     returns: List[dict] -> a list of dicts containing the following fields:
         - 'context' (the input)
         - 'text' (the completion)
@@ -408,7 +408,6 @@ def generate_samples_from_prompt(neox_args, model, text: Union[List[str], str], 
         - 'finished':
         - 'message': a messaged associated with the generation procedure, can be a warning or error
         - 'duration_seconds': duration of the generation in seconds
-
     """
     eos_token_id = eos_token_id or neox_args.tokenizer.eod
 
@@ -534,27 +533,18 @@ def generate_samples_input_from_file(
 ):
     """
     Generates samples from an input file and writes them to an output file.
-
     Reads prompts from neox_args.sample_input_file and writes completions to neox_args.sample_output_file
-
     neox_args: NeoXArgs.
     model: a Megatron model
-
     input_file: path to input file. Each line in the input file will be treated as separate prompt. The line break at the end of the line is not included in the prompt.
     output_file: file where generation results are to be stored in jsonl format. defaults to input_file+'.output.jsonl' if not defined
-
     eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
     maximum_tokens: maximum number of tokens to be generated
-
     recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
-
     temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
     top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
     top_p (default 0.0): float -> Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
-
     note: greedy decoding is used if temperature is 0.0, top_k is 0 and top_p is 0.0
-
-
     returns: List[dict] -> a list of dicts containing the following fields:
         - 'context' (the input)
         - 'text' (the completion)
@@ -619,25 +609,17 @@ def generate_samples_unconditional(
 ):
     """
     Generates samples unconditionially (no prompt) and yields them in a dictionary.
-
     neox_args: NeoXArgs.
     model: a Megatron model
-
     number_of_samples (default 10): number of unconditional samples to be generated
-
     output_file: file where generation results are to be stored in jsonl format. no file will be stored if omitted
-
     eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
     maximum_tokens: maximum number of tokens to be generated
-
     recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
-
     temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
     top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
     top_p (default 0.0): float -> Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
-
     note: greedy decoding is used if temperature is 0.0, top_k is 0 and top_p is 0.0
-
     yields: dict containing the following fields:
         - 'context' (the input)
         - 'text' (the completion)
@@ -682,21 +664,15 @@ def generate_samples_interactive(
 ):
     """
     Generates samples unconditionially (no prompt) and yields them in a dictionary.
-
     neox_args: NeoXArgs.
     model: a Megatron model
-
     maximum_tokens: maximum number of tokens to be generated
     eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
-
     recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
-
     temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
     top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
     top_p (default 0.0): float -> Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
-
     note: greedy decoding is used if temperature is 0.0, top_k is 0 and top_p is 0.0
-
     yields: dict containing the following fields:
         - 'context' (the input)
         - 'text' (the completion)
