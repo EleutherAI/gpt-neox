@@ -98,6 +98,11 @@ def main():
         if mpu.get_data_parallel_rank() == mpu.get_data_parallel_src_rank():
             for i in memorization:
                 records.write(idx, i[0], i[1])
+                wandb.log({
+                    'index':idx,
+                    'nll_loss':i[0],
+                    'accuracy':i[1]
+                })
                 idx+=1
 
         for i in range(1, mpu.get_data_parallel_world_size()):
