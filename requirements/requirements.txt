@@ -4,7 +4,7 @@ ftfy==6.0.1
 lm_dataformat==0.0.20
 lm_eval==0.2.0
 mpi4py==3.0.3
-numpy==1.21.0
+numpy==1.22.0
 pybind11==2.6.2
 regex
 sentencepiece
