@@ -346,11 +346,6 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Max sequence of ngrams to be mask back-to-back
     """
 
-    input_seq_length: int = None
-    """
-    Input length for MLM adaptation. If None, will take the value of int(512/626*seq_lenth)
-    """
-
 
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):

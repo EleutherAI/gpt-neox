@@ -58,35 +58,32 @@ def build_the_dataset(
     print_rank_0("     no. of documents:{}".format(total_num_of_documents))
     dataset = None
     documents = np.arange(start=0, stop=total_num_of_documents, step=1, dtype=np.int32)
+
+    dataset_args = [
+        name,
+        data_prefix,
+        documents,
+        indexed_dataset,
+        num_samples,
+        seq_length,
+        seed
+        ]
+
     if neox_args.use_prefix_attention:
 
-        if neox_args.input_seq_length is None:
-            input_seq_length = neox_args.seq_length*int(512/626)
-        else:
-            input_seq_length = neox_args.input_seq_length
-
         dataset = NonCausalMLMDataset(
-            name=name,
-            data_prefix=data_prefix,
-            documents=documents,
-            indexed_dataset=indexed_dataset,
+            *dataset_args,
+            build_index_mappings=build_index_mappings,
             tokenizer=neox_args.tokenizer,
-            input_seq_length=input_seq_length,
-            seed=seed,
             masked_lm_prob=neox_args.masked_lm_prob,
             max_ngrams=neox_args.max_ngrams,
         )
     else:
         dataset = GPT2Dataset(
-            name,
-            data_prefix,
-            documents,
-            indexed_dataset,
-            num_samples,
-            seq_length,
-            seed,
+            *dataset_args,
             build_index_mappings=build_index_mappings,
         )
+
     return dataset
 
 
@@ -131,33 +128,29 @@ def build_train_valid_test_datasets(
                 start=splits[index], stop=splits[index + 1], step=1, dtype=np.int32
             )
 
+            dataset_args = [
+                name,
+                data_prefix,
+                documents,
+                indexed_dataset,
+                num_samples,
+                seq_length,
+                seed
+                ]
+
             if neox_args.use_prefix_attention:
 
-                if neox_args.input_seq_length is None:
-                    input_seq_length = neox_args.seq_length*int(512/626)
-                else:
-                    input_seq_length = neox_args.input_seq_length
-
                 dataset = NonCausalMLMDataset(
-                    name=name,
-                    data_prefix=data_prefix,
-                    documents=documents,
-                    indexed_dataset=indexed_dataset,
+                    *dataset_args,
+                    build_index_mappings=build_index_mappings,
                     tokenizer=neox_args.tokenizer,
-                    input_seq_length=input_seq_length,
-                    seed=seed,
                     masked_lm_prob=neox_args.masked_lm_prob,
                     max_ngrams=neox_args.max_ngrams,
                 )
             else:
                 dataset = GPT2Dataset(
-                    name,
-                    data_prefix,
-                    documents,
-                    indexed_dataset,
-                    train_valid_test_num_samples[index],
-                    seq_length,
-                    seed,
+                    *dataset_args,
+                    build_index_mappings=build_index_mappings,
                 )
 
         return dataset

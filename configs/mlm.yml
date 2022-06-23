@@ -11,9 +11,7 @@
   # If finetuning, edit the following to the location of your finetuning dataset:
   "data-path": "data/enron/enron_text_document",
 
-
   "use_prefix_attention": True,
-  "input_seq_length": 1675,
   "seq-length": 2048,
 
   ### NEW DATA: ####
