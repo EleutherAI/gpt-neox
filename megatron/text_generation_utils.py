@@ -276,9 +276,9 @@ def stream_tokens(
 
     with torch.no_grad():
         # initialize generation variables
-        return_logits = []
         state_is_done = torch.zeros([batch_size]).byte().cuda()
         token_generation_end_index = torch.ones([batch_size]).long().cuda() * (-1)
+        generation_logits = torch.empty(maximum_tokens, neox_args.padded_vocab_size).float().cuda()
 
         while token_index_to_generate <= last_token_index_to_generate:
             if recompute:  # recompute all tokens
@@ -335,7 +335,7 @@ def stream_tokens(
                     ).view(-1)
 
                 if neox_args.return_logits:
-                    return_logits.append(generated_token_logits[0])
+                    generation_logits[token_index_to_generate - 1] = generated_token_logits[0]
 
             if neox_args.is_pipe_parallel:
                 # broadcast generated tokens to pipe parallel group
@@ -382,7 +382,7 @@ def stream_tokens(
 
             token_index_to_generate += 1
 
-            yield context_tokens, token_generation_start_index, token_generation_end_index, return_logits, state_is_done.bool()
+            yield context_tokens, token_generation_start_index, token_generation_end_index, generation_logits, state_is_done.bool()
             if torch.all(state_is_done):
                 break
 
@@ -532,13 +532,8 @@ def generate_samples_from_prompt(
                     "duration_seconds": float(time.time() - start_time),
                 }
 
-                if neox_args.return_logits and len(batch_generated_token_logits) > 0:
-                    mapping = lambda token_logits: token_logits.cpu().numpy().tolist()
-                    # data["logits"] = []
-                    # for logits_tensor in batch_generated_token_logits:
-                    #     data["logits"].append(logits_tensor.cpu().numpy().tolist())
-
-                    data["logits"] = list(map(mapping, batch_generated_token_logits))
+                if neox_args.return_logits:
+                    data["logits"] = batch_generated_token_logits.cpu().numpy().tolist()
 
                 generated_texts.append(data)
 
