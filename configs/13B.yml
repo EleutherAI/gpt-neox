@@ -3,7 +3,7 @@
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
    "pipe-parallel-size": 1,
-   "model-parallel-size": 1,
+   "model-parallel-size": 4,
 
    # model settings
    "num-layers": 40,
@@ -13,34 +13,39 @@
    "max-position-embeddings": 2048,
    "norm": "layernorm",
    "pos-emb": "rotary",
+   "rotary_pct": 0.25,
    "no-weight-tying": true,
+   "gpt_j_residual": true,
+   "output_layer_parallelism": "column",
 
    # these should provide some speedup but takes a while to build, set to true if desired
-   "scaled-upper-triang-masked-softmax-fusion": false,
-   "bias-gelu-fusion": false,
+   "scaled-upper-triang-masked-softmax-fusion": true,
+   "bias-gelu-fusion": true,
+
 
    # optimizer settings
    "optimizer": {
      "type": "Adam",
      "params": {
-       "lr": 0.0001,
-       "betas": [0.9, 0.999],
+       "lr": 0.00012,
+       "betas": [0.9, 0.95],
        "eps": 1.0e-8,
      }
    },
    "zero_optimization": {
     "stage": 1,
     "allgather_partitions": True,
-    "allgather_bucket_size": 500000000,
+    "allgather_bucket_size": 1260000000,
     "overlap_comm": True,
     "reduce_scatter": True,
-    "reduce_bucket_size": 500000000,
+    "reduce_bucket_size": 1260000000,
     "contiguous_gradients": True,
     "cpu_offload": False
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 4,
+   "train_micro_batch_size_per_gpu": 10,
+   "gradient_accumulation_steps": 1,
    "data-impl": "mmap",
    "split": "949,50,1",
 
@@ -52,7 +57,7 @@
 
    # regularization
    "gradient_clipping": 1.0,
-   "weight-decay": 0,
+   "weight-decay": 0.1,
    "hidden-dropout": 0,
    "attention-dropout": 0,
 
@@ -62,13 +67,14 @@
      "enabled": true,
      "loss_scale": 0,
      "loss_scale_window": 1000,
+     "initial_scale_power": 12,
      "hysteresis": 2,
      "min_loss_scale": 1
    },
 
    # misc. training settings
-   "train-iters": 320000,
-   "lr-decay-iters": 320000,
+   "train-iters": 143000,
+   "lr-decay-iters": 143000,
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
@@ -79,6 +85,5 @@
    # logging
    "log-interval": 100,
    "steps_per_print": 10,
-   "keep-last-n-checkpoints": 4,
    "wall_clock_breakdown": true,
 }
