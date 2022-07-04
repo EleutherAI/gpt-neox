@@ -190,7 +190,7 @@ or with the GPT-NeoX-20B tokenizer (assuming you have it saved at `./20B_checkpo
 python prepare_data.py -d ./data -t HFTokenizer --vocab-file ./20B_checkpoints/20B_tokenizer.json
 ```
 
-The tokenized data will be saved out to two files at `[data-dir]/[dataset-name]/[dataset-name]_text_document.bin` & `[data-dir]/[dataset-name]/[dataset-name]_text_document.bin`. You will need to add the prefix that both these files share to your training configuration file under the `data-path` field. E.G:
+The tokenized data will be saved out to two files: `[data-dir]/[dataset-name]/[dataset-name]_text_document.bin`and `[data-dir]/[dataset-name]/[dataset-name]_text_document.idx`. You will need to add the prefix that both these files share to your training configuration file under the `data-path` field. E.G:
 
 ```yaml
   "data-path": "./data/enron/enron_text_document",
