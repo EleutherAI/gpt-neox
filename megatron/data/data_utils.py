@@ -133,7 +133,7 @@ def build_train_valid_test_datasets(
                 data_prefix,
                 documents,
                 indexed_dataset,
-                num_samples,
+                train_valid_test_num_samples[index],
                 seq_length,
                 seed
                 ]
@@ -142,7 +142,6 @@ def build_train_valid_test_datasets(
 
                 dataset = NonCausalMLMDataset(
                     *dataset_args,
-                    build_index_mappings=build_index_mappings,
                     tokenizer=neox_args.tokenizer,
                     masked_lm_prob=neox_args.masked_lm_prob,
                     max_ngrams=neox_args.max_ngrams,
@@ -150,7 +149,6 @@ def build_train_valid_test_datasets(
             else:
                 dataset = GPT2Dataset(
                     *dataset_args,
-                    build_index_mappings=build_index_mappings,
                 )
 
         return dataset
