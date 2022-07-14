@@ -1,22 +1,106 @@
-# DISCLAIMER: This is the configuration file for the GPT-NeoX-20B model as it was trained on 96x 40GB A100
-# GPUs. Depending on your system configuration, you may need to change some parameters in order to fit
-# the model in memory.
-
+# GPT-2 pretraining setup
 {
-  # Tokenizer /  checkpoint settings - you will need to change these to the location you have them saved in
-  "vocab-file": "./20B_checkpoints/20B_tokenizer.json",
-  "save": "./20B_checkpoints",
-  "load": "./20B_checkpoints",
+   # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
+   # across the node boundaries )
+   "pipe-parallel-size": 1,
+   "model-parallel-size": 1,
 
-  # If finetuning, edit the following to the location of your finetuning dataset:
-  "data-path": "data/enron/enron_text_document",
+   # model settings
+   "num-layers": 12,
+   "hidden-size": 768,
+   "num-attention-heads": 12,
+   "seq-length": 2048,
+   "max-position-embeddings": 2048,
+   "norm": "layernorm",
+   "pos-emb": "rotary",
+   "no-weight-tying": true,
 
-  "use_prefix_attention": True,
-  "seq-length": 2048,
+   # these should provide some speedup but takes a while to build, set to true if desired
+   "scaled-upper-triang-masked-softmax-fusion": false,
+   "bias-gelu-fusion": false,
 
-  ### NEW DATA: ####
-  "tokenizer_type": "HFTokenizer",
-  "tensorboard-dir": "./tensorboard",
-  "log-dir": "./logs",
 
+   # optimizer settings
+   "optimizer": {
+     "type": "Adam",
+     "params": {
+       "lr": 0.0006,
+       "betas": [0.9, 0.999],
+       "eps": 1.0e-8,
+     }
+   },
+   "zero_optimization": {
+    "stage": 0,
+    "allgather_partitions": True,
+    "allgather_bucket_size": 500000000,
+    "overlap_comm": True,
+    "reduce_scatter": True,
+    "reduce_bucket_size": 500000000,
+    "contiguous_gradients": True,
+    "cpu_offload": False
+  },
+
+   # batch / data settings
+   "train_micro_batch_size_per_gpu": 4,
+   "data-impl": "mmap",
+   "split": "949,50,1",
+
+   # activation checkpointing
+   "checkpoint-activations": true,
+   "checkpoint-num-layers": 1,
+   "partition-activations": true,
+   "synchronize-each-layer": true,
+
+   # regularization
+   "gradient_clipping": 1.0,
+   "weight-decay": 0.0,
+   "hidden-dropout": 0.0,
+   "attention-dropout": 0.0,
+
+   # precision settings
+   "fp16": {
+     "enabled": true,
+     "type": "bfloat16", # set bf16 as precision
+     "loss_scale": 0,
+     "loss_scale_window": 1000,
+     "hysteresis": 2,
+     "min_loss_scale": 1
+   },
+
+   "fp32_allreduce": True, # without a patch to torch, bf16 models have to do the allreduce in fp32
+   # misc. training settings
+   "train-iters": 320000,
+   "lr-decay-iters": 320000,
+   "distributed-backend": "nccl",
+   "lr-decay-style": "cosine",
+   "warmup": 0.01,
+   "save-interval": 10000,
+   "eval-interval": 1000,
+   "eval-iters": 10,
+
+   # logging
+   "log-interval": 100,
+   "steps_per_print": 10,
+   "keep-last-n-checkpoints": 4,
+   "wall_clock_breakdown": true,
+
+
+   # Tokenizer /  checkpoint settings - you will need to change these to the location you have them saved in
+   "vocab-file": "./data/20b_checkpoints/125m-tokenizer/",
+  #  "merge-file": "./20b_checkpoints/merges.txt",
+   "save": "./data/20b_checkpoints",
+   "load": "./data/20b_checkpoints",
+
+   # If finetuning, edit the following to the location of your finetuning dataset:
+   "data-path": "./data/enron/enron_text_document",
+   
+   "extra-sentinel-tokens": 100,
+   "train-mlm": True,
+  #  "use_prefix_attention": True,
+   "seq-length": 1024,
+
+   ### NEW DATA: ####
+   "tokenizer_type": "HFGPT2Tokenizer",
+   "tensorboard-dir": "./tensorboard",
+   "log-dir": "./logs",
 }
