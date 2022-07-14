@@ -71,8 +71,8 @@ class MLMDataset(torch.utils.data.Dataset):
         self.expanded_inputs_length = expanded_inputs_length + 1
         self.targets_length = targets_length + 1
 
-        self.num_noise_spans = num_nonnoise_spans
-        
+        self.num_noise_spans = num_noise_spans
+        print(expanded_inputs_length, inputs_length, targets_length)
         # # Build the samples mapping.
         # self.samples_mapping = get_samples_mapping(
         #     self.indexed_dataset,

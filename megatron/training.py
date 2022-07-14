@@ -155,21 +155,27 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
     data_b = mpu.broadcast_data(keys, data, datatype)
 
     # Unpack.
+    prefix_indices = None
     if not neox_args.train_mlm:
         tokens_ = data_b["text"].long()
-        labels = tokens_[:, 1:].contiguous()
-        tokens = tokens_[:, :-1].contiguous()
     else:
-        tokens_ = data_b["input_tokens"].long()
+
+        inputs_ = data_b["input_tokens"].long()
         targets_ = data_b["target_tokens"].long()
-        # TODO(Hailey:) confirm that no shifting of inputs needed in MLM!
-        labels = targets_.contiguous()
-        tokens = tokens_.contiguous()
+
+        # MLM -> concatenate targets after inputs
+        tokens_ = torch.concat([inputs_, targets_], dim=-1)
+
+        # full attention over prefixes
+        batch_size, seq_length = inputs_.shape
+        prefix_indices = torch.full((batch_size,), seq_length).long()
         
-    if neox_args.use_prefix_attention:
+    if neox_args.use_prefix_attention and not neox_args.train_mlm:
+        # TODO(Hailey:) check if we can avoid .cpu() or .tolist() 
         prefix_indices = data_b["prefix"].cpu().tolist()
-    else:
-        prefix_indices = None
+    
+    labels = tokens_[:, 1:].contiguous()
+    tokens = tokens_[:, :-1].contiguous()
 
     # Get the masks and position ids.
     # TODO(Hailey:) does the loss mask require the targets be passed in?

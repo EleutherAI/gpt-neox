@@ -77,8 +77,7 @@ def get_ltor_masks_and_position_ids(
     data,
     eod_token,
     eod_mask_loss=False,
-    prefix_indices=None,
-    labels=None,    
+    prefix_indices=None,  
 ):
     """
     Build masks and position id for left to right model.
@@ -91,7 +90,7 @@ def get_ltor_masks_and_position_ids(
     # Extract batch size and sequence length.
     batch_size, seq_length = data.size()
 
-    if labels:
+    if prefix_indices is not None:
         att_mask_batch = batch_size
     else:
         att_mask_batch = 1
@@ -116,9 +115,7 @@ def get_ltor_masks_and_position_ids(
     if prefix_indices is not None:
         # Loop through the batches
         for b in range(batch_size):
-
-            assert isinstance(prefix_indices[b], int), \
-                f"prefix for a row has to be row specific, and consequently return an int, got {prefix_indices[b]}"
+            # TODO(Hailey:) add back a type check for prefix_indices[b]? it should be a scalar
             attention_mask[b, 0, :prefix_indices[b], :prefix_indices[b]] = 1
 
     return attention_mask, loss_mask, position_ids
