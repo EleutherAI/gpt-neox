@@ -330,6 +330,12 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
     """
 
+    train_mlm: bool = False
+    """
+    If true, model is trained on a t5-style span denoising MLM objective,
+    And if false, model is trained on an autoregressive (Causal or Prefix) LM objective
+    """
+
     use_prefix_attention: bool = False
     """
     If true, model will use a prefix-based attention that fully attends for n tokens
@@ -341,7 +347,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Masking probability for MLM Adaptation
     """
     
-    max_ngrams: int = 3
+    mean_noise_span_length: int = 3
     """
     Max sequence of ngrams to be mask back-to-back
     """

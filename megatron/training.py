@@ -155,16 +155,24 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
     data_b = mpu.broadcast_data(keys, data, datatype)
 
     # Unpack.
-    tokens_ = data_b["text"].long()
-    labels = tokens_[:, 1:].contiguous()
-    tokens = tokens_[:, :-1].contiguous()
-
+    if not neox_args.train_mlm:
+        tokens_ = data_b["text"].long()
+        labels = tokens_[:, 1:].contiguous()
+        tokens = tokens_[:, :-1].contiguous()
+    else:
+        tokens_ = data_b["input_tokens"].long()
+        targets_ = data_b["target_tokens"].long()
+        # TODO(Hailey:) confirm that no shifting of inputs needed in MLM!
+        labels = targets_.contiguous()
+        tokens = tokens_.contiguous()
+        
     if neox_args.use_prefix_attention:
         prefix_indices = data_b["prefix"].cpu().tolist()
     else:
         prefix_indices = None
 
     # Get the masks and position ids.
+    # TODO(Hailey:) does the loss mask require the targets be passed in?
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
         data=tokens,
         eod_token=neox_args.tokenizer.eod,
@@ -179,9 +187,13 @@ def get_batch(neox_args, data_iterator):
     """Generate a batch"""
 
     # Items and their type.
-    keys = ["text"]
-    if neox_args.use_prefix_attention:
-        keys += ["prefix"]
+    if neox_args.train_mlm:
+        keys = ["input_tokens", "target_tokens"]
+    elif neox_args.use_prefix_attention:
+        keys = ["text", "prefix"]
+    else:
+        keys = ["text"]
+        
     datatype = torch.int64
 
     # Broadcast data.
@@ -201,9 +213,13 @@ def get_batch(neox_args, data_iterator):
 def get_batch_pipe(data, neox_args):
     """A modification of get_batch() to work with the latest batch instead of an iterator."""
     # Items and their type.
-    keys = ["text"]
-    if neox_args.use_prefix_attention:
-        keys += ["prefix"]
+    if neox_args.train_mlm:
+        keys = ["input_tokens", "target_tokens"]
+    elif neox_args.use_prefix_attention:
+        keys = ["text", "prefix"]
+    else:
+        keys = ["text"]
+    
     datatype = torch.int64
 
     tokens, labels, loss_mask, attention_mask, position_ids = _get_batch(

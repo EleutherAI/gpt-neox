@@ -9,7 +9,7 @@ from megatron import mpu, print_rank_0
 from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
 from megatron.data.blendable_dataset import BlendableDataset
 from megatron.data.gpt2_dataset import GPT2Dataset
-from megatron.data.non_causal_mlm_dataset import NonCausalMLMDataset
+from megatron.data.mlm_dataset import MLMDataset
 from megatron.data.samplers import DistributedBatchSampler
 
 
@@ -71,12 +71,12 @@ def build_the_dataset(
 
     if neox_args.use_prefix_attention:
 
-        dataset = NonCausalMLMDataset(
+        dataset = MLMDataset(
             *dataset_args,
             build_index_mappings=build_index_mappings,
             tokenizer=neox_args.tokenizer,
-            masked_lm_prob=neox_args.masked_lm_prob,
-            max_ngrams=neox_args.max_ngrams,
+            noise_density=neox_args.masked_lm_prob,
+            mean_noise_span_length=neox_args.mean_noise_span_length,
         )
     else:
         dataset = GPT2Dataset(
@@ -138,13 +138,13 @@ def build_train_valid_test_datasets(
                 seed
                 ]
 
-            if neox_args.use_prefix_attention:
+            if neox_args.train_mlm:
 
-                dataset = NonCausalMLMDataset(
+                dataset = MLMDataset(
                     *dataset_args,
                     tokenizer=neox_args.tokenizer,
-                    masked_lm_prob=neox_args.masked_lm_prob,
-                    max_ngrams=neox_args.max_ngrams,
+                    noise_density=neox_args.masked_lm_prob,
+                    mean_noise_span_length=neox_args.mean_noise_span_length,
                 )
             else:
                 dataset = GPT2Dataset(
