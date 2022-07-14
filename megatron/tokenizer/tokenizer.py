@@ -68,6 +68,9 @@ def _vocab_size_with_padding(orig_vocab_size, args):
     still having GPU friendly size."""
 
     after = orig_vocab_size
+    # add in extra sentinel tokens first
+    after = after + args.extra_sentinel_tokens
+    # then pad for computational efficiency
     multiple = args.make_vocab_size_divisible_by * args.model_parallel_size
     while (after % multiple) != 0:
         after += 1
