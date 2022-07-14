@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""GPT Non-Causal Mask Language Model Finetune Style dataset."""
+"""T5-style MLM denoising dataset. Originally added for MLM-adapting decoder models.""""
 
 import os
 import time
@@ -25,7 +25,7 @@ import torch
 from megatron import mpu, print_rank_0
 
 
-class NonCausalMLMDataset(torch.utils.data.Dataset):
+class MLMDataset(torch.utils.data.Dataset):
 
     def __init__(
         self,
@@ -38,12 +38,13 @@ class NonCausalMLMDataset(torch.utils.data.Dataset):
         seed,
         build_index_mappings=True,
         tokenizer=None,
-        masked_lm_prob=0.15,
-        max_ngrams=3,
+        noise_density=0.15,
+        mean_noise_span_length=3,
     ):
 
         # Params to store.
         self.name = name
+        self.seed = seed
         self.indexed_dataset = indexed_dataset
 
         self.masked_lm_prob = masked_lm_prob
@@ -471,7 +472,7 @@ def compute_input_and_target_lengths(inputs_length, noise_density, mean_noise_sp
     tokens_length = inputs_length
     while sum(_tokens_length_to_inputs_length_targets_length(tokens_length)) > inputs_length:
         tokens_length -= 1
-    inputs_length, targets_length = tokens_length_to_inputs_length_targets_length(tokens_length)
+    inputs_length, targets_length = _tokens_length_to_inputs_length_targets_length(tokens_length)
     # minor hack to get the targets length to be equal to inputs length
     # which is more likely to have been set to a nice round number.
     if noise_density == 0.5 and targets_length > inputs_length:
