@@ -75,6 +75,7 @@ def build_the_dataset(
             *dataset_args,
             build_index_mappings=build_index_mappings,
             tokenizer=neox_args.tokenizer,
+            padded_vocab_size=neox_args.padded_vocab_size,
             noise_density=neox_args.masked_lm_prob,
             mean_noise_span_length=neox_args.mean_noise_span_length,
         )
@@ -143,6 +144,7 @@ def build_train_valid_test_datasets(
                 dataset = MLMDataset(
                     *dataset_args,
                     tokenizer=neox_args.tokenizer,
+                    padded_vocab_size=neox_args.padded_vocab_size,
                     noise_density=neox_args.masked_lm_prob,
                     mean_noise_span_length=neox_args.mean_noise_span_length,
                 )

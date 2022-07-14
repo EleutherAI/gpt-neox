@@ -178,7 +178,6 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
     tokens = tokens_[:, :-1].contiguous()
 
     # Get the masks and position ids.
-    # TODO(Hailey:) does the loss mask require the targets be passed in?
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
         data=tokens,
         eod_token=neox_args.tokenizer.eod,
