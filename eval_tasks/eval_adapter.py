@@ -92,7 +92,7 @@ class EvalHarnessAdapter(GPT2LM):
     @property
     def eot_token_id(self):
         # we use EOT because end of *text* is more accurate for what we're doing than end of *sentence*
-        return self._eos_token_id
+        return self._eot_token_id
 
     @property
     def max_length(self):
