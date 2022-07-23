@@ -326,6 +326,10 @@ EleutherAI is currently using [Weights & Biases to record our experiments](https
 
 We also support using TensorBoard via the <code><var>tensorboard-dir</var></code> field. Dependencies required for TensorBoard monitoring can be found in and installed from  `./requirements/requirements-tensorboard.txt`.
 
+# Running on multi-node
+
+If you need to supply a hostfile for use with the MPI-based DeepSpeed launcher, you can set the environment variable `DLTS_HOSTFILE` to point to the hostfile. 
+
 # Administrative Notes
 
 ## Citing GPT-NeoX
