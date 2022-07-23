@@ -77,6 +77,9 @@ BASE_CLASSES = [
 DEEPSPEED_ARG_CLASSES = [NeoXArgsDeepspeedRunner, NeoXArgsDeepspeedConfig]
 NEOX_ARG_CLASSES = [i for i in BASE_CLASSES if i not in DEEPSPEED_ARG_CLASSES]
 
+if "DLTS_HOSTFILE" in os.environ:
+    DLTS_HOSTFILE = os.environ["DLTS_HOSTFILE"]
+
 
 @dataclass
 class NeoXArgs(*BASE_CLASSES):
