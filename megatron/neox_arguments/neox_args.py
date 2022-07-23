@@ -141,6 +141,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     T5 relative positional encoding max distance, default 128.
     """
 
+    opt_pos_emb_offset: int = 0
+    """
+    Learned position embedding offset (only used by OPT, where it should be set to 2).
+    """
+
     no_weight_tying: bool = False
     """
     Disables weight tying between embedding weights and final Linear layer
