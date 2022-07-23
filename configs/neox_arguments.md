@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = f9ee4a6
+    Default = 7c25eed
 
     current git hash of repository
 
@@ -306,6 +306,7 @@ Model Arguments
     Default = 128
 
     T5 relative positional encoding max distance, default 128.
+
 
 
 - **opt_pos_emb_offset**: int
