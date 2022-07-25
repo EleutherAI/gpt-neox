@@ -335,10 +335,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
     """
 
-    train_mlm: bool = False
+    training_objective: Literal["clm", "mlm", "prefixlm"] = "clm"
     """
-    If true, model is trained on a t5-style span denoising MLM objective,
-    And if false, model is trained on an autoregressive (Causal or Prefix) LM objective
+    Training objective to use. if "mlm", trained on a t5-style span denoising MLM objective,
+    If "clm", model is trained on a typical autoregressive LM objective,
+    and if "prefixlm", model is trained with bidirectional attention up to the first n tokens.
     """
 
     use_prefix_attention: bool = False

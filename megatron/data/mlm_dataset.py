@@ -1,3 +1,6 @@
+# Copyright (c) 2022, EleutherAI contributors
+# This file is based on code by the authors denoted below and has been modified from its original version. 
+# TODO(Hailey): add attribution to Bigscience Meg-DS fork + authors?
 # coding=utf-8
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
@@ -111,16 +114,14 @@ class MLMDataset(torch.utils.data.Dataset):
         #TODO(Hailey): does this report IndexError in a way that's legible to user?
         sample = self._gpt_dataset[idx]["text"]
 
-        return = build_training_sample(
+        return build_training_sample(
                         sample,
                         inputs_length=self.inputs_length,
                         targets_length=self.targets_length,
                         num_noise_spans=self.num_noise_spans,
                         sep_id=self.eos_id,
                         all_sentinel_token_ids=self.sentinel_token_ids,
-                        )[0],
-        #TODO(Hailey:) remove this hack (the [0] above) and figure out why getitem returns a tuple/list for this dataset
-            
+                        )     
 
 
 def build_training_sample(

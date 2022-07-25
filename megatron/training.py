@@ -156,7 +156,7 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
 
     # Unpack.
     prefix_indices = None
-    if not neox_args.train_mlm:
+    if neox_args.training_objective != "mlm":
         tokens_ = data_b["text"].long()
     else:
 
@@ -170,7 +170,7 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
         batch_size, seq_length = inputs_.shape
         prefix_indices = torch.full((batch_size,), seq_length).long()
         
-    if neox_args.use_prefix_attention and not neox_args.train_mlm:
+    if neox_args.training_objective == "prefixlm":
         # TODO(Hailey:) check if we can avoid .cpu() or .tolist() 
         prefix_indices = data_b["prefix"].cpu().tolist()
     
@@ -192,9 +192,9 @@ def get_batch(neox_args, data_iterator):
     """Generate a batch"""
 
     # Items and their type.
-    if neox_args.train_mlm:
+    if neox_args.training_objective == "mlm":
         keys = ["input_tokens", "target_tokens"]
-    elif neox_args.use_prefix_attention:
+    elif neox_args.training_objective == "prefixlm":
         keys = ["text", "prefix"]
     else:
         keys = ["text"]
@@ -218,9 +218,9 @@ def get_batch(neox_args, data_iterator):
 def get_batch_pipe(data, neox_args):
     """A modification of get_batch() to work with the latest batch instead of an iterator."""
     # Items and their type.
-    if neox_args.train_mlm:
+    if neox_args.training_objective == "mlm":
         keys = ["input_tokens", "target_tokens"]
-    elif neox_args.use_prefix_attention:
+    elif neox_args.training_objective == "prefixlm":
         keys = ["text", "prefix"]
     else:
         keys = ["text"]

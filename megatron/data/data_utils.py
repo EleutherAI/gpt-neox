@@ -139,7 +139,7 @@ def build_train_valid_test_datasets(
                 seed
                 ]
 
-            if neox_args.train_mlm:
+            if neox_args.training_objective == "mlm":
 
                 dataset = MLMDataset(
                     *dataset_args,
