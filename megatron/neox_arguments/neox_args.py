@@ -342,10 +342,9 @@ class NeoXArgsModel(NeoXArgsTemplate):
     and if "prefixlm", model is trained with bidirectional attention up to the first n tokens.
     """
 
-    use_prefix_attention: bool = False
+    train_mtf: bool = False
     """
-    If true, model will use a prefix-based attention that fully attends for n tokens
-    and causally attends for the rest.
+    Flag controlling whether model will be multi-task-finetuned, using DecoderPackedMTFDataset.
     """
 
     masked_lm_prob: float = 0.15
