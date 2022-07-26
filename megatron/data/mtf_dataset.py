@@ -24,7 +24,7 @@ import numpy as np
 import torch
 
 from megatron import print_rank_0
-from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
+from megatron.data.temp_data_utils import get_indexed_dataset
 
 class MTFDataset(torch.utils.data.Dataset):
 
@@ -69,25 +69,3 @@ class MTFDataset(torch.utils.data.Dataset):
             'input_tokens': self.input_indexed_dataset.size(index),
             'target_tokens': self.target_indexed_dataset.size(index),
         }
-
-def get_indexed_dataset(data_prefix: str, is_input: bool, data_impl: str, skip_warmup: bool):
-    if is_input:
-        field = "inputs"
-    else:
-        field = "targets"
-
-    return get_indexed_dataset_(f"{data_prefix}_{field}_document", data_impl, skip_warmup)
-
-def get_indexed_dataset_(path, data_impl, skip_warmup):
-    """Build indexed dataset."""
-    print_rank_0(' > building dataset index ...')
-    start_time = time.time()
-    indexed_dataset = make_indexed_dataset(path,
-                                           data_impl,
-                                           skip_warmup)
-    print_rank_0(' > finished creating indexed dataset in {:4f} '
-                 'seconds'.format(time.time() - start_time))
-    print_rank_0('    number of documents: {}'.format(
-        indexed_dataset.sizes.shape[0]))
-
-    return indexed_dataset
