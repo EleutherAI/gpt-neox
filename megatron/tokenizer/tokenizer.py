@@ -176,6 +176,10 @@ class _GPT2BPETokenizer(AbstractTokenizer):
 
     def detokenize(self, token_ids):
         return self.tokenizer.decode(token_ids)
+    
+    @property
+    def pad(self):
+        return self.pad_id
 
     @property
     def eod(self):
@@ -217,6 +221,10 @@ class SentencePieceTokenizer(AbstractTokenizer):
         return self.tokenizer.decode(token_ids)
 
     @property
+    def pad(self):
+        return self.pad_id
+
+    @property
     def eod(self):
         return self.eod_id
 
@@ -252,6 +260,10 @@ class HFTokenizer(AbstractTokenizer):
 
     def detokenize(self, token_ids):
         return self.tokenizer.decode(token_ids)
+
+    @property
+    def pad(self):
+        return self.pad_id
 
     @property
     def eod(self):
@@ -301,6 +313,10 @@ class HFGPT2Tokenizer(AbstractTokenizer):
         return self.tokenizer.decode(token_ids)
 
     @property
+    def pad(self):
+        return self.pad_id
+
+    @property
     def eod(self):
         return self.eod_id
 
@@ -344,6 +360,10 @@ class CharLevelTokenizer(AbstractTokenizer):
 
     def detokenize(self, token_ids):
         return "".join(list(map(self.decode_token, token_ids)))
+
+    @property
+    def pad(self):
+        return self.pad_id
 
     @property
     def eod(self):
