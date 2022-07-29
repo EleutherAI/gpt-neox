@@ -64,8 +64,8 @@ class MTFDataset(torch.utils.data.Dataset):
             'target_tokens': target_tokens,
         }
 
-    def size(self, index):
+    def size(self, idx):
         return {
-            'input_tokens': self.input_indexed_dataset.size(index),
-            'target_tokens': self.target_indexed_dataset.size(index),
+            'input_tokens': self.input_indexed_dataset.size(idx),
+            'target_tokens': self.target_indexed_dataset.size(idx),
         }

@@ -94,7 +94,7 @@
    # If finetuning, edit the following to the location of your finetuning dataset:
    "data-path": "./data/enron/enron_text_document",
    
-   "extra-sentinel-tokens": 100,
+  #  "extra-sentinel-tokens": 100,
   #  "training-objective": "mlm",
    "train_mtf": True,
   #  "use_prefix_attention": True,
