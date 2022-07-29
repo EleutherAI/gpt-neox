@@ -40,6 +40,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
     ):
 
         self.name = name
+        self.seed = seed
         self.indexed_dataset = indexed_dataset
 
         # Checks

@@ -155,14 +155,27 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
     data_b = mpu.broadcast_data(keys, data, datatype)
 
     # Unpack.
-    tokens_ = data_b["text"].long()
+    prefix_indices = None
+    if not neox_args.train_mlm:
+        tokens_ = data_b["text"].long()
+    else:
+
+        inputs_ = data_b["input_tokens"].long()
+        targets_ = data_b["target_tokens"].long()
+
+        # MLM -> concatenate targets after inputs
+        tokens_ = torch.concat([inputs_, targets_], dim=-1)
+
+        # full attention over prefixes
+        batch_size, seq_length = inputs_.shape
+        prefix_indices = torch.full((batch_size,), seq_length).long()
+        
+    if neox_args.use_prefix_attention and not neox_args.train_mlm:
+        # TODO(Hailey:) check if we can avoid .cpu() or .tolist() 
+        prefix_indices = data_b["prefix"].cpu().tolist()
+    
     labels = tokens_[:, 1:].contiguous()
     tokens = tokens_[:, :-1].contiguous()
-
-    if neox_args.use_prefix_attention:
-        prefix_indices = data_b["prefix"].cpu().tolist()
-    else:
-        prefix_indices = None
 
     # Get the masks and position ids.
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
@@ -179,9 +192,13 @@ def get_batch(neox_args, data_iterator):
     """Generate a batch"""
 
     # Items and their type.
-    keys = ["text"]
-    if neox_args.use_prefix_attention:
-        keys += ["prefix"]
+    if neox_args.train_mlm:
+        keys = ["input_tokens", "target_tokens"]
+    elif neox_args.use_prefix_attention:
+        keys = ["text", "prefix"]
+    else:
+        keys = ["text"]
+        
     datatype = torch.int64
 
     # Broadcast data.
@@ -201,9 +218,13 @@ def get_batch(neox_args, data_iterator):
 def get_batch_pipe(data, neox_args):
     """A modification of get_batch() to work with the latest batch instead of an iterator."""
     # Items and their type.
-    keys = ["text"]
-    if neox_args.use_prefix_attention:
-        keys += ["prefix"]
+    if neox_args.train_mlm:
+        keys = ["input_tokens", "target_tokens"]
+    elif neox_args.use_prefix_attention:
+        keys = ["text", "prefix"]
+    else:
+        keys = ["text"]
+    
     datatype = torch.int64
 
     tokens, labels, loss_mask, attention_mask, position_ids = _get_batch(
