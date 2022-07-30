@@ -126,7 +126,6 @@ class Embedding(torch.nn.Module):
             # OPT always adds 2 for some reason, according to the HF implementation
             if self.opt_pos_emb_offset:
                 position_ids = position_ids + self.opt_pos_emb_offset
-            import pdb; pdb.set_trace()
             position_embeddings = self.position_embeddings(position_ids)
             embeddings = words_embeddings + position_embeddings
         else:
