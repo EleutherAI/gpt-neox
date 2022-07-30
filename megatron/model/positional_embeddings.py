@@ -125,9 +125,10 @@ class AliBi(torch.nn.Module):
 
         # Initialize the AliBi matrix to match the first provided key length; grow it exponentially
         # afterwards if longer inputs are provided. This is important for inference, where we will
-        # encounter progressively longer samples, while incurring no additional cost when input
-        # sequences are all equally long, as is typical at training time.
-        if self.cached_seq_len is None or self.cached_seq_len >= seq_len_k:
+        # encounter progressively longer samples; it should have no effect at training time.
+        if self.cached_seq_len is not None and self.cached_seq_len >= seq_len_k:
+            a = self.cached_matrix
+        else:
             target_seq_len = seq_len_k if self.cached_seq_len is None else self.cached_seq_len * 4
             a = -torch.tril(
                 torch.arange(target_seq_len).view(target_seq_len, 1).repeat(1, target_seq_len)
@@ -138,9 +139,7 @@ class AliBi(torch.nn.Module):
             a = a * slopes.view(self.slopes.shape[0], 1, 1)
             self.cached_seq_len = target_seq_len
             self.cached_matrix = a
-        else:
-            a = self.cached_matrix
-        
+
         # If the AliBi matrix is larger than the key length, clip it.
         if self.cached_seq_len > seq_len_k:
             a = self.cached_matrix[:, :seq_len_k, :seq_len_k]
