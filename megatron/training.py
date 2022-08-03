@@ -153,19 +153,24 @@ def pretrain(neox_args):
 def _get_batch(neox_args, tokenizer, keys, data, datatype):
     """Support function for get_batch / get_batch pipe (to avoid code repetition)"""
     # TODO(Hailey): maybe we can just broadcast it in int64 not bool and avoid this if stmt
+    # print_rank_0(data)
     # if "decoder_is_inputs" in keys:
-    #     data_c = data.pop("decoder_is_inputs")
+    #     keys.remove("decoder_is_inputs")
+    #     data_c = {"decoder_is_inputs": data.pop("decoder_is_inputs")}
     #     data_c = mpu.broadcast_data(["decoder_is_inputs"], data_c, torch.bool)
     data_b = mpu.broadcast_data(keys, data, datatype)
 
     # Unpack according to training objective.
-    prefix_indices = None
+    decoder_is_inputs, segment_ids, prefix_indices = None, None, None
     if neox_args.train_mtf:
+
         tokens_ = data_b["decoder_token_ids"].long()
         segment_ids = data_b["decoder_segment_ids"].long()[:, :-1]
-        decoder_is_inputs = data_c["decoder_is_inputs"][:, :-1]
+        # We'll shift this one later. TODO(Hailey): figure out a workaround
+        decoder_is_inputs = data_b["decoder_is_inputs"]#[:, :-1]
 
     elif neox_args.training_objective != "mlm":
+
         tokens_ = data_b["text"].long()
 
     else:
@@ -176,7 +181,7 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
         # MLM -> concatenate targets after inputs
         tokens_ = torch.concat([inputs_, targets_], dim=-1)
 
-        # full attention over prefixes
+        # full attention over prefixes, if MLM
         batch_size, seq_length = inputs_.shape
         prefix_indices = torch.full((batch_size,), seq_length).long()
         
@@ -186,11 +191,13 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
     labels = tokens_[:, 1:].contiguous()
     tokens = tokens_[:, :-1].contiguous()
 
-    # TODO(Hailey): add correct attn mask calculation here
+    # TODO(Hailey): add correct attn mask calculation here for MLM.
     # Get the masks and position ids.
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
         data=tokens,
         prefix_indices=prefix_indices,
+        decoder_is_inputs=decoder_is_inputs,
+        segment_ids=segment_ids,
         neox_args=neox_args,
     )
 

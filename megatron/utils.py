@@ -60,29 +60,180 @@ def report_memory(name):
     print_rank_0(string)
 
 
-def get_attn_mask(seq_length, device, prefix_indices=None, batch_size=1, neox_args=None):
+def _get_attn_mask(
+    seq_length, 
+    device, 
+    prefix_indices=None, 
+    decoder_is_inputs=None,
+    segment_ids=None,
+    batch_size=1, 
+    neox_args=None,
+    ):
     """
     Get attention mask for a given batch and device.
     """
 
-    if neox_args.train_mtf:
-        # packing is done when training multi-task finetuning.
-        # TODO(Hailey): implement packed attn mask logic (in a helper fn?)
-        mask = None
-    else:
-        mask = get_causal_attn_mask(seq_length, device, batch_size=batch_size)
+    mask = _get_causal_attn_mask(seq_length, device, batch_size=batch_size)
     
-    # Prefix lm per row, if using prefixlm or mlm (not packed)
+    # Prefix lm per row, if using prefixlm or mlm and NOT mtf (no packing)
     if prefix_indices is not None:
-        # Loop through the batches
         for b in range(batch_size):
             # TODO(Hailey:) add back a type check for prefix_indices[b]? it should be a scalar
             mask[b, 0, :prefix_indices[b], :prefix_indices[b]] = 1
+       
+    # if neox_args.train_mtf:
+    #     # packing is done when training multi-task finetuning.
+    #     mask = _get_packed_attn_mask(
+    #         causal_mask=None,
+    #         decoder_is_inputs=decoder_is_inputs,
+    #         segment_ids=segment_ids,
+    #         neox_args=neox_args,
+    #     )
+    # convert to bool
+    return mask < 0.5
 
-    return mask
+
+def _get_packed_masks_and_position_ids(
+    data,
+    causal_mask,
+    loss_mask,
+    position_ids,
+    decoder_is_inputs,
+    segment_ids,
+    neox_args=None,
+    ):
+    """
+    Function based on a similar function from Bigscience Meg-DS fork:
+    https://github.com/bigscience-workshop/Megatron-DeepSpeed/blob/0f23a729ec5ed6ef46e1fecc8071ac11acdb91c6/megatron/utils.py#L253
+
+    Which was inspired by 
+    https://github.com/google-research/t5x/blob/7193407f98a8b18100b71a04ff777238be1682ca/t5x/examples/decoder_only/layers.py#L978
+
+    This function also performs 
+
+    Arguments:
+        - causal_mask: torch.BoolTensor [batch_size, sequence_length, sequence_length]
+        - decoder_is_inputs: torch.BoolTensor [batch_size, sequence_length]
+        - segment_ids: torch.IntTensor [batch_size, sequence_length]
+    Returns:
+        - attention_mask: torch.BoolTensor [batch_size, 1, sequence_length, sequence_length]
+        - loss_mask: 
+    """
+    batch_size = causal_mask.size()[0]
+    eod_token = neox_args.tokenizer.eod
+    # using packing (w/ multi-task finetuning), so need to reset position ids for each segment to start at 0.
+    for b in range(batch_size):
+
+        # locations of EOD tokens, denoting breaks between segments.
+        eod_idxs = position_ids[b, data[b] == eod_token]
+
+        # TODO(Hailey): check that this comment below still applies
+        # If the last eod token is not the last token of the sequence, we suppose that there is a partial document
+        # We treat this case as if we add an eod token at the end of the sequence.
+        if data[b][-1] != eod_token:
+            eod_idxs= torch.cat(
+                (eod_idxs, torch.tensor([len(data[b])], dtype=eod_idxs.dtype, device=eod_idxs.device))
+            )
+
+        # decouple EOD locations from position ids 
+        # (TODO(Hailey): I don't think they needed to do this in Meg-DS. I should benchmark + remove if no effect)
+        eod_idxs = eod_idxs.detach().clone()
+
+        # Loop through all EOD locations, resetting position ids of each segment to start @ 0. 
+        # TODO(Hailey): will need to ensure this doesn't disrupt OPT position id offset (?)
+        prev_segment_start_idx = 0 
+        for j in range(eod_idxs.size()[0]):
+            # i = j-th location of an EOD token
+            i = eod_idxs[j]
+
+            # Prevent cross document attention interactions.
+            causal_mask[b, 0, (i + 1):, :(i + 1)] = 0
+
+            # TODO(Hailey): delete this codeblock, I think. it shouldn't ever be used... idk why it's still in Meg-DS?
+            # # Prefix lm per document.
+            # if prefix_indices:
+            #     assert isinstance(prefix_indices[b], list), f"prefix for a row has to be document specific, and consequently return a list, got {prefix_indices[b]}"
+            #     attention_mask[b, 0, prev_index: prefix_indices[b][j], prev_index: prefix_indices[b][j]] = 1
+            #     if loss_on_targets_only:
+            #         # Last token of the prefix should predict the prefix_index id
+            #         loss_mask[b, prev_index: prefix_indices[b][j] - 1] = 0.0
+
+            # Reset position ids to start from 0.
+            position_ids[b, (i + 1):] -= (i + 1 - prev_segment_start_idx)
+
+            # remember the place that the next segment starts.
+            prev_segment_start_idx = i + 1
+
+    # loss masking: only compute loss signal on target tokens.
+    if neox_args.loss_on_targets_only:
+        # TODO(Hailey): are we sure we want to shift inputs via the [:, 1:] here?
+        is_target = ~decoder_is_inputs[:, 1:]
+
+        # EOD token loss was already masked, so just mask these now.
+        loss_mask *= is_target
+
+    # TODO(Hailey): look at t5x impl. to see how to make this shorter; remove asserts
+    """Causal Inputs Mask:
+    mask = [[[[1, 1, 0, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0, 0, 0],
+            [1, 1, 1, 0, 0, 0, 0],
+            [1, 1, 1, 1, 1, 0, 0],
+            [1, 1, 1, 1, 1, 0, 0],
+            [1, 1, 1, 1, 1, 1, 0],
+            [1, 1, 1, 1, 1, 1, 1]]]]
+    """
+    assert causal_mask.dtype == torch.bool
+    assert segment_ids.dtype == torch.long
+    # Make attn bidirectional over inputs. but only if we are using prefixLM (non-causal decoder).
+    if neox_args.training_objective != "prefixlm":
+        causal_inputs_mask = causal_mask
+    else:
+        # shift decoder_is_inputs labels at this step.
+        decoder_is_inputs = decoder_is_inputs[:, 1:].bool()
+        inputs_mask = decoder_is_inputs[:, None, :, None] * decoder_is_inputs[:, None, None, :]
+        causal_inputs_mask = causal_mask + inputs_mask
+
+    """Padding Mask:
+    mask = [[[[1, 1, 1, 1, 1, 1, 0],
+            [1, 1, 1, 1, 1, 1, 0],
+            [1, 1, 1, 1, 1, 1, 0],
+            [1, 1, 1, 1, 1, 1, 0],
+            [1, 1, 1, 1, 1, 1, 0],
+            [1, 1, 1, 1, 1, 1, 0],
+            [0, 0, 0, 0, 0, 0, 0]]]]
+    """
+    padding_mask = (segment_ids != 0)[:, None, :, None] * (segment_ids != 0)[:, None, None, :]
+
+    """Segment Mask:
+    mask = [[[[1, 1, 1, 0, 0, 0, 0],
+            [1, 1, 1, 0, 0, 0, 0],
+            [1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 1, 1, 1, 0],
+            [0, 0, 0, 1, 1, 1, 0],
+            [0, 0, 0, 1, 1, 1, 0],
+            [0, 0, 0, 0, 0, 0, 0]]]]
+    """
+    segment_mask = segment_ids[:, None, :, None] == segment_ids[:, None, None, :]
+
+    """Final Mask:
+    mask = [[[[1, 1, 0, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0, 0, 0],
+            [1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 1, 1, 1, 0],
+            [0, 0, 0, 0, 0, 0, 0]]]]
+    """
+    attention_mask = causal_inputs_mask * padding_mask * segment_mask
+
+    return attention_mask, loss_mask, position_ids
 
 
-def get_causal_attn_mask(seq_length, device, batch_size=1):
+def _get_causal_attn_mask(
+    seq_length, 
+    device, 
+    batch_size=1,
+    ):
     """
     Get triangular attention mask for a given sequence length / device.
     """
@@ -91,49 +242,84 @@ def get_causal_attn_mask(seq_length, device, batch_size=1):
         batch_size, 1, seq_length, seq_length
     )
 
-    # convert to binary
-    return mask < 0.5
+    return mask
+
+
+def _get_loss_mask(data, prefix_indices=None, neox_args=None):
+    """
+    Get loss mask for a input sequence. Accounts for masking EOD token loss and 
+    getting loss signal over target tokens only (prefixlm/mlm objectives).
+    """
+    # extract args from neox_args
+    eod_token = neox_args.tokenizer.eod
+    eod_mask_loss = neox_args.eod_mask_loss
+    loss_on_targets_only = neox_args.loss_on_targets_only
+
+    # create loss mask
+    loss_mask = torch.ones(data.size(), dtype=torch.float, device=data.device)
+
+    # mask EOD tokens if desired
+    if eod_mask_loss:
+        loss_mask[data == eod_token] = 0.0
+
+    # mask loss calc over the inputs, if using prefixlm or mlm (not packed)
+    if loss_on_targets_only and not neox_args.train_mtf:
+        if prefix_indices is not None:
+            for b in range(data.size()[0]):
+                # Last token of the prefix should predict the prefix_index id
+                loss_mask[b, :prefix_indices[b] - 1] = 0.0
+
+    return loss_mask
 
 
 def get_ltor_masks_and_position_ids(
     data,
     prefix_indices=None,
+    decoder_is_inputs=None,
+    segment_ids=None,
     neox_args=None,
 ):
     """
-    Build masks and position id for left to right model.
+    Build masks and position id for left to right model. TODO(Hailey): make this docstring better
     :param prefix_indices: argument can have multiple types:
         - None signifies that the model is fully autoregressive.
         - List[int] the argument holds all prefix indices that split a row into an input and a target
         - List[List[int]] the argument holds all prefix indices that split documents between input and target.
     """
-    # extract args from neox_args
-    eod_token = neox_args.tokenizer.eod
-    eod_mask_loss = neox_args.eod_mask_loss
 
     # Extract batch size and sequence length.
     batch_size, seq_length = data.size()
 
-    # TODO(Hailey): refactor into get_attn_mask() fn that calls get_causal_attn_mask
-    # Attention mask (lower triangular).
-    attention_mask = get_attn_mask(
+    # Attention mask (not necessarily lower triangular).
+    attention_mask = _get_attn_mask(
         seq_length=seq_length,
         device=data.device,
         prefix_indices=prefix_indices,
+        decoder_is_inputs=decoder_is_inputs,
+        segment_ids=segment_ids,
         batch_size=batch_size,
         neox_args=neox_args,
     )
-    # TODO(Hailey:) ensure that MLM and MTF loss masking is done properly
-    # TODO(Hailey:) we might need to mask out where the prefix is for MLM. figure that out
+    # TODO(Hailey:) a final check that loss masking is done right (incl. w/ padding)
     # Loss mask.
-    loss_mask = torch.ones(data.size(), dtype=torch.float, device=data.device)
-    if eod_mask_loss:
-        loss_mask[data == eod_token] = 0.0
+    loss_mask = _get_loss_mask(data, prefix_indices=prefix_indices, neox_args=neox_args)
 
     # TODO(Hailey): refactor position id computation into a helper fn
     # Position ids.
     position_ids = torch.arange(seq_length, dtype=torch.long, device=data.device)
     position_ids = position_ids.unsqueeze(0).expand_as(data)
+
+    # if packing is done, need extra processing of position ids + attn mask + loss mask
+    if neox_args.train_mtf:
+        attention_mask, loss_mask, position_ids = _get_packed_masks_and_position_ids(
+            data,
+            attention_mask,
+            loss_mask,
+            position_ids,
+            decoder_is_inputs,
+            segment_ids,
+            neox_args=neox_args,
+        )
 
     return attention_mask, loss_mask, position_ids
 

@@ -95,7 +95,7 @@
    "data-path": "./data/enron/enron_text_document",
    
   #  "extra-sentinel-tokens": 100,
-  #  "training-objective": "mlm",
+   "training-objective": "prefixlm",
    "train_mtf": True,
   #  "use_prefix_attention": True,
    "seq-length": 1024,
