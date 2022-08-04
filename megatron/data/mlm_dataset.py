@@ -84,9 +84,8 @@ class MLMDataset(torch.utils.data.Dataset):
             documents=documents,
             indexed_dataset=self.indexed_dataset,
             num_samples=num_samples,
-            # TODO(Hailey:) why didn't it work with -1?
             # GPT2Dataset will return length `seq_length + 1` sequences, so -1
-            seq_length=self.expanded_inputs_length,
+            seq_length=self.expanded_inputs_length - 1,
             seed=seed,
             build_index_mappings=build_index_mappings,
         )

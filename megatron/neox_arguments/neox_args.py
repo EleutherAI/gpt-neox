@@ -347,6 +347,12 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Flag controlling whether model will be multi-task-finetuned, using DecoderPackedMTFDataset.
     """
 
+    loss_on_targets_only: bool = False
+    """
+    Flag controlling whether loss is masked for input tokens, e.g. in MLM or PrefixLM.
+    *SHOULD BE TRUE WHENEVER DOING MLM!!*
+    """
+
     masked_lm_prob: float = 0.15
     """
     Masking probability for MLM Adaptation

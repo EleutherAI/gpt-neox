@@ -39,7 +39,9 @@ def get_indexed_dataset(data_prefix: str, is_input: bool, data_impl: str, skip_w
     else:
         field = "targets"
 
-    return get_indexed_dataset_(f"{data_prefix}_{field}_document", data_impl, skip_warmup)
+    # return get_indexed_dataset_(f"{data_prefix}", data_impl, skip_warmup)
+
+    get_indexed_dataset_(f"{data_prefix}_{field}_document", data_impl, skip_warmup)
 
 def get_indexed_dataset_(path, data_impl, skip_warmup):
     """Build indexed dataset."""
@@ -54,3 +56,13 @@ def get_indexed_dataset_(path, data_impl, skip_warmup):
         indexed_dataset.sizes.shape[0]))
 
     return indexed_dataset
+
+# TODO: Hailey: directly import this helper fn from gpt2 dataset?
+def _build_shuffle_idx(size, np_rng):
+    """Build the range [0, size) and shuffle."""
+    dtype_ = np.uint32
+    if size >= (np.iinfo(np.uint32).max - 1):
+        dtype_ = np.int64
+    shuffle_idx = np.arange(start=0, stop=size, step=1, dtype=dtype_)
+    np_rng.shuffle(shuffle_idx)
+    return shuffle_idx
