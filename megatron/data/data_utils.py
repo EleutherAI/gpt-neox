@@ -10,7 +10,10 @@ from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
 from megatron.data.blendable_dataset import BlendableDataset
 from megatron.data.gpt2_dataset import GPT2Dataset
 from megatron.data.mlm_dataset import MLMDataset
+from megatron.data.decoder_packed_mtf_dataset import DecoderPackedMTFDataset
 from megatron.data.samplers import DistributedBatchSampler
+
+from megatron.data.temp_data_utils import get_indexed_dataset
 
 
 def make_data_loader(dataset, neox_args):
@@ -51,7 +54,10 @@ def build_the_dataset(
 ):
     """Build train/valid/test datasets."""
 
-    indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup)
+    if not neox_args.train_mtf:
+        indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup)
+    else:
+        indexed_dataset = get_indexed_dataset(data_prefix, False, data_impl, skip_warmup)
 
     total_num_of_documents = indexed_dataset.sizes.shape[0]
     print_rank_0("    {}:".format(name))
@@ -68,8 +74,14 @@ def build_the_dataset(
         seq_length,
         seed
         ]
-
-    if neox_args.use_prefix_attention:
+    if neox_args.train_mtf:
+        dataset = DecoderPackedMTFDataset(
+            *dataset_args,
+            skip_warmup=False,
+            pad_token=neox_args.tokenizer.pad,
+            eos_token=neox_args.tokenizer.eod, # TODO(Hailey): just pass this dataset a tokenizer (like MLMdataset)
+        ) 
+    elif neox_args.training_objective == "mlm":
 
         dataset = MLMDataset(
             *dataset_args,
@@ -101,7 +113,10 @@ def build_train_valid_test_datasets(
     """Build train, valid, and test datasets."""
 
     # Indexed dataset.
-    indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup)
+    if not neox_args.train_mtf:
+        indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup)
+    else:
+        indexed_dataset = get_indexed_dataset(data_prefix, False, data_impl, skip_warmup)
 
     total_num_of_documents = indexed_dataset.sizes.shape[0]
     splits = get_train_valid_test_split_(splits_string, total_num_of_documents)
@@ -136,11 +151,17 @@ def build_train_valid_test_datasets(
                 indexed_dataset,
                 train_valid_test_num_samples[index],
                 seq_length,
-                seed
-                ]
-
-            if neox_args.train_mlm:
-
+                seed,
+            ]
+            if neox_args.train_mtf:
+                # TODO(Hailey): currently we shouldn't pass/make an indexed dataset to this class
+                dataset = DecoderPackedMTFDataset(
+                    *dataset_args,
+                    data_impl,
+                    skip_warmup=False,
+                    tokenizer=neox_args.tokenizer, # TODO(Hailey): just pass this dataset a tokenizer (like MLMdataset)
+                )
+            elif neox_args.training_objective == "mlm":
                 dataset = MLMDataset(
                     *dataset_args,
                     tokenizer=neox_args.tokenizer,

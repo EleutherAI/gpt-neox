@@ -1,3 +1,6 @@
+# Copyright (c) 2022, EleutherAI contributors
+# This file is based on code by the authors denoted below and has been modified from its original version. 
+# TODO(Hailey): add attribution to Bigscience Meg-DS fork + authors?
 # coding=utf-8
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
@@ -81,9 +84,8 @@ class MLMDataset(torch.utils.data.Dataset):
             documents=documents,
             indexed_dataset=self.indexed_dataset,
             num_samples=num_samples,
-            # TODO(Hailey:) why didn't it work with -1?
             # GPT2Dataset will return length `seq_length + 1` sequences, so -1
-            seq_length=self.expanded_inputs_length,
+            seq_length=self.expanded_inputs_length - 1,
             seed=seed,
             build_index_mappings=build_index_mappings,
         )
@@ -111,16 +113,14 @@ class MLMDataset(torch.utils.data.Dataset):
         #TODO(Hailey): does this report IndexError in a way that's legible to user?
         sample = self._gpt_dataset[idx]["text"]
 
-        return = build_training_sample(
+        return build_training_sample(
                         sample,
                         inputs_length=self.inputs_length,
                         targets_length=self.targets_length,
                         num_noise_spans=self.num_noise_spans,
                         sep_id=self.eos_id,
                         all_sentinel_token_ids=self.sentinel_token_ids,
-                        )[0],
-        #TODO(Hailey:) remove this hack (the [0] above) and figure out why getitem returns a tuple/list for this dataset
-            
+                        )     
 
 
 def build_training_sample(

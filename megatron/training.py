@@ -152,12 +152,27 @@ def pretrain(neox_args):
 
 def _get_batch(neox_args, tokenizer, keys, data, datatype):
     """Support function for get_batch / get_batch pipe (to avoid code repetition)"""
+    # TODO(Hailey): maybe we can just broadcast it in int64 not bool and avoid this if stmt
+    # print_rank_0(data)
+    # if "decoder_is_inputs" in keys:
+    #     keys.remove("decoder_is_inputs")
+    #     data_c = {"decoder_is_inputs": data.pop("decoder_is_inputs")}
+    #     data_c = mpu.broadcast_data(["decoder_is_inputs"], data_c, torch.bool)
     data_b = mpu.broadcast_data(keys, data, datatype)
 
-    # Unpack.
-    prefix_indices = None
-    if not neox_args.train_mlm:
+    # Unpack according to training objective.
+    decoder_is_inputs, segment_ids, prefix_indices = None, None, None
+    if neox_args.train_mtf:
+
+        tokens_ = data_b["decoder_token_ids"].long()
+        segment_ids = data_b["decoder_segment_ids"].long()[:, :-1]
+        # We'll shift this one later. TODO(Hailey): figure out a workaround
+        decoder_is_inputs = data_b["decoder_is_inputs"]#[:, :-1]
+
+    elif neox_args.training_objective != "mlm":
+
         tokens_ = data_b["text"].long()
+
     else:
 
         inputs_ = data_b["input_tokens"].long()
@@ -166,23 +181,24 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
         # MLM -> concatenate targets after inputs
         tokens_ = torch.concat([inputs_, targets_], dim=-1)
 
-        # full attention over prefixes
+        # full attention over prefixes, if MLM
         batch_size, seq_length = inputs_.shape
         prefix_indices = torch.full((batch_size,), seq_length).long()
         
-    if neox_args.use_prefix_attention and not neox_args.train_mlm:
-        # TODO(Hailey:) check if we can avoid .cpu() or .tolist() 
-        prefix_indices = data_b["prefix"].cpu().tolist()
+    if neox_args.training_objective == "prefixlm" and not neox_args.train_mtf:
+        prefix_indices = data_b["prefix"].long()
     
     labels = tokens_[:, 1:].contiguous()
     tokens = tokens_[:, :-1].contiguous()
 
+    # TODO(Hailey): add correct attn mask calculation here for MLM.
     # Get the masks and position ids.
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
         data=tokens,
-        eod_token=neox_args.tokenizer.eod,
-        eod_mask_loss=neox_args.eod_mask_loss,
         prefix_indices=prefix_indices,
+        decoder_is_inputs=decoder_is_inputs,
+        segment_ids=segment_ids,
+        neox_args=neox_args,
     )
 
     return tokens, labels, loss_mask, attention_mask, position_ids
@@ -192,12 +208,7 @@ def get_batch(neox_args, data_iterator):
     """Generate a batch"""
 
     # Items and their type.
-    if neox_args.train_mlm:
-        keys = ["input_tokens", "target_tokens"]
-    elif neox_args.use_prefix_attention:
-        keys = ["text", "prefix"]
-    else:
-        keys = ["text"]
+    keys = _get_keys(neox_args)
         
     datatype = torch.int64
 
@@ -218,12 +229,7 @@ def get_batch(neox_args, data_iterator):
 def get_batch_pipe(data, neox_args):
     """A modification of get_batch() to work with the latest batch instead of an iterator."""
     # Items and their type.
-    if neox_args.train_mlm:
-        keys = ["input_tokens", "target_tokens"]
-    elif neox_args.use_prefix_attention:
-        keys = ["text", "prefix"]
-    else:
-        keys = ["text"]
+    keys = _get_keys(neox_args)
     
     datatype = torch.int64
 
@@ -233,6 +239,23 @@ def get_batch_pipe(data, neox_args):
 
     # unpack data
     return (tokens, position_ids, attention_mask), (labels, loss_mask)
+
+
+def _get_keys(neox_args):
+    """
+    Helper fn for get_batch() and get_batch_pipe() to avoid repetition. 
+    Sets the keys to expect from a batch returned by dataloader.
+    """
+    if neox_args.train_mtf:
+        keys = ["decoder_token_ids", "decoder_segment_ids", "decoder_is_inputs"] 
+    elif neox_args.training_objective == "mlm":
+        keys = ["input_tokens", "target_tokens"]
+    elif neox_args.training_objective == "prefixlm":
+        keys = ["text", "prefix"]
+    else:
+        keys = ["text"]
+
+    return keys
 
 
 def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
