@@ -39,9 +39,7 @@ def get_indexed_dataset(data_prefix: str, is_input: bool, data_impl: str, skip_w
     else:
         field = "targets"
 
-    # return get_indexed_dataset_(f"{data_prefix}", data_impl, skip_warmup)
-
-    get_indexed_dataset_(f"{data_prefix}_{field}_document", data_impl, skip_warmup)
+    return get_indexed_dataset_(f"{data_prefix}_{field}_document", data_impl, skip_warmup)
 
 def get_indexed_dataset_(path, data_impl, skip_warmup):
     """Build indexed dataset."""

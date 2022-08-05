@@ -92,10 +92,10 @@
    "load": "./data/20b_checkpoints",
 
    # If finetuning, edit the following to the location of your finetuning dataset:
-   "data-path": "./data/enron/enron_text_document",
+   "data-path": "./data/p3/p3",
    
   #  "extra-sentinel-tokens": 100,
-   "training-objective": "prefixlm",
+  #  "training-objective": "mlm",
    "train_mtf": True,
   #  "use_prefix_attention": True,
    "seq-length": 1024,
