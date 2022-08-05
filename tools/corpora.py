@@ -292,28 +292,11 @@ class P3(DataDownloader):
     def tokenize(self):
         """tokenizes dataset. override default cmd"""
         parent_folder = os.path.join(self.base_dir, self.name)
-        jsonl_filepath = os.path.join(parent_folder, "../p3_partial/p3_ag_news_classify_train.jsonl")
-
-        TASKS = [
-            'ag_news_classify',
-            'ag_news_classify_question_first',
-            'ag_news_classify_with_choices',
-            'ag_news_classify_with_choices_question_first',
-            'ag_news_recommend',
-            'ag_news_which_section',
-            'ag_news_which_section_choices',
-            'amazon_polarity_Is_this_product_review_positive',
-            'amazon_polarity_Is_this_review',
-            'amazon_polarity_Is_this_review_negative',
-            'amazon_polarity_User_recommend_this_product',
-            'amazon_polarity_convey_negative_or_positive_sentiment',
-            'amazon_polarity_flattering_or_not',
-            'amazon_polarity_negative_or_positive_tone',
-            'amazon_polarity_user_satisfied',
-            'amazon_polarity_would_you_buy',  
-        ]
+        
+        # currently all content from different datasets is concatenated into one jsonl.
+        # this is undesirable since we'd have to duplicate preproc for every version of p3 that we make.
         jsonl_filepath = ",".join(
-            [os.path.join(parent_folder, ("../p3_partial/p3_" + task + "_train.jsonl")) for task in TASKS]
+            [os.path.join(parent_folder, ("../p3_raw/p3_train.jsonl"))]
         )
 
         base_cmd = f"python tools/preprocess_data.py \
@@ -322,7 +305,8 @@ class P3(DataDownloader):
             --dataset-impl mmap \
             --tokenizer-type {self.tokenizer_type} \
             --merge-file {self.merge_file} \
-            --workers {self.num_workers} "
+            --workers {self.num_workers} \
+            --output-prefix {parent_folder}/{self.name} "
 
         if self.num_docs is not None:
             base_cmd += f"--num-docs {self.num_docs} "
@@ -330,13 +314,13 @@ class P3(DataDownloader):
         if self.ftfy:
             base_cmd += f"--ftfy "
 
+        # only append EOD to the targets.
         for tokens_type in ["inputs", "targets"]:
             cmd = base_cmd
             if tokens_type == "targets": 
                 cmd += "--append-eod "
 
             cmd += f"--jsonl-keys '{tokens_type}' "
-            cmd += f"--output-prefix {parent_folder}/{self.name} "
 
             os.system(cmd)
 
