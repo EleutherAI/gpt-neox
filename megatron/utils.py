@@ -80,15 +80,7 @@ def _get_attn_mask(
         for b in range(batch_size):
             # TODO(Hailey:) add back a type check for prefix_indices[b]? it should be a scalar
             mask[b, 0, :prefix_indices[b], :prefix_indices[b]] = 1
-       
-    # if neox_args.train_mtf:
-    #     # packing is done when training multi-task finetuning.
-    #     mask = _get_packed_attn_mask(
-    #         causal_mask=None,
-    #         decoder_is_inputs=decoder_is_inputs,
-    #         segment_ids=segment_ids,
-    #         neox_args=neox_args,
-    #     )
+
     # convert to bool
     return mask < 0.5
 
@@ -149,7 +141,7 @@ def _get_packed_masks_and_position_ids(
             # Prevent cross document attention interactions.
             causal_mask[b, 0, (i + 1):, :(i + 1)] = 0
 
-            # TODO(Hailey): delete this codeblock, I think. it shouldn't ever be used... idk why it's still in Meg-DS?
+            # TODO(Hailey): decide if we need this codeblock. may be necessary if we want to use prefixlm w/ MTF
             # # Prefix lm per document.
             # if prefix_indices:
             #     assert isinstance(prefix_indices[b], list), f"prefix for a row has to be document specific, and consequently return a list, got {prefix_indices[b]}"
@@ -189,7 +181,7 @@ def _get_packed_masks_and_position_ids(
         causal_inputs_mask = causal_mask
     else:
         # shift decoder_is_inputs labels at this step.
-        decoder_is_inputs = decoder_is_inputs[:, 1:].bool()
+        decoder_is_inputs = decoder_is_inputs[:, :-1].bool()
         inputs_mask = decoder_is_inputs[:, None, :, None] * decoder_is_inputs[:, None, None, :]
         causal_inputs_mask = causal_mask + inputs_mask
 
@@ -300,11 +292,10 @@ def get_ltor_masks_and_position_ids(
         batch_size=batch_size,
         neox_args=neox_args,
     )
-    # TODO(Hailey:) a final check that loss masking is done right (incl. w/ padding)
+    # TODO(Hailey:) a final check that loss masking is done right (incl. w/ padding + mask toks)
     # Loss mask.
     loss_mask = _get_loss_mask(data, prefix_indices=prefix_indices, neox_args=neox_args)
 
-    # TODO(Hailey): refactor position id computation into a helper fn
     # Position ids.
     position_ids = torch.arange(seq_length, dtype=torch.long, device=data.device)
     position_ids = position_ids.unsqueeze(0).expand_as(data)

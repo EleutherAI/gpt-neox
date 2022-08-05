@@ -152,12 +152,7 @@ def pretrain(neox_args):
 
 def _get_batch(neox_args, tokenizer, keys, data, datatype):
     """Support function for get_batch / get_batch pipe (to avoid code repetition)"""
-    # TODO(Hailey): maybe we can just broadcast it in int64 not bool and avoid this if stmt
-    # print_rank_0(data)
-    # if "decoder_is_inputs" in keys:
-    #     keys.remove("decoder_is_inputs")
-    #     data_c = {"decoder_is_inputs": data.pop("decoder_is_inputs")}
-    #     data_c = mpu.broadcast_data(["decoder_is_inputs"], data_c, torch.bool)
+
     data_b = mpu.broadcast_data(keys, data, datatype)
 
     # Unpack according to training objective.
@@ -166,7 +161,7 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
 
         tokens_ = data_b["decoder_token_ids"].long()
         segment_ids = data_b["decoder_segment_ids"].long()[:, :-1]
-        # We'll shift this one later. TODO(Hailey): figure out a workaround
+        # We'll shift this one later.
         decoder_is_inputs = data_b["decoder_is_inputs"]#[:, :-1]
 
     elif neox_args.training_objective != "mlm":
@@ -181,9 +176,10 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
         # MLM -> concatenate targets after inputs
         tokens_ = torch.concat([inputs_, targets_], dim=-1)
 
-        # full attention over prefixes, if MLM
-        batch_size, seq_length = inputs_.shape
-        prefix_indices = torch.full((batch_size,), seq_length).long()
+        # full attention over prefixes, if MLM. don't do this for CM3.
+        if neox_args.training_objective == "mlm": 
+            batch_size, seq_length = inputs_.shape
+            prefix_indices = torch.full((batch_size,), seq_length).long()
         
     if neox_args.training_objective == "prefixlm" and not neox_args.train_mtf:
         prefix_indices = data_b["prefix"].long()
@@ -191,7 +187,6 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
     labels = tokens_[:, 1:].contiguous()
     tokens = tokens_[:, :-1].contiguous()
 
-    # TODO(Hailey): add correct attn mask calculation here for MLM.
     # Get the masks and position ids.
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
         data=tokens,

@@ -26,10 +26,10 @@ import torch
 from megatron import print_rank_0
 from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
 
+from megatron.data.gpt2_dataset import _build_shuffle_idx
 
-
-# TODO(Hailey): this is a temp file containing new data util/helper fns. 
-# Should be added into data_utils.py when I'm done
+# TODO(Hailey): this is a temp file containing new data util/helper fns for MTF. 
+# Should be added into data_utils.py when I'm done?
 
 
 
@@ -54,13 +54,3 @@ def get_indexed_dataset_(path, data_impl, skip_warmup):
         indexed_dataset.sizes.shape[0]))
 
     return indexed_dataset
-
-# TODO: Hailey: directly import this helper fn from gpt2 dataset?
-def _build_shuffle_idx(size, np_rng):
-    """Build the range [0, size) and shuffle."""
-    dtype_ = np.uint32
-    if size >= (np.iinfo(np.uint32).max - 1):
-        dtype_ = np.int64
-    shuffle_idx = np.arange(start=0, stop=size, step=1, dtype=dtype_)
-    np_rng.shuffle(shuffle_idx)
-    return shuffle_idx
