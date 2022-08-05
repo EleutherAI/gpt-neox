@@ -13,10 +13,6 @@ SAMPLE_TEMPLATE_LIST = {
     # (dataset name, subset name): [template_name1, template_name2, ...]
     ("super_glue", "copa"): ["exercise", "i_am_hesitating", "\u2026which may be caused by"],
     ("super_glue", "rte"): [], # use all available templates if none given.
-
-
-
-    # ('amazon_polarity', None): ["Is_this_product_review_positive"]
 }
 
 
