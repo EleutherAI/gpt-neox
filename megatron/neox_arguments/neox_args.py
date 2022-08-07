@@ -740,6 +740,18 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     as alpha -> inf, the probability of sampling from the groups with *the most samples* -> 1
     """
 
+    weighted_document_limit: float = None
+    """
+    limit value for `weight_by_num_documents`. Only has an effect if `weight_by_num_documents` = True.
+
+    when limit = None, weighting occurs as usual using the true document totals from each source.
+    if limit != None, the minimum of (limit, true number of docs) is used for each source's rate.
+
+    this arg is used in multi-task finetuning to emulate the maximum in `mixing_rate_num_examples` from seqio:
+    See https://github.com/google/seqio/blob/90c76914ed13fcce53f00966b824e45fb266b973/seqio/utils.py#L671 for more.
+    Useful values are 3000 (used in https://arxiv.org/abs/2109.01652) and 500_000 (used in https://arxiv.org/abs/2110.08207)
+    """
+
     data_impl: str = "infer"
     """
     Implementation of indexed datasets.
