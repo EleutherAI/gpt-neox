@@ -1,3 +1,21 @@
+# coding=utf-8
+# Copyright (c) 2022, EleutherAI contributors
+# This file is based on code by the authors denoted below and has been modified from its original version. 
+# TODO: add attribution to Bigscience Meg-DS fork + authors
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 import time
 
@@ -5,11 +23,10 @@ import numpy as np
 import torch
 
 from megatron import print_rank_0, mpu
-from megatron.data.blendable_dataset import BlendableDataset
-# from megatron.data.dataset_utils import get_datasets_weights_and_num_samples, get_split_by_range_, \
-#     get_train_valid_test_split_
 from megatron.data.mtf_dataset import MTFDataset
-from megatron.data.temp_data_utils import get_indexed_dataset, _build_shuffle_idx
+from megatron.data.gpt2_dataset import _build_shuffle_idx
+
+from megatron.data.temp_data_utils import get_indexed_dataset
 
 
 class DecoderPackedMTFDataset(torch.utils.data.Dataset):
@@ -28,6 +45,7 @@ class DecoderPackedMTFDataset(torch.utils.data.Dataset):
         build_index_mappings=True,
         tokenizer=None,
     ):
+        # build underlying indexed datasets
         self.mtf_dataset = MTFDataset(name=name, data_prefix=data_prefix, data_impl=data_impl, skip_warmup=skip_warmup, documents=documents)
 
         assert tokenizer, "Must pass a tokenizer to pack multi-task examples"
@@ -35,19 +53,25 @@ class DecoderPackedMTFDataset(torch.utils.data.Dataset):
 
         self.pad_token = tokenizer.pad
         self.eod_token = tokenizer.eod
-
         self.seq_length = seq_length
 
-        self.sample_index, self.shuffle_index = _build_index_mappings(name=name, data_prefix=data_prefix, nb_documents=len(documents), mtf_dataset=self.mtf_dataset, num_samples=num_samples, seq_length=seq_length, seed=seed)
+        self.sample_index, self.shuffle_index = _build_index_mappings(
+            name=name, 
+            data_prefix=data_prefix, 
+            documents=len(documents), 
+            mtf_dataset=self.mtf_dataset, 
+            num_samples=num_samples, 
+            seq_length=seq_length, 
+            seed=seed,
+            )
 
     def __len__(self):
         return len(self.sample_index)
 
     def __getitem__(self, idx):
-        # Get the shuffled index.
+
         start, end = self.sample_index[idx]
         mtf_samples_indices = self.shuffle_index[start: end]
-        # TODO @thomasw21 build a dataset that generates an entire batch instead of a row (allows for more optimization)
         items = [self.mtf_dataset[sample_id] for sample_id in mtf_samples_indices]
 
         return self.pack_samples(items)
@@ -117,7 +141,7 @@ class DecoderPackedMTFDataset(torch.utils.data.Dataset):
 def _build_index_mappings(
     name,
     data_prefix,
-    nb_documents,
+    documents,
     mtf_dataset,
     num_samples: int,
     seq_length: int,
@@ -126,7 +150,6 @@ def _build_index_mappings(
     """
     - `shuffle_index` is [num_epoch * len(self.mtf)]
     - `sample_index` is [num_sample, 2] (storing the start and end of the sample). We query the sample via `self.shuffle_index[start:end]`
-    TODO @thomas21 Instead of loading individually samples, we save the packing one and for all
     """
     # rng state
     np_rng = np.random.RandomState(seed=seed)
@@ -156,7 +179,7 @@ def _build_index_mappings(
             shuffle_idx = []
             sample_idx = []
             while len(sample_idx) <= num_samples:
-                new_document_ids = _build_shuffle_idx(size=nb_documents, np_rng=np_rng)
+                new_document_ids = _build_shuffle_idx(size=documents, np_rng=np_rng)
                 # Generate a shuffling of the entire dataset
                 shuffle_idx.append(new_document_ids)
                 # Packs them into a single sample
@@ -215,7 +238,6 @@ def _build_sample_idx(mtf_dataset, document_ids, seq_length, row_offset, old_sam
         current_sample_end = epoch_offset + current_sample_end
         sample_sizes = mtf_dataset.size(document_id)
 
-        # TODO @thomasw21 figure out if we add <eod> tokens
         tok_len = sample_sizes["input_tokens"] + sample_sizes["target_tokens"]
 
         row_length = row_length + tok_len
@@ -227,13 +249,82 @@ def _build_sample_idx(mtf_dataset, document_ids, seq_length, row_offset, old_sam
             row_length = tok_len
 
             if tok_len > seq_length:
-                # TODO @thomasw21 handle the case where a single sample cannot fit inside a row. We can
-                #   - silently skip that value [currently implemented]
-                #   - truncate to `seq_length`, and keep the right part
+                # silently skips examples longer than seq_length (will never fit into one batch "row")
                 # logger.warning(f"Skipping sample id={document_id}. Maximum sequence length: {seq_length}, sample length: {tok_len}")
-                current_sample_start = current_sample_end + 1  # skipping
+                current_sample_start = current_sample_end + 1
                 row_length = 0
                 continue
 
     return full_samples, row_length, current_sample_start
 
+
+class MTFDataset(torch.utils.data.Dataset):
+    """
+    A helper dataset class underlying the DecoderPackedMTFDataset class. 
+    Stores input document tokens and target document tokens in 2 indexed datasets.
+    """
+    def __init__(
+        self,
+        name,
+        data_prefix,
+        data_impl,
+        skip_warmup,
+        documents,
+    ):
+        # Params to store
+        self.name = name
+
+        # indexed dataset
+        self.input_indexed_dataset = get_indexed_dataset(data_prefix, is_input=True, data_impl=data_impl, skip_warmup=skip_warmup)
+        self.target_indexed_dataset = get_indexed_dataset(data_prefix, is_input=False, data_impl=data_impl, skip_warmup=skip_warmup)
+
+        # validity checks
+        assert np.min(documents) >= 0
+        assert np.max(documents) < self.input_indexed_dataset.sizes.shape[0]
+        assert np.max(documents) < self.target_indexed_dataset.sizes.shape[0]
+        assert self.input_indexed_dataset.sizes.shape[0] == self.target_indexed_dataset.sizes.shape[0]
+
+    def __len__(self):
+        return len(self.input_indexed_dataset)
+
+    def __getitem__(self, idx):
+        input_tokens = self.input_indexed_dataset.get(idx)
+        target_tokens = self.target_indexed_dataset.get(idx)
+
+        assert len(input_tokens) > 0
+        assert len(target_tokens) > 0
+
+        return {
+            'input_tokens': input_tokens,
+            'target_tokens': target_tokens,
+        }
+
+    def size(self, idx):
+        return {
+            'input_tokens': self.input_indexed_dataset.size(idx),
+            'target_tokens': self.target_indexed_dataset.size(idx),
+        }
+
+
+def get_indexed_dataset(data_prefix: str, is_input: bool, data_impl: str, skip_warmup: bool):
+    """retrieve either an input or target indexed dataset."""
+    if is_input:
+        field = "inputs"
+    else:
+        field = "targets"
+
+    return get_indexed_dataset_(f"{data_prefix}_{field}_document", data_impl, skip_warmup)
+
+def get_indexed_dataset_(path, data_impl, skip_warmup):
+    """build the indexed dataset (if does not exist)."""
+    print_rank_0(' > building dataset index ...')
+    start_time = time.time()
+    indexed_dataset = make_indexed_dataset(path,
+                                           data_impl,
+                                           skip_warmup)
+    print_rank_0(' > finished creating indexed dataset in {:4f} '
+                 'seconds'.format(time.time() - start_time))
+    print_rank_0('    number of documents: {}'.format(
+        indexed_dataset.sizes.shape[0]))
+
+    return indexed_dataset
