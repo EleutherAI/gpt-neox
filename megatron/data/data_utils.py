@@ -78,8 +78,7 @@ def build_the_dataset(
         dataset = DecoderPackedMTFDataset(
             *dataset_args,
             skip_warmup=False,
-            pad_token=neox_args.tokenizer.pad,
-            eos_token=neox_args.tokenizer.eod, # TODO(Hailey): just pass this dataset a tokenizer (like MLMdataset)
+            tokenizer=neox_args.tokenizer,
         ) 
     elif neox_args.training_objective == "mlm":
 
