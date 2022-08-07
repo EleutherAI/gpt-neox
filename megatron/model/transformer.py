@@ -221,6 +221,7 @@ class ParallelSelfAttention(nn.Module):
             output_size=3 * neox_args.hidden_size,
             gather_output=False,
             init_method=init_method,
+            bias=False,
         )
 
         coeff = None
@@ -291,6 +292,7 @@ class ParallelSelfAttention(nn.Module):
             init_method=output_layer_init_method,
             skip_bias_add=True,
             parallel_output=parallel_output,
+            bias=False,
         )
 
     def attention(
@@ -561,9 +563,6 @@ class ParallelTransformerLayer(nn.Module):
             parallel_output=self.gpt_j_residual,
         )
 
-        # Layernorm on the output of the attention layer.
-        self.post_attention_layernorm = norm(neox_args.hidden_size, eps=eps)
-
         # MLP
         self.mlp = ParallelMLP(
             neox_args=neox_args,
@@ -613,7 +612,7 @@ class ParallelTransformerLayer(nn.Module):
                 )
 
             # output = mlp(ln2(x)) + attention_output
-            mlp_output, mlp_bias = self.mlp(self.post_attention_layernorm(x))
+            mlp_output, mlp_bias = self.mlp(x)
             with torch.enable_grad():
                 output = bias_dropout_fn(
                     mlp_output,
