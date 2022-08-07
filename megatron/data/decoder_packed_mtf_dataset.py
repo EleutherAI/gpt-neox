@@ -22,12 +22,15 @@ import time
 import numpy as np
 import torch
 
-from megatron import print_rank_0, mpu
-from megatron.data.mtf_dataset import MTFDataset
+from megatron import print_rank_0, mpu 
+
 from megatron.data.gpt2_dataset import _build_shuffle_idx
+from megatron.data.indexed_dataset import make_dataset
 
-from megatron.data.temp_data_utils import get_indexed_dataset
-
+"""
+A dataset which performs multi-task prompted finetuning on a decoder-only model.
+Examples are packed into batches.
+"""
 
 class DecoderPackedMTFDataset(torch.utils.data.Dataset):
 
@@ -319,7 +322,7 @@ def get_indexed_dataset_(path, data_impl, skip_warmup):
     """build the indexed dataset (if does not exist)."""
     print_rank_0(' > building dataset index ...')
     start_time = time.time()
-    indexed_dataset = make_indexed_dataset(path,
+    indexed_dataset = make_dataset(path,
                                            data_impl,
                                            skip_warmup)
     print_rank_0(' > finished creating indexed dataset in {:4f} '
