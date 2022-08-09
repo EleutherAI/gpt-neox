@@ -89,8 +89,8 @@
    # Tokenizer /  checkpoint settings - you will need to change these to the location you have them saved in
    "vocab-file": "/fsx/pile/20B_tokenizer.json",
   #  "merge-file": "./20b_checkpoints/merges.txt",
-   "save": "/fsx/code-fim/fim_100M_checkpoints",
-   "load": "/fsx/code-fim/fim_100M_checkpoints",
+   "save": "/fsx/code-fim/FIMlogs/ckpts/8-9-2022-100M-commit421791529b1fef4225da048ebe2f21915872abf1/",
+   "load": "/fsx/code-fim/FIMlogs/ckpts/8-9-2022-100M-commit421791529b1fef4225da048ebe2f21915872abf1/",
 
    # If finetuning, edit the following to the location of your finetuning dataset:
    "data-path": "/fsx/pile/pile_20B_tokenizer_text_document",
@@ -103,7 +103,7 @@
    ### NEW DATA: ####
    "tokenizer_type": "HFTokenizer",
    "tensorboard-dir": "./tensorboard",
-   "log-dir": "./logs",
+   "log-dir": "/fsx/code-fim/FIMlogs/logs/8-9-2022-100M-commit421791529b1fef4225da048ebe2f21915872abf1/",
 
   #  "hostfile": "./hostfile",
   #  "launcher": "OpenMPI",
