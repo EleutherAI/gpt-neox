@@ -18,6 +18,7 @@
 """GPT2 style dataset."""
 
 import os
+from random import sample
 import time
 
 import numpy as np
@@ -37,11 +38,15 @@ class GPT2Dataset(torch.utils.data.Dataset):
         seq_length,
         seed,
         build_index_mappings=True,
+        neox_args=None,
     ):
         # TODO (hailey:) add a check that noise_density and mean_noise_span_length are not passed to GPT2Dataset init?
         self.name = name
         self.seed = seed
         self.indexed_dataset = indexed_dataset
+        self.neox_args = neox_args
+
+        self.np_rng = np.random.RandomState(seed=seed) # rng state for FIM
 
         # Checks
         assert np.min(documents) >= 0
@@ -101,7 +106,42 @@ class GPT2Dataset(torch.utils.data.Dataset):
                 )
                 sample = np.concatenate(sample_list)
 
-            return {"text": np.array(sample, dtype=np.int64)}
+            # TODO(Hailey): can merge the code below this line with code above this line.
+            # TODO(Hailey), cont: above already iterates through loop, so just add the permuting in there?
+            # rtn = {"text": np.array(sample, dtype=np.int64)}
+            sample = np.array(sample, dtype=np.int64)
+            # print(sample, sample.shape)
+            # do FIM here, if enabled
+            fim_rate = self.neox_args.fim_rate
+
+            if fim_rate != 0:
+                assert (fim_rate <= 1 and fim_rate >= 0), "FIM rate must be a probability 0 <= rate <= 1"
+
+                eod = self.neox_args.tokenizer.eod
+
+                segment_breaks = np.argwhere(sample == eod) # split sample by document
+
+                if segment_breaks.shape != (0, 1): # then there is an EOD token in this example
+                    curr_start_position = 0
+                    for loc in np.nditer(segment_breaks):
+                        # print(loc - curr_start_position, flush=True)
+                        # permute {prefix, suffix, middle} or {suffix, prefix, middle}
+                        # try:
+                        if loc - curr_start_position > 3: # sometimes examples start with EOD or are too short. so avoid this case
+                            sample[curr_start_position:loc], self.np_rng = \
+                                permute(sample[curr_start_position:loc], self.np_rng, self.neox_args)
+                        # except ValueError:
+                        #     # print(loc - curr_start_position, flush=True)
+                        #     pass
+
+                        curr_start_position = loc + 1 # jump over the EOD token
+                else:
+                    sample, self.np_rng = permute(sample, self.np_rng, self.neox_args)
+            
+            # end FIM-specific code
+            # print(sample, sample.shape)
+            return {"text": sample}
+
         except IndexError:
             new_idx = idx % len(self)
             print(
@@ -295,3 +335,67 @@ def _build_shuffle_idx(size, np_rng):
     shuffle_idx = np.arange(start=0, stop=size, step=1, dtype=dtype_)
     np_rng.shuffle(shuffle_idx)
     return shuffle_idx
+
+
+def permute(sample, np_rng, neox_args):
+    """
+    Take in a sample (np array w/ size (0,chunklength)) and perform a FIM transformation on it. 
+    Maintain the same sample length (if transform creates a few extra tokens, drop them).
+    """
+    fim_rate = neox_args.fim_rate
+    tokenizer = neox_args.tokenizer
+
+    # hardcode these for now. TODO(Hailey): should add a way to access all mask tokens in a tokenizer easily.
+    # TODO(Hailey): also, check to ensure there's not an off-by-one error here. 
+    # TODO(Hailey): when testing models trained with this workaround, need to add special tokens w/ the correct indices to the tokenizer.
+    suffix_tok_id, prefix_tok_id, middle_tok_id = tokenizer.vocab_size - 1, tokenizer.vocab_size, tokenizer.vocab_size + 1
+
+    if np_rng.binomial(1, fim_rate): # sample bernoulli dist
+
+        contents = tokenizer.detokenize(sample)
+        
+        try:
+            boundaries = np_rng.randint(low=1, high=len(contents) - 1, size=2)
+        except ValueError as e:
+            print(len(contents))
+            print(e)
+            raise e
+
+        # print(len(contents), boundaries)
+
+        prefix = contents[:boundaries[0]]
+        middle = contents[boundaries[0]:boundaries[1]]
+        suffix = contents[boundaries[1]:]
+
+        suffix = np.array([suffix_tok_id, *tokenizer.tokenize(suffix)])
+        prefix = np.array([prefix_tok_id, *tokenizer.tokenize(prefix)])
+        middle = np.array([middle_tok_id, *tokenizer.tokenize(middle)])
+        
+        # need to make same length as the input
+        new_length = suffix.shape[0] + prefix.shape[0] + middle.shape[0]
+        diff = new_length - sample.shape[0]
+
+        # print(new_length, sample.shape, suffix.shape, diff)
+        if diff > 0: # too long
+            if suffix.shape[0] <= diff: # if there's no space to truncate the suffix: stop and report it. atm i should have stopped this from happening
+                return sample, np_rng
+            suffix = suffix[:suffix.shape[0] - diff]
+        elif diff < 0: # too short
+            suffix = np.concatenate([suffix, np.full(diff, tokenizer.pad)])
+
+        new_sample = np.concatenate([ # TODO(Hailey): add a branch here + a param to select SPM or PSM mode
+            suffix,
+            prefix,
+            middle,
+        ])
+        # print(new_sample.shape)
+        # if sample.shape[0] == 2049 and new_sample.shape[0] != 2049:
+        #     diff = new_sample.shape[0] - sample.shape[0]
+        #     raise ValueError(f"{boundaries}, {suffix.shape}, {diff}, {new_sample.shape[0]}, {sample.shape[0]}")
+        # print(new_sample.shape[0], sample.shape, suffix.shape, diff)
+    else:
+        # don't do FIM preproc
+        new_sample = sample
+
+
+    return new_sample, np_rng

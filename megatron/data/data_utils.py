@@ -95,6 +95,7 @@ def build_the_dataset(
         dataset = GPT2Dataset(
             *dataset_args,
             build_index_mappings=build_index_mappings,
+            neox_args=neox_args,
         )
 
     return dataset
@@ -172,6 +173,7 @@ def build_train_valid_test_datasets(
             else:
                 dataset = GPT2Dataset(
                     *dataset_args,
+                    neox_args=neox_args,
                 )
 
         return dataset

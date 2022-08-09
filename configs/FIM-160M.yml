@@ -41,8 +41,8 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 4,
-   "gradient_accumulation_steps": 8,
+   "train_micro_batch_size_per_gpu": 16,
+   "gradient_accumulation_steps": 4,
    "data-impl": "mmap",
    "split": "995,4,1",
 
@@ -70,8 +70,8 @@
     },
 
    # misc. training settings
-   "train-iters": 320000,
-   "lr-decay-iters": 320000,
+   "train-iters": 300000,
+   "lr-decay-iters": 300000,
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
@@ -89,14 +89,14 @@
    # Tokenizer /  checkpoint settings - you will need to change these to the location you have them saved in
    "vocab-file": "/fsx/pile/20B_tokenizer.json",
   #  "merge-file": "./20b_checkpoints/merges.txt",
-   "save": "./mlm_125m_checkpoints",
-   "load": "./mlm_125m_checkpoints",
+   "save": "/fsx/code-fim/fim_100M_checkpoints",
+   "load": "/fsx/code-fim/fim_100M_checkpoints",
 
    # If finetuning, edit the following to the location of your finetuning dataset:
    "data-path": "/fsx/pile/pile_20B_tokenizer_text_document",
    
-   "extra-sentinel-tokens": 100,
-   "training-objective": "mlm",
+   "extra-sentinel-tokens": 3,
+   "fim-rate": 0.5,
   #  "train_mtf": True,
   #  "use_prefix_attention": True,
 
@@ -105,6 +105,6 @@
    "tensorboard-dir": "./tensorboard",
    "log-dir": "./logs",
 
-   "hostfile": "./hostfile",
-   "launcher": "OpenMPI",
+  #  "hostfile": "./hostfile",
+  #  "launcher": "OpenMPI",
 }

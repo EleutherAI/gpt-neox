@@ -363,6 +363,13 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Max sequence of ngrams to be mask back-to-back
     """
 
+    fim_rate: float = 0
+    """
+    What percentage of data points to transform for an infilling objective. must be between 0 and 1. 
+    0 = no transformations applied to data, 1 = every document in dataset has transformation applied.
+    Needs at least 3 special sentinel tokens appended to vocabulary.
+    """
+
 
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):
