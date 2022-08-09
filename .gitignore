@@ -161,3 +161,4 @@ src/
 
 #miscellaneous generated files
 core
+*.out

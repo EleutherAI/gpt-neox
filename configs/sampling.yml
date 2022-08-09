@@ -1,30 +1,27 @@
 # Data paths and options when using EleutherAI cluster
 {
-  "data-path": "/mnt/ssd-1/data/pile/pile_text_document",
-  # or for weighted datasets: 
-  # "train-data-paths": ["/mnt/ssd-1/data/enron/enron_text_document", "/mnt/ssd-cluster/data/enron/enron_text_document"],
-  # "test-data-paths": ["/mnt/ssd-1/data/enron/enron_text_document", "/mnt/ssd-cluster/data/enron/enron_text_document"],
-  # "valid-data-paths": ["/mnt/ssd-1/data/enron/enron_text_document", "/mnt/ssd-cluster/data/enron/enron_text_document"],
-  # "train-data-weights": [1., 2.],
-  # "test-data-weights": [2., 1.],
-  # "valid-data-weights": [0.5, 0.4],
+  "train-data-paths": ["/fsx/pile/pile_20B_tokenizer_text_document"],
+  "valid-data-paths": ["/fsx/pile/pile_20B_tokenizer_text_document"],
+  "test-data-paths": ["/fsx/pile/pile_20B_tokenizer_text_document"],
 
-  "vocab-file": "/mnt/ssd-1/data/gpt2-vocab.json",
-  "merge-file": "/mnt/ssd-1/data/gpt2-merges.txt",
-  # "save": "/home/mchorse/neox_checkpoints/test_checkpoints",
-  "load": "/mnt/ssd-1/neox_checkpoints/dense_small_checkpoints",
-  "tensorboard-dir": "/mnt/ssd-1/tensorboard",
-  "log-dir": "/mnt/ssd-1/logs",
+  "tokenizer_type": "HFTokenizer",
+  "vocab-file": "/fsx/pile/20B_tokenizer.json",
+  "load": "/fsx/orz/gpt-neox/checkpoints/",
+  "log-dir": "/fsx/orz/gpt-neox/logs",
   "wandb_team": "eleutherai",
-  "wandb_project": "memorization",
-  "wandb_group": "test",
-  "sample-input-file":"/home/mchorse/gpt-neox/samplefile.txt",
-  "sample-output-file":"/home/mchorse/gpt-neox/sampleoutput.txt",
-  "text-gen-type": "interactive",
-  "maximum_tokens": 256,
+  "wandb_project": "memorization-6.7B",
+  "wandb_group": "6.7B",
+  "sample-output-file":"/fsx/orz/gpt-neox/sampleoutput.txt",
+  "text-gen-type": "unconditional",
+  "maximum_tokens": 64,
   "temperature": 0.0,
   "top_p": 0.0,
   "top_k": 0,
   "recompute": false,
-  "num-nodes": 1,
+
+  "num-samples": 10,
+
+  # input/output file
+  "sample-input-file": "sample_input.txt",
+  "sample-output-file": "sample_output.txt",
 }
