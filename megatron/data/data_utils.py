@@ -10,10 +10,8 @@ from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
 from megatron.data.blendable_dataset import BlendableDataset
 from megatron.data.gpt2_dataset import GPT2Dataset
 from megatron.data.mlm_dataset import MLMDataset
-from megatron.data.decoder_packed_mtf_dataset import DecoderPackedMTFDataset
+from megatron.data.decoder_packed_mtf_dataset import DecoderPackedMTFDataset, get_indexed_dataset
 from megatron.data.samplers import DistributedBatchSampler
-
-from megatron.data.temp_data_utils import get_indexed_dataset
 
 
 def make_data_loader(dataset, neox_args):
@@ -77,9 +75,9 @@ def build_the_dataset(
     if neox_args.train_mtf:
         dataset = DecoderPackedMTFDataset(
             *dataset_args,
+            data_impl,
             skip_warmup=False,
-            pad_token=neox_args.tokenizer.pad,
-            eos_token=neox_args.tokenizer.eod, # TODO(Hailey): just pass this dataset a tokenizer (like MLMdataset)
+            tokenizer=neox_args.tokenizer,
         ) 
     elif neox_args.training_objective == "mlm":
 
@@ -292,7 +290,7 @@ def build_weighted_datasets(
     return train_datasets, valid_datasets, test_datasets
 
 
-def weights_by_num_docs(l, alpha=0.3):
+def weights_by_num_docs(l, alpha:float = 0.3, limit:int = None):
     """
     Builds weights from a multinomial distribution over groups of data according to the number of
     samples in each group.
@@ -304,8 +302,18 @@ def weights_by_num_docs(l, alpha=0.3):
 
     Hence α (`alpha`) allows us to control how much to 'boost' the probability of training on low-resource groups.
 
-    See https://arxiv.org/abs/1911.02116 for more details
+    See https://arxiv.org/abs/1911.02116 for more details.
+
+    `limit` sets an upper bound for the number of examples from each source to count toward weighting.
+    it has no effect if None.
+    this arg is used to emulate the maximum in `mixing_rate_num_examples` from seqio:
+    See https://github.com/google/seqio/blob/90c76914ed13fcce53f00966b824e45fb266b973/seqio/utils.py#L671 for more.
     """
+    if limit:
+        assert limit > 0, "weighted_document_limit arg must be > 0"
+        # don't count more than `limit` docs for weighting purposes.
+        l = [min(i, limit) for i in l]
+    
     total_n_docs = sum(l)
     unbiased_sample_probs = [i / total_n_docs for i in l]
 
@@ -394,7 +402,9 @@ def build_train_valid_test_data_iterators(neox_args):
 
                 # builds weights according to alpha + the number of docs
                 fn = partial(
-                    weights_by_num_docs, alpha=neox_args.weighted_sampler_alpha
+                    weights_by_num_docs, 
+                    alpha=neox_args.weighted_sampler_alpha,
+                    limit=neox_args.weighted_document_limit,
                 )
                 train_weights, valid_weights, test_weights = (
                     fn(train_num_docs),

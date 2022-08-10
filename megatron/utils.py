@@ -78,17 +78,9 @@ def _get_attn_mask(
     # Prefix lm per row, if using prefixlm or mlm and NOT mtf (no packing)
     if prefix_indices is not None:
         for b in range(batch_size):
-            # TODO(Hailey:) add back a type check for prefix_indices[b]? it should be a scalar
+            # prefix_indices[b] is an int here
             mask[b, 0, :prefix_indices[b], :prefix_indices[b]] = 1
-       
-    # if neox_args.train_mtf:
-    #     # packing is done when training multi-task finetuning.
-    #     mask = _get_packed_attn_mask(
-    #         causal_mask=None,
-    #         decoder_is_inputs=decoder_is_inputs,
-    #         segment_ids=segment_ids,
-    #         neox_args=neox_args,
-    #     )
+
     # convert to bool
     return mask < 0.5
 
@@ -109,7 +101,7 @@ def _get_packed_masks_and_position_ids(
     Which was inspired by 
     https://github.com/google-research/t5x/blob/7193407f98a8b18100b71a04ff777238be1682ca/t5x/examples/decoder_only/layers.py#L978
 
-    This function also performs 
+    This function takes in 
 
     Arguments:
         - causal_mask: torch.BoolTensor [batch_size, sequence_length, sequence_length]
@@ -121,6 +113,7 @@ def _get_packed_masks_and_position_ids(
     """
     batch_size = causal_mask.size()[0]
     eod_token = neox_args.tokenizer.eod
+
     # using packing (w/ multi-task finetuning), so need to reset position ids for each segment to start at 0.
     for b in range(batch_size):
 
@@ -135,12 +128,11 @@ def _get_packed_masks_and_position_ids(
                 (eod_idxs, torch.tensor([len(data[b])], dtype=eod_idxs.dtype, device=eod_idxs.device))
             )
 
+        # (TODO(Hailey): this is from Meg-DS, but is it needed?)
         # decouple EOD locations from position ids 
-        # (TODO(Hailey): I don't think they needed to do this in Meg-DS. I should benchmark + remove if no effect)
         eod_idxs = eod_idxs.detach().clone()
 
-        # Loop through all EOD locations, resetting position ids of each segment to start @ 0. 
-        # TODO(Hailey): will need to ensure this doesn't disrupt OPT position id offset (?)
+        # Loop through all EOD locations, resetting position ids of each segment to start @ 0.
         prev_segment_start_idx = 0 
         for j in range(eod_idxs.size()[0]):
             # i = j-th location of an EOD token
@@ -149,7 +141,9 @@ def _get_packed_masks_and_position_ids(
             # Prevent cross document attention interactions.
             causal_mask[b, 0, (i + 1):, :(i + 1)] = 0
 
-            # TODO(Hailey): delete this codeblock, I think. it shouldn't ever be used... idk why it's still in Meg-DS?
+            # TODO(Hailey): this commented codeblock needs reworking in order to use prefixlm w/ MTF.
+            # we probably can do prefixlm using decoder_is_inputs, instead of passing prefix_indices.
+
             # # Prefix lm per document.
             # if prefix_indices:
             #     assert isinstance(prefix_indices[b], list), f"prefix for a row has to be document specific, and consequently return a list, got {prefix_indices[b]}"
@@ -189,7 +183,7 @@ def _get_packed_masks_and_position_ids(
         causal_inputs_mask = causal_mask
     else:
         # shift decoder_is_inputs labels at this step.
-        decoder_is_inputs = decoder_is_inputs[:, 1:].bool()
+        decoder_is_inputs = decoder_is_inputs[:, :-1].bool()
         inputs_mask = decoder_is_inputs[:, None, :, None] * decoder_is_inputs[:, None, None, :]
         causal_inputs_mask = causal_mask + inputs_mask
 
@@ -280,11 +274,11 @@ def get_ltor_masks_and_position_ids(
     neox_args=None,
 ):
     """
-    Build masks and position id for left to right model. TODO(Hailey): make this docstring better
-    :param prefix_indices: argument can have multiple types:
-        - None signifies that the model is fully autoregressive.
+    Build masks and position ids.
+    `prefix_indices` can have multiple types:
+        - None signifies that the model is fully autoregressive. ("clm" objective)
         - List[int] the argument holds all prefix indices that split a row into an input and a target
-        - List[List[int]] the argument holds all prefix indices that split documents between input and target.
+
     """
 
     # Extract batch size and sequence length.
@@ -300,11 +294,10 @@ def get_ltor_masks_and_position_ids(
         batch_size=batch_size,
         neox_args=neox_args,
     )
-    # TODO(Hailey:) a final check that loss masking is done right (incl. w/ padding)
+    # TODO(Hailey:) a final check that loss masking is done right (incl. w/ padding + mask toks)
     # Loss mask.
     loss_mask = _get_loss_mask(data, prefix_indices=prefix_indices, neox_args=neox_args)
 
-    # TODO(Hailey): refactor position id computation into a helper fn
     # Position ids.
     position_ids = torch.arange(seq_length, dtype=torch.long, device=data.device)
     position_ids = position_ids.unsqueeze(0).expand_as(data)

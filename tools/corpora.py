@@ -285,6 +285,55 @@ class Enwik8(DataDownloader):
     urls = ["https://data.deepai.org/enwik8.zip"]
 
 
+class P3(DataDownloader):
+    name = "p3"
+    urls = [] # download from a different script for now.
+    
+    def tokenize(self, filepath):
+        """tokenizes dataset. override default cmd"""
+
+        parent_folder = os.path.join(self.base_dir, self.name)
+        
+        # currently all content from different datasets is concatenated into one jsonl.
+        # this is undesirable since we'd have to duplicate preproc for every version of p3 that we make.
+        jsonl_filepath = ",".join(
+            [os.path.join(parent_folder, (filepath))]
+        )
+
+        base_cmd = f"python tools/preprocess_data.py \
+            --input {jsonl_filepath} \
+            --vocab {self.vocab_file} \
+            --dataset-impl mmap \
+            --tokenizer-type {self.tokenizer_type} \
+            --merge-file {self.merge_file} \
+            --workers {self.num_workers} \
+            --output-prefix {parent_folder}/{self.name} "
+
+        if self.num_docs is not None:
+            base_cmd += f"--num-docs {self.num_docs} "
+
+        if self.ftfy:
+            base_cmd += f"--ftfy "
+
+        # only append EOD to the targets.
+        for tokens_type in ["inputs", "targets"]:
+            cmd = base_cmd
+            if tokens_type == "targets": 
+                cmd += "--append-eod "
+
+            cmd += f"--jsonl-keys '{tokens_type}' "
+
+            os.system(cmd)
+    
+    def prepare(self):
+        self.name = "p3_train"
+        self.download()
+        self.tokenize("../p3_raw/p3_train.jsonl")
+        self.name = "p3_valid"
+        self.download()
+        self.tokenize("../p3_raw/p3_validation.jsonl")
+
+
 def maybe_download_gpt2_tokenizer_data(tokenizer_type, data_dir):
     if tokenizer_type is None or tokenizer_type == "GPT2BPETokenizer":
         GPT2_VOCAB_FP = f"{data_dir}//gpt2-vocab.json"
@@ -316,6 +365,7 @@ DATA_DOWNLOADERS = {
     "c4": C4,
     "c4_openwebtext": C4OpenWebText,
     "enwik8": Enwik8,
+    "p3": P3,
 }
 
 

@@ -1,276 +1,36 @@
+# coding=utf-8
+# Copyright (c) 2022, EleutherAI contributors
+# This file is based on code by the authors denoted below and has been modified from its original version. 
+# TODO: add attribution to Bigscience Meg-DS fork + authors
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 import time
 
 import numpy as np
 import torch
 
-from megatron import print_rank_0, mpu
-from megatron.data.blendable_dataset import BlendableDataset
-# from megatron.data.dataset_utils import get_datasets_weights_and_num_samples, get_split_by_range_, \
-#     get_train_valid_test_split_
-from megatron.data.mtf_dataset import MTFDataset
-from megatron.data.temp_data_utils import get_indexed_dataset, _build_shuffle_idx
+from megatron import print_rank_0, mpu 
 
-# def build_train_valid_test_datasets(
-#     data_prefix,
-#     data_impl,
-#     splits_string,
-#     seq_length: int, # TODO(Hailey): turn the pad and EOD toks into kwargs and unify this fn with data_utils ver.
-#     pad_token: int,
-#     eod_token: int,
-#     train_valid_test_num_samples,
-#     seed,
-#     skip_warmup
-# ):
-#     """Build train, valid, and test datasets."""
+from megatron.data.gpt2_dataset import _build_shuffle_idx
+from megatron.data.indexed_dataset import make_dataset
 
-#     # Single dataset.
-#     if len(data_prefix) == 1:
-#         all_train_datasets, all_valid_datasets, all_test_datasets = _build_train_valid_test_datasets(
-#             data_prefix=data_prefix[0],
-#             data_impl=data_impl,
-#             splits_string=splits_string,
-#             seq_length=seq_length,
-#             pad_token=pad_token, # see below 
-#             eod_token=eod_token, # this is diff from the same name fn in meg-DS gpt_dataset file
-#             train_valid_test_num_samples=train_valid_test_num_samples,
-#             seed=seed,
-#             skip_warmup=skip_warmup
-#         )
-#     # Blending dataset.
-#     else:
-
-#         output = get_datasets_weights_and_num_samples(data_prefix=data_prefix, train_valid_test_num_samples=train_valid_test_num_samples)
-#         prefixes, weights, datasets_train_valid_test_num_samples = output
-
-#         # Build individual datasets.
-#         train_datasets = []
-#         valid_datasets = []
-#         test_datasets = []
-#         for i in range(len(prefixes)):
-#             train_ds, valid_ds, test_ds = _build_train_valid_test_datasets(
-#                 data_prefix=prefixes[i],
-#                 data_impl=data_impl,
-#                 splits_string=splits_string,
-#                 seq_length=seq_length,
-#                 pad_token=pad_token,
-#                 eod_token=eod_token,
-#                 train_valid_test_num_samples=datasets_train_valid_test_num_samples[i],
-#                 seed=seed,
-#                 skip_warmup=skip_warmup
-#             )
-#             if train_ds:
-#                 train_datasets.append(train_ds)
-#             if valid_ds:
-#                 valid_datasets.append(valid_ds)
-#             if test_ds:
-#                 test_datasets.append(test_ds)
-
-#         all_train_datasets = BlendableDataset(train_datasets, weights) \
-#                             if train_datasets else None
-#         all_valid_datasets = BlendableDataset(valid_datasets, weights) \
-#                             if valid_datasets else None
-#         all_test_datasets = BlendableDataset(test_datasets, weights) \
-#                             if test_datasets else None
-
-#     return all_train_datasets, all_valid_datasets, all_test_datasets
-
-
-# def build_dataset_group(
-#     dataset_group_name,
-#     paths,
-#     weights,
-#     splits,
-#     data_impl,
-#     seq_length: int,
-#     pad_token: int,
-#     eod_token: int,
-#     train_valid_test_num_samples,
-#     seed,
-#     skip_warmup,
-#     train_valid_test
-# ):
-#     '''
-#     Build a single dataset group corresponding to Option 2 of data loading see arguments.py
-#     a dataset group is passed in the following form
-#     GIVEN_NAME WEIGHT1 START:END PATH1, WEIGHT2 START:END PATH2, WEIGHT2 START:END PATH2
-#     or alternatively
-#     GIVEN_NAME PATH1    # for a single dataset to be used fully
-#     '''
-
-#     assert train_valid_test in ["train","valid","test"]
-
-#     # Single dataset.
-#     if len(paths) == 1:
-#         dataset = _build_single_datasets(
-#             data_prefix=paths[0],
-#             range_string=splits[0],
-#             data_impl=data_impl,
-#             seq_length=seq_length,
-#             pad_token=pad_token,
-#             eod_token=eod_token,
-#             train_valid_test_num_samples=train_valid_test_num_samples,
-#             seed=seed,
-#             skip_warmup=skip_warmup,
-#             dataset_group_name=dataset_group_name,
-#             train_valid_test=train_valid_test
-#         )
-#         return dataset
-#     # Blending dataset.
-#     else:
-
-#         data_prefix = []
-#         # data_prefix is of the shape:
-#         # ["WEIGHT1", "PATH1", "WEIGHT2", "PATH2", "WEIGHT3", "PATH3"]
-#         for w,p in zip(weights, paths):
-#             data_prefix += [w,p]
-
-#         output = get_datasets_weights_and_num_samples(data_prefix,
-#                                                     train_valid_test_num_samples)
-#         prefixes, weights, datasets_train_valid_test_num_samples = output
-
-#         # Build individual datasets.
-#         datasets = []
-#         for i in range(len(prefixes)):
-#             ds = _build_single_datasets(
-#                 data_prefix=prefixes[i],
-#                 range_string=splits[i],
-#                 data_impl=data_impl,
-#                 seq_length=seq_length,
-#                 pad_token=pad_token,
-#                 eod_token=eod_token,
-#                 train_valid_test_num_samples=datasets_train_valid_test_num_samples[i],
-#                 seed=seed,
-#                 skip_warmup=skip_warmup,
-#                 dataset_group_name=dataset_group_name,
-#                 train_valid_test=train_valid_test
-#             )
-
-#             datasets.append(ds)
-#         all_datasets = BlendableDataset(datasets, weights)
-
-#         return all_datasets
-
-# def _build_single_datasets(
-#     data_prefix,
-#     range_string,
-#     data_impl,
-#     seq_length: int,
-#     pad_token: int,
-#     eod_token: int,
-#     train_valid_test_num_samples,
-#     seed,
-#     skip_warmup,
-#     dataset_group_name,
-#     train_valid_test
-# ):
-#     """Build a single dataset"""
-
-#     assert train_valid_test in ["train","valid","test"]
-#     index = ["train","valid","test"].index(train_valid_test)
-
-#     # Target indexed dataset.
-#     target_indexed_dataset = get_indexed_dataset(
-#         data_prefix=data_prefix,
-#         is_input=False,
-#         data_impl=data_impl,
-#         skip_warmup=skip_warmup
-#     )
-
-#     total_num_of_documents = target_indexed_dataset.sizes.shape[0]
-#     # this corresponds to option2 for data loading on the form
-#     # WEIGHT1 START:END PATH1, WEIGHT2 START:END PATH2, WEIGHT3 START:END PATH3
-#     # splits here is an array of size 2  [start_index, end_index]
-#     splits = get_split_by_range_(range_string=range_string, size=total_num_of_documents)
-
-#     # Print stats about the splits.
-#     print_rank_0(' > dataset split:')
-
-#     print_rank_0('    {}:'.format(dataset_group_name))
-#     print_rank_0('     document indices in [{}, {}) total of {} '
-#                      'documents'.format(splits[0], splits[1],
-#                                         splits[1] - splits[0]))
-
-#     def build_dataset(name):
-#         dataset = None
-#         if splits[1] > splits[0]:
-#             documents = np.arange(start=splits[0], stop=splits[1],
-#                                   step=1, dtype=np.int32)
-#             dataset = DecoderPackedMTFDataset(
-#                 name=name,
-#                 data_prefix=data_prefix,
-#                 data_impl=data_impl,
-#                 skip_warmup=skip_warmup,
-#                 documents=documents,
-#                 seq_length=seq_length,
-#                 pad_token=pad_token,
-#                 eod_token=eod_token,
-#                 num_samples=train_valid_test_num_samples[index],
-#                 seed=seed
-#             )
-#         return dataset
-
-#     dataset = build_dataset(dataset_group_name)
-
-#     return dataset
-
-
-# def _build_train_valid_test_datasets(
-#     data_prefix,
-#     data_impl,
-#     splits_string,
-#     seq_length: int,
-#     pad_token: int,
-#     eod_token: int,
-#     train_valid_test_num_samples,
-#     seed,
-#     skip_warmup
-# ):
-#     """Build train, valid, and test datasets."""
-
-#     # Target indexed dataset.
-#     target_indexed_dataset = get_indexed_dataset(data_prefix, is_input=False, data_impl=data_impl, skip_warmup=skip_warmup)
-
-#     total_num_of_documents = target_indexed_dataset.sizes.shape[0]
-#     # splits here is an array of size 4  [train_start_index, valid_start_index, test_start_index, test_end_index]
-#     splits = get_train_valid_test_split_(splits_string, total_num_of_documents)
-#     # Print stats about the splits.
-#     print_rank_0(' > dataset split:')
-
-#     def print_split_stats(name, index):
-#         print_rank_0('    {}:'.format(name))
-#         print_rank_0('     document indices in [{}, {}) total of {} '
-#                      'documents'.format(splits[index], splits[index + 1],
-#                                         splits[index + 1] - splits[index]))
-#     print_split_stats('train', 0)
-#     print_split_stats('validation', 1)
-#     print_split_stats('test', 2)
-
-#     def build_dataset(index, name):
-#         dataset = None
-#         if splits[index + 1] > splits[index]:
-#             documents = np.arange(start=splits[index], stop=splits[index + 1],
-#                                   step=1, dtype=np.int32)
-#             dataset = DecoderPackedMTFDataset(
-#                 name=name,
-#                 data_prefix=data_prefix,
-#                 data_impl=data_impl,
-#                 skip_warmup=skip_warmup,
-#                 documents=documents,
-#                 seq_length=seq_length,
-#                 pad_token=pad_token,
-#                 eod_token=eod_token,
-#                 num_samples=train_valid_test_num_samples[index],
-#                 seed=seed
-#             )
-#         return dataset
-
-#     train_dataset = build_dataset(0, 'train')
-#     valid_dataset = build_dataset(1, 'valid')
-#     test_dataset = build_dataset(2, 'test')
-
-#     return (train_dataset, valid_dataset, test_dataset)
-
+"""
+A dataset which performs multi-task prompted finetuning on a decoder-only model.
+Examples are packed into batches.
+"""
 
 class DecoderPackedMTFDataset(torch.utils.data.Dataset):
 
@@ -288,25 +48,33 @@ class DecoderPackedMTFDataset(torch.utils.data.Dataset):
         build_index_mappings=True,
         tokenizer=None,
     ):
+        # build underlying indexed datasets
         self.mtf_dataset = MTFDataset(name=name, data_prefix=data_prefix, data_impl=data_impl, skip_warmup=skip_warmup, documents=documents)
 
+        assert tokenizer, "Must pass a tokenizer to pack multi-task examples"
         self.tokenizer = tokenizer
 
         self.pad_token = tokenizer.pad
         self.eod_token = tokenizer.eod
-
         self.seq_length = seq_length
 
-        self.sample_index, self.shuffle_index = _build_index_mappings(name=name, data_prefix=data_prefix, nb_documents=len(documents), mtf_dataset=self.mtf_dataset, num_samples=num_samples, seq_length=seq_length, seed=seed)
+        self.sample_index, self.shuffle_index = _build_index_mappings(
+            name=name, 
+            data_prefix=data_prefix, 
+            documents=len(documents), 
+            mtf_dataset=self.mtf_dataset, 
+            num_samples=num_samples, 
+            seq_length=seq_length, 
+            seed=seed,
+            )
 
     def __len__(self):
         return len(self.sample_index)
 
     def __getitem__(self, idx):
-        # Get the shuffled index.
+
         start, end = self.sample_index[idx]
         mtf_samples_indices = self.shuffle_index[start: end]
-        # TODO @thomasw21 build a dataset that generates an entire batch instead of a row (allows for more optimization)
         items = [self.mtf_dataset[sample_id] for sample_id in mtf_samples_indices]
 
         return self.pack_samples(items)
@@ -376,7 +144,7 @@ class DecoderPackedMTFDataset(torch.utils.data.Dataset):
 def _build_index_mappings(
     name,
     data_prefix,
-    nb_documents,
+    documents,
     mtf_dataset,
     num_samples: int,
     seq_length: int,
@@ -385,7 +153,6 @@ def _build_index_mappings(
     """
     - `shuffle_index` is [num_epoch * len(self.mtf)]
     - `sample_index` is [num_sample, 2] (storing the start and end of the sample). We query the sample via `self.shuffle_index[start:end]`
-    TODO @thomas21 Instead of loading individually samples, we save the packing one and for all
     """
     # rng state
     np_rng = np.random.RandomState(seed=seed)
@@ -415,7 +182,7 @@ def _build_index_mappings(
             shuffle_idx = []
             sample_idx = []
             while len(sample_idx) <= num_samples:
-                new_document_ids = _build_shuffle_idx(size=nb_documents, np_rng=np_rng)
+                new_document_ids = _build_shuffle_idx(size=documents, np_rng=np_rng)
                 # Generate a shuffling of the entire dataset
                 shuffle_idx.append(new_document_ids)
                 # Packs them into a single sample
@@ -474,7 +241,6 @@ def _build_sample_idx(mtf_dataset, document_ids, seq_length, row_offset, old_sam
         current_sample_end = epoch_offset + current_sample_end
         sample_sizes = mtf_dataset.size(document_id)
 
-        # TODO @thomasw21 figure out if we add <eod> tokens
         tok_len = sample_sizes["input_tokens"] + sample_sizes["target_tokens"]
 
         row_length = row_length + tok_len
@@ -486,13 +252,82 @@ def _build_sample_idx(mtf_dataset, document_ids, seq_length, row_offset, old_sam
             row_length = tok_len
 
             if tok_len > seq_length:
-                # TODO @thomasw21 handle the case where a single sample cannot fit inside a row. We can
-                #   - silently skip that value [currently implemented]
-                #   - truncate to `seq_length`, and keep the right part
+                # silently skips examples longer than seq_length (will never fit into one batch "row")
                 # logger.warning(f"Skipping sample id={document_id}. Maximum sequence length: {seq_length}, sample length: {tok_len}")
-                current_sample_start = current_sample_end + 1  # skipping
+                current_sample_start = current_sample_end + 1
                 row_length = 0
                 continue
 
     return full_samples, row_length, current_sample_start
 
+
+class MTFDataset(torch.utils.data.Dataset):
+    """
+    A helper dataset class underlying the DecoderPackedMTFDataset class. 
+    Stores input document tokens and target document tokens in 2 indexed datasets.
+    """
+    def __init__(
+        self,
+        name,
+        data_prefix,
+        data_impl,
+        skip_warmup,
+        documents,
+    ):
+        # Params to store
+        self.name = name
+
+        # indexed dataset
+        self.input_indexed_dataset = get_indexed_dataset(data_prefix, is_input=True, data_impl=data_impl, skip_warmup=skip_warmup)
+        self.target_indexed_dataset = get_indexed_dataset(data_prefix, is_input=False, data_impl=data_impl, skip_warmup=skip_warmup)
+
+        # validity checks
+        assert np.min(documents) >= 0
+        assert np.max(documents) < self.input_indexed_dataset.sizes.shape[0]
+        assert np.max(documents) < self.target_indexed_dataset.sizes.shape[0]
+        assert self.input_indexed_dataset.sizes.shape[0] == self.target_indexed_dataset.sizes.shape[0]
+
+    def __len__(self):
+        return len(self.input_indexed_dataset)
+
+    def __getitem__(self, idx):
+        input_tokens = self.input_indexed_dataset.get(idx)
+        target_tokens = self.target_indexed_dataset.get(idx)
+
+        assert len(input_tokens) > 0
+        assert len(target_tokens) > 0
+
+        return {
+            'input_tokens': input_tokens,
+            'target_tokens': target_tokens,
+        }
+
+    def size(self, idx):
+        return {
+            'input_tokens': self.input_indexed_dataset.size(idx),
+            'target_tokens': self.target_indexed_dataset.size(idx),
+        }
+
+
+def get_indexed_dataset(data_prefix: str, is_input: bool, data_impl: str, skip_warmup: bool):
+    """retrieve either an input or target indexed dataset."""
+    if is_input:
+        field = "inputs"
+    else:
+        field = "targets"
+
+    return get_indexed_dataset_(f"{data_prefix}_{field}_document", data_impl, skip_warmup)
+
+def get_indexed_dataset_(path, data_impl, skip_warmup):
+    """build the indexed dataset (if does not exist)."""
+    print_rank_0(' > building dataset index ...')
+    start_time = time.time()
+    indexed_dataset = make_dataset(path,
+                                           data_impl,
+                                           skip_warmup)
+    print_rank_0(' > finished creating indexed dataset in {:4f} '
+                 'seconds'.format(time.time() - start_time))
+    print_rank_0('    number of documents: {}'.format(
+        indexed_dataset.sizes.shape[0]))
+
+    return indexed_dataset
