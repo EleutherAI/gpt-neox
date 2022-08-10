@@ -92,11 +92,20 @@
    "load": "./data/20b_checkpoints",
 
    # If finetuning, edit the following to the location of your finetuning dataset:
-   "data-path": "./data/p3/p3",
+  #  "data-path": "./data/p3/p3",
+  "train-data-paths": ["./data/p3/p3"],
+  "valid-data-paths": ["./data/p3_valid/p3"],
+  "test-data-paths": ["./data/p3_valid/p3"],
+
+  "train-data-weights": [1],
+  "valid-data-weights": [1],
+  "test-data-weights": [1],
+  
    
   #  "extra-sentinel-tokens": 100,
-  #  "training-objective": "mlm",
+  #  "training-objective": "prefixlm",
    "train_mtf": True,
+   "loss_on_targets_only": True,
   #  "use_prefix_attention": True,
    "seq-length": 1024,
 

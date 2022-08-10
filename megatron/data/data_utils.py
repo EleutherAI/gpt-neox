@@ -75,6 +75,7 @@ def build_the_dataset(
     if neox_args.train_mtf:
         dataset = DecoderPackedMTFDataset(
             *dataset_args,
+            data_impl,
             skip_warmup=False,
             tokenizer=neox_args.tokenizer,
         ) 

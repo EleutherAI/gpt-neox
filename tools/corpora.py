@@ -289,14 +289,15 @@ class P3(DataDownloader):
     name = "p3"
     urls = [] # download from a different script for now.
     
-    def tokenize(self):
+    def tokenize(self, filepath):
         """tokenizes dataset. override default cmd"""
+
         parent_folder = os.path.join(self.base_dir, self.name)
         
         # currently all content from different datasets is concatenated into one jsonl.
         # this is undesirable since we'd have to duplicate preproc for every version of p3 that we make.
         jsonl_filepath = ",".join(
-            [os.path.join(parent_folder, ("../p3_raw/p3_train.jsonl"))]
+            [os.path.join(parent_folder, (filepath))]
         )
 
         base_cmd = f"python tools/preprocess_data.py \
@@ -323,6 +324,14 @@ class P3(DataDownloader):
             cmd += f"--jsonl-keys '{tokens_type}' "
 
             os.system(cmd)
+    
+    def prepare(self):
+        self.name = "p3_train"
+        self.download()
+        self.tokenize("../p3_raw/p3_train.jsonl")
+        self.name = "p3_valid"
+        self.download()
+        self.tokenize("../p3_raw/p3_validation.jsonl")
 
 
 def maybe_download_gpt2_tokenizer_data(tokenizer_type, data_dir):
