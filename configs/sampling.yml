@@ -20,8 +20,7 @@
   "recompute": false,
 
   "num-samples": 10,
-
-  # input/output file
-  "sample-input-file": "sample_input.txt",
-  "sample-output-file": "sample_output.txt",
+  "hostfile": "/fsx/orz/gpt-neox/hosts",
+  "launcher": "openmpi",
+  "deepspeed_mpi": true
 }
