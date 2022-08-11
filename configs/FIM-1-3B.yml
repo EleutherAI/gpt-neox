@@ -6,9 +6,9 @@
    "model-parallel-size": 1,
 
    # model settings
-   "num-layers": 12,
-   "hidden-size": 768,
-   "num-attention-heads": 12,
+   "num-layers": 24,
+   "hidden-size": 2048,
+   "num-attention-heads": 16,
    "seq-length": 2048,
    "max-position-embeddings": 2048,
    "norm": "layernorm",
@@ -24,7 +24,7 @@
    "optimizer": {
      "type": "Adam",
      "params": {
-       "lr": 0.0006,
+       "lr": 0.00016,
        "betas": [0.9, 0.999],
        "eps": 1.0e-8,
      }
@@ -41,9 +41,9 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 24,
+   "train_micro_batch_size_per_gpu": 4,
    "data-impl": "mmap",
-   "split": "995,4,1",
+   "split": "949,50,1",
 
    # activation checkpointing
    "checkpoint-activations": true,
@@ -53,24 +53,24 @@
 
    # regularization
    "gradient_clipping": 1.0,
-   "weight-decay": 0.0,
-   "hidden-dropout": 0.0,
-   "attention-dropout": 0.0,
+   "weight-decay": 0,
+   "hidden-dropout": 0,
+   "attention-dropout": 0,
 
    # precision settings
    "fp16": {
-    "fp16": true,
-    "enabled": true,
-    "loss_scale": 0,
-    "loss_scale_window": 1000,
-    "initial_scale_power": 12,
-    "hysteresis": 2,
-    "min_loss_scale": 1
-    },
+     "fp16": true,
+     "enabled": true,
+     "loss_scale": 0,
+     "loss_scale_window": 1000,
+     "initial_scale_power": 12,
+     "hysteresis": 2,
+     "min_loss_scale": 1
+   },
 
    # misc. training settings
-   "train-iters": 300000,
-   "lr-decay-iters": 300000,
+   "train-iters": 572200,
+   "lr-decay-iters": 572200,
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
@@ -84,12 +84,9 @@
    "keep-last-n-checkpoints": 4,
    "wall_clock_breakdown": true,
 
-
-   # Tokenizer /  checkpoint settings - you will need to change these to the location you have them saved in
-   "vocab-file": "/fsx/pile/20B_tokenizer.json",
   #  "merge-file": "./20b_checkpoints/merges.txt",
-   "save": "/fsx/code-fim/FIMlogs/ckpts/8-11-2022-100M-commit421791529b1fef4225da048ebe2f21915872abf1/",
-   "load": "/fsx/code-fim/FIMlogs/ckpts/8-11-2022-100M-commit421791529b1fef4225da048ebe2f21915872abf1/",
+   "save": "/fsx/code-fim/FIMlogs/ckpts/1.3B-FIM-Pile-fixpadding-8-11-2022-100M-commit421791529b1fef4225da048ebe2f21915872abf1/",
+   "load": "/fsx/code-fim/FIMlogs/ckpts/1.3B-FIM-Pile-fixpadding-8-11-2022-100M-commit421791529b1fef4225da048ebe2f21915872abf1/",
 
    # If finetuning, edit the following to the location of your finetuning dataset:
    "data-path": "/fsx/pile/pile_20B_tokenizer_text_document",
@@ -99,12 +96,14 @@
 
    ### NEW DATA: ####
    "tokenizer_type": "HFTokenizer",
-   "tensorboard-dir": "/fsx/code-fim/FIMlogs/tensorboard/8-11-2022-100M-commit421791529b1fef4225da048ebe2f21915872abf1/",
-   "log-dir": "/fsx/code-fim/FIMlogs/logs/8-11-2022-100M-commit421791529b1fef4225da048ebe2f21915872abf1/",
+   "vocab-file": "/fsx/pile/20B_tokenizer.json",
+
+   "tensorboard-dir": "/fsx/code-fim/FIMlogs/tensorboard/1.3B-FIM-Pile-fixpadding-8-11-2022-commit421791529b1fef4225da048ebe2f21915872abf1/",
+   "log-dir": "/fsx/code-fim/FIMlogs/logs/1.3B-FIM-Pile-fixpadding-8-11-2022-commit421791529b1fef4225da048ebe2f21915872abf1/",
 
 
    "use_wandb": True,
-   "wandb_group": "100M-testwithoutFIM",
+   "wandb_group": "FIM-1.3B-Pile-mainrun-fixpadding",
    "wandb_team": "carperai",
    "wandb_project": "Infilling-LLMs",
 

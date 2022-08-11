@@ -127,7 +127,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
                         # print(loc - curr_start_position, flush=True)
                         # permute {prefix, suffix, middle} or {suffix, prefix, middle}
                         # try:
-                        if loc - curr_start_position > 3: # sometimes examples start with EOD or are too short. so avoid this case
+                        if loc - curr_start_position > 10: # sometimes examples start with EOD or are too short. so avoid this case
                             sample[curr_start_position:loc], self.np_rng = \
                                 permute(sample[curr_start_position:loc], self.np_rng, self.neox_args)
                         # except ValueError:
@@ -141,6 +141,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
             # end FIM-specific code
             # print(sample, sample.shape)
             return {"text": sample}
+            # return {"text": np.array(sample, dtype=np.int64)}
 
         except IndexError:
             new_idx = idx % len(self)
@@ -357,7 +358,7 @@ def permute(sample, np_rng, neox_args):
         try:
             boundaries = np_rng.randint(low=1, high=len(contents) - 1, size=2)
         except ValueError as e:
-            print(len(contents))
+            print(len(contents), contents)
             print(e)
             raise e
 
@@ -381,13 +382,14 @@ def permute(sample, np_rng, neox_args):
                 return sample, np_rng
             suffix = suffix[:suffix.shape[0] - diff]
         elif diff < 0: # too short
-            suffix = np.concatenate([suffix, np.full(diff, tokenizer.pad)])
+            suffix = np.concatenate([suffix, np.full((-1 * diff), tokenizer.pad)])
 
         new_sample = np.concatenate([ # TODO(Hailey): add a branch here + a param to select SPM or PSM mode
             suffix,
             prefix,
             middle,
         ])
+        # print("definitely using FIM this run")
         # print(new_sample.shape)
         # if sample.shape[0] == 2049 and new_sample.shape[0] != 2049:
         #     diff = new_sample.shape[0] - sample.shape[0]
