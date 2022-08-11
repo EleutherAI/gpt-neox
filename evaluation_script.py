@@ -151,7 +151,7 @@ def main():
                     'accuracy':total_accuracy/len(memorization)
                 })
 
-        megatron_utils.print_rank_0(f"Generation took {time.time() - t:.3}s")
+        megatron_utils.print_rank_0(f"Generation took {time.time() - t:.3}s for iteration {iteration}")
         t = time.time()
 
     is_src_rank = mpu.get_data_parallel_rank() == 0
