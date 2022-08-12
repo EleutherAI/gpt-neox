@@ -41,9 +41,9 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 4,
+   "train_micro_batch_size_per_gpu": 24,
    "data-impl": "mmap",
-   "split": "949,50,1",
+   "split": "995,4,1",
 
    # activation checkpointing
    "checkpoint-activations": true,
@@ -59,18 +59,18 @@
 
    # precision settings
    "fp16": {
-     "enabled": true,
-     "type": "bfloat16", # set bf16 as precision
-     "loss_scale": 0,
-     "loss_scale_window": 1000,
-     "hysteresis": 2,
-     "min_loss_scale": 1
-   },
+    "fp16": true,
+    "enabled": true,
+    "loss_scale": 0,
+    "loss_scale_window": 1000,
+    "initial_scale_power": 12,
+    "hysteresis": 2,
+    "min_loss_scale": 1
+    },
 
-   "fp32_allreduce": True, # without a patch to torch, bf16 models have to do the allreduce in fp32
    # misc. training settings
-   "train-iters": 320000,
-   "lr-decay-iters": 320000,
+   "train-iters": 300000,
+   "lr-decay-iters": 300000,
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
@@ -79,29 +79,35 @@
    "eval-iters": 10,
 
    # logging
-   "log-interval": 100,
+   "log-interval": 20,
    "steps_per_print": 10,
    "keep-last-n-checkpoints": 4,
    "wall_clock_breakdown": true,
 
 
    # Tokenizer /  checkpoint settings - you will need to change these to the location you have them saved in
-   "vocab-file": "./data/20b_checkpoints/125m-tokenizer/",
+   "vocab-file": "/fsx/pile/20B_tokenizer.json",
   #  "merge-file": "./20b_checkpoints/merges.txt",
-   "save": "./data/20b_checkpoints",
-   "load": "./data/20b_checkpoints",
+   "save": "/fsx/code-fim/FIMlogs/ckpts/8-11-2022-100M-commit421791529b1fef4225da048ebe2f21915872abf1/",
+   "load": "/fsx/code-fim/FIMlogs/ckpts/8-11-2022-100M-commit421791529b1fef4225da048ebe2f21915872abf1/",
 
    # If finetuning, edit the following to the location of your finetuning dataset:
-   "data-path": "./data/enron/enron_text_document",
+   "data-path": "/fsx/pile/pile_20B_tokenizer_text_document",
    
-  #  "extra-sentinel-tokens": 100,
-   "training-objective": "prefixlm",
-   "train_mtf": True,
-  #  "use_prefix_attention": True,
-   "seq-length": 1024,
+   "extra-sentinel-tokens": 3,
+   "fim-rate": 0.5,
 
    ### NEW DATA: ####
-   "tokenizer_type": "HFGPT2Tokenizer",
-   "tensorboard-dir": "./tensorboard",
-   "log-dir": "./logs",
+   "tokenizer_type": "HFTokenizer",
+   "tensorboard-dir": "/fsx/code-fim/FIMlogs/tensorboard/8-11-2022-100M-commit421791529b1fef4225da048ebe2f21915872abf1/",
+   "log-dir": "/fsx/code-fim/FIMlogs/logs/8-11-2022-100M-commit421791529b1fef4225da048ebe2f21915872abf1/",
+
+
+   "use_wandb": True,
+   "wandb_group": "100M-testwithoutFIM",
+   "wandb_team": "carperai",
+   "wandb_project": "Infilling-LLMs",
+
+  #  "hostfile": "./hostfile",
+  #  "launcher": "OpenMPI",
 }

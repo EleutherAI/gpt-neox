@@ -207,6 +207,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Ordering of the shared parameters. For example, for a num-layers=4 and --num-unique-layers=2, we will have the following ordering for two unique layers 1 and 2-: grouped: [1, 2, 1, 2] and spaced: [1, 1, 2, 2].
     """
 
+    extra_sentinel_tokens: int = 0
+    """
+    Pad the vocab size with extra tokens, used as sentinels for T5-style MLM. `make_vocab_size_divisible_by` takes effect after this.
+    """
+
     make_vocab_size_divisible_by: int = 128
     """
     Pad the vocab size to be divisible by this value. This is added for computational efficiency reasons.
@@ -333,6 +338,41 @@ class NeoXArgsModel(NeoXArgsTemplate):
 
     """
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
+    """
+
+    training_objective: Literal["clm", "mlm", "prefixlm"] = "clm"
+    """
+    Training objective to use. if "mlm", trained on a t5-style span denoising MLM objective,
+    If "clm", model is trained on a typical autoregressive LM objective,
+    and if "prefixlm", model is trained with bidirectional attention up to the first n tokens.
+    """
+
+    train_mtf: bool = False
+    """
+    Flag controlling whether model will be multi-task-finetuned, using DecoderPackedMTFDataset.
+    """
+
+    loss_on_targets_only: bool = False
+    """
+    Flag controlling whether loss is masked for input tokens, e.g. in MLM or PrefixLM.
+    *SHOULD BE TRUE WHENEVER DOING MLM!!*
+    """
+
+    masked_lm_prob: float = 0.15
+    """
+    Masking probability for MLM Adaptation
+    """
+    
+    mean_noise_span_length: int = 3
+    """
+    Max sequence of ngrams to be mask back-to-back
+    """
+
+    fim_rate: float = 0
+    """
+    What percentage of data points to transform for an infilling objective. must be between 0 and 1. 
+    0 = no transformations applied to data, 1 = every document in dataset has transformation applied.
+    Needs at least 3 special sentinel tokens appended to vocabulary.
     """
 
 
