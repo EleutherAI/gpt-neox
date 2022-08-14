@@ -28,7 +28,7 @@ import time
 import tqdm
 import torch
 import ftfy
-
+from glob import glob
 from megatron.tokenizer import build_tokenizer
 from megatron.data import indexed_dataset
 from threading import Semaphore
@@ -66,6 +66,11 @@ def get_args():
         required=True,
         help="Path to input jsonl files or lmd archive(s) - if using multiple archives, put them in a comma separated "
         "list",
+    )
+    group.add_argument(
+        "--input_with_pattern",
+        action="store_true",
+        default=False,
     )
     group.add_argument(
         "--jsonl-keys",
@@ -124,7 +129,10 @@ def get_args():
 
     group = parser.add_argument_group(title="runtime")
     group.add_argument(
-        "--workers", type=int, default=1, help="Number of worker processes to launch"
+        "--workers", type=int, default=16, help="Number of worker processes to launch"
+    )
+    group.add_argument(
+        "--chunksize", type=int, default=100, help="Size of chunk for multiprocessing"
     )
     group.add_argument(
         "--log-interval",
@@ -174,11 +182,15 @@ def main():
     semaphore = Semaphore(10000 + args.workers)
 
     # use multiprocessing to iterate over input documents
-    fin = yield_from_files(args.input.split(","), semaphore)
+    if args.input_with_pattern:
+        data_files = glob(args.input)
+        fin = yield_from_files(data_files, semaphore)
+    else:
+        fin = yield_from_files(args.input.split(","), semaphore)
 
     if args.workers > 1:
         pool = multiprocessing.Pool(args.workers, initializer=encoder.initializer)
-        encoded_docs = pool.imap(encoder.encode, fin, chunksize=25)
+        encoded_docs = pool.imap(encoder.encode, fin, chunksize=args.chunksize)
     else:
         encoder.initializer()
         encoded_docs = (encoder.encode(doc) for doc in fin)
@@ -224,7 +236,7 @@ def main():
             elapsed = current - proc_start
             mbs = total_bytes_processed / elapsed / 1024 / 1024
             pbar.set_description(
-                f"Processed {i}{'' if args.num_docs is None else '/' + str(args.num_docs)} documents ({i / elapsed} docs/s, {mbs} MB/s)."
+                f"Processed {i}{'' if args.num_docs is None else '/' + str(args.num_docs)} documents ({i / elapsed:.2f} docs/s, {mbs:.2f} MB/s)."
             )
             if i != 0:
                 pbar.update(args.log_interval)
