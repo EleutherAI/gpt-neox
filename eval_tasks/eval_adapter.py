@@ -366,12 +366,14 @@ class EvalHarnessAdapter(GPT2LM):
         self.model.micro_batches = 1
         if eval_tasks is None:
             eval_tasks = [
-                "lambada",
-                "piqa",
-                "hellaswag",
-                "winogrande",
-                "mathqa",
-                "pubmedqa",
+                "nsmc",
+                "klue_sts",
+                "klue_ynat",
+                "kobest_boolq",
+                "kobest_copa",
+                "kobest_hellaswag",
+                "kobest_sentineg",
+                "kobest_wic",
             ]
 
         # **HACK INCOMING**:
