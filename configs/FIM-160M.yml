@@ -42,8 +42,9 @@
 
    # batch / data settings
    "train_micro_batch_size_per_gpu": 4,
+   "gradient_accumulation_steps": 8,
    "data-impl": "mmap",
-   "split": "949,50,1",
+   "split": "995,4,1",
 
    # activation checkpointing
    "checkpoint-activations": true,
@@ -53,21 +54,21 @@
 
    # regularization
    "gradient_clipping": 1.0,
-   "weight-decay": 0.0,
+   "weight-decay": 0.01,
    "hidden-dropout": 0.0,
    "attention-dropout": 0.0,
 
    # precision settings
    "fp16": {
-     "enabled": true,
-     "type": "bfloat16", # set bf16 as precision
-     "loss_scale": 0,
-     "loss_scale_window": 1000,
-     "hysteresis": 2,
-     "min_loss_scale": 1
-   },
+    "fp16": true,
+    "enabled": true,
+    "loss_scale": 0,
+    "loss_scale_window": 1000,
+    "initial_scale_power": 12,
+    "hysteresis": 2,
+    "min_loss_scale": 1
+    },
 
-   "fp32_allreduce": True, # without a patch to torch, bf16 models have to do the allreduce in fp32
    # misc. training settings
    "train-iters": 320000,
    "lr-decay-iters": 320000,
@@ -86,31 +87,24 @@
 
 
    # Tokenizer /  checkpoint settings - you will need to change these to the location you have them saved in
-   "vocab-file": "./data/20b_checkpoints/125m-tokenizer/",
+   "vocab-file": "/fsx/pile/20B_tokenizer.json",
   #  "merge-file": "./20b_checkpoints/merges.txt",
-   "save": "./data/20b_checkpoints",
-   "load": "./data/20b_checkpoints",
+   "save": "./mlm_125m_checkpoints",
+   "load": "./mlm_125m_checkpoints",
 
    # If finetuning, edit the following to the location of your finetuning dataset:
-  #  "data-path": "./data/p3/p3",
-  "train-data-paths": ["./data/p3/p3"],
-  "valid-data-paths": ["./data/p3_valid/p3_valid"],
-  "test-data-paths": ["./data/p3_valid/p3_valid"],
-
-  "train-data-weights": [1],
-  "valid-data-weights": [1],
-  "test-data-weights": [1],
-  
+   "data-path": "/fsx/pile/pile_20B_tokenizer_text_document",
    
-  #  "extra-sentinel-tokens": 100,
-  #  "training-objective": "prefixlm",
-   "train_mtf": True,
-   "loss_on_targets_only": True,
+   "extra-sentinel-tokens": 100,
+   "training-objective": "mlm",
+  #  "train_mtf": True,
   #  "use_prefix_attention": True,
-   "seq-length": 1024,
 
    ### NEW DATA: ####
-   "tokenizer_type": "HFGPT2Tokenizer",
+   "tokenizer_type": "HFTokenizer",
    "tensorboard-dir": "./tensorboard",
    "log-dir": "./logs",
+
+   "hostfile": "./hostfile",
+   "launcher": "OpenMPI",
 }

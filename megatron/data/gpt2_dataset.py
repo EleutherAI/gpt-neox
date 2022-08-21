@@ -38,8 +38,9 @@ class GPT2Dataset(torch.utils.data.Dataset):
         seed,
         build_index_mappings=True,
     ):
-
+        # TODO (hailey:) add a check that noise_density and mean_noise_span_length are not passed to GPT2Dataset init?
         self.name = name
+        self.seed = seed
         self.indexed_dataset = indexed_dataset
 
         # Checks

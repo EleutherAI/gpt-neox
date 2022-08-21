@@ -45,8 +45,7 @@ def get_batch(neox_args, context_tokens: torch.Tensor):
     # Get the attention mask and position ids.
     attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
         data=tokens,
-        eod_token=neox_args.tokenizer.eod,
-        eod_mask_loss=neox_args.eod_mask_loss,
+        neox_args=neox_args,
     )
     return tokens, attention_mask, position_ids
 
