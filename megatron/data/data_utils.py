@@ -65,6 +65,7 @@ def build_the_dataset(
         seq_length,
         seed,
         build_index_mappings=build_index_mappings,
+        neox_args=neox_args,
     )
     return dataset
 
