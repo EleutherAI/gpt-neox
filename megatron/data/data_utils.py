@@ -118,6 +118,7 @@ def build_train_valid_test_datasets(
                 train_valid_test_num_samples[index],
                 seq_length,
                 seed,
+                neox_args=neox_args,
             )
         return dataset
 
