@@ -207,6 +207,18 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Ordering of the shared parameters. For example, for a num-layers=4 and --num-unique-layers=2, we will have the following ordering for two unique layers 1 and 2-: grouped: [1, 2, 1, 2] and spaced: [1, 1, 2, 2].
     """
 
+    extra_sentinel_tokens: int = 0
+    """
+    Pad the vocab size with extra tokens, used as sentinels for T5-style MLM. `make_vocab_size_divisible_by` takes effect after this.
+    """
+
+    fim_rate: float = 0
+    """
+    What percentage of data points to transform for an infilling objective. must be between 0 and 1. 
+    0 = no transformations applied to data, 1 = every document in dataset has transformation applied.
+    Needs at least 3 special sentinel tokens appended to vocabulary.
+    """
+
     make_vocab_size_divisible_by: int = 128
     """
     Pad the vocab size to be divisible by this value. This is added for computational efficiency reasons.
