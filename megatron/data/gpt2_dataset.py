@@ -150,7 +150,7 @@ def _build_index_mappings(
             doc_idx = _build_doc_idx(documents, num_epochs, np_rng)
             np.save(doc_idx_filename, doc_idx, allow_pickle=True)
             print_rank_0(
-                " > elasped time to build and save doc-idx mapping "
+                " > elapsed time to build and save doc-idx mapping "
                 "(seconds): {:4f}".format(time.time() - start_time)
             )
             # sample-idx.
