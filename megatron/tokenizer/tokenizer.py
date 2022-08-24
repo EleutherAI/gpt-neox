@@ -59,6 +59,9 @@ def build_tokenizer(args):
 
     # Add vocab size.
     args.padded_vocab_size = _vocab_size_with_padding(tokenizer.vocab_size, args)
+    
+    # set the ids of sentinel tokens (if any)
+    tokenizer.sentinel_ids = list(range(tokenizer.vocab_size, args.padded_vocab_size))
 
     return tokenizer
 
@@ -146,6 +149,12 @@ class AbstractTokenizer(ABC):
             "MASK is not provided for {} " "tokenizer".format(self.name)
         )
 
+    @property
+    def sentinels(self):
+        raise NotImplementedError(
+            "No sentinel tokens provided for {} " "tokenizer".format(self.name)
+        )
+
 
 class _GPT2BPETokenizer(AbstractTokenizer):
     """Original GPT2 BPE tokenizer."""
@@ -184,6 +193,10 @@ class _GPT2BPETokenizer(AbstractTokenizer):
     @property
     def eod(self):
         return self.eod_id
+
+    @property
+    def sentinels(self):
+        return self.sentinel_ids
 
 
 class SentencePieceTokenizer(AbstractTokenizer):
@@ -228,6 +241,10 @@ class SentencePieceTokenizer(AbstractTokenizer):
     def eod(self):
         return self.eod_id
 
+    @property
+    def sentinels(self):
+        return self.sentinel_ids
+
 
 class HFTokenizer(AbstractTokenizer):
     """Designed to Integrate HF's Tokenizer library."""
@@ -268,6 +285,10 @@ class HFTokenizer(AbstractTokenizer):
     @property
     def eod(self):
         return self.eod_id
+
+    @property
+    def sentinels(self):
+        return self.sentinel_ids
 
 
 class HFGPT2Tokenizer(AbstractTokenizer):
@@ -320,6 +341,10 @@ class HFGPT2Tokenizer(AbstractTokenizer):
     def eod(self):
         return self.eod_id
 
+    @property
+    def sentinels(self):
+        return self.sentinel_ids
+
 
 class CharLevelTokenizer(AbstractTokenizer):
     """Character Level Tokenizer"""
@@ -368,3 +393,7 @@ class CharLevelTokenizer(AbstractTokenizer):
     @property
     def eod(self):
         return self.eod_id
+
+    @property
+    def sentinels(self):
+        return self.sentinel_ids
