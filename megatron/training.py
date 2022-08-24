@@ -40,6 +40,7 @@ from megatron.utils import (
 from megatron import print_rank_0, mpu
 from megatron.model import (
     GPT2ModelPipe,
+    T5ModelPipe,
     SoftEmbedding,
     get_params_for_weight_decay_optimization,
 )
@@ -230,16 +231,25 @@ def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
 def get_model(neox_args, use_cache=False):
     """Build the model."""
 
-    print_rank_0("building GPT2 model ...")
+    print_rank_0("building {neox_args.model_arch} model ...")
 
     # Build model on cpu.
-    model = GPT2ModelPipe(
-        neox_args=neox_args,
-        num_tokentypes=0,
-        parallel_output=True,
-        topology=mpu.get_topology(),
-        use_cache=use_cache,
-    )
+    if neox_args.model_arch == "gpt2":
+        model = GPT2ModelPipe(
+            neox_args=neox_args,
+            num_tokentypes=0,
+            parallel_output=True,
+            topology=mpu.get_topology(),
+            use_cache=use_cache,
+        )
+    elif neox_args.model_arch == "t5":
+        model = T5ModelPipe(
+            neox_args=neox_args,
+            num_tokentypes=0,
+            parallel_output=True,
+            topology=mpu.get_topology(),
+            use_cache=use_cache,
+        )
 
     ### soft prompt tuning stuff ###
     if neox_args.soft_prompt_tuning is not None and neox_args.soft_prompt_tuning.get(

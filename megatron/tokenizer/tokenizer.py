@@ -68,6 +68,9 @@ def _vocab_size_with_padding(orig_vocab_size, args):
     still having GPU friendly size."""
 
     after = orig_vocab_size
+    # add in extra sentinel tokens first
+    after = after + args.extra_sentinel_tokens
+    # then pad for computational efficiency
     multiple = args.make_vocab_size_divisible_by * args.model_parallel_size
     while (after % multiple) != 0:
         after += 1
@@ -173,6 +176,10 @@ class _GPT2BPETokenizer(AbstractTokenizer):
 
     def detokenize(self, token_ids):
         return self.tokenizer.decode(token_ids)
+    
+    @property
+    def pad(self):
+        return self.pad_id
 
     @property
     def eod(self):
@@ -214,6 +221,10 @@ class SentencePieceTokenizer(AbstractTokenizer):
         return self.tokenizer.decode(token_ids)
 
     @property
+    def pad(self):
+        return self.pad_id
+
+    @property
     def eod(self):
         return self.eod_id
 
@@ -249,6 +260,10 @@ class HFTokenizer(AbstractTokenizer):
 
     def detokenize(self, token_ids):
         return self.tokenizer.decode(token_ids)
+
+    @property
+    def pad(self):
+        return self.pad_id
 
     @property
     def eod(self):
@@ -298,6 +313,10 @@ class HFGPT2Tokenizer(AbstractTokenizer):
         return self.tokenizer.decode(token_ids)
 
     @property
+    def pad(self):
+        return self.pad_id
+
+    @property
     def eod(self):
         return self.eod_id
 
@@ -341,6 +360,10 @@ class CharLevelTokenizer(AbstractTokenizer):
 
     def detokenize(self, token_ids):
         return "".join(list(map(self.decode_token, token_ids)))
+
+    @property
+    def pad(self):
+        return self.pad_id
 
     @property
     def eod(self):
