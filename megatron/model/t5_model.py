@@ -231,6 +231,37 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
                 )
             )
         
+        # decoder emb layer TODO: Hailey: can this go here for the purposes of nn.Sequential conversion? 
+        # (it takes a different input from the output of the previous layer)
+        if weight_tying:
+            self.specs.append(
+                TiedLayerSpec(
+                    "embed",
+                    EmbeddingPipe,
+                    self.neox_args,
+                    self.hidden_size,
+                    self.neox_args.padded_vocab_size,
+                    self.neox_args.max_position_embeddings,
+                    self.neox_args.hidden_dropout,
+                    self.init_method,
+                    self.num_tokentypes,
+                    tied_weight_attr="word_embeddings_weight",
+                )
+            )
+        else:
+            self.specs.append(
+                LayerSpec(
+                    EmbeddingPipe,
+                    self.neox_args,
+                    self.hidden_size,
+                    self.neox_args.padded_vocab_size,
+                    self.neox_args.max_position_embeddings,
+                    self.neox_args.hidden_dropout,
+                    self.init_method,
+                    self.num_tokentypes,
+                )
+            )
+        
         # transformer decoder layers # TODO(Hailey): right now, num_layers = the number of decoder layers for minimal code change to rest of repo. update this later
         for i in range(self.neox_args.num_encoder_layers, self.neox_args.num_layers):
             layer_type = self.neox_args.attention_config[i]
