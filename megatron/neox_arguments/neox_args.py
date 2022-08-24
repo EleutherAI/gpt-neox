@@ -109,6 +109,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Maximum sequence length to process.
     """
 
+    decoder_seq_length: int = None # TODO(Hailey): change name of this arg?
+    """
+    Maximum sequence length processed by decoder.
+    """
+
     max_position_embeddings: int = None
     """
     Maximum number of position embeddings to use. This is the size of position embedding.
