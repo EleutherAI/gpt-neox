@@ -1,5 +1,5 @@
 # GPT-2 pretraining setup
-# Ran on 14*8A100 clusters
+# Ran on 16*8A100 clusters
 {
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
@@ -45,7 +45,7 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 512,
+   "train_micro_batch_size_per_gpu": 256,
    "gradient_accumulation_steps": 2,
    "data-impl": "mmap",
 
@@ -73,8 +73,8 @@
    },
 
    # misc. training settings
-   "train-iters": 2500,
-   "lr-decay-iters": 2500,
+   "train-iters": 4500,
+   "lr-decay-iters": 4500,
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
