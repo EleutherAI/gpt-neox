@@ -12,6 +12,7 @@
   "num-attention-heads": 12,
   "seq-length": 2048,
   "decoder-seq-length": 512,
+  "max-position-embeddings": 2048,
   "norm": "layernorm",
   "pos-emb": "rotary",
   "no-weight-tying": true,
