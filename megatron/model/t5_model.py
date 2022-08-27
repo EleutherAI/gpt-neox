@@ -240,10 +240,9 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
             layer_type = self.neox_args.attention_config[i]
             self.specs.append(
                 LayerSpec(
-                    ParallelTransformerLayerPipe, 
-                    # TODO(Hailey): decide whether this requires a different EncoderLayer class
+                    ParallelTransformerLayerPipe,
                     neox_args=self.neox_args,
-                    attention_mask_func=gpt2_attention_mask_func, #TODO(Hailey): add this fn to this file
+                    attention_mask_func=gpt2_attention_mask_func,
                     init_method=self.init_method,
                     output_layer_init_method=self.output_layer_init_method,
                     layer_number=i,
