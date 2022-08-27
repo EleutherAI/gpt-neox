@@ -161,6 +161,52 @@ class EmbeddingPipe(Embedding):
         return embeddings, attention_mask
 
 
+class EncoderEmbeddingPipe(Embedding):
+    """Extends Embedding to forward extra inputs to the T5 encoder through the pipeline."""
+
+    @property
+    def word_embeddings_weight(self):
+        """Easy accessory for the pipeline engine to tie embeddings across stages."""
+        return self.word_embeddings.weight
+
+    def forward(self, args):
+        assert (
+            len(args) == 5
+        ), f"Expected 5 arguments (input_ids, target_ids, input_position_ids, target_position_ids, attention_mask), but got {len(args)}."
+
+        input_ids = args[0]
+        target_ids = args[1]
+        input_position_ids = args[2]
+        target_position_ids = args[3]
+        encoder_attn_mask = args[4]
+        attention_mask = args[5]
+        input_embeddings = super().forward(input_ids, input_position_ids)
+        return input_embeddings, target_ids, target_position_ids, encoder_attn_mask, attention_mask
+
+
+class DecoderEmbeddingPipe(Embedding):
+    """Extends Embedding to forward extra inputs to the T5 decoder through the pipeline."""
+
+    @property
+    def word_embeddings_weight(self):
+        """Easy accessory for the pipeline engine to tie embeddings across stages."""
+        return self.word_embeddings.weight
+
+    def forward(self, args):
+        assert (
+            len(args) == 5
+        ), f"Expected 5 arguments (encoder_hidden_states, decoder_input_ids, \
+            decoder_position_ids, encoder_attention_mask, attention_mask), but got {len(args)}."
+
+        encoder_hidden_states = args[0]
+        decoder_input_ids = args[1]
+        decoder_position_ids = args[2]
+        encoder_attention_mask = args[3]
+        attention_mask = args[4]
+        input_embeddings = super().forward(decoder_input_ids, decoder_position_ids)
+        return input_embeddings, encoder_hidden_states, encoder_attention_mask, attention_mask
+
+
 class SoftEmbedding(torch.nn.Module):
     def __init__(
         self,

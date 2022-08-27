@@ -187,6 +187,7 @@ class ParallelAttention(nn.Module):
         init_method,
         output_layer_init_method,
         layer_number,
+        is_cross_attention=False,
         rpe=None,
         rotary=False,
         use_cache=False,
@@ -214,14 +215,33 @@ class ParallelAttention(nn.Module):
         )
         self.pos_emb = neox_args.pos_emb
 
-        # Strided linear layer.
-        self.query_key_value = mpu.ColumnParallelLinear(
-            neox_args=neox_args,
-            input_size=neox_args.hidden_size,
-            output_size=3 * neox_args.hidden_size,
-            gather_output=False,
-            init_method=init_method,
-        )
+        self.is_cross_attention = is_cross_attention
+
+        # Strided linear layer. 
+        if is_cross_attention:
+            # project encoder key, value states separately
+            self.query = mpu.ColumnParallelLinear(
+                neox_args=neox_args,
+                input_size=neox_args.hidden_size,
+                output_size=neox_args.hidden_size,
+                gather_output=False,
+                init_method=init_method,
+            )
+            self.key_value = mpu.ColumnParallelLinear(
+                neox_args=neox_args,
+                input_size=neox_args.hidden_size,
+                output_size=2 * neox_args.hidden_size,
+                gather_output=False,
+                init_method=init_method,
+            )
+        else:
+            self.query_key_value = mpu.ColumnParallelLinear(
+                neox_args=neox_args,
+                input_size=neox_args.hidden_size,
+                output_size=3 * neox_args.hidden_size,
+                gather_output=False,
+                init_method=init_method,
+            )
 
         coeff = None
         self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
@@ -414,7 +434,7 @@ class ParallelAttention(nn.Module):
             query_layer, key_layer, value_layer, attn_mask=attn_mask, rpe=rpe
         )
 
-    def forward(self, hidden_states, attention_mask, layer_past=None):
+    def forward(self, hidden_states, attention_mask, encoder_hidden_states=None, layer_past=None):
 
         # hidden_states: [sq, b, h]
 
@@ -423,7 +443,13 @@ class ParallelAttention(nn.Module):
         # =====================
 
         # Attention heads [sq, b, h] --> [sq, b, (np * 3 * hn)]
-        mixed_x_layer, _ = self.query_key_value(hidden_states)
+        if not self.is_cross_attention:
+            mixed_x_layer, _ = self.query_key_value(hidden_states)
+        else:
+            # TODO(Hailey): does this use more memory somehow? (not cleaned up?)
+            mixed_kv_layer, _ = self.key_value(encoder_hidden_states)
+            q_layer, _ = self.query(hidden_states)
+            mixed_x_layer = torch.cat((q_layer, mixed_kv_layer), dim=-1)
 
         # [sq, b, (np * 3 * hn)] --> [sq, b, np, 3 * hn]
         new_tensor_shape = mixed_x_layer.size()[:-1] + (
@@ -536,6 +562,7 @@ class ParallelTransformerLayer(nn.Module):
         super().__init__()
         self.layer_number = layer_number
         self.layer_type = layer_type
+        self.model_arch = neox_args.model_arch
 
         norm, eps = get_norm(neox_args)
 
@@ -606,7 +633,14 @@ class ParallelTransformerLayer(nn.Module):
             fn = get_bias_dropout_add(self.training)
         return fn
 
-    def forward(self, x, attention_mask, layer_past=None):
+    def forward(
+        self, 
+        x,
+        attention_mask,
+        encoder_hidden_states=None,
+        encoder_attention_mask=None,
+        layer_past=None,
+    ):
         layer_past = layer_past if layer_past is not None else self.layer_past
         bias_dropout_fn = self._get_bias_dropout()
         # x: [b, s, h]
@@ -639,7 +673,10 @@ class ParallelTransformerLayer(nn.Module):
             if self.do_crossattn:
                 # cross_attention_output = crossattn(ln1.5(x)) + attention_output
                 cross_attention_output, cross_attention_bias = self.cross_attention(
-                    self.post_attention_layernorm(x), attention_mask, layer_past=layer_past
+                    self.post_attention_layernorm(x), 
+                    encoder_attention_mask, 
+                    encoder_hidden_states=encoder_hidden_states,
+                    layer_past=layer_past,
                 )
                 if self.use_cache:
                     cross_attention_output, presents = cross_attention_output
@@ -696,7 +733,10 @@ class ParallelTransformerLayer(nn.Module):
             if self.do_crossattn:
                 # TODO(Hailey): check how to handle attention masks here + in encoder layers
                 cross_attention_output, cross_attention_bias = self.cross_attention(
-                    self.post_attention_layernorm(attention_output), attention_mask, layer_past=layer_past
+                    self.post_attention_layernorm(attention_output), 
+                    encoder_attention_mask, 
+                    encoder_hidden_states=encoder_hidden_states,
+                    layer_past=layer_past,
                 )
                 if self.use_cache:
                     cross_attention_output, presents = cross_attention_output
@@ -731,12 +771,34 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
     """Extends ParallelTransformerLayer to forward attention_mask through the pipeline."""
 
     def forward(self, args):
-        assert (
-            len(args) == 2
-        ), "ParallelTransformerLayerPipe expects 2 arguments - hidden_states and attention_mask"
-        hidden_states, attention_mask = args
-        # we are returning just [hidden_states, mask]
-        return super().forward(hidden_states, attention_mask), attention_mask
+        if self.model_arch == "t5":
+            if self.layer_type == "encoder":
+                assert (
+                    len(args) == 5
+                ), f"Encoder layer expects 5 arguments - \
+                    hidden_states, decoder_input_ids, decoder_position_ids, encoder_attention_mask, attention_mask,\
+                    got {len(args)}"
+                hidden_states, decoder_input_ids, decoder_position_ids, encoder_attention_mask, attention_mask = \
+                    args
+                return super().forward(hidden_states, encoder_attention_mask), \
+                    decoder_input_ids, decoder_position_ids, encoder_attention_mask, attention_mask
+            if self.layer_type == "decoder":
+                assert (
+                    len(args) == 4
+                ), f"T5 Decoder layer expects 4 arguments - \
+                    decoder_hidden_states, encoder_hidden_states, encoder_attention_mask, attention_mask,\
+                    got {len(args)}"
+                hidden_states, encoder_hidden_states, encoder_attention_mask, decoder_attention_mask = args
+                
+                return super()
+
+        else:
+            assert (
+                len(args) == 2
+            ), "ParallelTransformerLayerPipe expects 2 arguments - hidden_states and attention_mask"
+            hidden_states, attention_mask = args
+            # we are returning just [hidden_states, mask]
+            return super().forward(hidden_states, attention_mask), attention_mask
 
 
 class ParallelLinearPipe(ParallelLinear):

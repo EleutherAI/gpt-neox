@@ -31,8 +31,11 @@ import numpy as np
 
 from megatron.utils import (
     Timers,
+    get_position_ids,
     init_wandb,
     get_ltor_masks_and_position_ids,
+    get_position_ids,
+    get_full_mask,
     reduce_losses,
 )
 
@@ -204,6 +207,105 @@ def get_batch_pipe(data, neox_args):
     # unpack data
     return (tokens, position_ids, attention_mask), (labels, loss_mask)
 
+
+def _get_batch_encdec(neox_args, keys, data, datatype):
+    data_b = mpu.broadcast_data(keys, data, datatype)
+
+    # Unpack.
+    tokens_enc = data_b['input_tokens'].long()
+    tokens_dec_ = data_b['target_tokens'].long()
+
+    labels = tokens_dec_[:, 1:].contiguous()
+    tokens_dec = tokens_dec_[:, :-1].contiguous()
+
+    # Get the decoder self-attn mask and position ids.
+    attention_mask, loss_mask, position_ids_dec = get_ltor_masks_and_position_ids(
+        data=tokens_dec,
+        eod_token=neox_args.tokenizer.eod,
+        eod_mask_loss=neox_args.eod_mask_loss,
+    )
+    # get position ids for encoder inputs as well
+    position_ids_enc = get_position_ids(
+        data=tokens_enc,
+    )
+
+    batch_size, src_length = tokens_enc.size()
+    batch_size, target_length = tokens_dec_.size()
+
+    enc_mask = get_full_mask(src_length, target_length, device=data.device)
+
+    return tokens_enc, tokens_dec, labels, loss_mask, enc_mask, attention_mask, \
+        position_ids_enc, position_ids_dec,
+
+
+def get_batch_encdec(neox_args, data_iterator):
+    """"""
+
+    keys = ['input_tokens', 'target_tokens']
+    datatype = torch.int64
+
+    # Broadcast data.
+    if data_iterator is not None:
+        data = next(data_iterator)
+    else:
+        data = None
+    return _get_batch_encdec(
+        neox_args=neox_args,
+        keys=keys,
+        data=data,
+        datatype=datatype,
+    )
+
+
+def get_batch_encdec_pipe(data, neox_args):
+    """Build the batch."""
+
+    keys = ['input_tokens', 'target_tokens']
+    datatype = torch.int64
+
+    # Broadcast data.
+    data_b = mpu.broadcast_data(keys, data, datatype)
+
+    tokens_enc, tokens_dec, labels, loss_mask, encoder_attn_mask, attention_mask, \
+        position_ids_enc, position_ids_dec = _get_batch_encdec(
+        neox_args, neox_args.tokenizer, keys, data, datatype
+    )
+    
+    return (tokens_enc, tokens_dec, position_ids_enc, position_ids_dec, encoder_attn_mask, attention_mask),\
+        (labels, loss_mask)
+
+def forward_step_encdec(data_iterator, model, neox_args, timers, return_logits=False):
+    """Forward step for a t5 encoder-decoder architecture."""
+    if neox_args.is_pipe_parallel:
+        return model.eval_batch(data_iterator, return_logits=return_logits)
+
+    # Get the batch.
+    if timers is not None:
+        timers("batch generator").start()
+    tokens_enc, tokens_dec, loss_mask, labels, encoder_attn_mask, attention_mask, position_ids_enc, position_ids_dec \
+        = get_batch(
+            neox_args=neox_args, data_iterator=data_iterator
+        )
+    if timers is not None:
+        timers('batch generator').stop()
+
+    outputs = model(
+        (
+            tokens_enc,
+            tokens_dec,
+            position_ids_enc,
+            position_ids_dec,
+            encoder_attn_mask,
+            attention_mask,
+        )
+    )
+
+    loss = cross_entropy(
+        outputs, (labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy
+    )
+    if return_logits:
+        return loss, outputs
+    return loss
 
 def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
     """Forward step."""

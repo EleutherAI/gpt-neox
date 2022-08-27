@@ -60,6 +60,19 @@ def report_memory(name):
     print_rank_0(string)
 
 
+def get_full_mask(src_length, target_length, device):
+    """
+    Get a full (non-triangular, all tokens attending eachother) potentially non-square mask
+    """
+
+    mask = torch.ones((1, src_length, target_length), device=device).view(
+        1, 1, src_length, target_length
+    )
+
+    # convert to binary
+    return mask < 0.5
+
+
 def get_attn_mask(seq_length, device):
     """
     Get triangular attention mask for a given sequence length / device.
@@ -99,6 +112,18 @@ def get_ltor_masks_and_position_ids(
     position_ids = position_ids.unsqueeze(0).expand_as(data)
 
     return attention_mask, loss_mask, position_ids
+
+
+def get_position_ids(data):
+    """Create position ids for a given batch."""
+
+    batch_size, seq_length = data.size()
+
+    # Position ids.
+    position_ids = torch.arange(seq_length, dtype=torch.long, device=data.device)
+    position_ids = position_ids.unsqueeze(0).expand_as(data)
+
+    return position_ids
 
 
 def local_rank():

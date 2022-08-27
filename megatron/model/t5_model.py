@@ -20,7 +20,6 @@
 
 from collections import defaultdict
 import math
-from mimetypes import init
 from megatron.model.utils import SequentialWrapper, recursive_setattr
 import torch
 import torch.nn as nn
@@ -40,44 +39,67 @@ from megatron.model.transformer import (
     parallel_lm_logits,
     ParallelLinear,
 )
-from megatron.model.word_embeddings import EmbeddingPipe
+from megatron.model.word_embeddings import (
+    EncoderEmbeddingPipe, 
+    DecoderEmbeddingPipe,
+    EmbeddingPipe,
+)
 
 # Pipeline parallelism
 from deepspeed.pipe import PipelineModule, LayerSpec, TiedLayerSpec
 
-# TODO(Hailey): remove this fn? look for if it's needed
-def t5_extended_attention_mask(attention_mask_list):
+# TODO(Hailey): confirm crossentropy behavior is same as decoder-only
+def gpt2_attention_mask_func(attention_scores, ltor_mask):
+    attention_scores.masked_fill_(ltor_mask, -10000.0)
+    return attention_scores
 
-    def attn_mask_postprocess(attn_mask):
-        # [b, 1, s, s]
-        extended_attention_mask = attn_mask.unsqueeze(1)
-        return extended_attention_mask
 
-    return [attn_mask_postprocess(attn_mask) for attn_mask in attention_mask_list]
-
-# TODO(Hailey): remove this fn?
-def t5_position_ids(token_ids):
-    # Create position ids
-    seq_length = token_ids.size(1)
-    position_ids = torch.arange(seq_length, dtype=torch.long,
-                                device=token_ids.device)
-    position_ids = position_ids.unsqueeze(0).expand_as(token_ids)
-
-    return position_ids
-
-# TODO(Hailey): can these next 3 fns get imported from gpt2 model?
 def cross_entropy(output, labels, _fp16=False):
-    raise NotImplementedError
+    """From pretrain_gpt2:forward_step()"""
+    """
+    if self.fp16_lm_cross_entropy:
+        assert output.dtype == torch.half
+        loss = mpu.vocab_parallel_cross_entropy(output, labels)
+    else:
+        loss = mpu.vocab_parallel_cross_entropy(output.float(), labels)
+        return loss
+    """
+    labels, loss_mask = labels[0], labels[1]
+    if _fp16:
+        assert output.dtype == torch.half and loss_mask.dtype == torch.half
+        losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels)
+    else:
+        losses = mpu.vocab_parallel_cross_entropy(output.float().contiguous(), labels)
+    loss_mask = loss_mask.view(-1)
+    loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
+    return loss
 
-def _pre_transformer_block(args)
-    raise NotImplementedError
 
-def _post_transformer_block(args)
-    raise NotImplementedError
+def _pre_encoder_block(args):
+    # data format change for hidden_states to avoid explicit tranposes : [b s h] --> [s b h]
+    assert len(args) == 5, "Incorrect number of arguments to _pre_encoder_block"
+    fn = lambda _args: (_args[0].transpose(0, 1).contiguous(), *_args[1:])
+    return fn(args)
+
+
+def _pre_decoder_block(args):
+    # reformat inputs before passing them to decoder stack.
+    assert len(args) == 4, "Incorrect number of arguments to _pre_decoder_block"
+    fn = lambda _args: (_args[0].transpose(0, 1).contiguous(), *args[1:])
+    return fn(args)
+
+
+def _post_decoder_block(args):
+    # drop unneeded vars and keep only decoder hidden states.
+    # from (hidden_states, encoder_hidden_states, encoder_attention_mask, attention_mask)
+    # to (hidden_states.T)
+    assert len(args) == 4, "Incorrect number of arguments to _post_decoder_block"
+    fn = lambda _args: (_args[0].transpose(0, 1).contiguous())
+    return fn(args)
+
 
 class T5ModelPipe(PipelineModule, torch.nn.Module):
     """T5Model adapted for pipeline parallelism.
-    Changes: TODO(Hailey)
     :param neox_args
     :param num_tokentypes: number of token types (TODO): deprecated?
     :param parallel_output: if true, don't gather the output logits, and calculate loss in parallel. Set to true by default in training for efficiency, but set to false for inference.
@@ -106,9 +128,9 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
         self.__topology__ = topology
 
         self.specs = []
-        self.init_specs() # TODO(Hailey): what are specs used for?
+        self.init_specs()
 
-        self.checkpointable_layers = [] #TODO(Hailey): add checkpointable layers here
+        self.checkpointable_layers = ["ParallelTransformerLayerPipe"]
 
         super().__init__(
             layers=self.specs,
@@ -159,13 +181,14 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
         self.specs = []
 
         # embedding layer
-        # input format: (input_ids, position_ids, attention_mask)
+        # input format we want: 
+        # (encoder_input_ids, decoder_input_ids, encoder_position_ids, decoder_position_ids, encoder_attn_mask, (decoder)attention_mask)
 
         if weight_tying:
             self.specs.append(
                 TiedLayerSpec(
                     "embed",
-                    EmbeddingPipe,
+                    EncoderEmbeddingPipe,
                     self.neox_args,
                     self.hidden_size,
                     self.neox_args.padded_vocab_size,
@@ -179,7 +202,7 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
         else:
             self.specs.append(
                 LayerSpec(
-                    EmbeddingPipe,
+                    EncoderEmbeddingPipe,
                     self.neox_args,
                     self.hidden_size,
                     self.neox_args.padded_vocab_size,
@@ -193,10 +216,10 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
         # per gpt2_model.py, attention mask MUST be the last item in args
         # passed from one stage to the next.
 
-        # output format: (hidden_states, attention_mask)
+        # current output format: (hidden_states, decoder_input_ids, decoder_position_ids, enc attn mask, attention_mask)
 
-        self.specs.append(_pre_transformer_block) # TODO(Hailey): make sure these fns are still needed, move them from gpt2_model.py to some utils file if so?
-
+        self.specs.append(_pre_encoder_block)
+        
         # T5-style RPE positional embedding
         if self.neox_args.pos_emb == "rpe":
             hidden_size_per_attention_head = mpu.divide(
@@ -230,14 +253,15 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
                     use_cache=self.use_cache,
                 )
             )
+
+        # current output format: (hidden_states, decoder_input_ids, decoder_position_ids, enc attn mask, attention_mask)
         
-        # decoder emb layer TODO: Hailey: can this go here for the purposes of nn.Sequential conversion? 
-        # (it takes a different input from the output of the previous layer)
+        # decoder emb layer 
         if weight_tying:
             self.specs.append(
                 TiedLayerSpec(
                     "embed",
-                    EmbeddingPipe,
+                    DecoderEmbeddingPipe,
                     self.neox_args,
                     self.hidden_size,
                     self.neox_args.padded_vocab_size,
@@ -251,7 +275,7 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
         else:
             self.specs.append(
                 LayerSpec(
-                    EmbeddingPipe,
+                    DecoderEmbeddingPipe,
                     self.neox_args,
                     self.hidden_size,
                     self.neox_args.padded_vocab_size,
@@ -261,8 +285,11 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
                     self.num_tokentypes,
                 )
             )
+
+        self.specs.append(_pre_decoder_block)
+        # current output format:  (decoder_hidden_states, encoder_hidden_states, encoder_attention_mask, attention_mask)
         
-        # transformer decoder layers # TODO(Hailey): right now, num_layers = the number of decoder layers for minimal code change to rest of repo. update this later
+        # transformer decoder layers # TODO(Hailey): right now, neox.num_layers = the number of decoder layers for minimal code change to rest of repo. update this later
         for i in range(self.neox_args.num_encoder_layers, self.neox_args.num_layers):
             layer_type = self.neox_args.attention_config[i]
             self.specs.append(
@@ -280,8 +307,8 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
                 )
             )
         
-        # drop attn mask and reshape hidden states
-        self.specs.append(_post_transformer_block)
+        # drop attn masks and encoder hidden states, and reshape decoder hidden states
+        self.specs.append(_post_decoder_block)
 
         # per gpt2.model.py NormPipe is deprecated...
         norm, eps = get_norm(self.neox_args)
