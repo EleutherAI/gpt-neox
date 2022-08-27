@@ -11,11 +11,15 @@
   "hidden-size": 768,
   "num-attention-heads": 12,
   "seq-length": 2048,
-  "decoder-seq-length": 512,
+  "decoder-seq-length": 1024,
   "max-position-embeddings": 2048,
   "norm": "layernorm",
   "pos-emb": "rotary",
   "no-weight-tying": true,
+
+  "extra-sentinel-tokens": 100,
+  "masked-lm-prob": 0.4,
+  "mean_noise_span_length": 5,
 
   # fusion ops (STILL UNTESTED WITH T5)
   "scaled-masked-softmax-fusion": false, 
@@ -44,6 +48,7 @@
 
    # batch / data settings
    "train_micro_batch_size_per_gpu": 4,
+   "gradient-accumulation-steps": 4,
    "data-impl": "mmap",
    "split": "949,50,1",
 
@@ -64,6 +69,7 @@
      "enabled": true,
      "loss_scale": 0,
      "loss_scale_window": 1000,
+     "initial_scale_power": 12,
      "hysteresis": 2,
      "min_loss_scale": 1
    },
@@ -85,13 +91,15 @@
    "wall_clock_breakdown": true,
 
    # add data, tokenizer path etc. here
-   "tokenizer-type": "HFTokenizer",
-   "vocab-file": "./20b_checkpoints/125m-tokenizer"
+   "tokenizer-type": "HFGPT2Tokenizer",
+   "vocab-file": "./data/125m-tokenizer",
    "save": "./testingt5",
-   "load": "./testingt5"
+   "load": "./testingt5",
 
    "tensorboard-dir": "./tensorboard",
    "log-dir": "./logs",
+
+   "data-path": "./data/enron/enron_text_document",
 
 
 }
