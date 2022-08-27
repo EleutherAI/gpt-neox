@@ -75,6 +75,8 @@ def pretrain(neox_args):
         neox_args: an instance of NeoXArgs containing the configuration for pretrain
 
     """
+    forward_step_fn = forward_step if neox_args.model_arch == "gpt2" else forward_step_encdec
+
     # setup logging and timers
     init_wandb(neox_args=neox_args)
     timers = Timers(
@@ -87,7 +89,7 @@ def pretrain(neox_args):
     # Model, optimizer, and learning rate.
     timers("model and optimizer").start()
     model, optimizer, lr_scheduler = setup_model_and_optimizer(
-        neox_args=neox_args, use_cache=False
+        neox_args=neox_args, use_cache=False, pipe_batch_fn=get_batch_encdec_pipe
     )
     timers("model and optimizer").stop()
 
@@ -115,6 +117,7 @@ def pretrain(neox_args):
             lr_scheduler=lr_scheduler,
             train_data_iterator=train_data_iterator,
             valid_data_iterator=valid_data_iterator,
+            forward_step_fn=forward_step_fn,
         )
 
     if neox_args.do_valid:
@@ -122,7 +125,7 @@ def pretrain(neox_args):
         evaluate_and_print_results(
             neox_args=neox_args,
             prefix=prefix,
-            forward_step_func=forward_step,
+            forward_step_func=forward_step_fn,
             data_iterator=valid_data_iterator,
             model=model,
             iteration=iteration,
@@ -145,7 +148,7 @@ def pretrain(neox_args):
         evaluate_and_print_results(
             neox_args=neox_args,
             prefix=prefix,
-            forward_step_func=forward_step,
+            forward_step_func=forward_step_fn,
             data_iterator=test_data_iterator,
             model=model,
             iteration=0,  # iteration 0 in order to always use full test data
@@ -283,7 +286,7 @@ def forward_step_encdec(data_iterator, model, neox_args, timers, return_logits=F
     if timers is not None:
         timers("batch generator").start()
     tokens_enc, tokens_dec, loss_mask, labels, encoder_attn_mask, attention_mask, position_ids_enc, position_ids_dec \
-        = get_batch(
+        = get_batch_encdec(
             neox_args=neox_args, data_iterator=data_iterator
         )
     if timers is not None:
@@ -509,8 +512,9 @@ def get_learning_rate_scheduler(optimizer, neox_args):
     return lr_scheduler
 
 
-def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
+def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None, pipe_batch_fn=get_batch_pipe):
     """Setup model and optimizer."""
+
     model = get_model(neox_args=neox_args, use_cache=use_cache)
     optimizer, param_groups = get_optimizer(model=model, neox_args=neox_args)
     lr_scheduler = get_learning_rate_scheduler(optimizer=optimizer, neox_args=neox_args)
@@ -540,7 +544,7 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
 
         if neox_args.is_pipe_parallel:
             model.set_has_attention_mask(True)
-            model.set_batch_fn(partial(get_batch_pipe, neox_args=neox_args))
+            model.set_batch_fn(partial(pipe_batch_fn, neox_args=neox_args))
     else:
         raise ValueError("Must be using deepspeed to run neox")
 
@@ -582,6 +586,7 @@ def backward_step(neox_args, timers, optimizer, model, loss):
 
 def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler):
     """Single training step."""
+    forward_step_fn = forward_step if neox_args.model_arch == "gpt2" else forward_step_encdec
 
     # Pipeline parallelism schedules forward/backward/step
     if neox_args.is_pipe_parallel:
@@ -593,7 +598,7 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
         for _ in range(neox_args.gradient_accumulation_steps):
             # Forward model for one step.
             timers("forward").start()
-            loss = forward_step(
+            loss = forward_step_fn(
                 neox_args=neox_args,
                 timers=timers,
                 data_iterator=data_iterator,
@@ -657,6 +662,7 @@ def train(
     lr_scheduler,
     train_data_iterator,
     valid_data_iterator,
+    forward_step_fn,
 ):
     """Train the model function."""
 
@@ -739,7 +745,7 @@ def train(
             evaluate_and_print_results(
                 neox_args=neox_args,
                 prefix=prefix,
-                forward_step_func=forward_step,
+                forward_step_func=forward_step_fn,
                 data_iterator=valid_data_iterator,
                 model=model,
                 iteration=iteration,

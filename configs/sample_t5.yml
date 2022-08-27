@@ -85,4 +85,13 @@
    "wall_clock_breakdown": true,
 
    # add data, tokenizer path etc. here
+   "tokenizer-type": "HFTokenizer",
+   "vocab-file": "./20b_checkpoints/125m-tokenizer"
+   "save": "./testingt5",
+   "load": "./testingt5"
+
+   "tensorboard-dir": "./tensorboard",
+   "log-dir": "./logs",
+
+
 }
