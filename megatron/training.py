@@ -76,6 +76,7 @@ def pretrain(neox_args):
 
     """
     forward_step_fn = forward_step if neox_args.model_arch == "gpt2" else forward_step_encdec
+    pipe_batch_fn = get_batch_pipe if neox_args.model_arch == "gpt2" else get_batch_encdec_pipe
 
     # setup logging and timers
     init_wandb(neox_args=neox_args)
@@ -89,7 +90,7 @@ def pretrain(neox_args):
     # Model, optimizer, and learning rate.
     timers("model and optimizer").start()
     model, optimizer, lr_scheduler = setup_model_and_optimizer(
-        neox_args=neox_args, use_cache=False, pipe_batch_fn=get_batch_encdec_pipe
+        neox_args=neox_args, use_cache=False, pipe_batch_fn=pipe_batch_fn
     )
     timers("model and optimizer").stop()
 
@@ -235,7 +236,8 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
     batch_size, src_length = tokens_enc.size()
     batch_size, target_length = tokens_dec_.size()
 
-    enc_mask = get_full_mask(src_length, target_length, device=data.device)
+    enc_mask = get_full_mask(src_length, 1, device=tokens_enc.device) 
+    # TODO(Hailey): determine what size this enc attn mask should be. right now it's (1,1,enc_seq_length, 1)
 
     return tokens_enc, tokens_dec, labels, loss_mask, enc_mask, attention_mask, \
         position_ids_enc, position_ids_dec,
@@ -271,11 +273,12 @@ def get_batch_encdec_pipe(data, neox_args):
 
     tokens_enc, tokens_dec, labels, loss_mask, encoder_attn_mask, attention_mask, \
         position_ids_enc, position_ids_dec = _get_batch_encdec(
-        neox_args, neox_args.tokenizer, keys, data, datatype
+        neox_args, keys, data, datatype
     )
     
     return (tokens_enc, tokens_dec, position_ids_enc, position_ids_dec, encoder_attn_mask, attention_mask),\
         (labels, loss_mask)
+
 
 def forward_step_encdec(data_iterator, model, neox_args, timers, return_logits=False):
     """Forward step for a t5 encoder-decoder architecture."""
@@ -309,6 +312,7 @@ def forward_step_encdec(data_iterator, model, neox_args, timers, return_logits=F
     if return_logits:
         return loss, outputs
     return loss
+
 
 def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
     """Forward step."""
