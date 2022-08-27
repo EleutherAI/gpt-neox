@@ -171,8 +171,8 @@ class EncoderEmbeddingPipe(Embedding):
 
     def forward(self, args):
         assert (
-            len(args) == 5
-        ), f"Expected 5 arguments (input_ids, target_ids, input_position_ids, target_position_ids, attention_mask), but got {len(args)}."
+            len(args) == 6
+        ), f"Expected 6 arguments (input_ids, target_ids, input_position_ids, target_position_ids, encoder_attention_mask, attention_mask), but got {len(args)}."
 
         input_ids = args[0]
         target_ids = args[1]
@@ -197,7 +197,6 @@ class DecoderEmbeddingPipe(Embedding):
             len(args) == 5
         ), f"Expected 5 arguments (encoder_hidden_states, decoder_input_ids, \
             decoder_position_ids, encoder_attention_mask, attention_mask), but got {len(args)}."
-
         encoder_hidden_states = args[0]
         decoder_input_ids = args[1]
         decoder_position_ids = args[2]
