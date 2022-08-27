@@ -9,6 +9,7 @@ from megatron import mpu, print_rank_0
 from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
 from megatron.data.blendable_dataset import BlendableDataset
 from megatron.data.gpt2_dataset import GPT2Dataset
+from megatron.data.t5_dataset import T5Dataset
 from megatron.data.samplers import DistributedBatchSampler
 
 
@@ -45,6 +46,7 @@ def build_the_dataset(
     seq_length,
     seed,
     skip_warmup,
+    neox_args=None,
     build_index_mappings=True,
 ):
     """Build train/valid/test datasets."""
@@ -56,16 +58,33 @@ def build_the_dataset(
     print_rank_0("     no. of documents:{}".format(total_num_of_documents))
     dataset = None
     documents = np.arange(start=0, stop=total_num_of_documents, step=1, dtype=np.int32)
-    dataset = GPT2Dataset(
-        name,
-        data_prefix,
-        documents,
-        indexed_dataset,
-        num_samples,
-        seq_length,
-        seed,
-        build_index_mappings=build_index_mappings,
-    )
+
+    if neox_args.model_arch == "gpt2":
+        dataset = GPT2Dataset(
+            name,
+            data_prefix,
+            documents,
+            indexed_dataset,
+            num_samples,
+            seq_length,
+            seed,
+            build_index_mappings=build_index_mappings,
+        )
+    elif neox_args.model_arch == "t5":
+        dataset = T5Dataset(
+            name,
+            data_prefix,
+            documents,
+            indexed_dataset,
+            num_samples,
+            seq_length,
+            seed,
+            neox_args=neox_args,
+            build_index_mappings=True,
+        )
+    else:
+        raise ValueError("Received a `model_arch` value other than `gpt2` or `t5`!")
+    
     return dataset
 
 
@@ -77,6 +96,7 @@ def build_train_valid_test_datasets(
     seq_length,
     seed,
     skip_warmup,
+    neox_args=None,
 ):
     """Build train, valid, and test datasets."""
 
@@ -108,16 +128,27 @@ def build_train_valid_test_datasets(
             documents = np.arange(
                 start=splits[index], stop=splits[index + 1], step=1, dtype=np.int32
             )
-
-            dataset = GPT2Dataset(
-                name,
-                data_prefix,
-                documents,
-                indexed_dataset,
-                train_valid_test_num_samples[index],
-                seq_length,
-                seed,
-            )
+            if neox_args.model_arch == "gpt2":
+                dataset = GPT2Dataset(
+                    name,
+                    data_prefix,
+                    documents,
+                    indexed_dataset,
+                    train_valid_test_num_samples[index],
+                    seq_length,
+                    seed,
+                )
+            elif neox_args.model_arch == "t5":
+                dataset = T5Dataset(
+                    name,
+                    data_prefix,
+                    documents,
+                    indexed_dataset,
+                    train_valid_test_num_samples[index],
+                    seq_length,
+                    seed,
+                    neox_args=neox_args,
+                )
         return dataset
 
     train_dataset = build_dataset(0, "train")
@@ -199,6 +230,7 @@ def build_weighted_datasets(
                     seq_length=neox_args.seq_length,
                     seed=neox_args.seed,
                     skip_warmup=(not neox_args.mmap_warmup),
+                    neox_args=neox_args,
                     build_index_mappings=build_index_mappings,
                 )
             )
@@ -213,6 +245,7 @@ def build_weighted_datasets(
                     seq_length=neox_args.seq_length,
                     seed=neox_args.seed,
                     skip_warmup=(not neox_args.mmap_warmup),
+                    neox_args=neox_args,
                     build_index_mappings=build_index_mappings,
                 )
             )
@@ -227,6 +260,7 @@ def build_weighted_datasets(
                     seq_length=neox_args.seq_length,
                     seed=neox_args.seed,
                     skip_warmup=(not neox_args.mmap_warmup),
+                    neox_args=neox_args,
                     build_index_mappings=build_index_mappings,
                 )
             )
@@ -386,6 +420,7 @@ def build_train_valid_test_data_iterators(neox_args):
                 seq_length=neox_args.seq_length,
                 seed=neox_args.seed,
                 skip_warmup=(not neox_args.mmap_warmup),
+                neox_args=neox_args,
             )
 
         # Build dataloders.

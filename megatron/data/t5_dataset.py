@@ -27,13 +27,13 @@ class T5Dataset(torch.utils.data.Dataset):
     def __init__(self,
         name,
         data_prefix,
-        documents, #?
+        documents,
         indexed_dataset,
         num_samples,
         seq_length,
         seed,
-        build_index_mappings=True,
         neox_args=None,
+        build_index_mappings=True,
     ):
 # num_epochs, max_num_samples, masked_lm_prob,
 #                  max_seq_length, max_seq_length_dec,
@@ -60,7 +60,7 @@ class T5Dataset(torch.utils.data.Dataset):
 
         # self.raw_seq_length stores the chunk size to retrieve from dataset.
         # self.targets_length stores the length of targets, based on amount of noise.
-        self.raw_seq_length, self.targets_length = compute_input_and_target_lengths(
+        self.raw_seq_length, self.target_seq_length = compute_input_and_target_lengths(
             input_seq_length=seq_length,
             mean_noise_span_length=self.mean_noise_span_length,
             masked_lm_prob=self.masked_lm_prob,
@@ -68,9 +68,11 @@ class T5Dataset(torch.utils.data.Dataset):
             extra_tokens_per_span_targets=1,
         )
 
+        # print("debugging:", self.raw_seq_length, self.target_seq_length)
+
         # + 1 is bc we add an EOD token to inputs and outputs
-        assert self.max_target_seq_length >= self.targets_length + 1, \
-            f'Expected targets length for span corruption ({self.targets_length + 1}) \
+        assert self.max_target_seq_length >= self.target_seq_length + 1, \
+            f'Expected targets length for span corruption ({self.target_seq_length + 1}) \
                 is greater than configured `decoder_seq_length` ({neox_args.decoder_seq_length})'
 
         # TODO(Hailey): check whether these +1 s are necessary for these vars
@@ -87,7 +89,7 @@ class T5Dataset(torch.utils.data.Dataset):
                 documents,
                 self.indexed_dataset.sizes,
                 num_samples,
-                self.raw_seq_length,
+                self.raw_seq_length - 1, # indexed dataset adds 1 to this 
                 seed,
             )
             self.shuffle_idx_len = self.shuffle_idx.shape[0] - 1
@@ -100,21 +102,12 @@ class T5Dataset(torch.utils.data.Dataset):
 
         # Vocab stuff.
         self.tokenizer = neox_args.tokenizer
-        # self.vocab_id_list = list(tokenizer.inv_vocab.keys())
-        # self.vocab_id_to_token_dict = tokenizer.inv_vocab
-        # self.cls_id = tokenizer.cls
-        # self.sep_id = tokenizer.sep
-        # self.mask_id = tokenizer.mask
-        # self.pad_id = tokenizer.pad
-        # self.bos_id = tokenizer.bos_token_id
-        # self.eos_id = tokenizer.eos_token_id
-        # self.sentinel_tokens = tokenizer.additional_special_tokens_ids
 
         # check sentinel token existence
         assert len(self.tokenizer.sentinels) > 0, "Run with `extra-sentinel-tokens: 100` to include enough sentinels for T5."
 
     def __len__(self):
-        return self.samples_mapping.shape[0]
+        return min(self.shuffle_idx_len, self.sample_idx_len)
 
     def __getitem__(self, idx):
         # rng state (must be numpy). Meg-DS does this with the seed
@@ -150,11 +143,8 @@ class T5Dataset(torch.utils.data.Dataset):
                         self.doc_idx[doc_index_l], length=offset_l + 1
                     )
                 )
-                print(sample_list)
+                
                 sample = np.concatenate(sample_list, dtype=np.int64)
-
-            print(sample)
-            
 
             return build_sample(
                 sample=sample,
@@ -189,11 +179,14 @@ def build_sample(
         mean_noise_span_length=mean_noise_span_length,
         np_rng=np_rng,
     )
+    
+    assert len(tokenizer.sentinels) >= (spans_start.shape[0] / 2), f"{len(tokenizer.sentinels)} sentinel tokens available, but {spans_start.shape[0] / 2} needed. \
+please increase `extra-sentinel-tokens` to at least {spans_start.shape[0] / 2}."
 
     spans_end = np.concatenate([
         spans_start[1:], np.full((1,), len(sample), dtype=np.int32)]
     )
-    assert len(sample) == seq_length, "sample is not same length as `self.raw_seq_length`"
+    assert len(sample) == seq_length, f"sample length ({len(sample)}) is not same length as `self.raw_seq_length` ({seq_length})"
     
     # TODO(Hailey): in order to do T5-denoising *with no sentinels*, we should refactor these listcomps ...
     # ... such that they use a helper fn add_sentinel() which abstracts the appending / prepending of sentinels.
@@ -228,7 +221,7 @@ def build_sample(
 
 def compute_input_and_target_lengths(
     input_seq_length, 
-    noise_density, 
+    masked_lm_prob, 
     mean_noise_span_length,
     extra_tokens_per_span_inputs=1,
     extra_tokens_per_span_targets=1,):
@@ -267,7 +260,7 @@ def compute_input_and_target_lengths(
         """
         sub-helper function.
         """
-        num_noise_tokens = int(round(_tokens_length * noise_density))
+        num_noise_tokens = int(round(_tokens_length * masked_lm_prob))
         num_nonnoise_tokens = _tokens_length - num_noise_tokens
         _num_noise_spans = int(round(num_noise_tokens / mean_noise_span_length))
         # inputs contain all nonnoise tokens, sentinels for all noise spans and one SEP token.
@@ -320,10 +313,10 @@ def random_spans_noise_mask(
 
         _, segment_lengths = np.unique(segment_ids, return_counts=True) # get the lengths of each segment (which sum to `length`)
 
-        return segment_lengths, np_rng
+        return segment_lengths
 
-    noise_span_lengths, np_rng = _randomly_segment(num_noise_tokens, num_noise_spans, np_rng)
-    nonnoise_span_lengths, np_rng = _randomly_segment(target_seq_length, num_noise_spans, np_rng)
+    noise_span_lengths = _randomly_segment(num_noise_tokens, num_noise_spans)
+    nonnoise_span_lengths = _randomly_segment(raw_seq_length - num_noise_tokens, num_noise_spans)
 
     interleaved_span_lengths = np.reshape(
         np.stack([nonnoise_span_lengths, noise_span_lengths], axis=-1), [num_noise_spans * 2]
@@ -331,7 +324,7 @@ def random_spans_noise_mask(
 
 
     # add left boundary of first span (idx 0) and drop right boundary of last span (index seq_length)
-    span_starts = np.concatenate([np.full((1,), 0)], np.cumsum(interleaved_span_lengths)[:-1]) 
+    span_starts = np.concatenate([np.full((1,), 0), np.cumsum(interleaved_span_lengths)[:-1]]) 
     span_start_indicator = np.zeros((raw_seq_length), dtype=bool)
     span_start_indicator[span_starts] = True
     span_num = np.cumsum(span_start_indicator) # segment_ids
