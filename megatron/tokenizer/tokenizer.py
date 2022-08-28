@@ -50,6 +50,12 @@ def build_tokenizer(args):
                 "WARNING: No vocab file found, loading Huggingface's pretrained GPT2Tokenizer"
             )
         tokenizer = HFGPT2Tokenizer(args.vocab_file)
+    elif args.tokenizer_type.lower() == "HFT5Tokenizer".lower():
+        if args.vocab_file is None:
+            print(
+                "WARNING: No vocab file found, loading Huggingface's pretrained GPT2Tokenizer"
+            )
+        tokenizer = HFGPT2Tokenizer(args.vocab_file)
     elif args.tokenizer_type.lower() == "CharLevelTokenizer".lower():
         tokenizer = CharLevelTokenizer(vocab_size=512)
     else:

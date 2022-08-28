@@ -56,6 +56,8 @@ class DataDownloader(ABC):
                 vocab_file = "gpt2"
             elif tokenizer_type == "CharLevelTokenizer":
                 pass
+            elif tokenizer_type == "HFT5Tokenizer":
+                vocab_file = "t5-base"
             else:
                 assert vocab_file is not None, "No vocab file provided"
         if num_workers is None:

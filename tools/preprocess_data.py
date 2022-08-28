@@ -86,6 +86,7 @@ def get_args():
         required=True,
         choices=[
             "HFGPT2Tokenizer",
+            "HFT5Tokenizer",
             "HFTokenizer",
             "GPT2BPETokenizer",
             "CharLevelTokenizer",
