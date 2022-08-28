@@ -21,7 +21,7 @@ from abc import ABC
 from abc import abstractmethod
 
 from tokenizers import Tokenizer
-from transformers import GPT2Tokenizer, GPT2TokenizerFast
+from transformers import GPT2Tokenizer, GPT2TokenizerFast, T5Tokenizer, T5TokenizerFast
 import numpy as np
 import sentencepiece as spm
 from typing import List, Union
@@ -310,9 +310,9 @@ class HFGPT2Tokenizer(AbstractTokenizer):
         if vocab_file is None:
             vocab_file = "gpt2"
         if fast:
-            self.tokenizer = GPT2TokenizerFast.from_pretrained(vocab_file)
+            self.tokenizer = T5TokenizerFast.from_pretrained(vocab_file)
         else:
-            self.tokenizer = GPT2Tokenizer.from_pretrained(vocab_file)
+            self.tokenizer = T5Tokenizer.from_pretrained(vocab_file)
 
         self.tokenizer.add_special_tokens({"pad_token": "<|padding|>"})
         self.eod_id = self.tokenizer.eos_token_id
