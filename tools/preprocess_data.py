@@ -46,7 +46,9 @@ class Encoder(object):
         if self.args.ftfy:
             text = ftfy.fix_text(text)
         ids = {}
+        bytes_processed = 0
         for key in self.args.jsonl_keys:
+            bytes_processed += len(text[key])
             doc_ids = []
             text_ids = Encoder.tokenizer.tokenize(text[key])
             if len(text_ids) > 0:
@@ -54,7 +56,7 @@ class Encoder(object):
             if self.args.append_eod:
                 doc_ids[-1].append(Encoder.tokenizer.eod)
             ids[key] = doc_ids
-        return ids, len(text)
+        return ids, bytes_processed
 
 
 def get_args():
