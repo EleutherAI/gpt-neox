@@ -151,9 +151,9 @@ class DataDownloader(ABC):
         os.system(cmd)
 
     def prepare(self):
-        if not self.exists():
-            self.download()
-            self.tokenize()
+        # if not self.exists():
+        # self.download()
+        self.tokenize()
 
 
 class Enron(DataDownloader):
