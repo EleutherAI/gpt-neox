@@ -153,7 +153,7 @@ def yield_from_files(fnames: list, semaphore, keys):
     """
 
     def yielder(fname, semaphore):
-        for f in filter(lambda x: x, lmd.Reader(fname).stream_data(key[0])):
+        for f in filter(lambda x: x, lmd.Reader(fname).stream_data(keys[0])):
             semaphore.acquire()
             yield f
 
