@@ -267,7 +267,7 @@ class YoutubeSubtitles(DataDownloader):
 class C4(DataDownloader):
     name = "c4"
     urls = [
-        f"https://mystic.the-eye.eu/eleuther_staging/c4/en/c4-train.{i:05}-of-01024.json.gz"
+        f"https://the-eye.eu/public/AI/STAGING/c4/en/c4-train.{i:05}-of-01024.json.gz"
         for i in range(1024)
     ]
 
