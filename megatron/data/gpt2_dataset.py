@@ -107,40 +107,39 @@ class GPT2Dataset(torch.utils.data.Dataset):
 
             # TODO(Hailey): can merge the code below this line with code above this line.
             # TODO(Hailey), cont: above already iterates through loop, so just add the permuting in there?
-            return {"text": np.array(sample, dtype=np.int64)}
-            # sample = np.array(sample, dtype=np.int64)
+            sample = np.array(sample, dtype=np.int64)
             # # print(sample, sample.shape)
             # # do FIM here, if enabled
-            # fim_rate = self.neox_args.fim_rate
+            fim_rate = self.neox_args.fim_rate
 
-            # if fim_rate != 0:
-            #     assert (fim_rate <= 1 and fim_rate >= 0), "FIM rate must be a probability 0 <= rate <= 1"
+            if fim_rate != 0:
+                assert (fim_rate <= 1 and fim_rate >= 0), "FIM rate must be a probability 0 <= rate <= 1"
 
-            #     eod = self.neox_args.tokenizer.eod
+                eod = self.neox_args.tokenizer.eod
 
-            #     segment_breaks = np.argwhere(sample == eod) # split sample by document
+                segment_breaks = np.argwhere(sample == eod) # split sample by document
 
-            #     if segment_breaks.shape != (0, 1): # then there is an EOD token in this example
-            #         curr_start_position = 0
-            #         for loc in np.nditer(segment_breaks):
-            #             # print(loc - curr_start_position, flush=True)
-            #             # permute {prefix, suffix, middle} or {suffix, prefix, middle}
-            #             # try:
-            #             if loc - curr_start_position > 10: # sometimes examples start with EOD or are too short. so avoid this case
-            #                 sample[curr_start_position:loc], self.np_rng = \
-            #                     permute(sample[curr_start_position:loc], self.np_rng, self.neox_args)
-            #             # except ValueError:
-            #             #     # print(loc - curr_start_position, flush=True)
-            #             #     pass
+                if segment_breaks.shape != (0, 1): # then there is an EOD token in this example
+                    curr_start_position = 0
+                    for loc in np.nditer(segment_breaks):
+                        # print(loc - curr_start_position, flush=True)
+                        # permute {prefix, suffix, middle} or {suffix, prefix, middle}
+                        # try:
+                        if loc - curr_start_position > 10: # sometimes examples start with EOD or are too short. so avoid this case
+                            sample[curr_start_position:loc], self.np_rng = \
+                                permute(sample[curr_start_position:loc], self.np_rng, self.neox_args)
+                        # except ValueError:
+                        #     # print(loc - curr_start_position, flush=True)
+                        #     pass
 
-            #             curr_start_position = loc + 1 # jump over the EOD token
-            #     else:
-            #         sample, self.np_rng = permute(sample, self.np_rng, self.neox_args)
+                        curr_start_position = loc + 1 # jump over the EOD token
+                else:
+                    sample, self.np_rng = permute(sample, self.np_rng, self.neox_args)
             
-            # # end FIM-specific code
-            # # print(sample, sample.shape)
-            # return {"text": sample}
-            # # return {"text": np.array(sample, dtype=np.int64)}
+            # end FIM-specific code
+            # print(sample, sample.shape)
+            return {"text": sample}
+            # return {"text": np.array(sample, dtype=np.int64)}
 
         except IndexError:
             new_idx = idx % len(self)
