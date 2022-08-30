@@ -1,0 +1,109 @@
+# GPT-2 pretraining setup
+{
+   # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
+   # across the node boundaries )
+   "pipe-parallel-size": 1,
+   "model-parallel-size": 4,
+
+   # model settings
+   "num-layers": 36,
+   "hidden-size": 5120,
+   "num-attention-heads": 40,
+   "seq-length": 2048,
+   "max-position-embeddings": 2048,
+   "norm": "layernorm",
+   "pos-emb": "rotary",
+   "rotary_pct": 0.25,
+   "no-weight-tying": true,
+   "gpt_j_residual": true,
+   "output_layer_parallelism": "column",
+
+   # these should provide some speedup but takes a while to build, set to true if desired
+   "scaled-upper-triang-masked-softmax-fusion": true,
+   "bias-gelu-fusion": true,
+
+   # optimizer settings
+   "optimizer": {
+     "type": "Adam",
+     "params": {
+       "lr": 0.00012,
+       "betas": [0.9, 0.95],
+       "eps": 1.0e-8,
+     }
+   },
+   "zero_optimization": {
+    "stage": 1,
+    "allgather_partitions": True,
+    "allgather_bucket_size": 1260000000,
+    "overlap_comm": True,
+    "reduce_scatter": True,
+    "reduce_bucket_size": 1260000000,
+    "contiguous_gradients": True,
+    "cpu_offload": False
+  },
+
+   # batch / data settings
+   "train_micro_batch_size_per_gpu": 16,
+   "gradient_accumulation_steps": 1,
+   "data-impl": "mmap",
+
+   # activation checkpointing
+   "checkpoint-activations": true,
+   "checkpoint-num-layers": 1,
+   "partition-activations": true,
+   "synchronize-each-layer": true,
+
+   # regularization
+   "gradient_clipping": 1.0,
+   "weight-decay": 0.1,
+   "hidden-dropout": 0,
+   "attention-dropout": 0,
+
+   # precision settings
+   "fp16": {
+     "fp16": true,
+     "enabled": true,
+     "loss_scale": 0,
+     "loss_scale_window": 1000,
+     "initial_scale_power": 12,
+     "hysteresis": 2,
+     "min_loss_scale": 1
+   },
+
+   # misc. training settings
+   "train-iters": 143000,
+   "lr-decay-iters": 143000,
+   "distributed-backend": "nccl",
+   "lr-decay-style": "cosine",
+   "warmup": 0.01,
+   "save-interval": 1000,
+   "eval-interval": 1000,
+   "eval-iters": 10,
+
+   # logging
+   "log-interval": 10,
+   "steps_per_print": 10,
+   "wall_clock_breakdown": true,
+
+  "use_wandb": True,
+  "wandb_host": "https://api.wandb.ai",
+
+  # Data paths and options when using EleutherAI cluster
+  "train-data-paths": ["/fsx/pile_deduped/pile_0.87_deduped_text_document"],
+  "valid-data-paths": ["/fsx/pile_deduped/pile_0.87_deduped_text_document"],
+  "test-data-paths": ["/fsx/pile_deduped/pile_0.87_deduped_text_document"],
+
+  "tokenizer_type": "HFTokenizer",
+  "vocab-file": "/fsx/pile/20B_tokenizer.json",
+
+  "save": "/fsx/dashiell/gpt-neox/runs/checkpoints/pythia/13B_deduped_new/",
+  "load": "/fsx/dashiell/gpt-neox/runs/checkpoints/pythia/13B_deduped_new/",
+  "tensorboard-dir": "/fsx/dashiell/gpt-neox/runs/tensorboard",
+  "log-dir": "/fsx/dashiell/gpt-neox/runs/logs",
+
+  "wandb_team": "eleutherai",
+  "wandb_project": "pythia",
+  "wandb_group": "13B dedupe",
+  "launcher": "srun",
+  "deepspeed_mpi": true
+}
