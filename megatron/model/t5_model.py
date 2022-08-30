@@ -253,6 +253,41 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
                 )
             )
 
+        # output format now not a tuple, just: hidden_states
+
+        def _logits_helper(embedding, lm_output):
+            logits = parallel_lm_logits(
+                lm_output, embedding.word_embeddings_weight, self.parallel_output
+            )
+            return logits
+
+        # Encoder-side LM output
+        if weight_tying:
+            self.specs.append(
+                TiedLayerSpec(
+                    "embed",
+                    EmbeddingPipe,
+                    self.neox_args,
+                    self.hidden_size,
+                    self.neox_args.padded_vocab_size,
+                    self.neox_args.max_position_embeddings,
+                    self.neox_args.hidden_dropout,
+                    self.init_method,
+                    self.num_tokentypes,
+                    forward_fn=_logits_helper,
+                    tied_weight_attr="word_embeddings_weight",
+                )
+            )
+        else:
+            self.specs.append(
+                LayerSpec(
+                    ParallelLinearPipe,
+                    neox_args=self.neox_args,
+                    init_method=self.init_method,
+                    parallel_output=self.parallel_output,
+                )
+            )
+
         # current output format: (hidden_states, decoder_input_ids, decoder_position_ids, enc attn mask, attention_mask)
         
         # decoder emb layer 
@@ -314,14 +349,6 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
         self.specs.append(
             LayerSpec(NormPipe, norm, self.neox_args.hidden_size, eps=eps)
         )
-
-        # output format now not a tuple, just: hidden_states
-
-        def _logits_helper(embedding, lm_output):
-            logits = parallel_lm_logits(
-                lm_output, embedding.word_embeddings_weight, self.parallel_output
-            )
-            return logits
 
         if weight_tying:
             self.specs.append(
