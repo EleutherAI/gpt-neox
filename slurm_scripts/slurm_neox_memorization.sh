@@ -1,14 +1,15 @@
 #!/bin/bash
 #SBATCH --job-name="neox-memorization"
 #SBATCH --partition=gpu
-#SBATCH --nodes=16
+#SBATCH --nodes=32
+#SBATCH --time-min=1-12:00:00
 #SBATCH --ntasks-per-node=8          # Crucial - only 1 task per dist per node!
 #SBATCH --hint=nomultithread         # We get physical cores not logical
 #SBATCH --cpus-per-task=6
 #SBATCH --gres=gpu:8                 # Number of gpus
 #SBATCH --output=%x_%j.out  # Set this dir where you want slurm outs to go
 #SBATCH --error=%x_%j.out  # Set this dir where you want slurm outs to go
-#SBATCH --comment=eleuther
+#SBATCH --comment=neox
 #SBATCH --exclusive
 
 module load openmpi
@@ -39,7 +40,7 @@ export PYTHONFAULTHANDLER=1
 export CUDA_LAUNCH_BLOCKING=1
 
 export OMPI_MCA_mtl_base_verbose=1
-# export OMPI_MCA_btl="^openib"
+export OMPI_MCA_plm="^slurm"
 # export I_MPI_PMI_LIBRARY="/opt/slurm/lib/libslurm.so"
 
 TRAIN_PATH=/fsx/orz/gpt-neox
@@ -73,7 +74,6 @@ export COUNT_NODE=`scontrol show hostnames "$SLURM_JOB_NODELIST" | wc -l`
 
 
 echo go $COUNT_NODE
-echo $HOSTNAMES
 
 python3 $TRAIN_PATH/deepy.py evaluation_script.py -d configs 13B.yml sampling.yml
 

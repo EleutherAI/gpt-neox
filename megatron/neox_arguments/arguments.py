@@ -321,12 +321,7 @@ class NeoXArgs(*BASE_CLASSES):
         neox_args = cls.from_ymls(
             paths_to_yml_files=conf_files, overwrite_values=overwrite_values
         )
-
-        if neox_args.wandb_group is not None:
-            # concat the wandb group name with a uid to make sure it's unique
-            import wandb
-
-            neox_args.wandb_group += "_" + wandb.util.generate_id()
+        
         neox_args.print()
 
         return neox_args

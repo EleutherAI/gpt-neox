@@ -1,3 +1,4 @@
+import os
 import tensorflow as tf
 import pandas as pd
 import numpy as np
@@ -65,14 +66,19 @@ class TFRecordLoader:
 
 
 class DataFrameCreator:
-    def __init__(self,path):
+    def __init__(self,path, restart=False):
         self.path = path
-        self.fp = open(path,'w')
-        self.fp.write("index,nll_loss,accuracy\n")
+        if os.path.exists(self.path) and restart:
+            self.fp = open(self.path, 'a')
+        else:
+            self.fp = open(self.path, 'w')
+            self.fp.write("index,nll_loss,accuracy\n")
         self.fp.flush()
     
     def write(self, index, nll_loss, accuracy):
         self.fp.write(f'{index},{nll_loss},{accuracy}\n')
+    
+    def commit(self):
         self.fp.flush()
     
     def close(self):
@@ -94,7 +100,7 @@ class DataFrameLoader:
             yield self[i]
 
 if __name__ == '__main__':
-    ds = DataFrameCreator('temp.csv')
+    ds = DataFrameCreator('temp.csv', restart=True)
     for i in range(10):
         ds.write(i,i+0.5,i)
     ds.close()

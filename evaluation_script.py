@@ -74,29 +74,48 @@ def score(neox_args,model,data,token_size=64):
 
 
 def main():
+
     # Initialization
+
     model, neox_args = megatron_utils.setup_for_inference_or_eval()
     model.eval()
-    neox_args.iteration = 0
-    results_path = 'memorization_results_6.7B' + '.csv'
+    results_path = f'memorization_results_{neox_args.wandb_group}' + '.csv'
+    iteration_path = f'memorization_iteration_{neox_args.wandb_group}'
     token_size = neox_args.maximum_tokens
 
-    # megatron_utils.init_wandb(neox_args)
+    # Create result_records and initialize wandb
+
+    os.environ["WANDB_RESUME"] = "allow"
+    node_rank = str(int(os.environ["OMPI_COMM_WORLD_RANK"])//int(os.environ["OMPI_COMM_WORLD_LOCAL_SIZE"]))
+    os.environ["WANDB_RUN_ID"] = f"sairam-{node_rank}-{neox_args.iteration}"
+
     is_src_rank = mpu.get_data_parallel_rank() == 0
     is_src_rank &= mpu.get_model_parallel_rank() == 0
     if is_src_rank:
-        records = result_records.DataFrameCreator(results_path) #store results on rank 0
+        records = result_records.DataFrameCreator(results_path, restart=True) #store results on rank 0
     
+    megatron_utils.init_wandb(neox_args)    
+
+    # Set current iteration, and build datasets
+
+    if os.path.exists(iteration_path):
+        with open(iteration_path) as f:
+            neox_args.update_value("iteration", int(f.read()))
+    else:
+        neox_args.update_value("iteration", 0)
+
     ds, _, _ = data_utils.build_train_valid_test_data_iterators(neox_args=neox_args)
-    megatron_utils.init_wandb(neox_args)
 
     # Evaluation driver code
+
     megatron_utils.print_rank_0("Starting Evaluation")
-    idx = 0
+    idx = neox_args.iteration*neox_args.train_micro_batch_size_per_gpu
+    idx *= mpu.get_data_parallel_world_size()
 
     # Iteratating over the dataset
+
     t = time.time()
-    iteration = 0
+    iteration = neox_args.iteration
 
     total_iters = neox_args.train_iters*neox_args.gradient_accumulation_steps
     megatron_utils.print_rank_0(f"Total eval iters: {total_iters}")
@@ -150,6 +169,10 @@ def main():
                     'nll_loss':total_nll_loss/len(memorization),
                     'accuracy':total_accuracy/len(memorization)
                 })
+            
+            records.commit()
+            with open(iteration_path, 'w') as f:
+                f.write(str(iteration))
 
         megatron_utils.print_rank_0(f"Generation took {time.time() - t:.3}s for iteration {iteration}")
         t = time.time()

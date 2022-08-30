@@ -43,8 +43,8 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 350,
-   "gradient_accumulation_steps": 2,
+   "train_micro_batch_size_per_gpu": 256,
+   "gradient_accumulation_steps": 1,
    "data-impl": "mmap",
 
    # activation checkpointing
@@ -71,8 +71,8 @@
    },
 
    # misc. training settings
-   "train-iters": 6500,
-   "lr-decay-iters": 6500,
+   "train-iters":  7700,
+   "lr-decay-iters": 7700,
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
