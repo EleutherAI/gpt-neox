@@ -71,15 +71,13 @@ class T5Dataset(torch.utils.data.Dataset):
         # print("debugging:", self.raw_seq_length, self.target_seq_length)
 
         # + 1 is bc we add an EOD token to inputs and outputs
-        assert self.max_target_seq_length >= self.target_seq_length + 1, \
-            f'Expected targets length for span corruption ({self.target_seq_length + 1}) \
+        assert self.max_target_seq_length >= self.target_seq_length, \
+            f'Expected targets length for span corruption ({self.target_seq_length}) \
                 is greater than configured `decoder_seq_length` ({neox_args.decoder_seq_length})'
 
-        # TODO(Hailey): check whether these +1 s are necessary for these vars
-        # we add an EOD token at end of inputs + targets.
-        # self.raw_seq_length = self.raw_seq_length + 1
-        # self.targets_length = self.targets_length + 1
 
+        # we add an EOD token at end of inputs + targets.
+        self.raw_seq_length = self.raw_seq_length
         
         if build_index_mappings:
             # Build index mappings.
@@ -210,7 +208,7 @@ please increase `extra-sentinel-tokens` to at least {spans_start.shape[0] / 2}."
         ] +
         [np.full((1,), tokenizer.eod, dtype=np.int64)] # we append EOD to targets
     )
-    
+    print(input_token_ids.shape, target_token_ids.shape)
     return {
         'input_tokens': input_token_ids,
         'target_tokens': target_token_ids
@@ -270,8 +268,8 @@ def compute_input_and_target_lengths(
 
     tokens_length = input_seq_length
     inputs_length, targets_length, num_noise_spans = _tokens_length_to_inputs_length_targets_length(tokens_length)
-    while inputs_length + targets_length > input_seq_length:
-        tokens_length -= 1
+    while inputs_length <= input_seq_length:
+        tokens_length += 1
         inputs_length, targets_length, num_noise_spans = _tokens_length_to_inputs_length_targets_length(tokens_length)
 
     # tokens_length is the number of raw tokens we need to get
