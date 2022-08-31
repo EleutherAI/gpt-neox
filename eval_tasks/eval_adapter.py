@@ -418,6 +418,217 @@ class EvalHarnessAdapter(GPT2LM):
         return results
 
 
+class Seq2SeqEvalHarnessAdapter(EvalHarnessAdapter):
+    def _dp_scatter(self, inps, targets=None):
+        """
+        Scatters the inputs and targets to all data parallel ranks.
+        """
+
+        batch_size = inps.shape[0]
+        padded = False
+        if batch_size % self.dp_world_size != 0:
+            # The last batch could potentially not fill the full batch size (if the dataset size is not divisible by batch size)
+            # In this case we pad the batch
+            padded_size = self.dp_world_size - (batch_size % self.dp_world_size)
+
+            print_rank_0(
+                f"WARNING: Batch size ({batch_size}) must be divisible by dp world size ({self.dp_world_size}). Padding inputs to {padded_size}."
+            )
+
+            inps = torch.cat(
+                [inps] + [inps[0:1, ...] for _ in range(padded_size)], dim=0
+            )  # pad with first inp item
+            padded = True
+
+        assert (
+            inps.shape[0] % self.dp_world_size == 0
+        ), f"batch size ({inps.shape[0]}) must be divisible by dp world size ({self.dp_world_size})"
+
+        # get a chunk for each data parallel rank
+        chunk_size = inps.shape[0] // self.dp_world_size
+        inps = inps[self.dp_rank * chunk_size : (self.dp_rank + 1) * chunk_size]
+        
+        if targets is None:
+            targs = torch.zeros((*inps.size()[:-1], 1), dtype=inps.dtype).to(inps.device)
+        else:
+            # get a chunk for each data parallel rank
+            targets = targets[self.dp_rank * chunk_size : (self.dp_rank + 1) * chunk_size]
+
+        # make a dummy dataloader / iterator to pass to model
+        # we need to do this because deepspeed pipe parallel only takes an iterator
+        # in this format
+        return iter([
+            {"input_tokens": F.pad(inps, pad=(0, 1)),
+            "target_tokens": F.pad(targets, pad=(0,1))}
+            ]), padded
+
+    def _model_call(self, inps, targets=None):
+        batch_size = inps.shape[0]
+
+        # scatter inputs to all dp ranks:
+        inps, padded = self._dp_scatter(inps, targets=targets)
+
+        if self.neox_args.is_pipe_parallel:
+            # need these flags to stop deepspeed pipe parallel from hanging
+            self.model.first_output_send = True
+            self.model.pipe_recv_buf = None
+
+        _, logits = self._forward_step_fn(model=self.model, data_iterator=inps)
+
+        # gather outputs from all dp ranks:
+        logits = self._dp_gather(logits)
+
+        # if logits have been padded (normally just last item where batch size is unequal)
+        # restore to original shape
+        if padded and logits is not None:
+            logits = logits[:batch_size, ...]
+        return logits
+
+    def _loglikelihood_tokens(self, requests, disable_tqdm=False):
+        """
+        In this method, the model doesn't do any generation, but just returns log likelihoods
+        for the next token, which eval harness uses to evaluate.
+
+        :param requests: Dictionary of requests containing the context and the expected continuation.
+        :param disable_tqdm: If True, disable tqdm progress bar.
+        """
+        self.model.module.inference_mode(
+            use_cache=False
+        )  # tell model to gather parallel outputs, but not cache key-value pairs
+
+        disable_tqdm = disable_tqdm if self.is_main else True
+        res = []
+        res_len = 0  # storing the result length for later
+        with torch.no_grad():
+
+            def _collate(x):
+                toks = x[1]
+                return (-len(toks), tuple(toks))
+
+            reord = utils.Reorderer(requests, _collate)
+            for chunk in utils.chunks(
+                tqdm(reord.get_reordered(), disable=disable_tqdm), self.batch_size
+            ):
+                inps, targets, contlens, inplens, targetlens, padding_length, target_padding_length = [], [], [], [], [], None, None
+
+                for cache_key, context_enc, continuation_enc in chunk:
+                    # print(cache_key, context_enc, continuation_enc)
+                    # assert False
+                    # when too long to fit in context, truncate from the left
+                    inp = torch.tensor(
+                        (context_enc)[-(self.max_length + 1) :][:-1],
+                        dtype=torch.long,
+                    ).to(self.device)
+                    (inplen,) = inp.shape
+
+                    cont = continuation_enc
+
+                    # since in _collate we make sure length is descending, the longest is always the first one.
+                    padding_length = (
+                        padding_length if padding_length is not None else inplen
+                    )
+                    if padding_length - inplen < 0:
+                        raise ValueError(padding_length, inplen)
+                        
+                    # pad to length
+                    inp = torch.cat(
+                        [
+                            inp,  # [seq]
+                            torch.zeros(padding_length - inplen, dtype=torch.long).to(
+                                inp.device
+                            ),  # [padding_length - seq]
+                        ],
+                        dim=0,
+                    )
+
+                    target = torch.tensor(
+                        (continuation_enc)[-(self.max_length + 1) :][:-1],
+                        dtype=torch.long,).to(self.device)
+                    (targetlen,) = target.shape
+
+                    target_padding_length = (
+                        target_padding_length if target_padding_length is not None else targetlen
+                    )
+                    # pad to length
+                    target = torch.cat(
+                        [
+                            target,  # [seq]
+                            torch.zeros(padding_length - targetlen, dtype=torch.long).to(
+                                target.device
+                            ),  # [padding_length - seq]
+                        ],
+                        dim=0,
+                    )
+
+                    inps.append(inp.unsqueeze(0))
+                    targets.append(target.unsqueeze(0))
+                    contlens.append(cont)
+                    inplens.append(inplen)
+                    targetlens.append(targetlen)
+
+                logits = self._model_call(torch.cat(inps, dim=0), targets=torch.cat(targets, dim=0))
+                res_len += len(chunk)
+
+                if logits is not None:
+                    multi_logits = F.log_softmax(logits, dim=-1)  # [batch, seq, vocab]
+                    for (cache_key, _, _), logits, inp, inplen, cont_toks, target_toks in zip(
+                        chunk, multi_logits, inps, inplens, contlens, targetlens
+                    ):
+                        contlen = len(cont_toks)
+                        logits = logits[0 : targetlen + 1].unsqueeze(
+                            0
+                        )  # [1, seq, vocab]
+                        greedy_tokens = logits.argmax(dim=-1)
+                        # target_toks :: [1, seq]
+                        target_toks = (
+                            torch.tensor(target_toks, dtype=torch.long)
+                            .unsqueeze(0)
+                            .to(multi_logits.device)
+                        )
+                        max_equal = (greedy_tokens == target_toks).all()
+
+                        logits = torch.gather(
+                            logits, 2, target_toks.unsqueeze(0).unsqueeze(-1)
+                        ).squeeze(
+                            -1
+                        )  # [1, seq]
+                        answer = (float(logits.sum()), bool(max_equal))
+
+                        # partial caching
+                        if cache_key is not None:
+                            self.cache_hook.add_partial(
+                                "loglikelihood", cache_key, answer
+                            )
+
+                        res.append(answer)
+
+            # broadcast results to all ranks
+            if self.is_pipe_parallel:
+                src_rank = self.model.grid.stage_to_global(self.model.num_stages - 1)
+                if res:
+                    logits_sums, max_equals = list(zip(*res))
+                    logits_sums = torch.FloatTensor(logits_sums).cuda()
+                    max_equals = torch.LongTensor(max_equals).cuda()
+                else:
+                    logits_sums = torch.zeros(res_len, dtype=torch.float32).cuda()
+                    max_equals = torch.zeros(res_len, dtype=torch.int64).cuda()
+                torch.distributed.broadcast(
+                    tensor=logits_sums,
+                    src=src_rank,
+                    group=mpu.get_pipe_parallel_group(),
+                )
+                torch.distributed.broadcast(
+                    tensor=max_equals, src=src_rank, group=mpu.get_pipe_parallel_group()
+                )
+                max_equals = [bool(i) for i in max_equals.tolist()]
+                logits_sums = logits_sums.tolist()
+                res = list(zip(logits_sums, max_equals))
+
+        self.model.module.train_mode()  # set back to train mode
+        return reord.get_original(res)
+
+
+
 def run_eval_harness(
     model,
     forward_step_fn,
@@ -428,7 +639,10 @@ def run_eval_harness(
     bootstrap_iters=2,
 ):
     print_rank_0("Running evaluation harness...")
-    adapter = EvalHarnessAdapter(model, forward_step_fn, neox_args, batch_size)
+    if neox_args.model_arch == "t5":
+        adapter = Seq2SeqEvalHarnessAdapter(model, forward_step_fn, neox_args, batch_size)
+    else:
+        adapter = EvalHarnessAdapter(model, forward_step_fn, neox_args, batch_size)
     return adapter.run_eval(
         eval_tasks=eval_tasks, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters
     )

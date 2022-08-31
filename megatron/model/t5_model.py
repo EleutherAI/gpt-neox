@@ -379,7 +379,7 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
     
     def _set_parallel_output(self, value):
         # set the parallel output value for the final layer to value
-        final_layer = list(self.forward_funchs)[-1]
+        final_layer = list(self.forward_funcs)[-1]
         if isinstance(final_layer, (ParallelLinearPipe, ParallelLinear)):
             final_layer.final_linear.set_parallel_output(value)
     

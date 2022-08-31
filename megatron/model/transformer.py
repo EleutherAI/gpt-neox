@@ -803,9 +803,13 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
                     decoder_hidden_states, encoder_hidden_states, encoder_attention_mask, attention_mask,\
                     got {len(args)}"
                 hidden_states, encoder_hidden_states, encoder_attention_mask, decoder_attention_mask = args
-                #return super(hidden_states, decoder_attention_mask, encoder_hidden_states, encoder_attention_mask)
-                return super()
 
+                return super().forward(
+                    hidden_states,
+                    decoder_attention_mask,
+                    encoder_hidden_states=encoder_hidden_states,
+                    encoder_attention_mask=encoder_attention_mask,
+                ), encoder_hidden_states, encoder_attention_mask, decoder_attention_mask
         else:
             assert (
                 len(args) == 2
