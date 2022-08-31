@@ -772,7 +772,7 @@ class NeoXArgs(*BASE_CLASSES):
         # Attention config
         num_layers = self.num_layers
         if self.num_encoder_layers:
-            total_layers += self.num_encoder_layers
+            num_layers += self.num_encoder_layers
         if self.attention_config is None:
             self.update_value("attention_config", [[["global"], num_layers]])
         self.update_value(
