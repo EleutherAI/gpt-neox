@@ -849,8 +849,8 @@ class ParallelEncoderDecoderLinear(nn.Module):
             )
 
 
-    def forward(self, decoder_hidden_state, encoder_hidden_states):
-        decoder_logits, _ = self.decoder_linear(decoder_hidden_state)
+    def forward(self, decoder_hidden_states, encoder_hidden_states):
+        decoder_logits, _ = self.decoder_linear(decoder_hidden_states)
         encoder_logits, _ = self.encoder_linear(encoder_hidden_states)
 
         return decoder_logits, encoder_logits
@@ -866,9 +866,11 @@ class ParallelEncoderDecoderLinearPipe(ParallelEncoderDecoderLinear):
         assert (
             len(args) == 2
         ), "ParallelEncoderDecoderLinearPipe expects 2 arguments - hidden_states and attention_mask"
-        decoder_hidden_state, encoder_hidden_states = args
+        decoder_hidden_states, encoder_hidden_states = args
+        print("decoder_hidden_states", decoder_hidden_states)
+        print("encoder_hidden_states", encoder_hidden_states)
 
-        return super().forward(decoder_hidden_state, encoder_hidden_states)
+        return super().forward(decoder_hidden_states, encoder_hidden_states)
 
 
 class NormPipe(nn.Module):
