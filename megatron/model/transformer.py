@@ -863,10 +863,6 @@ class ParallelEncoderDecoderLinearPipe(ParallelEncoderDecoderLinear):
         self,
         args
     ):
-        assert isinstance(
-            args, torch.Tensor
-        ), "ParallelLinearPipe expects a single argument - hidden_states"
-
         assert (
             len(args) == 2
         ), "ParallelEncoderDecoderLinearPipe expects 2 arguments - hidden_states and attention_mask"
