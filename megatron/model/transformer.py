@@ -445,23 +445,38 @@ class ParallelAttention(nn.Module):
         # Attention heads [sq, b, h] --> [sq, b, (np * 3 * hn)]
         if not self.is_cross_attention:
             mixed_x_layer, _ = self.query_key_value(hidden_states)
+
+            # [sq, b, (np * 3 * hn)] --> [sq, b, np, 3 * hn]
+            new_tensor_shape = mixed_x_layer.size()[:-1] + (
+                self.num_attention_heads_per_partition,
+                3 * self.hidden_size_per_attention_head,
+            )
+            mixed_x_layer = mixed_x_layer.view(*new_tensor_shape)
+
+            # [sq, b, np, 3 * hn] --> 3 [sq, b, np, hn]
+            (query_layer, key_layer, value_layer) = mpu.split_tensor_along_last_dim(
+                mixed_x_layer, 3
+            )
         else:
             # TODO(Hailey): does this use more memory somehow? (not cleaned up?)
             mixed_kv_layer, _ = self.key_value(encoder_hidden_states)
             q_layer, _ = self.query(hidden_states)
-            mixed_x_layer = torch.cat((q_layer, mixed_kv_layer), dim=-1)
 
-        # [sq, b, (np * 3 * hn)] --> [sq, b, np, 3 * hn]
-        new_tensor_shape = mixed_x_layer.size()[:-1] + (
-            self.num_attention_heads_per_partition,
-            3 * self.hidden_size_per_attention_head,
-        )
-        mixed_x_layer = mixed_x_layer.view(*new_tensor_shape)
+            # [sk, b, (np * 2 * hn)] --> [sk, b, np, 2 * hn]
+            new_tensor_shape = mixed_kv_layer.size()[:-1] + (
+                self.num_attention_heads_per_partition,
+                3 * self.hidden_size_per_attention_head,
+            )
+            mixed_kv_layer = mixed_kv_layer.view(*new_tensor_shape)
 
-        # [sq, b, np, 3 * hn] --> 3 [sq, b, np, hn]
-        (query_layer, key_layer, value_layer) = mpu.split_tensor_along_last_dim(
-            mixed_x_layer, 3
-        )
+            # [sk, b, np, 2 * hn] --> 2 [sk, b, np, hn]
+            (key_layer, value_layer) = mpu.split_tensor_along_last_dim(
+                mixed_kv_layer, 2
+            )
+            
+            # [sq, b, (np * hn)] --> [sq, b, np, hn]
+            new_query_shape = new_tensor_shape[:-1] + self.hidden_size_per_attention_head
+            query_layer = q_layer.view(*new_query_shape)
 
         if exists(self.rotary_emb):
             if exists(self.rotary_ndims):
