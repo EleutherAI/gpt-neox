@@ -78,6 +78,13 @@ def main():
     # Initialization
 
     model, neox_args = megatron_utils.setup_for_inference_or_eval()
+
+    total_iters = neox_args.iteration*1024
+    total_iters //= neox_args.train_micro_batch_size_per_gpu*mpu.get_data_parallel_world_size()
+    total_iters += 1
+    
+    megatron_utils.print_rank_0(f"Total Iterations: {total_iters}")
+    
     model.eval()
     results_path = f'memorization_results_{neox_args.wandb_group}' + '.csv'
     iteration_path = f'memorization_iteration_{neox_args.wandb_group}'
@@ -116,8 +123,6 @@ def main():
 
     t = time.time()
     iteration = neox_args.iteration
-
-    total_iters = neox_args.train_iters*neox_args.gradient_accumulation_steps
     megatron_utils.print_rank_0(f"Total eval iters: {total_iters}")
 
     while iteration < (total_iters):
