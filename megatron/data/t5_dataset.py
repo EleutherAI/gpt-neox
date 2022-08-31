@@ -87,7 +87,7 @@ class T5Dataset(torch.utils.data.Dataset):
                 documents,
                 self.indexed_dataset.sizes,
                 num_samples,
-                self.raw_seq_length - 1, # indexed dataset adds 1 to this 
+                self.inputs_length, # raw_seq_length - 1 # indexed dataset adds 1 to this 
                 seed,
             )
             self.shuffle_idx_len = self.shuffle_idx.shape[0] - 1
@@ -146,7 +146,7 @@ class T5Dataset(torch.utils.data.Dataset):
 
             return build_sample(
                 sample=sample,
-                seq_length=self.raw_seq_length,
+                seq_length=self.inputs_length, # self.raw_seq_length,
                 target_seq_length=self.target_seq_length,
                 masked_lm_prob=self.masked_lm_prob,
                 mean_noise_span_length=self.mean_noise_span_length,
@@ -184,7 +184,7 @@ please increase `extra-sentinel-tokens` to at least {spans_start.shape[0] / 2}."
     spans_end = np.concatenate([
         spans_start[1:], np.full((1,), len(sample), dtype=np.int32)]
     )
-    assert len(sample) == seq_length, f"sample length ({len(sample)}) is not same length as `self.raw_seq_length` ({seq_length})"
+    # assert len(sample) == seq_length, f"sample length ({len(sample)}) is not same length as `self.raw_seq_length` ({seq_length})"
     
     # TODO(Hailey): in order to do T5-denoising *with no sentinels*, we should refactor these listcomps ...
     # ... such that they use a helper fn add_sentinel() which abstracts the appending / prepending of sentinels.
