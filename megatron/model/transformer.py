@@ -641,6 +641,11 @@ class ParallelTransformerLayer(nn.Module):
         encoder_attention_mask=None,
         layer_past=None,
     ):
+
+        # if self.layer_type == "decoder":
+        #print("Layer", self.layer_type)
+        #print("ParallelTransformerLayer, x -", x.shape)
+        # print("ParallelTransformerLayer, encoder -", encoder_hidden_states.shape)
         layer_past = layer_past if layer_past is not None else self.layer_past
         bias_dropout_fn = self._get_bias_dropout()
         # x: [b, s, h]
@@ -798,7 +803,7 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
                     decoder_hidden_states, encoder_hidden_states, encoder_attention_mask, attention_mask,\
                     got {len(args)}"
                 hidden_states, encoder_hidden_states, encoder_attention_mask, decoder_attention_mask = args
-                
+                #return super(hidden_states, decoder_attention_mask, encoder_hidden_states, encoder_attention_mask)
                 return super()
 
         else:
@@ -818,6 +823,9 @@ class ParallelLinearPipe(ParallelLinear):
             args, torch.Tensor
         ), "ParallelLinearPipe expects a single argument - hidden_states"
         hidden_state = args
+        print("hidden_state", hidden_state.shape)
+        import sys
+        sys.exit()
         logits, bias = super().forward(hidden_state)
         return logits
 
@@ -852,7 +860,10 @@ class ParallelEncoderDecoderLinear(nn.Module):
     def forward(self, decoder_hidden_states, encoder_hidden_states):
         decoder_logits, _ = self.decoder_linear(decoder_hidden_states)
         encoder_logits, _ = self.encoder_linear(encoder_hidden_states)
-
+        print("decoder_logits", decoder_logits.shape)
+        print("encoder_logits", encoder_logits.shape)
+        import sys
+        sys.exit()
         return decoder_logits, encoder_logits
 
 
@@ -867,10 +878,23 @@ class ParallelEncoderDecoderLinearPipe(ParallelEncoderDecoderLinear):
             len(args) == 2
         ), "ParallelEncoderDecoderLinearPipe expects 2 arguments - hidden_states and attention_mask"
         decoder_hidden_states, encoder_hidden_states = args
-        print("decoder_hidden_states", decoder_hidden_states)
-        print("encoder_hidden_states", encoder_hidden_states)
-
+        print("decoder_hidden_states", decoder_hidden_states.shape)
+        print("encoder_hidden_states", encoder_hidden_states.shape)
+        #import sys
+        #sys.exit()
         return super().forward(decoder_hidden_states, encoder_hidden_states)
+
+
+class EncoderDecoderNormPipe(nn.Module):
+    """Just a helper class to pass presents through to the output when doing inference with a Pipe Parallel model"""
+
+    def __init__(self, norm_class, hidden_size, eps):
+        super().__init__()
+        self.norm = norm_class(hidden_size, eps=eps)
+
+    def forward(self, args):
+
+        return self.norm(args[0]), self.norm(args[1])
 
 
 class NormPipe(nn.Module):
@@ -881,13 +905,10 @@ class NormPipe(nn.Module):
         self.norm = norm_class(hidden_size, eps=eps)
 
     def forward(self, args):
-        # assert not isinstance(
-        #     args, tuple
-        # ), "NormPipe should only receive a single tensor as input"
-
-        if len(args) > 1:
-            args = list(args)
-        return self.norm(args[0]), args[1:]
+        assert not isinstance(
+            args, tuple
+        ), "NormPipe should only receive a single tensor as input"
+        return self.norm(args)
 
 
 def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=None):

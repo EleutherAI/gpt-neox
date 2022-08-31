@@ -208,7 +208,7 @@ please increase `extra-sentinel-tokens` to at least {spans_start.shape[0] / 2}."
         ] +
         [np.full((1,), tokenizer.eod, dtype=np.int64)] # we append EOD to targets
     )
-    print(input_token_ids.shape, target_token_ids.shape)
+    #print(input_token_ids.shape, target_token_ids.shape)
     return {
         'input_tokens': input_token_ids,
         'target_tokens': target_token_ids

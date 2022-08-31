@@ -35,6 +35,7 @@ from megatron.mpu import ParallelRelativePositionBias
 from megatron.model.transformer import (
     ParallelTransformerLayerPipe,
     NormPipe,
+    EncoderDecoderNormPipe,
     ParallelLinearPipe,
     ParallelEncoderDecoderLinearPipe,
     parallel_lm_logits,
@@ -79,6 +80,7 @@ def cross_entropy(output, labels, _fp16=False):
 def _pre_encoder_block(args):
     # data format change for hidden_states to avoid explicit tranposes : [b s h] --> [s b h]
     assert len(args) == 5, "Incorrect number of arguments to _pre_encoder_block"
+    print("_pre_encoder_block", args[0].transpose(0, 1).contiguous().shape)
     fn = lambda _args: (_args[0].transpose(0, 1).contiguous(), *_args[1:])
     return fn(args)
 
@@ -86,6 +88,7 @@ def _pre_encoder_block(args):
 def _pre_decoder_block(args):
     # reformat inputs before passing them to decoder stack.
     assert len(args) == 4, "Incorrect number of arguments to _pre_decoder_block"
+    print("_pre_decoder_block", args[0].transpose(0, 1).contiguous().shape)
     fn = lambda _args: (_args[0].transpose(0, 1).contiguous(), *args[1:])
     return fn(args)
 
@@ -95,13 +98,17 @@ def _post_decoder_block(args):
     # from (hidden_states, encoder_hidden_states, encoder_attention_mask, attention_mask)
     # to (hidden_states.T)
     assert len(args) == 4, "Incorrect number of arguments to _post_decoder_block"
+    print("_post_decoder_block", args[0].transpose(0, 1).contiguous().shape)
     fn = lambda _args: (_args[0].transpose(0, 1).contiguous())
     return fn(args)
 
 
 def _post_encoder_decoder_block(args):
-    # data format change for hidden_states to avoid explicit tranposes : [b s h] --> [s b h]
     assert len(args) == 4, "Incorrect number of arguments to _post_encoder_block"
+    print("_post_encoder_decoder_block",
+        args[0].transpose(0, 1).contiguous().shape,
+        args[1].transpose(0, 1).contiguous().shape
+    )
     fn = lambda _args: (
         _args[0].transpose(0, 1).contiguous(),
         _args[1].transpose(0, 1).contiguous()
@@ -321,15 +328,20 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
                     use_cache=self.use_cache,
                 )
             )
-        
-        # drop attn masks and encoder hidden states, and reshape decoder hidden states
-        # self.specs.append(_post_decoder_block)
-        self.specs.append(_post_encoder_decoder_block)
+
 
         # per gpt2.model.py NormPipe is deprecated...
         norm, eps = get_norm(self.neox_args)
+
+        # drop attn masks and encoder hidden states, and reshape decoder hidden states
+        #self.specs.append(_post_decoder_block)
+        #self.specs.append(
+        #    LayerSpec(NormPipe, norm, self.neox_args.hidden_size, eps=eps)
+        #)
+
+        self.specs.append(_post_encoder_decoder_block)
         self.specs.append(
-            LayerSpec(NormPipe, norm, self.neox_args.hidden_size, eps=eps)
+            LayerSpec(EncoderDecoderNormPipe, norm, self.neox_args.hidden_size, eps=eps)
         )
 
         def _logits_helper(embedding, lm_output):
@@ -357,7 +369,7 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
         else:
             self.specs.append(
                 LayerSpec(
-                    # ParallelLinearPipe,
+                    #ParallelLinearPipe,
                     ParallelEncoderDecoderLinearPipe,
                     neox_args=self.neox_args,
                     init_method=self.init_method,
