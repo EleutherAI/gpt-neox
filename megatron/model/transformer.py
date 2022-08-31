@@ -791,7 +791,7 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
 
                 return super().forward(hidden_states, encoder_attention_mask), \
                     decoder_input_ids, decoder_position_ids, encoder_attention_mask, attention_mask
-            if self.layer_type == "decoder":
+            elif self.layer_type == "decoder":
                 assert (
                     len(args) == 4
                 ), f"T5 Decoder layer expects 4 arguments - \
