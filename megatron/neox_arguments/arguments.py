@@ -770,7 +770,7 @@ class NeoXArgs(*BASE_CLASSES):
         self.update_value("is_pipe_parallel", self.pipe_parallel_size >= 1)
 
         # Attention config
-        total_layers = self.num_layers
+        num_layers = self.num_layers
         if self.num_encoder_layers:
             total_layers += self.num_encoder_layers
         if self.attention_config is None:
