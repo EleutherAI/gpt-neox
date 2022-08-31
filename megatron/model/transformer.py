@@ -525,6 +525,8 @@ class ParallelAttention(nn.Module):
             present = torch.stack((key_layer, value_layer))
 
         if not self.sparse:
+            if self.do_crossattn:
+                assert False, f"{query_layer.shape}, {key_layer.shape}, {attention_mask.shape}"
             context_layer = self.attention(
                 query_layer, key_layer, value_layer, layer_past, attention_mask
             )
