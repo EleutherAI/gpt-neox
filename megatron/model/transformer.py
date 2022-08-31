@@ -362,7 +362,7 @@ class ParallelAttention(nn.Module):
         if self.use_cache:
             with torch.no_grad():
                 attention_mask = attention_mask[
-                    ..., : attention_scores.size(3), : attention_scores.size(3)
+                    ..., : attention_scores.size(2), : attention_scores.size(3)
                 ]
 
         # ===========================
