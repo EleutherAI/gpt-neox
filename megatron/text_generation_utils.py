@@ -27,7 +27,12 @@ import torch.nn.functional as F
 
 from megatron import print_rank_0
 from megatron import mpu
-from megatron.utils import get_ltor_masks_and_position_ids, is_mp_rank_0
+from megatron.utils import (
+    get_ltor_masks_and_position_ids, 
+    get_full_mask,
+    get_position_ids,
+    is_mp_rank_0,
+)
 
 
 def get_batch(neox_args, context_tokens: torch.Tensor):
@@ -51,6 +56,38 @@ def get_batch(neox_args, context_tokens: torch.Tensor):
     return tokens, attention_mask, position_ids
 
 
+def get_batch_encdec(neox_args, context_tokens: torch.Tensor, target_tokens: torch.Tensor):
+    """
+    Generate batch from context tokens. Attention mask and position ids are created. Returned tensors will be on CUDA.
+
+    neox_args: NeoXArgs.
+    context_tokens: torch tensor with dimensions [batch, context_size]
+
+    returns: tuple of torch tensors (tokens, decoder_tokens, encoder_attn_mask, decoder_attention_mask, position_ids_enc, position_ids_dec) on CUDA
+    """
+    # Move to GPU.
+    tokens = context_tokens.contiguous().cuda()
+    target_tokens = target_tokens.contiguous().cuda()
+    # Get the decoder self-attn mask and position ids.
+    attention_mask, _, position_ids_dec = get_ltor_masks_and_position_ids(
+        data=target_tokens,
+        eod_token=neox_args.tokenizer.eod,
+        eod_mask_loss=neox_args.eod_mask_loss,
+    )
+    # get position ids for encoder inputs as well
+    position_ids_enc = get_position_ids(
+        data=tokens,
+    )
+
+    batch_size, src_length = tokens.size()
+    batch_size, target_length = target_tokens.size()
+
+    enc_mask = get_full_mask(src_length, 1, device=tokens.device)
+
+    return tokens, target_tokens, enc_mask, attention_mask, \
+        position_ids_enc, position_ids_dec,
+
+
 def pad_batch(context_tokens: List[List[int]], pad_id: int, pad_len: int):
     """
     pads context lengths in context_tokens with pad_id to equal neox_args.seq_length,
@@ -72,6 +109,31 @@ def pad_batch(context_tokens: List[List[int]], pad_id: int, pad_len: int):
             raise ValueError("context_length is bigger than to be padded length")
         context_lengths.append(context_length)
     return context_tokens, context_lengths
+
+
+def pad_batch_targets(target_tokens: List[List[int]], pad_id: int, pad_len: int):
+    """
+    # TODO(Hailey): update docstrings for this and all other special fns in this file
+    pads target lengths in context_tokens with pad_id to equal neox_args.seq_length,
+    and returns the padded batch and the new lengths. (use to pad + create)
+
+    context_tokens: list of lists of tokens
+    pad_id: int, integer to use as padding token
+    pad_len: int, context length to be padded; all batch items will be padded to the same length
+
+    returns: tuple of padded context tokens and a list of unpadded token count
+    """
+
+    target_lengths = []
+    for tokens in target_tokens:
+        tokens = [pad_id]
+        target_length = len(tokens)
+        if target_length < pad_len:
+            tokens.extend([pad_id] * (pad_len - target_length))
+        elif target_length > pad_len:
+            raise ValueError("context_length is bigger than to be padded length")
+        target_lengths.append(target_length)
+    return target_tokens, target_lengths
 
 
 def filter_logits(logits, top_k=0, top_p=0.0, filter_value=-float("Inf")):
@@ -139,7 +201,13 @@ def forward_model(model, model_inputs, is_pipe_parallel=False) -> torch.Tensor:
         # a) deepspeed pipeline only accepts iterables
         # b) deepspeed pipeline *requires* that you pass in labels for the loss, it's not easy to get around this
         # so we wrap the inputs in an iterable, and pad them (because internally, we get labels as inputs[:, 1:] and inputs as inputs[:, :-1])
-        model_inputs = iter([{"text": F.pad(model_inputs[0], pad=(0, 1))}])
+        # model_inputs = iter([ TODO(Hailey): add a conditional here, and keep these 2 lines if using gpt2 model
+        #     {"text": F.pad(model_inputs[0], pad=(0, 1))}])
+
+        model_inputs = iter([
+            {"input_tokens": F.pad(model_inputs[0], pad=(0, 1)),
+            "target_tokens":  F.pad(model_inputs[1], pad=(0, 1))}])
+
 
         # set num microbatches to 1 at inference time
         micro_batches_before = model.micro_batches
@@ -383,6 +451,220 @@ def stream_tokens(
                 break
 
 
+def stream_tokens_encdec(
+    neox_args,
+    model,
+    context_tokens: List[List[int]],
+    eos_token_id: int = None,
+    maximum_tokens: int = None,
+    recompute: bool = False,
+    temperature: float = 0.0,
+    top_k: int = 0,
+    top_p: float = 0.0,
+    stop_tokens=None,
+):
+    """
+    iterator producing text completions
+
+    neox_args: NeoXArgs.
+    model: a Megatron model.
+    context_tokens: the prompt to complete; unpadded list of lists of tokens ids
+    context_lengths: lengths of context tokens of dimension [batch]; the context length records for each bach item how many non-padded tokens are provided
+    eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
+    attention_mask: attention mask for megatron model.
+    position_ids: position ids for positional encoding.
+    maximum_tokens: maximum number of tokens to be generated; careful! if a batch input is provided maximum_tokens specifies the maximum number of forwards.
+                    longer batch items get less generated tokens.
+    recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
+    temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
+    top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
+    top_p (default 0.0): float -> Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+    note: greedy decoding is used if temperature is 0.0, top_k is 0 and top_p is 0.0
+    yields: (
+                tokens (completions from model),
+                token_generation_start_index (token index per batch item for the first generated token),
+                token_generation_end_index (token index per batch item for the last generated token),
+                logits (logits which are so far computed, zeros otherwise),
+                is_done (flag for each bach item indicating whether an eod token was generated)
+            )
+
+            * each iteration adds a generated token to the context_tokens
+            * output contains both context_tokens from input and generated tokens
+            * if batch items have different lengths, the iterator will start at the first completion and return the unchanged input context token otherwise
+    """
+
+    model.eval()
+
+    # pad batch in order to allow conversion to tensor (both inputs and targets?)
+    target_tokens, target_lengths = pad_batch_targets(
+        copy.deepcopy(context_tokens),
+        pad_id=neox_args.tokenizer.eod,
+        pad_len=neox_args.seq_length,
+    )
+
+    # convert to tensor and broadcast
+    context_tokens = torch.cuda.LongTensor(context_tokens)
+    target_tokens = torch.cuda.LongTensor(target_tokens)
+    if stop_tokens:
+        if len(stop_tokens) > 0 and type(stop_tokens[0]) is not list:
+            stop_tokens = [stop_tokens]
+        for i in range(0, len(stop_tokens)):
+            stop_tokens[i] = torch.cuda.LongTensor(stop_tokens[i])
+
+    # Make sure context tokens + start tokens are the same across all ranks
+    token_generation_start_index = torch.cuda.LongTensor(target_lengths)
+    torch.distributed.broadcast(
+        context_tokens,
+        mpu.get_model_parallel_src_rank(),
+        group=mpu.get_model_parallel_group(),
+    )
+    torch.distributed.broadcast(
+        target_tokens,
+        mpu.get_model_parallel_src_rank(),
+        group=mpu.get_model_parallel_group(),
+    )
+    torch.distributed.broadcast(
+        token_generation_start_index,
+        mpu.get_model_parallel_src_rank(),
+        group=mpu.get_model_parallel_group(),
+    )
+
+    # get attention masks / position ids
+    context_tokens, target_tokens, encoder_attention_mask, attention_mask, encoder_position_ids, decoder_position_ids =\
+        get_batch_encdec(neox_args, context_tokens, target_tokens)
+
+    # set variables
+    eos_token_id = eos_token_id or neox_args.tokenizer.eod
+    maximum_tokens = maximum_tokens or (
+        neox_args.seq_length - 1 - token_generation_start_index.max().item() - 1
+    )
+    batch_size = context_tokens.size(0)
+
+    # get the context_index at which generation is to start
+    # we start generation at the position where the smallest context ends
+    token_index_to_generate = token_generation_start_index.min().item()
+    first_token_index_to_generate = token_index_to_generate
+    last_token_index_to_generate = min(
+        neox_args.seq_length
+        - 1,  # never generate more than the model's sequence length
+        token_index_to_generate + maximum_tokens - 1,
+    )
+
+    with torch.no_grad():
+        # initialize generation variables
+        state_is_done = torch.zeros([batch_size]).byte().cuda()
+        token_generation_end_index = torch.ones([batch_size]).long().cuda() * (-1)
+
+        while token_index_to_generate <= last_token_index_to_generate:
+            if recompute:  # recompute all tokens
+                model_inputs = (
+                    context_tokens,
+                    target_tokens,
+                    encoder_position_ids,
+                    decoder_position_ids,
+                    encoder_attention_mask,
+                    attention_mask,
+                )
+                logits = forward_model(model, model_inputs, neox_args.is_pipe_parallel)
+                if logits is not None:  # if pipe parallel, not all ranks return logits
+                    generated_token_logits = logits[
+                        :, token_index_to_generate - 1, :
+                    ]  # [bs, seq, vocab_size] -> [bs, vocab_size]
+            else:  # use kv cache
+                if token_index_to_generate == first_token_index_to_generate:
+                    tokens_to_use = target_tokens[:, :token_index_to_generate]
+                    positions_to_use = decoder_position_ids[:, :token_index_to_generate]
+                else:
+                    tokens_to_use = target_tokens[:, token_index_to_generate - 1].view(
+                        batch_size, -1
+                    )
+                    positions_to_use = decoder_position_ids[
+                        :, token_index_to_generate - 1
+                    ].view(batch_size, -1)
+
+                model_inputs = (
+                    context_tokens, # encoder input tokens (stay same throughout generation)
+                    tokens_to_use,  # decoder_input_ids
+                    encoder_position_ids, # encoder_position_ids
+                    positions_to_use,  # decoder_position_ids
+                    encoder_attention_mask, # encoder attn mask (stays same)
+                    attention_mask,  # attention_mask
+                )
+
+                logits = forward_model(model, model_inputs, neox_args.is_pipe_parallel)
+                if logits is not None:  # if pipe parallel, not all ranks return logits
+                    generated_token_logits = (
+                        logits[:, -1].view(batch_size, -1).contiguous()
+                    )  # [bs, seq, vocab_size] -> [bs, vocab_size]
+
+            if logits is not None:
+                # sample token id of the to be generated token
+                if temperature == 0.0 and top_k == 0 and top_p == 0.0:
+                    generated_tokens = torch.argmax(
+                        generated_token_logits, dim=-1
+                    ).view(-1)
+                else:
+                    generated_token_logits = generated_token_logits.float()
+                    if temperature > 0.0:
+                        generated_token_logits /= temperature
+                    generated_token_logits = filter_logits(
+                        generated_token_logits, top_k=top_k, top_p=top_p
+                    )
+                    next_token_log_probs = F.softmax(generated_token_logits, dim=-1)
+                    generated_tokens = torch.multinomial(
+                        next_token_log_probs, num_samples=1
+                    ).view(-1)
+
+            if neox_args.is_pipe_parallel:
+                # broadcast generated tokens to pipe parallel group
+                src_rank = model.grid.stage_to_global(model.num_stages - 1)
+                generated_tokens = (
+                    generated_tokens
+                    if logits is not None
+                    else torch.zeros(batch_size, dtype=torch.long).cuda()
+                )
+                torch.distributed.broadcast(
+                    tensor=generated_tokens,
+                    src=src_rank,
+                    group=mpu.get_pipe_parallel_group(),
+                )
+
+            # determine if state has started for each batch item
+            state_started = (
+                token_generation_start_index <= token_index_to_generate
+            )  # check which batch items have been started
+
+            # switch out padding tokens for generated tokens
+            target_tokens[:, token_index_to_generate - 1] = switch(
+                target_tokens[:, token_index_to_generate - 1].view(-1),
+                generated_tokens,
+                state_started,
+            )
+
+            # determine if state has finished for each batch item
+            state_done = (
+                generated_tokens == eos_token_id
+            ).byte() & state_started.byte()  # check which batch items produce an eos_token in the current iteration
+            state_just_finished = (state_done & ~state_is_done).bool()
+            state_is_done = state_is_done | state_done
+            stop_tokens_produced = torch.zeros_like(state_is_done)
+            for batch_idx, ctx in enumerate(target_tokens):
+                stop_tokens_produced[batch_idx] = stop_tokens_in_completion(
+                    stop_tokens, target_tokens, batch_idx, token_index_to_generate
+                )
+            state_is_done = state_is_done | stop_tokens_produced
+
+            token_generation_end_index[
+                (state_started.byte() & ~state_is_done).bool()
+            ] = token_index_to_generate
+
+            token_index_to_generate += 1
+
+            yield context_tokens, target_tokens, token_generation_start_index, token_generation_end_index, state_is_done.bool()
+            if torch.all(state_is_done):
+                break
+
+
 def generate_samples_from_prompt(
     neox_args,
     model,
@@ -453,7 +735,7 @@ def generate_samples_from_prompt(
                 context_tokens = neox_args.tokenizer.tokenize(raw_text)
             context_length = len(context_tokens)
 
-            if context_length >= (neox_args.seq_length // 2):
+            if context_length >= (neox_args.seq_length // 2): # TODO(Hailey): this chunk should be ignored for T5.
                 print_rank_0(
                     "\nWarning! Context length",
                     context_length,
@@ -471,10 +753,11 @@ def generate_samples_from_prompt(
 
         for (
             batch_context_tokens,
+            batch_target_tokens, # TODO (Hailey): this is t5-specific, refactor it
             batch_token_generation_start_index,
             batch_token_generation_end_index,
             is_done,
-        ) in stream_tokens(
+        ) in stream_tokens_encdec(
             neox_args=neox_args,
             model=model,
             context_tokens=[context_tokens],
@@ -497,8 +780,9 @@ def generate_samples_from_prompt(
         )
         batch_is_done = is_done.cpu().numpy().tolist()
 
-        for tokens, start_index, end_index, is_done in zip(
+        for ctx, tokens, start_index, end_index, is_done in zip( # TODO(Hailey): this line changed
             batch_context_tokens,
+            batch_target_tokens,
             batch_token_generation_start_index,
             batch_token_generation_end_index,
             batch_is_done,
