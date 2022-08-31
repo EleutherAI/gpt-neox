@@ -770,14 +770,17 @@ class NeoXArgs(*BASE_CLASSES):
         self.update_value("is_pipe_parallel", self.pipe_parallel_size >= 1)
 
         # Attention config
+        total_layers = self.num_layers
+        if self.num_encoder_layers:
+            total_layers += self.num_encoder_layers
         if self.attention_config is None:
-            self.update_value("attention_config", [[["global"], self.num_layers]])
+            self.update_value("attention_config", [[["global"], num_layers]])
         self.update_value(
             "attention_config",
-            expand_attention_types(self.attention_config, self.num_layers),
+            expand_attention_types(self.attention_config, num_layers),
         )
         assert (
-            len(self.attention_config) == self.num_layers
+            len(self.attention_config) == num_layers
         ), "Length of attention config list must equal num_layers"
         for item in self.attention_config:
             assert (
