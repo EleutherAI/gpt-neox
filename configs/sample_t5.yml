@@ -94,7 +94,7 @@
 
    # add data, tokenizer path etc. here
    "tokenizer-type": "HFGPT2Tokenizer",
-   "vocab-file": "./data/125m-tokenizer",
+   "vocab-file": "EleutherAI/gpt-neo-125M",
    "save": "./testingt5",
    "load": "./testingt5",
 

@@ -49,7 +49,7 @@ class Encoder(object):
         for key in self.args.jsonl_keys:
             doc_ids = []
             # print(text[key])
-            text_ids = Encoder.tokenizer.tokenize(text[key])
+            text_ids = Encoder.tokenizer.tokenize(text)
             if len(text_ids) > 0:
                 doc_ids.append(text_ids)
             if self.args.append_eod:

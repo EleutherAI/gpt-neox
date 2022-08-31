@@ -262,31 +262,31 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
             return logits
 
         # Encoder-side LM output
-        if weight_tying:
-            self.specs.append(
-                TiedLayerSpec(
-                    "embed",
-                    EmbeddingPipe,
-                    self.neox_args,
-                    self.hidden_size,
-                    self.neox_args.padded_vocab_size,
-                    self.neox_args.max_position_embeddings,
-                    self.neox_args.hidden_dropout,
-                    self.init_method,
-                    self.num_tokentypes,
-                    forward_fn=_logits_helper,
-                    tied_weight_attr="word_embeddings_weight",
-                )
-            )
-        else:
-            self.specs.append(
-                LayerSpec(
-                    ParallelLinearPipe,
-                    neox_args=self.neox_args,
-                    init_method=self.init_method,
-                    parallel_output=self.parallel_output,
-                )
-            )
+        #if weight_tying:
+        #    self.specs.append(
+        #        TiedLayerSpec(
+        #            "embed",
+        #            EmbeddingPipe,
+        #            self.neox_args,
+        #            self.hidden_size,
+        #            self.neox_args.padded_vocab_size,
+        #            self.neox_args.max_position_embeddings,
+        #            self.neox_args.hidden_dropout,
+        #            self.init_method,
+        #            self.num_tokentypes,
+        #            forward_fn=_logits_helper,
+        #            tied_weight_attr="word_embeddings_weight",
+        #        )
+        #    )
+        #else:
+        #    self.specs.append(
+        #        LayerSpec(
+        #            ParallelLinearPipe,
+        #            neox_args=self.neox_args,
+        #            init_method=self.init_method,
+        #            parallel_output=self.parallel_output,
+        #        )
+        #    )
 
         # current output format: (hidden_states, decoder_input_ids, decoder_position_ids, enc attn mask, attention_mask)
         
@@ -375,6 +375,9 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
                     parallel_output=self.parallel_output,
                 )
             )
+        print(self.specs)
+        import sys
+        sys.exit()
     
     def _set_parallel_output(self, value):
         # set the parallel output value for the final layer to value
