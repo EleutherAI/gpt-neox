@@ -358,7 +358,7 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
             self.specs.append(
                 LayerSpec(
                     # ParallelLinearPipe,
-                    ParallelEncoderDecoderLinearPipe
+                    ParallelEncoderDecoderLinearPipe,
                     neox_args=self.neox_args,
                     init_method=self.init_method,
                     parallel_output=self.parallel_output,
