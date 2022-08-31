@@ -93,8 +93,8 @@
    "wall_clock_breakdown": true,
 
    # add data, tokenizer path etc. here
-   "tokenizer-type": "HFGPT2Tokenizer",
-   "vocab-file": "./data/125m-tokenizer",
+   "tokenizer-type": "HFTokenizer",
+   "vocab-file": "/fsx/improved-t5/t5-tokenizer/tokenizer.json",
    "save": "/fsx/improved-t5/ckpts/testrun-base-8-31-22",
    "load": "/fsx/improved-t5/ckpts/testrun-base-8-31-22",
 
@@ -103,7 +103,8 @@
 
    "data-path": "/fsx/c4/c4/c4_text_document",
 
-   "eval-tasks": ["lambada"]
+   "eval-tasks": ["lambada"],
 
-
+   "launcher": "openmpi",
+   "deepspeed_mpi": true,
 }

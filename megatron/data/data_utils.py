@@ -80,7 +80,7 @@ def build_the_dataset(
             seq_length,
             seed,
             neox_args=neox_args,
-            build_index_mappings=True,
+            build_index_mappings=build_index_mappings,
         )
     else:
         raise ValueError("Received a `model_arch` value other than `gpt2` or `t5`!")
