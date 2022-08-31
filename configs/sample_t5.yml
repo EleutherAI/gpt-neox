@@ -38,7 +38,7 @@
      }
    },
    "zero_optimization": {
-    "stage": 0,
+    "stage": 1,
     "allgather_partitions": True,
     "allgather_bucket_size": 500000000,
     "overlap_comm": True,
@@ -49,7 +49,7 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 4,
+   "train_micro_batch_size_per_gpu": 32,
    "gradient-accumulation-steps": 1,
    "data-impl": "mmap",
    "split": "949,50,1",
@@ -95,15 +95,15 @@
    # add data, tokenizer path etc. here
    "tokenizer-type": "HFGPT2Tokenizer",
    "vocab-file": "./data/125m-tokenizer",
-   "save": "./testingt5",
-   "load": "./testingt5",
+   "save": "/fsx/improved-t5/ckpts/testrun-base-8-31-22",
+   "load": "/fsx/improved-t5/ckpts/testrun-base-8-31-22",
 
-   "tensorboard-dir": "./tensorboard",
-   "log-dir": "./logs",
+   "tensorboard-dir": "/fsx/improved-t5/gpt-neox/tensorboard",
+   "log-dir": "/fsx/improved-t5/gpt-neox/logs",
 
-   "data-path": "./data/enron/enron_text_document",
+   "data-path": "/fsx/c4/c4/c4_text_document",
 
-   "eval-tasks": ["lambada", "gsm8k"]
+   "eval-tasks": ["lambada"]
 
 
 }

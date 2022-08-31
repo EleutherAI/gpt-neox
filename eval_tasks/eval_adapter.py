@@ -644,5 +644,5 @@ def run_eval_harness(
     else:
         adapter = EvalHarnessAdapter(model, forward_step_fn, neox_args, batch_size)
     return adapter.run_eval(
-        eval_tasks=eval_tasks, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters
+        eval_tasks=eval_tasks, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters, use_cache=False
     )
