@@ -36,6 +36,7 @@ from megatron.model.transformer import (
     ParallelTransformerLayerPipe,
     NormPipe,
     ParallelLinearPipe,
+    ParallelEncoderDecoderLinearPipe,
     parallel_lm_logits,
     ParallelLinear,
 )
@@ -95,6 +96,16 @@ def _post_decoder_block(args):
     # to (hidden_states.T)
     assert len(args) == 4, "Incorrect number of arguments to _post_decoder_block"
     fn = lambda _args: (_args[0].transpose(0, 1).contiguous())
+    return fn(args)
+
+
+def _post_encoder_decoder_block(args):
+    # data format change for hidden_states to avoid explicit tranposes : [b s h] --> [s b h]
+    assert len(args) == 4, "Incorrect number of arguments to _post_encoder_block"
+    fn = lambda _args: (
+        _args[0].transpose(0, 1).contiguous(),
+        _args[1].transpose(0, 1).contiguous()
+        )
     return fn(args)
 
 
@@ -253,40 +264,10 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
                 )
             )
 
+        # drop attn masks and encoder hidden states, and reshape decoder hidden states
+        # self.specs.append(_post_encoder_block)
+
         # output format now not a tuple, just: hidden_states
-
-        def _logits_helper(embedding, lm_output):
-            logits = parallel_lm_logits(
-                lm_output, embedding.word_embeddings_weight, self.parallel_output
-            )
-            return logits
-
-        # Encoder-side LM output
-        #if weight_tying:
-        #    self.specs.append(
-        #        TiedLayerSpec(
-        #            "embed",
-        #            EmbeddingPipe,
-        #            self.neox_args,
-        #            self.hidden_size,
-        #            self.neox_args.padded_vocab_size,
-        #            self.neox_args.max_position_embeddings,
-        #            self.neox_args.hidden_dropout,
-        #            self.init_method,
-        #            self.num_tokentypes,
-        #            forward_fn=_logits_helper,
-        #            tied_weight_attr="word_embeddings_weight",
-        #        )
-        #    )
-        #else:
-        #    self.specs.append(
-        #        LayerSpec(
-        #            ParallelLinearPipe,
-        #            neox_args=self.neox_args,
-        #            init_method=self.init_method,
-        #            parallel_output=self.parallel_output,
-        #        )
-        #    )
 
         # current output format: (hidden_states, decoder_input_ids, decoder_position_ids, enc attn mask, attention_mask)
         
@@ -342,13 +323,20 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
             )
         
         # drop attn masks and encoder hidden states, and reshape decoder hidden states
-        self.specs.append(_post_decoder_block)
+        # self.specs.append(_post_decoder_block)
+        self.specs.append(_post_encoder_decoder_block)
 
         # per gpt2.model.py NormPipe is deprecated...
         norm, eps = get_norm(self.neox_args)
         self.specs.append(
             LayerSpec(NormPipe, norm, self.neox_args.hidden_size, eps=eps)
         )
+
+        def _logits_helper(embedding, lm_output):
+            logits = parallel_lm_logits(
+                lm_output, embedding.word_embeddings_weight, self.parallel_output
+            )
+            return logits
 
         if weight_tying:
             self.specs.append(
@@ -369,15 +357,13 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
         else:
             self.specs.append(
                 LayerSpec(
-                    ParallelLinearPipe,
+                    # ParallelLinearPipe,
+                    ParallelEncoderDecoderLinearPipe
                     neox_args=self.neox_args,
                     init_method=self.init_method,
                     parallel_output=self.parallel_output,
                 )
             )
-        print(self.specs)
-        import sys
-        sys.exit()
     
     def _set_parallel_output(self, value):
         # set the parallel output value for the final layer to value

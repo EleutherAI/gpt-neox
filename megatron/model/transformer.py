@@ -822,6 +822,59 @@ class ParallelLinearPipe(ParallelLinear):
         return logits
 
 
+class ParallelEncoderDecoderLinear(nn.Module):
+    """
+    A Parallel Linear Layer for encoder and decoder hidden states 
+    transforming the transformer outputs from hidden_size -> vocab_size
+    """
+
+    def __init__(
+        self,
+        neox_args,
+        parallel_output=True,
+        init_method=nn.init.xavier_normal_,
+    ):
+        super().__init__()
+
+        self.decoder_linear = ParallelLinear(
+            neox_args=neox_args,
+            parallel_output=parallel_output,
+            init_method=init_method,
+            )
+
+        self.encoder_linear = ParallelLinear(
+            neox_args=neox_args,
+            parallel_output=parallel_output,
+            init_method=init_method,
+            )
+
+
+    def forward(self, decoder_hidden_state, encoder_hidden_states):
+        decoder_logits, _ = self.decoder_linear(decoder_hidden_state)
+        encoder_logits, _ = self.encoder_linear(encoder_hidden_states)
+
+        return decoder_logits, encoder_logits
+
+
+class ParallelEncoderDecoderLinearPipe(ParallelEncoderDecoderLinear):
+    """Another helper class to pass presents through to the output when doing inference with a Pipe Parallel model"""
+
+    def forward(
+        self,
+        args
+    ):
+        assert isinstance(
+            args, torch.Tensor
+        ), "ParallelLinearPipe expects a single argument - hidden_states"
+
+        assert (
+            len(args) == 2
+        ), "ParallelEncoderDecoderLinearPipe expects 2 arguments - hidden_states and attention_mask"
+        decoder_hidden_state, encoder_hidden_states = args
+
+        return super().forward(decoder_hidden_state, encoder_hidden_states)
+
+
 class NormPipe(nn.Module):
     """Just a helper class to pass presents through to the output when doing inference with a Pipe Parallel model"""
 
@@ -830,10 +883,13 @@ class NormPipe(nn.Module):
         self.norm = norm_class(hidden_size, eps=eps)
 
     def forward(self, args):
-        assert not isinstance(
-            args, tuple
-        ), "NormPipe should only receive a single tensor as input"
-        return self.norm(args)
+        # assert not isinstance(
+        #     args, tuple
+        # ), "NormPipe should only receive a single tensor as input"
+
+        if len(args) > 1:
+            args = list(args)
+        return self.norm(args[0]), args[1:]
 
 
 def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=None):
