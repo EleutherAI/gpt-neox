@@ -866,8 +866,8 @@ class ParallelEncoderDecoderLinear(nn.Module):
         encoder_logits, _ = self.encoder_linear(encoder_hidden_states)
         print("decoder_logits", decoder_logits.shape)
         print("encoder_logits", encoder_logits.shape)
-        import sys
-        sys.exit()
+        #import sys
+        #sys.exit()
         return decoder_logits, encoder_logits
 
 
