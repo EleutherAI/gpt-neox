@@ -373,7 +373,7 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
         norm, eps = get_norm(self.neox_args)
 
         if self.neox_args.model_arch == "t5":
-            drop attn masks and encoder hidden states, and reshape decoder hidden states
+            # drop attn masks and encoder hidden states, and reshape decoder hidden states
             self.specs.append(_post_decoder_block)
             self.specs.append(
                 LayerSpec(
