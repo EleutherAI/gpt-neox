@@ -189,7 +189,7 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
 
         self.checkpointable_layers = ["ParallelTransformerLayerPipe"]
 
-        if neox_args.model_arch == "t5"
+        if neox_args.model_arch == "t5":
             loss_fn = cross_entropy 
         elif neox_args.model_arch == "mlm-lm-t5":
             loss_fn = cross_entropy_MLM_LM_T5 
