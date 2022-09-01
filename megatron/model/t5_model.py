@@ -83,15 +83,36 @@ def cross_entropy_MLM_LM_T5(output, labels, _fp16=False):
     LM on the Decoder-side
     """
     decoder_output, encoder_output = output
-    labels, loss_mask = labels[0], labels[1]
+    decoder_labels, decoder_loss_mask = labels[0], labels[1]
     sys.exit()
+    encoder_labels, encoder_loss_mask = labels[1]
     if _fp16:
-        assert output.dtype == torch.half and loss_mask.dtype == torch.half
-        losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels)
+        assert decoder_output.dtype == torch.half \
+            and encoder_output.dtype == torch.half \
+            and decoder_loss_mask.dtype == torch.half \
+            and encoder_loss_mask.dtype == torch.half
+        decoder_losses = mpu.vocab_parallel_cross_entropy(
+            decoder_output.contiguous(),
+            decoder_labels
+        )
+        encoder_losses = mpu.vocab_parallel_cross_entropy(
+            encoder_output.contiguous(),
+            encoder_labels
+        )
     else:
-        losses = mpu.vocab_parallel_cross_entropy(output.float().contiguous(), labels)
-    loss_mask = loss_mask.view(-1)
-    loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
+        decoder_losses = mpu.vocab_parallel_cross_entropy(
+            decoder_output.float().contiguous(),
+            decoder_labels
+        )
+        encoder_losses = mpu.vocab_parallel_cross_entropy(
+            encoder_output.float().contiguous(),
+            encoder_labels
+        )
+    decoder_loss_mask = decoder_loss_mask.view(-1)
+    encoder_loss_mask = encoder_loss_mask.view(-1)
+    dec_loss = torch.sum(decoder_losses.view(-1) * decoder_loss_mask) / decoder_loss_mask.sum()
+    enc_loss = torch.sum(encoder_losses.view(-1) * encoder_loss_mask) / encoder_loss_mask.sum()
+    loss = dec_loss + enc_loss
     return loss
 
 
@@ -351,16 +372,21 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
         # per gpt2.model.py NormPipe is deprecated...
         norm, eps = get_norm(self.neox_args)
 
-        # drop attn masks and encoder hidden states, and reshape decoder hidden states
-        #self.specs.append(_post_decoder_block)
-        #self.specs.append(
-        #    LayerSpec(NormPipe, norm, self.neox_args.hidden_size, eps=eps)
-        #)
-
-        self.specs.append(_post_encoder_decoder_block)
-        self.specs.append(
-            LayerSpec(EncoderDecoderNormPipe, norm, self.neox_args.hidden_size, eps=eps)
-        )
+        if self.neox_args.model_arch == "t5":
+            drop attn masks and encoder hidden states, and reshape decoder hidden states
+            self.specs.append(_post_decoder_block)
+            self.specs.append(
+                LayerSpec(
+                    NormPipe, norm, self.neox_args.hidden_size, eps=eps
+                )
+            )
+        elif self.neox_args.model_arch == "mlm-lm-t5":
+            self.specs.append(_post_encoder_decoder_block)
+            self.specs.append(
+                LayerSpec(
+                    EncoderDecoderNormPipe, norm, self.neox_args.hidden_size, eps=eps
+                )
+            )
 
         def _logits_helper(embedding, lm_output):
             logits = parallel_lm_logits(
@@ -385,15 +411,24 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
                 )
             )
         else:
-            self.specs.append(
-                LayerSpec(
-                    #ParallelLinearPipe,
-                    ParallelEncoderDecoderLinearPipe,
-                    neox_args=self.neox_args,
-                    init_method=self.init_method,
-                    parallel_output=self.parallel_output,
+            if self.neox_args.model_arch == "t5":
+                self.specs.append(
+                    LayerSpec(
+                        ParallelLinearPipe,
+                        neox_args=self.neox_args,
+                        init_method=self.init_method,
+                        parallel_output=self.parallel_output,
+                    )
                 )
-            )
+            elif self.neox_args.model_arch == "mlm-lm-t5":
+                self.specs.append(
+                    LayerSpec(
+                        ParallelEncoderDecoderLinearPipe,
+                        neox_args=self.neox_args,
+                        init_method=self.init_method,
+                        parallel_output=self.parallel_output,
+                    )
+                )
     
     def _set_parallel_output(self, value):
         # set the parallel output value for the final layer to value
