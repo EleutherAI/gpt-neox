@@ -255,7 +255,7 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
 
 
 def get_batch_encdec(neox_args, data_iterator):
-    """"""
+    """generate batch"""
 
     keys = ['input_tokens', 'target_tokens']
     datatype = torch.int64
