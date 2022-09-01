@@ -17,7 +17,7 @@
 # limitations under the License.
 
 """T5 model."""
-
+import sys
 from collections import defaultdict
 import math
 from megatron.model.utils import SequentialWrapper, recursive_setattr
@@ -66,8 +66,25 @@ def cross_entropy(output, labels, _fp16=False):
         loss = mpu.vocab_parallel_cross_entropy(output.float(), labels)
         return loss
     """
-    print(len(output))
     labels, loss_mask = labels[0], labels[1]
+    if _fp16:
+        assert output.dtype == torch.half and loss_mask.dtype == torch.half
+        losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels)
+    else:
+        losses = mpu.vocab_parallel_cross_entropy(output.float().contiguous(), labels)
+    loss_mask = loss_mask.view(-1)
+    loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
+    return loss
+
+
+def cross_entropy_MLM_LM_T5(output, labels, _fp16=False):
+    """
+    Cross Entropy for both MLM on the Encoder-side and
+    LM on the Decoder-side
+    """
+    decoder_output, encoder_output = output
+    labels, loss_mask = labels[0], labels[1]
+    sys.exit()
     if _fp16:
         assert output.dtype == torch.half and loss_mask.dtype == torch.half
         losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels)
@@ -153,7 +170,7 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
 
         super().__init__(
             layers=self.specs,
-            loss_fn=partial(cross_entropy, _fp16=self.neox_args.fp16_lm_cross_entropy),
+            loss_fn=partial(cross_entropy_MLM_LM_T5, _fp16=self.neox_args.fp16_lm_cross_entropy),
             topology=topology,
             activation_checkpoint_interval=self.neox_args.checkpoint_num_layers
             if self.neox_args.checkpoint_activations 
