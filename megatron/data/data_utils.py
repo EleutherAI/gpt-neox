@@ -10,6 +10,7 @@ from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
 from megatron.data.blendable_dataset import BlendableDataset
 from megatron.data.gpt2_dataset import GPT2Dataset
 from megatron.data.t5_dataset import T5Dataset
+from megatron.data.mlm_lm_t5_dataset import MLM_LM_T5Dataset
 from megatron.data.samplers import DistributedBatchSampler
 
 
@@ -82,6 +83,17 @@ def build_the_dataset(
             neox_args=neox_args,
             build_index_mappings=True,
         )
+    elif neox_args.model_arch == "mlm-lm-t5":
+        dataset = MLM_LM_T5Dataset(
+            name,
+            data_prefix,
+            documents,
+            indexed_dataset,
+            train_valid_test_num_samples[index],
+            seq_length,
+            seed,
+            neox_args=neox_args,
+        )
     else:
         raise ValueError("Received a `model_arch` value other than `gpt2` or `t5`!")
     
@@ -140,6 +152,17 @@ def build_train_valid_test_datasets(
                 )
             elif neox_args.model_arch == "t5":
                 dataset = T5Dataset(
+                    name,
+                    data_prefix,
+                    documents,
+                    indexed_dataset,
+                    train_valid_test_num_samples[index],
+                    seq_length,
+                    seed,
+                    neox_args=neox_args,
+                )
+            elif neox_args.model_arch == "mlm-lm-t5":
+                dataset = MLM_LM_T5Dataset(
                     name,
                     data_prefix,
                     documents,
