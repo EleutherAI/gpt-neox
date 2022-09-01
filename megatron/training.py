@@ -351,7 +351,7 @@ def get_model(neox_args, use_cache=False):
             topology=mpu.get_topology(),
             use_cache=use_cache,
         )
-    elif neox_args.model_arch == "t5":
+    elif neox_args.model_arch in ["t5", "mlm-lm-t5"]:
         model = T5ModelPipe(
             neox_args=neox_args,
             num_tokentypes=0,
