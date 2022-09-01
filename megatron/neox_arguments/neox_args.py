@@ -79,7 +79,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     description of the used precision, either one of fp16 or fp32 (and in the future bf16).
     """
 
-    model_arch: Literal["gpt2", "t5"] = "gpt2"
+    model_arch: Literal["gpt2", "t5", "mlm-lm-t5"] = "gpt2"
     """
     Model architecture to use (decoder-only or encoder-decoder).
     """
