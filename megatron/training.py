@@ -75,19 +75,8 @@ def pretrain(neox_args):
         neox_args: an instance of NeoXArgs containing the configuration for pretrain
 
     """
-    if neox_args.model_arch == "gpt2":
-        forward_step_fn = forward_step
-    elif neox_args.model_arch == "t5":
-        forward_step_fn = forward_step_encdec
-    elif neox_args.model_arch == "mlm-lm-t5":
-        forward_step_fn = forward_step_mlm_lm
-
-    if neox_args.model_arch == "gpt2":
-        pipe_batch_fn = get_batch_pipe
-    elif neox_args.model_arch == "t5":
-        pipe_batch_fn = get_batch_encdec_pipe
-    elif neox_args.model_arch == "mlm-lm-t5":
-        pipe_batch_fn = get_batch_mlm_lm_pipe
+    forward_step_fn = forward_step if neox_args.model_arch == "gpt2" else forward_step_encdec
+    pipe_batch_fn = get_batch_pipe if neox_args.model_arch == "gpt2" else get_batch_encdec_pipe
 
     # setup logging and timers
     init_wandb(neox_args=neox_args)
@@ -255,7 +244,7 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
 
 
 def get_batch_encdec(neox_args, data_iterator):
-    """"""
+    """generate a batch"""
 
     keys = ['input_tokens', 'target_tokens']
     datatype = torch.int64
@@ -289,93 +278,6 @@ def get_batch_encdec_pipe(data, neox_args):
     
     return (tokens_enc, tokens_dec, position_ids_enc, position_ids_dec, encoder_attn_mask, attention_mask),\
         (labels, loss_mask)
-
-
-def _get_batch_mlm_lm(neox_args, keys, data, datatype):
-    data_b = mpu.broadcast_data(keys, data, datatype)
-
-    # Unpack.
-    enc_inp_tokens = data_b['encoder_input_tokens'].long()
-    enc_tgt_tokens = data_b['encoder_target_tokens'].long()
-    dec_tokens = data_b['decoder_tokens'].long()
-    
-    dec_inp_tokens = dec_tokens[:, :-1].contiguous()
-    dec_tgt_tokens = dec_tokens[:, 1:].contiguous()
-
-    # Get the decoder self-attn mask and position ids.
-    attention_mask, loss_mask, position_ids_dec = get_ltor_masks_and_position_ids(
-        data=dec_inp_tokens,
-        eod_token=neox_args.tokenizer.eod,
-        eod_mask_loss=neox_args.eod_mask_loss,
-    )
-
-    # get position ids for encoder inputs as well
-    position_ids_enc = get_position_ids(
-        data=tokens_enc,
-    )
-
-    batch_size, src_length = tokens_enc.size()
-    batch_size, target_length = tokens_dec_.size()
-
-    enc_mask = get_full_mask(src_length, 1, device=tokens_enc.device) 
-    # TODO(Hailey): determine what size this enc attn mask should be. right now it's (1,1,enc_seq_length, 1)
-
-    return enc_inp_tokens, enc_tgt_tokens, \
-        dec_inp_tokens, dec_tgt_tokens, \
-        loss_mask, enc_mask, attention_mask, \
-        position_ids_enc, position_ids_dec,
-
-
-def get_batch_mlm_lm_pipe(data, neox_args):
-    """Build the batch."""
-
-    keys = ['input_tokens', 'target_tokens']
-    datatype = torch.int64
-
-    # Broadcast data.
-    data_b = mpu.broadcast_data(keys, data, datatype)
-
-    tokens_enc, tokens_dec, labels, loss_mask, encoder_attn_mask, attention_mask, \
-        position_ids_enc, position_ids_dec = _get_batch_mlm_lm(
-        neox_args, keys, data, datatype
-    )
-    
-    return (tokens_enc, tokens_dec, position_ids_enc, position_ids_dec, encoder_attn_mask, attention_mask),\
-        (labels, loss_mask)
-
-
-def forward_step_mlm_lm(data_iterator, model, neox_args, timers, return_logits=False):
-    """Forward step for a t5 encoder-decoder architecture."""
-    if neox_args.is_pipe_parallel:
-        return model.eval_batch(data_iterator, return_logits=return_logits)
-
-    # Get the batch.
-    if timers is not None:
-        timers("batch generator").start()
-    tokens_enc, tokens_dec, loss_mask, labels, encoder_attn_mask, attention_mask, position_ids_enc, position_ids_dec \
-        = get_batch_encdec(
-            neox_args=neox_args, data_iterator=data_iterator
-        )
-    if timers is not None:
-        timers('batch generator').stop()
-
-    outputs = model(
-        (
-            tokens_enc,
-            tokens_dec,
-            position_ids_enc,
-            position_ids_dec,
-            encoder_attn_mask,
-            attention_mask,
-        )
-    )
-
-    loss = cross_entropy(
-        outputs, (labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy
-    )
-    if return_logits:
-        return loss, outputs
-    return loss
 
 
 def forward_step_encdec(data_iterator, model, neox_args, timers, return_logits=False):
@@ -449,7 +351,7 @@ def get_model(neox_args, use_cache=False):
             topology=mpu.get_topology(),
             use_cache=use_cache,
         )
-    elif neox_args.model_arch in ["t5", "mlm-lm-t5"]:
+    elif neox_args.model_arch == "t5":
         model = T5ModelPipe(
             neox_args=neox_args,
             num_tokentypes=0,
@@ -688,12 +590,7 @@ def backward_step(neox_args, timers, optimizer, model, loss):
 
 def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler):
     """Single training step."""
-    if neox_args.model_arch == "gpt2":
-        forward_step_fn = forward_step
-    elif neox_args.model_arch == "t5":
-        forward_step_fn = forward_step_encdec
-    elif neox_args.model_arch == "mlm-lm-t5":
-        forward_step_fn = forward_step_mlm_lm
+    forward_step_fn = forward_step if neox_args.model_arch == "gpt2" else forward_step_encdec
 
     # Pipeline parallelism schedules forward/backward/step
     if neox_args.is_pipe_parallel:
