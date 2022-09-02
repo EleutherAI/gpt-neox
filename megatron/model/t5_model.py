@@ -118,9 +118,9 @@ def cross_entropy_MLM_LM_T5(output, labels, _fp16=False):
 
 def _pre_encoder_block(args):
     # data format change for hidden_states to avoid explicit tranposes : [b s h] --> [s b h]
-    for i, arg in enumerate(args):
-        print(i, arg.shape)
-    import sys; sys.exit()
+    # for i, arg in enumerate(args):
+    #     print(i, arg.shape)
+    # import sys; sys.exit()
     assert len(args) == 5, "Incorrect number of arguments to _pre_encoder_block"
     print("_pre_encoder_block", args[0].transpose(0, 1).contiguous().shape)
     fn = lambda _args: (_args[0].transpose(0, 1).contiguous(), *_args[1:])
