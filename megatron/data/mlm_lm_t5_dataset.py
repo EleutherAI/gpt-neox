@@ -121,10 +121,6 @@ class MLM_LM_T5Dataset(torch.utils.data.Dataset):
                 
                 sample = np.concatenate(sample_list, dtype=np.int64)
 
-            print("encoder_seq_length", self.encoder_seq_length)
-            print("decoder_seq_length", self.decoder_seq_length)
-            print("len sample", len(sample))
-
             return build_sample(
                 sample=sample,
                 encoder_seq_length=self.encoder_seq_length,
@@ -167,7 +163,6 @@ def build_sample(
     #     )
     #     assert len(sample) == seq_length, f"sample length ({len(sample)}) is not same length as `self.raw_seq_length` ({seq_length})"
 
-    print("building sample for MLM LM T5 Dataset")
     encoder_tokens = sample[:encoder_seq_length]
     decoder_tokens = sample[encoder_seq_length:]
 
