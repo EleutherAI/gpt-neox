@@ -118,11 +118,8 @@ def cross_entropy_MLM_LM_T5(output, labels, _fp16=False):
 
 def _pre_encoder_block(args):
     # data format change for hidden_states to avoid explicit tranposes : [b s h] --> [s b h]
-    # for i, arg in enumerate(args):
-    #     print(i, arg.shape)
-    # import sys; sys.exit()
     assert len(args) == 5, "Incorrect number of arguments to _pre_encoder_block"
-    print("_pre_encoder_block", args[0].transpose(0, 1).contiguous().shape)
+    # print("_pre_encoder_block", args[0].transpose(0, 1).contiguous().shape)
     fn = lambda _args: (_args[0].transpose(0, 1).contiguous(), *_args[1:])
     return fn(args)
 
@@ -130,7 +127,7 @@ def _pre_encoder_block(args):
 def _pre_decoder_block(args):
     # reformat inputs before passing them to decoder stack.
     assert len(args) == 4, "Incorrect number of arguments to _pre_decoder_block"
-    print("_pre_decoder_block", args[0].transpose(0, 1).contiguous().shape)
+    # print("_pre_decoder_block", args[0].transpose(0, 1).contiguous().shape)
     fn = lambda _args: (_args[0].transpose(0, 1).contiguous(), *args[1:])
     return fn(args)
 
@@ -140,17 +137,17 @@ def _post_decoder_block(args):
     # from (hidden_states, encoder_hidden_states, encoder_attention_mask, attention_mask)
     # to (hidden_states.T)
     assert len(args) == 4, "Incorrect number of arguments to _post_decoder_block"
-    print("_post_decoder_block", args[0].transpose(0, 1).contiguous().shape)
+    # print("_post_decoder_block", args[0].transpose(0, 1).contiguous().shape)
     fn = lambda _args: (_args[0].transpose(0, 1).contiguous())
     return fn(args)
 
 
 def _post_encoder_decoder_block(args):
     assert len(args) == 4, "Incorrect number of arguments to _post_encoder_block"
-    print("_post_encoder_decoder_block",
-        args[0].transpose(0, 1).contiguous().shape,
-        args[1].transpose(0, 1).contiguous().shape
-    )
+    # print("_post_encoder_decoder_block",
+    #     args[0].transpose(0, 1).contiguous().shape,
+    #     args[1].transpose(0, 1).contiguous().shape
+    # )
     fn = lambda _args: (
         _args[0].transpose(0, 1).contiguous(),
         _args[1].transpose(0, 1).contiguous()
