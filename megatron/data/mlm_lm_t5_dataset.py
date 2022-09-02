@@ -124,7 +124,6 @@ class MLM_LM_T5Dataset(torch.utils.data.Dataset):
             print("encoder_seq_length", self.encoder_seq_length)
             print("decoder_seq_length", self.decoder_seq_length)
             print("len sample", len(sample))
-            import sys; sys.exit()
 
             return build_sample(
                 sample=sample,
