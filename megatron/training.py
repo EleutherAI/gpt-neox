@@ -938,6 +938,8 @@ def evaluate(
                     timers=timers,
                 )
                 losses.append(loss)
+                print(loss)
+                import sys;sys.exit()
 
             # When contiguous memory optimizations are enabled, the buffers
             # allocated by the optimizations are deallocated during backward pass
