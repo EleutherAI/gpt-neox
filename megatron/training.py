@@ -390,8 +390,7 @@ def forward_step_mlm_lm(data_iterator, model, neox_args, timers, return_logits=F
             dec_attn_mask,
         )
     )
-    print("\nforward_step_mlm_lm", outputs, "\n")
-    import sys; sys.exit()
+
     loss = cross_entropy_MLM_LM_T5(
         outputs, (enc_labels, dec_labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy
     )
@@ -908,7 +907,6 @@ def evaluate(
                     (`get_batch` transforms it into inputs / labels)
     """
     # Turn on evaluation mode which disables dropout.
-    print("forward_step_fn", forward_step_fn)
     model.eval()
     losses = []
     if neox_args.char_level_ppl:
@@ -939,8 +937,7 @@ def evaluate(
                     timers=timers,
                 )
                 losses.append(loss)
-                print("\nevaluate", loss, "\n")
-                import sys;sys.exit()
+                print(loss)
 
             # When contiguous memory optimizations are enabled, the buffers
             # allocated by the optimizations are deallocated during backward pass
