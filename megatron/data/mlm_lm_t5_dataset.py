@@ -144,8 +144,8 @@ class MLM_LM_T5Dataset(torch.utils.data.Dataset):
 
 def build_sample(
     sample,
-    seq_length,
-    target_seq_length,
+    encoder_seq_length,
+    decoder_seq_length,
     masked_lm_prob,
     mean_noise_span_length,
     tokenizer,
