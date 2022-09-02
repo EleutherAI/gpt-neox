@@ -247,7 +247,7 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
     batch_size, src_length = tokens_enc.size()
     batch_size, target_length = tokens_dec_.size()
 
-    enc_mask = get_full_mask(src_length, 1, device=tokens_enc.device) 
+    enc_mask = get_full_mask(src_length, 1, device=tokens_enc.device)
     # TODO(Hailey): determine what size this enc attn mask should be. right now it's (1,1,enc_seq_length, 1)
 
     return tokens_enc, tokens_dec, labels, loss_mask, enc_mask, attention_mask, \
@@ -303,7 +303,7 @@ def _get_batch_mlm_lm(neox_args, keys, data, datatype):
     dec_tgt_tokens = dec_tokens[:, 1:].contiguous()
 
     # Get the decoder self-attn mask and position ids.
-    attention_mask, loss_mask, position_ids_dec = get_ltor_masks_and_position_ids(
+    dec_attn_mask, loss_mask, position_ids_dec = get_ltor_masks_and_position_ids(
         data=dec_inp_tokens,
         eod_token=neox_args.tokenizer.eod,
         eod_mask_loss=neox_args.eod_mask_loss,
@@ -311,37 +311,37 @@ def _get_batch_mlm_lm(neox_args, keys, data, datatype):
 
     # get position ids for encoder inputs as well
     position_ids_enc = get_position_ids(
-        data=tokens_enc,
+        data=enc_inp_tokens,
     )
 
-    batch_size, src_length = tokens_enc.size()
-    batch_size, target_length = tokens_dec_.size()
+    batch_size, src_length = enc_inp_tokens.size()
 
-    enc_mask = get_full_mask(src_length, 1, device=tokens_enc.device) 
+    enc_attn_mask = get_full_mask(src_length, 1, device=enc_inp_tokens.device) 
     # TODO(Hailey): determine what size this enc attn mask should be. right now it's (1,1,enc_seq_length, 1)
 
-    return enc_inp_tokens, enc_tgt_tokens, \
-        dec_inp_tokens, dec_tgt_tokens, \
-        loss_mask, enc_mask, attention_mask, \
-        position_ids_enc, position_ids_dec,
 
+    return enc_inp_tokens, dec_inp_tokens, \
+        position_ids_enc, position_ids_dec, \
+        enc_attn_mask, dec_attn_mask,\
+        enc_tgt_tokens, dec_tgt_tokens, loss_mask
+        
 
 def get_batch_mlm_lm_pipe(data, neox_args):
     """Build the batch."""
 
-    keys = ['input_tokens', 'target_tokens']
+    keys = ['encoder_input_tokens', 'encoder_target_tokens', 'decoder_tokens']
     datatype = torch.int64
 
     # Broadcast data.
     data_b = mpu.broadcast_data(keys, data, datatype)
 
-    tokens_enc, tokens_dec, labels, loss_mask, encoder_attn_mask, attention_mask, \
-        position_ids_enc, position_ids_dec = _get_batch_mlm_lm(
-        neox_args, keys, data, datatype
-    )
+    enc_inp_tokens, dec_inp_tokens, \
+        position_ids_enc, position_ids_dec, \
+        enc_attn_mask, dec_attn_mask, \
+        enc_labels, dec_labels, loss_mask = _get_batch_mlm_lm(neox_args, keys, data, datatype)
     
-    return (tokens_enc, tokens_dec, position_ids_enc, position_ids_dec, encoder_attn_mask, attention_mask),\
-        (labels, loss_mask)
+    return (enc_inp_tokens, dec_inp_tokens, position_ids_enc, position_ids_dec, enc_attn_mask, dec_attn_mask),\
+        (enc_labels, dec_labels, loss_mask)
 
 
 def forward_step_mlm_lm(data_iterator, model, neox_args, timers, return_logits=False):

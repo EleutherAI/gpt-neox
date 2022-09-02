@@ -128,8 +128,8 @@ class MLM_LM_T5Dataset(torch.utils.data.Dataset):
 
             return build_sample(
                 sample=sample,
-                seq_length=self.raw_seq_length,
-                target_seq_length=self.target_seq_length,
+                encoder_seq_length=self.encoder_seq_length,
+                decoder_seq_length=self.decoder_seq_length,
                 masked_lm_prob=self.masked_lm_prob,
                 mean_noise_span_length=self.mean_noise_span_length,
                 tokenizer=self.tokenizer,
@@ -152,50 +152,51 @@ def build_sample(
     tokenizer,
     np_rng,
 ):
-    spans_start = random_spans_noise_mask(
-        raw_seq_length=seq_length,
-        target_seq_length=target_seq_length,
-        masked_lm_prob=masked_lm_prob,
-        mean_noise_span_length=mean_noise_span_length,
-        np_rng=np_rng,
-    )
-    
-    assert len(tokenizer.sentinels) >= (spans_start.shape[0] / 2), f"{len(tokenizer.sentinels)} sentinel tokens available, but {spans_start.shape[0] / 2} needed. \
-please increase `extra-sentinel-tokens` to at least {spans_start.shape[0] / 2}."
+    #     spans_start = random_spans_noise_mask(
+    #         raw_seq_length=seq_length,
+    #         target_seq_length=target_seq_length,
+    #         masked_lm_prob=masked_lm_prob,
+    #         mean_noise_span_length=mean_noise_span_length,
+    #         np_rng=np_rng,
+    #     )
+        
+    #     assert len(tokenizer.sentinels) >= (spans_start.shape[0] / 2), f"{len(tokenizer.sentinels)} sentinel tokens available, but {spans_start.shape[0] / 2} needed. \
+    # please increase `extra-sentinel-tokens` to at least {spans_start.shape[0] / 2}."
 
-    spans_end = np.concatenate([
-        spans_start[1:], np.full((1,), len(sample), dtype=np.int32)]
-    )
-    assert len(sample) == seq_length, f"sample length ({len(sample)}) is not same length as `self.raw_seq_length` ({seq_length})"
-    
-    # TODO(Hailey): in order to do T5-denoising *with no sentinels*, we should refactor these listcomps ...
-    # ... such that they use a helper fn add_sentinel() which abstracts the appending / prepending of sentinels.
+    #     spans_end = np.concatenate([
+    #         spans_start[1:], np.full((1,), len(sample), dtype=np.int32)]
+    #     )
+    #     assert len(sample) == seq_length, f"sample length ({len(sample)}) is not same length as `self.raw_seq_length` ({seq_length})"
 
-    # loop through even spans (non-noise), adding that non-noise span + sentinel for the subsequent noise span
-    # at each step
-    input_token_ids = np.concatenate(
-        [
-            item
-            for start, end, sentinel in zip(spans_start[::2], spans_end[::2], tokenizer.sentinels)
-            for item in [sample[start: end], np.full((1,), sentinel, dtype=np.int64)]
-        ] +
-        [np.full((1,), tokenizer.eod, dtype=np.int64)] # we append EOD to inputs
-    )
-    # likewise, loop through odd spans (noise), prepending each span's sentinel to it
-    target_token_ids = np.concatenate(
-        [
-            item
-            for start, end, sentinel_token in zip(spans_start[1::2], spans_end[1::2], tokenizer.sentinels)
-            for item in [np.full((1,), sentinel_token, dtype=np.int64), sample[start: end]]
-        ] +
-        [np.full((1,), tokenizer.eod, dtype=np.int64)] # we append EOD to targets
-    )
+    print("building sample for MLM LM T5 Dataset")
+    encoder_tokens = sample[:encoder_seq_length]
+    decoder_tokens = sample[encoder_seq_length:]
+
+    encoder_input_tokens = encoder_tokens
+    encoder_target_tokens = encoder_tokens
+
+    # input_token_ids = np.concatenate(
+    #     [
+    #         item
+    #         for start, end, sentinel in zip(spans_start[::2], spans_end[::2], tokenizer.sentinels)
+    #         for item in [sample[start: end], np.full((1,), sentinel, dtype=np.int64)]
+    #     ] +
+    #     [np.full((1,), tokenizer.eod, dtype=np.int64)] # we append EOD to inputs
+    # )
+    # # likewise, loop through odd spans (noise), prepending each span's sentinel to it
+    # target_token_ids = np.concatenate(
+    #     [
+    #         item
+    #         for start, end, sentinel_token in zip(spans_start[1::2], spans_end[1::2], tokenizer.sentinels)
+    #         for item in [np.full((1,), sentinel_token, dtype=np.int64), sample[start: end]]
+    #     ] +
+    #     [np.full((1,), tokenizer.eod, dtype=np.int64)] # we append EOD to targets
+    # )
 
     return {
-        'decoder_input_tokens': input_token_ids,
-        'decoder_target_tokens': target_token_ids,
-        'encoder_input_tokens': input_token_ids,
-        'encoder_target_tokens': target_token_ids
+        'encoder_input_tokens': encoder_input_tokens,
+        'encoder_target_tokens': encoder_target_tokens
+        'decoder_tokens': decoder_tokens,
     }
 
 
