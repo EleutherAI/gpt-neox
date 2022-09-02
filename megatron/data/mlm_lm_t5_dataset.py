@@ -174,23 +174,23 @@ def build_sample(
     encoder_input_tokens = np.array(encoder_tokens, dtype=np.int64)
     encoder_target_tokens = np.array(encoder_tokens, dtype=np.int64)
 
-    input_token_ids = np.concatenate(
-        [
-            item
-            for start, end, sentinel in zip(spans_start[::2], spans_end[::2], tokenizer.sentinels)
-            for item in [sample[start: end], np.full((1,), sentinel, dtype=np.int64)]
-        ] +
-        [np.full((1,), tokenizer.eod, dtype=np.int64)] # we append EOD to inputs
-    )
-    # likewise, loop through odd spans (noise), prepending each span's sentinel to it
-    target_token_ids = np.concatenate(
-        [
-            item
-            for start, end, sentinel_token in zip(spans_start[1::2], spans_end[1::2], tokenizer.sentinels)
-            for item in [np.full((1,), sentinel_token, dtype=np.int64), sample[start: end]]
-        ] +
-        [np.full((1,), tokenizer.eod, dtype=np.int64)] # we append EOD to targets
-    )
+    # input_token_ids = np.concatenate(
+    #     [
+    #         item
+    #         for start, end, sentinel in zip(spans_start[::2], spans_end[::2], tokenizer.sentinels)
+    #         for item in [sample[start: end], np.full((1,), sentinel, dtype=np.int64)]
+    #     ] +
+    #     [np.full((1,), tokenizer.eod, dtype=np.int64)] # we append EOD to inputs
+    # )
+    # # likewise, loop through odd spans (noise), prepending each span's sentinel to it
+    # target_token_ids = np.concatenate(
+    #     [
+    #         item
+    #         for start, end, sentinel_token in zip(spans_start[1::2], spans_end[1::2], tokenizer.sentinels)
+    #         for item in [np.full((1,), sentinel_token, dtype=np.int64), sample[start: end]]
+    #     ] +
+    #     [np.full((1,), tokenizer.eod, dtype=np.int64)] # we append EOD to targets
+    # )
 
     return {
         'encoder_input_tokens': encoder_input_tokens,
