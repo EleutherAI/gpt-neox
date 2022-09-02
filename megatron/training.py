@@ -908,6 +908,7 @@ def evaluate(
                     (`get_batch` transforms it into inputs / labels)
     """
     # Turn on evaluation mode which disables dropout.
+    print("forward_step_fn", forward_step_fn)
     model.eval()
     losses = []
     if neox_args.char_level_ppl:
