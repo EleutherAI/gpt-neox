@@ -195,7 +195,7 @@ def build_sample(
 
     return {
         'encoder_input_tokens': encoder_input_tokens,
-        'encoder_target_tokens': encoder_target_tokens
+        'encoder_target_tokens': encoder_target_tokens,
         'decoder_tokens': decoder_tokens,
     }
 
