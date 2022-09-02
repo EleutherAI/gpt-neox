@@ -864,10 +864,8 @@ class ParallelEncoderDecoderLinear(nn.Module):
     def forward(self, decoder_hidden_states, encoder_hidden_states):
         decoder_logits, _ = self.decoder_linear(decoder_hidden_states)
         encoder_logits, _ = self.encoder_linear(encoder_hidden_states)
-        print("decoder_logits", decoder_logits.shape)
-        print("encoder_logits", encoder_logits.shape)
-        #import sys
-        #sys.exit()
+        # print("decoder_logits", decoder_logits.shape)
+        # print("encoder_logits", encoder_logits.shape)
         return decoder_logits, encoder_logits
 
 
@@ -882,10 +880,8 @@ class ParallelEncoderDecoderLinearPipe(ParallelEncoderDecoderLinear):
             len(args) == 2
         ), "ParallelEncoderDecoderLinearPipe expects 2 arguments - hidden_states and attention_mask"
         decoder_hidden_states, encoder_hidden_states = args
-        print("decoder_hidden_states", decoder_hidden_states.shape)
-        print("encoder_hidden_states", encoder_hidden_states.shape)
-        #import sys
-        #sys.exit()
+        # print("decoder_hidden_states", decoder_hidden_states.shape)
+        # print("encoder_hidden_states", encoder_hidden_states.shape)
         return super().forward(decoder_hidden_states, encoder_hidden_states)
 
 
