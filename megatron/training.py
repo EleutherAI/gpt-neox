@@ -390,7 +390,8 @@ def forward_step_mlm_lm(data_iterator, model, neox_args, timers, return_logits=F
             dec_attn_mask,
         )
     )
-
+    print(outputs)
+    import sys; sys.exit()
     loss = cross_entropy_MLM_LM_T5(
         outputs, (enc_labels, dec_labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy
     )
