@@ -171,8 +171,8 @@ def build_sample(
     encoder_tokens = sample[:encoder_seq_length]
     decoder_tokens = sample[encoder_seq_length:]
 
-    encoder_input_tokens = np.array(encoder_tokens, dtype=np.int64)
-    encoder_target_tokens = np.array(encoder_tokens, dtype=np.int64)
+    encoder_input_tokens = encoder_tokens
+    encoder_target_tokens = encoder_tokens
 
     # input_token_ids = np.concatenate(
     #     [
@@ -193,9 +193,9 @@ def build_sample(
     # )
 
     return {
-        'encoder_input_tokens': encoder_input_tokens,
-        'encoder_target_tokens': encoder_target_tokens,
-        'decoder_tokens': decoder_tokens,
+        'encoder_input_tokens': np.array(encoder_input_tokens, dtype=np.int64),
+        'encoder_target_tokens': np.array(encoder_target_tokens, dtype=np.int64),
+        'decoder_tokens': np.array(decoder_tokens, dtype=np.int64),
     }
 
 
