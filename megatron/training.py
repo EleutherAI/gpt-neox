@@ -59,6 +59,7 @@ from megatron.utils import (
     CharCounter,
 )
 from megatron.model.gpt2_model import cross_entropy
+from megatron.model.t5_model import cross_entropy_MLM_LM_T5
 from eval_tasks import run_eval_harness
 
 
@@ -326,6 +327,25 @@ def _get_batch_mlm_lm(neox_args, keys, data, datatype):
         enc_tgt_tokens, dec_tgt_tokens, loss_mask
         
 
+def get_batch_mlm_lm(neox_args, data_iterator):
+    """Build the batch."""
+
+    keys = ['encoder_input_tokens', 'encoder_target_tokens', 'decoder_tokens']
+    datatype = torch.int64
+
+    # Broadcast data.
+    if data_iterator is not None:
+        data = next(data_iterator)
+    else:
+        data = None
+    return _get_batch_mlm_lm(
+        neox_args=neox_args,
+        keys=keys,
+        data=data,
+        datatype=datatype,
+    )
+
+
 def get_batch_mlm_lm_pipe(data, neox_args):
     """Build the batch."""
 
@@ -352,26 +372,27 @@ def forward_step_mlm_lm(data_iterator, model, neox_args, timers, return_logits=F
     # Get the batch.
     if timers is not None:
         timers("batch generator").start()
-    tokens_enc, tokens_dec, loss_mask, labels, encoder_attn_mask, attention_mask, position_ids_enc, position_ids_dec \
-        = get_batch_encdec(
-            neox_args=neox_args, data_iterator=data_iterator
-        )
+    enc_inp_tokens, dec_inp_tokens, \
+        position_ids_enc, position_ids_dec, \
+        enc_attn_mask, dec_attn_mask, \
+        enc_labels, dec_labels, loss_mask = get_batch_mlm_lm(neox_args=neox_args, data_iterator=data_iterator)
+
     if timers is not None:
         timers('batch generator').stop()
 
     outputs = model(
         (
-            tokens_enc,
-            tokens_dec,
+            enc_inp_tokens,
+            dec_inp_tokens,
             position_ids_enc,
             position_ids_dec,
-            encoder_attn_mask,
-            attention_mask,
+            enc_attn_mask,
+            dec_attn_mask,
         )
     )
 
-    loss = cross_entropy(
-        outputs, (labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy
+    loss = cross_entropy_MLM_LM_T5(
+        outputs, (enc_labels, dec_labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy
     )
     if return_logits:
         return loss, outputs
