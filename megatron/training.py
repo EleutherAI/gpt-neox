@@ -869,7 +869,6 @@ def train(
                     rank, time_str, iteration
                 )
             )
-            sys.exit()
 
     return iteration
 
