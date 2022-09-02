@@ -776,7 +776,7 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
     """Extends ParallelTransformerLayer to forward attention_mask through the pipeline."""
 
     def forward(self, args):
-        if self.model_arch == "t5":
+        if self.model_arch in ["t5", "mlm-lm-t5"]:
             if self.layer_type == "encoder":
                 assert (
                     len(args) == 5
