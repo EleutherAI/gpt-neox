@@ -68,7 +68,7 @@ class EvalHarnessAdapter(GPT2LM):
         
         # TODO(Hailey): DON'T MERGE THIS HACK TO BATCH_SIZE
         if batch_size:
-            batch_size = batch_size * dp_world_size
+            batch_size = batch_size * self.dp_world_size
         self._batch_size = batch_size or (
             neox_args.batch_size * self.dp_world_size
         )  # default batch size to bs per gpu * dp size
