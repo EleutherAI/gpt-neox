@@ -827,9 +827,6 @@ class ParallelLinearPipe(ParallelLinear):
             args, torch.Tensor
         ), "ParallelLinearPipe expects a single argument - hidden_states"
         hidden_state = args
-        print("hidden_state", hidden_state.shape)
-        # import sys
-        # sys.exit()
         logits, bias = super().forward(hidden_state)
         return logits
 
