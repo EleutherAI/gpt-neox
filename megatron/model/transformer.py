@@ -375,7 +375,8 @@ class ParallelAttention(nn.Module):
 
         if self.pos_emb == "alibi":
             attention_scores = self.alibi_embed(attention_scores)
-
+        if self.is_cross_attention:    
+            assert False, f"{attention_scores.shape}, {attention_mask.shape}"
         # attention scores and attention mask [b, np, sq, sk]
         attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
 
@@ -465,7 +466,7 @@ class ParallelAttention(nn.Module):
             # [sk, b, (np * 2 * hn)] --> [sk, b, np, 2 * hn]
             new_tensor_shape = mixed_kv_layer.size()[:-1] + (
                 self.num_attention_heads_per_partition,
-                3 * self.hidden_size_per_attention_head,
+                2 * self.hidden_size_per_attention_head,
             )
             mixed_kv_layer = mixed_kv_layer.view(*new_tensor_shape)
 
@@ -475,7 +476,7 @@ class ParallelAttention(nn.Module):
             )
             
             # [sq, b, (np * hn)] --> [sq, b, np, hn]
-            new_query_shape = new_tensor_shape[:-1] + self.hidden_size_per_attention_head
+            new_query_shape = (q_layer.size(0),) + new_tensor_shape[1:-1] + (self.hidden_size_per_attention_head,)
             query_layer = q_layer.view(*new_query_shape)
 
         if exists(self.rotary_emb):
@@ -493,9 +494,8 @@ class ParallelAttention(nn.Module):
                 # full rotary
                 query_rot, key_rot = query_layer, key_layer
             apply_rotary_fn = (
-                apply_rotary_pos_emb_torch if self.bf16 else apply_rotary_pos_emb
+                    apply_rotary_pos_emb_torch if self.bf16 or self.is_cross_attention else apply_rotary_pos_emb # jit fails when query and key have different sizes
             )
-
             seq_len = key_layer.shape[0]
             offset = 0
             if exists(layer_past) and layer_past.numel() > 0:
@@ -623,6 +623,7 @@ class ParallelTransformerLayer(nn.Module):
                 init_method=init_method,
                 output_layer_init_method=output_layer_init_method,
                 layer_number=layer_number,
+                is_cross_attention=True,
                 rpe=rpe,
                 use_cache=self.use_cache,
                 rotary=rotary,
