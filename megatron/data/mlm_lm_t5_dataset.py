@@ -154,7 +154,7 @@ def build_sample(
     max_predictions_per_seq = masked_lm_prob * encoder_seq_length
     vocab_dict = tokenizer.vocab
     vocab_id_list = list(vocab_dict.values())
-    vocab_id_to_token_dict = {v: k for k, v in vocab_dict.iteritems()}
+    vocab_id_to_token_dict = {v: k for k, v in vocab_dict.items()}
 
     cls_id = tokenizer.sentinels[0]
     sep_id = tokenizer.sentinels[0]
@@ -174,9 +174,21 @@ def build_sample(
                                                             masking_style="bert"
                                                             )
 
-    print("tokens", tokens)
-    print("masked_positions", masked_positions)
-    print("masked_labels", masked_labels)
+    pad_id = tokenizer.pad
+
+    # Padding.
+    tokens_np, labels_np, padding_mask_np, loss_mask_np = pad_and_convert_to_numpy(
+                                                                tokens,
+                                                                masked_positions,
+                                                                masked_labels,
+                                                                pad_id,
+                                                                encoder_seq_length
+                                                            )
+
+    print("tokens", len(tokens_np))
+    print("labels", len(labels_np))
+    print("loss_mask", len(loss_mask_np))
+    print("padding_mask_np", len(padding_mask_np))
     import sys; sys.exit()
     #     assert len(tokenizer.sentinels) >= (spans_start.shape[0] / 2), f"{len(tokenizer.sentinels)} sentinel tokens available, but {spans_start.shape[0] / 2} needed. \
     # please increase `extra-sentinel-tokens` to at least {spans_start.shape[0] / 2}."
@@ -542,3 +554,34 @@ def create_masked_lm_predictions(tokens,
         masked_lm_positions.append(p.index)
         masked_lm_labels.append(p.label)
     return (output_tokens, masked_lm_positions, masked_lm_labels, token_boundary, masked_spans)
+
+
+def pad_and_convert_to_numpy(tokens, masked_positions,
+                             masked_labels, pad_id, max_seq_length):
+    """Pad sequences and convert them to numpy."""
+
+    # Some checks.
+    num_tokens = len(tokens)
+    padding_length = max_seq_length - num_tokens
+    assert padding_length >= 0
+    assert len(masked_positions) == len(masked_labels)
+
+    # Tokens and token types.
+    filler = [pad_id] * padding_length
+    tokens_np = np.array(tokens + filler, dtype=np.int64)
+
+    # Padding mask.
+    padding_mask_np = np.array([1] * num_tokens + [0] * padding_length,
+                               dtype=np.int64)
+
+    # Lables and loss mask.
+    labels = [-1] * max_seq_length
+    loss_mask = [0] * max_seq_length
+    for i in range(len(masked_positions)):
+        assert masked_positions[i] < num_tokens
+        labels[masked_positions[i]] = masked_labels[i]
+        loss_mask[masked_positions[i]] = 1
+    labels_np = np.array(labels, dtype=np.int64)
+    loss_mask_np = np.array(loss_mask, dtype=np.int64)
+
+    return tokens_np, labels_np, padding_mask_np, loss_mask_np
