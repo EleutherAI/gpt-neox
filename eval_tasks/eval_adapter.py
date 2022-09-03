@@ -65,7 +65,10 @@ class EvalHarnessAdapter(GPT2LM):
         self.dp_rank = mpu.get_data_parallel_rank()
         self.dp_group = mpu.get_data_parallel_group()
         self.is_mp_rank_0 = mpu.get_model_parallel_rank() == 0
-
+        
+        # TODO(Hailey): DON'T MERGE THIS HACK TO BATCH_SIZE
+        if batch_size:
+            batch_size = batch_size * dp_world_size
         self._batch_size = batch_size or (
             neox_args.batch_size * self.dp_world_size
         )  # default batch size to bs per gpu * dp size
@@ -638,6 +641,7 @@ def run_eval_harness(
     num_fewshot=0,
     bootstrap_iters=2,
 ):
+    batch_size=1 # TODO(Hailey): don't merge this change into main. hack to stop OOM errors
     print_rank_0("Running evaluation harness...")
     if neox_args.model_arch == "t5":
         adapter = Seq2SeqEvalHarnessAdapter(model, forward_step_fn, neox_args, batch_size)
