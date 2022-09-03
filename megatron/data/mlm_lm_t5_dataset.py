@@ -151,11 +151,11 @@ def build_sample(
     encoder_tokens = sample[:encoder_seq_length]
     decoder_tokens = sample[encoder_seq_length:]
 
-
-
     max_predictions_per_seq = masked_lm_prob * encoder_seq_length
-    vocab_id_list = list(tokenizer.vocab.values())
-    vocab_id_to_token_dict = tokenizer.inv_vocab
+    vocab_dict = tokenizer.vocab
+    vocab_id_list = list(vocab_dict.values())
+    vocab_id_to_token_dict = {v: k for k, v in vocab_dict.iteritems()}
+
     cls_id = tokenizer.sentinels[0]
     sep_id = tokenizer.sentinels[0]
     mask_id = tokenizer.sentinels[0]
