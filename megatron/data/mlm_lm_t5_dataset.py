@@ -147,14 +147,17 @@ def build_sample(
     tokenizer,
     np_rng,
 ):
-    #     spans_start = random_spans_noise_mask(
-    #         raw_seq_length=seq_length,
-    #         target_seq_length=target_seq_length,
-    #         masked_lm_prob=masked_lm_prob,
-    #         mean_noise_span_length=mean_noise_span_length,
-    #         np_rng=np_rng,
-    #     )
-        
+
+    spans_start = random_spans_noise_mask(
+        raw_seq_length=encoder_seq_length,
+        target_seq_length=encoder_seq_length,
+        masked_lm_prob=masked_lm_prob,
+        mean_noise_span_length=mean_noise_span_length,
+        np_rng=np_rng,
+    )
+
+    print(spans_start)
+    import sys; sys.exit()
     #     assert len(tokenizer.sentinels) >= (spans_start.shape[0] / 2), f"{len(tokenizer.sentinels)} sentinel tokens available, but {spans_start.shape[0] / 2} needed. \
     # please increase `extra-sentinel-tokens` to at least {spans_start.shape[0] / 2}."
 
@@ -162,6 +165,13 @@ def build_sample(
     #         spans_start[1:], np.full((1,), len(sample), dtype=np.int32)]
     #     )
     #     assert len(sample) == seq_length, f"sample length ({len(sample)}) is not same length as `self.raw_seq_length` ({seq_length})"
+    # Masking.
+
+    max_predictions_per_seq = masked_lm_prob * max_num_tokens
+    (tokens, masked_positions, masked_labels, _, _) = create_masked_lm_predictions(
+        tokens, vocab_id_list, vocab_id_to_token_dict, masked_lm_prob,
+        cls_id, sep_id, mask_id, max_predictions_per_seq, np_rng)
+
 
     encoder_tokens = sample[:encoder_seq_length]
     decoder_tokens = sample[encoder_seq_length:]
