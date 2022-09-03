@@ -5,8 +5,8 @@
   "model-parallel-size": 1,
 
   # model settings
-  "model-arch": "t5",
-  "num-encoder-layers": 12,
+  # "model-arch": "t5",
+  # "num-encoder-layers": 12,
   "num-layers": 12,
   "hidden-size": 768,
   "num-attention-heads": 12,
@@ -38,7 +38,7 @@
      }
    },
    "zero_optimization": {
-    "stage": 0,
+    "stage": 1,
     "allgather_partitions": True,
     "allgather_bucket_size": 500000000,
     "overlap_comm": True,
@@ -49,7 +49,7 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 4,
+   "train_micro_batch_size_per_gpu": 32,
    "gradient-accumulation-steps": 1,
    "data-impl": "mmap",
    "split": "949,50,1",
@@ -77,19 +77,18 @@
    },
 
    # misc. training settings
-   "train-iters": 1000000,
-   "lr-decay-iters": 1000000,
+   "train-iters": 100000,
+   "lr-decay-iters": 100000,
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
    "save-interval": 10000,
-   "eval-interval": 10,
+   "eval-interval": 1000,
    "eval-iters": 10,
 
    # logging
    "log-interval": 100,
    "steps_per_print": 10,
-   "keep-last-n-checkpoints": 4,
    "wall_clock_breakdown": true,
 
    # add data, tokenizer path etc. here
@@ -97,13 +96,8 @@
    "vocab-file": "EleutherAI/gpt-neo-125M",
    "save": "./testingt5",
    "load": "./testingt5",
-
    "tensorboard-dir": "./tensorboard",
    "log-dir": "./logs",
-
    "data-path": "./data/enron/enron_text_document",
-
-   "eval-tasks": ["lambada", "gsm8k"]
-
-
+   "eval-tasks": ["lambada"]
 }

@@ -81,7 +81,7 @@ def build_the_dataset(
             seq_length,
             seed,
             neox_args=neox_args,
-            build_index_mappings=True,
+            build_index_mappings=build_index_mappings,
         )
     elif neox_args.model_arch == "mlm-lm-t5":
         dataset = MLM_LM_T5Dataset(

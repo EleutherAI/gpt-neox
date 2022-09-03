@@ -64,7 +64,7 @@ def get_full_mask(src_length, target_length, device):
     """
     Get a full (non-triangular, all tokens attending eachother) potentially non-square mask
     """
-
+    # TODO(Hailey): change naming convention in this function (swap src and "target") I think
     mask = torch.ones((1, src_length, target_length), device=device).view(
         1, 1, src_length, target_length
     )

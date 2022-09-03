@@ -60,22 +60,22 @@ def rotate_half(x):
 
 
 @torch.jit.script
-def apply_rotary_pos_emb(q, k, cos, sin, offset: int = 0):
+def apply_rotary_pos_emb(q, cos, sin, offset: int = 0):
     cos, sin = (
         cos[offset : q.shape[0] + offset, ...],
         sin[offset : q.shape[0] + offset, ...],
     )
-    return (q * cos) + (rotate_half(q) * sin), (k * cos) + (rotate_half(k) * sin)
+    return (q * cos) + (rotate_half(q) * sin)
 
 
 def apply_rotary_pos_emb_torch(
-    q, k, cos, sin, offset: int = 0
+    q, cos, sin, offset: int = 0
 ):  # jitting fails with bf16
     cos, sin = (
         cos[offset : q.shape[0] + offset, ...],
         sin[offset : q.shape[0] + offset, ...],
     )
-    return (q * cos) + (rotate_half(q) * sin), (k * cos) + (rotate_half(k) * sin)
+    return (q * cos) + (rotate_half(q) * sin)
 
 
 class AliBi(torch.nn.Module):

@@ -362,7 +362,7 @@ class ParallelAttention(nn.Module):
         if self.use_cache:
             with torch.no_grad():
                 attention_mask = attention_mask[
-                    ..., : attention_scores.size(3), : attention_scores.size(3)
+                    ..., : attention_scores.size(2), : attention_scores.size(3)
                 ]
 
         # ===========================
@@ -375,7 +375,8 @@ class ParallelAttention(nn.Module):
 
         if self.pos_emb == "alibi":
             attention_scores = self.alibi_embed(attention_scores)
-
+        # if self.is_cross_attention:    
+           # assert False, f"{attention_scores.shape}, {attention_mask.shape}"
         # attention scores and attention mask [b, np, sq, sk]
         attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
 
@@ -445,23 +446,38 @@ class ParallelAttention(nn.Module):
         # Attention heads [sq, b, h] --> [sq, b, (np * 3 * hn)]
         if not self.is_cross_attention:
             mixed_x_layer, _ = self.query_key_value(hidden_states)
+
+            # [sq, b, (np * 3 * hn)] --> [sq, b, np, 3 * hn]
+            new_tensor_shape = mixed_x_layer.size()[:-1] + (
+                self.num_attention_heads_per_partition,
+                3 * self.hidden_size_per_attention_head,
+            )
+            mixed_x_layer = mixed_x_layer.view(*new_tensor_shape)
+
+            # [sq, b, np, 3 * hn] --> 3 [sq, b, np, hn]
+            (query_layer, key_layer, value_layer) = mpu.split_tensor_along_last_dim(
+                mixed_x_layer, 3
+            )
         else:
             # TODO(Hailey): does this use more memory somehow? (not cleaned up?)
             mixed_kv_layer, _ = self.key_value(encoder_hidden_states)
             q_layer, _ = self.query(hidden_states)
-            mixed_x_layer = torch.cat((q_layer, mixed_kv_layer), dim=-1)
 
-        # [sq, b, (np * 3 * hn)] --> [sq, b, np, 3 * hn]
-        new_tensor_shape = mixed_x_layer.size()[:-1] + (
-            self.num_attention_heads_per_partition,
-            3 * self.hidden_size_per_attention_head,
-        )
-        mixed_x_layer = mixed_x_layer.view(*new_tensor_shape)
+            # [sk, b, (np * 2 * hn)] --> [sk, b, np, 2 * hn]
+            new_tensor_shape = mixed_kv_layer.size()[:-1] + (
+                self.num_attention_heads_per_partition,
+                2 * self.hidden_size_per_attention_head,
+            )
+            mixed_kv_layer = mixed_kv_layer.view(*new_tensor_shape)
 
-        # [sq, b, np, 3 * hn] --> 3 [sq, b, np, hn]
-        (query_layer, key_layer, value_layer) = mpu.split_tensor_along_last_dim(
-            mixed_x_layer, 3
-        )
+            # [sk, b, np, 2 * hn] --> 2 [sk, b, np, hn]
+            (key_layer, value_layer) = mpu.split_tensor_along_last_dim(
+                mixed_kv_layer, 2
+            )
+            
+            # [sq, b, (np * hn)] --> [sq, b, np, hn]
+            new_query_shape = (q_layer.size(0),) + new_tensor_shape[1:-1] + (self.hidden_size_per_attention_head,)
+            query_layer = q_layer.view(*new_query_shape)
 
         if exists(self.rotary_emb):
             if exists(self.rotary_ndims):
@@ -478,17 +494,19 @@ class ParallelAttention(nn.Module):
                 # full rotary
                 query_rot, key_rot = query_layer, key_layer
             apply_rotary_fn = (
-                apply_rotary_pos_emb_torch if self.bf16 else apply_rotary_pos_emb
+                    apply_rotary_pos_emb_torch if self.bf16 or self.is_cross_attention else apply_rotary_pos_emb # jit fails when query and key have different sizes
             )
-
             seq_len = key_layer.shape[0]
             offset = 0
             if exists(layer_past) and layer_past.numel() > 0:
                 offset = layer_past[0].shape[0]
                 seq_len += offset
             cos, sin = self.rotary_emb(value_layer, seq_len=seq_len)
-            query_layer, key_layer = apply_rotary_fn(
-                query_rot, key_rot, cos, sin, offset=offset
+            query_layer = apply_rotary_fn(
+                query_rot, cos, sin, offset=offset
+            )
+            key_layer = apply_rotary_fn(
+                key_rot, cos, sin, offset=offset
             )
 
             if exists(self.rotary_ndims):
@@ -603,6 +621,7 @@ class ParallelTransformerLayer(nn.Module):
                 init_method=init_method,
                 output_layer_init_method=output_layer_init_method,
                 layer_number=layer_number,
+                is_cross_attention=True,
                 rpe=rpe,
                 use_cache=self.use_cache,
                 rotary=rotary,
@@ -796,7 +815,7 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
 
                 return super().forward(hidden_states, encoder_attention_mask), \
                     decoder_input_ids, decoder_position_ids, encoder_attention_mask, attention_mask
-            if self.layer_type == "decoder":
+            elif self.layer_type == "decoder":
                 assert (
                     len(args) == 4
                 ), f"T5 Decoder layer expects 4 arguments - \
@@ -861,8 +880,6 @@ class ParallelEncoderDecoderLinear(nn.Module):
     def forward(self, decoder_hidden_states, encoder_hidden_states):
         decoder_logits, _ = self.decoder_linear(decoder_hidden_states)
         encoder_logits, _ = self.encoder_linear(encoder_hidden_states)
-        # print("decoder_logits", decoder_logits.shape)
-        # print("encoder_logits", encoder_logits.shape)
         return decoder_logits, encoder_logits
 
 
@@ -877,8 +894,6 @@ class ParallelEncoderDecoderLinearPipe(ParallelEncoderDecoderLinear):
             len(args) == 2
         ), "ParallelEncoderDecoderLinearPipe expects 2 arguments - hidden_states and attention_mask"
         decoder_hidden_states, encoder_hidden_states = args
-        # print("decoder_hidden_states", decoder_hidden_states.shape)
-        # print("encoder_hidden_states", encoder_hidden_states.shape)
         return super().forward(decoder_hidden_states, encoder_hidden_states)
 
 

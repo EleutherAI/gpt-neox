@@ -356,7 +356,7 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
         # current output format:  (decoder_hidden_states, encoder_hidden_states, encoder_attention_mask, attention_mask)
         
         # transformer decoder layers # TODO(Hailey): right now, neox.num_layers = the number of decoder layers for minimal code change to rest of repo. update this later
-        for i in range(self.neox_args.num_encoder_layers, self.neox_args.num_layers):
+        for i in range(self.neox_args.num_encoder_layers, self.neox_args.num_encoder_layers + self.neox_args.num_layers):
             layer_type = self.neox_args.attention_config[i]
             self.specs.append(
                 LayerSpec(
