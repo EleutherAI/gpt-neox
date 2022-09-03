@@ -83,13 +83,14 @@ def cross_entropy_MLM_LM_T5(output, labels, _fp16=False):
     LM on the Decoder-side
     """
     decoder_output, encoder_output = output
-    encoder_labels, decoder_labels, decoder_loss_mask = labels
+    encoder_labels, decoder_labels, \
+        encoder_loss_mask, decoder_loss_mask = labels
 
     if _fp16:
         assert decoder_output.dtype == torch.half \
             and encoder_output.dtype == torch.half \
             and decoder_loss_mask.dtype == torch.half \
-            # and encoder_loss_mask.dtype == torch.half
+            and encoder_loss_mask.dtype == torch.half
         decoder_losses = mpu.vocab_parallel_cross_entropy(
             decoder_output.contiguous(),
             decoder_labels
@@ -108,10 +109,10 @@ def cross_entropy_MLM_LM_T5(output, labels, _fp16=False):
             encoder_labels
         )
     decoder_loss_mask = decoder_loss_mask.view(-1)
-    # encoder_loss_mask = encoder_loss_mask.view(-1)
+    encoder_loss_mask = encoder_loss_mask.view(-1)
     dec_loss = torch.sum(decoder_losses.view(-1) * decoder_loss_mask) / decoder_loss_mask.sum()
-    enc_loss = torch.sum(encoder_losses.view(-1))
-    # enc_loss = torch.sum(encoder_losses.view(-1) * encoder_loss_mask) / encoder_loss_mask.sum()
+    # enc_loss = torch.sum(encoder_losses.view(-1))
+    enc_loss = torch.sum(encoder_losses.view(-1) * encoder_loss_mask) / encoder_loss_mask.sum()
     loss = dec_loss + enc_loss
     return loss
 

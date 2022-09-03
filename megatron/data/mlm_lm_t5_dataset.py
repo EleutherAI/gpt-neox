@@ -175,7 +175,7 @@ def build_sample(
                                                             )
 
     pad_id = tokenizer.pad
-    encoder_input_tokens, encoder_target_tokens, padding_mask, loss_mask = pad_and_convert_to_numpy(
+    encoder_input_tokens, encoder_target_tokens, padding_mask, encoder_loss_mask = pad_and_convert_to_numpy(
                                                                 encoder_tokens,
                                                                 masked_positions,
                                                                 masked_labels,
@@ -186,6 +186,7 @@ def build_sample(
     return {
         'encoder_input_tokens': encoder_input_tokens,
         'encoder_target_tokens': encoder_target_tokens,
+        'encoder_loss_mask': encoder_loss_mask,
         'decoder_tokens': np.array(decoder_tokens, dtype=np.int64),
     }
 

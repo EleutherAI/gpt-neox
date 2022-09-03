@@ -298,13 +298,14 @@ def _get_batch_mlm_lm(neox_args, keys, data, datatype):
     # Unpack.
     enc_inp_tokens = data_b['encoder_input_tokens'].long()
     enc_tgt_tokens = data_b['encoder_target_tokens'].long()
+    enc_loss_mask = data_b['enc_loss_mask'].long()
     dec_tokens = data_b['decoder_tokens'].long()
     
     dec_inp_tokens = dec_tokens[:, :-1].contiguous()
     dec_tgt_tokens = dec_tokens[:, 1:].contiguous()
 
     # Get the decoder self-attn mask and position ids.
-    dec_attn_mask, loss_mask, position_ids_dec = get_ltor_masks_and_position_ids(
+    dec_attn_mask, dec_loss_mask, position_ids_dec = get_ltor_masks_and_position_ids(
         data=dec_inp_tokens,
         eod_token=neox_args.tokenizer.eod,
         eod_mask_loss=neox_args.eod_mask_loss,
@@ -324,13 +325,14 @@ def _get_batch_mlm_lm(neox_args, keys, data, datatype):
     return enc_inp_tokens, dec_inp_tokens, \
         position_ids_enc, position_ids_dec, \
         enc_attn_mask, dec_attn_mask,\
-        enc_tgt_tokens, dec_tgt_tokens, loss_mask
+        enc_tgt_tokens, dec_tgt_tokens, \
+        enc_loss_mask, dec_loss_mask
         
 
 def get_batch_mlm_lm(neox_args, data_iterator):
     """Build the batch."""
 
-    keys = ['encoder_input_tokens', 'encoder_target_tokens', 'decoder_tokens']
+    keys = ['encoder_input_tokens', 'encoder_target_tokens', 'enc_loss_mask', 'decoder_tokens']
     datatype = torch.int64
 
     # Broadcast data.
@@ -349,7 +351,7 @@ def get_batch_mlm_lm(neox_args, data_iterator):
 def get_batch_mlm_lm_pipe(data, neox_args):
     """Build the batch."""
 
-    keys = ['encoder_input_tokens', 'encoder_target_tokens', 'decoder_tokens']
+    keys = ['encoder_input_tokens', 'encoder_target_tokens', 'enc_loss_mask', 'decoder_tokens']
     datatype = torch.int64
 
     # Broadcast data.
@@ -358,10 +360,11 @@ def get_batch_mlm_lm_pipe(data, neox_args):
     enc_inp_tokens, dec_inp_tokens, \
         position_ids_enc, position_ids_dec, \
         enc_attn_mask, dec_attn_mask, \
-        enc_labels, dec_labels, loss_mask = _get_batch_mlm_lm(neox_args, keys, data, datatype)
+        enc_labels, dec_labels, \
+        enc_loss_mask, dec_loss_mask = _get_batch_mlm_lm(neox_args, keys, data, datatype)
     
     return (enc_inp_tokens, dec_inp_tokens, position_ids_enc, position_ids_dec, enc_attn_mask, dec_attn_mask),\
-        (enc_labels, dec_labels, loss_mask)
+        (enc_labels, dec_labels, enc_loss_mask, dec_loss_mask)
 
 
 def forward_step_mlm_lm(data_iterator, model, neox_args, timers, return_logits=False):
@@ -375,7 +378,8 @@ def forward_step_mlm_lm(data_iterator, model, neox_args, timers, return_logits=F
     enc_inp_tokens, dec_inp_tokens, \
         position_ids_enc, position_ids_dec, \
         enc_attn_mask, dec_attn_mask, \
-        enc_labels, dec_labels, loss_mask = get_batch_mlm_lm(neox_args=neox_args, data_iterator=data_iterator)
+        enc_labels, dec_labels, \
+        enc_loss_mask, dec_loss_mask = get_batch_mlm_lm(neox_args=neox_args, data_iterator=data_iterator)
 
     if timers is not None:
         timers('batch generator').stop()
@@ -392,7 +396,7 @@ def forward_step_mlm_lm(data_iterator, model, neox_args, timers, return_logits=F
     )
 
     loss = cross_entropy_MLM_LM_T5(
-        outputs, (enc_labels, dec_labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy
+        outputs, (enc_labels, dec_labels, enc_loss_mask, dec_loss_mask), _fp16=neox_args.fp16_lm_cross_entropy
     )
     if return_logits:
         return loss, outputs
