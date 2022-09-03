@@ -502,8 +502,11 @@ class ParallelAttention(nn.Module):
                 offset = layer_past[0].shape[0]
                 seq_len += offset
             cos, sin = self.rotary_emb(value_layer, seq_len=seq_len)
-            query_layer, key_layer = apply_rotary_fn(
-                query_rot, key_rot, cos, sin, offset=offset
+            query_layer = apply_rotary_fn(
+                query_rot, cos, sin, offset=offset
+            )
+            key_layer = apply_rotary_fn(
+                key_rot, cos, sin, offset=offset
             )
 
             if exists(self.rotary_ndims):
