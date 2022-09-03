@@ -5,8 +5,8 @@
   "model-parallel-size": 1,
 
   # model settings
-  "model-arch": "t5",
-  "num-encoder-layers": 12,
+  # "model-arch": "t5",
+  # "num-encoder-layers": 12,
   "num-layers": 12,
   "hidden-size": 768,
   "num-attention-heads": 12,

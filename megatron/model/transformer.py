@@ -375,8 +375,8 @@ class ParallelAttention(nn.Module):
 
         if self.pos_emb == "alibi":
             attention_scores = self.alibi_embed(attention_scores)
-        if self.is_cross_attention:    
-            assert False, f"{attention_scores.shape}, {attention_mask.shape}"
+        # if self.is_cross_attention:    
+           # assert False, f"{attention_scores.shape}, {attention_mask.shape}"
         # attention scores and attention mask [b, np, sq, sk]
         attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
 
@@ -528,8 +528,6 @@ class ParallelAttention(nn.Module):
             present = torch.stack((key_layer, value_layer))
 
         if not self.sparse:
-            if self.is_cross_attention:
-                assert False, f"{query_layer.shape}, {key_layer.shape}, {attention_mask.shape}"
             context_layer = self.attention(
                 query_layer, key_layer, value_layer, layer_past, attention_mask
             )
