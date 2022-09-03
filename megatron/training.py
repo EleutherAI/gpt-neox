@@ -298,7 +298,7 @@ def _get_batch_mlm_lm(neox_args, keys, data, datatype):
     # Unpack.
     enc_inp_tokens = data_b['encoder_input_tokens'].long()
     enc_tgt_tokens = data_b['encoder_target_tokens'].long()
-    enc_loss_mask = data_b['enc_loss_mask'].long()
+    enc_loss_mask = data_b['encoder_loss_mask'].long()
     dec_tokens = data_b['decoder_tokens'].long()
     
     dec_inp_tokens = dec_tokens[:, :-1].contiguous()
@@ -332,7 +332,7 @@ def _get_batch_mlm_lm(neox_args, keys, data, datatype):
 def get_batch_mlm_lm(neox_args, data_iterator):
     """Build the batch."""
 
-    keys = ['encoder_input_tokens', 'encoder_target_tokens', 'enc_loss_mask', 'decoder_tokens']
+    keys = ['encoder_input_tokens', 'encoder_target_tokens', 'encoder_loss_mask', 'decoder_tokens']
     datatype = torch.int64
 
     # Broadcast data.
@@ -351,7 +351,7 @@ def get_batch_mlm_lm(neox_args, data_iterator):
 def get_batch_mlm_lm_pipe(data, neox_args):
     """Build the batch."""
 
-    keys = ['encoder_input_tokens', 'encoder_target_tokens', 'enc_loss_mask', 'decoder_tokens']
+    keys = ['encoder_input_tokens', 'encoder_target_tokens', 'encoder_loss_mask', 'decoder_tokens']
     datatype = torch.int64
 
     # Broadcast data.
