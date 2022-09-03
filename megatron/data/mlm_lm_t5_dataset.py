@@ -159,7 +159,7 @@ def build_sample(
     cls_id = tokenizer.sentinels[0]
     sep_id = tokenizer.sentinels[0]
     mask_id = tokenizer.sentinels[0]
-    (tokens, masked_positions, masked_labels, _, _) = create_masked_lm_predictions(
+    (encoder_tokens, masked_positions, masked_labels, _, _) = create_masked_lm_predictions(
                                                             encoder_tokens,
                                                             vocab_id_list, vocab_id_to_token_dict,
                                                             masked_lm_prob,
@@ -175,10 +175,8 @@ def build_sample(
                                                             )
 
     pad_id = tokenizer.pad
-
-    # Padding.
     encoder_input_tokens, encoder_target_tokens, padding_mask, loss_mask = pad_and_convert_to_numpy(
-                                                                tokens,
+                                                                encoder_tokens,
                                                                 masked_positions,
                                                                 masked_labels,
                                                                 pad_id,
