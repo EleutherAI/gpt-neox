@@ -177,7 +177,7 @@ def build_sample(
     pad_id = tokenizer.pad
 
     # Padding.
-    tokens_np, labels_np, padding_mask_np, loss_mask_np = pad_and_convert_to_numpy(
+    encoder_input_tokens, encoder_target_tokens, padding_mask, loss_mask = pad_and_convert_to_numpy(
                                                                 tokens,
                                                                 masked_positions,
                                                                 masked_labels,
@@ -185,44 +185,9 @@ def build_sample(
                                                                 encoder_seq_length
                                                             )
 
-    print("tokens", len(tokens_np))
-    print("labels", len(labels_np))
-    print("loss_mask", len(loss_mask_np))
-    print("padding_mask_np", len(padding_mask_np))
-    import sys; sys.exit()
-    #     assert len(tokenizer.sentinels) >= (spans_start.shape[0] / 2), f"{len(tokenizer.sentinels)} sentinel tokens available, but {spans_start.shape[0] / 2} needed. \
-    # please increase `extra-sentinel-tokens` to at least {spans_start.shape[0] / 2}."
-
-    #     spans_end = np.concatenate([
-    #         spans_start[1:], np.full((1,), len(sample), dtype=np.int32)]
-    #     )
-    #     assert len(sample) == seq_length, f"sample length ({len(sample)}) is not same length as `self.raw_seq_length` ({seq_length})"
-    # Masking.
-
-    encoder_input_tokens = encoder_tokens
-    encoder_target_tokens = encoder_tokens
-
-    # input_token_ids = np.concatenate(
-    #     [
-    #         item
-    #         for start, end, sentinel in zip(spans_start[::2], spans_end[::2], tokenizer.sentinels)
-    #         for item in [sample[start: end], np.full((1,), sentinel, dtype=np.int64)]
-    #     ] +
-    #     [np.full((1,), tokenizer.eod, dtype=np.int64)] # we append EOD to inputs
-    # )
-    # # likewise, loop through odd spans (noise), prepending each span's sentinel to it
-    # target_token_ids = np.concatenate(
-    #     [
-    #         item
-    #         for start, end, sentinel_token in zip(spans_start[1::2], spans_end[1::2], tokenizer.sentinels)
-    #         for item in [np.full((1,), sentinel_token, dtype=np.int64), sample[start: end]]
-    #     ] +
-    #     [np.full((1,), tokenizer.eod, dtype=np.int64)] # we append EOD to targets
-    # )
-
     return {
-        'encoder_input_tokens': np.array(encoder_input_tokens, dtype=np.int64),
-        'encoder_target_tokens': np.array(encoder_target_tokens, dtype=np.int64),
+        'encoder_input_tokens': encoder_input_tokens,
+        'encoder_target_tokens': encoder_target_tokens,
         'decoder_tokens': np.array(decoder_tokens, dtype=np.int64),
     }
 
