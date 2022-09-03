@@ -77,8 +77,8 @@
    },
 
    # misc. training settings
-   "train-iters": 1000000,
-   "lr-decay-iters": 1000000,
+   "train-iters": 100000,
+   "lr-decay-iters": 100000,
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
@@ -89,7 +89,6 @@
    # logging
    "log-interval": 100,
    "steps_per_print": 10,
-   "keep-last-n-checkpoints": 4,
    "wall_clock_breakdown": true,
 
    # add data, tokenizer path etc. here
