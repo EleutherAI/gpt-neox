@@ -154,11 +154,11 @@ def build_sample(
 
 
     max_predictions_per_seq = masked_lm_prob * encoder_seq_length
-    vocab_id_list = list(self.tokenizer.vocab.values())
-    vocab_id_to_token_dict = self.tokenizer.inv_vocab
-    cls_id = self.tokenizer.sentinels[0]
-    sep_id = self.tokenizer.sentinels[0]
-    mask_id = self.tokenizer.sentinels[0]
+    vocab_id_list = list(tokenizer.vocab.values())
+    vocab_id_to_token_dict = tokenizer.inv_vocab
+    cls_id = tokenizer.sentinels[0]
+    sep_id = tokenizer.sentinels[0]
+    mask_id = tokenizer.sentinels[0]
     (tokens, masked_positions, masked_labels, _, _) = create_masked_lm_predictions(
                                                             encoder_tokens,
                                                             vocab_id_list, vocab_id_to_token_dict,
