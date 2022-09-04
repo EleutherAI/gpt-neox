@@ -12,7 +12,7 @@
    "seq-length": 1024,
    "max-position-embeddings": 1024,
    "norm": "layernorm",
-   "pos-emb": "alibi",
+   "pos-emb": "rotary",
    "no-weight-tying": true,
 
    # these should provide some speedup but takes a while to build, set to true if desired
@@ -71,8 +71,8 @@
    },
 
    # misc. training settings
-   "train-iters": 95400,
-   "lr-decay-iters": 95400,
+   "train-iters": 47000,
+   "lr-decay-iters": 47000,
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
@@ -86,8 +86,8 @@
    "wall_clock_breakdown": true,
 
   #  "merge-file": "./20b_checkpoints/merges.txt",
-   "save": "/fsx/code-fim/FIMlogs/ckpts/1.3B-FIM-0.5-Pile-8-29-22",
-   "load": "/fsx/code-fim/FIMlogs/ckpts/1.3B-FIM-0.5-Pile-8-29-22",
+   "save": "/fsx/code-fim/FIMlogs/ckpts/1.3B-FIM-0.5-Pile-8-30-22-rotary-16nodes",
+   "load": "/fsx/code-fim/FIMlogs/ckpts/1.3B-FIM-0.5-Pile-8-30-22-rotary-16nodes",
 
    # If finetuning, edit the following to the location of your finetuning dataset:
    "data-path": "/fsx/pile/pile_20B_tokenizer_text_document",
@@ -99,12 +99,12 @@
    "tokenizer_type": "HFTokenizer",
    "vocab-file": "/fsx/pile/20B_tokenizer.json",
 
-   "tensorboard-dir": "/fsx/code-fim/FIMlogs/1.3B-FIM-0.5-Pile-8-29-22",
-   "log-dir": "/fsx/code-fim/FIMlogs/1.3B-FIM-0.5-Pile-8-29-22",
+   "tensorboard-dir": "/fsx/code-fim/FIMlogs/1.3B-FIM-0.5-Pile-8-30-22-rotary",
+   "log-dir": "/fsx/code-fim/FIMlogs/1.3B-FIM-0.5-Pile-8-30-22-rotary",
 
 
    "use_wandb": True,
-   "wandb_group": "FIM-1.3B-Pile-rate0.5-8-29-22",
+   "wandb_group": "FIM-1.3B-Pile-rate0.5-8-30-22-16nodes-rotary",
    "wandb_team": "carperai",
    "wandb_project": "Infilling-LLMs",
 
