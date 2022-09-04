@@ -41,7 +41,8 @@
     "contiguous_gradients": True,
     "cpu_offload": False
   },
-
+   "min_lr": 0.00001,
+   
    # batch / data settings
    "train_micro_batch_size_per_gpu": 4,
    "data-impl": "mmap",
