@@ -280,9 +280,6 @@ def get_batch_encdec_pipe(data, neox_args):
     keys = ['input_tokens', 'target_tokens']
     datatype = torch.int64
 
-    # Broadcast data.
-    data_b = mpu.broadcast_data(keys, data, datatype)
-
     tokens_enc, tokens_dec, labels, loss_mask, encoder_attn_mask, attention_mask, \
         position_ids_enc, position_ids_dec = _get_batch_encdec(
         neox_args, keys, data, datatype
