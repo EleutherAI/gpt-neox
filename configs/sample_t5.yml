@@ -5,8 +5,8 @@
   "model-parallel-size": 1,
 
   # model settings
-  # "model-arch": "t5",
-  # "num-encoder-layers": 12,
+  "model-arch": "t5",
+  "num-encoder-layers": 12,
   "num-layers": 12,
   "hidden-size": 768,
   "num-attention-heads": 12,
@@ -24,7 +24,7 @@
   "mean_noise_span_length": 3,
 
   # fusion ops (STILL UNTESTED WITH T5)
-  "scaled-masked-softmax-fusion": false, 
+  "scaled-upper-triang-masked-softmax-fusion": false, 
   # can we do upper triang fusion for certain layers only? would that be a speedup?
   "bias-gelu-fusion": false,
 
@@ -49,7 +49,7 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 32,
+   "train_micro_batch_size_per_gpu": 72,
    "gradient-accumulation-steps": 1,
    "data-impl": "mmap",
    "split": "949,50,1",
@@ -99,6 +99,10 @@
 
    "tensorboard-dir": "/fsx/improved-t5/gpt-neox/tensorboard",
    "log-dir": "/fsx/improved-t5/gpt-neox/logs",
+   "use_wandb": True,
+   "wandb_group": "T5-770M-9-3-22-testppl",
+   "wandb_team": "eleutherai",
+   "wandb_project": "improved-t5", 
 
    "data-path": "/fsx/c4/c4/c4_text_document",
 

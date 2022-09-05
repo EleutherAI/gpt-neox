@@ -437,11 +437,22 @@ class Seq2SeqEvalHarnessAdapter(EvalHarnessAdapter):
             print_rank_0(
                 f"WARNING: Batch size ({batch_size}) must be divisible by dp world size ({self.dp_world_size}). Padding inputs to {padded_size}."
             )
-
+            # print(inps[0, ...].unsqueeze(dim=0).shape)
+            # TODO(Hailey): this is another hack based on BS hardcoded to 1.
             inps = torch.cat(
-                [inps] + [inps[0:1, ...] for _ in range(padded_size)], dim=0
+                    [inps] + [inps[0, ...].unsqueeze(dim=0) for _ in range(padded_size)], dim=0
             )  # pad with first inp item
             padded = True
+            # print(inps.shape)
+        
+            
+            if targets is None:
+                print(inps.shape)
+                targets = torch.zeros_like(inps)
+            else:
+                targets = torch.cat(
+                        [targets] + [targets[0, ...].unsqueeze(dim=0) for _ in range(padded_size)], dim=0
+                )
 
         assert (
             inps.shape[0] % self.dp_world_size == 0
@@ -451,15 +462,12 @@ class Seq2SeqEvalHarnessAdapter(EvalHarnessAdapter):
         chunk_size = inps.shape[0] // self.dp_world_size
         inps = inps[self.dp_rank * chunk_size : (self.dp_rank + 1) * chunk_size]
         
-        if targets is None:
-            targs = torch.zeros((*inps.size()[:-1], 1), dtype=inps.dtype).to(inps.device)
-        else:
-            # get a chunk for each data parallel rank
-            targets = targets[self.dp_rank * chunk_size : (self.dp_rank + 1) * chunk_size]
-
+        # get a chunk for each data parallel rank
+        targets = targets[self.dp_rank * chunk_size : (self.dp_rank + 1) * chunk_size]
         # make a dummy dataloader / iterator to pass to model
         # we need to do this because deepspeed pipe parallel only takes an iterator
         # in this format
+        # print(targets.shape)
         return iter([
             {"input_tokens": F.pad(inps, pad=(0, 1)),
             "target_tokens": F.pad(targets, pad=(0,1))}
@@ -475,7 +483,7 @@ class Seq2SeqEvalHarnessAdapter(EvalHarnessAdapter):
             # need these flags to stop deepspeed pipe parallel from hanging
             self.model.first_output_send = True
             self.model.pipe_recv_buf = None
-
+        
         _, logits = self._forward_step_fn(model=self.model, data_iterator=inps)
 
         # gather outputs from all dp ranks:
@@ -641,7 +649,7 @@ def run_eval_harness(
     num_fewshot=0,
     bootstrap_iters=2,
 ):
-    batch_size=1 # TODO(Hailey): don't merge this change into main. hack to stop OOM errors
+    batch_size=2 # TODO(Hailey): don't merge this change into main. hack to stop OOM errors
     print_rank_0("Running evaluation harness...")
     if neox_args.model_arch == "t5":
         adapter = Seq2SeqEvalHarnessAdapter(model, forward_step_fn, neox_args, batch_size)

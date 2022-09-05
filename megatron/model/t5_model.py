@@ -85,7 +85,7 @@ def _pre_encoder_block(args):
 def _pre_decoder_block(args):
     # reformat inputs before passing them to decoder stack.
     assert len(args) == 4, "Incorrect number of arguments to _pre_decoder_block"
-    fn = lambda _args: (_args[0].transpose(0, 1).contiguous(), _args[1], _args[2][..., 0:1].expand_as(_args[3]), _args[3])
+    fn = lambda _args: (_args[0].transpose(0, 1).contiguous(), _args[1], _args[2][..., 0:1, :].expand((1, 1, _args[3].size(2), _args[2].size(2))), _args[3])
     return fn(args)
 
 
