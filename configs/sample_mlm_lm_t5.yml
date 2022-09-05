@@ -6,7 +6,7 @@
 
   # model settings
   "model-arch": "mlm-lm-t5",
-  "num-layers": 24,
+  "num-layers": 12,
   "num-encoder-layers": 12,
   "hidden-size": 768,
   "num-attention-heads": 12,
