@@ -66,7 +66,8 @@ def test_neoxargs_consume_deepy_args_without_yml_suffix():
 @pytest.mark.cpu
 def test_neoxargs_consume_deepy_args_with_hostfile_param():
     """
-    verify consume_deepy_args processes command line arguments without yaml suffix
+    Verify consume_deepy_args processes command line arguments without yaml suffix.
+    Also test the hostfile CLI arg
     """
 
     from megatron.neox_arguments import NeoXArgs
