@@ -6,7 +6,6 @@
 
   # model settings
   "model-arch": "mlm-lm-t5",
-  "num-encoder-layers": 12,
   "num-layers": 12,
   "hidden-size": 768,
   "num-attention-heads": 12,
@@ -48,62 +47,61 @@
     "cpu_offload": False
   },
 
-   # batch / data settings
-   "train_micro_batch_size_per_gpu": 4,
-   "gradient-accumulation-steps": 1,
-   "data-impl": "mmap",
-   "split": "949,50,1",
+  # batch / data settings
+  "train_micro_batch_size_per_gpu": 4,
+  "gradient-accumulation-steps": 1,
+  "data-impl": "mmap",
+  "split": "949,50,1",
 
-   # activation checkpointing
-   "checkpoint-activations": false,
-   "checkpoint-num-layers": 1,
-   "partition-activations": false,
-   "synchronize-each-layer": true,
+  # activation checkpointing
+  "checkpoint-activations": false,
+  "checkpoint-num-layers": 1,
+  "partition-activations": false,
+  "synchronize-each-layer": true,
 
-   # regularization
-   "gradient_clipping": 1.0,
-   "weight-decay": 0.01,
-   "hidden-dropout": 0.0,
-   "attention-dropout": 0.0,
+  # regularization
+  "gradient_clipping": 1.0,
+  "weight-decay": 0.01,
+  "hidden-dropout": 0.0,
+  "attention-dropout": 0.0,
 
-   # precision settings
-   "fp16": {
-     "enabled": true,
-     "loss_scale": 0,
-     "loss_scale_window": 1000,
-     "initial_scale_power": 12,
-     "hysteresis": 2,
-     "min_loss_scale": 1
-   },
+  # precision settings
+  "fp16": {
+   "enabled": true,
+   "loss_scale": 0,
+   "loss_scale_window": 1000,
+   "initial_scale_power": 12,
+   "hysteresis": 2,
+   "min_loss_scale": 1
+  },
 
-   # misc. training settings
-   "train-iters": 1000000,
-   "lr-decay-iters": 1000000,
-   "distributed-backend": "nccl",
-   "lr-decay-style": "cosine",
-   "warmup": 0.01,
-   "save-interval": 100,
-   "eval-interval": 1000,
-   "eval-iters": 10,
+  # misc. training settings
+  "train-iters": 100000,
+  "lr-decay-iters": 100000,
+  "distributed-backend": "nccl",
+  "lr-decay-style": "cosine",
+  "warmup": 0.01,
+  "save-interval": 100,
+  "eval-interval": 100,
+  "eval-iters": 10,
 
-   # logging
-   "log-interval": 100,
-   "steps_per_print": 10,
-   "keep-last-n-checkpoints": 4,
-   "wall_clock_breakdown": true,
+  # logging
+  "log-interval": 100,
+  "steps_per_print": 10,
+  "wall_clock_breakdown": true,
 
-   # add data, tokenizer path etc. here
-   "tokenizer-type": "HFGPT2Tokenizer",
-   "vocab-file": "EleutherAI/gpt-neo-125M",
-   "save": "./testingt5",
-   "load": "./testingt5",
+  # add data, tokenizer path etc. here
+  "tokenizer-type": "HFGPT2Tokenizer",
+  "vocab-file": "EleutherAI/gpt-neo-125M",
+  "save": "./run/checkpoints/",
+  "load": "./run/checkpoints/",
 
-   "tensorboard-dir": "./tensorboard",
-   "log-dir": "./logs",
+  "tensorboard-dir": "./run/tensorboard",
+  "log-dir": "./run/logs",
 
-   "data-path": "./data/enron/enron_text_document",
+  "data-path": "./data/enron/enron_text_document",
 
-   "eval-tasks": ["lambada", "gsm8k"]
-
-
+  "eval-tasks": ["lambada"],
+  "launcher": "openmpi",
+  "deepspeed_mpi": true,
 }
