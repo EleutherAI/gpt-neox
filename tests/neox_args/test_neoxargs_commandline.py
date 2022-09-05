@@ -76,7 +76,7 @@ def test_neoxargs_consume_deepy_args_with_hostfile_param():
         "sys.argv",
         [str(get_root_directory() / "deepy.py"), "train.py"]
         + get_configs_with_path(["small", "local_setup"])
-        + ["--hostfile=mock_path"]
+        + ["--hostfile=/mock_path"]
     ):
         args_loaded_consume = NeoXArgs.consume_deepy_args()
 

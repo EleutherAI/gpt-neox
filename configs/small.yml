@@ -81,4 +81,7 @@
    "steps_per_print": 10,
    "keep-last-n-checkpoints": 4,
    "wall_clock_breakdown": true,
+
+  #  networking
+  "hostfile": "/mock_path"
 }
