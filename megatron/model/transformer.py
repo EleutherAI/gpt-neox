@@ -291,7 +291,7 @@ class ParallelAttention(nn.Module):
             self.scale_mask_softmax = FusedScaleMaskSoftmax(
                 input_in_fp16=self.fp16,
                 input_in_bf16=self.bf16,
-                fusion_type=get_fusion_type(neox_args),
+                fusion_type=get_fusion_type(neox_args, cross_attention=self.is_cross_attention),
                 mask_func=self.attention_mask_func,
                 softmax_in_fp32=self.attention_softmax_in_fp32,
                 scale=coeff,

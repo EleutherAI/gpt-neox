@@ -294,10 +294,13 @@ def configure_sparse_attention(neox_args, attention_type, num_attention_heads, m
     )
 
 
-def get_fusion_type(neox_args):
+def get_fusion_type(neox_args, cross_attention=False):
     fusion_type = SoftmaxFusionTypes.none
     if neox_args.scaled_upper_triang_masked_softmax_fusion:
-        fusion_type = SoftmaxFusionTypes.upper_triang
+        if not cross_attention:
+            fusion_type = SoftmaxFusionTypes.upper_triang
+        else:
+            fusion_type = SoftmaxFusionTypes.general
     elif neox_args.scaled_masked_softmax_fusion:
         fusion_type = SoftmaxFusionTypes.general
     return fusion_type
