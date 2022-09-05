@@ -6,7 +6,8 @@
 
   # model settings
   "model-arch": "mlm-lm-t5",
-  "num-layers": 12,
+  "num-layers": 24,
+  "num-encoder-layers": 12,
   "hidden-size": 768,
   "num-attention-heads": 12,
   "seq-length": 512,
@@ -102,6 +103,6 @@
   "data-path": "./data/enron/enron_text_document",
 
   "eval-tasks": ["lambada"],
-  "launcher": "openmpi",
-  "deepspeed_mpi": true,
+  # "launcher": "openmpi",
+  # "deepspeed_mpi": true,
 }
