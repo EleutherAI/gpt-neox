@@ -351,9 +351,6 @@ def get_batch_mlm_lm_pipe(data, neox_args):
     keys = ['encoder_input_tokens', 'encoder_target_tokens', 'encoder_loss_mask', 'decoder_tokens']
     datatype = torch.int64
 
-    # Broadcast data.
-    data_b = mpu.broadcast_data(keys, data, datatype)
-
     enc_inp_tokens, dec_inp_tokens, \
         position_ids_enc, position_ids_dec, \
         enc_attn_mask, dec_attn_mask, \
