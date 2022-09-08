@@ -879,6 +879,14 @@ Text Generation arguments
 
 
 
+- **return_logits**: bool
+
+    Default = False
+
+    Boolean for whether to return the logits for generated tokens
+
+
+
 - **maximum_tokens**: int
 
     Default = 64
@@ -922,7 +930,7 @@ Text Generation arguments
 
 - **eval_results_prefix**: str
 
-    Default = 
+    Default =
 
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
 
@@ -1510,7 +1518,6 @@ Args for deepspeed config
 
     Default = None
 
-    
 
 
 
