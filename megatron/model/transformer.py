@@ -86,10 +86,14 @@ class ParallelMLP(nn.Module):
         self.activation_type = neox_args.activation
         self.bias_gelu_fusion = neox_args.bias_gelu_fusion
 
-        # auto scale so geglu has equal parameters
-        ff_mult = 4 * 2 / 3 if self.activation_type == "geglu" else 4
+        if neox_args.feedforward_size:
+            # override feedforward intermediate dimension if provided.
+            ff_mult = neox_args.feedforward_size
+        else:
+            # auto scale so geglu has equal parameters
+            ff_mult = 4 * 2 / 3 if self.activation_type == "geglu" else 4
         ff_dim = (
-            int(ff_mult * neox_args.hidden_size) * 2
+            int(ff_mult * neox_args.hidden_size) * 2 # TODO(Hailey): do we want this to happen even if feedforward_size is overriden? read GEGLU paper for more info
             if self.activation_type == "geglu"
             else ff_mult * neox_args.hidden_size
         )

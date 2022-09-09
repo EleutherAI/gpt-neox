@@ -99,6 +99,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Transformer hidden size.
     """
 
+    feedforward_size: int = None
+    """
+    intermediate dimension in transformer feedforward MLP sublayers. Overrides default of 4 * hidden_size if set.
+    """
+
     num_attention_heads: int = None
     """
     Number of transformer attention heads.
