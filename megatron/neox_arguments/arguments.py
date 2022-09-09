@@ -288,7 +288,6 @@ class NeoXArgs(*BASE_CLASSES):
             "-H",
             "--hostfile",
             type=str,
-            default=DLTS_HOSTFILE,
             help="Hostfile path (in MPI style) that defines the "
                  "resource pool available to the job (e.g., "
                  "worker-0 slots=4)"
