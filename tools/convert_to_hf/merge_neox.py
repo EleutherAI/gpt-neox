@@ -60,7 +60,7 @@ def merge_model_weights(config, input_checkpoint_path, output_checkpoint_path):
     num_layers = config.get('num-layers', 44)
     mp_size = config.get('model-parallel-size', 1)
 
-    pbar = tqdm_lib.tqdm(total=num_layers+3)
+    pbar = tqdm_lib.tqdm(total = num_layers + 3)
 
     # Load transformer layers
     for layer_i in range(num_layers): # num layers, TODO: change variable 
