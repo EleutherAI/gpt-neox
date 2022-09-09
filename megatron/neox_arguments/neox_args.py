@@ -421,6 +421,14 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
     Use checkpoint to set the values of the scheduler (learning rate, warmup iterations, minimum learning rate, maximum number of iterations, and decay style from checkpoint and ignore input arguments.
     """
 
+    lr_adjustment_factor: int = 1
+    """
+    Factor > 0 used to test scaling global batch size beyond typical / canonical values. 
+    
+    Setting this will scale global batch size by `lr_adjustment_factor`, 
+    while keeping the per-token learning rate and total tokens on which to train equivalent to unadjusted values.
+    """
+
 
 @dataclass
 class NeoXArgsLogging(NeoXArgsTemplate):

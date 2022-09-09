@@ -595,6 +595,17 @@ class NeoXArgs(*BASE_CLASSES):
         return int(train_batch), int(micro_batch), int(grad_acc)
 
     @staticmethod
+    def adjust_batch_parameters(
+        lr_adjustment_factor, train_batch=None, micro_batch=None, 
+    ):
+        # all 3 values are already set. adjust them based on 
+        train_batch = train_batch * lr_adjustment_factor
+
+        micro_batch = micro_batch * lr_adjustment_factor
+
+        return train_batch, micro_batch
+
+    @staticmethod
     def check_batch_parameters(dp_world_size, train_batch, micro_batch, grad_acc):
 
         assert (
@@ -614,6 +625,47 @@ class NeoXArgs(*BASE_CLASSES):
             " to micro_batch_per_gpu * gradient_acc_step * world_size \n"
             f"{train_batch} != {micro_batch} * {grad_acc} * {dp_world_size}"
         )
+
+    @staticmethod
+    def adjust_lr_scheduling(
+        lr_adjustment_factor,
+        lr=None,
+        min_lr=None,
+        lr_decay_iters=None,
+        warmup=None,
+        train_iters=None,
+        eval_iters=None,
+        save_interval=None,
+        eval_interval=None,
+        exit_interval=None,
+    ):
+        if lr:
+            lr = lr * lr_adjustment_factor
+
+        min_lr = min_lr * lr_adjustment_factor
+
+        if lr_decay_iters:
+            lr_decay_iters = lr_decay_iters // lr_adjustment_factor
+
+        # decrease warmup ratio so that warmup occurs over the same number of tokens
+        warmup = warmup // lr_adjustment_factor
+
+        if train_iters:
+            train_iters = train_iters // lr_adjustment_factor
+
+        eval_iters = eval_iters // lr_adjustment_factor
+
+        if save_interval:
+            save_interval = save_interval // lr_adjustment_factor
+
+        eval_interval = eval_interval // lr_adjustment_factor
+
+        # exit_interval defaults to None.
+        if exit_interval:
+            exit_interval = exit_interval // lr_adjustment_factor
+
+        return lr, min_lr, lr_decay_iters, warmup, train_iters, eval_iters, \
+            save_interval, eval_interval, exit_interval
 
     def calculate_derived(self):
         """
@@ -683,6 +735,66 @@ class NeoXArgs(*BASE_CLASSES):
             micro_batch=self.train_micro_batch_size_per_gpu,
             grad_acc=self.gradient_accumulation_steps,
         )
+
+        (
+            train_batch_size,
+            train_micro_batch_size_per_gpu,
+        ) = self.adjust_batch_parameters(
+            self.lr_adjustment_factor,
+            train_batch=train_batch_size,
+            micro_batch=train_micro_batch_size_per_gpu,
+        ) # adjust global and per-device BS based on lr_adjustment_factor
+
+        # get optimizer and scheduler values here, so we can edit them
+        opt_params = self.optimizer or {
+            "type": OPT_DEFAULT,
+            "params": OPT_PARAMS_DEFAULTS,
+        }
+        self.update_values(
+            {
+                "optimizer_type": opt_params.get("type", OPT_DEFAULT),
+                "lr": opt_params["params"].get("lr", OPT_PARAMS_DEFAULTS["lr"]),
+            }
+        )
+
+        (
+            lr,
+            min_lr,
+            lr_decay_iters,
+            warmup,
+            train_iters,
+            eval_iters,
+            save_interval,
+            eval_interval,
+            exit_interval,
+        ) = self.adjust_lr_scheduling(
+            self.lr_adjustment_factor,
+            lr=self.lr,
+            min_lr=self.min_lr,
+            lr_decay_iters=self.lr_decay_iters,
+            warmup=self.warmup,
+            train_iters=self.train_iters,
+            eval_iters=self.eval_iters,
+            save_interval=self.save_interval,
+            eval_interval=self.eval_interval,
+            exit_interval=self.exit_interval,
+        ) # adjust lr schedule and training duration based on lr_adjustment_factor
+        self.update_values(
+            {
+                # lr schedule parameters
+                "lr": lr,
+                "min_lr": min_lr,
+                "lr_decay_iters": lr_decay_iters,
+                "warmup": warmup,
+                # set training durations
+                "train_iters": train_iters,
+                "eval_iters": eval_iters,
+                "save_interval": save_interval,
+                "eval_interval": eval_interval,
+                "exit_interval": exit_interval,
+            }
+        )
+
         self.check_batch_parameters(
             dp_world_size=dp_world_size,
             train_batch=train_batch_size,
@@ -697,7 +809,7 @@ class NeoXArgs(*BASE_CLASSES):
                 "gradient_accumulation_steps": gradient_accumulation_steps,
                 "batch_size": train_micro_batch_size_per_gpu,
                 # duplicate items
-                "gas": self.gradient_accumulation_steps,
+                "gas": gradient_accumulation_steps,
                 "clip_grad": self.gradient_clipping,
             }
         )
@@ -732,18 +844,6 @@ class NeoXArgs(*BASE_CLASSES):
                 "zero_allgather_bucket_size": self.zero_optimization.get(
                     "allgather_bucket_size", ZERO_DEFAULTS["allgather_bucket_size"]
                 ),
-            }
-        )
-
-        # optimizer and scheduler
-        opt_params = self.optimizer or {
-            "type": OPT_DEFAULT,
-            "params": OPT_PARAMS_DEFAULTS,
-        }
-        self.update_values(
-            {
-                "optimizer_type": opt_params.get("type", OPT_DEFAULT),
-                "lr": opt_params["params"].get("lr", OPT_PARAMS_DEFAULTS["lr"]),
             }
         )
 
