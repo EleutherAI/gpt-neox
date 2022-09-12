@@ -537,7 +537,7 @@ class NeoXArgs(*BASE_CLASSES):
         Configures distributed training arguments from local variables set by deepspeed launcher.
         """
         if self.deepspeed_mpi:
-            from deepspeed.utils.distributed import mpi_discovery
+            from deepspeed.comm import mpi_discovery
 
             mpi_discovery()
 
