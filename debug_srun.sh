@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name="dash-neox"
-#SBATCH --partition=compute-od-gpu
+#SBATCH --partition=gpu
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1          # Crucial - only 1 task per dist per node!
 #SBATCH --cpus-per-task=32           # Number of cores per tasks
@@ -10,6 +10,7 @@
 #SBATCH --output=%x_%j.out  # Set this dir where you want slurm outs to go
 #SBATCH --error=%x_%j.out  # Set this dir where you want slurm outs to go
 #SBATCH --exclusive
+#SBATCH --comment neox
 
 module load intelmpi
 
@@ -53,10 +54,12 @@ TRAIN_PATH=/fsx/dashiell/gpt-neox
 export TORCHELASTIC_ERROR_FILE=$TRAIN_PATH/tmp/torch-elastic-error.json
 
 # Env setup
-source /fsx/dashiell/miniconda3/conda/bin/activate neox
+source /fsx/dashiell/miniconda3/bin/activate neox
 cd $TRAIN_PATH
 
-srun python $TRAIN_PATH/deepy.py $TRAIN_PATH/train.py \
+which python
+which nvcc
+srun --comment neox python $TRAIN_PATH/deepy.py $TRAIN_PATH/train.py \
     --conf_dir configs 13B_deduped.yml 
 
 set +x

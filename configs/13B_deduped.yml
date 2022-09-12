@@ -19,9 +19,8 @@
    "output_layer_parallelism": "column",
 
    # these should provide some speedup but takes a while to build, set to true if desired
-   "scaled-upper-triang-masked-softmax-fusion": true,
-   "bias-gelu-fusion": true,
-
+   "scaled-upper-triang-masked-softmax-fusion": false,
+   "bias-gelu-fusion": false,
    # optimizer settings
    "optimizer": {
      "type": "Adam",
@@ -105,5 +104,5 @@
   "wandb_project": "pythia",
   "wandb_group": "13B dedupe",
   "launcher": "srun",
-  "deepspeed_mpi": true
+  "deepspeed_mpi": false 
 }
