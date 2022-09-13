@@ -285,6 +285,28 @@ class Enwik8(DataDownloader):
     urls = ["https://data.deepai.org/enwik8.zip"]
 
 
+class SuperGLUE(DataDownloader):
+    name = "super_glue"
+    urls = [
+        "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/BoolQ.zip",   # BoolQ
+        "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/CB.zip",      # CB
+        "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/COPA.zip",    # COPA
+        "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/MultiRC.zip", # MultiRC
+        "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/ReCoRD.zip",  # ReCoRD
+        "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/RTE.zip",     # RTE
+        "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/WiC.zip",     # WiC
+        "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/WSC.zip"      # WSC
+        ]
+
+    def _concat(self):
+        pass
+
+    def prepare(self):
+        if not self.exists():
+            self.download()
+            # self._concat()
+            # self.tokenize()
+
 def maybe_download_gpt2_tokenizer_data(tokenizer_type, data_dir):
     if tokenizer_type is None or tokenizer_type == "GPT2BPETokenizer":
         GPT2_VOCAB_FP = f"{data_dir}//gpt2-vocab.json"
@@ -316,6 +338,7 @@ DATA_DOWNLOADERS = {
     "c4": C4,
     "c4_openwebtext": C4OpenWebText,
     "enwik8": Enwik8,
+    "super_glue": SuperGLUE,
 }
 
 
