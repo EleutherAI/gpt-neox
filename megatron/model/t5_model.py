@@ -77,15 +77,15 @@ def cross_entropy(output, labels, _fp16=False):
 
 def _pre_encoder_block(args):
     # data format change for hidden_states to avoid explicit tranposes : [b s h] --> [s b h]
-    assert len(args) == 5, "Incorrect number of arguments to _pre_encoder_block"
+    assert len(args) == 6, "Incorrect number of arguments to _pre_encoder_block"
     fn = lambda _args: (_args[0].transpose(0, 1).contiguous(), *_args[1:])
     return fn(args)
 
 
 def _pre_decoder_block(args):
     # reformat inputs before passing them to decoder stack.
-    assert len(args) == 4, "Incorrect number of arguments to _pre_decoder_block"
-    fn = lambda _args: (_args[0].transpose(0, 1).contiguous(), _args[1], _args[2][..., 0:1, :].expand((1, 1, _args[3].size(2), _args[2].size(2))), _args[3])
+    assert len(args) == 5, "Incorrect number of arguments to _pre_decoder_block"
+    fn = lambda _args: (_args[0].transpose(0, 1).contiguous(), _args[1], _args[3], _args[4])
     return fn(args)
 
 
@@ -182,7 +182,7 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
 
         # embedding layer
         # input format we want: 
-        # (encoder_input_ids, decoder_input_ids, encoder_position_ids, decoder_position_ids, encoder_attn_mask, (decoder)attention_mask)
+        # (encoder_input_ids, decoder_input_ids, encoder_position_ids, decoder_position_ids, encoder_attn_mask, enc_dec_mask, (decoder)attention_mask)
 
         if weight_tying:
             self.specs.append(
@@ -216,7 +216,7 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
         # per gpt2_model.py, attention mask MUST be the last item in args
         # passed from one stage to the next.
 
-        # current output format: (hidden_states, decoder_input_ids, decoder_position_ids, enc attn mask, attention_mask)
+        # current output format: (hidden_states, decoder_input_ids, decoder_position_ids, enc attn mask, enc_dec_mask, attention_mask)
 
         self.specs.append(_pre_encoder_block)
         
@@ -253,7 +253,7 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
                 )
             )
 
-        # current output format: (hidden_states, decoder_input_ids, decoder_position_ids, enc attn mask, attention_mask)
+        # current output format: (hidden_states, decoder_input_ids, decoder_position_ids, enc attn mask, enc_dec_mask, attention_mask)
         
         # decoder emb layer 
         if weight_tying:
@@ -286,7 +286,7 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
             )
 
         self.specs.append(_pre_decoder_block)
-        # current output format:  (decoder_hidden_states, encoder_hidden_states, encoder_attention_mask, attention_mask)
+        # current output format:  (decoder_hidden_states, encoder_hidden_states, enc_dec_mask, attention_mask)
         
         # transformer decoder layers # TODO(Hailey): right now, neox.num_layers = the number of decoder layers for minimal code change to rest of repo. update this later
         for i in range(self.neox_args.num_encoder_layers, self.neox_args.num_encoder_layers + self.neox_args.num_layers):

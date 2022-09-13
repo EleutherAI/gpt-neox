@@ -36,6 +36,7 @@ from megatron.utils import (
     get_ltor_masks_and_position_ids,
     get_position_ids,
     get_full_mask,
+    make_segment_mask,
     reduce_losses,
 )
 
@@ -219,34 +220,44 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
     tokens_enc = data_b['input_tokens'].long()
     tokens_dec_ = data_b['target_tokens'].long()
 
+    segment_ids_enc = data_b['input_segment_ids'].long()
+    segment_ids_dec = data_b['target_segment_ids'].long()[:, :-1].contiguous()
+
+    position_ids_enc = data_b['input_position_ids'].long()
+    position_ids_dec = data_b['target_position_ids'].long()[:, :-1].contiguous()
+
     labels = tokens_dec_[:, 1:].contiguous()
     tokens_dec = tokens_dec_[:, :-1].contiguous()
 
-    # Get the decoder self-attn mask and position ids.
-    attention_mask, loss_mask, position_ids_dec = get_ltor_masks_and_position_ids(
+    # Get the decoder self-attn masks
+    attention_mask, loss_mask = get_ltor_masks_and_position_ids(
         data=tokens_dec,
         eod_token=neox_args.tokenizer.eod,
         eod_mask_loss=neox_args.eod_mask_loss,
+        segment_ids=segment_ids_dec,
     )
     # get position ids for encoder inputs as well
-    position_ids_enc = get_position_ids(
-        data=tokens_enc,
-    )
+    # position_ids_enc = get_position_ids(
+    #     data=tokens_enc,
+    # )
 
     batch_size, src_length = tokens_enc.size()
     batch_size, target_length = tokens_dec_.size()
 
-    enc_mask = get_full_mask(src_length, src_length, device=tokens_enc.device) 
+    enc_mask = make_segment_mask(segment_ids_enc, segment_ids_enc)
+    enc_dec_mask = make_segment_mask(segment_ids_dec, segment_ids_enc)
     # TODO(Hailey): determine what size this enc attn mask should be. right now it's (1,1,1,enc_seq_length)
 
-    return tokens_enc, tokens_dec, labels, loss_mask, enc_mask, attention_mask, \
+    return tokens_enc, tokens_dec, labels, loss_mask, enc_mask, enc_dec_mask, attention_mask, \
         position_ids_enc, position_ids_dec,
 
 
 def get_batch_encdec(neox_args, data_iterator):
     """"""
 
-    keys = ['input_tokens', 'target_tokens']
+    keys = ['input_tokens', 'target_tokens', 
+    'input_segment_ids', 'target_segment_ids',
+    'input_position_ids', 'target_position_ids']
     datatype = torch.int64
 
     # Broadcast data.
@@ -265,18 +276,20 @@ def get_batch_encdec(neox_args, data_iterator):
 def get_batch_encdec_pipe(data, neox_args):
     """Build the batch."""
 
-    keys = ['input_tokens', 'target_tokens']
+    keys = ['input_tokens', 'target_tokens', 
+    'input_segment_ids', 'target_segment_ids',
+    'input_position_ids', 'target_position_ids']
     datatype = torch.int64
 
     # Broadcast data.
     data_b = mpu.broadcast_data(keys, data, datatype)
 
-    tokens_enc, tokens_dec, labels, loss_mask, encoder_attn_mask, attention_mask, \
+    tokens_enc, tokens_dec, labels, loss_mask, encoder_attn_mask, enc_dec_mask, attention_mask, \
         position_ids_enc, position_ids_dec = _get_batch_encdec(
         neox_args, keys, data, datatype
     )
     
-    return (tokens_enc, tokens_dec, position_ids_enc, position_ids_dec, encoder_attn_mask, attention_mask),\
+    return (tokens_enc, tokens_dec, position_ids_enc, position_ids_dec, encoder_attn_mask, enc_dec_mask, attention_mask),\
         (labels, loss_mask)
 
 
@@ -288,7 +301,7 @@ def forward_step_encdec(data_iterator, model, neox_args, timers, return_logits=F
     # Get the batch.
     if timers is not None:
         timers("batch generator").start()
-    tokens_enc, tokens_dec, loss_mask, labels, encoder_attn_mask, attention_mask, position_ids_enc, position_ids_dec \
+    tokens_enc, tokens_dec, loss_mask, labels, encoder_attn_mask, enc_dec_mask, attention_mask, position_ids_enc, position_ids_dec \
         = get_batch_encdec(
             neox_args=neox_args, data_iterator=data_iterator
         )
@@ -302,6 +315,7 @@ def forward_step_encdec(data_iterator, model, neox_args, timers, return_logits=F
             position_ids_enc,
             position_ids_dec,
             encoder_attn_mask,
+            enc_dec_mask,
             attention_mask,
         )
     )

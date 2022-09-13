@@ -797,12 +797,12 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
         if self.model_arch == "t5":
             if self.layer_type == "encoder":
                 assert (
-                    len(args) == 5
-                ), f"Encoder layer expects 5 arguments - \
-                    hidden_states, decoder_input_ids, decoder_position_ids, encoder_attention_mask, attention_mask,\
+                    len(args) == 6
+                ), f"Encoder layer expects 6 arguments - \
+                    hidden_states, decoder_input_ids, decoder_position_ids, encoder_attention_mask, enc_dec_mask, attention_mask,\
                     got {len(args)}"
 
-                hidden_states, decoder_input_ids, decoder_position_ids, encoder_attention_mask, attention_mask = \
+                hidden_states, decoder_input_ids, decoder_position_ids, encoder_attention_mask, enc_dec_mask, attention_mask = \
                     args
                 
                 # TODO(Hailey): Between the first and second decoder layer, shape of decoder input ids and pos. ids goes from [b, s] to [bs]. Why???
@@ -813,7 +813,7 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
                     decoder_position_ids = decoder_position_ids.view(hidden_states.size()[1], -1) 
 
                 return super().forward(hidden_states, encoder_attention_mask), \
-                    decoder_input_ids, decoder_position_ids, encoder_attention_mask, attention_mask
+                    decoder_input_ids, decoder_position_ids, encoder_attention_mask, enc_dec_mask, attention_mask
             elif self.layer_type == "decoder":
                 assert (
                     len(args) == 4

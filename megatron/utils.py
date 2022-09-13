@@ -59,6 +59,32 @@ def report_memory(name):
     )
     print_rank_0(string)
 
+# copied then edited from https://github.com/google-research/t5x/blob/1f8cec78b1f28f1955d70741792d7b6e7dd76226/t5x/examples/t5/layers.py .
+def make_segment_mask(
+    query,
+    key,
+    device=None,
+):
+    """Mask-making helper for attention weights. Use this for attending to sequences of the same segment id.
+    In case of 1d inputs (i.e., `[batch, len_q]`, `[batch, len_kv]`, the
+    attention weights will be `[batch, heads, len_q, len_kv]` and this
+    function will produce `[batch, 1, len_q, len_kv]`.
+    Args:
+        query_input: a batched, flat input of query_length size
+        key_input: a batched, flat input of key_length size
+        pairwise_fn: broadcasting elementwise comparison function
+        extra_batch_dims: number of extra batch dims to add singleton axes for, none
+        by default
+        dtype: mask return dtype
+    Returns:
+        A `[batch, 1, len_q, len_kv]` shaped mask for 1d attention.
+    """
+
+    # equality comparison between [b, 1, sq, 1] and [b, 1, 1, sk]. which should broadcast to [b, 1, sq, sk]
+    mask = (query[:, None, :, None] == key[:, None, None, :]).bool().to(device)
+
+    return mask
+
 
 def get_full_mask(src_length, target_length, device):
     """
@@ -90,6 +116,7 @@ def get_ltor_masks_and_position_ids(
     data,
     eod_token,
     eod_mask_loss=False,
+    segment_ids=None,
 ):
     """Build masks and position id for left to right model."""
 
@@ -101,17 +128,22 @@ def get_ltor_masks_and_position_ids(
         seq_length=seq_length,
         device=data.device,
     )
+    if segment_ids is not None: # do attention masking s.t. only sequences of the same segment id attend to one another
+        segment_mask = make_segment_mask(
+            segment_ids, segment_ids, device=data.device
+        ) 
+        attention_mask = attention_mask.bool() + segment_mask.bool()
 
     # Loss mask.
     loss_mask = torch.ones(data.size(), dtype=torch.float, device=data.device)
     if eod_mask_loss:
         loss_mask[data == eod_token] = 0.0
 
-    # Position ids.
-    position_ids = torch.arange(seq_length, dtype=torch.long, device=data.device)
-    position_ids = position_ids.unsqueeze(0).expand_as(data)
+    # Position ids. account for segment ids.
+    # position_ids = torch.cat([torch.arange(seq_length, dtype=torch.long, device=data.device)], dim=-1)
+    # position_ids = position_ids.unsqueeze(0).expand_as(data)
 
-    return attention_mask, loss_mask, position_ids
+    return attention_mask, loss_mask #, position_ids
 
 
 def get_position_ids(data):
