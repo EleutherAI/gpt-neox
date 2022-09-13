@@ -299,12 +299,20 @@ class SuperGLUE(DataDownloader):
         ]
 
     def _concat(self):
-        pass
+        dir_path = os.path.join(self.base_dir, self.name)
+        for url in self.urls:
+            subset_name = url.split("/")[-1][:-4]
+            os.system(
+                f"unzip -o {os.path.join(dir_path, os.path.basename(url))}" \
+                f" -d {os.path.join(dir_path, os.path.basename(url))}" \
+                f" && mv {os.path.join(dir_path, os.path.basename(url))}/train.jsonl" \
+                f" {os.path.join(dir_path, subset_name)}.jsonl"
+            )
 
     def prepare(self):
         if not self.exists():
             self.download()
-            # self._concat()
+            self._concat()
             # self.tokenize()
 
 def maybe_download_gpt2_tokenizer_data(tokenizer_type, data_dir):
