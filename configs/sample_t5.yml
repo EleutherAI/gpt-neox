@@ -12,7 +12,7 @@
   "num-attention-heads": 12,
   "seq-length": 512,
   "decoder-seq-length": 114,
-  "max-position-embeddings": 512,
+  "max-position-embeddings": 570,
   "norm": "layernorm",
   "pos-emb": "rotary",
   "activation": "geglu",
@@ -24,7 +24,7 @@
   "mean_noise_span_length": 3,
 
   # fusion ops (STILL UNTESTED WITH T5)
-  "scaled-upper-triang-masked-softmax-fusion": false, 
+  "scaled-upper-triang-masked-softmax-fusion": true, 
   # can we do upper triang fusion for certain layers only? would that be a speedup?
   "bias-gelu-fusion": false,
 
@@ -94,12 +94,12 @@
    # add data, tokenizer path etc. here
    "tokenizer-type": "HFTokenizer",
    "vocab-file": "/fsx/improved-t5/t5-tokenizer/tokenizer.json",
-   "save": "/fsx/improved-t5/ckpts/testrun-base-8-31-22",
-   "load": "/fsx/improved-t5/ckpts/testrun-base-8-31-22",
+   "save": "/fsx/improved-t5/ckpts/deletepls",
+   "load": "/fsx/improved-t5/ckpts/deletepls",
 
    "tensorboard-dir": "/fsx/improved-t5/gpt-neox/tensorboard",
    "log-dir": "/fsx/improved-t5/gpt-neox/logs",
-   "use_wandb": True,
+   "use_wandb": False,
    "wandb_group": "T5-770M-9-3-22-testppl",
    "wandb_team": "eleutherai",
    "wandb_project": "improved-t5", 
