@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 47abc1f
+    Default = e8fcee5
 
     current git hash of repository
 
@@ -930,7 +930,7 @@ Text Generation arguments
 
 - **eval_results_prefix**: str
 
-    Default =
+    Default = 
 
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
 
@@ -1518,6 +1518,7 @@ Args for deepspeed config
 
     Default = None
 
+    
 
 
 
