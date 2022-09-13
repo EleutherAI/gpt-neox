@@ -146,7 +146,7 @@ def build_sample(
     mean_noise_span_length,
     tokenizer,
     np_rng,
-):
+    ):
 
     encoder_tokens = sample[:encoder_seq_length]
     decoder_tokens = sample[encoder_seq_length:]
@@ -196,7 +196,8 @@ def compute_input_and_target_lengths(
     masked_lm_prob, 
     mean_noise_span_length,
     extra_tokens_per_span_inputs=1,
-    extra_tokens_per_span_targets=1,):
+    extra_tokens_per_span_targets=1,
+    ):
     """This function based on `random_spans_helper <https://github.com/google-research/text-to-text-transfer-transformer/blob/84f8bcc14b5f2c03de51bd3587609ba8f6bbd1cd/t5/data/preprocessors.py#L2466>`
 
     And also based on an adapted version in bigscience-workshop/Megatron-DeepSpeed.
@@ -260,7 +261,7 @@ def random_spans_noise_mask(
     masked_lm_prob,
     mean_noise_span_length,
     np_rng, # TODO(Hailey): figure out how best to handle rng here.
-):  
+    ):  
     """
     Returns a size (input_seq_length,) boolean array indicating if each token is in a noise span. TODO(Hailey): update docstring w/ actual datatype of output
     """
@@ -305,8 +306,10 @@ def random_spans_noise_mask(
     return span_starts
 
 
-MaskedLmInstance = collections.namedtuple("MaskedLmInstance",
-                                          ["index", "label"])
+MaskedLmInstance = collections.namedtuple(
+    "MaskedLmInstance",
+    ["index", "label"]
+    )
 
 
 def is_start_piece(piece):
@@ -318,18 +321,23 @@ def is_start_piece(piece):
     return not piece.startswith("##")
 
 
-def create_masked_lm_predictions(tokens,
-                                 vocab_id_list, vocab_id_to_token_dict,
-                                 masked_lm_prob,
-                                 cls_id, sep_id, mask_id,
-                                 max_predictions_per_seq,
-                                 np_rng,
-                                 max_ngrams=3,
-                                 do_whole_word_mask=True,
-                                 favor_longer_ngram=False,
-                                 do_permutation=False,
-                                 geometric_dist=False,
-                                 masking_style="bert"):
+def create_masked_lm_predictions(
+    tokens,
+    vocab_id_list,
+    vocab_id_to_token_dict,
+    masked_lm_prob,
+    cls_id,
+    sep_id,
+    mask_id,
+    max_predictions_per_seq,
+    np_rng,
+    max_ngrams=3,
+    do_whole_word_mask=True,
+    favor_longer_ngram=False,
+    do_permutation=False,
+    geometric_dist=False,
+    masking_style="bert"
+    ):
     """Creates the predictions for the masked LM objective.
     Note: Tokens here are vocab ids and not text tokens."""
 
@@ -520,8 +528,13 @@ def create_masked_lm_predictions(tokens,
     return (output_tokens, masked_lm_positions, masked_lm_labels, token_boundary, masked_spans)
 
 
-def pad_and_convert_to_numpy(tokens, masked_positions,
-                             masked_labels, pad_id, max_seq_length):
+def pad_and_convert_to_numpy(
+    tokens,
+    masked_positions,
+    masked_labels,
+    pad_id,
+    max_seq_length
+    ):
     """Pad sequences and convert them to numpy."""
 
     # Some checks.
