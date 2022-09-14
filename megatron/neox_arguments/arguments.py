@@ -684,6 +684,9 @@ class NeoXArgs(*BASE_CLASSES):
         if global_num_gpus is None:
             if self.hostfile is not None or os.path.exists(DLTS_HOSTFILE):
                 hostfile_path = self.hostfile or DLTS_HOSTFILE
+                hostfile_path = os.environ['DLTS_HOSTFILE']
+                print(hostfile_path)
+                print(os.path.isfile(hostfile_path))
                 resources = obtain_resource_pool(
                     hostfile_path, self.include or "", self.exclude or ""
                 )
