@@ -302,20 +302,38 @@ class SuperGLUE(DataDownloader):
 
 
     def _concat(self):
+
+        import json
+
         dir_path = os.path.join(self.base_dir, self.name)
-        for url in self.urls:
+        for idx, url in enumerate(self.urls):
             os.system(
-                f"unzip -o {os.path.join(dir_path, os.path.basename(url))} -d {os.path.join(dir_path)}"
+                f"unzip -o {os.path.join(dir_path, os.path.basename(url))} -d {dir_path}"
             )
 
             # \
             # f" -d {os.path.join(dir_path)}" \
             # f" && mv {os.path.join(dir_path, os.path.basename(url)[:-4])}/train.jsonl" \
             # f" {os.path.join(dir_path, os.path.basename(url))}.jsonl"
+            file_dir = os.path.join(dir_path, os.path.basename(url)[:-4], "train.jsonl")
 
-            prompt = get_super_glue_text_preprocessor(os.path.basename(url)[:-4])
-            for line in all_lines:
-                processed_line = prompt(line)
+            preprocess_fn = get_super_glue_text_preprocessor(os.path.basename(url)[:-4])
+            out_path = os.path.join(dir_path, os.path.basename(url)[:-4]+".jsonl")
+            with open(file_dir, "r") as infile:
+                with open(out_path, 'w') as outfile:
+                    for line in infile:
+                        preprocessed_line = preprocess_fn(json.loads(line))
+                        if type(preprocessed_line) is list:
+                            for _line in preprocessed_line:
+                                json.dump(_line, outfile)
+                                outfile.write('\n')
+                        else:
+                            json.dump(preprocessed_line, outfile)
+                            outfile.write('\n')
+                outfile.close()
+            infile.close()
+
+            self.urls[idx] = out_path
 
 
     def prepare(self):
@@ -323,6 +341,7 @@ class SuperGLUE(DataDownloader):
             self.download()
             self._concat()
             # self.tokenize()
+
 
 def maybe_download_gpt2_tokenizer_data(tokenizer_type, data_dir):
     if tokenizer_type is None or tokenizer_type == "GPT2BPETokenizer":

@@ -48,7 +48,7 @@ def preprocess_boolq(x):
 
     joined = " ".join([
         "boolq",
-        expose_features(x, ["hypothesis", "premise"])
+        expose_features(x, ["question", "passage"])
     ])
     return {
         "text": joined,
@@ -85,8 +85,8 @@ def preprocess_multirc(x):
     processed_line = []
     text = x["passage"]["text"]
     # Remove HTML markup.
-    text = tf.strings.regex_replace('<br>', ' ', text)
-    text = tf.strings.regex_replace('<(/)?b>', '', text)
+    text = re.sub('<br>', ' ', text)
+    text = re.sub('<(/)?b>', '', text)
 
     for qa_pair in x["passage"]["questions"]:
         question = qa_pair["question"]
@@ -111,7 +111,7 @@ def preprocess_record(x):
         passage)
 
     entities = []
-    for idx in line["passage"]['entities']:
+    for idx in x["passage"]['entities']:
         entities.append(passage[idx["start"]:idx["end"]+1])
     entities = " ".join(entities)
 
@@ -131,7 +131,7 @@ def preprocess_rte(x):
 
     joined = " ".join([
         "rte",
-        expose_features(x, ["sentence1", "sentence2"])
+        expose_features(x, ["hypothesis", "premise"])
     ])
     return {
         "text": joined,
