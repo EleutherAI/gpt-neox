@@ -39,23 +39,23 @@ GPT-NeoX-20B is a 20 billion parameter autoregressive language model trained on 
 
 ### Download Links
 
-[Slim weights](https://mystic.the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights/) - (No optimizer states, for inference or finetuning, 39GB)
+[Slim weights](https://the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights/) - (No optimizer states, for inference or finetuning, 39GB)
 
 To download from the command line to a folder named `20B_checkpoints`, use the following command:
 
 ```bash
-wget --cut-dirs=5 -nH -r --no-parent --reject "index.html*" https://mystic.the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights/ -P 20B_checkpoints
+wget --cut-dirs=5 -nH -r --no-parent --reject "index.html*" https://the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights/ -P 20B_checkpoints
 ```
 
-[Full weights](https://mystic.the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights/) - (Including optimizer states, 268GB)
+[Full weights](https://the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights/) - (Including optimizer states, 268GB)
 
 To download from the command line to a folder named `20B_checkpoints`, use the following command:
 
 ```bash
-wget --cut-dirs=5 -nH -r --no-parent --reject "index.html*" https://mystic.the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights/ -P 20B_checkpoints
+wget --cut-dirs=5 -nH -r --no-parent --reject "index.html*" https://the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights/ -P 20B_checkpoints
 ```
 
-Weights can be alternatively be downloaded using a BitTorrent client. Torrent files can be downloaded here: [slim weights](https://mystic.the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights.torrent), [full weights](https://mystic.the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights.torrent).
+Weights can be alternatively be downloaded using a BitTorrent client. Torrent files can be downloaded here: [slim weights](https://the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights.torrent), [full weights](https://the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights.torrent).
 
 We additionally have 150 checkpoints saved throughout training, one every 1,000 steps. We are working on figuring out how to best serve these at scale, but in the meanwhile people interested in working with the partially trained checkpoints can email us at contact@eleuther.ai to arrange access.
 
@@ -190,7 +190,7 @@ or with the GPT-NeoX-20B tokenizer (assuming you have it saved at `./20B_checkpo
 python prepare_data.py -d ./data -t HFTokenizer --vocab-file ./20B_checkpoints/20B_tokenizer.json
 ```
 
-The tokenized data will be saved out to two files at `[data-dir]/[dataset-name]/[dataset-name]_text_document.bin` & `[data-dir]/[dataset-name]/[dataset-name]_text_document.bin`. You will need to add the prefix that both these files share to your training configuration file under the `data-path` field. E.G:
+The tokenized data will be saved out to two files: `[data-dir]/[dataset-name]/[dataset-name]_text_document.bin`and `[data-dir]/[dataset-name]/[dataset-name]_text_document.idx`. You will need to add the prefix that both these files share to your training configuration file under the `data-path` field. E.G:
 
 ```yaml
   "data-path": "./data/enron/enron_text_document",
@@ -325,6 +325,10 @@ EleutherAI is currently using [Weights & Biases to record our experiments](https
 ## TensorBoard
 
 We also support using TensorBoard via the <code><var>tensorboard-dir</var></code> field. Dependencies required for TensorBoard monitoring can be found in and installed from  `./requirements/requirements-tensorboard.txt`.
+
+# Running on multi-node
+
+If you need to supply a hostfile for use with the MPI-based DeepSpeed launcher, you can set the environment variable `DLTS_HOSTFILE` to point to the hostfile. 
 
 # Administrative Notes
 

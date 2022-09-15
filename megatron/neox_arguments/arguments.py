@@ -77,6 +77,9 @@ BASE_CLASSES = [
 DEEPSPEED_ARG_CLASSES = [NeoXArgsDeepspeedRunner, NeoXArgsDeepspeedConfig]
 NEOX_ARG_CLASSES = [i for i in BASE_CLASSES if i not in DEEPSPEED_ARG_CLASSES]
 
+if "DLTS_HOSTFILE" in os.environ:
+    DLTS_HOSTFILE = os.environ["DLTS_HOSTFILE"]
+
 
 @dataclass
 class NeoXArgs(*BASE_CLASSES):
@@ -280,6 +283,14 @@ class NeoXArgs(*BASE_CLASSES):
             type=str,
             default=None,
             help="prefix to append to eval results file",
+        )
+        parser.add_argument(
+            "-H",
+            "--hostfile",
+            type=str,
+            help="Hostfile path (in MPI style) that defines the "
+                 "resource pool available to the job (e.g., "
+                 "worker-0 slots=4)"
         )
         group = parser.add_argument_group(title="Generation args")
         group.add_argument(
@@ -526,7 +537,7 @@ class NeoXArgs(*BASE_CLASSES):
         Configures distributed training arguments from local variables set by deepspeed launcher.
         """
         if self.deepspeed_mpi:
-            from deepspeed.utils.distributed import mpi_discovery
+            from deepspeed.comm import mpi_discovery
 
             mpi_discovery()
 
@@ -755,7 +766,7 @@ class NeoXArgs(*BASE_CLASSES):
         # Update 'is pipe parallel' flag
         # if we set pipe_parallel_size to 0 or 1, GPT2ModelPipe.to_sequential() is called, and we run training with
         # the sequential model without the PipelineModule wrapper to avoid the overhead it incurs
-        self.update_value("is_pipe_parallel", self.pipe_parallel_size >= 1)
+        self.update_value("is_pipe_parallel", self.pipe_parallel_size >= 2)
 
         # Attention config
         if self.attention_config is None:

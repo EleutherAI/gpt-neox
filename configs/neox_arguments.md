@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = f9ee4a6
+    Default = 5e7dae3
 
     current git hash of repository
 
@@ -306,6 +306,14 @@ Model Arguments
     Default = 128
 
     T5 relative positional encoding max distance, default 128.
+
+
+
+- **opt_pos_emb_offset**: int
+
+    Default = 0
+
+    Learned position embedding offset (only used by OPT, where it should be set to 2).
 
 
 
@@ -868,6 +876,14 @@ Text Generation arguments
     Default = 0
 
     integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
+
+
+
+- **return_logits**: bool
+
+    Default = False
+
+    Boolean for whether to return the logits for generated tokens
 
 
 

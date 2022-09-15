@@ -91,6 +91,10 @@ class Embedding(torch.nn.Module):
 
         # Embeddings dropout
         self.embedding_dropout = torch.nn.Dropout(embedding_dropout_prob)
+        self.opt_pos_emb_offset = neox_args.opt_pos_emb_offset
+
+        # For ticking position ids forward
+        self.layer_past = None
 
     def add_tokentype_embeddings(self, num_tokentypes):
         """Add token-type embedding. This function is provided so we can add
@@ -114,6 +118,14 @@ class Embedding(torch.nn.Module):
         # Embeddings.
         words_embeddings = self.word_embeddings(input_ids)
         if self.use_pos_emb and self.embedding_type in ["learned", "sinusoidal"]:
+            if self.layer_past is not None:
+                position_ids = position_ids + self.layer_past + 1
+
+            self.layer_past = position_ids[:, -1]
+
+            # OPT always adds 2 for some reason, according to the HF implementation
+            if self.opt_pos_emb_offset:
+                position_ids = position_ids + self.opt_pos_emb_offset
             position_embeddings = self.position_embeddings(position_ids)
             embeddings = words_embeddings + position_embeddings
         else:

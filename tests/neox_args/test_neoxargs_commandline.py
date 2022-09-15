@@ -63,6 +63,34 @@ def test_neoxargs_consume_deepy_args_without_yml_suffix():
 
     assert args_loaded_yamls == args_loaded_consume
 
+@pytest.mark.cpu
+def test_neoxargs_consume_deepy_args_with_hostfile_param():
+    """
+    Verify consume_deepy_args processes command line arguments without yaml suffix.
+    Also test the hostfile CLI arg
+    """
+
+    from megatron.neox_arguments import NeoXArgs
+
+    # load neox args with command line
+    with patch(
+        "sys.argv",
+        [str(get_root_directory() / "deepy.py"), "train.py"]
+        + get_configs_with_path(["small", "local_setup"])
+        + ["--hostfile=/mock_path"]
+    ):
+        args_loaded_consume = NeoXArgs.consume_deepy_args()
+
+    # load neox args directly from yaml files
+    args_loaded_yamls = NeoXArgs.from_ymls(
+        get_configs_with_path(["small.yml", "local_setup.yml"])
+    )
+
+    # update values from yaml files that cannot otherwise be matched
+    args_loaded_yamls.update_value("user_script", "train.py")
+    args_loaded_yamls.wandb_group = args_loaded_consume.wandb_group
+
+    assert args_loaded_yamls == args_loaded_consume
 
 @pytest.mark.cpu
 def test_neoxargs_consume_deepy_args_with_config_dir():
