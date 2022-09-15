@@ -144,9 +144,10 @@ def pretrain(neox_args):
             forward_step_func=forward_step,
             data_iterator=test_data_iterator,
             model=model,
-            iteration=0,  # iteration 0 in order to always use full test data
+            iteration=iteration,
             verbose=True,
             timers=timers,
+            chart_name="test"
         )
 
 
@@ -736,6 +737,7 @@ def evaluate_and_print_results(
     iteration,
     verbose=False,
     timers=None,
+    chart_name="validation"
 ):
     """Helper function to evaluate and dump results on screen."""
     total_loss_dict = evaluate(
@@ -746,14 +748,14 @@ def evaluate_and_print_results(
         verbose=verbose,
         timers=timers,
     )
-    string = f" validation results at {prefix} | "
+    string = f" {chart_name} results at {prefix} | "
     for k, v in total_loss_dict.items():
         if isinstance(v, dict):
             for k2, v2 in v.items():
                 k3 = "_".join([k, k2])
                 string += f"{k3} value: {v2:.6E} | "
                 tb_wandb_log(
-                    f"validation/{k3}",
+                    f"{chart_name}/{k3}",
                     v2,
                     iteration,
                     use_wandb=neox_args.use_wandb,
@@ -762,7 +764,7 @@ def evaluate_and_print_results(
         else:
             string += f"{k} value: {v:.6E} | "
             tb_wandb_log(
-                f"validation/{k}",
+                f"{chart_name}/{k}",
                 v,
                 iteration,
                 use_wandb=neox_args.use_wandb,
