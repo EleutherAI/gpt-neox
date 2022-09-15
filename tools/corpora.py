@@ -18,6 +18,8 @@ import os
 from abc import ABC, abstractmethod
 from multiprocessing import cpu_count
 
+from sglue_utils import get_super_glue_text_preprocessor
+
 """
 This registry is for automatically downloading and extracting datasets.
 
@@ -284,21 +286,6 @@ class Enwik8(DataDownloader):
     name = "enwik8"
     urls = ["https://data.deepai.org/enwik8.zip"]
 
-# # These weights are based on the number of examples in each dataset.
-# SUPER_GLUE_WEIGHT_MAPPING = {
-#     "dpr_v001_simple": 1_322.,
-#     "super_glue_wsc_v102_simple_train": 259.,
-#     "super_glue_wsc_v102_simple_eval": 0.,
-#     "super_glue_boolq_v102": 9_427.,
-#     "super_glue_cb_v102": 250.,
-#     "super_glue_copa_v102": 400.,
-#     "super_glue_multirc_v102": 27_243.,
-#     "super_glue_record_v102": 138_854.,
-#     "super_glue_rte_v102": 2_490.,
-#     "super_glue_wic_v102": 5_428.,
-#     "super_glue_axb_v102": 0.,
-#     "super_glue_axg_v102": 0.,
-# }
 
 class SuperGLUE(DataDownloader):
     name = "super_glue"
@@ -319,119 +306,16 @@ class SuperGLUE(DataDownloader):
         for url in self.urls:
             os.system(
                 f"unzip -o {os.path.join(dir_path, os.path.basename(url))} -d {os.path.join(dir_path)}"
-                 # \
-                # f" -d {os.path.join(dir_path)}" \
-                # f" && mv {os.path.join(dir_path, os.path.basename(url)[:-4])}/train.jsonl" \
-                # f" {os.path.join(dir_path, os.path.basename(url))}.jsonl"
             )
 
-            prompt = self._get_prompt(os.path.basename(url)[:-4])
+            # \
+            # f" -d {os.path.join(dir_path)}" \
+            # f" && mv {os.path.join(dir_path, os.path.basename(url)[:-4])}/train.jsonl" \
+            # f" {os.path.join(dir_path, os.path.basename(url))}.jsonl"
+
+            prompt = get_super_glue_text_preprocessor(os.path.basename(url)[:-4])
             for line in all_lines:
                 processed_line = prompt(line)
-
-
-    def _get_prompt(self, subset):
-        if subset == "BoolQ":
-            def fn(json_line):
-                return {
-                    "text": "boolq hypothesis: {hypothesis} premise: {premise}".format(
-                            **json_line
-                            ),
-                    "target": json_line["label"],
-                }
-
-        elif subset == "CB":
-            def fn(json_line):
-                return {
-                    "text": "cb hypothesis: {hypothesis} premise: {premise}".format(
-                            **json_line
-                            ),
-                    "target": json_line["label"],
-                }
-
-        elif subset == "COPA":
-            def fn(json_line):
-                return {
-                    "text": "copa choice1: {choice1} choice2: {choice2} premise: {premise} question: {question}".format(
-                            **json_line
-                            ),
-                    "target": ["False", "True"][json_line["label"]],
-                }
-
-        elif subset == "MultiRC":
-            def fn(json_line):
-
-                processed_line = []
-                text = json_line["passage"]["text"]
-                for qa_pair in json_line["passage"]["questions"]:
-                    question = qa_pair["question"]
-                    for answer in qa_pair["answers"]:
-                        processed_line.append({
-                            "text": "multirc question: {} answer: {} paragraph: {}".format(
-                                question, answer["text"], text
-                                ),
-                            "target": ["False", "True"][answer["label"]],
-                        })
-
-                return processed_line
-
-        elif subset == "ReCoRD":
-            def fn(json_line):
-
-                processed_line = []
-                passage = json_line["passage"]["text"]
-                passage = re.sub(r'(\.|\?|\!|\"|\')\n@highlight\n', r'\1 ', 
-                    passage)
-                passage = re.sub(r'\n@highlight\n', '. ', 
-                    passage)
-
-                entities = []
-                for idx in line["passage"]['entities']:
-                    entities.append(passage[idx["start"]:idx["end"]+1])
-                entities = " ".join(entities)
-
-                for qas in json_line["qas"]:
-                    for answer in qas["answers"]:
-                        processed_line.append({
-                            "text": "record query: {} entities: {} passage: {}".format(
-                                qas["query"], entities, passage
-                                ),
-                            "target": answer["text"],
-                        })
-
-                return processed_line
-
-        elif subset == "RTE":
-            def fn(json_line):
-
-                return {
-                    "text": "rte sentence1: {premise} sentence2: {hypothesis}".format(**json_line),
-                    "target": json_line["label"],
-                }
-
-        elif subset == "WiC":
-            def fn(json_line):
-
-                return {
-                    "text": "wic pos: N sentence1: {sentence1} sentence2: {sentence2} word: {word}".format(**json_line),
-                    "target": str(json_line["label"]),
-                }
-
-        elif subset == "WSC":
-
-            def fn(json_line):
-                span2_index = json_line["target"]["span2_index"]
-                text = json_line["text"]
-                processed_text = " ".join(
-                    ["*{}*".format(word) if span2_index == idx else word for idx, word in enumerate(text.split(" "))]
-                    )
-
-                return {
-                    "text": "wcs text: {}".format(processed_text),
-                    "target": json_line["target"]["span1_text"] if json_line["label"] else "<unk>",
-                }
-
-            return fn
 
 
     def prepare(self):
