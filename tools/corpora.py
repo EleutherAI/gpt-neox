@@ -44,6 +44,7 @@ class DataDownloader(ABC):
         vocab_file=None,
         data_dir=None,
         num_workers=None,
+        jsonl_keys=None,
     ):
         if tokenizer_type is None:
             tokenizer_type = "GPT2BPETokenizer"
@@ -67,6 +68,10 @@ class DataDownloader(ABC):
         self._vocab_file = vocab_file
         self._data_dir = data_dir
         self._num_workers = num_workers
+        if jsonl_keys is None:
+            self._jsonl_keys = ["text"]
+        else:
+            self._jsonl_keys = jsonl_keys
 
     @property
     def base_dir(self):
@@ -115,6 +120,11 @@ class DataDownloader(ABC):
         """Use ftfy (https://github.com/LuminosoInsight/python-ftfy) to fix text encodings"""
         return False
 
+    @property
+    def jsonl_keys(self):
+        """keys to extract from jsonl"""
+        return self._jsonl_keys
+
     def exists(self):
         """Checks if the dataset is present"""
         return os.path.isdir(f"{self.base_dir}/{self.name}")
@@ -150,7 +160,9 @@ class DataDownloader(ABC):
         if self.ftfy:
             cmd += f"--ftfy "
 
-        os.system(cmd)
+        for key in self._jsonl_keys:
+            _cmd = cmd + f"--jsonl-keys {key}"
+            os.system(_cmd)
 
     def prepare(self):
         if not self.exists():
@@ -300,9 +312,7 @@ class SuperGLUE(DataDownloader):
         "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/WSC.zip"      # WSC
         ]
 
-
     def _concat(self):
-
         import json
 
         dir_path = os.path.join(self.base_dir, self.name)
@@ -335,12 +345,11 @@ class SuperGLUE(DataDownloader):
 
             self.urls[idx] = out_path
 
-
     def prepare(self):
         if not self.exists():
             self.download()
             self._concat()
-            # self.tokenize()
+            self.tokenize()
 
 
 def maybe_download_gpt2_tokenizer_data(tokenizer_type, data_dir):
@@ -403,11 +412,13 @@ def prepare_dataset(
         pass
     else:
         num_workers = 1 if dataset_name == "enwik8" else num_workers
+        jsonl_keys = ["text", "target"] if dataset_name == "super_glue" else ["text"]
         d = DownloaderClass(
             tokenizer_type=tokenizer_type,
             vocab_file=vocab_file,
             merge_file=merge_file,
             data_dir=data_dir,
             num_workers=num_workers,
+            jsonl_keys=jsonl_keys,
         )
         d.prepare()
