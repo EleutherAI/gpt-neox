@@ -141,11 +141,6 @@ class NeoXArgsModel(NeoXArgsTemplate):
     T5 relative positional encoding max distance, default 128.
     """
 
-    opt_pos_emb_offset: int = 0
-    """
-    Learned position embedding offset (only used by OPT, where it should be set to 2).
-    """
-
     no_weight_tying: bool = False
     """
     Disables weight tying between embedding weights and final Linear layer
@@ -963,11 +958,6 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     top_k: int = 0
     """
     integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
-    """
-
-    return_logits: bool = False
-    """
-    Boolean for whether to return the logits for generated tokens
     """
 
     maximum_tokens: int = 64
