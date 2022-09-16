@@ -18,7 +18,7 @@ import os
 from abc import ABC, abstractmethod
 from multiprocessing import cpu_count
 
-from sglue_utils import get_super_glue_text_preprocessor
+from .sglue_utils import get_super_glue_text_preprocessor
 
 """
 This registry is for automatically downloading and extracting datasets.
