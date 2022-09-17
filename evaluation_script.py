@@ -76,7 +76,7 @@ def score(neox_args,model,data,token_size=64):
 def main():
 
     # Initialization
-
+    os.environ['TORCH_EXTENSIONS_DIR'] = os.path.join(os.getcwd(), "tmp", "extensions") # Permission error fix
     model, neox_args = megatron_utils.setup_for_inference_or_eval()
 
     total_iters = neox_args.iteration*1024
@@ -154,7 +154,7 @@ def main():
             continue
 
         if mpu.get_data_parallel_rank() != 0:
-            torch.distributed.send(memorization, 0, group=mpu.get_data_parallel_group())
+            torch.distributed.isend(memorization, 0, group=mpu.get_data_parallel_group())
         else:
             for i in range(1,mpu.get_data_parallel_world_size()):
                 torch.distributed.recv(
