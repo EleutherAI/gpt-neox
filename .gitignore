@@ -144,14 +144,14 @@ checkpoints/
 *.pt
 *.ckpt
 
-#test logs
+# test logs
 test_checkpoint/
 test_logs/
 logs/
 tensorboard/
 src/
 
-#Any tfrecords created
+# Any tfrecords created
 *.tfrecord
 *.tfrecords
 *.tfrec
@@ -159,7 +159,9 @@ src/
 #Any csv files
 *.csv
 
-#miscellaneous generated files
+# miscellaneous generated files
 core
 *.out
 hosts
+memorization_iteration*
+tmp/
