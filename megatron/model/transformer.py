@@ -807,6 +807,7 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
                 
                 # TODO(Hailey): Between the first and second decoder layer, shape of decoder input ids and pos. ids goes from [b, s] to [bs]. Why???
                 # so we fix it manually
+                
                 if decoder_input_ids.size()[0] != hidden_states.size()[1]:
                     # then DS did the weird reshape so we fix it
                     decoder_input_ids = decoder_input_ids.view(hidden_states.size()[1], -1)

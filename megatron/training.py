@@ -238,7 +238,7 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
 
     enc_mask = get_full_mask(src_length, src_length, device=tokens_enc.device) 
     # TODO(Hailey): determine what size this enc attn mask should be. right now it's (1,1,1,enc_seq_length)
-
+    
     return tokens_enc, tokens_dec, labels, loss_mask, enc_mask, attention_mask, \
         position_ids_enc, position_ids_dec,
 

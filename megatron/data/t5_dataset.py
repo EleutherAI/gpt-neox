@@ -87,7 +87,7 @@ class T5Dataset(torch.utils.data.Dataset):
                 documents,
                 self.indexed_dataset.sizes,
                 num_samples,
-                self.inputs_length, # raw_seq_length - 1 # indexed dataset adds 1 to this 
+                self.raw_seq_length - 1, # indexed dataset adds 1 to this 
                 seed,
             )
             self.shuffle_idx_len = self.shuffle_idx.shape[0] - 1
@@ -146,7 +146,7 @@ class T5Dataset(torch.utils.data.Dataset):
 
             return build_sample(
                 sample=sample,
-                seq_length=self.inputs_length, # self.raw_seq_length,
+                seq_length=self.raw_seq_length,
                 target_seq_length=self.target_seq_length,
                 masked_lm_prob=self.masked_lm_prob,
                 mean_noise_span_length=self.mean_noise_span_length,
