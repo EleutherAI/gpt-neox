@@ -160,18 +160,48 @@ def pretrain(neox_args):
 
 def _get_batch(neox_args, tokenizer, keys, data, datatype):
     """Support function for get_batch / get_batch pipe (to avoid code repetition)"""
+
     data_b = mpu.broadcast_data(keys, data, datatype)
 
-    # Unpack.
-    tokens_ = data_b["text"].long()
+    # Unpack according to training objective.
+    decoder_is_inputs, segment_ids, prefix_indices = None, None, None
+    if neox_args.train_mtf:
+
+        tokens_ = data_b["decoder_token_ids"].long()
+        segment_ids = data_b["decoder_segment_ids"].long()[:, :-1]
+        # We'll shift this one later.
+        decoder_is_inputs = data_b["decoder_is_inputs"]#[:, :-1]
+
+    elif neox_args.training_objective != "mlm":
+
+        tokens_ = data_b["text"].long()
+
+    else:
+
+        inputs_ = data_b["input_tokens"].long()
+        targets_ = data_b["target_tokens"].long()
+
+        # MLM -> concatenate targets after inputs
+        tokens_ = torch.concat([inputs_, targets_], dim=-1)
+
+        # full attention over prefixes, if MLM. don't do this for CM3.
+        if neox_args.training_objective == "mlm": 
+            batch_size, seq_length = inputs_.shape
+            prefix_indices = torch.full((batch_size,), seq_length).long()
+        
+    if neox_args.training_objective == "prefixlm" and not neox_args.train_mtf:
+        prefix_indices = data_b["prefix"].long()
+    
     labels = tokens_[:, 1:].contiguous()
     tokens = tokens_[:, :-1].contiguous()
 
     # Get the masks and position ids.
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
         data=tokens,
-        eod_token=neox_args.tokenizer.eod,
-        eod_mask_loss=neox_args.eod_mask_loss,
+        prefix_indices=prefix_indices,
+        decoder_is_inputs=decoder_is_inputs,
+        segment_ids=segment_ids,
+        neox_args=neox_args,
     )
 
     return tokens, labels, loss_mask, attention_mask, position_ids
@@ -181,7 +211,8 @@ def get_batch(neox_args, data_iterator):
     """Generate a batch"""
 
     # Items and their type.
-    keys = ["text"]
+    keys = _get_keys(neox_args)
+        
     datatype = torch.int64
 
     # Broadcast data.
@@ -201,7 +232,8 @@ def get_batch(neox_args, data_iterator):
 def get_batch_pipe(data, neox_args):
     """A modification of get_batch() to work with the latest batch instead of an iterator."""
     # Items and their type.
-    keys = ["text"]
+    keys = _get_keys(neox_args)
+    
     datatype = torch.int64
 
     tokens, labels, loss_mask, attention_mask, position_ids = _get_batch(
@@ -312,6 +344,23 @@ def forward_step_encdec(data_iterator, model, neox_args, timers, return_logits=F
     if return_logits:
         return loss, outputs
     return loss
+
+
+def _get_keys(neox_args):
+    """
+    Helper fn for get_batch() and get_batch_pipe() to avoid repetition. 
+    Sets the keys to expect from a batch returned by dataloader.
+    """
+    if neox_args.train_mtf:
+        keys = ["decoder_token_ids", "decoder_segment_ids", "decoder_is_inputs"] 
+    elif neox_args.training_objective == "mlm":
+        keys = ["input_tokens", "target_tokens"]
+    elif neox_args.training_objective == "prefixlm":
+        keys = ["text", "prefix"]
+    else:
+        keys = ["text"]
+
+    return keys
 
 
 def forward_step(data_iterator, model, neox_args, timers, return_logits=False):

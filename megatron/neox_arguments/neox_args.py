@@ -362,6 +362,25 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
     """
 
+    training_objective: Literal["clm", "mlm", "prefixlm", "cm3"] = "clm"
+    """
+    Training objective to use. if "mlm", trained on a t5-style span denoising MLM objective for a decoder,
+    If "cm3", trained on decoder-MLM with a causal mask,
+    If "clm", model is trained on a typical autoregressive LM objective,
+    and if "prefixlm", model is trained with bidirectional attention up to the first n tokens.
+    """
+
+    train_mtf: bool = False
+    """
+    Flag controlling whether model will be multi-task-finetuned, using DecoderPackedMTFDataset.
+    """
+
+    loss_on_targets_only: bool = False
+    """
+    Flag controlling whether loss is masked for input tokens, e.g. in MLM or PrefixLM.
+    *SHOULD BE TRUE WHENEVER DOING MLM!!*
+    """
+
     masked_lm_prob: float = 0.15
     """
     Masking probability for MLM Adaptation
@@ -746,6 +765,18 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     when alpha = 1, the probability of sampling from a given group = n_samples / total_samples
     as alpha -> 0, the probability of sampling from all groups becomes equal, and number of documents has no effect
     as alpha -> inf, the probability of sampling from the groups with *the most samples* -> 1
+    """
+
+    weighted_document_limit: float = None
+    """
+    limit value for `weight_by_num_documents`. Only has an effect if `weight_by_num_documents` = True.
+
+    when limit = None, weighting occurs as usual using the true document totals from each source.
+    if limit != None, the minimum of (limit, true number of docs) is used for each source's rate.
+
+    this arg is used in multi-task finetuning to emulate the maximum in `mixing_rate_num_examples` from seqio:
+    See https://github.com/google/seqio/blob/90c76914ed13fcce53f00966b824e45fb266b973/seqio/utils.py#L671 for more.
+    Useful values are 3000 (used in https://arxiv.org/abs/2109.01652) and 500_000 (used in https://arxiv.org/abs/2110.08207)
     """
 
     data_impl: str = "infer"

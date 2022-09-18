@@ -72,8 +72,11 @@ def _vocab_size_with_padding(orig_vocab_size, args):
 
     after = orig_vocab_size
     # add in extra sentinel tokens first
+<<<<<<< HEAD
     if not hasattr(args, 'extra_sentinel_tokens'):
         args.extra_sentinel_tokens = 0
+=======
+>>>>>>> d7838a7b99386d0286bd09292f691c719319a5c7
     after = after + args.extra_sentinel_tokens
     # then pad for computational efficiency
     multiple = args.make_vocab_size_divisible_by * args.model_parallel_size
@@ -81,8 +84,13 @@ def _vocab_size_with_padding(orig_vocab_size, args):
         after += 1
     if args.rank == 0:
         print(
-            " > padded vocab (size: {}) with {} dummy tokens "
-            "(new size: {})".format(orig_vocab_size, after - orig_vocab_size, after),
+            " > padded vocab (size: {}) with {} <mask> tokens and {} dummy tokens "
+            "(new size: {})".format(
+                orig_vocab_size, 
+                args.extra_sentinel_tokens,
+                after - orig_vocab_size - args.extra_sentinel_tokens, 
+                after,
+                ),
             flush=True,
         )
     return after

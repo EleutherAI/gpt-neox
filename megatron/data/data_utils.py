@@ -10,6 +10,8 @@ from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
 from megatron.data.blendable_dataset import BlendableDataset
 from megatron.data.gpt2_dataset import GPT2Dataset
 from megatron.data.t5_dataset import T5Dataset
+from megatron.data.mlm_dataset import MLMDataset
+from megatron.data.decoder_packed_mtf_dataset import DecoderPackedMTFDataset, get_indexed_dataset
 from megatron.data.samplers import DistributedBatchSampler
 
 
@@ -48,10 +50,14 @@ def build_the_dataset(
     skip_warmup,
     neox_args=None,
     build_index_mappings=True,
+    neox_args=None
 ):
     """Build train/valid/test datasets."""
 
-    indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup)
+    if not neox_args.train_mtf:
+        indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup)
+    else:
+        indexed_dataset = get_indexed_dataset(data_prefix, False, data_impl, skip_warmup)
 
     total_num_of_documents = indexed_dataset.sizes.shape[0]
     print_rank_0("    {}:".format(name))
@@ -59,32 +65,59 @@ def build_the_dataset(
     dataset = None
     documents = np.arange(start=0, stop=total_num_of_documents, step=1, dtype=np.int32)
 
-    if neox_args.model_arch == "gpt2":
-        dataset = GPT2Dataset(
-            name,
-            data_prefix,
-            documents,
-            indexed_dataset,
-            num_samples,
-            seq_length,
-            seed,
+    dataset_args = [
+        name,
+        data_prefix,
+        documents,
+        indexed_dataset,
+        num_samples,
+        seq_length,
+        seed
+        ]
+    if neox_args.train_mtf:
+        dataset = DecoderPackedMTFDataset(
+            *dataset_args,
+            data_impl,
+            skip_warmup=False,
+            tokenizer=neox_args.tokenizer,
+        ) 
+    elif neox_args.training_objective == "mlm":
+
+        dataset = MLMDataset(
+            *dataset_args,
             build_index_mappings=build_index_mappings,
-        )
-    elif neox_args.model_arch == "t5":
-        dataset = T5Dataset(
-            name,
-            data_prefix,
-            documents,
-            indexed_dataset,
-            num_samples,
-            seq_length,
-            seed,
-            neox_args=neox_args,
-            build_index_mappings=build_index_mappings,
+            tokenizer=neox_args.tokenizer,
+            padded_vocab_size=neox_args.padded_vocab_size,
+            noise_density=neox_args.masked_lm_prob,
+            mean_noise_span_length=neox_args.mean_noise_span_length,
         )
     else:
-        raise ValueError("Received a `model_arch` value other than `gpt2` or `t5`!")
-    
+        if neox_args.model_arch == "gpt2":
+            dataset = GPT2Dataset(
+                name,
+                data_prefix,
+                documents,
+                indexed_dataset,
+                num_samples,
+                seq_length,
+                seed,
+                build_index_mappings=build_index_mappings,
+            )
+        elif neox_args.model_arch == "t5":
+            dataset = T5Dataset(
+                name,
+                data_prefix,
+                documents,
+                indexed_dataset,
+                num_samples,
+                seq_length,
+                seed,
+                neox_args=neox_args,
+                build_index_mappings=build_index_mappings,
+            )
+        else:
+            raise ValueError("Received a `model_arch` value other than `gpt2` or `t5`!")
+
     return dataset
 
 
@@ -101,7 +134,10 @@ def build_train_valid_test_datasets(
     """Build train, valid, and test datasets."""
 
     # Indexed dataset.
-    indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup)
+    if not neox_args.train_mtf:
+        indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup)
+    else:
+        indexed_dataset = get_indexed_dataset(data_prefix, False, data_impl, skip_warmup)
 
     total_num_of_documents = indexed_dataset.sizes.shape[0]
     splits = get_train_valid_test_split_(splits_string, total_num_of_documents)
@@ -128,27 +164,42 @@ def build_train_valid_test_datasets(
             documents = np.arange(
                 start=splits[index], stop=splits[index + 1], step=1, dtype=np.int32
             )
-            if neox_args.model_arch == "gpt2":
-                dataset = GPT2Dataset(
-                    name,
-                    data_prefix,
-                    documents,
-                    indexed_dataset,
-                    train_valid_test_num_samples[index],
-                    seq_length,
-                    seed,
+
+            dataset_args = [
+                name,
+                data_prefix,
+                documents,
+                indexed_dataset,
+                train_valid_test_num_samples[index],
+                seq_length,
+                seed,
+            ]
+            if neox_args.train_mtf:
+                # TODO(Hailey): currently we shouldn't pass/make an indexed dataset to this class
+                dataset = DecoderPackedMTFDataset(
+                    *dataset_args,
+                    data_impl,
+                    skip_warmup=False,
+                    tokenizer=neox_args.tokenizer, # TODO(Hailey): just pass this dataset a tokenizer (like MLMdataset)
                 )
-            elif neox_args.model_arch == "t5":
-                dataset = T5Dataset(
-                    name,
-                    data_prefix,
-                    documents,
-                    indexed_dataset,
-                    train_valid_test_num_samples[index],
-                    seq_length,
-                    seed,
-                    neox_args=neox_args,
+            elif neox_args.training_objective == "mlm":
+                dataset = MLMDataset(
+                    *dataset_args,
+                    tokenizer=neox_args.tokenizer,
+                    padded_vocab_size=neox_args.padded_vocab_size,
+                    noise_density=neox_args.masked_lm_prob,
+                    mean_noise_span_length=neox_args.mean_noise_span_length,
                 )
+            else:
+                if neox_args.model_arch == "gpt2":
+                    dataset = GPT2Dataset(
+                        *dataset_args,
+                    )
+                elif neox_args.model_arch == "t5":
+                    dataset = T5Dataset(
+                        *dataset_args,
+                        neox_args=neox_args,
+                    )
         return dataset
 
     train_dataset = build_dataset(0, "train")
@@ -232,6 +283,7 @@ def build_weighted_datasets(
                     skip_warmup=(not neox_args.mmap_warmup),
                     neox_args=neox_args,
                     build_index_mappings=build_index_mappings,
+                    neox_args=neox_args,
                 )
             )
 
@@ -247,6 +299,7 @@ def build_weighted_datasets(
                     skip_warmup=(not neox_args.mmap_warmup),
                     neox_args=neox_args,
                     build_index_mappings=build_index_mappings,
+                    neox_args=neox_args,
                 )
             )
 
@@ -262,12 +315,13 @@ def build_weighted_datasets(
                     skip_warmup=(not neox_args.mmap_warmup),
                     neox_args=neox_args,
                     build_index_mappings=build_index_mappings,
+                    neox_args=neox_args,
                 )
             )
     return train_datasets, valid_datasets, test_datasets
 
 
-def weights_by_num_docs(l, alpha=0.3):
+def weights_by_num_docs(l, alpha:float = 0.3, limit:int = None):
     """
     Builds weights from a multinomial distribution over groups of data according to the number of
     samples in each group.
@@ -279,8 +333,18 @@ def weights_by_num_docs(l, alpha=0.3):
 
     Hence α (`alpha`) allows us to control how much to 'boost' the probability of training on low-resource groups.
 
-    See https://arxiv.org/abs/1911.02116 for more details
+    See https://arxiv.org/abs/1911.02116 for more details.
+
+    `limit` sets an upper bound for the number of examples from each source to count toward weighting.
+    it has no effect if None.
+    this arg is used to emulate the maximum in `mixing_rate_num_examples` from seqio:
+    See https://github.com/google/seqio/blob/90c76914ed13fcce53f00966b824e45fb266b973/seqio/utils.py#L671 for more.
     """
+    if limit:
+        assert limit > 0, "weighted_document_limit arg must be > 0"
+        # don't count more than `limit` docs for weighting purposes.
+        l = [min(i, limit) for i in l]
+    
     total_n_docs = sum(l)
     unbiased_sample_probs = [i / total_n_docs for i in l]
 
@@ -369,7 +433,9 @@ def build_train_valid_test_data_iterators(neox_args):
 
                 # builds weights according to alpha + the number of docs
                 fn = partial(
-                    weights_by_num_docs, alpha=neox_args.weighted_sampler_alpha
+                    weights_by_num_docs, 
+                    alpha=neox_args.weighted_sampler_alpha,
+                    limit=neox_args.weighted_document_limit,
                 )
                 train_weights, valid_weights, test_weights = (
                     fn(train_num_docs),
