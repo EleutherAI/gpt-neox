@@ -74,49 +74,27 @@ def build_the_dataset(
         seq_length,
         seed
         ]
-    if neox_args.train_mtf:
-        dataset = DecoderPackedMTFDataset(
-            *dataset_args,
-            data_impl,
-            skip_warmup=False,
-            tokenizer=neox_args.tokenizer,
-        ) 
-    elif neox_args.training_objective == "mlm":
 
-        dataset = MLMDataset(
-            *dataset_args,
+    if neox_args.model_arch == "gpt2":
+        dataset = GPT2Dataset(
+            *dataset_args
             build_index_mappings=build_index_mappings,
-            tokenizer=neox_args.tokenizer,
-            padded_vocab_size=neox_args.padded_vocab_size,
-            noise_density=neox_args.masked_lm_prob,
-            mean_noise_span_length=neox_args.mean_noise_span_length,
         )
-    else:
-        if neox_args.model_arch == "gpt2":
-            dataset = GPT2Dataset(
-                name,
-                data_prefix,
-                documents,
-                indexed_dataset,
-                num_samples,
-                seq_length,
-                seed,
-                build_index_mappings=build_index_mappings,
-            )
-        elif neox_args.model_arch == "t5":
-            dataset = T5Dataset(
-                name,
-                data_prefix,
-                documents,
-                indexed_dataset,
-                num_samples,
-                seq_length,
-                seed,
+    elif neox_args.model_arch == "t5":
+        if neox_args.train_mtf:
+            dataset = T5MTFDataset(
+                *dataset_args,
                 neox_args=neox_args,
                 build_index_mappings=build_index_mappings,
             )
         else:
-            raise ValueError("Received a `model_arch` value other than `gpt2` or `t5`!")
+            dataset = T5Dataset(
+                *dataset_args
+                neox_args=neox_args,
+                build_index_mappings=build_index_mappings,
+            )
+    else:
+        raise ValueError("Received a `model_arch` value other than `gpt2` or `t5`!")
 
     return dataset
 
@@ -174,32 +152,22 @@ def build_train_valid_test_datasets(
                 seq_length,
                 seed,
             ]
-            if neox_args.train_mtf:
-                # TODO(Hailey): currently we shouldn't pass/make an indexed dataset to this class
-                dataset = DecoderPackedMTFDataset(
+            if neox_args.model_arch == "gpt2":
+                dataset = GPT2Dataset(
                     *dataset_args,
-                    data_impl,
-                    skip_warmup=False,
-                    tokenizer=neox_args.tokenizer, # TODO(Hailey): just pass this dataset a tokenizer (like MLMdataset)
                 )
-            elif neox_args.training_objective == "mlm":
-                dataset = MLMDataset(
-                    *dataset_args,
-                    tokenizer=neox_args.tokenizer,
-                    padded_vocab_size=neox_args.padded_vocab_size,
-                    noise_density=neox_args.masked_lm_prob,
-                    mean_noise_span_length=neox_args.mean_noise_span_length,
-                )
-            else:
-                if neox_args.model_arch == "gpt2":
-                    dataset = GPT2Dataset(
+            elif neox_args.model_arch == "t5":
+                if neox_args.train_mtf:
+                    dataset = T5MTFDataset(
                         *dataset_args,
+                        neox_args=neox_args,
                     )
-                elif neox_args.model_arch == "t5":
+                else:
                     dataset = T5Dataset(
                         *dataset_args,
                         neox_args=neox_args,
                     )
+
         return dataset
 
     train_dataset = build_dataset(0, "train")
