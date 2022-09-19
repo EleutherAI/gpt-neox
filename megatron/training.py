@@ -279,8 +279,14 @@ def get_optimizer(model, neox_args):
     # Build parameter groups (weight decay and non-decay).
     param_groups = get_params_for_weight_decay_optimization(model, neox_args)
     if neox_args.create_moe_param_group:
-        from deepspeed.moe.utils import is_moe_param, split_params_into_different_moe_groups_for_optimizer
-        param_groups = split_params_into_different_moe_groups_for_optimizer(param_groups)
+        from deepspeed.moe.utils import (
+            is_moe_param,
+            split_params_into_different_moe_groups_for_optimizer,
+        )
+
+        param_groups = split_params_into_different_moe_groups_for_optimizer(
+            param_groups
+        )
     print_rank_0(
         f'Configuring Optimizer type: {neox_args.optimizer_type} with params: {neox_args.optimizer["params"]}'
     )

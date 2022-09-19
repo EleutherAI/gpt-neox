@@ -105,7 +105,7 @@ class AliBi(torch.nn.Module):
         def get_slopes_power_of_2(n):
             start = 2 ** (-(2 ** -(math.log2(n) - 3)))
             ratio = start
-            return [start * ratio ** i for i in range(n)]
+            return [start * ratio**i for i in range(n)]
 
         if math.log2(n).is_integer():
             return get_slopes_power_of_2(n)

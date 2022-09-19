@@ -223,10 +223,16 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                 heads=self.neox_args.num_attention_heads,
             )
 
-        assert len(self.num_experts) == 1 or len(self.num_experts) == self.neox_args.num_layers // self.neox_args.expert_interval, 'num_layers must be divisible by pipeline_model_parallel_size'
+        assert (
+            len(self.num_experts) == 1
+            or len(self.num_experts)
+            == self.neox_args.num_layers // self.neox_args.expert_interval
+        ), "num_layers must be divisible by pipeline_model_parallel_size"
 
         if len(self.num_experts) == 1:
-            self.num_experts = self.num_experts * (self.neox_args.num_layers // self.neox_args.expert_interval)
+            self.num_experts = self.num_experts * (
+                self.neox_args.num_layers // self.neox_args.expert_interval
+            )
 
         # Transformer layers
         for i in range(self.neox_args.num_layers):
@@ -244,7 +250,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                 )
             else:
                 if i % self.neox_args.expert_interval == 0:
-                    n_e = self.num_experts[(i-1) // self.neox_args.expert_interval]
+                    n_e = self.num_experts[(i - 1) // self.neox_args.expert_interval]
                 else:
                     n_e = 1
                 self.specs.append(
@@ -258,7 +264,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                         rpe=rpe_emb if self.neox_args.pos_emb == "rpe" else None,
                         rotary=self.neox_args.pos_emb == "rotary",
                         use_cache=self.use_cache,
-                        num_experts=n_e
+                        num_experts=n_e,
                     )
                 )
 

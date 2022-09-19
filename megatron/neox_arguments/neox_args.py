@@ -49,7 +49,9 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     Size of the model parallelism.
     """
 
-    num_experts: list = [1,]
+    num_experts: list = [
+        1,
+    ]
     """
     Degree of MoE expert parallelism
     """
@@ -350,9 +352,9 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Use experts in every "expert-interval" layers
     """
 
-    mlp_type: str = 'standard'
+    mlp_type: str = "standard"
     """
-    Only applicable when num-experts > 1, accepts [standard, residual] 
+    Only applicable when num-experts > 1, accepts [standard, residual]
     """
 
 

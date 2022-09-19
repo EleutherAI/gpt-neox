@@ -81,7 +81,13 @@ class ParallelMLP(nn.Module):
     """
 
     def __init__(
-        self, neox_args, init_method, output_layer_init_method, parallel_output=False, MOE=False, MoE_mp_size=1
+        self,
+        neox_args,
+        init_method,
+        output_layer_init_method,
+        parallel_output=False,
+        MOE=False,
+        MoE_mp_size=1,
     ):
         super().__init__()
 
@@ -104,7 +110,7 @@ class ParallelMLP(nn.Module):
             init_method=init_method,
             skip_bias_add=True,
             MOE=MOE,
-            MoE_mp_size=MoE_mp_size
+            MoE_mp_size=MoE_mp_size,
         )
         ff_dim_in = ff_dim // 2 if self.activation_type == "geglu" else ff_dim
         # Project back to h.
@@ -586,8 +592,24 @@ class ParallelTransformerLayer(nn.Module):
                 moe_mp_size = 1
             else:
                 moe_mp_size = dist.get_world_size() // self.num_experts
-            
-            self.mlp = MoE(neox_args.hidden_size, ParallelMLP(init_method, output_layer_init_method=output_layer_init_method, MOE=True, MoE_mp_size=moe_mp_size), num_experts=self.num_experts, ep_size=neox_args.moe_expert_parallel_size, k=neox_args.topk, use_residual=(neox_args.mlp_type == 'residual', capacity_factor=neox_args.moe_train_capacity_factor, eval_capacity_factor=neox_args.moe_eval_capacity_factor, min_capacity=neox_args.moe_min_capacity, drop_tokens=neox_args.moe_token_dropping))
+
+            self.mlp = MoE(
+                neox_args.hidden_size,
+                ParallelMLP(
+                    init_method,
+                    output_layer_init_method=output_layer_init_method,
+                    MOE=True,
+                    MoE_mp_size=moe_mp_size,
+                ),
+                num_experts=self.num_experts,
+                ep_size=neox_args.moe_expert_parallel_size,
+                k=neox_args.topk,
+                use_residual=(neox_args.mlp_type == "residual"),
+                capacity_factor=neox_args.moe_train_capacity_factor,
+                eval_capacity_factor=neox_args.moe_eval_capacity_factor,
+                min_capacity=neox_args.moe_min_capacity,
+                drop_tokens=neox_args.moe_token_dropping,
+            )
 
         self.layer_past = None  # used to cache k/v pairs in inference
 
@@ -630,9 +652,17 @@ class ParallelTransformerLayer(nn.Module):
                 )
 
             # output = mlp(ln2(x)) + attention_output
-            #mlp_output, mlp_bias = self.mlp(self.post_attention_layernorm(x))
-            moe_loss = torch.tensor(0.0, device=self.post_attention_layernorm(x).device, dtype=self.post_attention_layernorm(x).dtype)
-            mlp_bias = torch.tensor(0.0, device=self.post_attention_layernorm(x).device, dtype=self.post_attention_layernorm(x).dtype)
+            # mlp_output, mlp_bias = self.mlp(self.post_attention_layernorm(x))
+            moe_loss = torch.tensor(
+                0.0,
+                device=self.post_attention_layernorm(x).device,
+                dtype=self.post_attention_layernorm(x).dtype,
+            )
+            mlp_bias = torch.tensor(
+                0.0,
+                device=self.post_attention_layernorm(x).device,
+                dtype=self.post_attention_layernorm(x).dtype,
+            )
 
             if self.num_experts == 1:
                 mlp_output, mlp_bias = self.mlp(self.post_attention_layernorm(x))
