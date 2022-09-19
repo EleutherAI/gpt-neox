@@ -356,7 +356,7 @@ class EvalHarnessAdapter(GPT2LM):
         description_dict=None,
         use_cache=True,
         name="neox",
-        limit=None
+        limit=None,
     ):
         was_training = self.model.training
         self.model.eval()
@@ -389,7 +389,7 @@ class EvalHarnessAdapter(GPT2LM):
         if use_cache:
             # TODO(jon-tow): Append a subset of `neox_args` to the cache database
             # name arg to distinguish model runs that use different configurations.
-            lm = base.CachingLM(lm, 'lm_cache/' + name + '.db')
+            lm = base.CachingLM(lm, "lm_cache/" + name + ".db")
 
         results = evaluator.evaluate(
             lm=lm,
@@ -409,7 +409,7 @@ class EvalHarnessAdapter(GPT2LM):
             "no_cache": not use_cache,
             "limit": limit,
             "bootstrap_iters": bootstrap_iters,
-            "description_dict": description_dict
+            "description_dict": description_dict,
         }
 
         if was_training:

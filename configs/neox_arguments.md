@@ -922,7 +922,7 @@ Text Generation arguments
 
 - **eval_results_prefix**: str
 
-    Default = 
+    Default =
 
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
 
@@ -1510,7 +1510,7 @@ Args for deepspeed config
 
     Default = None
 
-    
+
 
 
 
@@ -1636,4 +1636,3 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = False
 
     If true, autodetects nvlink pairs and remaps cuda visible devices to place them next to each other. This is an Eleuther addition to deepspeed, and should speed up model parallel training on setups with nvlink pairs when mp=2.
-

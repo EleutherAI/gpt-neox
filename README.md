@@ -328,7 +328,7 @@ We also support using TensorBoard via the <code><var>tensorboard-dir</var></code
 
 # Running on multi-node
 
-If you need to supply a hostfile for use with the MPI-based DeepSpeed launcher, you can set the environment variable `DLTS_HOSTFILE` to point to the hostfile. 
+If you need to supply a hostfile for use with the MPI-based DeepSpeed launcher, you can set the environment variable `DLTS_HOSTFILE` to point to the hostfile.
 
 # Administrative Notes
 
