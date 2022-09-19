@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 6457704
+    Default = e8fcee5
 
     current git hash of repository
 
@@ -876,6 +876,14 @@ Text Generation arguments
     Default = 0
 
     integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
+
+
+
+- **return_logits**: bool
+
+    Default = False
+
+    Boolean for whether to return the logits for generated tokens
 
 
 

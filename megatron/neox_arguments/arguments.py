@@ -288,7 +288,6 @@ class NeoXArgs(*BASE_CLASSES):
             "-H",
             "--hostfile",
             type=str,
-            default=DLTS_HOSTFILE,
             help="Hostfile path (in MPI style) that defines the "
                  "resource pool available to the job (e.g., "
                  "worker-0 slots=4)"
@@ -392,6 +391,10 @@ class NeoXArgs(*BASE_CLASSES):
                 args_list.extend(
                     self.convert_key_value_to_command_line_arg(key, configured_value)
                 )
+        if 'DLTS_HOSTFILE' in os.environ:
+            args_list.extend(
+                self.convert_key_value_to_command_line_arg("hostfile", os.environ['DLTS_HOSTFILE'])
+            )
 
         if (
             "--include" in args_list or "--exclude" in args_list

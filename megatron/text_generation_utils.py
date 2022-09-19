@@ -278,6 +278,7 @@ def stream_tokens(
         # initialize generation variables
         state_is_done = torch.zeros([batch_size]).byte().cuda()
         token_generation_end_index = torch.ones([batch_size]).long().cuda() * (-1)
+        generation_logits = torch.empty(maximum_tokens, neox_args.padded_vocab_size).float().cuda()
 
         while token_index_to_generate <= last_token_index_to_generate:
             if recompute:  # recompute all tokens
@@ -333,6 +334,9 @@ def stream_tokens(
                         next_token_log_probs, num_samples=1
                     ).view(-1)
 
+                if neox_args.return_logits:
+                    generation_logits[token_index_to_generate - 1] = generated_token_logits[0]
+
             if neox_args.is_pipe_parallel:
                 # broadcast generated tokens to pipe parallel group
                 src_rank = model.grid.stage_to_global(model.num_stages - 1)
@@ -378,7 +382,7 @@ def stream_tokens(
 
             token_index_to_generate += 1
 
-            yield context_tokens, token_generation_start_index, token_generation_end_index, state_is_done.bool()
+            yield context_tokens, token_generation_start_index, token_generation_end_index, generation_logits, state_is_done.bool()
             if torch.all(state_is_done):
                 break
 
@@ -473,6 +477,7 @@ def generate_samples_from_prompt(
             batch_context_tokens,
             batch_token_generation_start_index,
             batch_token_generation_end_index,
+            batch_generated_token_logits,
             is_done,
         ) in stream_tokens(
             neox_args=neox_args,
@@ -526,6 +531,10 @@ def generate_samples_from_prompt(
                     "message": message,
                     "duration_seconds": float(time.time() - start_time),
                 }
+
+                if neox_args.return_logits:
+                    data["logits"] = batch_generated_token_logits.cpu().numpy().tolist()
+
                 generated_texts.append(data)
 
     return generated_texts
