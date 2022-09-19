@@ -211,7 +211,7 @@ def get_batch(neox_args, data_iterator):
     """Generate a batch"""
 
     # Items and their type.
-    keys = _get_keys(neox_args)
+    keys = ["text"]
         
     datatype = torch.int64
 
@@ -232,7 +232,7 @@ def get_batch(neox_args, data_iterator):
 def get_batch_pipe(data, neox_args):
     """A modification of get_batch() to work with the latest batch instead of an iterator."""
     # Items and their type.
-    keys = _get_keys(neox_args)
+    keys = ["text"]
     
     datatype = torch.int64
 
@@ -344,23 +344,6 @@ def forward_step_encdec(data_iterator, model, neox_args, timers, return_logits=F
     if return_logits:
         return loss, outputs
     return loss
-
-
-def _get_keys(neox_args):
-    """
-    Helper fn for get_batch() and get_batch_pipe() to avoid repetition. 
-    Sets the keys to expect from a batch returned by dataloader.
-    """
-    if neox_args.train_mtf:
-        keys = ["decoder_token_ids", "decoder_segment_ids", "decoder_is_inputs"] 
-    elif neox_args.training_objective == "mlm":
-        keys = ["input_tokens", "target_tokens"]
-    elif neox_args.training_objective == "prefixlm":
-        keys = ["text", "prefix"]
-    else:
-        keys = ["text"]
-
-    return keys
 
 
 def forward_step(data_iterator, model, neox_args, timers, return_logits=False):

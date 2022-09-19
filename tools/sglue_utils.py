@@ -51,8 +51,8 @@ def preprocess_boolq(x):
         expose_features(x, ["question", "passage"])
     ])
     return {
-        "text": joined,
-        "target": x["label"],
+        "inputs": joined,
+        "targets": x["label"],
     }
 
 
@@ -63,8 +63,8 @@ def preprocess_cb(x):
         expose_features(x, ["hypothesis", "premise"])
     ])
     return {
-        "text": joined,
-        "target": x["label"],
+        "inputs": joined,
+        "targets": x["label"],
     }
 
 
@@ -75,8 +75,8 @@ def preprocess_copa(x):
         expose_features(x, ["choice1", "choice2", "premise", "question"])
     ])
     return {
-        "text": joined,
-        "target": ["False", "True"][x["label"]],
+        "inputs": joined,
+        "targets": ["False", "True"][x["label"]],
     }
 
 
@@ -92,10 +92,10 @@ def preprocess_multirc(x):
         question = qa_pair["question"]
         for answer in qa_pair["answers"]:
             processed_line.append({
-                "text": "multirc question: {} answer: {} paragraph: {}".format(
+                "inputs": "multirc question: {} answer: {} paragraph: {}".format(
                     question, answer["text"], text
                     ),
-                "target": ["False", "True"][answer["label"]],
+                "targets": ["False", "True"][answer["label"]],
             })
 
     return processed_line
@@ -118,10 +118,10 @@ def preprocess_record(x):
     for qas in x["qas"]:
         for answer in qas["answers"]:
             processed_line.append({
-                "text": "record query: {} entities: {} passage: {}".format(
+                "inputs": "record query: {} entities: {} passage: {}".format(
                     qas["query"], entities, passage
                     ),
-                "target": answer["text"],
+                "targets": answer["text"],
             })
 
     return processed_line
@@ -134,8 +134,8 @@ def preprocess_rte(x):
         expose_features(x, ["hypothesis", "premise"])
     ])
     return {
-        "text": joined,
-        "target": x["label"],
+        "inputs": joined,
+        "targets": x["label"],
     }
 
 
@@ -146,8 +146,8 @@ def preprocess_wic(x):
         expose_features(x, ["sentence1", "sentence2", "word"])
     ])
     return {
-        "text": joined,
-        "target": str(x["label"]),
+        "inputs": joined,
+        "targets": str(x["label"]),
     }
 
 
@@ -179,4 +179,7 @@ def preprocess_wsc(x):
     else:
         label_name = "<unk>"
 
-    return {"text": joined, "target": label_name}
+    return {
+        "inputs": joined,
+        "targets": label_name
+    }
