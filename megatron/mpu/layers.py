@@ -372,6 +372,8 @@ class ColumnParallelLinear(torch.nn.Module):
         stride=1,
         keep_master_weight_for_test=False,
         skip_bias_add=False,
+        MOE=False,
+        MoE_mp_size=1,
     ):
         super(ColumnParallelLinear, self).__init__()
 
@@ -380,7 +382,7 @@ class ColumnParallelLinear(torch.nn.Module):
         self.output_size = output_size
         self.gather_output = gather_output
         # Divide the weight matrix along the last dimension.
-        world_size = get_model_parallel_world_size()
+        world_size = MoE_mp_size if MOE else get_model_parallel_world_size()
         self.output_size_per_partition = divide(output_size, world_size)
         self.skip_bias_add = skip_bias_add
 
@@ -508,6 +510,8 @@ class RowParallelLinear(torch.nn.Module):
         keep_master_weight_for_test=False,
         skip_bias_add=False,
         parallel_output=False,
+        MOE=False,
+        MoE_mp_size=1,
     ):
         super(RowParallelLinear, self).__init__()
 
@@ -516,7 +520,7 @@ class RowParallelLinear(torch.nn.Module):
         self.output_size = output_size
         self.input_is_parallel = input_is_parallel
         # Divide the weight matrix along the last dimension.
-        world_size = get_model_parallel_world_size()
+        world_size = MoE_mp_size if MOE else get_model_parallel_world_size()
         self.input_size_per_partition = divide(input_size, world_size)
         self.skip_bias_add = skip_bias_add
         self.parallel_output = parallel_output

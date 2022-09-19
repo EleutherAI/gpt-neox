@@ -107,6 +107,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         use_cache=False,
     ):
         self.neox_args = neox_args
+        self.num_experts = neox_args.num_experts
 
         self.use_cache = use_cache
         self.parallel_output = parallel_output
@@ -222,6 +223,11 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                 heads=self.neox_args.num_attention_heads,
             )
 
+        assert len(self.num_experts) == 1 or len(self.num_experts) == self.neox_args.num_layers // self.neox_args.expert_interval, 'num_layers must be divisible by pipeline_model_parallel_size'
+
+        if len(self.num_experts) == 1:
+            self.num_experts = self.num_experts * (self.neox_args.num_layers // self.neox_args.expert_interval)
+
         # Transformer layers
         for i in range(self.neox_args.num_layers):
             layer_type = self.neox_args.attention_config[i]
@@ -237,6 +243,10 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                     )
                 )
             else:
+                if i % self.neox_args.expert_interval == 0:
+                    n_e = self.num_experts[(i-1) // self.neox_args.expert_interval]
+                else:
+                    n_e = 1
                 self.specs.append(
                     LayerSpec(
                         ParallelTransformerLayerPipe,
@@ -248,6 +258,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                         rpe=rpe_emb if self.neox_args.pos_emb == "rpe" else None,
                         rotary=self.neox_args.pos_emb == "rotary",
                         use_cache=self.use_cache,
+                        num_experts=n_e
                     )
                 )
 

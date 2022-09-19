@@ -22,6 +22,9 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 
+import deepspeed
+from deepspeed.moe.layer import MoE
+
 from .norms import get_norm
 from megatron import mpu
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
@@ -78,7 +81,7 @@ class ParallelMLP(nn.Module):
     """
 
     def __init__(
-        self, neox_args, init_method, output_layer_init_method, parallel_output=False
+        self, neox_args, init_method, output_layer_init_method, parallel_output=False, MOE=False, MoE_mp_size=1
     ):
         super().__init__()
 
@@ -100,6 +103,8 @@ class ParallelMLP(nn.Module):
             gather_output=False,
             init_method=init_method,
             skip_bias_add=True,
+            MOE=MOE,
+            MoE_mp_size=MoE_mp_size
         )
         ff_dim_in = ff_dim // 2 if self.activation_type == "geglu" else ff_dim
         # Project back to h.
@@ -111,6 +116,8 @@ class ParallelMLP(nn.Module):
             init_method=output_layer_init_method,
             skip_bias_add=True,
             parallel_output=parallel_output,
+            MOE=MOE,
+            MoE_mp_size=MoE_mp_size,
         )
 
     def forward(self, hidden_states):
@@ -530,6 +537,7 @@ class ParallelTransformerLayer(nn.Module):
         rpe=None,
         rotary=False,
         use_cache=False,
+        num_experts=1,
     ):
 
         super().__init__()
@@ -564,13 +572,22 @@ class ParallelTransformerLayer(nn.Module):
         # Layernorm on the output of the attention layer.
         self.post_attention_layernorm = norm(neox_args.hidden_size, eps=eps)
 
+        self.num_experts = num_experts
         # MLP
-        self.mlp = ParallelMLP(
-            neox_args=neox_args,
-            init_method=init_method,
-            output_layer_init_method=output_layer_init_method,
-            parallel_output=self.gpt_j_residual,
-        )
+        if self.num_experts <= 1:
+            self.mlp = ParallelMLP(
+                neox_args=neox_args,
+                init_method=init_method,
+                output_layer_init_method=output_layer_init_method,
+                parallel_output=self.gpt_j_residual,
+            )
+        else:
+            if self.num_experts > dist.get_world_size():
+                moe_mp_size = 1
+            else:
+                moe_mp_size = dist.get_world_size() // self.num_experts
+            
+            self.mlp = MoE(neox_args.hidden_size, ParallelMLP(init_method, output_layer_init_method=output_layer_init_method, MOE=True, MoE_mp_size=moe_mp_size), num_experts=self.num_experts, ep_size=neox_args.moe_expert_parallel_size, k=neox_args.topk, use_residual=(neox_args.mlp_type == 'residual', capacity_factor=neox_args.moe_train_capacity_factor, eval_capacity_factor=neox_args.moe_eval_capacity_factor, min_capacity=neox_args.moe_min_capacity, drop_tokens=neox_args.moe_token_dropping))
 
         self.layer_past = None  # used to cache k/v pairs in inference
 
@@ -613,7 +630,14 @@ class ParallelTransformerLayer(nn.Module):
                 )
 
             # output = mlp(ln2(x)) + attention_output
-            mlp_output, mlp_bias = self.mlp(self.post_attention_layernorm(x))
+            #mlp_output, mlp_bias = self.mlp(self.post_attention_layernorm(x))
+            moe_loss = torch.tensor(0.0, device=self.post_attention_layernorm(x).device, dtype=self.post_attention_layernorm(x).dtype)
+            mlp_bias = torch.tensor(0.0, device=self.post_attention_layernorm(x).device, dtype=self.post_attention_layernorm(x).dtype)
+
+            if self.num_experts == 1:
+                mlp_output, mlp_bias = self.mlp(self.post_attention_layernorm(x))
+            else:
+                mlp_output, moe_loss, _ = self.mlp(self.post_attention_layernorm(x))
             with torch.enable_grad():
                 output = bias_dropout_fn(
                     mlp_output,
@@ -658,19 +682,21 @@ class ParallelTransformerLayer(nn.Module):
                     prob=self.hidden_dropout,
                 )
 
-        return output
+        return output, moe_loss
 
 
 class ParallelTransformerLayerPipe(ParallelTransformerLayer):
     """Extends ParallelTransformerLayer to forward attention_mask through the pipeline."""
 
-    def forward(self, args):
+    def forward(self, args, **kwargs):
         assert (
             len(args) == 2
         ), "ParallelTransformerLayerPipe expects 2 arguments - hidden_states and attention_mask"
         hidden_states, attention_mask = args
         # we are returning just [hidden_states, mask]
-        return super().forward(hidden_states, attention_mask), attention_mask
+        # HACK: currently MoE model does not support pipeline parallel, so
+        # here we just ignore the moe_loss returned by forward()
+        return super().forward(hidden_states, attention_mask, **kwargs)[0]
 
 
 class ParallelLinearPipe(ParallelLinear):

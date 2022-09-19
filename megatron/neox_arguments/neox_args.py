@@ -49,6 +49,11 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     Size of the model parallelism.
     """
 
+    num_experts: list = [1,]
+    """
+    Degree of MoE expert parallelism
+    """
+
     pipe_partition_method: str = "type:transformer|mlp"
     """
     method used to distribute model layers across pipeline stages. Choose from "parameters", which balances the number
@@ -333,6 +338,21 @@ class NeoXArgsModel(NeoXArgsTemplate):
 
     """
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
+    """
+
+    topk: int = 1
+    """
+    Sets the k in TopK gating for MoE layers
+    """
+
+    expert_interval: int = 2
+    """
+    Use experts in every "expert-interval" layers
+    """
+
+    mlp_type: str = 'standard'
+    """
+    Only applicable when num-experts > 1, accepts [standard, residual] 
     """
 
 
