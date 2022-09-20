@@ -163,6 +163,7 @@ class DataDownloader(ABC):
         for key in self._jsonl_keys:
             _cmd = cmd + f"--jsonl-keys {key}"
             os.system(_cmd)
+            print(_cmd)
 
     def prepare(self):
         if not self.exists():
@@ -303,13 +304,13 @@ class SuperGLUE(DataDownloader):
     name = "super_glue"
     urls = [
         "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/BoolQ.zip",   # BoolQ
-        "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/CB.zip",      # CB
-        "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/COPA.zip",    # COPA
-        "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/MultiRC.zip", # MultiRC
-        "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/ReCoRD.zip",  # ReCoRD
-        "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/RTE.zip",     # RTE
-        "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/WiC.zip",     # WiC
-        "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/WSC.zip"      # WSC
+        # "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/CB.zip",      # CB
+        # "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/COPA.zip",    # COPA
+        # "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/MultiRC.zip", # MultiRC
+        # "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/ReCoRD.zip",  # ReCoRD
+        # "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/RTE.zip",     # RTE
+        # "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/WiC.zip",     # WiC
+        # "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/WSC.zip"      # WSC
         ]
 
     def _concat(self):
@@ -321,10 +322,6 @@ class SuperGLUE(DataDownloader):
                 f"unzip -o {os.path.join(dir_path, os.path.basename(url))} -d {dir_path}"
             )
 
-            # \
-            # f" -d {os.path.join(dir_path)}" \
-            # f" && mv {os.path.join(dir_path, os.path.basename(url)[:-4])}/train.jsonl" \
-            # f" {os.path.join(dir_path, os.path.basename(url))}.jsonl"
             file_dir = os.path.join(dir_path, os.path.basename(url)[:-4], "train.jsonl")
 
             preprocess_fn = get_super_glue_text_preprocessor(os.path.basename(url)[:-4])
@@ -403,7 +400,7 @@ class P3(DataDownloader):
 
 def maybe_download_gpt2_tokenizer_data(tokenizer_type, data_dir):
     if tokenizer_type is None or tokenizer_type == "GPT2BPETokenizer":
-        GPT2_VOCAB_FP = f"{data_dir}//gpt2-vocab.json"
+        GPT2_VOCAB_FP = f"{data_dir}/gpt2-vocab.json"
         GPT2_MERGE_FP = f"{data_dir}/gpt2-merges.txt"
         if not os.path.isfile(GPT2_VOCAB_FP):
             os.system(f"wget {GPT2_VOCAB_URL} -O {GPT2_VOCAB_FP}")
@@ -468,7 +465,7 @@ def prepare_dataset(
             vocab_file=vocab_file,
             merge_file=merge_file,
             data_dir=data_dir,
-            num_workers=num_workers,
+            num_workers=1, ##num_workers,
             jsonl_keys=jsonl_keys,
         )
         d.prepare()
