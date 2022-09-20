@@ -138,13 +138,12 @@ def get_args():
     # some default/dummy values for the tokenizer
     args.rank = 0
     args.make_vocab_size_divisible_by = 128
-    args.extra_sentinel_tokens = 0
     args.model_parallel_size = 1
+    args.extra_sentinel_tokens = 0
 
     return args
 
 
-# def yield_from_files(fnames: list, semaphore, key="text"):
 def yield_from_files(fnames: list, semaphore):
     """
     Iterator over input documents using lm_dataformat. Should be able to handle jsons / texts /
@@ -154,7 +153,6 @@ def yield_from_files(fnames: list, semaphore):
     """
 
     def yielder(fname, semaphore):
-        # for f in filter(lambda x: x, lmd.Reader(fname).stream_data(key=key)):
         for f in filter(lambda x: x, lmd.Reader(fname).stream_data()):
             semaphore.acquire()
             yield f
@@ -177,7 +175,6 @@ def main():
     semaphore = Semaphore(10000 + args.workers)
 
     # use multiprocessing to iterate over input documents
-    # fin = yield_from_files(args.input.split(","), semaphore, key=args.jsonl_keys[0])
     fin = yield_from_files(args.input.split(","), semaphore)
 
     if args.workers > 1:
