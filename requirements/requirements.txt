@@ -1,7 +1,9 @@
+git+https://github.com/EleutherAI/DeeperSpeed.git@eb7f5cff36678625d23db8a8fe78b4a93e5d2c75#egg=deepspeed
 einops==0.3.0
 ftfy==6.0.1
 git+https://github.com/EleutherAI/lm_dataformat.git@4eec05349977071bf67fc072290b95e31c8dd836
 lm_eval==0.2.0
+mpi4py==3.0.3
 numpy==1.22.0
 pybind11==2.6.2
 regex
