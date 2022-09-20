@@ -34,29 +34,36 @@ Examples are packed into batches.
 
 class T5MTFDataset(torch.utils.data.Dataset):
 
-    def __init__(
-        self,
+    def __init__(self,
         name,
         data_prefix,
         documents,
-        indexed_dataset, # TODO: remove this arg?
+        indexed_dataset,
         num_samples,
-        seq_length: int,
+        seq_length,
         seed,
-        data_impl,
-        skip_warmup=False,
-        build_index_mappings=True,
-        tokenizer=None,
+        neox_args=None,
+        # data_impl,
+        # skip_warmup=False,
+        # build_index_mappings=True,
+        # tokenizer=None,
     ):
         # build underlying indexed datasets
-        self.mtf_dataset = MTFDataset(name=name, data_prefix=data_prefix, data_impl=data_impl, skip_warmup=skip_warmup, documents=documents)
+        self.mtf_dataset = MTFDataset(
+            name=name,
+            data_prefix=data_prefix,
+            data_impl=neox_args.data_impl,
+            skip_warmup=(not neox_args.mmap_warmup),
+            documents=documents
+        )
 
         assert tokenizer, "Must pass a tokenizer to pack multi-task examples"
-        self.tokenizer = tokenizer
+        self.tokenizer = neox_args.tokenizer
 
         self.pad_token = tokenizer.pad
         self.eod_token = tokenizer.eod
         self.seq_length = seq_length
+        self.decoder_seq_length = neox_args.decoder_seq_length
 
         self.sample_index, self.shuffle_index = _build_index_mappings(
             name=name, 
@@ -94,18 +101,25 @@ class T5MTFDataset(torch.utils.data.Dataset):
                 }
             ]
         Output:
-            decoder_tokens = [[6, 7, 8, 3, 4, 5, <pad>]]: Concatenation of tokens followed with padding tokens.
-            decoder_segment_ids = [[1, 1, 1, 2, 2, 2, 0]]: Segment ids determine original documents.
-            decoder_is_inputs = [[1, 1, 0, 1, 1, 0, 0]]: `1` depicts inputs, `0` depicts target.
+            input_tokens = [[6,7,3,4]] Concat all inputs
+            input_segment_ids = [[1,1,2,2]]
+            input_position_ids = [[]]
+            target_tokens = [[8,5]] Concat all targets
+            target_segment_ids = [[1,2]]
+            target_position_ids = [[]]
         """
 
-        decoder_tokens = np.full((self.seq_length,), self.pad_token, dtype=np.int64)
-        decoder_segment_ids = np.zeros((self.seq_length,), dtype=np.int64)
-        decoder_is_inputs = np.full((self.seq_length,), False, dtype=bool)
+        input_tokens = np.full((self.seq_length,), self.pad_token, dtype=np.int64)
+        input_segment_ids = np.zeros((self.seq_length,), dtype=np.int64)
+        input_position_ids = np.full((self.seq_length,), self.pad_token, dtype=np.int64)
+        target_tokens = np.full((self.decoder_seq_length,), self.pad_token, dtype=np.int64)
+        target_segment_ids = np.zeros((self.decoder_seq_length,), dtype=np.int64)
+        target_position_ids = np.full((self.decoder_seq_length,), self.pad_token, dtype=np.int64)
 
         # `0` is reserved for padding
         item_num = 1
-        cur_len = 0
+        cur_inp_len = 0
+        cur_tgt_len = 0
 
         assert len(items) > 0
 
@@ -113,9 +127,7 @@ class T5MTFDataset(torch.utils.data.Dataset):
             input_token_len = len(token_dict["input_tokens"])
             target_token_len = len(token_dict["target_tokens"])
 
-            total_len = input_token_len + target_token_len
-
-            if cur_len + total_len > self.seq_length:
+            if cur_inp_len + input_token_len > self.seq_length:
                 # This should not happen at the indexing should only allow the correct number of items
                 raise ValueError(f"""Items to be packed do not fit inside a single sample.
                     current length: {cur_len}
@@ -124,20 +136,25 @@ class T5MTFDataset(torch.utils.data.Dataset):
                     expected sequence length: {self.seq_length}
                 """)
 
-            decoder_tokens[cur_len: cur_len + input_token_len] = token_dict["input_tokens"]
-            decoder_tokens[cur_len + input_token_len: cur_len + total_len] = token_dict["target_tokens"]
-            decoder_segment_ids[cur_len: cur_len + total_len] = item_num
-            decoder_is_inputs[cur_len: cur_len + input_token_len] = 1  # inputs
-            # targets are already 0 at init, no need to update `decoder_is_inputs`
+            input_token_ids[cur_inp_len: cur_inp_len + input_token_len] = token_dict["input_tokens"]
+            target_token_ids[cur_tgt_len: cur_inp_len + target_token_len] = token_dict["target_tokens"]
+
+            input_segment_ids[cur_inp_len: cur_inp_len + input_token_len] = item_num
+            target_segment_ids[cur_tgt_len: cur_inp_len + target_token_len] = item_num
 
             item_num += 1
-            cur_len += total_len
-            assert cur_len <= self.seq_length
+            cur_inp_len += input_token_len
+            cur_tgt_len += target_token_len
+            assert cur_inp_len <= self.seq_length
+            assert cur_tgt_len <= self.decoder_seq_length
 
         return {
-            "decoder_token_ids": decoder_tokens,
-            "decoder_segment_ids": decoder_segment_ids,
-            "decoder_is_inputs": decoder_is_inputs.astype('int64'),
+            'input_tokens': input_token_ids,
+            'input_segment_ids': input_segment_ids,
+            # 'input_position_ids': input_position_ids,
+            'target_tokens': target_token_ids,
+            'target_segment_ids': target_segment_ids,
+            # 'target_position_ids': target_position_ids,
         }
 
 
