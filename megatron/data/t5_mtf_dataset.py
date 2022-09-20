@@ -339,9 +339,11 @@ def get_indexed_dataset_(path, data_impl, skip_warmup):
     """build the indexed dataset (if does not exist)."""
     print_rank_0(' > building dataset index ...')
     start_time = time.time()
-    indexed_dataset = make_dataset(path,
-                                           data_impl,
-                                           skip_warmup)
+    indexed_dataset = make_dataset(
+        path,
+        data_impl,
+        skip_warmup
+    )
     print_rank_0(' > finished creating indexed dataset in {:4f} '
                  'seconds'.format(time.time() - start_time))
     print_rank_0('    number of documents: {}'.format(

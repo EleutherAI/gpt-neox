@@ -82,7 +82,6 @@ def build_the_dataset(
         )
     elif neox_args.model_arch == "t5":
         if neox_args.train_mtf:
-            print("HERE")
             dataset = T5MTFDataset(
                 *dataset_args,
                 neox_args=neox_args,
