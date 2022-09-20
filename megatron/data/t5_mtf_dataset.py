@@ -142,6 +142,9 @@ class T5MTFDataset(torch.utils.data.Dataset):
             input_segment_ids[cur_inp_len: cur_inp_len + input_token_len] = item_num
             target_segment_ids[cur_tgt_len: cur_tgt_len + target_token_len] = item_num
 
+            input_position_ids[cur_inp_len: cur_inp_len + input_token_len] = list(range(0,input_token_len))
+            target_position_ids[cur_tgt_len: cur_tgt_len + target_token_len] = list(range(0,target_token_len))
+
             item_num += 1
             cur_inp_len += input_token_len
             cur_tgt_len += target_token_len

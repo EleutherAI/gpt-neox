@@ -265,6 +265,7 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
     attention_mask, loss_mask = get_ltor_masks_and_position_ids(
         data=tokens_dec,
         eod_token=neox_args.tokenizer.eod,
+        neox_args=neox_args,
         eod_mask_loss=neox_args.eod_mask_loss,
         segment_ids=segment_ids_dec,
     )
