@@ -109,10 +109,10 @@ class T5MTFDataset(torch.utils.data.Dataset):
             target_position_ids = [[]]
         """
 
-        input_tokens = np.full((self.seq_length,), self.pad_token, dtype=np.int64)
+        input_token_ids = np.full((self.seq_length,), self.pad_token, dtype=np.int64)
         input_segment_ids = np.zeros((self.seq_length,), dtype=np.int64)
         input_position_ids = np.full((self.seq_length,), self.pad_token, dtype=np.int64)
-        target_tokens = np.full((self.decoder_seq_length,), self.pad_token, dtype=np.int64)
+        target_token_ids = np.full((self.decoder_seq_length,), self.pad_token, dtype=np.int64)
         target_segment_ids = np.zeros((self.decoder_seq_length,), dtype=np.int64)
         target_position_ids = np.full((self.decoder_seq_length,), self.pad_token, dtype=np.int64)
 
@@ -137,16 +137,27 @@ class T5MTFDataset(torch.utils.data.Dataset):
                 """)
 
             input_token_ids[cur_inp_len: cur_inp_len + input_token_len] = token_dict["input_tokens"]
-            target_token_ids[cur_tgt_len: cur_inp_len + target_token_len] = token_dict["target_tokens"]
+            target_token_ids[cur_tgt_len: cur_tgt_len + target_token_len] = token_dict["target_tokens"]
 
             input_segment_ids[cur_inp_len: cur_inp_len + input_token_len] = item_num
-            target_segment_ids[cur_tgt_len: cur_inp_len + target_token_len] = item_num
+            target_segment_ids[cur_tgt_len: cur_tgt_len + target_token_len] = item_num
 
             item_num += 1
             cur_inp_len += input_token_len
             cur_tgt_len += target_token_len
             assert cur_inp_len <= self.seq_length
             assert cur_tgt_len <= self.decoder_seq_length
+
+        print(
+            {
+            'input_tokens': input_token_ids,
+            'input_segment_ids': input_segment_ids,
+            # 'input_position_ids': input_position_ids,
+            'target_tokens': target_token_ids,
+            'target_segment_ids': target_segment_ids,
+            # 'target_position_ids': target_position_ids,
+            }
+        )
 
         return {
             'input_tokens': input_token_ids,

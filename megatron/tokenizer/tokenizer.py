@@ -263,7 +263,7 @@ class HFTokenizer(AbstractTokenizer):
         self.tokenizer = Tokenizer.from_file(vocab_file)
         self.eod_id = 1 # TODO(Hailey): revert this workaround before merging with main
         # self.eod_id = self.tokenizer.token_to_id("<|endoftext|>")
-        self.pad_id = self.tokenizer.token_to_id("<|padding|>")
+        self.pad_id = 0 # self.tokenizer.token_to_id("<|padding|>")
 
     @property
     def vocab_size(self):
