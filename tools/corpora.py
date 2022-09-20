@@ -163,7 +163,6 @@ class DataDownloader(ABC):
         for key in self._jsonl_keys:
             _cmd = cmd + f"--jsonl-keys {key}"
             os.system(_cmd)
-            print(_cmd)
 
     def prepare(self):
         if not self.exists():
