@@ -181,5 +181,5 @@ def preprocess_wsc(x):
 
     return {
         "inputs": joined,
-        "targets": label_name
+        "targets": str(label_name)
     }
