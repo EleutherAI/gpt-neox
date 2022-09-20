@@ -171,17 +171,18 @@ class EncoderEmbeddingPipe(Embedding):
 
     def forward(self, args):
         assert (
-            len(args) == 6
-        ), f"Expected 6 arguments (input_ids, target_ids, input_position_ids, target_position_ids, encoder_attention_mask, attention_mask), but got {len(args)}."
+            len(args) == 7
+        ), f"Expected 7 arguments (input_ids, target_ids, input_position_ids, target_position_ids, encoder_attention_mask, enc_dec_mask, attention_mask), but got {len(args)}."
 
         input_ids = args[0]
         target_ids = args[1]
         input_position_ids = args[2]
         target_position_ids = args[3]
         encoder_attn_mask = args[4]
-        attention_mask = args[5]
+        enc_dec_mask = args[5]
+        attention_mask = args[6]
         input_embeddings = super().forward(input_ids, input_position_ids)
-        return input_embeddings, target_ids, target_position_ids, encoder_attn_mask, attention_mask
+        return input_embeddings, target_ids, target_position_ids, encoder_attn_mask, enc_dec_mask, attention_mask
 
 
 class DecoderEmbeddingPipe(Embedding):
@@ -194,16 +195,17 @@ class DecoderEmbeddingPipe(Embedding):
 
     def forward(self, args):
         assert (
-            len(args) == 5
-        ), f"Expected 5 arguments (encoder_hidden_states, decoder_input_ids, \
-            decoder_position_ids, encoder_attention_mask, attention_mask), but got {len(args)}."
+            len(args) == 6
+        ), f"Expected 6 arguments (encoder_hidden_states, decoder_input_ids, \
+            decoder_position_ids, encoder_attention_mask, enc_dec_mask, attention_mask), but got {len(args)}."
         encoder_hidden_states = args[0]
         decoder_input_ids = args[1]
         decoder_position_ids = args[2]
         encoder_attention_mask = args[3]
-        attention_mask = args[4]
+        enc_dec_mask = args[4]
+        attention_mask = args[5]
         input_embeddings = super().forward(decoder_input_ids, decoder_position_ids)
-        return input_embeddings, encoder_hidden_states, encoder_attention_mask, attention_mask
+        return input_embeddings, encoder_hidden_states, encoder_attention_mask, enc_dec_mask, attention_mask
 
 
 class SoftEmbedding(torch.nn.Module):
