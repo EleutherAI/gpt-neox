@@ -303,13 +303,13 @@ class SuperGLUE(DataDownloader):
     name = "super_glue"
     urls = [
         "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/BoolQ.zip",   # BoolQ
-        # "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/CB.zip",      # CB
-        # "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/COPA.zip",    # COPA
-        # "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/MultiRC.zip", # MultiRC
-        # "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/ReCoRD.zip",  # ReCoRD
-        # "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/RTE.zip",     # RTE
-        # "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/WiC.zip",     # WiC
-        # "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/WSC.zip"      # WSC
+        "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/CB.zip",      # CB
+        "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/COPA.zip",    # COPA
+        "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/MultiRC.zip", # MultiRC
+        "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/ReCoRD.zip",  # ReCoRD
+        "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/RTE.zip",     # RTE
+        "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/WiC.zip",     # WiC
+        "https://dl.fbaipublicfiles.com/glue/superglue/data/v2/WSC.zip"      # WSC
         ]
 
     def _concat(self):
@@ -464,7 +464,7 @@ def prepare_dataset(
             vocab_file=vocab_file,
             merge_file=merge_file,
             data_dir=data_dir,
-            num_workers=1, ##num_workers,
+            num_workers=num_workers,
             jsonl_keys=jsonl_keys,
         )
         d.prepare()
