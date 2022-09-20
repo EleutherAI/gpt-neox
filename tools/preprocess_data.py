@@ -144,7 +144,8 @@ def get_args():
     return args
 
 
-def yield_from_files(fnames: list, semaphore, key="text"):
+# def yield_from_files(fnames: list, semaphore, key="text"):
+def yield_from_files(fnames: list, semaphore):
     """
     Iterator over input documents using lm_dataformat. Should be able to handle jsons / texts /
     other compressed formats. Also filters out empty documents.
@@ -153,7 +154,8 @@ def yield_from_files(fnames: list, semaphore, key="text"):
     """
 
     def yielder(fname, semaphore):
-        for f in filter(lambda x: x, lmd.Reader(fname).stream_data(key=key)):
+        # for f in filter(lambda x: x, lmd.Reader(fname).stream_data(key=key)):
+        for f in filter(lambda x: x, lmd.Reader(fname).stream_data()):
             semaphore.acquire()
             yield f
 
@@ -175,7 +177,8 @@ def main():
     semaphore = Semaphore(10000 + args.workers)
 
     # use multiprocessing to iterate over input documents
-    fin = yield_from_files(args.input.split(","), semaphore, key=args.jsonl_keys[0])
+    # fin = yield_from_files(args.input.split(","), semaphore, key=args.jsonl_keys[0])
+    fin = yield_from_files(args.input.split(","), semaphore)
 
     if args.workers > 1:
         pool = multiprocessing.Pool(args.workers, initializer=encoder.initializer)

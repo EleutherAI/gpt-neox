@@ -99,7 +99,7 @@
    "save": "data/improved-t5-test",
    "load": "data/improved-t5-test",
 
-   "data-path": "data/super_glue/super_glue_",
+   "data-path": "data/super_glue/super_glue_text_document",
 
    "eval-tasks": ["lambada"],
 
