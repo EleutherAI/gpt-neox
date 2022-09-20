@@ -180,8 +180,8 @@ def _build_index_mappings(
     _filename += '_{}ns'.format(num_samples)
     _filename += "_{}sl".format(seq_length)
     _filename += '_{}s'.format(seed)
-    sample_idx_filename = _filename + '_decoder_packed_batch_idx.npy'
-    shuffle_idx_filename = _filename + '_decoder_packed_shuffle_idx.npy'
+    sample_idx_filename = _filename + '_packed_batch_idx.npy'
+    shuffle_idx_filename = _filename + '_packed_shuffle_idx.npy'
 
     # Build the indexed mapping if not exist.
     if torch.distributed.get_rank() == 0:
@@ -245,7 +245,14 @@ def _build_index_mappings(
 
     return sample_idx, shuffle_idx
 
-def _build_sample_idx(mtf_dataset, document_ids, seq_length, row_offset, old_sample_start, epoch):
+def _build_sample_idx(
+    mtf_dataset,
+    document_ids,
+    seq_length,
+    row_offset,
+    old_sample_start,
+    epoch
+):
     """Build start and off index of each `full` batch, return that list of batch + start of the unfinished batch"""
     row_length = row_offset
 
@@ -258,7 +265,7 @@ def _build_sample_idx(mtf_dataset, document_ids, seq_length, row_offset, old_sam
         current_sample_end = epoch_offset + current_sample_end
         sample_sizes = mtf_dataset.size(document_id)
 
-        tok_len = sample_sizes["input_tokens"] + sample_sizes["target_tokens"]
+        tok_len = sample_sizes["input_tokens"] #+ sample_sizes["target_tokens"]
 
         row_length = row_length + tok_len
         if row_length > seq_length:
