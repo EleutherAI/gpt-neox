@@ -10,6 +10,7 @@ from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
 from megatron.data.blendable_dataset import BlendableDataset
 from megatron.data.gpt2_dataset import GPT2Dataset
 from megatron.data.t5_dataset import T5Dataset
+from megatron.data.t5_mtf_dataset import T5MTFDataset
 from megatron.data.mlm_dataset import MLMDataset
 from megatron.data.decoder_packed_mtf_dataset import DecoderPackedMTFDataset, get_indexed_dataset
 from megatron.data.samplers import DistributedBatchSampler
