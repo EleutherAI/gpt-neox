@@ -95,6 +95,7 @@
    "train_mtf": True,
    "tokenizer-type": "GPT2BPETokenizer",
    "vocab-file": "data/gpt2-vocab.json",
+   "merge-file": "data/gpt2-merges.txt",
    "save": "data/improved-t5-test",
    "load": "data/improved-t5-test",
 
