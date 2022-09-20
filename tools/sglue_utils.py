@@ -51,9 +51,8 @@ def preprocess_boolq(x):
         expose_features(x, ["question", "passage"])
     ])
     return {
-        "text": "", # Needed because lm_dataformat assumes this key always exists
         "inputs": joined,
-        "targets": x["label"],
+        "targets": str(x["label"]),
     }
 
 
@@ -64,9 +63,8 @@ def preprocess_cb(x):
         expose_features(x, ["hypothesis", "premise"])
     ])
     return {
-        "text": "", # Needed because lm_dataformat assumes this key always exists
         "inputs": joined,
-        "targets": x["label"],
+        "targets": str(x["label"]),
     }
 
 
@@ -77,7 +75,6 @@ def preprocess_copa(x):
         expose_features(x, ["choice1", "choice2", "premise", "question"])
     ])
     return {
-        "text": "", # Needed because lm_dataformat assumes this key always exists
         "inputs": joined,
         "targets": ["False", "True"][x["label"]],
     }
@@ -137,9 +134,8 @@ def preprocess_rte(x):
         expose_features(x, ["hypothesis", "premise"])
     ])
     return {
-        "text": "", # Needed because lm_dataformat assumes this key always exists
         "inputs": joined,
-        "targets": x["label"],
+        "targets": str(x["label"]),
     }
 
 
@@ -150,7 +146,6 @@ def preprocess_wic(x):
         expose_features(x, ["sentence1", "sentence2", "word"])
     ])
     return {
-        "text": "", # Needed because lm_dataformat assumes this key always exists
         "inputs": joined,
         "targets": str(x["label"]),
     }
@@ -185,7 +180,6 @@ def preprocess_wsc(x):
         label_name = "<unk>"
 
     return {
-        "text": "", # Needed because lm_dataformat assumes this key always exists
         "inputs": joined,
         "targets": label_name
     }
