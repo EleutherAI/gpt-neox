@@ -99,10 +99,10 @@
    "save": "data/improved-t5-test",
    "load": "data/improved-t5-test",
 
-   "data-path": "data/super_glue/super_glue_text_document",
+   "data-path": "data/super_glue/super_glue_inputs_document",
 
    "eval-tasks": ["lambada"],
 
-   "launcher": "openmpi",
-   "deepspeed_mpi": true,
+   # "launcher": "openmpi",
+   # "deepspeed_mpi": true,
 }
