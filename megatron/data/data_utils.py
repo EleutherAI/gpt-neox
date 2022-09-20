@@ -77,11 +77,12 @@ def build_the_dataset(
 
     if neox_args.model_arch == "gpt2":
         dataset = GPT2Dataset(
-            *dataset_args
+            *dataset_args,
             build_index_mappings=build_index_mappings,
         )
     elif neox_args.model_arch == "t5":
         if neox_args.train_mtf:
+            print("HERE")
             dataset = T5MTFDataset(
                 *dataset_args,
                 neox_args=neox_args,
@@ -89,7 +90,7 @@ def build_the_dataset(
             )
         else:
             dataset = T5Dataset(
-                *dataset_args
+                *dataset_args,
                 neox_args=neox_args,
                 build_index_mappings=build_index_mappings,
             )
