@@ -1,0 +1,107 @@
+# example config for an encoder-decoder model 
+# (not optimized, just containing all relevant neox args)
+{
+  "pipe-parallel-size": 1,
+  "model-parallel-size": 1,
+
+  # model settings
+  "model-arch": "t5",
+  "num-encoder-layers": 12,
+  "num-layers": 12,
+  "hidden-size": 768,
+  "num-attention-heads": 12,
+  "seq-length": 512,
+  "decoder-seq-length": 114,
+  "max-position-embeddings": 512,
+  "norm": "layernorm",
+  "pos-emb": "rotary",
+  "activation": "geglu",
+  "no-weight-tying": true,
+  "gpt-j-residual": false,
+
+  "extra-sentinel-tokens": 100,
+  "masked-lm-prob": 0.15,
+  "mean_noise_span_length": 3,
+
+  # fusion ops (STILL UNTESTED WITH T5)
+  "scaled-upper-triang-masked-softmax-fusion": false, 
+  # can we do upper triang fusion for certain layers only? would that be a speedup?
+  "bias-gelu-fusion": false,
+
+  # optimizer settings
+  "optimizer": {
+     "type": "Adam",
+     "params": {
+       "lr": 0.0002,
+       "betas": [0.9, 0.999],
+       "eps": 1.0e-8,
+     }
+   },
+   "zero_optimization": {
+    "stage": 1,
+    "allgather_partitions": True,
+    "allgather_bucket_size": 500000000,
+    "overlap_comm": True,
+    "reduce_scatter": True,
+    "reduce_bucket_size": 500000000,
+    "contiguous_gradients": True,
+    "cpu_offload": False
+  },
+
+   # batch / data settings
+   "train_micro_batch_size_per_gpu": 72,
+   "gradient-accumulation-steps": 1,
+   "data-impl": "mmap",
+   "split": "949,50,1",
+
+   # activation checkpointing
+   "checkpoint-activations": false,
+   "checkpoint-num-layers": 1,
+   "partition-activations": false,
+   "synchronize-each-layer": true,
+
+   # regularization
+   "gradient_clipping": 1.0,
+   "weight-decay": 0.01,
+   "hidden-dropout": 0.0,
+   "attention-dropout": 0.0,
+
+   # precision settings
+   "fp16": {
+     "enabled": true,
+     "loss_scale": 0,
+     "loss_scale_window": 1000,
+     "initial_scale_power": 12,
+     "hysteresis": 2,
+     "min_loss_scale": 1
+   },
+
+   # misc. training settings
+   "train-iters": 100000,
+   "lr-decay-iters": 100000,
+   "distributed-backend": "nccl",
+   "lr-decay-style": "cosine",
+   "warmup": 0.01,
+   "save-interval": 10000,
+   "eval-interval": 1000,
+   "eval-iters": 10,
+
+   # logging
+   "log-interval": 100,
+   "steps_per_print": 10,
+   "wall_clock_breakdown": true,
+
+   # add data, tokenizer path etc. here
+   "train_mtf": True,
+   "tokenizer-type": "GPT2BPETokenizer",
+   "vocab-file": "data/gpt2-vocab.json",
+   "save": "data/improved-t5-test",
+   "load": "data/improved-t5-test",
+
+   "data-path": "data/super_glue/super_glue_",
+
+   "eval-tasks": ["lambada"],
+
+   "launcher": "openmpi",
+   "deepspeed_mpi": true,
+}
