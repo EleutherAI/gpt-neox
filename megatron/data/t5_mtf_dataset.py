@@ -57,11 +57,11 @@ class T5MTFDataset(torch.utils.data.Dataset):
             documents=documents
         )
 
-        assert tokenizer, "Must pass a tokenizer to pack multi-task examples"
+        assert neox_args.tokenizer, "Must pass a tokenizer to pack multi-task examples"
         self.tokenizer = neox_args.tokenizer
 
-        self.pad_token = tokenizer.pad
-        self.eod_token = tokenizer.eod
+        self.pad_token = self.tokenizer.pad
+        self.eod_token = self.tokenizer.eod
         self.seq_length = seq_length
         self.decoder_seq_length = neox_args.decoder_seq_length
 

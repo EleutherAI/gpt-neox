@@ -93,9 +93,8 @@
 
    # add data, tokenizer path etc. here
    "train_mtf": True,
-   "tokenizer-type": "GPT2BPETokenizer",
-   "vocab-file": "data/gpt2-vocab.json",
-   "merge-file": "data/gpt2-merges.txt",
+   "tokenizer-type": "HFTokenizer",
+   "vocab-file": "data/tokenizer.json",
    "save": "data/improved-t5-test",
    "load": "data/improved-t5-test",
 
