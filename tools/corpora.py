@@ -462,7 +462,7 @@ def prepare_dataset(
         pass
     else:
         num_workers = 1 if dataset_name == "enwik8" else num_workers
-        jsonl_keys = ["text", "target"] if dataset_name == "super_glue" else ["text"]
+        jsonl_keys = ["inputs", "targets"] if dataset_name == "super_glue" else ["text"]
         d = DownloaderClass(
             tokenizer_type=tokenizer_type,
             vocab_file=vocab_file,
