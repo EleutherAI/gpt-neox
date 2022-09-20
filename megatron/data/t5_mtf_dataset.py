@@ -148,24 +148,13 @@ class T5MTFDataset(torch.utils.data.Dataset):
             assert cur_inp_len <= self.seq_length
             assert cur_tgt_len <= self.decoder_seq_length
 
-        print(
-            {
-            'input_tokens': input_token_ids,
-            'input_segment_ids': input_segment_ids,
-            # 'input_position_ids': input_position_ids,
-            'target_tokens': target_token_ids,
-            'target_segment_ids': target_segment_ids,
-            # 'target_position_ids': target_position_ids,
-            }
-        )
-
         return {
             'input_tokens': input_token_ids,
             'input_segment_ids': input_segment_ids,
-            # 'input_position_ids': input_position_ids,
+            'input_position_ids': input_position_ids,
             'target_tokens': target_token_ids,
             'target_segment_ids': target_segment_ids,
-            # 'target_position_ids': target_position_ids,
+            'target_position_ids': target_position_ids,
         }
 
 
