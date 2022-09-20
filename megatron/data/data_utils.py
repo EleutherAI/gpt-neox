@@ -48,7 +48,6 @@ def build_the_dataset(
     seq_length,
     seed,
     skip_warmup,
-    neox_args=None,
     build_index_mappings=True,
     neox_args=None
 ):
