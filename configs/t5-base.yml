@@ -91,17 +91,6 @@
    "steps_per_print": 10,
    "wall_clock_breakdown": true,
 
-   # add data, tokenizer path etc. here
-   "train_mtf": True,
-   "tokenizer-type": "HFTokenizer",
-   "vocab-file": "data/tokenizer.json",
-   "save": "data/improved-t5-test",
-   "load": "data/improved-t5-test",
-
-   "data-path": "data/super_glue/super_glue",
-
-   "eval-tasks": ["lambada"],
-
    # "launcher": "openmpi",
    # "deepspeed_mpi": true,
 }

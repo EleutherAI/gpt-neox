@@ -1,0 +1,20 @@
+# Suggested data paths when finetuning T5 on Super Glue locally
+{
+
+  "train_mtf": True,
+  "data-path": "data/super_glue/super_glue",
+
+  "tokenizer-type": "HFTokenizer",
+  "vocab-file": "data/tokenizer.json",
+
+  "save": "data/improved-t5-test",
+  "load": "data/improved-t5-test",
+
+  # "tensorboard-dir": "/tmp/improved-t5/tensorboard",
+  # "log-dir": "/tmp/improved-t5/logs",
+  # "use_wandb": True,
+  # "wandb_group": "T5-770M-9-3-22-testppl",
+  # "wandb_team": "eleutherai",
+  # "wandb_project": "improved-t5", 
+
+}
