@@ -104,6 +104,10 @@ def get_ltor_masks_and_position_ids(
 def local_rank():
     """Local rank of process"""
     local_rank = os.environ.get("LOCAL_RANK")
+
+    if local_rank is None:
+        local_rank = os.environ.get("SLURM_LOCALID")
+
     if local_rank is None:
         print(
             "utils.local_rank() environment variable LOCAL_RANK not set, defaulting to 0",
