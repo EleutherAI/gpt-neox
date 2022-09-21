@@ -169,8 +169,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     no_weight_tying: bool = False
     """
     Disables weight tying between embedding weights and final Linear layer
+    """
 
-    New to T5: also disables weight tying between encoder emb weights and decoder emb weights
+    layer_sharing: bool = False
+    """
+     New to T5: enables weight tying between encoder emb weights and decoder emb weights
     """
 
     attention_config: list = None

@@ -793,6 +793,26 @@ class ParallelTransformerLayer(nn.Module):
 class ParallelTransformerLayerPipe(ParallelTransformerLayer):
     """Extends ParallelTransformerLayer to forward attention_mask through the pipeline."""
 
+    @property
+    def query_key_value_weight(self):
+        """Easy accessory for the pipeline engine to tie weights across stages."""
+        return self.attention.query_key_value.weight
+
+    @property
+    def attention_output_weight(self):
+        """Easy accessory for the pipeline engine to tie weight across stages."""
+        return self.attention.dense.weight
+
+    @property
+    def dense_4h_to_h_weight(self):
+        """Easy accessory for the pipeline engine to tie weight across stages."""
+        return self.mlp.dense_4h_to_h.weight
+    
+    @property
+    def dense_h_to_4h_weight(self):
+        """Easy accessory for the pipeline engine to tie embeddings across stages."""
+        return self.mlp.dense_h_to_4h.weight
+
     def forward(self, args):
         if self.model_arch == "t5":
             if self.layer_type == "encoder":

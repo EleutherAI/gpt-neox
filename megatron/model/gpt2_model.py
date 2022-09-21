@@ -183,7 +183,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                     self.neox_args.hidden_dropout,
                     self.init_method,
                     self.num_tokentypes,
-                    tied_weight_attr="word_embeddings_weight",
+                    tied_weight_attr=["word_embeddings_weight"],
                 )
             )
         else:
@@ -282,7 +282,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                     self.init_method,
                     self.num_tokentypes,
                     forward_fn=_logits_helper,
-                    tied_weight_attr="word_embeddings_weight",
+                    tied_weight_attr=["word_embeddings_weight"],
                 )
             )
         else:

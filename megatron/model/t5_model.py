@@ -131,6 +131,14 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
         self.init_specs()
 
         self.checkpointable_layers = ["ParallelTransformerLayerPipe"]
+        # define what weights should be shared between 
+        # corresponding encoder and decoder blocks if enabled
+        self.tied_transformer_block_attrs = [
+            "query_key_value_weight", 
+            "attention_output_weight",
+            "dense_4h_to_h_weight",
+            "dense_h_to_4h_weight",
+        ] 
 
         super().__init__(
             layers=self.specs,
@@ -196,7 +204,7 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
                     self.neox_args.hidden_dropout,
                     self.init_method,
                     self.num_tokentypes,
-                    tied_weight_attr="word_embeddings_weight",
+                    tied_weight_attr=["word_embeddings_weight"],
                 )
             )
         else:
@@ -237,21 +245,39 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
 
         # transformer encoder layers
         for i in range(self.neox_args.num_encoder_layers):
-            layer_type = self.neox_args.attention_config[i]
-            self.specs.append(
-                LayerSpec(
-                    ParallelTransformerLayerPipe,
-                    neox_args=self.neox_args,
-                    attention_mask_func=gpt2_attention_mask_func,
-                    init_method=self.init_method,
-                    output_layer_init_method=self.output_layer_init_method,
-                    layer_number=i,
-                    layer_type="encoder",
-                    rpe=rpe_emb if self.neox_args.pos_emb == "rpe" else None,
-                    rotary=self.neox_args.pos_emb == "rotary",
-                    use_cache=self.use_cache,
+            if self.neox_args.layer_sharing:
+                self.specs.append(
+                    TiedLayerSpec(
+                        f"transformer_{i}",
+                        ParallelTransformerLayerPipe,
+                        neox_args=self.neox_args,
+                        attention_mask_func=gpt2_attention_mask_func,
+                        init_method=self.init_method,
+                        output_layer_init_method=self.output_layer_init_method,
+                        layer_number=i,
+                        layer_type="encoder",
+                        rpe=rpe_emb if self.neox_args.pos_emb == "rpe" else None,
+                        rotary=self.neox_args.pos_emb == "rotary",
+                        use_cache=self.use_cache,
+                        # see definition in init for shared parameters
+                        tied_weight_attr=self.tied_transformer_block_attrs,
+                    )
                 )
-            )
+            else:
+                self.specs.append(
+                    LayerSpec(
+                        ParallelTransformerLayerPipe,
+                        neox_args=self.neox_args,
+                        attention_mask_func=gpt2_attention_mask_func,
+                        init_method=self.init_method,
+                        output_layer_init_method=self.output_layer_init_method,
+                        layer_number=i,
+                        layer_type="encoder",
+                        rpe=rpe_emb if self.neox_args.pos_emb == "rpe" else None,
+                        rotary=self.neox_args.pos_emb == "rotary",
+                        use_cache=self.use_cache,
+                    )
+                )
 
         # current output format: (hidden_states, decoder_input_ids, decoder_position_ids, enc attn mask, attention_mask)
         
@@ -268,7 +294,7 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
                     self.neox_args.hidden_dropout,
                     self.init_method,
                     self.num_tokentypes,
-                    tied_weight_attr="word_embeddings_weight",
+                    tied_weight_attr=["word_embeddings_weight"],
                 )
             )
         else:
@@ -288,23 +314,41 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
         self.specs.append(_pre_decoder_block)
         # current output format:  (decoder_hidden_states, encoder_hidden_states, encoder_attention_mask, attention_mask)
         
-        # transformer decoder layers # TODO(Hailey): right now, neox.num_layers = the number of decoder layers for minimal code change to rest of repo. update this later
+        # transformer decoder layers
         for i in range(self.neox_args.num_encoder_layers, self.neox_args.num_encoder_layers + self.neox_args.num_layers):
-            layer_type = self.neox_args.attention_config[i]
-            self.specs.append(
-                LayerSpec(
-                    ParallelTransformerLayerPipe, 
-                    neox_args=self.neox_args,
-                    attention_mask_func=gpt2_attention_mask_func,
-                    init_method=self.init_method,
-                    output_layer_init_method=self.output_layer_init_method,
-                    layer_number=i,
-                    layer_type="decoder",
-                    rpe=rpe_emb if self.neox_args.pos_emb == "rpe" else None,
-                    rotary=self.neox_args.pos_emb == "rotary",
-                    use_cache=self.use_cache,
+            if self.neox_args.layer_sharing:
+                self.specs.append(
+                    TiedLayerSpec(
+                        f"transformer_{i}",
+                        ParallelTransformerLayerPipe, 
+                        neox_args=self.neox_args,
+                        attention_mask_func=gpt2_attention_mask_func,
+                        init_method=self.init_method,
+                        output_layer_init_method=self.output_layer_init_method,
+                        layer_number=i,
+                        layer_type="decoder",
+                        rpe=rpe_emb if self.neox_args.pos_emb == "rpe" else None,
+                        rotary=self.neox_args.pos_emb == "rotary",
+                        use_cache=self.use_cache,
+                        # set this above in the class init
+                        tied_weight_attr=self.tied_transformer_block_attrs,
+                    )
                 )
-            )
+            else:
+                self.specs.append(
+                    LayerSpec(
+                        ParallelTransformerLayerPipe, 
+                        neox_args=self.neox_args,
+                        attention_mask_func=gpt2_attention_mask_func,
+                        init_method=self.init_method,
+                        output_layer_init_method=self.output_layer_init_method,
+                        layer_number=i,
+                        layer_type="decoder",
+                        rpe=rpe_emb if self.neox_args.pos_emb == "rpe" else None,
+                        rotary=self.neox_args.pos_emb == "rotary",
+                        use_cache=self.use_cache,
+                    )
+                )
         
         # drop attn masks and encoder hidden states, and reshape decoder hidden states
         self.specs.append(_post_decoder_block)
@@ -336,7 +380,7 @@ class T5ModelPipe(PipelineModule, torch.nn.Module):
                     self.init_method,
                     self.num_tokentypes,
                     forward_fn=_logits_helper,
-                    tied_weight_attr="word_embeddings_weight",
+                    tied_weight_attr=["word_embeddings_weight"],
                 )
             )
         else:
