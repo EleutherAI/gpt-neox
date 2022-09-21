@@ -10,7 +10,7 @@ from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
 from megatron.data.blendable_dataset import BlendableDataset
 from megatron.data.gpt2_dataset import GPT2Dataset
 from megatron.data.t5_dataset import T5Dataset
-from megatron.data.t5_mtf_dataset import T5MTFDataset
+from megatron.data.t5_seq2seq_dataset import T5Seq2SeqDataset
 from megatron.data.mlm_dataset import MLMDataset
 from megatron.data.decoder_packed_mtf_dataset import DecoderPackedMTFDataset, get_indexed_dataset
 from megatron.data.samplers import DistributedBatchSampler
@@ -158,7 +158,7 @@ def build_train_valid_test_datasets(
                 )
             elif neox_args.model_arch == "t5":
                 if neox_args.train_mtf:
-                    dataset = T5MTFDataset(
+                    dataset = T5Seq2SeqDataset(
                         *dataset_args,
                         neox_args=neox_args,
                     )
