@@ -147,7 +147,7 @@ def pretrain(neox_args):
             iteration=iteration,
             verbose=True,
             timers=timers,
-            chart_name="test"
+            chart_name="test",
         )
 
 
@@ -737,7 +737,7 @@ def evaluate_and_print_results(
     iteration,
     verbose=False,
     timers=None,
-    chart_name="validation"
+    chart_name="validation",
 ):
     """Helper function to evaluate and dump results on screen."""
     total_loss_dict = evaluate(
