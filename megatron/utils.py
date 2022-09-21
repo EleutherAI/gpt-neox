@@ -139,11 +139,14 @@ def get_ltor_masks_and_position_ids(
     if eod_mask_loss:
         loss_mask[data == eod_token] = 0.0
 
-    # Position ids. account for segment ids.
-    # position_ids = torch.cat([torch.arange(seq_length, dtype=torch.long, device=data.device)], dim=-1)
-    # position_ids = position_ids.unsqueeze(0).expand_as(data)
+    if segment_ids is None:
+        # Position ids.
+        position_ids = torch.arange(seq_length, dtype=torch.long, device=data.device)
+        position_ids = position_ids.unsqueeze(0).expand_as(data)
 
-    return attention_mask, loss_mask #, position_ids
+        return attention_mask, loss_mask, position_ids
+    else:
+        return attention_mask, loss_mask
 
 
 def get_position_ids(data):

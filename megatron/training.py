@@ -222,25 +222,48 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
     labels = tokens_dec_[:, 1:].contiguous()
     tokens_dec = tokens_dec_[:, :-1].contiguous()
 
-    # Get the decoder self-attn mask and position ids.
-    attention_mask, loss_mask, position_ids_dec = get_ltor_masks_and_position_ids(
-        data=tokens_dec,
-        eod_token=neox_args.tokenizer.eod,
-        eod_mask_loss=neox_args.eod_mask_loss,
-    )
-    # get position ids for encoder inputs as well
-    position_ids_enc = get_position_ids(
-        data=tokens_enc,
-    )
-
     batch_size, src_length = tokens_enc.size()
     batch_size, target_length = tokens_dec_.size()
 
-    enc_mask = get_full_mask(src_length, src_length, device=tokens_enc.device) 
-    # TODO(Hailey): determine what size this enc attn mask should be. right now it's (1,1,1,enc_seq_length)
+    enc_mask = get_full_mask(src_length, src_length, device=tokens_enc.device)
+
+    if neox_args.train_mtf:
+        segment_ids_enc = data_b['input_segment_ids'].long()
+        segment_ids_dec = data_b['target_segment_ids'].long()[:, :-1].contiguous()
+
+        position_ids_enc = data_b['input_position_ids'].long()
+        position_ids_dec = data_b['target_position_ids'].long()[:, :-1].contiguous()
+
+        # Get the decoder self-attn mask and position ids.
+        attention_mask, loss_mask = get_ltor_masks_and_position_ids(
+            data=tokens_dec,
+            eod_token=neox_args.tokenizer.eod,
+            eod_mask_loss=neox_args.eod_mask_loss,
+            segment_ids=segment_ids_dec
+        )
+
+        enc_dec_mask = make_segment_mask(segment_ids_dec, segment_ids_enc)
+        # TODO(Hailey): determine what size this enc attn mask should be. right now it's (1,1,1,enc_seq_length)
+
+        return tokens_enc, tokens_dec, labels, loss_mask, enc_mask, enc_dec_mask, attention_mask, \
+            position_ids_enc, position_ids_dec,
+
+    else:
+        # get position ids for encoder inputs as well
+        position_ids_enc = get_position_ids(
+            data=tokens_enc,
+        )
+
+        # Get the decoder self-attn mask and position ids.
+        attention_mask, loss_mask, position_ids_dec = get_ltor_masks_and_position_ids(
+            data=tokens_dec,
+            eod_token=neox_args.tokenizer.eod,
+            eod_mask_loss=neox_args.eod_mask_loss,
+            segment_ids=None
+        )
     
-    return tokens_enc, tokens_dec, labels, loss_mask, enc_mask, attention_mask, \
-        position_ids_enc, position_ids_dec,
+        return tokens_enc, tokens_dec, labels, loss_mask, enc_mask, attention_mask, \
+            position_ids_enc, position_ids_dec,
 
 
 def get_batch_encdec(neox_args, data_iterator):
