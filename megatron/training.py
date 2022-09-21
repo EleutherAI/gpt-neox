@@ -36,6 +36,7 @@ from megatron.utils import (
     get_ltor_masks_and_position_ids,
     get_position_ids,
     get_full_mask,
+    make_segment_mask
     reduce_losses,
 )
 
@@ -225,8 +226,6 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
     batch_size, src_length = tokens_enc.size()
     batch_size, target_length = tokens_dec_.size()
 
-    enc_mask = get_full_mask(src_length, src_length, device=tokens_enc.device)
-
     if neox_args.train_mtf:
         segment_ids_enc = data_b['input_segment_ids'].long()
         segment_ids_dec = data_b['target_segment_ids'].long()[:, :-1].contiguous()
@@ -242,6 +241,7 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
             segment_ids=segment_ids_dec
         )
 
+        enc_mask = make_segment_mask(segment_ids_enc, segment_ids_enc)
         enc_dec_mask = make_segment_mask(segment_ids_dec, segment_ids_enc)
         # TODO(Hailey): determine what size this enc attn mask should be. right now it's (1,1,1,enc_seq_length)
 
@@ -253,6 +253,8 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
         position_ids_enc = get_position_ids(
             data=tokens_enc,
         )
+
+        enc_mask = get_full_mask(src_length, src_length, device=tokens_enc.device)
 
         # Get the decoder self-attn mask and position ids.
         attention_mask, loss_mask, position_ids_dec = get_ltor_masks_and_position_ids(
