@@ -36,7 +36,7 @@ from megatron.utils import (
     get_ltor_masks_and_position_ids,
     get_position_ids,
     get_full_mask,
-    make_segment_mask
+    make_segment_mask,
     reduce_losses,
 )
 
