@@ -272,6 +272,12 @@ def get_batch_encdec(neox_args, data_iterator):
     keys = ['input_tokens', 'target_tokens']
     datatype = torch.int64
 
+    if neox_args.train_mtf:
+        keys += [
+            'input_segment_ids', 'target_segment_ids',
+            'input_position_ids', 'target_position_ids'
+        ]
+
     # Broadcast data.
     if data_iterator is not None:
         data = next(data_iterator)
@@ -291,16 +297,33 @@ def get_batch_encdec_pipe(data, neox_args):
     keys = ['input_tokens', 'target_tokens']
     datatype = torch.int64
 
+    if neox_args.train_mtf:
+        keys += [
+            'input_segment_ids', 'target_segment_ids',
+            'input_position_ids', 'target_position_ids'
+        ]
+
     # Broadcast data.
     data_b = mpu.broadcast_data(keys, data, datatype)
 
-    tokens_enc, tokens_dec, labels, loss_mask, encoder_attn_mask, attention_mask, \
-        position_ids_enc, position_ids_dec = _get_batch_encdec(
-        neox_args, keys, data, datatype
-    )
-    
-    return (tokens_enc, tokens_dec, position_ids_enc, position_ids_dec, encoder_attn_mask, attention_mask),\
+    if neox_args.train_mtf:
+
+        tokens_enc, tokens_dec, labels, loss_mask, encoder_attn_mask, enc_dec_mask, attention_mask, \
+            position_ids_enc, position_ids_dec = _get_batch_encdec(
+            neox_args, keys, data, datatype
+        )
+
+        return (tokens_enc, tokens_dec, position_ids_enc, position_ids_dec, encoder_attn_mask, enc_dec_mask, attention_mask),\
         (labels, loss_mask)
+
+    else:
+        tokens_enc, tokens_dec, labels, loss_mask, encoder_attn_mask, attention_mask, \
+            position_ids_enc, position_ids_dec = _get_batch_encdec(
+            neox_args, keys, data, datatype
+        )
+
+        return (tokens_enc, tokens_dec, position_ids_enc, position_ids_dec, encoder_attn_mask, attention_mask),\
+            (labels, loss_mask)
 
 
 def forward_step_encdec(data_iterator, model, neox_args, timers, return_logits=False):
