@@ -35,7 +35,9 @@ class T5Dataset(torch.utils.data.Dataset):
         neox_args=None,
         build_index_mappings=True,
     ):
-
+# num_epochs, max_num_samples, masked_lm_prob,
+#                  max_seq_length, max_seq_length_dec,
+#                  short_seq_prob,
         # Params to store.
         self.name = name
         self.seed = seed
@@ -109,7 +111,7 @@ class T5Dataset(torch.utils.data.Dataset):
         # rng state (must be numpy). Meg-DS does this with the seed
         np_rng = np.random.RandomState(seed=(self.seed + idx))
         # same logic as GPT2Dataset for retrieving samples from index mappings.
-        segment_idx = 1 # increment segment ids, starting from 1.
+        # TODO(Hailey): does this function take seq_length into consideration?
         try:
             # Get the shuffled index.
             idx = self.shuffle_idx[idx]
@@ -125,35 +127,25 @@ class T5Dataset(torch.utils.data.Dataset):
                     offset=offset_f,
                     length=offset_l - offset_f + 1,
                 )
-                segment_ids = np.full(sample.shape, segment_idx)
             else:
                 # Otherwise, get the rest of the initial document.
                 sample_list = [
                     self.indexed_dataset.get(self.doc_idx[doc_index_f], offset=offset_f)
                 ]
-                # get segment ids for the initial docuument
-                segment_ids = [np.full(sample_list[-1].shape, segment_idx)]
-                segment_idx += 1
                 # Loop over all in between documents and add the entire document.
                 for i in range(doc_index_f + 1, doc_index_l):
                     sample_list.append(self.indexed_dataset.get(self.doc_idx[i]))
-
-                    segment_ids.append(np.full(sample_list[-1].shape, segment_idx))
-                    segment_idx += 1
                 # And finally add the relevant portion of last document.
                 sample_list.append(
                     self.indexed_dataset.get(
                         self.doc_idx[doc_index_l], length=offset_l + 1
                     )
                 )
-                segment_ids.append(np.full(sample_list[-1].shape, segment_idx))
-                segment_ids = np.concatenate(segment_ids, dtype=np.int64)
-
+                
                 sample = np.concatenate(sample_list, dtype=np.int64)
 
             return build_sample(
                 sample=sample,
-                segment_ids=segment_ids,
                 seq_length=self.raw_seq_length,
                 target_seq_length=self.target_seq_length,
                 masked_lm_prob=self.masked_lm_prob,
@@ -171,7 +163,6 @@ class T5Dataset(torch.utils.data.Dataset):
 
 def build_sample(
     sample,
-    segment_ids,
     seq_length,
     target_seq_length,
     masked_lm_prob,
@@ -179,9 +170,6 @@ def build_sample(
     tokenizer,
     np_rng,
 ):
-
-    assert sample.shape == segment_ids.shape, f"sample shape {sample.shape} and segment ids shape {segment_ids.shape} must match!"
-
     spans_start = random_spans_noise_mask(
         raw_seq_length=seq_length,
         target_seq_length=target_seq_length,
@@ -211,24 +199,6 @@ please increase `extra-sentinel-tokens` to at least {spans_start.shape[0] / 2}."
         ] +
         [np.full((1,), tokenizer.eod, dtype=np.int64)] # we append EOD to inputs
     )
-    input_segment_ids = np.concatenate( # do the same for input segment ids, so that they're correctly paired with their targets post-noising.
-        [
-            item
-            for start, end, sentinel in zip(spans_start[::2], spans_end[::2], tokenizer.sentinels)
-            for item in [segment_ids[start: end], np.full((1,), segment_ids[start], dtype=np.int64)]
-        ] +
-        [np.full((1,), 0, dtype=np.int64)] # we append a segment id of 0 to the added EOD at end.
-    )
-    input_position_ids = np.concatenate( # make position ids now
-        [
-            np.arange(item.shape[0] + 1)
-            for start, end, sentinel in zip(spans_start[::2], spans_end[::2], tokenizer.sentinels)
-            for item in [sample[start: end + 1]] # not sure how to handle position ids for mask
-        ] +
-        [np.full((1,), 0, dtype=np.int64)] # we append a segment id of 0 to the added EOD at end.
-    )
-
-
     # likewise, loop through odd spans (noise), prepending each span's sentinel to it
     target_token_ids = np.concatenate(
         [
@@ -237,32 +207,11 @@ please increase `extra-sentinel-tokens` to at least {spans_start.shape[0] / 2}."
             for item in [np.full((1,), sentinel_token, dtype=np.int64), sample[start: end]]
         ] +
         [np.full((1,), tokenizer.eod, dtype=np.int64)] # we append EOD to targets
-    )  # TODO(Hailey): a stretch goal of shifting decoder inps and targets at this step, as seen in https://github.com/google/seqio/blob/e4573a059c7fe3a65f52959c418b3feca1348c03/seqio/feature_converters.py#L514 ...
-    # ... note that T5 codebase doesn't do this. see https://github.com/tensorflow/tensor2tensor/blob/53a1be68727b5d5c3a0d0bf18721013843a49041/tensor2tensor/data_generators/generator_utils.py#L598
-    target_segment_ids = np.concatenate(
-        [
-            item
-            for start, end, sentinel_token in zip(spans_start[1::2], spans_end[1::2], tokenizer.sentinels)
-            for item in [np.full((1,), segment_ids[start], dtype=np.int64), segment_ids[start: end]] # TODO(Hailey): how to handle <mask> tokens here? should they have segment id 0? need to track down the t5x / seqio MLM code.
-        ] +
-        [np.full((1,), 0, dtype=np.int64)] # we append a segment id of 0 to the added EOD at end.
-    )
-    target_position_ids = np.concatenate( # make position ids now
-        [
-            np.arange(item.shape[0] + 1)
-            for start, end, sentinel in zip(spans_start[1::2], spans_end[1::2], tokenizer.sentinels)
-            for item in [sample[start: end + 1]] # not sure how to handle position ids for mask
-        ] +
-        [np.full((1,), 0, dtype=np.int64)] # we append a segment id of 0 to the added EOD at end.
     )
 
     return {
         'input_tokens': input_token_ids,
-        'input_segment_ids': input_segment_ids,
-        'input_position_ids': input_position_ids,
-        'target_tokens': target_token_ids,
-        'target_segment_ids': target_segment_ids,
-        'target_position_ids': target_position_ids,
+        'target_tokens': target_token_ids
     }
 
 

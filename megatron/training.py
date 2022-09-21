@@ -36,7 +36,6 @@ from megatron.utils import (
     get_ltor_masks_and_position_ids,
     get_position_ids,
     get_full_mask,
-    make_segment_mask,
     reduce_losses,
 )
 
@@ -161,48 +160,18 @@ def pretrain(neox_args):
 
 def _get_batch(neox_args, tokenizer, keys, data, datatype):
     """Support function for get_batch / get_batch pipe (to avoid code repetition)"""
-
     data_b = mpu.broadcast_data(keys, data, datatype)
 
-    # Unpack according to training objective.
-    decoder_is_inputs, segment_ids, prefix_indices = None, None, None
-    if neox_args.train_mtf:
-
-        tokens_ = data_b["decoder_token_ids"].long()
-        segment_ids = data_b["decoder_segment_ids"].long()[:, :-1]
-        # We'll shift this one later.
-        decoder_is_inputs = data_b["decoder_is_inputs"]#[:, :-1]
-
-    elif neox_args.training_objective != "mlm":
-
-        tokens_ = data_b["text"].long()
-
-    else:
-
-        inputs_ = data_b["input_tokens"].long()
-        targets_ = data_b["target_tokens"].long()
-
-        # MLM -> concatenate targets after inputs
-        tokens_ = torch.concat([inputs_, targets_], dim=-1)
-
-        # full attention over prefixes, if MLM. don't do this for CM3.
-        if neox_args.training_objective == "mlm": 
-            batch_size, seq_length = inputs_.shape
-            prefix_indices = torch.full((batch_size,), seq_length).long()
-        
-    if neox_args.training_objective == "prefixlm" and not neox_args.train_mtf:
-        prefix_indices = data_b["prefix"].long()
-    
+    # Unpack.
+    tokens_ = data_b["text"].long()
     labels = tokens_[:, 1:].contiguous()
     tokens = tokens_[:, :-1].contiguous()
 
     # Get the masks and position ids.
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
         data=tokens,
-        prefix_indices=prefix_indices,
-        decoder_is_inputs=decoder_is_inputs,
-        segment_ids=segment_ids,
-        neox_args=neox_args,
+        eod_token=neox_args.tokenizer.eod,
+        eod_mask_loss=neox_args.eod_mask_loss,
     )
 
     return tokens, labels, loss_mask, attention_mask, position_ids
@@ -213,7 +182,6 @@ def get_batch(neox_args, data_iterator):
 
     # Items and their type.
     keys = ["text"]
-        
     datatype = torch.int64
 
     # Broadcast data.
@@ -234,7 +202,6 @@ def get_batch_pipe(data, neox_args):
     """A modification of get_batch() to work with the latest batch instead of an iterator."""
     # Items and their type.
     keys = ["text"]
-    
     datatype = torch.int64
 
     tokens, labels, loss_mask, attention_mask, position_ids = _get_batch(
@@ -252,44 +219,34 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
     tokens_enc = data_b['input_tokens'].long()
     tokens_dec_ = data_b['target_tokens'].long()
 
-    segment_ids_enc = data_b['input_segment_ids'].long()
-    segment_ids_dec = data_b['target_segment_ids'].long()[:, :-1].contiguous()
-
-    position_ids_enc = data_b['input_position_ids'].long()
-    position_ids_dec = data_b['target_position_ids'].long()[:, :-1].contiguous()
-
     labels = tokens_dec_[:, 1:].contiguous()
     tokens_dec = tokens_dec_[:, :-1].contiguous()
 
-    # Get the decoder self-attn masks
-    attention_mask, loss_mask = get_ltor_masks_and_position_ids(
+    # Get the decoder self-attn mask and position ids.
+    attention_mask, loss_mask, position_ids_dec = get_ltor_masks_and_position_ids(
         data=tokens_dec,
         eod_token=neox_args.tokenizer.eod,
         eod_mask_loss=neox_args.eod_mask_loss,
-        segment_ids=segment_ids_dec,
     )
     # get position ids for encoder inputs as well
-    # position_ids_enc = get_position_ids(
-    #     data=tokens_enc,
-    # )
+    position_ids_enc = get_position_ids(
+        data=tokens_enc,
+    )
 
     batch_size, src_length = tokens_enc.size()
     batch_size, target_length = tokens_dec_.size()
 
-    enc_mask = make_segment_mask(segment_ids_enc, segment_ids_enc)
-    enc_dec_mask = make_segment_mask(segment_ids_dec, segment_ids_enc)
+    enc_mask = get_full_mask(src_length, src_length, device=tokens_enc.device) 
     # TODO(Hailey): determine what size this enc attn mask should be. right now it's (1,1,1,enc_seq_length)
-
-    return tokens_enc, tokens_dec, labels, loss_mask, enc_mask, enc_dec_mask, attention_mask, \
+    
+    return tokens_enc, tokens_dec, labels, loss_mask, enc_mask, attention_mask, \
         position_ids_enc, position_ids_dec,
 
 
 def get_batch_encdec(neox_args, data_iterator):
     """"""
 
-    keys = ['input_tokens', 'target_tokens', 
-    'input_segment_ids', 'target_segment_ids',
-    'input_position_ids', 'target_position_ids']
+    keys = ['input_tokens', 'target_tokens']
     datatype = torch.int64
 
     # Broadcast data.
@@ -308,20 +265,18 @@ def get_batch_encdec(neox_args, data_iterator):
 def get_batch_encdec_pipe(data, neox_args):
     """Build the batch."""
 
-    keys = ['input_tokens', 'target_tokens', 
-    'input_segment_ids', 'target_segment_ids',
-    'input_position_ids', 'target_position_ids']
+    keys = ['input_tokens', 'target_tokens']
     datatype = torch.int64
 
     # Broadcast data.
     data_b = mpu.broadcast_data(keys, data, datatype)
 
-    tokens_enc, tokens_dec, labels, loss_mask, encoder_attn_mask, enc_dec_mask, attention_mask, \
+    tokens_enc, tokens_dec, labels, loss_mask, encoder_attn_mask, attention_mask, \
         position_ids_enc, position_ids_dec = _get_batch_encdec(
         neox_args, keys, data, datatype
     )
     
-    return (tokens_enc, tokens_dec, position_ids_enc, position_ids_dec, encoder_attn_mask, enc_dec_mask, attention_mask),\
+    return (tokens_enc, tokens_dec, position_ids_enc, position_ids_dec, encoder_attn_mask, attention_mask),\
         (labels, loss_mask)
 
 
@@ -333,7 +288,7 @@ def forward_step_encdec(data_iterator, model, neox_args, timers, return_logits=F
     # Get the batch.
     if timers is not None:
         timers("batch generator").start()
-    tokens_enc, tokens_dec, loss_mask, labels, encoder_attn_mask, enc_dec_mask, attention_mask, position_ids_enc, position_ids_dec \
+    tokens_enc, tokens_dec, loss_mask, labels, encoder_attn_mask, attention_mask, position_ids_enc, position_ids_dec \
         = get_batch_encdec(
             neox_args=neox_args, data_iterator=data_iterator
         )
@@ -347,7 +302,6 @@ def forward_step_encdec(data_iterator, model, neox_args, timers, return_logits=F
             position_ids_enc,
             position_ids_dec,
             encoder_attn_mask,
-            enc_dec_mask,
             attention_mask,
         )
     )
