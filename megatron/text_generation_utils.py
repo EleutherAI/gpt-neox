@@ -278,7 +278,9 @@ def stream_tokens(
         # initialize generation variables
         state_is_done = torch.zeros([batch_size]).byte().cuda()
         token_generation_end_index = torch.ones([batch_size]).long().cuda() * (-1)
-        generation_logits = torch.empty(maximum_tokens, neox_args.padded_vocab_size).float().cuda()
+        generation_logits = (
+            torch.empty(maximum_tokens, neox_args.padded_vocab_size).float().cuda()
+        )
 
         while token_index_to_generate <= last_token_index_to_generate:
             if recompute:  # recompute all tokens
@@ -335,7 +337,9 @@ def stream_tokens(
                     ).view(-1)
 
                 if neox_args.return_logits:
-                    generation_logits[token_index_to_generate - 1] = generated_token_logits[0]
+                    generation_logits[
+                        token_index_to_generate - 1
+                    ] = generated_token_logits[0]
 
             if neox_args.is_pipe_parallel:
                 # broadcast generated tokens to pipe parallel group
@@ -776,7 +780,8 @@ def generate_samples_interactive(
                     .tolist()[
                         batch_token_generation_start_index[0]
                         .item() : batch_token_generation_end_index[0]
-                        .item() + 1
+                        .item()
+                        + 1
                     ]
                 )
                 generated_text = neox_args.tokenizer.detokenize(generated_tokens)

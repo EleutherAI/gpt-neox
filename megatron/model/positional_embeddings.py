@@ -105,7 +105,7 @@ class AliBi(torch.nn.Module):
         def get_slopes_power_of_2(n):
             start = 2 ** (-(2 ** -(math.log2(n) - 3)))
             ratio = start
-            return [start * ratio ** i for i in range(n)]
+            return [start * ratio**i for i in range(n)]
 
         if math.log2(n).is_integer():
             return get_slopes_power_of_2(n)
@@ -129,9 +129,13 @@ class AliBi(torch.nn.Module):
         if self.cached_seq_len is not None and self.cached_seq_len >= seq_len_k:
             a = self.cached_matrix
         else:
-            target_seq_len = seq_len_k if self.cached_seq_len is None else self.cached_seq_len * 4
+            target_seq_len = (
+                seq_len_k if self.cached_seq_len is None else self.cached_seq_len * 4
+            )
             a = -torch.tril(
-                torch.arange(target_seq_len).view(target_seq_len, 1).repeat(1, target_seq_len)
+                torch.arange(target_seq_len)
+                .view(target_seq_len, 1)
+                .repeat(1, target_seq_len)
                 + torch.arange(0, -target_seq_len, -1)
             )
             a = a.to(x.device).to(x.dtype)
