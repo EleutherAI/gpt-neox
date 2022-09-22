@@ -63,6 +63,7 @@ def test_neoxargs_consume_deepy_args_without_yml_suffix():
 
     assert args_loaded_yamls == args_loaded_consume
 
+
 @pytest.mark.cpu
 def test_neoxargs_consume_deepy_args_with_hostfile_param():
     """
@@ -77,7 +78,7 @@ def test_neoxargs_consume_deepy_args_with_hostfile_param():
         "sys.argv",
         [str(get_root_directory() / "deepy.py"), "train.py"]
         + get_configs_with_path(["small", "local_setup"])
-        + ["--hostfile=/mock_path"]
+        + ["--hostfile=/mock_path"],
     ):
         args_loaded_consume = NeoXArgs.consume_deepy_args()
 
@@ -91,6 +92,7 @@ def test_neoxargs_consume_deepy_args_with_hostfile_param():
     args_loaded_yamls.wandb_group = args_loaded_consume.wandb_group
 
     assert args_loaded_yamls == args_loaded_consume
+
 
 @pytest.mark.cpu
 def test_neoxargs_consume_deepy_args_with_config_dir():

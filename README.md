@@ -65,7 +65,7 @@ We additionally have 150 checkpoints saved throughout training, one every 1,000 
 
 ### Host Setup
 
-First make sure you are in an environment with Python 3.8 or later with an appropriate version of PyTorch 1.8 or later installed.
+First make sure you are in an environment with Python 3.8 with an appropriate version of PyTorch 1.8 or later installed. **Note:** Some of the libraries that GPT-NeoX depends on have not been updated to be compatible with Python 3.10+. Python 3.9 appears to work, but this codebase has been developed and tested for Python 3.8.
 
 To install the remaining basic dependencies, run:
 
@@ -328,7 +328,7 @@ We also support using TensorBoard via the <code><var>tensorboard-dir</var></code
 
 # Running on multi-node
 
-If you need to supply a hostfile for use with the MPI-based DeepSpeed launcher, you can set the environment variable `DLTS_HOSTFILE` to point to the hostfile. 
+If you need to supply a hostfile for use with the MPI-based DeepSpeed launcher, you can set the environment variable `DLTS_HOSTFILE` to point to the hostfile.
 
 # Administrative Notes
 
