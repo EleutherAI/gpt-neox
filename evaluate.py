@@ -16,7 +16,7 @@
 # limitations under the License.
 
 """Evaluation tasks - modified from https://github.com/EleutherAI/lm-evaluation-harness"""
-
+import os
 import sys
 
 sys.path.append(
@@ -31,7 +31,7 @@ from datetime import datetime
 import json
 
 
-def main():
+def main(): 
     model, neox_args = setup_for_inference_or_eval(use_cache=False)
     results = run_eval_harness(
         model,
