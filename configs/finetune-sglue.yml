@@ -1,7 +1,8 @@
 # Suggested data paths when finetuning T5 on Super Glue locally
 {
 
-  "train_mtf": True,
+  "finetue": True,
+  "packing": True,
   "data-path": "data/super_glue/super_glue",
 
   "tokenizer-type": "HFTokenizer",
@@ -9,6 +10,22 @@
 
   "save": "data/improved-t5-test",
   "load": "data/improved-t5-test",
+
+  # batch / data settings
+  "train_micro_batch_size_per_gpu": 8,
+  "gradient-accumulation-steps": 1,
+  "data-impl": "mmap",
+  "split": "949,50,1",
+
+  # misc. training settings
+  "train-iters": 5000,
+  "lr-decay-iters": 5000,
+  "distributed-backend": "nccl",
+  "lr-decay-style": "cosine",
+  "warmup": 0.01,
+  "save-interval": 10000,
+  "eval-interval": 1000,
+  "eval-iters": 10,
 
   # "tensorboard-dir": "/tmp/improved-t5/tensorboard",
   # "log-dir": "/tmp/improved-t5/logs",
