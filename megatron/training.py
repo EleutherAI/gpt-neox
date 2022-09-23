@@ -238,6 +238,8 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
             data=tokens_dec,
             eod_token=neox_args.tokenizer.eod,
             eod_mask_loss=neox_args.eod_mask_loss,
+            pad_token=neox_args.tokenizer.pad,
+            pad_mask_loss=True,
             segment_ids=segment_ids_dec
         )
 
