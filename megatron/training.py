@@ -235,9 +235,9 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
 
         # Get the decoder self-attn mask and position ids.
         attention_mask, loss_mask = get_ltor_masks_and_position_ids(
-            data=tokens_dec,
+            data=labels,
             eod_token=neox_args.tokenizer.eod,
-            eod_mask_loss=neox_args.eod_mask_loss,
+            eod_mask_loss=True, #neox_args.eod_mask_loss,
             pad_token=neox_args.tokenizer.pad,
             pad_mask_loss=True,
             segment_ids=segment_ids_dec
