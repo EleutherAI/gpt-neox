@@ -142,7 +142,7 @@ def preprocess_rte(x):
 def preprocess_wic(x):
 
     joined = " ".join([
-        "wsc",
+        "wic",
         expose_features(x, ["sentence1", "sentence2", "word"])
     ])
     return {
