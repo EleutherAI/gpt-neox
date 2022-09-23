@@ -116,6 +116,8 @@ def get_ltor_masks_and_position_ids(
     data,
     eod_token,
     eod_mask_loss=False,
+    pad_token=0,
+    pad_mask_loss=False,
     segment_ids=None,
 ):
     """Build masks and position id for left to right model."""
@@ -128,25 +130,29 @@ def get_ltor_masks_and_position_ids(
         seq_length=seq_length,
         device=data.device,
     )
-    if segment_ids is not None: # do attention masking s.t. only sequences of the same segment id attend to one another
-        segment_mask = make_segment_mask(
-            segment_ids, segment_ids, device=data.device
-        ) 
-        attention_mask = attention_mask.bool() + segment_mask.bool()
 
     # Loss mask.
     loss_mask = torch.ones(data.size(), dtype=torch.float, device=data.device)
     if eod_mask_loss:
         loss_mask[data == eod_token] = 0.0
 
-    if segment_ids is None:
+    if pad_mask_loss:
+        loss_mask[data == pad_token] = 0.0
+
+    if segment_ids is not None: # do attention masking s.t. only sequences of the same segment id attend to one another
+        segment_mask = make_segment_mask(
+            segment_ids, segment_ids, device=data.device
+        ) 
+
+        attention_mask = attention_mask.bool() & segment_mask.bool()
+
+        return attention_mask, loss_mask
+    else:
         # Position ids.
         position_ids = torch.arange(seq_length, dtype=torch.long, device=data.device)
         position_ids = position_ids.unsqueeze(0).expand_as(data)
 
         return attention_mask, loss_mask, position_ids
-    else:
-        return attention_mask, loss_mask
 
 
 def get_position_ids(data):

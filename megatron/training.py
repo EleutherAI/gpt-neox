@@ -226,7 +226,7 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
     batch_size, src_length = tokens_enc.size()
     batch_size, target_length = tokens_dec.size()
 
-    if neox_args.train_mtf:
+    if neox_args.packing:
         segment_ids_enc = data_b['input_segment_ids'].long()
         segment_ids_dec = data_b['target_segment_ids'].long()[:, :-1].contiguous()
 
@@ -275,7 +275,7 @@ def get_batch_encdec(neox_args, data_iterator):
     keys = ['input_tokens', 'target_tokens']
     datatype = torch.int64
 
-    if neox_args.train_mtf:
+    if neox_args.packing:
         keys += [
             'input_segment_ids', 'target_segment_ids',
             'input_position_ids', 'target_position_ids'
@@ -300,7 +300,7 @@ def get_batch_encdec_pipe(data, neox_args):
     keys = ['input_tokens', 'target_tokens']
     datatype = torch.int64
 
-    if neox_args.train_mtf:
+    if neox_args.packing:
         keys += [
             'input_segment_ids', 'target_segment_ids',
             'input_position_ids', 'target_position_ids'
@@ -309,7 +309,7 @@ def get_batch_encdec_pipe(data, neox_args):
     # Broadcast data.
     data_b = mpu.broadcast_data(keys, data, datatype)
 
-    if neox_args.train_mtf:
+    if neox_args.packing:
 
         tokens_enc, tokens_dec, labels, loss_mask, encoder_attn_mask, enc_dec_mask, attention_mask, \
             position_ids_enc, position_ids_dec = _get_batch_encdec(

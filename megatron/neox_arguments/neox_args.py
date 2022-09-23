@@ -362,9 +362,9 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
     """
 
-    train_mtf: bool = False
+    packing: bool = False
     """
-    Flag controlling whether model will be multi-task-finetuned, using DecoderPackedMTFDataset.
+    Use the packing mechanism
     """
 
     loss_on_targets_only: bool = False

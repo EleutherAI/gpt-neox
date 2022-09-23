@@ -48,12 +48,6 @@
     "cpu_offload": False
   },
 
-   # batch / data settings
-   "train_micro_batch_size_per_gpu": 4,
-   "gradient-accumulation-steps": 1,
-   "data-impl": "mmap",
-   "split": "949,50,1",
-
    # activation checkpointing
    "checkpoint-activations": false,
    "checkpoint-num-layers": 1,
@@ -75,16 +69,6 @@
      "hysteresis": 2,
      "min_loss_scale": 1
    },
-
-   # misc. training settings
-   "train-iters": 100000,
-   "lr-decay-iters": 100000,
-   "distributed-backend": "nccl",
-   "lr-decay-style": "cosine",
-   "warmup": 0.01,
-   "save-interval": 10000,
-   "eval-interval": 1000,
-   "eval-iters": 10,
 
    # logging
    "log-interval": 100,
