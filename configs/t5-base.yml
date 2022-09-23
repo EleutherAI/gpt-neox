@@ -12,16 +12,21 @@
   "num-attention-heads": 12,
   "seq-length": 512,
   "decoder-seq-length": 114,
-  "max-position-embeddings": 512,
+  "max-position-embeddings": 626,
   "norm": "layernorm",
   "pos-emb": "rotary",
+  "rotary-pct": 0.25,
   "activation": "geglu",
   "no-weight-tying": true,
   "gpt-j-residual": false,
+  "output-layer-parallelism": "column",
+
+  "init_method": "small_init",
+  "output_layer_init_method": "wang_init",
 
   "extra-sentinel-tokens": 100,
-  "masked-lm-prob": 0.15,
-  "mean_noise_span_length": 3,
+  # "masked-lm-prob": 0.15,
+  # "mean_noise_span_length": 3,
 
   # fusion ops (STILL UNTESTED WITH T5)
   "scaled-upper-triang-masked-softmax-fusion": false, 
@@ -32,11 +37,13 @@
   "optimizer": {
      "type": "Adam",
      "params": {
-       "lr": 0.0002,
+       "lr": 0.0001,
        "betas": [0.9, 0.999],
        "eps": 1.0e-8,
      }
    },
+  "min_lr": 0.0001,
+
    "zero_optimization": {
     "stage": 1,
     "allgather_partitions": True,

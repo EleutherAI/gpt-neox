@@ -1,15 +1,17 @@
 # Suggested data paths when finetuning T5 on Super Glue locally
 {
 
-  "finetue": True,
+  "finetune": True,
   "packing": True,
   "data-path": "data/super_glue/super_glue",
 
   "tokenizer-type": "HFTokenizer",
   "vocab-file": "data/tokenizer.json",
 
-  "save": "data/improved-t5-test",
-  "load": "data/improved-t5-test",
+  #"save": "data/improved-t5-test",
+  #"load": "data/improved-t5-test",
+  "load": "ckpts/pretrain",
+  "save": "ckpts/sglue",
 
   # batch / data settings
   "train_micro_batch_size_per_gpu": 8,
@@ -23,12 +25,12 @@
   "distributed-backend": "nccl",
   "lr-decay-style": "cosine",
   "warmup": 0.01,
-  "save-interval": 10000,
-  "eval-interval": 1000,
+  "save-interval": 1000,
+  "eval-interval": 5001,
   "eval-iters": 10,
 
-  # "tensorboard-dir": "/tmp/improved-t5/tensorboard",
-  # "log-dir": "/tmp/improved-t5/logs",
+  "tensorboard-dir": "/tmp/improved-t5/tensorboard",
+  "log-dir": "/tmp/improved-t5/logs",
   # "use_wandb": True,
   # "wandb_group": "T5-770M-9-3-22-testppl",
   # "wandb_team": "eleutherai",
