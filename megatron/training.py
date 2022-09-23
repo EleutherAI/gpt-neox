@@ -224,7 +224,7 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
     tokens_dec = tokens_dec_[:, :-1].contiguous()
 
     batch_size, src_length = tokens_enc.size()
-    batch_size, target_length = tokens_dec_.size()
+    batch_size, target_length = tokens_dec.size()
 
     if neox_args.train_mtf:
         segment_ids_enc = data_b['input_segment_ids'].long()
@@ -254,6 +254,7 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
             data=tokens_enc,
         )
 
+        enc_dec_mask = get_full_mask(target_length, src_length, device=tokens_enc.device)
         enc_mask = get_full_mask(src_length, src_length, device=tokens_enc.device)
 
         # Get the decoder self-attn mask and position ids.
@@ -264,7 +265,7 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
             segment_ids=None
         )
     
-        return tokens_enc, tokens_dec, labels, loss_mask, enc_mask, attention_mask, \
+        return tokens_enc, tokens_dec, labels, loss_mask, enc_mask, enc_dec_mask, attention_mask, \
             position_ids_enc, position_ids_dec,
 
 
@@ -319,12 +320,12 @@ def get_batch_encdec_pipe(data, neox_args):
         (labels, loss_mask)
 
     else:
-        tokens_enc, tokens_dec, labels, loss_mask, encoder_attn_mask, attention_mask, \
+        tokens_enc, tokens_dec, labels, loss_mask, encoder_attn_mask, enc_dec_mask, attention_mask, \
             position_ids_enc, position_ids_dec = _get_batch_encdec(
             neox_args, keys, data, datatype
         )
 
-        return (tokens_enc, tokens_dec, position_ids_enc, position_ids_dec, encoder_attn_mask, attention_mask),\
+        return (tokens_enc, tokens_dec, position_ids_enc, position_ids_dec, encoder_attn_mask, enc_dec_mask, attention_mask),\
             (labels, loss_mask)
 
 

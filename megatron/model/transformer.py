@@ -505,10 +505,13 @@ class ParallelAttention(nn.Module):
             if exists(layer_past) and layer_past.numel() > 0:
                 offset = layer_past[0].shape[0]
                 seq_len += offset
-            cos, sin = self.rotary_emb(value_layer, seq_len=seq_len)
+            # TODO(Hailey): make applying rotary embs more efficient. the 2 calls to rotary_emb capture an edge case in evals
+            cos, sin = self.rotary_emb(value_layer, seq_len=query_layer.shape[0] + offset)
+            
             query_layer = apply_rotary_fn(
                 query_rot, cos, sin, offset=offset
             )
+            cos, sin = self.rotary_emb(value_layer, seq_len=seq_len)
             key_layer = apply_rotary_fn(
                 key_rot, cos, sin, offset=offset
             )

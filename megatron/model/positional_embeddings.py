@@ -71,10 +71,13 @@ def apply_rotary_pos_emb(q, cos, sin, offset: int = 0):
 def apply_rotary_pos_emb_torch(
     q, cos, sin, offset: int = 0
 ):  # jitting fails with bf16
+    og_shape = cos.shape
     cos, sin = (
         cos[offset : q.shape[0] + offset, ...],
         sin[offset : q.shape[0] + offset, ...],
     )
+    if q.shape[0] != cos.shape[0] or rotate_half(q).shape[0] != sin.shape[0]:
+        print(offset, og_shape, q.shape, cos.shape, sin.shape, rotate_half(q).shape)
     return (q * cos) + (rotate_half(q) * sin)
 
 

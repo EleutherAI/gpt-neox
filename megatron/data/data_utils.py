@@ -112,7 +112,7 @@ def build_train_valid_test_datasets(
     """Build train, valid, and test datasets."""
 
     # Indexed dataset.
-    if not neox_args.train_mtf:
+    if not (neox_args.finetune and neox_args.model_arch == "t5"):
         indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup)
     else:
         indexed_dataset = get_indexed_dataset(data_prefix, False, data_impl, skip_warmup)
@@ -157,7 +157,7 @@ def build_train_valid_test_datasets(
                     *dataset_args,
                 )
             elif neox_args.model_arch == "t5":
-                if neox_args.train_mtf:
+                if neox_args.finetune:
                     dataset = T5Seq2SeqDataset(
                         *dataset_args,
                         neox_args=neox_args,

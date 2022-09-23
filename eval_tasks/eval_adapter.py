@@ -45,6 +45,10 @@ class EvalHarnessAdapter(GPT2LM):
         self.cache_hook = base.CacheHook(None)
         self.model = model
         self.neox_args = neox_args
+        # HACK: disable packing at inference time
+        if self.neox_args.train_mtf:
+            self.was_packing = True
+            self.neox_args.train_mtf = False
         self.tokenizer = neox_args.tokenizer
         self._device = torch.device(f"cuda:{neox_args.local_rank}")
         self._eot_token_id = neox_args.tokenizer.eod_id
@@ -558,26 +562,31 @@ class Seq2SeqEvalHarnessAdapter(EvalHarnessAdapter):
                     (targetlen,) = target.shape
 
                     target_padding_length = (
-                        target_padding_length if target_padding_length is not None else targetlen
-                    )
-                    # pad to length
-                    target = torch.cat(
-                        [
-                            target,  # [seq]
-                            torch.zeros(padding_length - targetlen, dtype=torch.long).to(
-                                target.device
-                            ),  # [padding_length - seq]
-                        ],
-                        dim=0,
+                        max(target_padding_length, targetlen) if target_padding_length is not None else targetlen
                     )
 
                     inps.append(inp.unsqueeze(0))
-                    targets.append(target.unsqueeze(0))
+                    targets.append(target)
                     contlens.append(cont)
                     inplens.append(inplen)
                     targetlens.append(targetlen)
 
-                logits = self._model_call(torch.cat(inps, dim=0), targets=torch.cat(targets, dim=0))
+                padded_targets = []
+                for target, targetlen in zip(targets, targetlens):
+                    # pad to length
+                    target = torch.cat(
+                        [
+                            target,  # [seq]
+                            torch.zeros(target_padding_length - targetlen + 1, dtype=torch.long).to(
+                                target.device
+                            ),  # [padding_length - seq]
+                        ],
+                        dim=0,
+                    ).unsqueeze(0)
+
+                    padded_targets.append(target)
+
+                logits = self._model_call(torch.cat(inps, dim=0), targets=torch.cat(padded_targets, dim=0))
                 res_len += len(chunk)
 
                 if logits is not None:
@@ -649,10 +658,11 @@ def run_eval_harness(
     num_fewshot=0,
     bootstrap_iters=2,
 ):
-    batch_size=2 # TODO(Hailey): don't merge this change into main. hack to stop OOM errors
+    batch_size=1 # TODO(Hailey): don't merge this change into main. hack to stop OOM errors
     print_rank_0("Running evaluation harness...")
     if neox_args.model_arch == "t5":
         adapter = Seq2SeqEvalHarnessAdapter(model, forward_step_fn, neox_args, batch_size)
+        print("using packing:",neox_args.train_mtf)
     else:
         adapter = EvalHarnessAdapter(model, forward_step_fn, neox_args, batch_size)
     return adapter.run_eval(
