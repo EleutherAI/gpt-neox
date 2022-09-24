@@ -37,6 +37,7 @@ def main():
         model,
         forward_step,
         neox_args,
+        num_fewshot=neox_args.num_fewshot,
         eval_tasks=neox_args.eval_tasks,
         bootstrap_iters=10000,
     )

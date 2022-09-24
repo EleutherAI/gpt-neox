@@ -989,3 +989,8 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     """
     Tasks to evaluate on using lm_eval_harness
     """
+
+    num_fewshot: int = None
+    """
+    Number of few-shot examples to use via lm_eval_harness. Will default to 0 in `run_eval_harness` fn if None is passed
+    """

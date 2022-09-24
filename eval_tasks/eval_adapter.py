@@ -351,7 +351,7 @@ class EvalHarnessAdapter(GPT2LM):
     def run_eval(
         self,
         eval_tasks=None,
-        num_fewshot=0,
+        num_fewshot=None,
         bootstrap_iters=2,
         description_dict=None,
         use_cache=True,
@@ -373,6 +373,11 @@ class EvalHarnessAdapter(GPT2LM):
                 "mathqa",
                 "pubmedqa",
             ]
+        if num_fewshot is None:
+            # if None everywhere, fall back on 0
+            num_fewshot = neox_args.num_fewshot
+            if num_fewshot is None:
+                num_fewshot = 0
 
         # **HACK INCOMING**:
         # first get task dict on local main rank
@@ -424,7 +429,7 @@ def run_eval_harness(
     neox_args,
     batch_size=None,
     eval_tasks=None,
-    num_fewshot=0,
+    num_fewshot=None,
     bootstrap_iters=2,
 ):
     print_rank_0("Running evaluation harness...")
