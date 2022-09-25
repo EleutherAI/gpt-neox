@@ -125,10 +125,10 @@ class T5Seq2SeqDataset(torch.utils.data.Dataset):
             input_token_len = len(token_dict["input_tokens"])
             target_token_len = len(token_dict["target_tokens"])
 
-            if cur_inp_len + input_token_len > self.seq_length:
+            if cur_inp_len + input_token_len >= self.seq_length:
                 # This should not happen at the indexing should only allow the correct number of items
                 raise ValueError(f"""Items to be packed do not fit inside a single sample.
-                    current length: {cur_len}
+                    current length: {cur_inp_len}
                     input tokens length: {input_token_len}
                     target token length: {target_token_len}
                     expected sequence length: {self.seq_length}
@@ -149,10 +149,6 @@ class T5Seq2SeqDataset(torch.utils.data.Dataset):
             assert cur_inp_len <= self.seq_length
             assert cur_tgt_len <= self.decoder_seq_length
 
-            print('input_tokens', input_token_ids)
-            print('input_segment_ids', input_segment_ids)
-            print('input_position_ids', input_position_ids)
-            import sys; sys.exit()
         return {
             'input_tokens': input_token_ids,
             'input_segment_ids': input_segment_ids,
@@ -217,21 +213,22 @@ def _build_index_mappings(
                     input_token_len = sample_sizes["input_tokens"]
                     target_token_len = sample_sizes["target_tokens"]
                     added = False
+                    if input_token_len <= seq_length:
+                        for _idx, (c_seq_len, c_idx) in enumerate(zip(combined_seq_len, combined_idx)):
+                            if c_seq_len + input_token_len <= seq_length:
+                                combined_idx[_idx].append(doc_id)
+                                combined_seq_len[_idx] += input_token_len
+                                added = True
+                                break
 
-                    for _idx, (c_seq_len, c_idx) in enumerate(zip(combined_seq_len, combined_idx)):
-                        if c_seq_len + input_token_len <= seq_length:
-                            combined_idx[_idx].append(doc_id)
-                            combined_seq_len[_idx] += input_token_len
-                            added = True
-                            break
+                        if not added:
+                            if len(combined_idx) == queue_size:
+                                sample_idx.append("-".join([str(i) for i in combined_idx[0]]))
+                                combined_idx = combined_idx[1:]
+                                combined_seq_len = combined_seq_len[1:]
 
-                    if not added:
-                        if len(combined_idx) == queue_size:
-                            sample_idx.append("-".join([str(i) for i in combined_idx[0]]))
-                            combined_idx = combined_idx[1:]
-                            combined_seq_len = combined_seq_len[1:]
-                        combined_idx.append([doc_id])
-                        combined_seq_len.append([input_token_len])
+                            combined_idx.append([doc_id])
+                            combined_seq_len.append([input_token_len])
 
                 sample_idx.extend(["-".join([str(i) for i in idx]) for idx in combined_idx])
 
