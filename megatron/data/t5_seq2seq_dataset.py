@@ -227,13 +227,13 @@ def _build_index_mappings(
 
                     if not added:
                         if len(combined_idx) == queue_size:
-                            sample_idx.append("-".join(combined_idx[0]))
+                            sample_idx.append("-".join([str(i) for i in combined_idx[0]]))
                             combined_idx = combined_idx[1:]
                             combined_seq_len = combined_seq_len[1:]
                         combined_idx.append([doc_id])
                         combined_seq_len.append([input_token_len])
 
-                sample_idx.extend(["-".join(idx) for idx in combined_idx])
+                sample_idx.extend(["-".join([str(i) for i in idx]) for idx in combined_idx])
 
             np.save(sample_idx_filename, sample_idx, allow_pickle=True)
             print_rank_0(
