@@ -24,7 +24,7 @@ import torch
 
 from megatron import print_rank_0, mpu 
 
-from megatron.data.gpt2_dataset import _build_shuffle_idx
+from megatron.data.gpt2_dataset import _build_shuffle_idx,  _build_doc_idx
 from megatron.data.indexed_dataset import make_dataset
 
 """
@@ -53,21 +53,25 @@ class T5Seq2SeqDataset(torch.utils.data.Dataset):
             documents=documents
         )
 
+        print(num_samples)
+
         assert neox_args.tokenizer, "Must pass a tokenizer to pack multi-task examples"
         self.tokenizer = neox_args.tokenizer
         self.pad_token = self.tokenizer.pad
         self.eod_token = self.tokenizer.eod
 
+        self.packing = neox_args.packing
+
         self.seq_length = seq_length
         self.decoder_seq_length = neox_args.decoder_seq_length
 
         self.sample_index, self.shuffle_index = _build_index_mappings(
-            name=name, 
-            data_prefix=data_prefix, 
-            documents=len(documents), 
-            mtf_dataset=self.mtf_dataset, 
-            num_samples=num_samples, 
-            seq_length=seq_length, 
+            name=name,
+            data_prefix=data_prefix,
+            documents=documents,
+            mtf_dataset=self.mtf_dataset,
+            num_samples=num_samples,
+            seq_length=seq_length,
             seed=seed,
             )
 
@@ -164,14 +168,17 @@ def _build_index_mappings(
     mtf_dataset,
     num_samples: int,
     seq_length: int,
+    decoder_seq_length: int,
     seed,
 ):
     """
     - `shuffle_index` is [num_epoch * len(self.mtf)]
     - `sample_index` is [num_sample, 2] (storing the start and end of the sample). We query the sample via `self.shuffle_index[start:end]`
     """
+
     # rng state
     np_rng = np.random.RandomState(seed=seed)
+
 
     # Filename of the index mappings.
     _filename = data_prefix
@@ -190,36 +197,51 @@ def _build_index_mappings(
             print_rank_0(' > WARNING: could not find index map files, building '
                          'the indices on rank 0 ...')
 
-            # iteratively add the entire dataset for every epoch and see if it's enough given current packing strategy
             start_time = time.time()
-            row_offset = 0
-            old_sample_start = 0
-            epoch = 0
             shuffle_idx = []
             sample_idx = []
+            doc_idx_index = 0
             while len(sample_idx) <= num_samples:
-                new_document_ids = _build_shuffle_idx(size=documents, np_rng=np_rng)
-                # Generate a shuffling of the entire dataset
-                shuffle_idx.append(new_document_ids)
-                # Packs them into a single sample
-                new_samples, row_offset, old_sample_start = _build_sample_idx(
-                    mtf_dataset=mtf_dataset,
-                    document_ids=new_document_ids,
-                    seq_length=seq_length,
-                    row_offset=row_offset,
-                    old_sample_start=old_sample_start,
-                    epoch=epoch
-                )
-                sample_idx.extend(new_samples)
-                epoch += 1
 
-            shuffle_idx = np.concatenate(shuffle_idx, axis=0)
-            sample_idx = np.stack(sample_idx, axis=0)
+                if doc_idx_index == 0:
+                    doc_idx = _build_shuffle_idx(len(documents) - 1, np_rng)
 
-            np.save(shuffle_idx_filename, shuffle_idx, allow_pickle=True)
+                remaining_seq_length = seq_length
+                remaining_decoder_seq_length = decoder_seq_length
+                _idx = []
+                while remaining_seq_length != 0:
+                    doc_id = doc_idx[doc_idx_index]
+                    sample_sizes = mtf_dataset.size(doc_id)
+                    input_token_len = sample_sizes["input_tokens"]
+                    target_token_len = sample_sizes["target_tokens"]
+
+                    remaining_seq_length -= input_token_len
+
+                    if remaining_seq_length <= 0:
+                        remaining_seq_length = 0
+                    else:
+                        if doc_idx_index == len(documents)-1:
+                            doc_idx_index = 0
+                        else:
+                            doc_idx_index += 1
+                        _idx.append(doc_id)
+                sample_idx.append(_idx)
+
             np.save(sample_idx_filename, sample_idx, allow_pickle=True)
-            print_rank_0(' > elasped time to build and save shuffle-idx and sample-idx mapping'
-                         ' (seconds): {:4f}'.format(time.time() - start_time))
+            print_rank_0(
+                " > elapsed time to build and save sample-idx mapping "
+                "(seconds): {:4f}".format(time.time() - start_time)
+            )
+            # shuffle-idx.
+            start_time = time.time()
+            # -1 is due to data structure used to retrieve the index:
+            #    sample i --> [sample_idx[i], sample_idx[i+1])
+            shuffle_idx = _build_shuffle_idx(len(sample_idx) - 1, np_rng)
+            np.save(shuffle_idx_filename, shuffle_idx, allow_pickle=True)
+            print_rank_0(
+                " > elapsed time to build and save shuffle-idx mapping"
+                " (seconds): {:4f}".format(time.time() - start_time)
+            )
 
     # This should be a barrier but nccl barrier assumes
     # device_index=rank which is not the case for model
