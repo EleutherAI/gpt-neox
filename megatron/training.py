@@ -215,10 +215,14 @@ def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
     tokens, labels, loss_mask, attention_mask, position_ids = get_batch(
         neox_args=neox_args, data_iterator=data_iterator
     )
+
     if timers is not None:
         timers("batch generator").stop()
 
-    outputs = model((tokens, position_ids, attention_mask))
+    outputs = model((tokens, position_ids, attention_mask), neox_args=neox_args)
+    if neox_args.curriculum_learning and neox_args.curriculum_seqlen < neox_args.seq_length:
+        loss_mask = loss_mask[:, :neox_args.curriculum_seqlen].contiguous()
+        labels = labels[:, :neox_args.curriculum_seqlen].contiguous()
     loss = cross_entropy(
         outputs, (labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy
     )
