@@ -78,8 +78,8 @@ class T5Seq2SeqDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
 
-        start, end = self.sample_index[idx]
-        mtf_samples_indices = self.shuffle_index[start: end]
+        string_idx = self.sample_index[idx]
+        mtf_samples_indices = [int(idx) for idx in string_idx.split("-")]
         items = [self.mtf_dataset[sample_id] for sample_id in mtf_samples_indices]
 
         return self.pack_samples(items)
@@ -227,13 +227,13 @@ def _build_index_mappings(
 
                     if not added:
                         if len(combined_idx) == queue_size:
-                            sample_idx.append(combined_idx[0])
+                            sample_idx.append("-".join(combined_idx[0]))
                             combined_idx = combined_idx[1:]
                             combined_seq_len = combined_seq_len[1:]
                         combined_idx.append([doc_id])
                         combined_seq_len.append([input_token_len])
 
-                sample_idx.extend(combined_idx)
+                sample_idx.extend(["-".join(idx) for idx in combined_idx])
 
             np.save(sample_idx_filename, sample_idx, allow_pickle=True)
             print_rank_0(
