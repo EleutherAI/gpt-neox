@@ -125,7 +125,7 @@ class T5Seq2SeqDataset(torch.utils.data.Dataset):
             input_token_len = len(token_dict["input_tokens"])
             target_token_len = len(token_dict["target_tokens"])
 
-            if cur_inp_len + input_token_len >= self.seq_length:
+            if cur_inp_len + input_token_len > self.seq_length:
                 # This should not happen at the indexing should only allow the correct number of items
                 raise ValueError(f"""Items to be packed do not fit inside a single sample.
                     current length: {cur_inp_len}
@@ -230,7 +230,7 @@ def _build_index_mappings(
                             combined_idx.append([doc_id])
                             combined_seq_len.append(input_token_len)
 
-                # sample_idx.extend(["-".join([str(i) for i in idx]) for idx in combined_idx])
+                sample_idx.extend(["-".join([str(i) for i in idx]) for idx in combined_idx])
 
             np.save(sample_idx_filename, sample_idx, allow_pickle=True)
             print_rank_0(
