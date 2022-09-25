@@ -54,7 +54,7 @@ def build_the_dataset(
 ):
     """Build train/valid/test datasets."""
 
-    if not neox_args.train_mtf:
+    if (not neox_args.finetune) or (not neox_args.model_arch == "t5"):
         indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup)
     else:
         indexed_dataset = get_indexed_dataset(data_prefix, False, data_impl, skip_warmup)
