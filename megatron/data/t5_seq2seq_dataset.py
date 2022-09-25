@@ -202,8 +202,6 @@ def _build_index_mappings(
             queue_size = 10
             while len(sample_idx) <= num_samples:
 
-                remaining_seq_length = seq_length
-                _idx = []
                 doc_idx = _build_shuffle_idx(len(documents) - 1, np_rng)
                 combined_idx = []
                 combined_seq_len = []
@@ -228,7 +226,7 @@ def _build_index_mappings(
                                 combined_seq_len = combined_seq_len[1:]
 
                             combined_idx.append([doc_id])
-                            combined_seq_len.append([input_token_len])
+                            combined_seq_len.append(input_token_len)
 
                 sample_idx.extend(["-".join([str(i) for i in idx]) for idx in combined_idx])
 
