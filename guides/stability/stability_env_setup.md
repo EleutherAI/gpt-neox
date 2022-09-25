@@ -39,7 +39,7 @@ Now we need to install a couple more involved libraries. First, we need to insta
 # Gotta build mpi4py for openmpi
 cd ${CODE_BASE_PATH}
 pip uninstall mpi4py
-get checkout -b stability git@github.com:zphang/mpi4py.git
+git clone --branch stability git@github.com:zphang/mpi4py.git
 cd mpi4py
 # Don't let ld get in the way. I don't know why but it interferes.
 mv ${CONDA_ENV_PATH}/compiler_compat/ld ${CONDA_ENV_PATH}/compiler_compat/ld_backup
