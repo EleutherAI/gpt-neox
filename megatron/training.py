@@ -247,9 +247,6 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
         enc_dec_mask = make_segment_mask(segment_ids_dec, segment_ids_enc)
         # TODO(Hailey): determine what size this enc attn mask should be. right now it's (1,1,1,enc_seq_length)
 
-        return tokens_enc, tokens_dec, labels, loss_mask, enc_mask, enc_dec_mask, attention_mask, \
-            position_ids_enc, position_ids_dec,
-
     else:
         # get position ids for encoder inputs as well
         position_ids_enc = get_position_ids(
@@ -267,8 +264,8 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
             segment_ids=None
         )
     
-        return tokens_enc, tokens_dec, labels, loss_mask, enc_mask, enc_dec_mask, attention_mask, \
-            position_ids_enc, position_ids_dec,
+    return tokens_enc, tokens_dec, labels, loss_mask, enc_mask, enc_dec_mask, attention_mask, \
+        position_ids_enc, position_ids_dec,
 
 
 def get_batch_encdec(neox_args, data_iterator):
