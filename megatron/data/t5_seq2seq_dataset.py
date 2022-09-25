@@ -117,7 +117,7 @@ class T5Seq2SeqDataset(torch.utils.data.Dataset):
         # `0` is reserved for padding
         item_num = 1
         cur_inp_len = 0
-        cur_tgt_len = 0
+        cur_tgt_len = 1
 
         assert len(items) > 0
 
