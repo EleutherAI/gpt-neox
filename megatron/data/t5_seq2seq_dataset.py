@@ -53,8 +53,6 @@ class T5Seq2SeqDataset(torch.utils.data.Dataset):
             documents=documents
         )
 
-        print(num_samples)
-
         assert neox_args.tokenizer, "Must pass a tokenizer to pack multi-task examples"
         self.tokenizer = neox_args.tokenizer
         self.pad_token = self.tokenizer.pad
@@ -151,6 +149,10 @@ class T5Seq2SeqDataset(torch.utils.data.Dataset):
             assert cur_inp_len <= self.seq_length
             assert cur_tgt_len <= self.decoder_seq_length
 
+            print('input_tokens', input_token_ids)
+            print('input_segment_ids', input_segment_ids)
+            print('input_position_ids', input_position_ids)
+            import sys; sys.exit()
         return {
             'input_tokens': input_token_ids,
             'input_segment_ids': input_segment_ids,
@@ -161,6 +163,8 @@ class T5Seq2SeqDataset(torch.utils.data.Dataset):
         }
 
 
+# Inspired by 
+# https://github.com/tensorflow/tensor2tensor/blob/e18775d084e65eb34e21e237fe2d188589a013c7/tensor2tensor/data_generators/generator_utils.py#L598
 def _build_index_mappings(
     name,
     data_prefix,
@@ -168,7 +172,6 @@ def _build_index_mappings(
     mtf_dataset,
     num_samples: int,
     seq_length: int,
-    decoder_seq_length: int,
     seed,
 ):
     """
@@ -200,32 +203,37 @@ def _build_index_mappings(
             start_time = time.time()
             shuffle_idx = []
             sample_idx = []
-            doc_idx_index = 0
+            queue_size = 10
             while len(sample_idx) <= num_samples:
 
-                if doc_idx_index == 0:
-                    doc_idx = _build_shuffle_idx(len(documents) - 1, np_rng)
-
                 remaining_seq_length = seq_length
-                remaining_decoder_seq_length = decoder_seq_length
                 _idx = []
-                while remaining_seq_length != 0:
-                    doc_id = doc_idx[doc_idx_index]
+                doc_idx = _build_shuffle_idx(len(documents) - 1, np_rng)
+                combined_idx = []
+                combined_seq_len = []
+                for doc_id in doc_idx:
+
                     sample_sizes = mtf_dataset.size(doc_id)
                     input_token_len = sample_sizes["input_tokens"]
                     target_token_len = sample_sizes["target_tokens"]
+                    added = False
 
-                    remaining_seq_length -= input_token_len
+                    for _idx, (c_seq_len, c_idx) in enumerate(zip(combined_seq_len, combined_idx)):
+                        if c_seq_len + input_token_len <= seq_length:
+                            combined_idx[_idx].append(doc_id)
+                            combined_seq_len[_idx] += input_token_len
+                            added = True
+                            break
 
-                    if remaining_seq_length <= 0:
-                        remaining_seq_length = 0
-                    else:
-                        if doc_idx_index == len(documents)-1:
-                            doc_idx_index = 0
-                        else:
-                            doc_idx_index += 1
-                        _idx.append(doc_id)
-                sample_idx.append(_idx)
+                    if not added:
+                        if len(combined_idx) == queue_size:
+                            sample_idx.append(combined_idx[0])
+                            combined_idx = combined_idx[1:]
+                            combined_seq_len = combined_seq_len[1:]
+                        combined_idx.append([doc_id])
+                        combined_seq_len.append([input_token_len])
+
+                sample_idx.extend(combined_idx)
 
             np.save(sample_idx_filename, sample_idx, allow_pickle=True)
             print_rank_0(
