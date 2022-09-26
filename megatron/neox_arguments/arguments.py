@@ -307,6 +307,16 @@ class NeoXArgs(*BASE_CLASSES):
             default=None,
             help="Optionally overwrite `sample_output_file` for generate.py",
         )
+
+        tuning = parser.add_argument_group(title="DeepSpeed Autotuning")
+        tuning.add_argument(
+            '--autotuning',
+            type=str,
+            default=None,
+            choices=('tune', 'run'),
+            help="Use DeepSpeed's autotuning feature to optimize certain hyperparameters. For more details refer to documentation here: https://www.deepspeed.ai/tutorials/autotuning/"
+        )
+
         args_parsed = parser.parse_args()
 
         # Validate user_script exists
