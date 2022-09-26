@@ -204,7 +204,7 @@ def get_batch_pipe(data, neox_args):
     return (tokens, position_ids, attention_mask), (labels, loss_mask)
 
 
-def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
+def forward_step(data_iterator, model, neox_args, timers, return_logits=False, is_train=False):
     """Forward step."""
     if neox_args.is_pipe_parallel:
         return model.eval_batch(data_iterator, return_logits=return_logits)
@@ -220,7 +220,7 @@ def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
         timers("batch generator").stop()
 
     outputs = model((tokens, position_ids, attention_mask), neox_args=neox_args)
-    if neox_args.curriculum_learning and neox_args.curriculum_seqlen < neox_args.seq_length:
+    if is_train and neox_args.curriculum_learning and neox_args.curriculum_seqlen < neox_args.seq_length:
         loss_mask = loss_mask[:, :neox_args.curriculum_seqlen].contiguous()
         labels = labels[:, :neox_args.curriculum_seqlen].contiguous()
     loss = cross_entropy(
@@ -490,6 +490,7 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
                 timers=timers,
                 data_iterator=data_iterator,
                 model=model,
+                is_train=True,
             )
             timers("forward").stop()
             losses.append(loss)
@@ -577,6 +578,7 @@ def train(
             model=model,
             optimizer=optimizer,
             lr_scheduler=lr_scheduler,
+
         )
         iteration += 1
 
