@@ -218,10 +218,10 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
 
     # Unpack.
     tokens_enc = data_b['input_tokens'].long()
-    tokens_dec_ = data_b['target_tokens'].long()
+    labels = data_b['target_tokens'].long()
 
-    labels = tokens_dec_[:, 1:].contiguous()
-    tokens_dec = tokens_dec_[:, :-1].contiguous()
+    tokens_dec = torch.zeros(labels.shape, device=labels.device).contiguous()
+    tokens_dec[:, 1:] = labels[:, 1:].clone()
 
     batch_size, src_length = tokens_enc.size()
     batch_size, target_length = tokens_dec.size()
