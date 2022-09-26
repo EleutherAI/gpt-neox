@@ -431,7 +431,8 @@ def setup_for_inference_or_eval(
         raise ValueError("`load` parameter must be supplied to load a model`")
 
     # initialize wandb
-    init_wandb(neox_args=neox_args)
+    if neox_args.rank == 0:
+        init_wandb(neox_args=neox_args)
 
     # initialize megatron
     initialize_megatron(neox_args)

@@ -378,7 +378,19 @@ class EvalHarnessAdapter(GPT2LM):
             num_fewshot = neox_args.num_fewshot
             if num_fewshot is None:
                 num_fewshot = 0
+        
+        # Returns a list containing all values of the task registry that
+        # match at least one of the patterns
+        import fnmatch
+        def pattern_match(patterns, source_list):
+            task_names = set()
+            for pattern in patterns:
+                for matching in fnmatch.filter(source_list, pattern):
+                    task_names.add(matching)
+            return list(task_names)
 
+        eval_tasks = pattern_match(eval_tasks, tasks.ALL_TASKS)
+        print(f"Found tasks: {eval_tasks}")
         # **HACK INCOMING**:
         # first get task dict on local main rank
         # the tasks are downloaded *as they are initialized*, and the downloads don't like multithreading.
@@ -435,5 +447,5 @@ def run_eval_harness(
     print_rank_0("Running evaluation harness...")
     adapter = EvalHarnessAdapter(model, forward_step_fn, neox_args, batch_size)
     return adapter.run_eval(
-        eval_tasks=eval_tasks, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters
+        eval_tasks=eval_tasks, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters, use_cache=False,
     )
