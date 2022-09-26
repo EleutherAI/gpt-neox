@@ -220,7 +220,7 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
     tokens_enc = data_b['input_tokens'].long()
     labels = data_b['target_tokens'].long()
 
-    tokens_dec = torch.zeros(labels.shape, device=labels.device).contiguous()
+    tokens_dec = torch.full(labels.size(), neox_args.tokenizer.pad, device=labels.device).contiguous()
     tokens_dec[:, 1:] = labels[:, 1:].clone()
 
     batch_size, src_length = tokens_enc.size()
@@ -228,16 +228,16 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
 
     if neox_args.packing:
         segment_ids_enc = data_b['input_segment_ids'].long()
-        segment_ids_dec = data_b['target_segment_ids'].long()[:, :-1].contiguous()
+        segment_ids_dec = data_b['target_segment_ids'].long().contiguous()
 
         position_ids_enc = data_b['input_position_ids'].long()
-        position_ids_dec = data_b['target_position_ids'].long()[:, :-1].contiguous()
+        position_ids_dec = data_b['target_position_ids'].long().contiguous()
 
         # Get the decoder self-attn mask and position ids.
         attention_mask, loss_mask = get_ltor_masks_and_position_ids(
             data=labels,
             eod_token=neox_args.tokenizer.eod,
-            eod_mask_loss=True, #neox_args.eod_mask_loss,
+            eod_mask_loss=neox_args.eod_mask_loss,
             pad_token=neox_args.tokenizer.pad,
             pad_mask_loss=True,
             segment_ids=segment_ids_dec
