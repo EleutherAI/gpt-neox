@@ -401,6 +401,12 @@ class NeoXArgs(*BASE_CLASSES):
                 args_list.extend(
                     self.convert_key_value_to_command_line_arg(key, configured_value)
                 )
+
+        if self.deepspeed_slurm:
+            args_list.extend(
+                self.convert_key_value_to_command_line_arg('no_ssh_check', True)
+            )
+
         if "DLTS_HOSTFILE" in os.environ:
             args_list.extend(
                 self.convert_key_value_to_command_line_arg(
