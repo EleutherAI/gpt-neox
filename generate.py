@@ -77,7 +77,19 @@ def main():
             top_k=neox_args.top_k,
             top_p=neox_args.top_p,
         )
-
+    elif neox_args.text_gen_type == "t5":
+        generate_samples_from_prompt(
+            text="This is a sample",
+            neox_args=neox_args,
+            model=model,
+            recompute=neox_args.recompute,
+            temperature=neox_args.temperature,
+            maximum_tokens=neox_args.maximum_tokens,
+            top_k=neox_args.top_k,
+            top_p=neox_args.top_p,
+            eos_token_id=neox_args.tokenizer.eod,
+            stop_tokens=None,
+        )
     else:
         raise ValueError(
             f"`text-gen-type` either not specified or not recognised: {neox_args.text_gen_type}"
