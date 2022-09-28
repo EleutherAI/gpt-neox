@@ -305,9 +305,6 @@ def get_batch_encdec_pipe(data, neox_args):
             'input_position_ids', 'target_position_ids'
         ]
 
-    # Broadcast data.
-    data_b = mpu.broadcast_data(keys, data, datatype)
-
     if neox_args.packing:
 
         tokens_enc, tokens_dec, labels, loss_mask, encoder_attn_mask, enc_dec_mask, attention_mask, \
