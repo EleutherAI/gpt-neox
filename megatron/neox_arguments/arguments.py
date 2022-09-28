@@ -694,7 +694,7 @@ class NeoXArgs(*BASE_CLASSES):
             raise AssertionError(error_message)
 
         # If autotuning, let DeepSpeed handle all of this
-        if 'auto' not in (train_batch_size, train_micro_batch_size_per_gpu, gradient_accumulation_steps):
+        if 'auto' not in (self.train_batch_size, self.train_micro_batch_size_per_gpu, self.gradient_accumulation_steps):
             # Automatically derive train_batch_size = train_micro_batch_size_per_gpu*global_num_gpus*gradient_accumulation_steps
             (
                 train_batch_size,
