@@ -322,8 +322,6 @@ def stream_tokens(
     )
 
     # get attention mask / position ids
-        forward_step_fn = forward_step if neox_args.model_arch == "gpt2" else forward_step_encdec
-    pipe_batch_fn = get_batch_pipe if neox_args.model_arch == "gpt2" else get_batch_encdec_pipe
     context_tokens, attention_mask, position_ids = get_batch(neox_args, context_tokens)
 
     # set variables
@@ -507,7 +505,11 @@ def stream_tokens_encdec(
     context_tokens = torch.cuda.LongTensor(context_tokens)
     batch_size = context_tokens.size(0)
 
-    target_tokens = torch.full((bs, batch_size), neox_args.tokenizer.pad, device=context_tokens.device).contiguous()
+    target_tokens = torch.full(
+        (batch_size, neox_args.maximum_tokens),
+        neox_args.tokenizer.pad,
+        device=context_tokens.device
+    ).contiguous()
 
     if stop_tokens:
         if len(stop_tokens) > 0 and type(stop_tokens[0]) is not list:
