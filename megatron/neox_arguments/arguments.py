@@ -1003,6 +1003,9 @@ class NeoXArgs(*BASE_CLASSES):
             if actual_value is None:
                 continue  # we allow for some values not to be configured
 
+            if self.autotuning is not None and actual_value == 'auto':
+                continue
+
             actual_type = type(actual_value)
             if actual_type != field_def.type:
                 if (
