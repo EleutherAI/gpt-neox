@@ -495,18 +495,17 @@ def setup_for_inference_or_eval(
     # initialize megatron
     initialize_megatron(neox_args)
 
+    from megatron.training import get_batch_pipe, get_batch_encdec_pipe
+
     # set up model and load checkpoint.
     model, _, _ = setup_model_and_optimizer(
         neox_args=neox_args,
         use_cache=use_cache,
         iteration=neox_args.iteration,
+        pipe_batch_fn=get_batch_pipe if neox_args.model_arch == "gpt2" else get_batch_encdec_pipe,
     )  # we use setup_model_and_optimizer instead of get_model in order to initialize deepspeed
     print_rank_0("Finished loading model")
     
-    from megatron.training import get_batch_pipe, get_batch_encdec_pipe
-    pipe_batch_fn = get_batch_pipe if neox_args.model_arch == "gpt2" else get_batch_encdec_pipe
-    model.set_batch_fn(pipe_batch_fn)
-
     model.module.inference_mode(use_cache=use_cache)
     return model, neox_args
 
