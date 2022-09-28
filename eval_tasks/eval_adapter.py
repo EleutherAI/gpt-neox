@@ -24,13 +24,15 @@ from tqdm import tqdm
 import torch
 import torch.nn.functional as F
 
-from lm_eval.models.gpt2 import GPT2LM
-from lm_eval import tasks, evaluator, utils, base
+from lm_eval.models.huggingface import HuggingFaceAutoLM
+from lm_eval.api import utils
+from lm_eval.api.model import CachingLM, CacheHook
+from lm_eval import tasks, evaluator, api
 from megatron.text_generation_utils import generate_samples_from_prompt
 from megatron import mpu
 
 
-class EvalHarnessAdapter(GPT2LM):
+class EvalHarnessAdapter(HuggingFaceAutoLM):
     """
     An adapter to run NeoX models on LM Evaluation Harness (https://github.com/EleutherAI/lm-evaluation-harness) tasks.
 
@@ -42,7 +44,7 @@ class EvalHarnessAdapter(GPT2LM):
     """
 
     def __init__(self, model, forward_step_fn, neox_args, batch_size=None):
-        self.cache_hook = base.CacheHook(None)
+        self.cache_hook = CacheHook(None)
         self.model = model
         self.neox_args = neox_args
         self.tokenizer = neox_args.tokenizer
@@ -353,7 +355,6 @@ class EvalHarnessAdapter(GPT2LM):
         eval_tasks=None,
         num_fewshot=0,
         bootstrap_iters=2,
-        description_dict=None,
         use_cache=True,
         name="neox",
         limit=None,
@@ -373,28 +374,29 @@ class EvalHarnessAdapter(GPT2LM):
                 "mathqa",
                 "pubmedqa",
             ]
+        eval_tasks = eval_tasks[0]
+        template_names = tasks.list_templates(eval_tasks)
 
         # **HACK INCOMING**:
         # first get task dict on local main rank
         # the tasks are downloaded *as they are initialized*, and the downloads don't like multithreading.
         # so we download them once on the local main rank, wait, and then initialize them on all other ranks, which *should* load from the cache.
         if self.is_local_main:
-            task_dict = tasks.get_task_dict(eval_tasks)
+            task_dict = tasks.get_task_list(eval_tasks, template_names)
         # torch barrier
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
-        task_dict = tasks.get_task_dict(eval_tasks)
+        task_dict = tasks.get_task_list(eval_tasks, template_names)
 
         lm = self
         if use_cache:
             # TODO(jon-tow): Append a subset of `neox_args` to the cache database
             # name arg to distinguish model runs that use different configurations.
-            lm = base.CachingLM(lm, "lm_cache/" + name + ".db")
+            lm = CachingLM(lm, "lm_cache/" + name + ".db")
 
         results = evaluator.evaluate(
-            lm=lm,
-            task_dict=tasks.get_task_dict(eval_tasks),
-            description_dict=description_dict,
+            model=lm,
+            tasks=task_dict,
             num_fewshot=num_fewshot,
             limit=limit,
             bootstrap_iters=bootstrap_iters,
@@ -409,7 +411,6 @@ class EvalHarnessAdapter(GPT2LM):
             "no_cache": not use_cache,
             "limit": limit,
             "bootstrap_iters": bootstrap_iters,
-            "description_dict": description_dict,
         }
 
         if was_training:
@@ -430,5 +431,5 @@ def run_eval_harness(
     print_rank_0("Running evaluation harness...")
     adapter = EvalHarnessAdapter(model, forward_step_fn, neox_args, batch_size)
     return adapter.run_eval(
-        eval_tasks=eval_tasks, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters
+        eval_tasks=eval_tasks, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters, use_cache=False,
     )

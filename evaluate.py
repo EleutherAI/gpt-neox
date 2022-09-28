@@ -43,7 +43,7 @@ def main():
     if neox_args.rank == 0:
 
         # log to wandb
-        for k, v in results["results"].items():
+        for k, v in results["table_results"].items():
             if isinstance(v, dict):
                 for k2, v2 in v.items():
                     k3 = "_".join([k, k2])
