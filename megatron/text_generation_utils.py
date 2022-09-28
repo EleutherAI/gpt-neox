@@ -322,6 +322,8 @@ def stream_tokens(
     )
 
     # get attention mask / position ids
+        forward_step_fn = forward_step if neox_args.model_arch == "gpt2" else forward_step_encdec
+    pipe_batch_fn = get_batch_pipe if neox_args.model_arch == "gpt2" else get_batch_encdec_pipe
     context_tokens, attention_mask, position_ids = get_batch(neox_args, context_tokens)
 
     # set variables
@@ -493,17 +495,19 @@ def stream_tokens_encdec(
     """
 
     model.eval()
+    bs, _* = context_tokens.size()
 
-    # pad batch in order to allow conversion to tensor (both inputs and targets?)
-    target_tokens, target_lengths = pad_batch_targets(
+    # convert to tensor and broadcast
+    # pad batch in order to allow conversion to tensor
+    context_tokens, context_lengths = pad_batch(
         copy.deepcopy(context_tokens),
         pad_id=neox_args.tokenizer.eod,
         pad_len=neox_args.seq_length,
     )
 
-    # convert to tensor and broadcast
     context_tokens = torch.cuda.LongTensor(context_tokens)
-    target_tokens = torch.cuda.LongTensor(target_tokens)
+    target_tokens = torch.full((bs, 1), neox_args.tokenizer.pad, device=context_tokens.device).contiguous()
+
     if stop_tokens:
         if len(stop_tokens) > 0 and type(stop_tokens[0]) is not list:
             stop_tokens = [stop_tokens]
@@ -511,7 +515,7 @@ def stream_tokens_encdec(
             stop_tokens[i] = torch.cuda.LongTensor(stop_tokens[i])
 
     # Make sure context tokens + start tokens are the same across all ranks
-    token_generation_start_index = torch.cuda.LongTensor(target_lengths)
+    token_generation_start_index = torch.cuda.LongTensor(context_tokens)
     torch.distributed.broadcast(
         context_tokens,
         mpu.get_model_parallel_src_rank(),
@@ -702,7 +706,7 @@ def generate_samples_from_prompt(
         - 'duration_seconds': duration of the generation in seconds
 
     """
-    eos_token_id = eos_token_id or neox_args.tokenizer.eod
+    # eos_token_id = eos_token_id or neox_args.tokenizer.eod
 
     # type check
     assert any(
@@ -817,14 +821,15 @@ def generate_samples_from_prompt(
 def generate_samples_input_from_file(
     neox_args,
     model,
-    input_file,
-    output_file=None,
-    eos_token_id: int = None,
     maximum_tokens: int = 64,
+    eos_token_id: int = None,
     recompute: bool = False,
     temperature: float = 0.0,
     top_k: int = 0,
     top_p: float = 0.0,
+    input_file=None,
+    output_file=None,
+
 ):
     """
     Generates samples from an input file and writes them to an output file.
