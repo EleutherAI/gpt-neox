@@ -586,6 +586,11 @@ class NeoXArgsOther(NeoXArgsTemplate):
     Run via SLURM, this will attempt to discover the necessary variables to initialize torch distributed from the SLURM environment
     """
 
+    slurm_comment: str = None
+    """
+    If using SLURM launcher adds a `--comment` to the srun command that launches the job. Sometimes necessary for cluster rules, or so I've heard.
+    """
+
     user_script: str = None
     """
     user script to be run
