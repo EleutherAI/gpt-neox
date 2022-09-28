@@ -203,9 +203,14 @@ def forward_model(model, model_inputs, is_pipe_parallel=False) -> torch.Tensor:
         # model_inputs = iter([ TODO(Hailey): add a conditional here, and keep these 2 lines if using gpt2 model
         #     {"text": F.pad(model_inputs[0], pad=(0, 1))}])
 
-        model_inputs = iter([
-            {"input_tokens": F.pad(model_inputs[0], pad=(0, 1)),
-            "target_tokens":  F.pad(model_inputs[1], pad=(0, 1))}])
+        model_inputs = iter([{
+            "input_tokens": model_inputs[0],
+            "target_tokens":  model_inputs[1],
+            "input_position_ids": torch.as_tensor(list(range(0, model_inputs[0].size()[1])), device=model_inputs[0].device),
+            "target_position_ids": torch.as_tensor(list(range(0, model_inputs[1].size()[1])), device=model_inputs[1].device),
+            "input_segment_ids": torch.full(model_inputs[0].size(), 1, device=model_inputs[0].device),
+            "target_segment_ids": torch.full(model_inputs[1].size(), 1, device=model_inputs[1].device),
+        }])
 
 
         # set num microbatches to 1 at inference time
@@ -496,11 +501,11 @@ def stream_tokens_encdec(
 
     # convert to tensor and broadcast
     # pad batch in order to allow conversion to tensor
-    context_tokens, context_lengths = pad_batch(
-        copy.deepcopy(context_tokens),
-        pad_id=neox_args.tokenizer.eod,
-        pad_len=neox_args.seq_length,
-    )
+    # context_tokens, context_lengths = pad_batch(
+    #     copy.deepcopy(context_tokens),
+    #     pad_id=neox_args.tokenizer.eod,
+    #     pad_len=neox_args.seq_length,
+    # )
 
     context_tokens = torch.cuda.LongTensor(context_tokens)
     batch_size = context_tokens.size(0)
@@ -547,20 +552,20 @@ def stream_tokens_encdec(
 
     # get the context_index at which generation is to start
     # we start generation at the position where the smallest context ends
-    token_index_to_generate = token_generation_start_index.min().item()
-    first_token_index_to_generate = token_index_to_generate
-    last_token_index_to_generate = min(
-        neox_args.seq_length
-        - 1,  # never generate more than the model's sequence length
-        token_index_to_generate + maximum_tokens - 1,
-    )
+    token_index_to_generate = 1 #token_generation_start_index.min().item()
+    # first_token_index_to_generate = token_index_to_generate
+    # last_token_index_to_generate = min(
+    #     neox_args.seq_length
+    #     - 1,  # never generate more than the model's sequence length
+    #     token_index_to_generate + maximum_tokens - 1,
+    # )
 
     with torch.no_grad():
         # initialize generation variables
         state_is_done = torch.zeros([batch_size]).byte().cuda()
         token_generation_end_index = torch.ones([batch_size]).long().cuda() * (-1)
 
-        while token_index_to_generate <= last_token_index_to_generate:
+        while token_index_to_generate <= neox_args.maximum_tokens: #last_token_index_to_generate:
             if recompute:  # recompute all tokens
                 model_inputs = (
                     context_tokens,
@@ -576,24 +581,26 @@ def stream_tokens_encdec(
                         :, token_index_to_generate - 1, :
                     ]  # [bs, seq, vocab_size] -> [bs, vocab_size]
             else:  # use kv cache
-                if token_index_to_generate == first_token_index_to_generate:
-                    tokens_to_use = target_tokens[:, :token_index_to_generate]
-                    positions_to_use = decoder_position_ids[:, :token_index_to_generate]
-                else:
-                    tokens_to_use = target_tokens[:, token_index_to_generate - 1].view(
-                        batch_size, -1
-                    )
-                    positions_to_use = decoder_position_ids[
-                        :, token_index_to_generate - 1
-                    ].view(batch_size, -1)
+                # if token_index_to_generate == first_token_index_to_generate:
+                #     tokens_to_use = target_tokens[:, :token_index_to_generate]
+                #     positions_to_use = decoder_position_ids[:, :token_index_to_generate]
+                # else:
+                #     tokens_to_use = target_tokens[:, token_index_to_generate - 1].view(
+                #         batch_size, -1
+                #     )
+                #     positions_to_use = decoder_position_ids[
+                #         :, token_index_to_generate - 1
+                #     ].view(batch_size, -1)
+
+                tokens_to_use = target_tokens[:token_index_to_generate]
 
                 model_inputs = (
                     context_tokens, # encoder input tokens (stay same throughout generation)
                     tokens_to_use,  # decoder_input_ids
-                    encoder_position_ids, # encoder_position_ids
-                    positions_to_use,  # decoder_position_ids
-                    encoder_attention_mask, # encoder attn mask (stays same)
-                    attention_mask,  # attention_mask
+                    encoder_position_ids,
+                    decoder_position_ids,
+                    encoder_attention_mask,
+                    attention_mask,
                 )
 
                 logits = forward_model(model, model_inputs, neox_args.is_pipe_parallel)
@@ -640,11 +647,9 @@ def stream_tokens_encdec(
             )  # check which batch items have been started
 
             # switch out padding tokens for generated tokens
-            target_tokens[:, token_index_to_generate - 1] = switch(
-                target_tokens[:, token_index_to_generate - 1].view(-1),
-                generated_tokens,
-                state_started,
-            )
+            target_tokens[token_index_to_generate] = generated_tokens
+            if generated_tokens == eos_token_id:
+                break
 
             # determine if state has finished for each batch item
             state_done = (
