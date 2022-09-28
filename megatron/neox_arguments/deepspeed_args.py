@@ -177,7 +177,3 @@ class NeoXArgsDeepspeedRunner(NeoXArgsTemplate):
     Either "tune", "run", or `None`.
     """
 
-    slurm_comment: str = None
-    """
-    If using SLURM launcher adds a `--comment` to the srun command that launches the job. Sometimes necessary for cluster rules, or so I've heard.
-    """
