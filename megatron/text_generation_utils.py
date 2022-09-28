@@ -495,7 +495,6 @@ def stream_tokens_encdec(
     """
 
     model.eval()
-    bs, _* = context_tokens.size()
 
     # convert to tensor and broadcast
     # pad batch in order to allow conversion to tensor
@@ -506,7 +505,9 @@ def stream_tokens_encdec(
     )
 
     context_tokens = torch.cuda.LongTensor(context_tokens)
-    target_tokens = torch.full((bs, 1), neox_args.tokenizer.pad, device=context_tokens.device).contiguous()
+    batch_size = context_tokens.size(0)
+
+    target_tokens = torch.full((bs, batch_size), neox_args.tokenizer.pad, device=context_tokens.device).contiguous()
 
     if stop_tokens:
         if len(stop_tokens) > 0 and type(stop_tokens[0]) is not list:
@@ -540,8 +541,7 @@ def stream_tokens_encdec(
     eos_token_id = eos_token_id or neox_args.tokenizer.eod
     maximum_tokens = maximum_tokens or (
         neox_args.seq_length - 1 - token_generation_start_index.max().item() - 1
-    )
-    batch_size = context_tokens.size(0)
+    )    
 
     # get the context_index at which generation is to start
     # we start generation at the position where the smallest context ends
