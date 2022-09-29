@@ -372,9 +372,9 @@ class NeoXArgs(*BASE_CLASSES):
             default=None,
             help="json dict dumped as string in NeoXArgs.get_deepspeed_main_args()",
         )
-
         args_parsed, _ = parser.parse_known_args()
-        megatron_config = json.loads(args_parsed.megatron_config)
+        with open(args_parsed.megatron_config) as jsonfile:
+            megatron_config = json.load(jsonfile)
         if overwrite_values is not None:
             megatron_config.update(overwrite_values)
         return cls.from_dict(args_dict=megatron_config)
@@ -408,7 +408,7 @@ class NeoXArgs(*BASE_CLASSES):
             )
             master_address = os.environ['SLURM_JOB_NODELIST'].split('\n')[0]
             args_list.extend(
-                self.convert_key_value_to_command_line_arg('master_addr',master_address)
+                self.convert_key_value_to_command_line_arg('master_addr', master_address)
             )
 
         if "DLTS_HOSTFILE" in os.environ:
@@ -432,18 +432,27 @@ class NeoXArgs(*BASE_CLASSES):
 
         # add user script
         args_list.append(self.user_script)
+        deepspeed_fp = '/tmp/deepspeed_config.json'
+
+        self.configure_distributed_args()
 
         # get deepspeed_config
         args_list.append("--deepspeed_config")
-        args_list.append(json.dumps(self.deepspeed_config))
+        args_list.append(deepspeed_fp)
+        if self.rank == 0:
+            with open(deepspeed_fp, mode='w') as dsfile:
+                json.dump(dsfile, self.deepspeed_config)
 
+        megatron_fp = '/tmp/megatron_config.json'
         # get all config values
         args_list.append("--megatron_config")
+        args_list.append(megatron_fp)
         neox_args = self.get_parent_class_value_dict(
             *self.__class__.__bases__, only_non_defaults=True
         )
-        args_list.append(json.dumps(neox_args))
-
+        if self.rank == 0:
+            with open(megatron_fp, mode='w') as megafile:
+                json.dump(megafile, neox_args)
         return args_list
 
     ############################################################################################################################
