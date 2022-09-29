@@ -383,6 +383,167 @@ def stream_tokens(
                 break
 
 
+def generate_samples_from_fim_prompt(
+    neox_args,
+    model,
+    text,
+    eos_token_id: int = None,
+    maximum_tokens: int = 64,
+    recompute: bool = False,
+    temperature: float = 0.0,
+    top_k: int = 0,
+    top_p: float = 0.0,
+    stop_tokens=None,
+):
+    """
+    Generates samples from raw text and returns them in a dictionary.
+
+    neox_args: NeoXArgs.
+    model: a Megatron model
+    text: either a single prompt (str) or a list of prompts (List[str]).
+
+    eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
+    maximum_tokens: maximum number of tokens to be generated
+
+    recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
+
+    temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
+    top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
+    top_p (default 0.0): float -> Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+    note: greedy decoding is used if temperature is 0.0, top_k is 0 and top_p is 0.0
+
+    returns: List[dict] -> a list of dicts containing the following fields:
+        - 'context' (the input)
+        - 'text' (the completion)
+        - 'length' (the length of the completion in number of tokens)
+        - 'finished':
+        - 'message': a messaged associated with the generation procedure, can be a warning or error
+        - 'duration_seconds': duration of the generation in seconds
+
+    """
+    eos_token_id = eos_token_id or neox_args.tokenizer.eod
+
+    # type check
+    assert any(
+        [isinstance(text, dict), isinstance(text, list)]
+    ), "Text should be in dict or list form"
+    if isinstance(text, str) or isinstance(text, dict):
+        text = [text]
+
+    input_count = len(text)
+    input_pos = 0
+
+    # generate completions
+    generated_texts = []
+    while True:
+        model.module.clear_cache()  # clear kv cache between batches
+
+        start_time = time.time()
+        # Tokenize text, and check whether we should terminate process
+        terminate_runs = 0
+        if input_pos == input_count:
+            terminate_runs = 1
+        else:
+            raw_text = text[input_pos]
+            input_pos += 1
+
+            task_id = raw_text["task_id"]
+            raw_text = [raw_text["prompt"], raw_text["suffix"]] # unpack example to get task id
+
+            if raw_text == "":
+                context_tokens = [eos_token_id]
+            elif isinstance(raw_text, list):
+                if len(raw_text) != 2:
+                    raise ValueError(f"each prompt \
+                    must be a string or a length 2 list, but got length {len(raw_text)} list")
+                suffix = neox_args.tokenizer.tokenize(raw_text[0]) 
+                prefix = neox_args.tokenizer.tokenize(raw_text[1])
+                suf, pre, mid = neox_args.tokenizer.vocab_size - 1, neox_args.tokenizer.vocab_size, neox_args.tokenizer.vocab_size + 1
+
+                context_tokens = [suf, *suffix, pre, *prefix, mid]
+            else:
+                context_tokens = neox_args.tokenizer.tokenize(raw_text)
+            context_length = len(context_tokens)
+
+            if context_length >= (neox_args.seq_length // 2):
+                print_rank_0(
+                    "\nWarning! Context length",
+                    context_length,
+                    "\nPlease give smaller context (e.g. half of the "
+                    "max sequence length)!",
+                )
+        if not is_mp_rank_0():
+            context_tokens = neox_args.tokenizer.tokenize("EMPTY TEXT")
+            context_length = len(context_tokens)
+            terminate_runs = 0
+
+        terminate_runs = broadcast_terminate_signal(terminate_runs)
+        if terminate_runs == 1:
+            return generated_texts
+
+        for (
+            batch_context_tokens,
+            batch_token_generation_start_index,
+            batch_token_generation_end_index,
+            is_done,
+        ) in stream_tokens(
+            neox_args=neox_args,
+            model=model,
+            context_tokens=[context_tokens],
+            eos_token_id=eos_token_id,
+            maximum_tokens=maximum_tokens,
+            recompute=recompute,
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p,
+            stop_tokens=stop_tokens,
+        ):
+            pass  # finish generation and use all results below
+
+        batch_context_tokens = batch_context_tokens.cpu().numpy().tolist()
+        batch_token_generation_start_index = (
+            batch_token_generation_start_index.cpu().numpy().tolist()
+        )
+        batch_token_generation_end_index = (
+            batch_token_generation_end_index.cpu().numpy().tolist()
+        )
+        batch_is_done = is_done.cpu().numpy().tolist()
+
+        for tokens, start_index, end_index, is_done in zip(
+            batch_context_tokens,
+            batch_token_generation_start_index,
+            batch_token_generation_end_index,
+            batch_is_done,
+        ):
+
+            if end_index >= start_index:
+                generated_tokens = tokens[start_index : end_index + 1]
+                try:
+                    generated_text = neox_args.tokenizer.detokenize(generated_tokens)
+                    message = None
+                except KeyError:
+                    generated_text = None
+                    message = "WARNING: generated token which doesn't exist."
+            else:
+                generated_text = None
+                generated_tokens = []
+                # this will happen if the first generated token is a stop token or eos token
+                message = "WARNING: text generation did not start; try different batching or adjust parameters"
+            if is_mp_rank_0():
+                data = {
+                    "context": raw_text,
+                    "task_id": task_id,
+                    "text": generated_text,
+                    "length": len(generated_tokens),
+                    "finished": is_done,
+                    "message": message,
+                    "duration_seconds": float(time.time() - start_time),
+                }
+                generated_texts.append(data)
+
+    return generated_texts
+
+
 def generate_samples_from_prompt(
     neox_args,
     model,
