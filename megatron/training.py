@@ -221,7 +221,7 @@ def _get_batch_encdec(neox_args, keys, data, datatype):
     labels = data_b['target_tokens'].long()
 
     tokens_dec = torch.full(labels.size(), neox_args.tokenizer.pad, device=labels.device).contiguous()
-    tokens_dec[:, 1:] = labels[:, 1:].clone()
+    tokens_dec[:, 1:] = labels[:, :-1].clone()
 
     batch_size, src_length = tokens_enc.size()
     batch_size, target_length = tokens_dec.size()
