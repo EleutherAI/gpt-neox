@@ -1,0 +1,209 @@
+import os
+import sys
+
+import yaml
+import argparse
+from tqdm import tqdm
+
+import torch
+from transformers import GPTNeoXConfig, GPTNeoXForCausalLM
+
+
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
+)
+from megatron.tokenizer import build_tokenizer
+
+def load_partitions(input_checkpoint_path, mp_partitions, layer_idx) -> list[torch.Tensor]:
+    """Returns a list containing all weights of a given layer from a model (across MP partitions)"""
+
+    loaded_tp_ranks = [
+        torch.load(os.path.join(input_checkpoint_path, 
+        f"layer_{layer_idx:02}-model_{i:02}-model_states.pt")) 
+        for i in range(mp_partitions)
+    ]
+
+    return loaded_tp_ranks
+
+
+def create_config(neox_config):
+    """ take in a loaded yaml from NeoX and assign relevant values to HF config.
+    Returns: GPTNeoXConfig() object
+    """
+    class TokenizerArgs:
+        # kinda hacky. 
+        # this is to get something with the same interface as is used in build_tokenizer()
+        # without diving into loading a neox_args object or using argparse etc.
+        def __init__(self, neox_config):
+            self.make_vocab_size_divisible_by = neox_config.get('make-vocab-size-divisible-by', 128)
+            self.model_parallel_size = neox_config['model-parallel-size']
+            self.vocab_file = neox_config.get('vocab-file', None)
+            self.merge_file = neox_config.get('merge-file', None)
+            self.tokenizer_type = neox_config['tokenizer-type']
+            self.rank = 0
+
+
+    args = TokenizerArgs(neox_config)
+    tokenizer = build_tokenizer(args)
+    try: # GPT2TokenizerFast raises NotImplementedError
+        pad_token = tokenizer.pad
+    except:
+        pad_token = 0
+
+    # set all config values.
+    hf_config = GPTNeoXConfig(
+        vocab_size=args.padded_vocab_size,
+        hidden_size=neox_config['hidden-size'],
+        num_hidden_layers=neox_config['num-layers'],
+        num_attention_heads=neox_config['num-attention-heads'],
+        intermediate_size=(neox_config['hidden-size'] * 4),
+        hidden_act=neox_config.get('activation', 'gelu'),
+        rotary_pct=neox_config.get('rotary-pct', 1.0),
+        rotary_emb_base=neox_config.get('rotary-emb-base', 10000),
+        max_position_embeddings=neox_config['max-position-embeddings'],
+        initializer_range=neox_config.get('init-method-std', 0.02),
+        layer_norm_eps=neox_config.get('layernorm-epsilon', 1e-5),
+        use_cache=True,
+        bos_token_id=pad_token,
+        eos_token_id=tokenizer.eod,
+        tie_word_embeddings=(not neox_config.get('no-weight-tying', False)),
+    )
+    return hf_config
+
+
+def convert(input_checkpoint_path, input_config_path, output_checkpoint_path):
+    """ convert a NeoX checkpoint to a HF model format. 
+    should perform model-parallel merging correctly (TODO: verify this)
+    but only supports features allowed by HF GPT-NeoX implementation (rotary embeddings)
+    """
+
+    hf_config = GPTNeoXConfig()
+
+    with open(input_config_path) as f:
+        loaded_config = yaml.full_load(f)
+
+    # TODO: how to deal with vocab size? need to pass tokenizer and calc on the fly. 
+    hf_config = create_config(loaded_config)
+
+    hf_model = GPTNeoXForCausalLM(hf_config).half().cuda() # nice-to-have: lazy init weights somehow?
+    
+    mp_partitions = loaded_config['model-parallel-size']
+
+
+    ### Embedding layer ###
+    loaded_tp_ranks = load_partitions(
+        input_checkpoint_path, mp_partitions, 0
+    )
+    hf_model.gpt_neox.embed_in.load_state_dict(
+        {
+            "weight": torch.cat([
+                t["word_embeddings.weight"] for t in loaded_tp_ranks
+                ], dim=0)
+        }
+    )
+
+    assert hf_config.vocab_size == hf_model.gpt_neox.embed_in.weight.shape[0], \
+        f"ERROR: calculated vocab size {hf_config.vocab_size} != embed param size {hf_model.gpt_neox.embed_in.shape[0]}"
+    ### End Embedding Layer ###
+
+
+    for layer_i in tqdm(range(loaded_config['num-layers'])):
+
+        # get layer from hf model
+        hf_layer = hf_model.gpt_neox.layers[layer_i]
+
+        # + 2 bc of embed layer and a dummy _pre_transformer_block
+        loaded_tp_ranks = load_partitions(input_checkpoint_path, mp_partitions, layer_i + 2)
+
+        state_dict = {} 
+        for key in [
+            "attention.dense.weight",
+            "mlp.dense_4h_to_h.weight",
+        ]:
+            state_dict[key] = torch.cat([t[key] for t in loaded_tp_ranks], dim=1)
+
+        # average layernorm stats over mp ranks
+        for key in [
+            "input_layernorm.weight",
+            "input_layernorm.bias",
+            "post_attention_layernorm.weight",
+            "post_attention_layernorm.bias",
+        ]:
+            state_dict[key] = (
+                sum([t[key] for t in loaded_tp_ranks])
+            ) / len(loaded_tp_ranks)
+        
+        # LinearWithTPMerge
+        for key in [
+            "mlp.dense_h_to_4h.weight",
+            "mlp.dense_h_to_4h.bias",
+            "attention.query_key_value.weight",
+            "attention.query_key_value.bias",
+        ]:
+            state_dict[key] = torch.cat(
+                [t[key] for t in loaded_tp_ranks], dim=0
+            )
+        
+        # LinearWithTPSplitBias
+        for key in [
+            "mlp.dense_4h_to_h.bias",
+            "attention.dense.bias",
+        ]:
+            state_dict[key] = (
+                sum([t[key] for t in loaded_tp_ranks])
+            )
+    
+        # Just take one
+        state_dict["attention.rotary_emb.inv_freq"] = loaded_tp_ranks[0]["attention.rotary_emb.inv_freq"]
+        state_dict["attention.bias"] = hf_layer.state_dict()["attention.bias"]
+        state_dict["attention.masked_bias"] = hf_layer.state_dict()["attention.masked_bias"]
+
+        # load state_dict into layer
+        hf_layer.load_state_dict(state_dict)
+
+    # Load final layer norm
+    loaded_tp_ranks = load_partitions(input_checkpoint_path, mp_partitions, loaded_config['num_layers'] + 4)
+
+    hf_model.gpt_neox.final_layer_norm.load_state_dict({
+        "weight": (
+                sum([t["norm.weight"] for t in loaded_tp_ranks])
+            ) / len(loaded_tp_ranks),
+        "bias": (
+                sum([t["norm.bias"] for t in loaded_tp_ranks])
+            ) / len(loaded_tp_ranks),
+    })
+    del loaded_tp_ranks
+
+    # Load output embedding
+    loaded_tp_ranks = load_partitions(input_checkpoint_path, mp_partitions, loaded_config['num_layers'] + 5)
+    
+    hf_model.embed_out.load_state_dict({
+        "weight": torch.cat([
+            t["final_linear.weight"] for t in loaded_tp_ranks
+        ], dim=0),
+    })
+
+    del loaded_tp_ranks
+
+    return hf_model 
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(description="Merge MP partitions and convert to HF Model.")
+    parser.add_argument(
+        "--input_dir",
+        type=str,
+        help='Checkpoint dir, which should contain (e.g. a folder named "global_step150000")',
+    )
+    parser.add_argument(
+        "--config_file",
+        type=str,
+        help='Path to config file for the input checkpoint. '
+    )
+    parser.add_argument(
+        "--output_dir", type=str, help="Output dir, to save the HF Model and configs"
+    )
+    args = parser.parse_args()
+    hf_model = convert(args.input_dir, args.config_file, args.output_dir)
+
+    hf_model.save_pretrained(output_dir)
