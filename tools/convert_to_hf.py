@@ -162,7 +162,7 @@ def convert(input_checkpoint_path, input_config_path, output_checkpoint_path):
         hf_layer.load_state_dict(state_dict)
 
     # Load final layer norm
-    loaded_tp_ranks = load_partitions(input_checkpoint_path, mp_partitions, loaded_config['num_layers'] + 4)
+    loaded_tp_ranks = load_partitions(input_checkpoint_path, mp_partitions, loaded_config['num-layers'] + 3)
 
     hf_model.gpt_neox.final_layer_norm.load_state_dict({
         "weight": (
@@ -175,7 +175,7 @@ def convert(input_checkpoint_path, input_config_path, output_checkpoint_path):
     del loaded_tp_ranks
 
     # Load output embedding
-    loaded_tp_ranks = load_partitions(input_checkpoint_path, mp_partitions, loaded_config['num_layers'] + 5)
+    loaded_tp_ranks = load_partitions(input_checkpoint_path, mp_partitions, loaded_config['num-layers'] + 4)
     
     hf_model.embed_out.load_state_dict({
         "weight": torch.cat([
@@ -206,4 +206,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
     hf_model = convert(args.input_dir, args.config_file, args.output_dir)
 
-    hf_model.save_pretrained(output_dir)
+    hf_model.save_pretrained(args.output_dir)
