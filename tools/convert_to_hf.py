@@ -189,6 +189,12 @@ def convert(input_checkpoint_path, input_config_path, output_checkpoint_path):
 
 if __name__ == '__main__':
 
+    # before running script:
+    # `pip install --upgrade transformers`
+    # `huggingface-cli login`
+    # 
+    from huggingface_hub import create_repo, HfApi 
+
     parser = argparse.ArgumentParser(description="Merge MP partitions and convert to HF Model.")
     parser.add_argument(
         "--input_dir",
@@ -207,3 +213,20 @@ if __name__ == '__main__':
     hf_model = convert(args.input_dir, args.config_file, args.output_dir)
 
     hf_model.save_pretrained(args.output_dir)
+
+    
+    repo_name = input("Provide a repository name for the HF Hub:")
+    create_repo(repo_name, repo_type="model", private=True)
+
+    api = HfApi()
+    api.upload_folder(
+        folder_path=args.output_dir,
+        repo_id=repo_name,
+        repo_type="model",
+    )
+
+
+
+
+
+    #TODO: add push to hub stuff here, along w user input for names of repos etc.
