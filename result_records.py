@@ -73,13 +73,20 @@ class DataFrameCreator:
         else:
             self.fp = open(self.path, 'w')
             self.fp.write("index,nll_loss,accuracy\n")
+        self.writes = []
         self.fp.flush()
     
-    def write(self, index, nll_loss, accuracy):
+    def _write(self, index, nll_loss, accuracy):
         self.fp.write(f'{index},{nll_loss},{accuracy}\n')
     
+    def write(self, index, nll_loss, accuracy):
+        self.writes.append((index, nll_loss, accuracy))
+    
     def commit(self):
+        for res in self.writes:
+            self._write(*res)
         self.fp.flush()
+        self.writes = []
     
     def close(self):
         self.fp.close()
