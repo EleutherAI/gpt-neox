@@ -30,7 +30,7 @@ from megatron.data import data_utils
 from megatron import text_generation_utils
 from megatron import utils as megatron_utils 
 
-MODEL_GLOBAL_BATCH_SIZE = 2048 # Global batch size of trained model
+MODEL_GLOBAL_BATCH_SIZE = 2048# Global batch size of trained model
 
 def score(neox_args,model,data,token_size=64):
     '''Calculates the memorization metric for the given input tokens
@@ -76,7 +76,7 @@ def score(neox_args,model,data,token_size=64):
 def main():
 
     # Initialization
-    os.environ['TORCH_EXTENSIONS_DIR'] = os.path.join(os.getcwd(), "tmp", "extensions") # Permission error fix
+    os.environ['TORCH_EXTENSIONS_DIR'] = '/fsx/home-orz/.cache/torch_extensions/py38_cu116'
     model, neox_args = megatron_utils.setup_for_inference_or_eval()
 
     total_iters = neox_args.iteration*MODEL_GLOBAL_BATCH_SIZE
