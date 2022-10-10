@@ -162,6 +162,7 @@ def init_wandb(neox_args):
                 save_code=False,
                 force=False,
                 entity=neox_args.wandb_team,
+                allow_val_change=True
             )
         except UsageError as e:
             neox_args.update_value("use_wandb", False)
@@ -170,7 +171,7 @@ def init_wandb(neox_args):
                 "Skipping wandb. Execute `wandb login` on local or main node machine to enable.",
                 flush=True,
             )
-        wandb.config.update(neox_args.all_config)
+        wandb.config.update(neox_args.all_config, allow_val_change=True)
 
 
 def obtain_resource_pool(
