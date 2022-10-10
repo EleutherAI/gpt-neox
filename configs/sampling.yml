@@ -6,11 +6,11 @@
 
   "tokenizer_type": "HFTokenizer",
   "vocab-file": "/fsx/pile/20B_tokenizer.json",
-  "load": "/fsx/orz/gpt-neox/checkpoints/",
+  "load": "/fsx/orz/gpt-neox-memorization/checkpoints/125M_deduped",
   "log-dir": "/fsx/orz/gpt-neox/logs",
   "wandb_team": "eleutherai",
-  "wandb_project": "memorization-6.7B",
-  "wandb_group": "6.7B",
+  "wandb_project": "memorization-125M-deduped",
+  "wandb_group": "125M-71500",
   "sample-output-file":"/fsx/orz/gpt-neox/sampleoutput.txt",
   "text-gen-type": "unconditional",
   "maximum_tokens": 64,
@@ -18,9 +18,8 @@
   "top_p": 0.0,
   "top_k": 0,
   "recompute": false,
-
-  "num-samples": 10,
-  "hostfile": "/fsx/orz/gpt-neox/hosts",
+  "hostfile": "/fsx/orz/gpt-neox-memorization/hosts",
   "launcher": "openmpi",
+  "iteration": 71500,
   "deepspeed_mpi": true
 }
