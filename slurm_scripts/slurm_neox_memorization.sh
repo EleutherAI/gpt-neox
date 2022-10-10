@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name="neox-memorization"
 #SBATCH --partition=gpu
-#SBATCH --nodes=32
+#SBATCH --nodes=8
 #SBATCH --time-min=1-12:00:00
 #SBATCH --ntasks-per-node=8          # Crucial - only 1 task per dist per node!
 #SBATCH --hint=nomultithread         # We get physical cores not logical
@@ -10,6 +10,7 @@
 #SBATCH --output=%x_%j.out  # Set this dir where you want slurm outs to go
 #SBATCH --error=%x_%j.out  # Set this dir where you want slurm outs to go
 #SBATCH --comment=neox
+#SBATCH --exclude=gpu-st-p4d-24xlarge-[269,281,284]
 #SBATCH --exclusive
 
 module load openmpi
@@ -43,18 +44,16 @@ export OMPI_MCA_mtl_base_verbose=1
 export OMPI_MCA_plm="^slurm"
 # export I_MPI_PMI_LIBRARY="/opt/slurm/lib/libslurm.so"
 
-TRAIN_PATH=/fsx/orz/gpt-neox
+TRAIN_PATH=/fsx/orz/gpt-neox-memorization
 
 # Hide duplicated errors using this hack - will be properly fixed in pt-1.12
 export TORCHELASTIC_ERROR_FILE=$TRAIN_PATH/tmp/torch-elastic-error.json
-
+export TORCH_EXTENSIONS_DIR=/fsx/orz/tmp/torch/
 # # Add fused kernels to PYTHONPATH
-# export PYTHONPATH="/fsx/orz/.local/lib64/python3.7/site-packages/fused_kernels-0.0.1-py3.7-linux-x86_64.egg"
 
 cd $TRAIN_PATH
 
-hostfile=/fsx/orz/gpt-neox/hosts
-scontrol show hostnames "$SLURM_JOB_NODELIST"
+hostfile=$TRAIN_PATH/hosts
 
 > $hostfile
 
@@ -64,17 +63,16 @@ do
 done
 
 chmod 777 $hostfile
-export PYTHONPATH="/fsx/orz/.local/lib64/python3.7/site-packages/fused_kernels-0.0.1-py3.7-linux-x86_64.egg"
-export CPATH=/home/orz/.local/lib/python3.7/site-packages/torch/include/pybind11/:${CPATH}
+source /fsx/orz/miniconda3/bin/activate memorization
 
 export HOSTNAMES=`scontrol show hostnames "$SLURM_JOB_NODELIST"`
 export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
-export MASTER_PORT=12800
+export MASTER_PORT=1000
 export COUNT_NODE=`scontrol show hostnames "$SLURM_JOB_NODELIST" | wc -l`
 
 
 echo go $COUNT_NODE
-
-python3 $TRAIN_PATH/deepy.py evaluation_script.py -d configs 13B.yml sampling.yml
+which mpicc
+python3 $TRAIN_PATH/deepy.py evaluation_script.py -d configs pythia-125M.yml sampling.yml
 
 set +x
