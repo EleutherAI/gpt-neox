@@ -317,6 +317,7 @@ class NeoXArgs(*BASE_CLASSES):
             help="Use DeepSpeed's autotuning feature to optimize certain hyperparameters. For more details refer to documentation here: https://www.deepspeed.ai/tutorials/autotuning/"
         )
 
+
         args_parsed = parser.parse_args()
 
         # Validate user_script exists
@@ -409,7 +410,7 @@ class NeoXArgs(*BASE_CLASSES):
             comment = (getattr, self, 'slurm_comment')
             if comment:   
                 args_list.extend(
-                    self.convert_key_value_to_command_line_arg('slurm_comment', comment)
+                    self.convert_key_value_to_command_line_arg('comment', comment)
                 )
             master_address = os.environ['SLURM_JOB_NODELIST'].split('\n')[0]
             args_list.extend(
