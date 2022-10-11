@@ -407,7 +407,7 @@ class NeoXArgs(*BASE_CLASSES):
             args_list.extend(
                 self.convert_key_value_to_command_line_arg('no_ssh_check', True)
             )
-            comment = (getattr, self, 'slurm_comment')
+            comment = (getattr, self, 'comment')
             if comment:   
                 args_list.extend(
                     self.convert_key_value_to_command_line_arg('comment', comment)
