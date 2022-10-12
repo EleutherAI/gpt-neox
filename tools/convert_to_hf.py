@@ -48,7 +48,7 @@ def create_config(neox_config):
     try: # GPT2TokenizerFast raises NotImplementedError
         pad_token = tokenizer.pad
     except:
-        pad_token = 0
+        pad_token = 1 # follows convention from NeoX-20b tokenizer
 
     # set all config values.
     hf_config = GPTNeoXConfig(
@@ -71,16 +71,13 @@ def create_config(neox_config):
     return hf_config
 
 
-def convert(input_checkpoint_path, input_config_path, output_checkpoint_path):
+def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
     """ convert a NeoX checkpoint to a HF model format. 
-    should perform model-parallel merging correctly (TODO: verify this)
-    but only supports features allowed by HF GPT-NeoX implementation (rotary embeddings)
+    should perform model-parallel merging correctly
+    but only supports features allowed by HF GPT-NeoX implementation (e.g. rotary embeddings)
     """
 
     hf_config = GPTNeoXConfig()
-
-    with open(input_config_path) as f:
-        loaded_config = yaml.full_load(f)
 
     # TODO: how to deal with vocab size? need to pass tokenizer and calc on the fly. 
     hf_config = create_config(loaded_config)
@@ -209,24 +206,38 @@ if __name__ == '__main__':
     parser.add_argument(
         "--output_dir", type=str, help="Output dir, to save the HF Model and configs"
     )
+    parser.add_argument(
+        "--upload", action='store_true'
+    )
     args = parser.parse_args()
-    hf_model = convert(args.input_dir, args.config_file, args.output_dir)
+
+
+    with open(args.config_file) as f:
+        loaded_config = yaml.full_load(f)
+
+    
+    hf_model = convert(args.input_dir, loaded_config, args.output_dir)
 
     hf_model.save_pretrained(args.output_dir)
 
-    
-    repo_name = input("Provide a repository name for the HF Hub:")
-    create_repo(repo_name, repo_type="model", private=True)
+    # save tokenizer to directory as well, for easy loading of model as a HF model
+    if loaded_config['tokenizer-type'] == 'HFTokenizer':
+        print(f"saving tokenizer from file {loaded_config['vocab-file']")
+        from transformers import PreTrainedTokenizerFast
 
-    api = HfApi()
-    api.upload_folder(
-        folder_path=args.output_dir,
-        repo_id=repo_name,
-        repo_type="model",
-    )
+        tokenizer = PreTrainedTokenizerFast(tokenizer_file=loaded_config['vocab-file'])
+        print(tokenizer)
+        tokenizer.save_pretrained(args.output_dir)
+        print("tokenizer saved!")
 
+    if args.upload:
+        repo_name = input("Provide a repository name for the HF Hub: ")
+        create_repo(repo_name, repo_type="model", private=True, use_auth_token=True)
 
+        api = HfApi()
+        api.upload_folder(
+            folder_path=args.output_dir,
+            repo_id=repo_name,
+            repo_type="model",
+        )
 
-
-
-    #TODO: add push to hub stuff here, along w user input for names of repos etc.
