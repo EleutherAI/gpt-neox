@@ -438,7 +438,7 @@ class NeoXArgs(*BASE_CLASSES):
 
         # add user script
         args_list.append(self.user_script)
-        deepspeed_fp = '/tmp/deepspeed_config.json'
+        deepspeed_fp = 'deepspeed_config.json'
 
         self.configure_distributed_args()
 
@@ -449,7 +449,7 @@ class NeoXArgs(*BASE_CLASSES):
             with open(deepspeed_fp, mode='w') as dsfile:
                 json.dump(self.deepspeed_config, dsfile)
 
-        megatron_fp = '/tmp/megatron_config.json'
+        megatron_fp = 'megatron_config.json'
         # get all config values
         args_list.append("--megatron_config")
         args_list.append(megatron_fp)
