@@ -25,6 +25,15 @@ def load_partitions(input_checkpoint_path, mp_partitions, layer_idx) -> list[tor
 
     return loaded_tp_ranks
 
+def get_key(loaded_config, key, default=None):
+    """
+    Search for a given key in a NeoX yaml. normalizes underscores -> hyphens
+    """
+    key = key.replace('_', '-')
+    try:
+        return loaded_config['key']
+    except KeyError:
+        return default 
 
 def create_config(neox_config):
     """ take in a loaded yaml from NeoX and assign relevant values to HF config.
@@ -35,19 +44,11 @@ def create_config(neox_config):
         # this is to get something with the same interface as is used in build_tokenizer()
         # without diving into loading a neox_args object or using argparse etc.
         def __init__(self, neox_config):
-            self.make_vocab_size_divisible_by = neox_config.get('make-vocab-size-divisible-by', 128)
-            self.model_parallel_size = neox_config['model-parallel-size']
-            self.vocab_file = neox_config.get('vocab-file', None)
-            self.merge_file = neox_config.get('merge-file', None)
-            # self.tokenizer_type = neox_config['tokenizer-type']
-
-            try:
-                self.tokenizer_type = loaded_config['tokenizer-type']
-            except KeyError:
-                try:
-                    self.tokenizer_type = loaded_config['tokenizer_type']
-                except KeyError:
-                    self.tokenizer_type = None
+            self.make_vocab_size_divisible_by = get_key(neox_config, 'make-vocab-size-divisible-by', default=128)
+            self.model_parallel_size = get_key(neox_config, 'model-parallel-size')
+            self.vocab_file = get_key(neox_config, 'vocab-file')
+            self.merge_file = get_key(neox_config, 'merge-file')
+            self.tokenizer_type = get_key(neox_config, 'tokenizer-type')
 
             self.rank = 0
 
@@ -62,20 +63,20 @@ def create_config(neox_config):
     # set all config values.
     hf_config = GPTNeoXConfig(
         vocab_size=args.padded_vocab_size,
-        hidden_size=neox_config['hidden-size'],
-        num_hidden_layers=neox_config['num-layers'],
-        num_attention_heads=neox_config['num-attention-heads'],
-        intermediate_size=(neox_config['hidden-size'] * 4),
-        hidden_act=neox_config.get('activation', 'gelu'),
-        rotary_pct=neox_config.get('rotary-pct', 1.0),
-        rotary_emb_base=neox_config.get('rotary-emb-base', 10000),
-        max_position_embeddings=neox_config['max-position-embeddings'],
-        initializer_range=neox_config.get('init-method-std', 0.02),
-        layer_norm_eps=neox_config.get('layernorm-epsilon', 1e-5),
+        hidden_size=get_key(neox_config, 'hidden-size'),
+        num_hidden_layers=get_key(neox_config, 'num-layers'),
+        num_attention_heads=get_key(neox_config, 'num-attention-heads'),
+        intermediate_size=(get_key(neox_config, 'hidden-size') * 4),
+        hidden_act=get_key(neox_config, 'activation', default='gelu'),
+        rotary_pct=get_key(neox_config, 'rotary-pct', default=1.0),
+        rotary_emb_base=get_key(neox_config, 'rotary-emb-base', default=10000),
+        max_position_embeddings=get_key(neox_config, 'max-position-embeddings'),
+        initializer_range=get_key(neox_config, 'init-method-std', 0.02),
+        layer_norm_eps=get_key(neox_config, 'layernorm-epsilon', 1e-5),
         use_cache=True,
         bos_token_id=pad_token,
         eos_token_id=tokenizer.eod,
-        tie_word_embeddings=(not neox_config.get('no-weight-tying', False)),
+        tie_word_embeddings=(not get_key(neox_config, 'no-weight-tying', False)),
     )
     return hf_config
 
@@ -93,7 +94,7 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
 
     hf_model = GPTNeoXForCausalLM(hf_config).half().cuda() # nice-to-have: lazy init weights somehow?
     
-    mp_partitions = loaded_config['model-parallel-size']
+    mp_partitions = get_key(loaded_config, 'model-parallel-size')
 
 
     ### Embedding layer ###
@@ -113,7 +114,7 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
     ### End Embedding Layer ###
 
 
-    for layer_i in tqdm(range(loaded_config['num-layers'])):
+    for layer_i in tqdm(range(get_key(loaded_config, 'num-layers'))):
 
         # get layer from hf model
         hf_layer = hf_model.gpt_neox.layers[layer_i]
@@ -168,7 +169,7 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
         hf_layer.load_state_dict(state_dict)
 
     # Load final layer norm
-    loaded_tp_ranks = load_partitions(input_checkpoint_path, mp_partitions, loaded_config['num-layers'] + 3)
+    loaded_tp_ranks = load_partitions(input_checkpoint_path, mp_partitions, get_key(loaded_config, 'num-layers') + 3)
 
     hf_model.gpt_neox.final_layer_norm.load_state_dict({
         "weight": (
@@ -181,7 +182,7 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
     del loaded_tp_ranks
 
     # Load output embedding
-    loaded_tp_ranks = load_partitions(input_checkpoint_path, mp_partitions, loaded_config['num-layers'] + 4)
+    loaded_tp_ranks = load_partitions(input_checkpoint_path, mp_partitions, get_key(loaded_config, 'num-layers') + 4)
     
     hf_model.embed_out.load_state_dict({
         "weight": torch.cat([
@@ -230,18 +231,13 @@ if __name__ == '__main__':
     hf_model.save_pretrained(args.output_dir)
 
     # save tokenizer to directory as well, for easy loading of model as a HF model
-    try:
-        tokenizer_type = loaded_config['tokenizer-type']
-    except KeyError:
-        try:
-            tokenizer_type = loaded_config['tokenizer_type']
-        except KeyError:
-            tokenizer_type = None
+    tokenizer_type = get_key(loaded_config, 'tokenizer-type')
+    
     if tokenizer_type  == 'HFTokenizer':
-        print(f"saving tokenizer from file {loaded_config['vocab-file']}")
+        print(f"saving tokenizer from file {get_key(loaded_config, 'vocab-file')}")
         from transformers import PreTrainedTokenizerFast, AutoTokenizer, AutoModelForCausalLM
 
-        tokenizer = PreTrainedTokenizerFast(tokenizer_file=loaded_config['vocab-file'])
+        tokenizer = PreTrainedTokenizerFast(tokenizer_file=get_key(loaded_config, 'vocab-file'))
         print(tokenizer)
         tokenizer.save_pretrained(args.output_dir)
         print("tokenizer saved!")
