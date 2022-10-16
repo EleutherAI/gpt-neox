@@ -39,7 +39,16 @@ def create_config(neox_config):
             self.model_parallel_size = neox_config['model-parallel-size']
             self.vocab_file = neox_config.get('vocab-file', None)
             self.merge_file = neox_config.get('merge-file', None)
-            self.tokenizer_type = neox_config['tokenizer-type']
+            # self.tokenizer_type = neox_config['tokenizer-type']
+
+            try:
+                self.tokenizer_type = loaded_config['tokenizer-type']
+            except KeyError:
+                try:
+                    self.tokenizer_type = loaded_config['tokenizer_type']
+                except KeyError:
+                    self.tokenizer_type = None
+
             self.rank = 0
 
 
@@ -221,15 +230,28 @@ if __name__ == '__main__':
     hf_model.save_pretrained(args.output_dir)
 
     # save tokenizer to directory as well, for easy loading of model as a HF model
-    if loaded_config['tokenizer-type'] == 'HFTokenizer':
-        print(f"saving tokenizer from file {loaded_config['vocab-file']")
-        from transformers import PreTrainedTokenizerFast
+    try:
+        tokenizer_type = loaded_config['tokenizer-type']
+    except KeyError:
+        try:
+            tokenizer_type = loaded_config['tokenizer_type']
+        except KeyError:
+            tokenizer_type = None
+    if tokenizer_type  == 'HFTokenizer':
+        print(f"saving tokenizer from file {loaded_config['vocab-file']}")
+        from transformers import PreTrainedTokenizerFast, AutoTokenizer, AutoModelForCausalLM
 
         tokenizer = PreTrainedTokenizerFast(tokenizer_file=loaded_config['vocab-file'])
         print(tokenizer)
         tokenizer.save_pretrained(args.output_dir)
         print("tokenizer saved!")
-
+        
+        del hf_model
+        del tokenizer
+        hf_model = AutoModelForCausalLM.from_pretrained(args.output_dir, cache_dir="./plsdelete")
+        tokenizer = AutoTokenizer.from_pretrained(args.output_dir, cache_dir="./plsdelete")
+        
+        
     if args.upload:
         repo_name = input("Provide a repository name for the HF Hub: ")
         create_repo(repo_name, repo_type="model", private=True, use_auth_token=True)
