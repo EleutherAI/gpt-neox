@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import yaml
 import json
 import logging
@@ -6,7 +7,6 @@ import shortuuid
 import copy
 import torch
 import argparse
-import shutil
 
 from dataclasses import dataclass
 from typing import List, Dict
@@ -59,6 +59,13 @@ OPT_PARAMS_DEFAULTS = {
     "momentum": 0.0,
     "cuda_aware": False,
 }
+
+
+AUTOTUNING_ARGS = (
+    "train_micro_batch_size_per_gpu",
+    "gradient_accumulation_steps",
+    "zero_optimization"
+)
 
 BASE_CLASSES = [
     NeoXArgsDeepspeedRunner,
@@ -317,7 +324,6 @@ class NeoXArgs(*BASE_CLASSES):
             help="Use DeepSpeed's autotuning feature to optimize certain hyperparameters. For more details refer to documentation here: https://www.deepspeed.ai/tutorials/autotuning/"
         )
 
-
         args_parsed = parser.parse_args()
 
         # Validate user_script exists
@@ -373,12 +379,36 @@ class NeoXArgs(*BASE_CLASSES):
             default=None,
             help="json dict dumped as string in NeoXArgs.get_deepspeed_main_args()",
         )
+        parser.add_argument(
+            "--deepspeed_config",
+            type=str,
+            default=None,
+            help="Only need this (at this stage) for autotuning"
+        )
         args_parsed, _ = parser.parse_known_args()
         with open(args_parsed.megatron_config) as jsonfile:
             megatron_config = json.load(jsonfile)
+        if args_parsed.deepspeed_config is not None:
+            overwrite_values = cls.set_up_autotuning(
+                args_parsed.deepspeed_config,
+                overwrite_values
+            )
         if overwrite_values is not None:
             megatron_config.update(overwrite_values)
         return cls.from_dict(args_dict=megatron_config)
+
+    @staticmethod
+    def set_up_autotuning(config_fp, overwrite_values):
+        with open(config_fp) as jsonfile:
+            config = json.load(jsonfile)
+        tune = config.get('autotuning')
+        if isinstance(tune, dict) and tune.get('enabled'):
+            overwrite_values = overwrite_values if overwrite_values else {}
+            for tuning_param in AUTOTUNING_ARGS:
+                if tuning_param in config:
+                    overwrite_values[tuning_param] = config[tuning_param]
+        return overwrite_values
+        
 
     @staticmethod
     def convert_key_value_to_command_line_arg(k, v):
@@ -438,7 +468,7 @@ class NeoXArgs(*BASE_CLASSES):
 
         # add user script
         args_list.append(self.user_script)
-        deepspeed_fp = 'deepspeed_config.json'
+        deepspeed_fp = Path('~/deepspeed_config.json').expanduser()
 
         self.configure_distributed_args()
 
@@ -449,7 +479,7 @@ class NeoXArgs(*BASE_CLASSES):
             with open(deepspeed_fp, mode='w') as dsfile:
                 json.dump(self.deepspeed_config, dsfile)
 
-        megatron_fp = 'megatron_config.json'
+        megatron_fp = Path('~/megatron_config.json').expanduser()
         # get all config values
         args_list.append("--megatron_config")
         args_list.append(megatron_fp)
