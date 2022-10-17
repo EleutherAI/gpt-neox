@@ -474,7 +474,7 @@ class NeoXArgs(*BASE_CLASSES):
 
         # get deepspeed_config
         args_list.append("--deepspeed_config")
-        args_list.append(deepspeed_fp)
+        args_list.append(str(deepspeed_fp))
         if self.rank == 0:
             with open(deepspeed_fp, mode='w') as dsfile:
                 json.dump(self.deepspeed_config, dsfile)
@@ -482,7 +482,7 @@ class NeoXArgs(*BASE_CLASSES):
         megatron_fp = Path('~/megatron_config.json').expanduser()
         # get all config values
         args_list.append("--megatron_config")
-        args_list.append(megatron_fp)
+        args_list.append(str(megatron_fp))
         neox_args = self.get_parent_class_value_dict(
             *self.__class__.__bases__, only_non_defaults=True
         )
