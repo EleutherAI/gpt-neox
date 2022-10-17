@@ -28,6 +28,7 @@ import sys
 import torch
 import deepspeed
 import numpy as np
+import mup
 
 from megatron.utils import (
     Timers,
@@ -57,6 +58,40 @@ from megatron.utils import (
 from megatron.model.gpt2_model import cross_entropy
 from eval_tasks import run_eval_harness
 
+def save_base_shapes(neox_args, base_shapes, use_cache):
+    base_shapes = mup.get_shapes(
+		GPT2ModelPipe(
+			neox_args=neox_args,
+			num_tokentypes=0,
+			parallel_output=True,
+			topology=mpu.get_topology(),
+			use_cache=use_cache,
+		)
+	)
+
+    from copy import deepcopy
+    neox_args_copy = deepcopy(neox_args)
+
+    neox_args.hidden_size = neox_args.hidden_size * 2
+    neox_args.ffn_hidden_size = 4 * neox_args.hidden_size
+    neox_args.kv_channels = neox_args.hidden_size // neox_args.num_attention_heads
+
+    delta_shapes = mup.get_shapes(
+		GPT2ModelPipe(
+			neox_args=neox_args,
+			num_tokentypes=0,
+			parallel_output=True,
+			topology=mpu.get_topology(),
+			use_cache=use_cache,
+		)
+	)
+
+    # change back
+    neox_args = neox_args_copy
+
+    save_shapes = f"{neox_args.base_shapes}.{torch.distributed.get_rank()}"
+    print(f'saving base shapes at {save_shapes}')
+    mup.make_base_shapes(base_shapes, delta_shapes, savefile=save_shapes)
 
 def pretrain(neox_args):
     """Main training program.
@@ -265,6 +300,12 @@ def get_model(neox_args, use_cache=False):
     if not neox_args.is_pipe_parallel:
         # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
         model = model.to_sequential()
+
+	if neox_args.use_mup:
+		base_shapes = f"{neox_args.base_shapes_file}.{torch.distributed.get_rank()}"
+		if neox_args.save_base_shapes:
+            save_base_shapes(neox_args, base_shapes, use_cache)
+		mup.set_base_shapes(model, base_shapes)
 
     if neox_args.deepspeed:
         # DeepSpeed handles CUDA, FP16, and DDP components.

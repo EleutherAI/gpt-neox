@@ -229,6 +229,9 @@ class ParallelSelfAttention(nn.Module):
             coeff = max(1, self.layer_number)
             self.norm_factor *= coeff
 
+        if neox_args.use_mup:
+            self.norm_factor = self.hidden_size_per_attention_head
+
         self.rpe = rpe
 
         if self.pos_emb == "alibi":
