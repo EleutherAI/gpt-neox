@@ -343,10 +343,11 @@ class NeoXArgsOptimizer(NeoXArgsTemplate):
     """
 
     optimizer_type: Literal[
-        "adam", "onebitadam", "cpu_adam", "cpu_torch_adam", "sm3", "madgrad_wd"
+        "adam", "onebitadam", "cpu_adam", "cpu_torch_adam", "sm3", "madgrad_wd", "sgd"
     ] = "adam"
     """
-    Type of optimizer to use. Choose from ['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd]
+    Type of optimizer to use. Choose from ['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd', 'sgd']
+    NOTE: sgd will use MuSGD from Mup. Mup must be enabled for this optimizer.
     """
 
     use_bnb_optimizer: bool = False
@@ -915,6 +916,22 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     """
     Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
     """
+
+    use_mup: bool = False
+    """
+    Whether to use Microsoft's Mup https://github.com/microsoft/mup
+    """
+
+    save_base_shapes: bool = False
+    """
+    Whether to save base shapes for mup. This will save the shapes to the path specified in base-shapes-file.
+    """
+
+    base_shapes_file: str = None
+    """
+    Path to the base shapes to save to/load from
+    """
+
 
 
 @dataclass

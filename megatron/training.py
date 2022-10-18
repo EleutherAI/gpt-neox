@@ -59,6 +59,12 @@ from megatron.model.gpt2_model import cross_entropy
 from eval_tasks import run_eval_harness
 
 def save_base_shapes(neox_args, base_shapes, use_cache):
+    from copy import deepcopy
+    neox_args_copy = deepcopy(neox_args)
+
+    # Instantiation of the base model fails in the init function (init_functions.py) because we haven't called set_base_shapes on it at this point, so disable it temporarily here
+    neox_args.use_mup = False
+
     base_shapes = mup.get_shapes(
         GPT2ModelPipe(
             neox_args=neox_args,
@@ -68,9 +74,6 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
             use_cache=use_cache,
         )
     )
-
-    from copy import deepcopy
-    neox_args_copy = deepcopy(neox_args)
 
     neox_args.hidden_size = neox_args.hidden_size * 2
     neox_args.ffn_hidden_size = 4 * neox_args.hidden_size
@@ -89,7 +92,7 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
     # change back
     neox_args = neox_args_copy
 
-    save_shapes = f"{neox_args.base_shapes}.{torch.distributed.get_rank()}"
+    save_shapes = f"{neox_args.base_shapes_file}.{torch.distributed.get_rank()}"
     print(f'saving base shapes at {save_shapes}')
     mup.make_base_shapes(base_shapes, delta_shapes, savefile=save_shapes)
 
@@ -269,6 +272,8 @@ def get_model(neox_args, use_cache=False):
     print_rank_0("building GPT2 model ...")
 
     # Build model on cpu.
+    old_use_mup = neox_args.use_mup
+    neox_args.use_mup = False
     model = GPT2ModelPipe(
         neox_args=neox_args,
         num_tokentypes=0,
@@ -276,6 +281,7 @@ def get_model(neox_args, use_cache=False):
         topology=mpu.get_topology(),
         use_cache=use_cache,
     )
+    neox_args.use_mup = old_use_mup
 
     ### soft prompt tuning stuff ###
     if neox_args.soft_prompt_tuning is not None and neox_args.soft_prompt_tuning.get(

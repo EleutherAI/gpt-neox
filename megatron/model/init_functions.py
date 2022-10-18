@@ -3,7 +3,7 @@ import math
 import torch
 import mup
 
-def init_method_normal(sigma, use_mup):
+def init_method_normal(sigma, use_mup=False):
     """Init method based on N(0, sigma)."""
 
     def init_(tensor):
@@ -15,7 +15,7 @@ def init_method_normal(sigma, use_mup):
     return init_
 
 
-def scaled_init_method_normal(sigma, num_layers, use_mup):
+def scaled_init_method_normal(sigma, num_layers, use_mup=False):
     """Init method based on N(0, sigma/sqrt(2*num_layers)."""
     std = sigma / math.sqrt(2.0 * num_layers)
 
@@ -60,7 +60,7 @@ def _orthogonal(tensor, gain=1):
     return tensor
 
 
-def orthogonal_init_method(n_layers=1, use_mup):
+def orthogonal_init_method(n_layers=1, use_mup=False):
     """Fills the input Tensor with a (semi) orthogonal matrix, as described in
     Exact solutions to the nonlinear dynamics of learning in deep linear neural networks - Saxe, A. et al. (2013)
     Optionally scaling by number of layers possible, as introduced in OBST - Nestler et. al. (2021, to be released)"""
@@ -74,7 +74,7 @@ def orthogonal_init_method(n_layers=1, use_mup):
     return init_
 
 
-def xavier_uniform_init_method(use_mup):
+def xavier_uniform_init_method(use_mup=False):
     """Fills the input Tensor with values according to the method described in Understanding the difficulty of
     training deep feedforward neural networks - Glorot, X. & Bengio, Y. (2010), using a uniform distribution."""
 
@@ -88,7 +88,7 @@ def xavier_uniform_init_method(use_mup):
     return init_
 
 
-def xavier_normal_init_method(use_mup):
+def xavier_normal_init_method(use_mup=False):
     """Fills the input Tensor with values according to the method described in Understanding the difficulty of
     training deep feedforward neural networks - Glorot, X. & Bengio, Y. (2010), using a normal distribution."""
 
@@ -101,7 +101,7 @@ def xavier_normal_init_method(use_mup):
     return init_
 
 
-def small_init_init_method(dim, use_mup):
+def small_init_init_method(dim, use_mup=False):
     """Fills the input Tensor with values according to the method described in Transformers without Tears: Improving
     the Normalization of Self-Attention - Nguyen, T. & Salazar, J. (2010), using a normal distribution."""
     std = math.sqrt(2 / (5 * dim))
@@ -115,7 +115,7 @@ def small_init_init_method(dim, use_mup):
     return init_
 
 
-def wang_init_method(n_layers, dim, use_mup):
+def wang_init_method(n_layers, dim, use_mup=False):
     std = 2 / n_layers / math.sqrt(dim)
 
     def init_(tensor):
