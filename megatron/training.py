@@ -60,14 +60,14 @@ from eval_tasks import run_eval_harness
 
 def save_base_shapes(neox_args, base_shapes, use_cache):
     base_shapes = mup.get_shapes(
-		GPT2ModelPipe(
-			neox_args=neox_args,
-			num_tokentypes=0,
-			parallel_output=True,
-			topology=mpu.get_topology(),
-			use_cache=use_cache,
-		)
-	)
+        GPT2ModelPipe(
+            neox_args=neox_args,
+            num_tokentypes=0,
+            parallel_output=True,
+            topology=mpu.get_topology(),
+            use_cache=use_cache,
+        )
+    )
 
     from copy import deepcopy
     neox_args_copy = deepcopy(neox_args)
@@ -77,14 +77,14 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
     neox_args.kv_channels = neox_args.hidden_size // neox_args.num_attention_heads
 
     delta_shapes = mup.get_shapes(
-		GPT2ModelPipe(
-			neox_args=neox_args,
-			num_tokentypes=0,
-			parallel_output=True,
-			topology=mpu.get_topology(),
-			use_cache=use_cache,
-		)
-	)
+        GPT2ModelPipe(
+            neox_args=neox_args,
+            num_tokentypes=0,
+            parallel_output=True,
+            topology=mpu.get_topology(),
+            use_cache=use_cache,
+        )
+    )
 
     # change back
     neox_args = neox_args_copy
@@ -301,11 +301,11 @@ def get_model(neox_args, use_cache=False):
         # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
         model = model.to_sequential()
 
-	if neox_args.use_mup:
-		base_shapes = f"{neox_args.base_shapes_file}.{torch.distributed.get_rank()}"
-		if neox_args.save_base_shapes:
+    if neox_args.use_mup:
+        base_shapes = f"{neox_args.base_shapes_file}.{torch.distributed.get_rank()}"
+        if neox_args.save_base_shapes:
             save_base_shapes(neox_args, base_shapes, use_cache)
-		mup.set_base_shapes(model, base_shapes)
+        mup.set_base_shapes(model, base_shapes)
 
     if neox_args.deepspeed:
         # DeepSpeed handles CUDA, FP16, and DDP components.
@@ -338,6 +338,9 @@ def get_optimizer(model, neox_args):
         _param_groups.append(param_group)
     param_groups = _param_groups
 
+    # If we're using mup, then the optimizer must be adam or sgd
+    assert not neox_args.use_mup or (neox_args.optimizer_type.lower() == "adam" or neox_args.optimizer_type.lower() == "sgd")
+
     if neox_args.optimizer_type.lower() in ["cpu_adam", "cpu_torch_adam"]:
         if neox_args.optimizer == "cpu_torch_adam":
             cpu_adam_optimizer = torch.optim.Adam
@@ -368,28 +371,45 @@ def get_optimizer(model, neox_args):
         )
     elif neox_args.optimizer_type.lower() == "adam":
         # Use Adam
-        if neox_args.use_bnb_optimizer:
-            try:
-                import bitsandbytes as bnb
-
-                adam_optimizer = bnb.optim.Adam8bit
-            except ModuleNotFoundError:
-                print(
-                    "Please install bitsandbytes following https://github.com/facebookresearch/bitsandbytes."
-                )
-                raise Exception
+        if neox_args.use_mup:
+                try:
+                    from mup import MuAdam
+                    adam_optimizer = MuAdam
+                except ModuleNotFoundError:
+                    print(
+                        "Please install mup https://github.com/microsoft/mup"
+                    )
+                    raise Exception
         else:
-            try:
-                # default to apex as it's slightly faster
-                from apex.optimizers import FusedAdam as Adam
-            except ImportError:
-                # if apex isn't installed, use deepspeed's FusedAdam
-                print(
-                    "WARNING: APEX not installed - defaulting to deepspeed's fused adam"
-                )
-                from deepspeed.ops.adam import FusedAdam as Adam
-            adam_optimizer = Adam
+            if neox_args.use_bnb_optimizer:
+                try:
+                    import bitsandbytes as bnb
+
+                    adam_optimizer = bnb.optim.Adam8bit
+                except ModuleNotFoundError:
+                    print(
+                        "Please install bitsandbytes following https://github.com/facebookresearch/bitsandbytes."
+                    )
+                    raise Exception
+            else:
+                try:
+                    # default to apex as it's slightly faster
+                    from apex.optimizers import FusedAdam as Adam
+                except ImportError:
+                    # if apex isn't installed, use deepspeed's FusedAdam
+                    print(
+                        "WARNING: APEX not installed - defaulting to deepspeed's fused adam"
+                    )
+                    from deepspeed.ops.adam import FusedAdam as Adam
+                adam_optimizer = Adam
         optimizer = adam_optimizer(
+            param_groups,
+            weight_decay=neox_args.weight_decay,
+            **neox_args.optimizer["params"],
+        )
+    elif neox_args.optimizer_type.lower() == "sgd":
+        from mup import MuSGD
+        optimizer = MuSGD(
             param_groups,
             weight_decay=neox_args.weight_decay,
             **neox_args.optimizer["params"],

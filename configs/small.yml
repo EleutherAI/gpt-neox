@@ -10,6 +10,8 @@
 
    # mup
    "use-mup": true,
+   "save-base-shapes": true, # this only needs to be enabled once in order to generate the base-shapes-file on each rank
+   "base-shapes-file": "base-shapes", # load base shapes from this file
 
    # model settings
    "num-layers": 12,
