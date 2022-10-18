@@ -16,7 +16,6 @@
 # limitations under the License.
 
 """Evaluation tasks - modified from https://github.com/EleutherAI/lm-evaluation-harness"""
-
 import os
 import sys
 
@@ -25,13 +24,14 @@ sys.path.append(
 )
 from megatron.training import forward_step
 from megatron.utils import setup_for_inference_or_eval
+from megatron.logging import tb_wandb_log
 from eval_tasks import run_eval_harness
 from pprint import pprint
 from datetime import datetime
 import json
 
 
-def main():
+def main(): 
     model, neox_args = setup_for_inference_or_eval(use_cache=False)
     results = run_eval_harness(
         model,
@@ -41,6 +41,27 @@ def main():
         bootstrap_iters=10000,
     )
     if neox_args.rank == 0:
+
+        # log to wandb
+        for k, v in results["results"].items():
+            if isinstance(v, dict):
+                for k2, v2 in v.items():
+                    k3 = "_".join([k, k2])
+                    tb_wandb_log(
+                        f"eval/{k3}",
+                        v2,
+                        neox_args.iteration,
+                        use_wandb=neox_args.use_wandb,
+                    )
+            else:
+                tb_wandb_log(
+                    f"eval/{k}",
+                    v,
+                    neox_args.iteration,
+                    use_wandb=neox_args.use_wandb,
+                )
+        
+
         pprint(results)
         results_path = (
             f'eval_results_{datetime.now().strftime("%m-%d-%Y-%H-%M-%S")}.json'
