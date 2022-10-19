@@ -6,9 +6,9 @@ except ImportError:
     from template import NeoXArgsTemplate
 
 try:
-    from typing import Literal, Optional, Union
+    from typing import Literal, Union
 except ImportError:
-    from typing_extensions import Literal, Optional, Union
+    from typing_extensions import Literal, Union
 
 
 @dataclass
@@ -180,7 +180,7 @@ class NeoXArgsDeepspeedRunner(NeoXArgsTemplate):
     If true, autodetects nvlink pairs and remaps cuda visible devices to place them next to each other. This is an Eleuther addition to deepspeed, and should speed up model parallel training on setups with nvlink pairs when mp=2.
     """
 
-    autotuning: Union[Optional[Literal["tune", "run"]], dict] = None
+    autotuning: Union[str, dict] = None
     """
     Either "tune", "run", or `None`.
     """
