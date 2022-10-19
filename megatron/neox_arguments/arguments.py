@@ -342,7 +342,9 @@ class NeoXArgs(*BASE_CLASSES):
         # determine overwrite values
         overwrite_values = dict()
         for k, v in vars(args_parsed).items():
-            if k not in ["conf_dir", "conf_file"] and v is not None:
+            if k == 'autotuning':
+                overwrite_values['neox_autotuning']
+            elif k not in ["conf_dir", "conf_file"] and v is not None:
                 overwrite_values[k] = v
 
         # load args
@@ -500,9 +502,15 @@ class NeoXArgs(*BASE_CLASSES):
         """
         returns a dict containing variables within deepspeed config
         """
-        return self.get_parent_class_value_dict(
+        config = self.get_parent_class_value_dict(
             NeoXArgsDeepspeedConfig, only_non_defaults=True
         )
+        # fucking cursed
+        tuner = config.pop('autotuning_config', None)
+        if tuner is not None:
+            config['autotuning'] = tuner
+        return config
+
 
     @property
     def deepspeed_runner(self) -> dict:
