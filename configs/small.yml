@@ -7,7 +7,6 @@
    # across the node boundaries )
    "pipe-parallel-size": 1,
    "model-parallel-size": 1,
-   "is-pipe-parallel": true,
 
    # mup
    "use-mup": true,

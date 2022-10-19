@@ -37,7 +37,6 @@ from megatron.utils import (
     reduce_losses,
 )
 
-
 from megatron import print_rank_0, mpu
 from megatron.model import (
     GPT2ModelPipe,
@@ -65,29 +64,35 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
     # Instantiation of the base model fails in the init function (init_functions.py) because we haven't called set_base_shapes on it at this point, so disable it temporarily here
     neox_args.use_mup = False
 
-    base_shapes = mup.get_shapes(
-        GPT2ModelPipe(
-            neox_args=neox_args,
-            num_tokentypes=0,
-            parallel_output=True,
-            topology=mpu.get_topology(),
-            use_cache=use_cache,
-        )
-    )
+    base_model = GPT2ModelPipe(
+                    neox_args=neox_args,
+                    num_tokentypes=0,
+                    parallel_output=True,
+                    topology=mpu.get_topology(),
+                    use_cache=use_cache)
+
+    if not neox_args.is_pipe_parallel:
+        base_model = base_model.to_sequential()
+
+    base_shapes = mup.get_shapes(base_model)
+
+    del base_model
 
     neox_args.hidden_size = neox_args.hidden_size * 2
     neox_args.ffn_hidden_size = 4 * neox_args.hidden_size
     neox_args.kv_channels = neox_args.hidden_size // neox_args.num_attention_heads
 
-    delta_shapes = mup.get_shapes(
-        GPT2ModelPipe(
-            neox_args=neox_args,
-            num_tokentypes=0,
-            parallel_output=True,
-            topology=mpu.get_topology(),
-            use_cache=use_cache,
-        )
-    )
+    delta_model = GPT2ModelPipe(
+                    neox_args=neox_args,
+                    num_tokentypes=0,
+                    parallel_output=True,
+                    topology=mpu.get_topology(),
+                    use_cache=use_cache)
+
+    if not neox_args.is_pipe_parallel:
+        delta_model = delta_model.to_sequential()
+
+    delta_shapes = mup.get_shapes(delta_model)
 
     # change back
     neox_args = neox_args_copy
@@ -281,7 +286,6 @@ def get_model(neox_args, use_cache=False):
         topology=mpu.get_topology(),
         use_cache=use_cache,
     )
-    neox_args.use_mup = old_use_mup
 
     ### soft prompt tuning stuff ###
     if neox_args.soft_prompt_tuning is not None and neox_args.soft_prompt_tuning.get(
@@ -306,6 +310,8 @@ def get_model(neox_args, use_cache=False):
     if not neox_args.is_pipe_parallel:
         # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
         model = model.to_sequential()
+
+    neox_args.use_mup = old_use_mup
 
     if neox_args.use_mup:
         base_shapes = f"{neox_args.base_shapes_file}.{torch.distributed.get_rank()}"
