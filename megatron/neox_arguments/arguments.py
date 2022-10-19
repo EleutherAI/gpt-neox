@@ -342,9 +342,7 @@ class NeoXArgs(*BASE_CLASSES):
         # determine overwrite values
         overwrite_values = dict()
         for k, v in vars(args_parsed).items():
-            if k == 'autotuning':
-                overwrite_values['neox_autotuning']
-            elif k not in ["conf_dir", "conf_file"] and v is not None:
+            if k not in ["conf_dir", "conf_file"] and v is not None:
                 overwrite_values[k] = v
 
         # load args
