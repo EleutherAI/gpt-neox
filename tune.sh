@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name="neox-tune"
 #SBATCH --partition=gpu
-#SBATCH --mem-per-cpu=64GB        # Amount of CPU memory
+#SBATCH --mem-per-cpu=16GB        # Amount of CPU memory
 #SBATCH --nodes=4
 #SBATCH --ntasks-per-node=8      # Crucial - only 1 task per dist per node!
 #SBATCH --cpus-per-task=6           # Number of cores per tasks
