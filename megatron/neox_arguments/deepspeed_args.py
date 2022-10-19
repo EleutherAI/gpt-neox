@@ -5,6 +5,11 @@ try:
 except ImportError:
     from template import NeoXArgsTemplate
 
+try:
+    from typing import Literal, Optional, Union
+except ImportError:
+    from typing_extensions import Literal, Optional, Union
+
 
 @dataclass
 class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
@@ -165,7 +170,7 @@ class NeoXArgsDeepspeedRunner(NeoXArgsTemplate):
     IP address of node 0, will be inferred via 'hostname -I' if not specified.
     """
 
-    launcher: str = "pdsh"
+    launcher: Literal["pdsh", "openmpi", "mvapich", "slurm"] = "pdsh"
     """
     Launcher backend for multi-node training. Options currently include PDSH, OpenMPI, MVAPICH.
     """
@@ -175,7 +180,7 @@ class NeoXArgsDeepspeedRunner(NeoXArgsTemplate):
     If true, autodetects nvlink pairs and remaps cuda visible devices to place them next to each other. This is an Eleuther addition to deepspeed, and should speed up model parallel training on setups with nvlink pairs when mp=2.
     """
 
-    autotuning: str = None
+    autotuning: Union[Optional[Literal["tune", "run"]], dict] = None
     """
     Either "tune", "run", or `None`.
     """
