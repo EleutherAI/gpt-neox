@@ -404,6 +404,7 @@ class NeoXArgs(*BASE_CLASSES):
         tune = config.get('autotuning')
         if isinstance(tune, dict) and tune.get('enabled'):
             overwrite_values = overwrite_values if overwrite_values else {}
+            overwrite_values['autotuning'] = tune
             for tuning_param in AUTOTUNING_ARGS:
                 if tuning_param in config:
                     overwrite_values[tuning_param] = config[tuning_param]

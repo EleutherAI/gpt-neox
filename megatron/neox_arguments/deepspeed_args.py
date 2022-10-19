@@ -113,6 +113,9 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     Whether Deepspeed Zero Optimizer will allow an optimizer that hasn't been tested by the deepspeed team
     """
 
+    autotuning: dict = None
+    """Dictionary as described in DeepSpeed autotuning documentation: https://github.com/microsoft/DeepSpeed/tree/master/deepspeed/autotuning"""
+
 
 @dataclass
 class NeoXArgsDeepspeedRunner(NeoXArgsTemplate):
