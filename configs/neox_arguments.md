@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 55481a1
+    Default = 6a9bb2c
 
     current git hash of repository
 
@@ -563,11 +563,12 @@ Optimizer Arguments
 
 
 
-- **optimizer_type**: typing.Literal['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd']
+- **optimizer_type**: typing.Literal['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd', 'sgd']
 
     Default = adam
 
-    Type of optimizer to use. Choose from ['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd]
+    Type of optimizer to use. Choose from ['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd', 'sgd']
+    NOTE: sgd will use MuSGD from Mup. Mup must be enabled for this optimizer.
 
 
 
@@ -1391,6 +1392,30 @@ Training Arguments
     Default = False
 
     Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
+
+
+
+- **use_mup**: bool
+
+    Default = False
+
+    Whether to use Microsoft's Mup https://github.com/microsoft/mup
+
+
+
+- **save_base_shapes**: bool
+
+    Default = False
+
+    Whether to save base shapes for mup. This will save the shapes to the path specified in base-shapes-file.
+
+
+
+- **base_shapes_file**: str
+
+    Default = None
+
+    Path to the base shapes to save to/load from
 
 
 
