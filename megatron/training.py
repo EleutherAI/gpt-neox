@@ -414,6 +414,9 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
             _model_params = param_groups if optimizer is None else None
             _lr_scheduler = lr_scheduler
 
+        for k, v in neox_args.deepspeed_config:
+            print(f'{k}: {v}')
+
         model, optimizer, _, lr_scheduler = deepspeed.initialize(
             model=model,
             optimizer=optimizer,
