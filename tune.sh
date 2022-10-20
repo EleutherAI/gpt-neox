@@ -2,7 +2,7 @@
 #SBATCH --job-name="neox-tune"
 #SBATCH --partition=gpu
 #SBATCH --mem-per-cpu=16GB        # Amount of CPU memory
-#SBATCH --nodes=4
+#SBATCH --nodes=2
 #SBATCH --ntasks-per-node=8      # Crucial - only 1 task per dist per node!
 #SBATCH --cpus-per-task=6           # Number of cores per tasks
 #SBATCH --hint=nomultithread         # We get physical cores not logical
@@ -33,6 +33,7 @@ export PYTHONFAULTHANDLER=1
 
 export OMPI_MCA_mtl_base_verbose=1
 export OMPI_MCA_btl="^openib"
+export CUDA_LAUNCH_BLOCKING=1
 
 export HOSTNAMES=`scontrol show hostnames "$SLURM_JOB_NODELIST"`
 export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
@@ -52,4 +53,4 @@ export DLTS_HOSTFILE=/fsx/$(whoami)/hostfiles/hosts_$SLURM_JOBID
 echo $DLTS_HOSTFILE
 python $TRAIN_PATH/deepy.py $TRAIN_PATH/train.py \
     --autotuning tune \
-    --conf_dir configs tune.yml local_slurm.yml
+    --conf_dir configs tune.json slurm_local.json
