@@ -1,7 +1,12 @@
 import math
 
 import torch
-import mup
+
+try:
+	import mup
+except ModuleNotFoundError:
+	print("Please install mup https://github.com/microsoft/mup")
+	raise Exception
 
 def init_method_normal(sigma, use_mup=False):
     """Init method based on N(0, sigma)."""

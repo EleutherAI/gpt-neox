@@ -28,7 +28,6 @@ import sys
 import torch
 import deepspeed
 import numpy as np
-import mup
 
 from megatron.utils import (
     Timers,
@@ -79,8 +78,6 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
     del base_model
 
     neox_args.hidden_size = neox_args.hidden_size * 2
-    neox_args.ffn_hidden_size = 4 * neox_args.hidden_size
-    neox_args.kv_channels = neox_args.hidden_size // neox_args.num_attention_heads
 
     delta_model = GPT2ModelPipe(
                     neox_args=neox_args,
@@ -274,9 +271,11 @@ def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
 def get_model(neox_args, use_cache=False):
     """Build the model."""
 
+    # Build model on cpu.
     print_rank_0("building GPT2 model ...")
 
-    # Build model on cpu.
+    # Temporarily disable mup so that the base model does not use the mup init functions before set_base_shapes is called below.
+    # If mup isn't being used anyways, this has no effect.
     old_use_mup = neox_args.use_mup
     neox_args.use_mup = False
     model = GPT2ModelPipe(
@@ -314,10 +313,21 @@ def get_model(neox_args, use_cache=False):
     neox_args.use_mup = old_use_mup
 
     if neox_args.use_mup:
+        try:
+            import mup
+        except ModuleNotFoundError:
+            print("Please install mup https://github.com/microsoft/mup")
+            raise Exception
+
         base_shapes = f"{neox_args.base_shapes_file}.{torch.distributed.get_rank()}"
+
         if neox_args.save_base_shapes:
             save_base_shapes(neox_args, base_shapes, use_cache)
+
         mup.set_base_shapes(model, base_shapes)
+
+        # Call the init functions on the model now that set_base_shapes has given each weight a .infshape attribute
+
 
     if neox_args.deepspeed:
         # DeepSpeed handles CUDA, FP16, and DDP components.
@@ -351,7 +361,7 @@ def get_optimizer(model, neox_args):
     param_groups = _param_groups
 
     # If we're using mup, then the optimizer must be adam or sgd
-    assert not neox_args.use_mup or (neox_args.optimizer_type.lower() == "adam" or neox_args.optimizer_type.lower() == "sgd")
+    assert not neox_args.use_mup or (neox_args.optimizer_type.lower() == "adam" or neox_args.optimizer_type.lower() == "sgd"), f'If use_mup == True, you must specify either the adam or sgd optimizers. You passed: {neox_args.optimizer_type.lower()}'
 
     if neox_args.optimizer_type.lower() in ["cpu_adam", "cpu_torch_adam"]:
         if neox_args.optimizer == "cpu_torch_adam":
@@ -420,7 +430,13 @@ def get_optimizer(model, neox_args):
             **neox_args.optimizer["params"],
         )
     elif neox_args.optimizer_type.lower() == "sgd":
-        from mup import MuSGD
+        try:
+            from mup import MuSGD
+        except ModuleNotFoundError:
+            print(
+                "Please install mup https://github.com/microsoft/mup"
+            )
+            raise Exception
         optimizer = MuSGD(
             param_groups,
             weight_decay=neox_args.weight_decay,
