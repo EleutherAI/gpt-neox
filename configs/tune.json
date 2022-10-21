@@ -29,8 +29,8 @@
     "contiguous_gradients": true,
     "cpu_offload": false
   },
-   "train_micro_batch_size_per_gpu": "auto",
-   "autotuning": {
+   "train_micro_batch_size_per_gpu": 1,
+   "autotuning_config": {
      "enabled": true,
      "arg_mappings": {
        "train_micro_batch_size_per_gpu": "--train_micro_batch_size_per_gpu",

@@ -4,7 +4,7 @@
 #SBATCH --mem-per-cpu=16GB        # Amount of CPU memory
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=8      # Crucial - only 1 task per dist per node!
-#SBATCH --cpus-per-task=6           # Number of cores per tasks
+#SBATCH --cpus-per-task=4          # Number of cores per tasks
 #SBATCH --hint=nomultithread         # We get physical cores not logical
 #SBATCH --gres=gpu:8                 # Number of gpus
 #SBATCH --output=%x_%j.out   # Set this dir where you want slurm outs to go
