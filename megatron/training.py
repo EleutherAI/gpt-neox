@@ -73,6 +73,12 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
     if not neox_args.is_pipe_parallel:
         base_model = base_model.to_sequential()
 
+    try:
+        import mup
+    except ModuleNotFoundError:
+        print("Please install mup https://github.com/microsoft/mup")
+        raise Exception
+
     base_shapes = mup.get_shapes(base_model)
 
     del base_model
