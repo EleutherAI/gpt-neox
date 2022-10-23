@@ -347,24 +347,24 @@ def permute(sample, np_rng, neox_args):
     # hardcode these for now. TODO(Hailey): should add a way to access all mask tokens in a tokenizer easily.
     # TODO(Hailey): also, check to ensure there's not an off-by-one error here. 
     # TODO(Hailey): when testing models trained with this workaround, need to add special tokens w/ the correct indices to the tokenizer.
-    suffix_tok_id, prefix_tok_id, middle_tok_id = tokenizer.vocab_size - 1, tokenizer.vocab_size, tokenizer.vocab_size + 1
+    suffix_tok_id, prefix_tok_id, middle_tok_id = 50277, 50278, 50279
 
     if np_rng.binomial(1, fim_rate): # sample bernoulli dist
 
         contents = tokenizer.detokenize(sample)
         
         try:
-            boundaries = np_rng.randint(low=1, high=len(contents) - 1, size=2)
+            boundaries = list(np_rng.randint(low=1, high=len(contents) - 1, size=2))
+            boundaries.sort()
         except ValueError as e:
             print(len(contents), contents)
             print(e)
             raise e
 
-        # print(len(contents), boundaries)
-
         prefix = contents[:boundaries[0]]
         middle = contents[boundaries[0]:boundaries[1]]
         suffix = contents[boundaries[1]:]
+
 
         suffix = np.array([suffix_tok_id, *tokenizer.tokenize(suffix)])
         prefix = np.array([prefix_tok_id, *tokenizer.tokenize(prefix)])
@@ -387,12 +387,6 @@ def permute(sample, np_rng, neox_args):
             prefix,
             middle,
         ])
-        # print("definitely using FIM this run")
-        # print(new_sample.shape)
-        # if sample.shape[0] == 2049 and new_sample.shape[0] != 2049:
-        #     diff = new_sample.shape[0] - sample.shape[0]
-        #     raise ValueError(f"{boundaries}, {suffix.shape}, {diff}, {new_sample.shape[0]}, {sample.shape[0]}")
-        # print(new_sample.shape[0], sample.shape, suffix.shape, diff)
     else:
         # don't do FIM preproc
         new_sample = sample
