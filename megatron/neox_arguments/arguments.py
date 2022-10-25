@@ -64,7 +64,8 @@ OPT_PARAMS_DEFAULTS = {
 AUTOTUNING_ARGS = (
     "train_micro_batch_size_per_gpu",
     "gradient_accumulation_steps",
-    "zero_optimization"
+    "zero_optimization",
+    "autotuning"
 )
 
 BASE_CLASSES = [
