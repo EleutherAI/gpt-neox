@@ -510,13 +510,8 @@ class NeoXArgs(*BASE_CLASSES):
         config = self.get_parent_class_value_dict(
             NeoXArgsDeepspeedConfig, only_non_defaults=True
         )
-        # fucking cursed
-        tuner = config.pop('autotuning_config', None)
-        if tuner is not None:
-            print('Replacing autotuning config')
-            config['autotuning'] = tuner
-        else:
-            print('Autotuning not enabled')
+        if config['autotuning']:
+            print('Autotuning is enabled')
         return config
 
 
