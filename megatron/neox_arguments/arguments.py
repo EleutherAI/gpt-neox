@@ -512,6 +512,7 @@ class NeoXArgs(*BASE_CLASSES):
         )
         if config['autotuning']:
             print('Autotuning is enabled')
+            print(config['autotuning'])
         return config
 
 
