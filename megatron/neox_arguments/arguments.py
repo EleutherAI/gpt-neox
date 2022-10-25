@@ -62,6 +62,7 @@ OPT_PARAMS_DEFAULTS = {
 
 
 AUTOTUNING_ARGS = (
+    "train_batch_size",
     "train_micro_batch_size_per_gpu",
     "gradient_accumulation_steps",
     "zero_optimization",
@@ -510,10 +511,7 @@ class NeoXArgs(*BASE_CLASSES):
         """
         config = self.get_parent_class_value_dict(
             NeoXArgsDeepspeedConfig, only_non_defaults=True
-        )
-        if config['autotuning']:
-            print('Autotuning is enabled')
-            print(config['autotuning'])
+        )        
         return config
 
 
