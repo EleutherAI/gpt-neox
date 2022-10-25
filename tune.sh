@@ -2,7 +2,7 @@
 #SBATCH --job-name="neox-tune"
 #SBATCH --partition=gpu
 #SBATCH --mem-per-cpu=16GB        # Amount of CPU memory
-#SBATCH --nodes=2
+#SBATCH --nodes=4
 #SBATCH --ntasks-per-node=8      # Crucial - only 1 task per dist per node!
 #SBATCH --cpus-per-task=4          # Number of cores per tasks
 #SBATCH --hint=nomultithread         # We get physical cores not logical
@@ -43,6 +43,8 @@ export COUNT_NODE=`scontrol show hostnames "$SLURM_JOB_NODELIST" | wc -l`
 # Hide duplicated errors using this hack - will be properly fixed in pt-1.12
 export TORCHELASTIC_ERROR_FILE=$TRAIN_PATH/tmp/torch-elastic-error.json
 
+source /fsx/$(whoami)/miniconda3/bin/activate neox
+
 # Move to the gpt-neox install
 TRAIN_PATH=/fsx/$(whoami)/gpt-neox
 cd $TRAIN_PATH
@@ -53,4 +55,4 @@ export DLTS_HOSTFILE=/fsx/$(whoami)/hostfiles/hosts_$SLURM_JOBID
 echo $DLTS_HOSTFILE
 python $TRAIN_PATH/deepy.py $TRAIN_PATH/train.py \
     --autotuning tune \
-    --conf_dir configs tune.json slurm_local.json
+    --conf_dir configs 6-7B_tune.json slurm_local.json
