@@ -403,12 +403,12 @@ class NeoXArgs(*BASE_CLASSES):
             config = json.load(jsonfile)
         tune = config.get('autotuning')
         if isinstance(tune, dict) and tune.get('enabled'):
-            print(f'Actually setting up autotuning, writing to autotuning_config')
             overwrite_values = overwrite_values if overwrite_values else {}
             overwrite_values['autotuning_config'] = tune
-            for tuning_param in AUTOTUNING_ARGS:
-                if tuning_param in config:
-                    overwrite_values[tuning_param] = config[tuning_param]
+        for tuning_param in AUTOTUNING_ARGS:
+            # TODO: This is for autotuning specifically, may cause surprises for someone with a weird setup
+            if tuning_param in config:
+                overwrite_values[tuning_param] = config[tuning_param]
         return overwrite_values
         
 
