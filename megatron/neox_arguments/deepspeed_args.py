@@ -6,9 +6,9 @@ except ImportError:
     from template import NeoXArgsTemplate
 
 try:
-    from typing import Literal, Union
+    from typing import Literal
 except ImportError:
-    from typing_extensions import Literal, Union
+    from typing_extensions import Literal
 
 
 @dataclass
@@ -118,7 +118,7 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     Whether Deepspeed Zero Optimizer will allow an optimizer that hasn't been tested by the deepspeed team
     """
 
-    autotuning_config: dict = None
+    autotuning: dict = None
     """Dictionary as described in DeepSpeed autotuning documentation: https://github.com/microsoft/DeepSpeed/tree/master/deepspeed/autotuning"""
 
 
@@ -180,7 +180,7 @@ class NeoXArgsDeepspeedRunner(NeoXArgsTemplate):
     If true, autodetects nvlink pairs and remaps cuda visible devices to place them next to each other. This is an Eleuther addition to deepspeed, and should speed up model parallel training on setups with nvlink pairs when mp=2.
     """
 
-    autotuning: Union[str, dict] = None
+    autotuning_run: str = None
     """
     Either "tune", "run", or `None`.
     """

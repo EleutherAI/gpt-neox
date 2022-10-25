@@ -342,7 +342,9 @@ class NeoXArgs(*BASE_CLASSES):
         # determine overwrite values
         overwrite_values = dict()
         for k, v in vars(args_parsed).items():
-            if k not in ["conf_dir", "conf_file"] and v is not None:
+            if k == 'autotuning' and v is not None:
+                overwrite_values['autotuning_run'] = v
+            elif k not in ["conf_dir", "conf_file"] and v is not None:
                 overwrite_values[k] = v
 
         # load args
@@ -402,9 +404,6 @@ class NeoXArgs(*BASE_CLASSES):
         with open(config_fp) as jsonfile:
             config = json.load(jsonfile)
         overwrite_values = overwrite_values if overwrite_values else {}
-        tune = config.get('autotuning')
-        if isinstance(tune, dict) and tune.get('enabled'):
-            overwrite_values['autotuning_config'] = tune
         for tuning_param in AUTOTUNING_ARGS:
             # TODO: This is for autotuning specifically, may cause surprises for someone with a weird setup
             if tuning_param in config:
@@ -427,8 +426,15 @@ class NeoXArgs(*BASE_CLASSES):
 
         args_list = list()
 
+        if self.autotuning_run is not None:
+            args_list.extend(
+                self.convert_key_value_to_command_line_arg('autotuning', self.autotuning_run)
+            )
+
         # get deepspeed runner args, and only pass them in to deepspeed launcher if they differ from defaults
         for key, default_value in NeoXArgsDeepspeedRunner().defaults():
+            if key == 'autotuning_run':
+                continue
             configured_value = getattr(self, key)
             if configured_value != default_value:
                 args_list.extend(
