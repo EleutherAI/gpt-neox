@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = b0c92da
+    Default = 68c936f
 
     current git hash of repository
 
