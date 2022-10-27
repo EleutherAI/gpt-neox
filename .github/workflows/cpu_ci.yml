@@ -18,6 +18,8 @@ jobs:
 
       - name: Install Dependencies
         run: |
+          apt-get install libopenmpi-dev -y
+          pip install torch==1.8.2 torchvision==0.9.2 torchaudio==0.8.2 --extra-index-url https://download.pytorch.org/whl/lts/1.8/cpu
           pip install -r requirements/requirements.txt
           pip install -r requirements/requirements-dev.txt
 
@@ -25,4 +27,4 @@ jobs:
         run: python prepare_data.py
 
       - name: Run CPU Tests
-        run: pip install pytest
+        run: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pytest tests -m cpu
