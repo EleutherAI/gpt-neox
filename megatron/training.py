@@ -56,9 +56,16 @@ from megatron.utils import (
 from megatron.model.gpt2_model import cross_entropy
 from eval_tasks import run_eval_harness
 
+def mup_weights_reinit(neox_args, model):
+
+    def has_method(o, name):
+        return callable(getattr(o, name, None))
+    
+    for layer in model.modules():
+        if has_method(layer, "mup_reinitialize_weights"):
+            layer.mup_reinitialize_weights(neox_args)
+
 def save_base_shapes(neox_args, base_shapes, use_cache):
-    from copy import deepcopy
-    neox_args_copy = deepcopy(neox_args)
 
     # Instantiation of the base model fails in the init function (init_functions.py) because we haven't called set_base_shapes on it at this point, so disable it temporarily here
     neox_args.use_mup = False
@@ -83,6 +90,7 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
 
     del base_model
 
+    old_hidden_size = neox_args.hidden_size
     neox_args.hidden_size = neox_args.hidden_size * 2
 
     delta_model = GPT2ModelPipe(
@@ -98,7 +106,8 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
     delta_shapes = mup.get_shapes(delta_model)
 
     # change back
-    neox_args = neox_args_copy
+    neox_args.use_mup = True
+    neox_args.hidden_size = old_hidden_size
 
     save_shapes = f"{neox_args.base_shapes_file}.{torch.distributed.get_rank()}"
     print(f'saving base shapes at {save_shapes}')
@@ -332,8 +341,8 @@ def get_model(neox_args, use_cache=False):
 
         mup.set_base_shapes(model, base_shapes)
 
-        # Call the init functions on the model now that set_base_shapes has given each weight a .infshape attribute
-
+        # Call the mup replacement init functions on the model now that set_base_shapes has given each weight a .infshape attribute
+        mup_weights_reinit(neox_args, model)
 
     if neox_args.deepspeed:
         # DeepSpeed handles CUDA, FP16, and DDP components.
