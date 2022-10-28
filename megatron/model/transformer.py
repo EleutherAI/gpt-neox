@@ -144,6 +144,7 @@ class ParallelLinear(nn.Module):
         neox_args,
         parallel_output=True,
         init_method=nn.init.xavier_normal_,
+        is_last_layer=False,
     ):
         super().__init__()
         parallelism = neox_args.output_layer_parallelism
@@ -156,6 +157,7 @@ class ParallelLinear(nn.Module):
                 init_method=init_method,
                 gather_output=not parallel_output,
                 skip_bias_add=False,
+                mup_rescale_parameters=is_last_layer, # rescale params only called if neox_args.use_mup = True, despite it not being included here
             )
         else:
             self.final_linear = mpu.RowParallelLinear(
@@ -167,6 +169,7 @@ class ParallelLinear(nn.Module):
                 init_method=init_method,
                 parallel_output=parallel_output,
                 skip_bias_add=False,
+                mup_rescale_parameters=is_last_layer, # only called if neox_args.use_mup = True, despite it not being included here
             )
 
     def forward(self, hidden_states):
