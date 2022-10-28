@@ -63,11 +63,8 @@ def mup_weights_reinit(neox_args, model):
     
     for layer in model.modules():
         # This normally would happen in set_base_shapes if we actually were able to use the MuReadout class
-        if hasattr(layer, "mup_rescale_parameters"):
-            print("nick has rescaling params")
-            if layer.mup_rescale_parameters:
-                print("nick calling rescaling params")
-                layer._rescale_parameters()
+        if hasattr(layer, "mup_rescale_parameters") and layer.mup_rescale_parameters:
+            layer._rescale_parameters()
 
         if has_method(layer, "mup_reinitialize_weights"):
             layer.mup_reinitialize_weights(neox_args)
