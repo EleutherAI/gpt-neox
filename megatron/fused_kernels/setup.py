@@ -64,8 +64,6 @@ setup(
             ],
             extra_compile_args=cuda_ext_args,
         ),
-    ]
-    if torch_cuda_available()
-    else [],
+    ],
     cmdclass={"build_ext": BuildExtension},
 )
