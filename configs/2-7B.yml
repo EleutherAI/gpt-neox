@@ -16,8 +16,8 @@
    "no-weight-tying": true,
 
    # these should provide some speedup but takes a while to build, set to true if desired
-   "scaled-upper-triang-masked-softmax-fusion": false,
-   "bias-gelu-fusion": false,
+   "scaled-upper-triang-masked-softmax-fusion": true,
+   "bias-gelu-fusion": true,
 
 
    # optimizer settings
@@ -25,7 +25,7 @@
      "type": "Adam",
      "params": {
        "lr": 0.00016,
-       "betas": [0.9, 0.999],
+       "betas": [0.9, 0.95],
        "eps": 1.0e-8,
      }
    },
@@ -41,9 +41,8 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 4,
+   "train_micro_batch_size_per_gpu": 256,
    "data-impl": "mmap",
-   "split": "949,50,1",
 
    # activation checkpointing
    "checkpoint-activations": true,
@@ -53,7 +52,7 @@
 
    # regularization
    "gradient_clipping": 1.0,
-   "weight-decay": 0,
+   "weight-decay": 0.1,
    "hidden-dropout": 0,
    "attention-dropout": 0,
 
@@ -68,18 +67,18 @@
    },
 
    # misc. training settings
-   "train-iters": 320000,
-   "lr-decay-iters": 320000,
+   "train-iters": 100, # Dummy value, evaluation is done for 1 epoch (the default) and number of iterations decided by the checkpoint being evaluated
+   "lr-decay-iters": 100,
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
-   "save-interval": 10000,
+   "save-interval": 1000,
    "eval-interval": 1000,
    "eval-iters": 10,
 
    # logging
-   "log-interval": 100,
+   "log-interval": 10,
    "steps_per_print": 10,
-   "keep-last-n-checkpoints": 4,
+   #"keep-last-n-checkpoints": 4,
    "wall_clock_breakdown": true,
 }
