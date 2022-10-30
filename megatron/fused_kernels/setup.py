@@ -1,7 +1,6 @@
 from setuptools import setup, find_packages
 from torch.utils import cpp_extension
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
-from torch.cuda import is_available as torch_cuda_available
 from pathlib import Path
 import subprocess
 
