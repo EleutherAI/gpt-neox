@@ -165,3 +165,6 @@ core
 hosts
 memorization_iteration*
 tmp/
+
+# Generated plots
+plots/
