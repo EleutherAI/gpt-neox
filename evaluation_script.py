@@ -22,6 +22,7 @@ import os
 import time
 import torch
 import wandb
+import socket
 import result_records
 import memorization_metric
 import numpy as np
@@ -30,7 +31,7 @@ from megatron.data import data_utils
 from megatron import text_generation_utils
 from megatron import utils as megatron_utils 
 
-MODEL_GLOBAL_BATCH_SIZE = 2048# Global batch size of trained model
+MODEL_GLOBAL_BATCH_SIZE = 1024# Global batch size of trained model
 
 def score(neox_args,model,data,token_size=64):
     '''Calculates the memorization metric for the given input tokens
@@ -198,5 +199,5 @@ if __name__ == "__main__":
         import datetime
         ts = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')+'UTC'
         resp = requests.get('http://169.254.169.254/latest/meta-data/instance-id')
-        print(f'ERROR at {ts} on {resp.text} device: {type(err).__name__}: {err}', flush=True)
+        print(f'ERROR for {socket.gethostname()} at {ts} on {resp.text} device: {type(err).__name__}: {err}', flush=True)
         raise err
