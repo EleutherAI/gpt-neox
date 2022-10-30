@@ -47,7 +47,7 @@ from megatron.checkpointing import load_checkpoint, save_checkpoint
 from megatron.data.data_utils import build_train_valid_test_data_iterators
 from megatron.initialize import initialize_megatron
 from megatron.learning_rates import AnnealingLR
-from megatron.logging import tb_wandb_log, training_log
+from megatron.logging import tb_wandb_log, training_log, data_log
 from megatron.utils import (
     OverflowMonitor,
     get_noise_scale_logger,
@@ -80,13 +80,6 @@ def pretrain(neox_args):
     # Initialize and get arguments, timers, and Tensorboard writer.
     initialize_megatron(neox_args=neox_args)
 
-    # Model, optimizer, and learning rate.
-    timers("model and optimizer").start()
-    model, optimizer, lr_scheduler = setup_model_and_optimizer(
-        neox_args=neox_args, use_cache=False
-    )
-    timers("model and optimizer").stop()
-
     # Data stuff.
     timers("train/valid/test data iterators").start()
     (
@@ -98,17 +91,14 @@ def pretrain(neox_args):
 
     # Print setup timing.
     print_rank_0("done with setups ...")
-    timers.log(["model and optimizer", "train/valid/test data iterators"])
+    timers.log(["train/valid/test data iterators"])
     print_rank_0("training ...")
 
     iteration = 0
     if neox_args.do_train and neox_args.train_iters > 0:
-        iteration = train(
+        iteration = iterate(
             neox_args=neox_args,
             timers=timers,
-            model=model,
-            optimizer=optimizer,
-            lr_scheduler=lr_scheduler,
             train_data_iterator=train_data_iterator,
             valid_data_iterator=valid_data_iterator,
         )
@@ -205,10 +195,10 @@ def get_batch_pipe(data, neox_args):
     return (tokens, position_ids, attention_mask), (labels, loss_mask)
 
 
-def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
+def forward_step(data_iterator, neox_args, timers, return_logits=False):
     """Forward step."""
-    if neox_args.is_pipe_parallel:
-        return model.eval_batch(data_iterator, return_logits=return_logits)
+    # if neox_args.is_pipe_parallel:
+    #     return model.eval_batch(data_iterator, return_logits=return_logits)
 
     # Get the batch.
     if timers is not None:
@@ -219,255 +209,27 @@ def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
     if timers is not None:
         timers("batch generator").stop()
 
-    outputs = model((tokens, position_ids, attention_mask))
-    loss = cross_entropy(
-        outputs, (labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy
-    )
-    if return_logits:
-        return loss, outputs
+    def function(batch):
+        """take an element of a batch, and return some metric."""
+        import re
+
+        pattern1 = re.compile(r' he ', re.IGNORECASE)
+        pattern2 = re.compile(r' she ', re.IGNORECASE)
+        loss = {str(pattern1): 0, str(pattern2): 0}
+
+        for elem in batch:
+            text = neox_args.tokenizer.detokenize(elem) #TODO: note that as is, get_batch drops the first token...\
+            
+            for pattern in [pattern1, pattern2]:
+                res = re.findall(pattern, text)
+
+                loss[str(pattern)] += len(res)
+
+        return loss
+        
+    loss = function(tokens)
+
     return loss
-
-
-def get_model(neox_args, use_cache=False):
-    """Build the model."""
-
-    print_rank_0("building GPT2 model ...")
-
-    # Build model on cpu.
-    model = GPT2ModelPipe(
-        neox_args=neox_args,
-        num_tokentypes=0,
-        parallel_output=True,
-        topology=mpu.get_topology(),
-        use_cache=use_cache,
-    )
-
-    ### soft prompt tuning stuff ###
-    if neox_args.soft_prompt_tuning is not None and neox_args.soft_prompt_tuning.get(
-        "enabled", False
-    ):
-        soft_prompt = SoftEmbedding(
-            neox_args,
-            wte=getattr(model, "0").word_embeddings,
-            n_tokens=neox_args.soft_prompt_tuning.get("n_tokens", 10),
-            init_string=neox_args.soft_prompt_tuning.get("init_string", ""),
-            init_range=neox_args.soft_prompt_tuning.get("init_range", 0.5),
-        )
-        model.insert_layers(
-            layers=soft_prompt, idx=1
-        )  # insert the soft prompt layer directly after the word embeddings
-
-        # freeze everything but the soft prompt
-        for name, param in model.named_parameters():
-            if not "soft_embedding" in name:
-                param.requires_grad = False
-
-    if not neox_args.is_pipe_parallel:
-        # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
-        model = model.to_sequential()
-
-    if neox_args.deepspeed:
-        # DeepSpeed handles CUDA, FP16, and DDP components.
-        return model
-    else:
-        raise ValueError("Must be using deepspeed to run neox")
-
-
-def get_optimizer(model, neox_args):
-    """Set up the optimizer."""
-    if neox_args.no_load_optim:
-        return None, None
-    # Build parameter groups (weight decay and non-decay).
-    param_groups = get_params_for_weight_decay_optimization(model, neox_args)
-    print_rank_0(
-        f'Configuring Optimizer type: {neox_args.optimizer_type} with params: {neox_args.optimizer["params"]}'
-    )
-
-    # Add model parallel attribute if it is not set.
-    for param_group in param_groups:
-        for param in param_group["params"]:
-            if not hasattr(param, "model_parallel"):
-                param.model_parallel = False
-
-    # Filter out params that don't require a grad (for soft prompt tuning, etc.)
-    _param_groups = []
-    for param_group in param_groups:
-        trainable_params = [p for p in param_group["params"] if p.requires_grad]
-        param_group["params"] = trainable_params
-        _param_groups.append(param_group)
-    param_groups = _param_groups
-
-    if neox_args.optimizer_type.lower() in ["cpu_adam", "cpu_torch_adam"]:
-        if neox_args.optimizer == "cpu_torch_adam":
-            cpu_adam_optimizer = torch.optim.Adam
-        else:
-            from deepspeed.ops.adam import DeepSpeedCPUAdam
-
-            cpu_adam_optimizer = DeepSpeedCPUAdam
-        optimizer = cpu_adam_optimizer(
-            param_groups,
-            weight_decay=neox_args.weight_decay,
-            **neox_args.optimizer["params"],
-        )
-    elif neox_args.optimizer_type.lower() == "onebitadam":
-        assert neox_args.deepspeed
-        optimizer = None
-        # onebitadam needs to be instantiated within the deepspeed engine to work :|
-    elif neox_args.optimizer_type.lower() == "sm3":
-        from .optimizers import SM3
-
-        optimizer = SM3(param_groups, **neox_args.optimizer["params"])
-    elif neox_args.optimizer_type.lower() == "madgrad_wd":
-        from .optimizers import madgrad_wd
-
-        optimizer = madgrad_wd(
-            param_groups,
-            weight_decay=neox_args.weight_decay,
-            **neox_args.optimizer["params"],
-        )
-    elif neox_args.optimizer_type.lower() == "adam":
-        # Use Adam
-        if neox_args.use_bnb_optimizer:
-            try:
-                import bitsandbytes as bnb
-
-                adam_optimizer = bnb.optim.Adam8bit
-            except ModuleNotFoundError:
-                print(
-                    "Please install bitsandbytes following https://github.com/facebookresearch/bitsandbytes."
-                )
-                raise Exception
-        else:
-            try:
-                # default to apex as it's slightly faster
-                from apex.optimizers import FusedAdam as Adam
-            except ImportError:
-                # if apex isn't installed, use deepspeed's FusedAdam
-                print(
-                    "WARNING: APEX not installed - defaulting to deepspeed's fused adam"
-                )
-                from deepspeed.ops.adam import FusedAdam as Adam
-            adam_optimizer = Adam
-        optimizer = adam_optimizer(
-            param_groups,
-            weight_decay=neox_args.weight_decay,
-            **neox_args.optimizer["params"],
-        )
-    else:
-        raise ValueError(f"Optimizer type {neox_args.optimizer_type} not recognized")
-
-    if neox_args.deepspeed:
-        # fp16 wrapper is not required for DeepSpeed.
-        return optimizer, param_groups
-    else:
-        raise ValueError("Must be using deepspeed to run neox")
-
-
-def get_learning_rate_scheduler(optimizer, neox_args):
-    """Build the learning rate scheduler."""
-    if neox_args.no_load_optim:
-        # TODO: this should be configured as a separate arg
-        return None
-    if neox_args.deepspeed and neox_args.optimizer_type.lower() == "onebitadam":
-        print_rank_0(
-            "WARNING: onebitadam requires the lr scheduler be built by deepspeed - "
-            "Make sure one is added to your deepspeed config"
-        )
-        return None
-
-    # Add linear learning rate scheduler.
-    if neox_args.lr_decay_iters is not None:
-        num_iters = neox_args.lr_decay_iters
-    else:
-        num_iters = neox_args.train_iters
-    num_iters = max(1, num_iters)
-    init_step = 0
-    warmup_iter = neox_args.warmup * num_iters
-    lr_scheduler = AnnealingLR(
-        optimizer,
-        start_lr=neox_args.lr,
-        warmup_iter=warmup_iter,
-        total_iters=num_iters,
-        decay_style=neox_args.lr_decay_style,
-        last_iter=init_step,
-        min_lr=neox_args.min_lr,
-        use_checkpoint_lr_scheduler=neox_args.use_checkpoint_lr_scheduler,
-        override_lr_scheduler=neox_args.override_lr_scheduler,
-    )
-
-    return lr_scheduler
-
-
-def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
-    """Setup model and optimizer."""
-    model = get_model(neox_args=neox_args, use_cache=use_cache)
-    optimizer, param_groups = get_optimizer(model=model, neox_args=neox_args)
-    lr_scheduler = get_learning_rate_scheduler(optimizer=optimizer, neox_args=neox_args)
-
-    if neox_args.deepspeed:
-        print_rank_0("DeepSpeed is enabled.")
-        if neox_args.no_load_optim:
-            assert optimizer is None
-            _model_params = None
-            _lr_scheduler = None
-        else:
-            _model_params = param_groups if optimizer is None else None
-            _lr_scheduler = lr_scheduler
-
-        model, optimizer, _, lr_scheduler = deepspeed.initialize(
-            model=model,
-            optimizer=optimizer,
-            args=neox_args,
-            lr_scheduler=_lr_scheduler,
-            dist_init_required=False,
-            model_parameters=_model_params,
-            config_params=neox_args.deepspeed_config,
-            mpu=mpu if not neox_args.is_pipe_parallel else None,
-        )
-        model.total_params = get_total_params(model.module)
-        print_rank_0(f' > total params: {"{:,}".format(model.total_params)}')
-
-        if neox_args.is_pipe_parallel:
-            model.set_has_attention_mask(True)
-            model.set_batch_fn(partial(get_batch_pipe, neox_args=neox_args))
-    else:
-        raise ValueError("Must be using deepspeed to run neox")
-
-    if neox_args.load is not None:
-        neox_args.iteration = load_checkpoint(
-            neox_args=neox_args,
-            model=model,
-            optimizer=optimizer,
-            lr_scheduler=lr_scheduler,
-            iteration=iteration,
-        )
-        print_rank_0(
-            f"Loading checkpoint and starting from iteration {neox_args.iteration}"
-        )
-    else:
-        neox_args.iteration = 0
-
-    return model, optimizer, lr_scheduler
-
-
-def backward_step(neox_args, timers, optimizer, model, loss):
-    """Backward step."""
-
-    # Backward pass.
-    timers("backward-backward").start()
-    if neox_args.deepspeed:
-        model.backward(loss)
-    else:
-        raise ValueError("Must be using deepspeed to run neox")
-    timers("backward-backward").stop()
-
-    if neox_args.deepspeed:
-        # DeepSpeed backward propagation already addressed all reduce communication.
-        # Reset the timer to avoid breaking timer logs below.
-        timers("backward-allreduce").reset()
-    else:
-        raise ValueError("Must be using deepspeed to run neox")
-
 
 def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler):
     """Single training step."""
@@ -577,17 +339,6 @@ def train(
         )
         iteration += 1
 
-        overflow_monitor.check(skipped_iter)  # check for repeated overflow
-        if neox_args.log_gradient_noise_scale:  # log noise scale if applicable
-            noise_scale_logger.update()
-
-        # get learning rate (if present) - if doing soft prompt tuning + pipe parallel, you
-        # may have no tunable parameters on a specific rank
-        if optimizer.param_groups:
-            lr = optimizer.param_groups[0].get("lr", 0)
-        else:
-            lr = 0
-
         # Logging.
         report_memory_flag = training_log(
             neox_args=neox_args,
@@ -648,6 +399,79 @@ def train(
             sys.exit()
 
     return iteration
+
+def iterate(
+    neox_args,
+    timers,
+    train_data_iterator,
+    valid_data_iterator,
+):
+    """Take a step through the training data."""
+
+    # Tracking loss.
+    total_loss_dict = {}
+
+    # Iterations.
+    iteration = neox_args.iteration
+
+    timers("interval time").start()
+    report_memory_flag = True
+
+    while iteration < neox_args.train_iters:
+        # TODO: logic for computing stats would go here
+        loss_dict = data_step(
+            neox_args=neox_args,
+            timers=timers,
+            data_iterator=train_data_iterator,
+        )
+        iteration += 1
+
+        # Logging.
+        report_memory_flag = data_log(
+            neox_args=neox_args,
+            timers=timers,
+            loss_dict=loss_dict,
+            total_loss_dict=total_loss_dict,
+            iteration=iteration,
+            report_memory_flag=report_memory_flag,
+        )
+        print(loss_dict)
+
+        # Checkpointing
+        if (
+            neox_args.save
+            and neox_args.save_interval
+            and iteration % neox_args.save_interval == 0
+        ):
+            # save_checkpoint(
+            #     neox_args=neox_args,
+            #     iteration=iteration,
+            #     model=model,
+            #     optimizer=optimizer,
+            #     lr_scheduler=lr_scheduler,
+            # )
+            pass
+
+    return iteration
+
+
+def data_step(neox_args, timers, data_iterator):
+    """Single step through data."""
+
+    losses = []
+    for _ in range(neox_args.gradient_accumulation_steps):
+        # Forward model for one step.
+        timers("forward").start()
+        loss = forward_step(
+            neox_args=neox_args,
+            timers=timers,
+            data_iterator=data_iterator,
+        )
+        timers("forward").stop()
+        losses.append(loss)
+
+    return loss
+
 
 
 def evaluate(

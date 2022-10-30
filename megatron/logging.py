@@ -343,6 +343,96 @@ def training_log(
     return report_memory_flag
 
 
+def data_log(
+    neox_args,
+    timers,
+    loss_dict,
+    total_loss_dict,
+    iteration,
+    report_memory_flag,
+):
+    got_nan_key = "got nan"
+    
+    got_nan = False
+    for key in loss_dict:
+        total_loss_dict[key] = total_loss_dict.get(key, 0.0) + loss_dict[key]
+    
+    total_loss_dict[got_nan_key] = total_loss_dict.get(got_nan_key, 0) + int(got_nan)
+
+    # Logging.
+    timers_to_log = []
+
+    def add_to_logging(name):
+        if name in timers.timers:
+            timers_to_log.append(name)
+
+
+    add_to_logging("forward")
+    add_to_logging("backward")
+    add_to_logging("backward-backward")
+    add_to_logging("backward-allreduce")
+    add_to_logging("backward-master-grad")
+    add_to_logging("backward-clip-grad")
+    add_to_logging("optimizer")
+    add_to_logging("batch generator")
+
+    # Log timer info to tensorboard and wandb
+    normalizer = iteration % neox_args.log_interval
+    if normalizer == 0:
+        normalizer = neox_args.log_interval
+    if torch.distributed.get_rank() == 0:
+        timers.write(
+            names=timers_to_log, iteration=iteration, normalizer=normalizer
+        )
+
+    # for key in loss_dict:
+    #     tb_wandb_log(
+    #         f'train/{key.replace(" ", "_")}',
+    #         loss_dict[key],
+    #         iteration,
+    #         use_wandb=neox_args.use_wandb,
+    #         tensorboard_writer=neox_args.tensorboard_writer,
+    #     )
+
+    if iteration % neox_args.log_interval == 0:
+        # log other stuff every neox_args.log_interval iters
+        elapsed_time = timers("interval time").elapsed()
+        iteration_time = elapsed_time / neox_args.log_interval
+        samples_per_sec = neox_args.train_batch_size / iteration_time
+        log_string = " samples/sec: {:.3f} |".format(samples_per_sec)
+        tb_wandb_log(
+            "runtime/samples_per_sec",
+            samples_per_sec,
+            iteration,
+            use_wandb=neox_args.use_wandb,
+            tensorboard_writer=neox_args.tensorboard_writer,
+        )
+        tb_wandb_log(
+            "runtime/iteration_time",
+            iteration_time,
+            iteration,
+            use_wandb=neox_args.use_wandb,
+            tensorboard_writer=neox_args.tensorboard_writer,
+        )
+        log_string += " iteration {:8d}/{:8d} |".format(
+            iteration, neox_args.train_iters
+        )
+        log_string += " elapsed time per iteration (ms): {:.1f} |".format(
+            elapsed_time * 1000.0 / neox_args.log_interval
+        )
+        num_iterations = max(
+            1, neox_args.log_interval
+        )
+
+        print_rank_0(log_string)
+        if report_memory_flag:
+            report_memory("after {} iterations".format(iteration))
+            report_memory_flag = False
+
+        timers.log(timers_to_log, normalizer=neox_args.log_interval)
+
+    return report_memory_flag
+
 def tb_wandb_log(
     key, value, iteration_no, use_wandb, tensorboard_writer=None, all_ranks=False
 ):
