@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = f9c600a
+    Default = 393f5b1
 
     current git hash of repository
 
@@ -1400,6 +1400,14 @@ Training Arguments
     Default = False
 
     Whether to use Microsoft's Mup https://github.com/microsoft/mup
+
+
+
+- **coord_check**: bool
+
+    Default = False
+
+    Whether to generate a "coord check" plot to verify mup's implementation in neox
 
 
 
