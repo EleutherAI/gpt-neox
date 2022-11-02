@@ -922,6 +922,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Whether to use Microsoft's Mup https://github.com/microsoft/mup
     """
 
+    coord_check: bool = False
+    """
+    Whether to generate a "coord check" plot to verify mup's implementation in neox
+    """
+
     save_base_shapes: bool = False
     """
     Whether to save base shapes for mup. This will save the shapes to the path specified in base-shapes-file.

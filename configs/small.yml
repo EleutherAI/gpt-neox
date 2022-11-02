@@ -1,9 +1,18 @@
 # GPT-2 pretraining setup
 {
+  "launcher": "openmpi",
+  "deepspeed_mpi": true,
+
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
-   "pipe-parallel-size": 1,
-   "model-parallel-size": 1,
+   "pipe-parallel-size": 2,
+   "model-parallel-size": 2,
+
+   # mup
+   "use-mup": true,
+   "save-base-shapes": true, # this only needs to be enabled once in order to generate the base-shapes-file on each rank
+   "base-shapes-file": "base-shapes", # load base shapes from this file
+   "coord-check": true, # generate coord check plots to verify mup's implementation in neox
 
    # model settings
    "num-layers": 12,
@@ -16,8 +25,8 @@
    "no-weight-tying": true,
 
    # these should provide some speedup but takes a while to build, set to true if desired
-   "scaled-upper-triang-masked-softmax-fusion": false,
-   "bias-gelu-fusion": false,
+   "scaled-upper-triang-masked-softmax-fusion": true,
+   "bias-gelu-fusion": true,
 
 
    # optimizer settings
@@ -30,7 +39,7 @@
      }
    },
    "zero_optimization": {
-    "stage": 0,
+    "stage": 1,
     "allgather_partitions": True,
     "allgather_bucket_size": 500000000,
     "overlap_comm": True,
@@ -41,7 +50,7 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 4,
+   "train_micro_batch_size_per_gpu": 32,
    "data-impl": "mmap",
    "split": "949,50,1",
 
@@ -77,7 +86,7 @@
    "eval-iters": 10,
 
    # logging
-   "log-interval": 100,
+   "log-interval": 10,
    "steps_per_print": 10,
    "keep-last-n-checkpoints": 4,
    "wall_clock_breakdown": true,

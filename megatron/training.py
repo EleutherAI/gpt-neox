@@ -118,6 +118,36 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
     print(f'saving base shapes at {save_shapes}')
     mup.make_base_shapes(base_shapes, delta_shapes, savefile=save_shapes)
 
+def mup_coord_check(neox_args, timers, lr_scheduler, train_data_iterator):
+    from megatron.mup_substitute import get_coord_data
+    from mup.coord_check import plot_coord_data
+
+    def lazy_model(hidden_size):
+        def gen():
+            old_hidden_size = neox_args.hidden_size
+            neox_args.hidden_size = hidden_size
+
+            model, optimizer, _ = setup_model_and_optimizer(
+                neox_args=neox_args, use_cache=False
+            )
+
+            neox_args.hidden_size = old_hidden_size
+
+            return model
+        return gen
+
+    models = {}
+
+    # Hidden size needs to be divisible by num attention heads
+    for hidden_size in (neox_args.num_attention_heads * (2**p) for p in range(2, 7)):
+        models[hidden_size] = lazy_model(hidden_size)
+
+    df = get_coord_data(neox_args, timers, lr_scheduler, models, train_data_iterator)
+    plot_coord_data(df, save_to=f"coord_check.{torch.distributed.get_rank()}")
+
+    print_rank_0("Saved coord check plots... exiting")
+    sys.exit(1)
+
 def pretrain(neox_args):
     """Main training program.
 
@@ -155,6 +185,9 @@ def pretrain(neox_args):
         test_data_iterator,
     ) = build_train_valid_test_data_iterators(neox_args=neox_args)
     timers("train/valid/test data iterators").stop()
+
+    if neox_args.use_mup and neox_args.coord_check:
+        mup_coord_check(neox_args, timers, lr_scheduler, train_data_iterator)
 
     # Print setup timing.
     print_rank_0("done with setups ...")
