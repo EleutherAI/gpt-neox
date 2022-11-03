@@ -68,7 +68,7 @@ def _vocab_size_with_padding(orig_vocab_size, args):
     still having GPU friendly size."""
 
     after = orig_vocab_size
-
+    
     # add in extra sentinel tokens first
     if not hasattr(args, 'extra_sentinel_tokens'):
         args.extra_sentinel_tokens = 0

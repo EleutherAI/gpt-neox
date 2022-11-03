@@ -15,11 +15,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 """Train"""
 from megatron.neox_arguments import NeoXArgs
 from megatron.training import pretrain
 
 if __name__ == "__main__":
+    os.environ['TORCH_EXTENSIONS_DIR'] = "/fsx/code-fim/.cache/"
     neox_args = NeoXArgs.consume_neox_args()
     neox_args.configure_distributed_args()
     neox_args.build_tokenizer()  # tokenizer needs to be build in training in order to set the padding vocab

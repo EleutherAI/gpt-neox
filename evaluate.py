@@ -30,6 +30,9 @@ from pprint import pprint
 from datetime import datetime
 import json
 
+os.environ['TORCH_EXTENSIONS_DIR'] = '/fsx/hailey/.cache/'
+os.environ['TRANSFORMERS_CACHE'] = 'fsx/hailey/.cache/'
+os.environ['HF_DATASETS_CACHE'] = '/fsx/hailey/.cache/'
 
 def main():
     model, neox_args = setup_for_inference_or_eval(use_cache=False)

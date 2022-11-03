@@ -446,7 +446,8 @@ def generate_samples_from_fim_prompt(
         else:
             raw_text = text[input_pos]
             input_pos += 1
-
+            if neox_args.rank == 0:
+                print(input_pos)
             task_id = raw_text["task_id"]
             raw_text = [raw_text["prompt"], raw_text["suffix"]] # unpack example to get task id
 
@@ -458,7 +459,7 @@ def generate_samples_from_fim_prompt(
                     must be a string or a length 2 list, but got length {len(raw_text)} list")
                 suffix = neox_args.tokenizer.tokenize(raw_text[0]) 
                 prefix = neox_args.tokenizer.tokenize(raw_text[1])
-                suf, pre, mid = neox_args.tokenizer.vocab_size - 1, neox_args.tokenizer.vocab_size, neox_args.tokenizer.vocab_size + 1
+                suf, pre, mid = 50277, 50278, 50279
 
                 context_tokens = [suf, *suffix, pre, *prefix, mid]
             else:

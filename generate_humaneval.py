@@ -22,13 +22,14 @@ from megatron.text_generation_utils import (
 )
 
 from human_eval_infilling.data import write_jsonl, read_problems
-
+import os
 
 def main():
     """
     Generate text/sample model
     """
-    model, neox_args = setup_for_inference_or_eval(use_cache=True)
+    os.environ['TORCH_EXTENSIONS_DIR'] = '/fsx/code-fim/.cache/'
+    model, neox_args = setup_for_inference_or_eval(use_cache=False)
     if neox_args.recompute:
         model.module.inference_mode(
             use_cache=False
@@ -41,9 +42,10 @@ def main():
     # create a list of prompts in <SUF> Suffix <PRE> Prefix <Mid> form, as strings?
     problems = read_problems(benchmark_name="single-line")
     # where each problem is repeated K times
-    K = 100
-    inputs = [problem for problem in problems for _ in range(K)]
-
+    K = 10
+    
+    inputs = [problem for problem in problems.values() for _ in range(K)]
+    print(inputs[:10])
     generated_texts = generate_samples_from_fim_prompt(
         neox_args=neox_args,
         model=model,
@@ -51,7 +53,7 @@ def main():
         eos_token_id=None,
         maximum_tokens=64,
         recompute=neox_args.recompute,
-        temperature=neox_args.temperature,
+        temperature=0.8, #neox_args.temperature,
         top_k=neox_args.top_k,
         top_p=neox_args.top_p,
         stop_tokens=None,
@@ -63,7 +65,7 @@ def main():
         for completion in generated_texts
     ]
 
-    write_jsonl("./samples.jsonl", completions)
+    write_jsonl("./samples_pass10_updatedtokenizer.jsonl", completions)
 
 if __name__ == "__main__":
     main()

@@ -7,7 +7,7 @@ fn = best_download.download_file
 
 def _download_file(*args, **kwargs):
     if is_local_main():
-        fn(*args, **kwargs)
+        fn(*args)
 
 
 best_download.download_file = _download_file
@@ -430,5 +430,5 @@ def run_eval_harness(
     print_rank_0("Running evaluation harness...")
     adapter = EvalHarnessAdapter(model, forward_step_fn, neox_args, batch_size)
     return adapter.run_eval(
-        eval_tasks=eval_tasks, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters
+        eval_tasks=eval_tasks, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters, use_cache=False
     )
