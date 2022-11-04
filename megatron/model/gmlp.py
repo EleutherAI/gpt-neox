@@ -14,7 +14,7 @@ class TinyAttention(nn.Module):
     def __init__(self, neox_args, d_attn, d_ff, mask_fn):
         super().__init__()
         self.proj_qkv = nn.Linear(d_ff * 2, 3 * d_attn)
-        self.scale = d_attn ** -0.5
+        self.scale = d_attn**-0.5
         self.proj_ffn = nn.Linear(d_attn, d_ff)
         self.softmax = FusedScaleMaskSoftmax(
             input_in_fp16=neox_args.precision == "fp16",

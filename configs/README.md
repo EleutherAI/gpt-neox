@@ -257,4 +257,44 @@ An example config for fp16 training:
 
 To train in fp32, simply set `fp16["enabled"]` to `false`.
 
+
+### SLURM Settings
+
+If you are running GPT-NeoX on a SLURM cluster and wish to use SLURM to coordinate nodes, then you must set the following variables in your config:
+
+```yaml
+    "launcher": "slurm",
+    "deepspeed_slurm": true
+```
+
+Additionally, you need to modify _all_ of your configs to conform to the JSON. When launching a GPT-NeoX job you can specify multiple YAML config files. Internally, all of these files are merged into one config and then passed as a single long command line argument to Deep(er)Speed. When using SLURM and its internal command `srun`, python fails to parse this long command line argument unless it is in the more restrictive JSON format. In practice, the example NeoX configs are already very close to JSON. As an example, this is a snippet of a YAML-compatible config, N.B. the comment the capital-F `False`:
+
+```yaml
+    # optimizer settings
+   "optimizer": {
+     "type": "OneBitAdam",
+     "params": {
+       "lr": 0.0001,
+       "freeze_step": 23000,
+       "betas": [0.9, 0.95],
+       "cuda_aware": False,
+       "comm_backend_name": "nccl"
+     }
+```
+
+To make this JSON just remove the comment and use all lowercase for the boolean:
+
+```yaml
+   "optimizer": {
+     "type": "OneBitAdam",
+     "params": {
+       "lr": 0.0001,
+       "freeze_step": 23000,
+       "betas": [0.9, 0.95],
+       "cuda_aware": false,
+       "comm_backend_name": "nccl"
+     }
+```
+
+
 ** TODO: bf16 docs **

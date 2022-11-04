@@ -581,6 +581,11 @@ class NeoXArgsOther(NeoXArgsTemplate):
     Run via MPI, this will attempt to discover the necessary variables to initialize torch distributed from the MPI environment
     """
 
+    deepspeed_slurm: bool = False
+    """
+    Run via SLURM, this will attempt to discover the necessary variables to initialize torch distributed from the SLURM environment
+    """
+
     user_script: str = None
     """
     user script to be run
