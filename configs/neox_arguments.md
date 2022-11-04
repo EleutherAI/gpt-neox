@@ -111,8 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 56b7427
-
+    Default = 7f4c742
 
     current git hash of repository
 
@@ -738,6 +737,14 @@ Misc. Arguments
 
 
 
+- **deepspeed_slurm**: bool
+
+    Default = False
+
+    Run via SLURM, this will attempt to discover the necessary variables to initialize torch distributed from the SLURM environment
+
+
+
 - **user_script**: str
 
     Default = None
@@ -931,7 +938,7 @@ Text Generation arguments
 
 - **eval_results_prefix**: str
 
-    Default =
+    Default = 
 
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
 
@@ -1519,7 +1526,7 @@ Args for deepspeed config
 
     Default = None
 
-
+    
 
 
 
@@ -1645,3 +1652,12 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = False
 
     If true, autodetects nvlink pairs and remaps cuda visible devices to place them next to each other. This is an Eleuther addition to deepspeed, and should speed up model parallel training on setups with nvlink pairs when mp=2.
+
+
+
+- **slurm_comment**: str
+
+    Default = None
+
+    If using SLURM launcher adds a `--comment` to the srun command that launches the job. Sometimes necessary for cluster rules, or so I've heard.
+
