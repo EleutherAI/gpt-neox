@@ -31,9 +31,13 @@ def get_key(loaded_config, key, default=None):
     """
     key = key.replace('_', '-')
     try:
-        return loaded_config['key']
+        return loaded_config[key]
     except KeyError:
-        return default 
+        key = key.replace('-', '_')
+        try:
+            return loaded_config[key]
+        except KeyError:
+            return default 
 
 def create_config(neox_config):
     """ take in a loaded yaml from NeoX and assign relevant values to HF config.
@@ -74,7 +78,7 @@ def create_config(neox_config):
         initializer_range=get_key(neox_config, 'init-method-std', 0.02),
         layer_norm_eps=get_key(neox_config, 'layernorm-epsilon', 1e-5),
         use_cache=True,
-        bos_token_id=pad_token,
+        bos_token_id=tokenizer.eod,
         eos_token_id=tokenizer.eod,
         tie_word_embeddings=(not get_key(neox_config, 'no-weight-tying', False)),
     )
@@ -238,6 +242,7 @@ if __name__ == '__main__':
         from transformers import PreTrainedTokenizerFast, AutoTokenizer, AutoModelForCausalLM
 
         tokenizer = PreTrainedTokenizerFast(tokenizer_file=get_key(loaded_config, 'vocab-file'))
+        # tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-neox-20b")
         print(tokenizer)
         tokenizer.save_pretrained(args.output_dir)
         print("tokenizer saved!")
