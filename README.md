@@ -207,7 +207,7 @@ Next make sure to download the GPT2 tokenizer vocab, and merge files from the fo
 
 Or use the 20B tokenizer (for which only a single Vocab file is needed):
 
-- Vocab: https://mystic.the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights/20B_tokenizer.json
+- Vocab: https://the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights/20B_tokenizer.json
 
 (alternatively, you can provide any tokenizer file that can be loaded by Huggingface's tokenizers library with the `Tokenizer.from_pretrained()` command)
 
@@ -328,7 +328,7 @@ We also support using TensorBoard via the <code><var>tensorboard-dir</var></code
 
 # Running on multi-node
 
-If you need to supply a hostfile for use with the MPI-based DeepSpeed launcher, you can set the environment variable `DLTS_HOSTFILE` to point to the hostfile. 
+If you need to supply a hostfile for use with the MPI-based DeepSpeed launcher, you can set the environment variable `DLTS_HOSTFILE` to point to the hostfile.
 
 # Administrative Notes
 
