@@ -407,7 +407,7 @@ class ColumnParallelLinear(torch.nn.Module):
         stride=1,
         keep_master_weight_for_test=False,
         skip_bias_add=False,
-        mup_rescale_parameters=False,
+        mup_rescale_parameters=True, # nick
     ):
         super(ColumnParallelLinear, self).__init__()
 
@@ -422,6 +422,7 @@ class ColumnParallelLinear(torch.nn.Module):
         self.init_method = init_method
         self.stride = stride
         self.mup_rescale_parameters = mup_rescale_parameters
+        self.use_mup = neox_args.use_mup
 
         # Parameters.
         # Note: torch.nn.functional.linear performs XA^T + b and as a result
@@ -536,6 +537,8 @@ class ColumnParallelLinear(torch.nn.Module):
         )  # if gather_output is True, parallel output is False, so we set the opposite
 
     def forward(self, input_):
+        if self.use_mup and self.mup_rescale_parameters: # nick
+            input_ /= self.width_mult()
         # Set up backprop all-reduce.
         input_parallel = copy_to_model_parallel_region(input_)
         # Matrix multiply.
@@ -593,7 +596,7 @@ class RowParallelLinear(torch.nn.Module):
         keep_master_weight_for_test=False,
         skip_bias_add=False,
         parallel_output=False,
-        mup_rescale_parameters=False,
+        mup_rescale_parameters=True, # nick was false
     ):
         super(RowParallelLinear, self).__init__()
 
@@ -610,6 +613,7 @@ class RowParallelLinear(torch.nn.Module):
         self.stride = stride
         self.keep_master_weight_for_test = keep_master_weight_for_test
         self.mup_rescale_parameters = mup_rescale_parameters
+        self.use_mup = neox_args.use_mup
 
         # Parameters.
         # Note: torch.nn.functional.linear performs XA^T + b and as a result
@@ -717,6 +721,8 @@ class RowParallelLinear(torch.nn.Module):
         self.parallel_output = parallel_output
 
     def forward(self, input_):
+        if self.use_mup and self.mup_rescale_parameters: # nick
+            input_ /= self.width_mult()
         # Set up backprop all-reduce.
         if self.input_is_parallel:
             input_parallel = input_

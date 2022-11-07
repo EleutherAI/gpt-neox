@@ -3,6 +3,8 @@
   "launcher": "openmpi",
   "deepspeed_mpi": true,
 
+  #"num-gpus": 1,
+
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
    "pipe-parallel-size": 2,
@@ -10,7 +12,7 @@
 
    # mup
    "use-mup": true,
-   "save-base-shapes": true, # this only needs to be enabled once in order to generate the base-shapes-file on each rank
+   "save-base-shapes": false, # this only needs to be enabled once in order to generate the base-shapes-file on each rank
    "base-shapes-file": "base-shapes", # load base shapes from this file
    "coord-check": true, # generate coord check plots to verify mup's implementation in neox
 
@@ -33,7 +35,7 @@
    "optimizer": {
      "type": "Adam",
      "params": {
-       "lr": 0.0006,
+       "lr": 0.1, # 0.0006
        "betas": [0.9, 0.999],
        "eps": 1.0e-8,
      }
@@ -50,7 +52,7 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 32,
+   "train_micro_batch_size_per_gpu": 8,
    "data-impl": "mmap",
    "split": "949,50,1",
 

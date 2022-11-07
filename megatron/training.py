@@ -117,6 +117,8 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
     save_shapes = f"{neox_args.base_shapes_file}.{torch.distributed.get_rank()}"
     print(f'saving base shapes at {save_shapes}')
     mup.make_base_shapes(base_shapes, delta_shapes, savefile=save_shapes)
+    print(f'base shapes saved...exiting')
+    sys.exit(1)
 
 def mup_coord_check(neox_args, timers, lr_scheduler, train_data_iterator):
     from megatron.mup_substitute import get_coord_data
@@ -139,13 +141,20 @@ def mup_coord_check(neox_args, timers, lr_scheduler, train_data_iterator):
     models = {}
 
     # Hidden size needs to be divisible by num attention heads
-    for hidden_size in (neox_args.num_attention_heads * (2**p) for p in range(2, 7)):
+    for hidden_size in (neox_args.num_attention_heads * (2**p) for p in range(2, 9)):
         models[hidden_size] = lazy_model(hidden_size)
 
-    df = get_coord_data(neox_args, timers, lr_scheduler, models, train_data_iterator)
-    plot_coord_data(df, save_to=f"coord_check.{torch.distributed.get_rank()}")
+    neox_args.use_mup = True
+    df_up = get_coord_data(neox_args, timers, lr_scheduler, models, train_data_iterator, mup=True)
+    neox_args.use_mup = False
+    df_sp = get_coord_data(neox_args, timers, lr_scheduler, models, train_data_iterator, mup=False)
 
-    print_rank_0("Saved coord check plots... exiting")
+    print("nick get coord data finished. generating df_up plot")
+    plot_coord_data(df_up, save_to=f"coord_check_up.{torch.distributed.get_rank()}.jpg")
+    print("nick get coord data finished. generating df_sp plot")
+    plot_coord_data(df_sp, save_to=f"coord_check_sp.{torch.distributed.get_rank()}.jpg")
+
+    print_rank_0("Saved coord check plots... exiting") # nick
     sys.exit(1)
 
 def pretrain(neox_args):
@@ -172,9 +181,11 @@ def pretrain(neox_args):
 
     # Model, optimizer, and learning rate.
     timers("model and optimizer").start()
+    print("nick before first setup_model_and_optimizer")
     model, optimizer, lr_scheduler = setup_model_and_optimizer(
         neox_args=neox_args, use_cache=False
     )
+    print("nick after first setup_model_and_optimizer")
     timers("model and optimizer").stop()
 
     # Data stuff.

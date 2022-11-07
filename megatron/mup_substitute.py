@@ -24,17 +24,18 @@ def _get_coord_data(neox_args, timers, lr_scheduler, models, dataloader, optcls,
     for i in range(nseeds):
         torch.manual_seed(i)
         for width, model in models.items():
+            print("nick creating new model")
             model = model()
             model.train()
             optimizer = optcls(model)
-            for step in range(nsteps):
+            for step in range(nsteps+1):
                 remove_hooks = []
                 # add hooks
                 for name, module in model.named_modules():
                     if filter_module_by_name and not filter_module_by_name(name):
                         continue
                     remove_hooks.append(module.register_forward_hook(
-                        mup_coord_check._record_coords(df, width, name, step,
+                        mup_coord_check._record_coords(df, width, name, step+1,
                             output_fdict=output_fdict,
                             input_fdict=input_fdict,
                             param_fdict=param_fdict)))
@@ -52,6 +53,11 @@ def _get_coord_data(neox_args, timers, lr_scheduler, models, dataloader, optcls,
                 # remove hooks
                 for handle in remove_hooks:
                     handle.remove()
+
+            print("nick finished a model")
+            import gc
+            del model
+            gc.collect()
 
     return pd.DataFrame(df)
 
