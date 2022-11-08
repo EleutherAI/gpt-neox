@@ -803,28 +803,34 @@ class NeoXArgs(*BASE_CLASSES):
             self.zero_optimization = copy.deepcopy(
                 ZERO_DEFAULTS
             )  # a dict is overwritten and not updated key by key
-        if self.zero_optimization['stage'] in (0, 1, 2, 3):
-            self.update_values(
-                {
-                    "zero_stage": self.zero_optimization.get(
-                        "stage", ZERO_DEFAULTS["stage"]
-                    ),
-                    "zero_reduce_scatter": self.zero_optimization.get(
-                        "reduce_scatter", ZERO_DEFAULTS["reduce_scatter"]
-                    ),
-                    "zero_contiguous_gradients": self.zero_optimization.get(
-                        "contiguous_gradients", ZERO_DEFAULTS["contiguous_gradients"]
-                    ),
-                    "zero_reduce_bucket_size": self.zero_optimization.get(
-                        "reduce_bucket_size", ZERO_DEFAULTS["reduce_bucket_size"]
-                    ),
-                    "zero_allgather_bucket_size": self.zero_optimization.get(
-                        "allgather_bucket_size", ZERO_DEFAULTS["allgather_bucket_size"]
-                    ),
-                }
-            )
-        else:
-            assert self.autotuning is not None, "Zero Stage must be an integer unless you are doing autotuning"
+        try:
+            stage = self.zero_optimization['stage']
+            if stage in (0, 1, 2, 3):
+                self.update_values(
+                    {
+                        "zero_stage": self.zero_optimization.get(
+                            "stage", ZERO_DEFAULTS["stage"]
+                        ),
+                        "zero_reduce_scatter": self.zero_optimization.get(
+                            "reduce_scatter", ZERO_DEFAULTS["reduce_scatter"]
+                        ),
+                        "zero_contiguous_gradients": self.zero_optimization.get(
+                            "contiguous_gradients", ZERO_DEFAULTS["contiguous_gradients"]
+                        ),
+                        "zero_reduce_bucket_size": self.zero_optimization.get(
+                            "reduce_bucket_size", ZERO_DEFAULTS["reduce_bucket_size"]
+                        ),
+                        "zero_allgather_bucket_size": self.zero_optimization.get(
+                            "allgather_bucket_size", ZERO_DEFAULTS["allgather_bucket_size"]
+                        ),
+                    }
+                )
+            else:
+                assert self.autotuning is not None, f"Zero Stage must be an integer unless you are doing autotuning, not {stage}"
+        except KeyError as ke:
+            print(f'Zero Optimization config: {self.zero_optimization}')
+            raise ke
+
 
         # optimizer and scheduler
         opt_params = self.optimizer or {
