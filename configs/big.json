@@ -1,10 +1,10 @@
 {
    "pipe-parallel-size": 1,
-   "model-parallel-size": 1,
+   "model-parallel-size": 4,
 
-   "num-layers": 12,
-   "hidden-size": 768,
-   "num-attention-heads": 12,
+   "num-layers": 32,
+   "hidden-size": 4096,
+   "num-attention-heads": 32,
    "seq-length": 2048,
    "max-position-embeddings": 2048,
    "norm": "layernorm",
@@ -18,13 +18,16 @@
    "optimizer": {
      "type": "Adam",
      "params": {
-       "lr": 0.0006,
+       "lr": 0.00012,
        "betas": [0.9, 0.999],
        "eps": 1.0e-8
      }
    },
-
-   "train_micro_batch_size_per_gpu": 50,
+   "gradient_accumulation_steps": 20,
+   "train_micro_batch_size_per_gpu": 2,
+   "zero_optimization": {
+      "stage": 0
+   },
    "data-impl": "mmap",
    "split": "949,50,1",
 
@@ -34,11 +37,12 @@
    "synchronize-each-layer": true,
 
    "gradient_clipping": 1.0,
-   "weight-decay": 0.0,
-   "hidden-dropout": 0.0,
-   "attention-dropout": 0.0,
+   "weight-decay": 0,
+   "hidden-dropout": 0,
+   "attention-dropout": 0,
 
    "fp16": {
+     "fp16": true,
      "enabled": true,
      "loss_scale": 0,
      "loss_scale_window": 1000,
@@ -46,7 +50,7 @@
      "min_loss_scale": 1
    },
 
-   "train-iters": 320000,
+   "train-iters": 100,
    "lr-decay-iters": 320000,
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
@@ -62,10 +66,7 @@
    "launcher": "slurm",
    "deepspeed_slurm": true,
    "comment": "neox",
-   "zero_optimization": {
-      "stage": 1
-   },
-  "train-data-paths": ["/fsx/pile_deduped/pile_0.87_deduped_text_document"],
+   "train-data-paths": ["/fsx/pile_deduped/pile_0.87_deduped_text_document"],
   "valid-data-paths": ["/fsx/pile_deduped/pile_0.87_deduped_text_document"],
   "test-data-paths": ["/fsx/pile_deduped/pile_0.87_deduped_text_document"]
 }
