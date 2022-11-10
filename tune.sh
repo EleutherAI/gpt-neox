@@ -55,4 +55,4 @@ export DLTS_HOSTFILE=/fsx/$(whoami)/hostfiles/hosts_$SLURM_JOBID
 echo $DLTS_HOSTFILE
 python $TRAIN_PATH/deepy.py $TRAIN_PATH/train.py \
     --autotuning tune \
-    --conf_dir configs 6-7B_tune.json slurm_local.json
+    --conf_dir configs small_tune.json slurm_local.json
