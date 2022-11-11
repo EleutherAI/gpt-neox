@@ -105,7 +105,7 @@ class AliBi(torch.nn.Module):
         def get_slopes_power_of_2(n):
             start = 2 ** (-(2 ** -(math.log2(n) - 3)))
             ratio = start
-            return [start * ratio ** i for i in range(n)]
+            return [start * ratio**i for i in range(n)]
 
         if math.log2(n).is_integer():
             return get_slopes_power_of_2(n)
@@ -122,18 +122,31 @@ class AliBi(torch.nn.Module):
         # [b, np, sq, sk]
         seq_len_q = x.shape[-2]
         seq_len_k = x.shape[-1]
-        if self.cached_seq_len != seq_len_k:
+
+        # Initialize the AliBi matrix to match the first provided key length; grow it exponentially
+        # afterwards if longer inputs are provided. This is important for inference, where we will
+        # encounter progressively longer samples; it should have no effect at training time.
+        if self.cached_seq_len is not None and self.cached_seq_len >= seq_len_k:
+            a = self.cached_matrix
+        else:
+            target_seq_len = (
+                seq_len_k if self.cached_seq_len is None else self.cached_seq_len * 4
+            )
             a = -torch.tril(
-                torch.arange(seq_len_k).view(seq_len_k, 1).repeat(1, seq_len_k)
-                + torch.arange(0, -seq_len_k, -1)
+                torch.arange(target_seq_len)
+                .view(target_seq_len, 1)
+                .repeat(1, target_seq_len)
+                + torch.arange(0, -target_seq_len, -1)
             )
             a = a.to(x.device).to(x.dtype)
             slopes = self.slopes.to(a.device).to(a.dtype)
             a = a * slopes.view(self.slopes.shape[0], 1, 1)
-            self.cached_seq_len = seq_len_k
+            self.cached_seq_len = target_seq_len
             self.cached_matrix = a
-        else:
-            a = self.cached_matrix
+
+        # If the AliBi matrix is larger than the key length, clip it.
+        if self.cached_seq_len > seq_len_k:
+            a = self.cached_matrix[:, :seq_len_k, :seq_len_k]
 
         if seq_len_q != seq_len_k:
             # In the train case x has dimensionality [b, np, sq, sk] with sq == sk

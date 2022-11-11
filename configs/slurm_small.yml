@@ -1,11 +1,6 @@
-# GPT-2 pretraining setup
 {
-   # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
-   # across the node boundaries )
    "pipe-parallel-size": 1,
    "model-parallel-size": 1,
-
-   # model settings
    "num-layers": 12,
    "hidden-size": 768,
    "num-attention-heads": 12,
@@ -14,50 +9,37 @@
    "norm": "layernorm",
    "pos-emb": "rotary",
    "no-weight-tying": true,
-
-   # these should provide some speedup but takes a while to build, set to true if desired
-   "scaled-upper-triang-masked-softmax-fusion": false,
-   "bias-gelu-fusion": false,
-
-
-   # optimizer settings
+   "scaled-upper-triang-masked-softmax-fusion": true,
+   "bias-gelu-fusion": true,
    "optimizer": {
      "type": "Adam",
      "params": {
        "lr": 0.0006,
        "betas": [0.9, 0.999],
-       "eps": 1.0e-8,
+       "eps": 1.0e-8
      }
    },
    "zero_optimization": {
     "stage": 0,
-    "allgather_partitions": True,
+    "allgather_partitions": true,
     "allgather_bucket_size": 500000000,
-    "overlap_comm": True,
-    "reduce_scatter": True,
+    "overlap_comm": true,
+    "reduce_scatter": true,
     "reduce_bucket_size": 500000000,
-    "contiguous_gradients": True,
-    "cpu_offload": False
+    "contiguous_gradients": true,
+    "cpu_offload": false
   },
-
-   # batch / data settings
    "train_micro_batch_size_per_gpu": 4,
    "data-impl": "mmap",
    "split": "949,50,1",
-
-   # activation checkpointing
    "checkpoint-activations": true,
    "checkpoint-num-layers": 1,
    "partition-activations": true,
    "synchronize-each-layer": true,
-
-   # regularization
    "gradient_clipping": 1.0,
    "weight-decay": 0.0,
    "hidden-dropout": 0.0,
    "attention-dropout": 0.0,
-
-   # precision settings
    "fp16": {
      "enabled": true,
      "loss_scale": 0,
@@ -65,8 +47,6 @@
      "hysteresis": 2,
      "min_loss_scale": 1
    },
-
-   # misc. training settings
    "train-iters": 320000,
    "lr-decay-iters": 320000,
    "distributed-backend": "nccl",
@@ -75,13 +55,11 @@
    "save-interval": 10000,
    "eval-interval": 1000,
    "eval-iters": 10,
-
-   # logging
    "log-interval": 100,
    "steps_per_print": 10,
    "keep-last-n-checkpoints": 4,
    "wall_clock_breakdown": true,
-
-  #  networking
-  "hostfile": "/mock_path"
+   "launcher": "slurm",
+   "deepspeed_slurm": true,
+   "slurm_comment": "neox"
 }
