@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 84e1768
+    Default = ed80100
 
     current git hash of repository
 
@@ -1671,7 +1671,7 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
-- **slurm_comment**: str
+- **comment**: str
 
     Default = None
 
