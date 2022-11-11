@@ -398,6 +398,20 @@ class NeoXArgs(*BASE_CLASSES):
                 )
             )
 
+        if self.deepspeed_slurm:
+            args_list.extend(
+                self.convert_key_value_to_command_line_arg('no_ssh_check', True)
+            )
+            comment = getattr(self, 'comment')
+            if comment:   
+                args_list.extend(
+                    self.convert_key_value_to_command_line_arg('comment', comment)
+                )
+            master_address = os.environ['SLURM_JOB_NODELIST'].split('\n')[0]
+            args_list.extend(
+                self.convert_key_value_to_command_line_arg('master_addr', master_address)
+            )
+
         if (
             "--include" in args_list or "--exclude" in args_list
         ) and "--num_gpus" in args_list:
