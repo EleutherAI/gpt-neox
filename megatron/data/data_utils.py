@@ -250,7 +250,7 @@ def weights_by_num_docs(l, alpha=0.3):
     total_n_docs = sum(l)
     unbiased_sample_probs = [i / total_n_docs for i in l]
 
-    probs = [i ** alpha for i in unbiased_sample_probs]
+    probs = [i**alpha for i in unbiased_sample_probs]
 
     # normalize
     total = sum(probs)
