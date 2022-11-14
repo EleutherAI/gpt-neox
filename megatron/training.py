@@ -200,6 +200,9 @@ def get_batch_pipe(data, neox_args):
     tokens, labels, loss_mask, attention_mask, position_ids = _get_batch(
         neox_args, neox_args.tokenizer, keys, data, datatype
     )
+    if neox_args.curriculum_learning and neox_args.curriculum_seqlen < neox_args.seq_length:
+        loss_mask = loss_mask[:, :neox_args.curriculum_seqlen].contiguous()
+        labels = labels[:, :neox_args.curriculum_seqlen].contiguous()
 
     # unpack data
     return (tokens, position_ids, attention_mask), (labels, loss_mask)
