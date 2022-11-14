@@ -27,6 +27,7 @@ import sys
 
 import torch
 import deepspeed
+from deepspeed.runtime.data_pipeline.curriculum_scheduler import CurriculumScheduler
 import numpy as np
 
 from megatron.utils import (
@@ -191,7 +192,7 @@ def get_batch(neox_args, data_iterator):
     )
 
 
-def get_batch_pipe(data, neox_args):
+def get_batch_pipe(data, neox_args, curr_scheduler=None):
     """A modification of get_batch() to work with the latest batch instead of an iterator."""
     # Items and their type.
     keys = ["text"]
@@ -200,9 +201,21 @@ def get_batch_pipe(data, neox_args):
     tokens, labels, loss_mask, attention_mask, position_ids = _get_batch(
         neox_args, neox_args.tokenizer, keys, data, datatype
     )
-    if neox_args.curriculum_learning and neox_args.curriculum_seqlen < neox_args.seq_length:
-        loss_mask = loss_mask[:, :neox_args.curriculum_seqlen].contiguous()
-        labels = labels[:, :neox_args.curriculum_seqlen].contiguous()
+    if curr_scheduler is not None:
+        curriculum_seqlen = curr_scheduler.update_difficulty(neox_args.iteration)
+        print_rank_0(f'Iteration according to args: {neox_args.iteration}')
+        if curriculum_seqlen < input_ids.size()[1]:
+            # seqlen-based curriculum learning
+            # input_ids, position_ids, labels have size [batch size, seqlen]
+            input_ids = input_ids[:, :curriculum_seqlen].contiguous()
+            tokens = tokens[:, :curriculum_seqlen].contiguous()
+            position_ids = position_ids[:, :curriculum_seqlen].contiguous()
+            if labels is not None:
+                labels = labels[:, :curriculum_seqlen].contiguous()
+            if loss_mask is not None:
+                loss_mask = loss_mask[:, :curriculum_seqlen].contiguous()
+            # attention_mask has size [1, 1, seqlen, seqlen]
+            attention_mask = attention_mask[:, :, :curriculum_seqlen, :curriculum_seqlen].contiguous()
 
     # unpack data
     return (tokens, position_ids, attention_mask), (labels, loss_mask)
@@ -436,7 +449,13 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
 
         if neox_args.is_pipe_parallel:
             model.set_has_attention_mask(True)
-            model.set_batch_fn(partial(get_batch_pipe, neox_args=neox_args))
+            if neox_args.curriculum_learning:
+                curr_scheduler = CurriculumScheduler(neox_args.curriculum_learning)
+                if iteration is not None and iteration > 0:
+                    curr_scheduler.update_difficulty(iteration)
+            else:
+                curr_scheduler = None
+            model.set_batch_fn(partial(get_batch_pipe, neox_args=neox_args, curr_scheduler=curr_scheduler))
     else:
         raise ValueError("Must be using deepspeed to run neox")
 
