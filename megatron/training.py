@@ -207,7 +207,7 @@ def get_batch_pipe(data, neox_args, curr_scheduler=None):
         if curriculum_seqlen < tokens.size()[1]:
             # seqlen-based curriculum learning
             # input_ids, position_ids, labels have size [batch size, seqlen]
-            input_ids = input_ids[:, :curriculum_seqlen].contiguous()
+            #input_ids = input_ids[:, :curriculum_seqlen].contiguous()
             tokens = tokens[:, :curriculum_seqlen].contiguous()
             position_ids = position_ids[:, :curriculum_seqlen].contiguous()
             if labels is not None:
