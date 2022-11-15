@@ -202,7 +202,8 @@ def get_batch_pipe(data, neox_args, curr_scheduler=None):
         neox_args, neox_args.tokenizer, keys, data, datatype
     )
     if curr_scheduler is not None:
-        curriculum_seqlen = curr_scheduler.update_difficulty(neox_args.iteration)
+        # iteration + 1 to align with how/when DeepSpeed updates the buffers
+        curriculum_seqlen = curr_scheduler.update_difficulty(neox_args.iteration + 1)
         print_rank_0(f'Iteration according to args: {neox_args.iteration}')
         if curriculum_seqlen < tokens.size()[1]:
             # seqlen-based curriculum learning
