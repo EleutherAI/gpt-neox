@@ -604,6 +604,7 @@ def train(
 
         )
         iteration += 1
+        neox_args.iteration = iteration
 
         overflow_monitor.check(skipped_iter)  # check for repeated overflow
         if neox_args.log_gradient_noise_scale:  # log noise scale if applicable
