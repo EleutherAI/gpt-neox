@@ -207,7 +207,7 @@ def get_batch_pipe(data, neox_args, curr_scheduler=None):
         if curriculum_seqlen < tokens.size()[1]:
             # seqlen-based curriculum learning
             # input_ids, position_ids, labels have size [batch size, seqlen]
-            #input_ids = input_ids[:, :curriculum_seqlen].contiguous()
+            # input_ids = input_ids[:, :curriculum_seqlen].contiguous()
             tokens = tokens[:, :curriculum_seqlen].contiguous()
             position_ids = position_ids[:, :curriculum_seqlen].contiguous()
             if labels is not None:
@@ -215,13 +215,17 @@ def get_batch_pipe(data, neox_args, curr_scheduler=None):
             if loss_mask is not None:
                 loss_mask = loss_mask[:, :curriculum_seqlen].contiguous()
             # attention_mask has size [1, 1, seqlen, seqlen]
-            attention_mask = attention_mask[:, :, :curriculum_seqlen, :curriculum_seqlen].contiguous()
+            attention_mask = attention_mask[
+                :, :, :curriculum_seqlen, :curriculum_seqlen
+            ].contiguous()
 
     # unpack data
     return (tokens, position_ids, attention_mask), (labels, loss_mask)
 
 
-def forward_step(data_iterator, model, neox_args, timers, return_logits=False, is_train=False):
+def forward_step(
+    data_iterator, model, neox_args, timers, return_logits=False, is_train=False
+):
     """Forward step."""
     if neox_args.is_pipe_parallel:
         return model.eval_batch(data_iterator, return_logits=return_logits)
@@ -237,9 +241,13 @@ def forward_step(data_iterator, model, neox_args, timers, return_logits=False, i
         timers("batch generator").stop()
 
     outputs = model((tokens, position_ids, attention_mask), neox_args=neox_args)
-    if is_train and neox_args.curriculum_learning and neox_args.curriculum_seqlen < neox_args.seq_length:
-        loss_mask = loss_mask[:, :neox_args.curriculum_seqlen].contiguous()
-        labels = labels[:, :neox_args.curriculum_seqlen].contiguous()
+    if (
+        is_train
+        and neox_args.curriculum_learning
+        and neox_args.curriculum_seqlen < neox_args.seq_length
+    ):
+        loss_mask = loss_mask[:, : neox_args.curriculum_seqlen].contiguous()
+        labels = labels[:, : neox_args.curriculum_seqlen].contiguous()
     loss = cross_entropy(
         outputs, (labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy
     )
@@ -455,7 +463,11 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
                     curr_scheduler.update_difficulty(iteration)
             else:
                 curr_scheduler = None
-            model.set_batch_fn(partial(get_batch_pipe, neox_args=neox_args, curr_scheduler=curr_scheduler))
+            model.set_batch_fn(
+                partial(
+                    get_batch_pipe, neox_args=neox_args, curr_scheduler=curr_scheduler
+                )
+            )
     else:
         raise ValueError("Must be using deepspeed to run neox")
 
@@ -600,7 +612,7 @@ def train(
             data_iterator=train_data_iterator,
             model=model,
             optimizer=optimizer,
-            lr_scheduler=lr_scheduler
+            lr_scheduler=lr_scheduler,
         )
         iteration += 1
         neox_args.iteration = iteration

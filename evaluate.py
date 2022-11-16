@@ -31,7 +31,7 @@ from datetime import datetime
 import json
 
 
-def main(): 
+def main():
     model, neox_args = setup_for_inference_or_eval(use_cache=False)
     results = run_eval_harness(
         model,
@@ -60,7 +60,6 @@ def main():
                     neox_args.iteration,
                     use_wandb=neox_args.use_wandb,
                 )
-        
 
         pprint(results)
         results_path = (

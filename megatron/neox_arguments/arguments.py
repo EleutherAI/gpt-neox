@@ -320,7 +320,10 @@ class NeoXArgs(*BASE_CLASSES):
             conf_files = [os.path.join(args_parsed.conf_dir, f) for f in conf_files]
 
         # enables us to pass in `small` instead of `small.yml`
-        conf_files = [(cf if cf.endswith(".yml") or cf.endswith(".json") else cf + ".yml") for cf in conf_files]
+        conf_files = [
+            (cf if cf.endswith(".yml") or cf.endswith(".json") else cf + ".yml")
+            for cf in conf_files
+        ]
 
         # determine overwrite values
         overwrite_values = dict()
@@ -400,16 +403,18 @@ class NeoXArgs(*BASE_CLASSES):
 
         if self.deepspeed_slurm:
             args_list.extend(
-                self.convert_key_value_to_command_line_arg('no_ssh_check', True)
+                self.convert_key_value_to_command_line_arg("no_ssh_check", True)
             )
-            comment = getattr(self, 'comment')
-            if comment:   
+            comment = getattr(self, "comment")
+            if comment:
                 args_list.extend(
-                    self.convert_key_value_to_command_line_arg('comment', comment)
+                    self.convert_key_value_to_command_line_arg("comment", comment)
                 )
-            master_address = os.environ['SLURM_JOB_NODELIST'].split('\n')[0]
+            master_address = os.environ["SLURM_JOB_NODELIST"].split("\n")[0]
             args_list.extend(
-                self.convert_key_value_to_command_line_arg('master_addr', master_address)
+                self.convert_key_value_to_command_line_arg(
+                    "master_addr", master_address
+                )
             )
 
         if (
