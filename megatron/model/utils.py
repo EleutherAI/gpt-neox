@@ -125,8 +125,6 @@ class SequentialWrapper(torch.nn.Module):
 
         if curriculum_seqlen is not None and isinstance(forward_input, tuple) and len(forward_input) == 3:
             neox_args.update_value('curriculum_seqlen', curriculum_seqlen)
-            if dist.get_rank() == 0:
-                print(f'SEQLEN: {curriculum_seqlen}')
             tokens = forward_input[0]
             input_ids = forward_input[1]
             attention_mask = forward_input[2]

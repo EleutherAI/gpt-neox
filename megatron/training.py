@@ -238,7 +238,6 @@ def forward_step(data_iterator, model, neox_args, timers, return_logits=False, i
 
     outputs = model((tokens, position_ids, attention_mask), neox_args=neox_args)
     if is_train and neox_args.curriculum_learning and neox_args.curriculum_seqlen < neox_args.seq_length:
-        print_rank_0(f'SEQ_LEN: {neox_args.curriculum_seqlen}')
         loss_mask = loss_mask[:, :neox_args.curriculum_seqlen].contiguous()
         labels = labels[:, :neox_args.curriculum_seqlen].contiguous()
     loss = cross_entropy(
