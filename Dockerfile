@@ -83,6 +83,9 @@ RUN pip install -r requirements.txt && pip install -r requirements-onebitadam.tx
 ## Install APEX
 RUN pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@a651e2c24ecf97cbf367fd3f330df36760e1c597
 
+COPY megatron/ megatron
+RUN python megatron/fused_kernels/setup.py install
+
 # Clear staging
 RUN mkdir -p /tmp && chmod 0777 /tmp
 
