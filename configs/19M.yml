@@ -9,7 +9,6 @@
   "seq-length": 2048,
   "max-position-embeddings": 2048,
   "pos-emb": "rotary",
-  "rotary-pct": 0.25,
   "no-weight-tying": true,
   "gpt-j-residual": false,
   "output-layer-parallelism": "column",
