@@ -1,0 +1,30 @@
+name: "Run CPU Tests"
+
+on: "push"
+
+jobs:
+  run-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.8"
+
+      - name: Upgrade Pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get install libopenmpi-dev -y
+          pip install torch==1.8.2 torchvision==0.9.2 torchaudio==0.8.2 --extra-index-url https://download.pytorch.org/whl/lts/1.8/cpu
+          pip install -r requirements/requirements.txt
+          pip install -r requirements/requirements-dev.txt
+
+      - name: Prepare Data
+        run: python prepare_data.py
+
+      - name: Run CPU Tests
+        run: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pytest tests -m cpu

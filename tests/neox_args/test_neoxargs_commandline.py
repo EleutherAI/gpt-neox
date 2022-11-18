@@ -48,13 +48,43 @@ def test_neoxargs_consume_deepy_args_without_yml_suffix():
     with patch(
         "sys.argv",
         [str(get_root_directory() / "deepy.py"), "train.py"]
-        + get_configs_with_path(["small", "local_setup"]),
+        + get_configs_with_path(["small", "local_setup", "cpu_mock_config.yml"]),
     ):
         args_loaded_consume = NeoXArgs.consume_deepy_args()
 
     # load neox args directly from yaml files
     args_loaded_yamls = NeoXArgs.from_ymls(
-        get_configs_with_path(["small.yml", "local_setup.yml"])
+        get_configs_with_path(["small.yml", "local_setup.yml", "cpu_mock_config.yml"])
+    )
+
+    # update values from yaml files that cannot otherwise be matched
+    args_loaded_yamls.update_value("user_script", "train.py")
+    args_loaded_yamls.wandb_group = args_loaded_consume.wandb_group
+
+    assert args_loaded_yamls == args_loaded_consume
+
+
+@pytest.mark.cpu
+def test_neoxargs_consume_deepy_args_with_hostfile_param():
+    """
+    Verify consume_deepy_args processes command line arguments without yaml suffix.
+    Also test the hostfile CLI arg
+    """
+
+    from megatron.neox_arguments import NeoXArgs
+
+    # load neox args with command line
+    with patch(
+        "sys.argv",
+        [str(get_root_directory() / "deepy.py"), "train.py"]
+        + get_configs_with_path(["small", "local_setup", "cpu_mock_config.yml"])
+        + ["--hostfile=/mock_path"],
+    ):
+        args_loaded_consume = NeoXArgs.consume_deepy_args()
+
+    # load neox args directly from yaml files
+    args_loaded_yamls = NeoXArgs.from_ymls(
+        get_configs_with_path(["small.yml", "local_setup.yml", "cpu_mock_config.yml"])
     )
 
     # update values from yaml files that cannot otherwise be matched
@@ -81,13 +111,13 @@ def test_neoxargs_consume_deepy_args_with_config_dir():
             "-d",
             str(get_config_directory()),
         ]
-        + ["small.yml", "local_setup.yml"],
+        + ["small.yml", "local_setup.yml", "cpu_mock_config.yml"],
     ):
         args_loaded_consume = NeoXArgs.consume_deepy_args()
 
     # load neox args directly from yaml files
     args_loaded_yamls = NeoXArgs.from_ymls(
-        get_configs_with_path(["small.yml", "local_setup.yml"])
+        get_configs_with_path(["small.yml", "local_setup.yml", "cpu_mock_config.yml"])
     )
 
     # update values from yaml files that cannot otherwise be matched
@@ -105,7 +135,7 @@ def test_neoxargs_consume_neox_args():
     from megatron.neox_arguments import NeoXArgs
 
     # intitially load config from files as would be the case in deepy.py
-    yaml_list = get_configs_with_path(["small.yml", "local_setup.yml"])
+    yaml_list = get_configs_with_path(["small.yml", "local_setup.yml", "cpu_mock_config.yml"])
     args_baseline = NeoXArgs.from_ymls(yaml_list)
     args_baseline.update_value("user_script", str(get_root_directory() / "train.py"))
     deepspeed_main_args = args_baseline.get_deepspeed_main_args()
