@@ -7,27 +7,34 @@
 
    # model settings
    "num-layers": 24,
-   "hidden-size": 2048,
+   "hidden-size": 1024,
    "num-attention-heads": 16,
    "seq-length": 2048,
    "max-position-embeddings": 2048,
    "norm": "layernorm",
    "pos-emb": "rotary",
    "no-weight-tying": true,
-
+   "gpt_j_residual": false,
+   "output_layer_parallelism": "column",
+   
    # these should provide some speedup but takes a while to build, set to true if desired
    "scaled-upper-triang-masked-softmax-fusion": false,
    "bias-gelu-fusion": false,
+   
+   # init methods
+   "init_method": "small_init",
+   "output_layer_init_method": "wang_init",
 
    # optimizer settings
    "optimizer": {
      "type": "Adam",
      "params": {
-       "lr": 0.0002,
-       "betas": [0.9, 0.999],
-       "eps":  1.0e-8,
+       "lr": 0.0003,
+       "betas": [0.9, 0.95],
+       "eps": 1.0e-8,
      }
    },
+   "min_lr": 0.00003,
    "zero_optimization": {
     "stage": 1,
     "allgather_partitions": True,
@@ -38,11 +45,9 @@
     "contiguous_gradients": True,
     "cpu_offload": False
   },
-
    # batch / data settings
    "train_micro_batch_size_per_gpu": 4,
    "data-impl": "mmap",
-   "split": "949,50,1",
 
    # activation checkpointing
    "checkpoint-activations": true,
@@ -52,7 +57,7 @@
 
    # regularization
    "gradient_clipping": 1.0,
-   "weight-decay": 0,
+   "weight-decay": 0.1,
    "hidden-dropout": 0,
    "attention-dropout": 0,
 
