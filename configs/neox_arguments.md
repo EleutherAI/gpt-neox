@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 0fcb188
+    Default = dc0d405
 
     current git hash of repository
 
@@ -1432,6 +1432,47 @@ Training Arguments
     Default = None
 
     Path to the base shapes to save to/load from
+
+
+
+- **mup_init_scale**: float
+
+    Default = 1.0
+
+    Initialization scale: All the parameters are multiplied by this value
+
+
+
+- **mup_attn_temp**: float
+
+    Default = 1.0
+
+    Attention temperature: Reciprocal of the multiplier applied to the input to attention softmax
+
+
+
+- **mup_output_temp**: float
+
+    Default = 1.0
+
+    Output temperature: Reciprocal of the multiplier applied to the input to softmax that
+    produces the distribution over output tokens.
+
+
+
+- **mup_embedding_mult**: float
+
+    Default = 1.0
+
+    Scalar by which we multiply the output of the embedding layer
+
+
+
+- **mup_rp_embedding_mult**: float
+
+    Default = 1.0
+
+    Scalar by which we multiply vectors representing relative position
 
 
 
