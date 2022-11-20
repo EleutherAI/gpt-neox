@@ -14,7 +14,7 @@
    "use-mup": true,
    "save-base-shapes": false, # this only needs to be enabled once in order to generate the base-shapes-file on each rank
    "base-shapes-file": "base-shapes", # load base shapes from this file
-   "coord-check": true, # generate coord check plots to verify mup's implementation in neox
+   "coord-check": false, # generate coord check plots to verify mup's implementation in neox
 
    # model settings
    "num-layers": 12,
