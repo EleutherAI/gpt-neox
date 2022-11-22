@@ -120,6 +120,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
                 segment_breaks = np.argwhere(sample == eod) # split sample by document
 
                 if segment_breaks.shape != (0, 1): # then there is an EOD token in this example
+                    #print(segment_breaks)
                     curr_start_position = 0
                     for loc in np.nditer(segment_breaks):
                         # print(loc - curr_start_position, flush=True)
@@ -133,14 +134,15 @@ class GPT2Dataset(torch.utils.data.Dataset):
                         #     pass
 
                         curr_start_position = loc + 1 # jump over the EOD token
+                        if curr_start_position != sample.shape[0]:
+                            if sample.shape[0] - curr_start_position > 10:
+                                #print(curr_start_position, sample.shape)
+                                permute(sample[curr_start_position:], self.np_rng, self.neox_args)
                 else:
                     sample, self.np_rng = permute(sample, self.np_rng, self.neox_args)
             
             # end FIM-specific code
-            # print(sample, sample.shape)
             return {"text": sample}
-            # return {"text": np.array(sample, dtype=np.int64)}
-
         except IndexError:
             new_idx = idx % len(self)
             print(
@@ -350,11 +352,17 @@ def permute(sample, np_rng, neox_args):
     suffix_tok_id, prefix_tok_id, middle_tok_id = 50277, 50278, 50279
 
     if np_rng.binomial(1, fim_rate): # sample bernoulli dist
-
-        contents = tokenizer.detokenize(sample)
         
+        if neox_args.fim_level == "char":
+            contents = tokenizer.detokenize(sample)
+            sample_size = len(contents)
+        else: # token level FIM
+            contents = sample
+            #print(contents)
+            sample_size = contents.shape[0]
+            #print(contents.shape)
         try:
-            boundaries = list(np_rng.randint(low=1, high=len(contents) - 1, size=2))
+            boundaries = list(np_rng.randint(low=1, high=sample_size - 1, size=2))
             boundaries.sort()
         except ValueError as e:
             print(len(contents), contents)
@@ -365,11 +373,15 @@ def permute(sample, np_rng, neox_args):
         middle = contents[boundaries[0]:boundaries[1]]
         suffix = contents[boundaries[1]:]
 
-
-        suffix = np.array([suffix_tok_id, *tokenizer.tokenize(suffix)])
-        prefix = np.array([prefix_tok_id, *tokenizer.tokenize(prefix)])
-        middle = np.array([middle_tok_id, *tokenizer.tokenize(middle)])
-        
+        if neox_args.fim_level == "char":
+            suffix = np.array([suffix_tok_id, *tokenizer.tokenize(suffix)])
+            prefix = np.array([prefix_tok_id, *tokenizer.tokenize(prefix)])
+            middle = np.array([middle_tok_id, *tokenizer.tokenize(middle)])
+        else:
+            suffix = np.concatenate([np.array([suffix_tok_id]), suffix])
+            prefix = np.concatenate([np.array([prefix_tok_id]), prefix])
+            middle = np.concatenate([np.array([middle_tok_id]), middle])
+            
         # need to make same length as the input
         new_length = suffix.shape[0] + prefix.shape[0] + middle.shape[0]
         diff = new_length - sample.shape[0]

@@ -219,6 +219,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Needs at least 3 special sentinel tokens appended to vocabulary.
     """
 
+    fim_level: Literal["char", "token"] = "token"
+    """
+    determine whether FIM data processing is done at the token or character level, if any FIM processing is done.
+    """
+
     make_vocab_size_divisible_by: int = 128
     """
     Pad the vocab size to be divisible by this value. This is added for computational efficiency reasons.
