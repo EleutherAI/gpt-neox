@@ -740,6 +740,7 @@ def evaluate_and_print_results(
     chart_name="validation",
 ):
     """Helper function to evaluate and dump results on screen."""
+    tokens_per_iter = neox_args.train_batch_size * neox_args.seq_length
     total_loss_dict = evaluate(
         neox_args=neox_args,
         forward_step_fn=forward_step_func,
@@ -757,7 +758,7 @@ def evaluate_and_print_results(
                 tb_wandb_log(
                     f"{chart_name}/{k3}",
                     v2,
-                    iteration,
+                    iteration * tokens_per_iter,
                     use_wandb=neox_args.use_wandb,
                     tensorboard_writer=neox_args.tensorboard_writer,
                 )
@@ -766,7 +767,7 @@ def evaluate_and_print_results(
             tb_wandb_log(
                 f"{chart_name}/{k}",
                 v,
-                iteration,
+                iteration * tokens_per_iter,
                 use_wandb=neox_args.use_wandb,
                 tensorboard_writer=neox_args.tensorboard_writer,
             )
