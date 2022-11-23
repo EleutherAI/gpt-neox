@@ -149,12 +149,10 @@ def mup_coord_check(neox_args, timers, lr_scheduler, train_data_iterator):
     neox_args.use_mup = False
     df_sp = get_coord_data(neox_args, timers, lr_scheduler, models, train_data_iterator, mup=False)
 
-    print("nick get coord data finished. generating df_up plot")
     plot_coord_data(df_up, save_to=f"coord_check_up.{torch.distributed.get_rank()}.jpg")
-    print("nick get coord data finished. generating df_sp plot")
     plot_coord_data(df_sp, save_to=f"coord_check_sp.{torch.distributed.get_rank()}.jpg")
 
-    print_rank_0("Saved coord check plots... exiting") # nick
+    print_rank_0("Saved coord check plots... exiting")
     sys.exit(1)
 
 def pretrain(neox_args):
@@ -181,11 +179,9 @@ def pretrain(neox_args):
 
     # Model, optimizer, and learning rate.
     timers("model and optimizer").start()
-    print("nick before first setup_model_and_optimizer")
     model, optimizer, lr_scheduler = setup_model_and_optimizer(
         neox_args=neox_args, use_cache=False
     )
-    print("nick after first setup_model_and_optimizer")
     timers("model and optimizer").stop()
 
     # Data stuff.
