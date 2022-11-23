@@ -228,12 +228,6 @@ class NeoXArgs(*BASE_CLASSES):
         group = parser.add_argument_group(title="Training Configuration")
 
         group.add_argument(
-            "user_script",
-            type=str,
-            help="User script to launch, followed by any required " "arguments.",
-        )
-
-        group.add_argument(
             "--conf_dir",
             "-d",
             type=str,
@@ -308,11 +302,6 @@ class NeoXArgs(*BASE_CLASSES):
             help="Optionally overwrite `sample_output_file` for generate.py",
         )
         args_parsed = parser.parse_args()
-
-        # Validate user_script exists
-        assert os.path.exists(
-            args_parsed.user_script
-        ), f"User script could not be found: {args_parsed.user_script}"
 
         # load config files
         conf_files = args_parsed.conf_file
@@ -576,26 +565,29 @@ class NeoXArgs(*BASE_CLASSES):
         # gradient_accumulation_steps needs to be set
         elif train_batch is not None and micro_batch is not None:
             grad_acc = train_batch // micro_batch
-            grad_acc //= dp_world_size
+            #grad_acc //= dp_world_size
 
         # micro_batch_per_gpu needs to be set
         elif train_batch is not None and grad_acc is not None:
-            micro_batch = train_batch // dp_world_size
+            #micro_batch = train_batch // dp_world_size
+            micro_batch = train_batch
             micro_batch //= grad_acc
 
         # train_batch_size needs to be set
         elif micro_batch is not None and grad_acc is not None:
             train_batch = micro_batch * grad_acc
-            train_batch *= dp_world_size
+            #train_batch *= dp_world_size
 
         # gradient_accumulation_steps and micro_batch_per_gpus is set
         elif train_batch is not None:
             grad_acc = 1
-            micro_batch = train_batch // dp_world_size
+            micro_batch = train_batch
+            #micro_batch = train_batch // dp_world_size
 
         # train_batch_size and gradient_accumulation_step is set
         elif micro_batch is not None:
-            train_batch = micro_batch * dp_world_size
+            train_batch = micro_batch
+            #train_batch = micro_batch * dp_world_size
             grad_acc = 1
 
         # either none of the three parameters are provided or just gradient_accumulation_step is provided
@@ -620,7 +612,7 @@ class NeoXArgs(*BASE_CLASSES):
             grad_acc > 0
         ), f"Gradient accumulation steps: {grad_acc} has to be greater than 0"
 
-        assert train_batch == micro_batch * grad_acc * dp_world_size, (
+        assert train_batch == micro_batch * grad_acc * 1,  (
             f"Check batch related parameters. train_batch_size is not equal"
             " to micro_batch_per_gpu * gradient_acc_step * world_size \n"
             f"{train_batch} != {micro_batch} * {grad_acc} * {dp_world_size}"
@@ -639,7 +631,7 @@ class NeoXArgs(*BASE_CLASSES):
 
         # number of gpus
         # Get number of GPUs param or hostfile to determine train_batch_size
-        global_num_gpus = getattr(self, "global_num_gpus", None)
+        global_num_gpus = getattr(self, "global_num_gpus", 1)
         if global_num_gpus is None:
             if self.hostfile is not None or os.path.exists(DLTS_HOSTFILE):
                 hostfile_path = self.hostfile or DLTS_HOSTFILE
@@ -655,7 +647,8 @@ class NeoXArgs(*BASE_CLASSES):
                 if self.num_gpus is not None and self.num_gpus > 0:
                     global_num_gpus = self.num_gpus * len(resources)
             else:
-                global_num_gpus = torch.cuda.device_count()
+                global_num_gpus = 1
+                #global_num_gpus = torch.cuda.device_count()
             self.update_value("global_num_gpus", global_num_gpus)
 
         logging.info(

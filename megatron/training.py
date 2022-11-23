@@ -25,6 +25,8 @@ from functools import partial
 import math
 import sys
 
+import re
+
 import torch
 import deepspeed
 import numpy as np
@@ -78,7 +80,7 @@ def pretrain(neox_args):
     )
 
     # Initialize and get arguments, timers, and Tensorboard writer.
-    initialize_megatron(neox_args=neox_args)
+    # initialize_megatron(neox_args=neox_args)
 
     # Data stuff.
     timers("train/valid/test data iterators").start()
@@ -143,21 +145,21 @@ def pretrain(neox_args):
 
 def _get_batch(neox_args, tokenizer, keys, data, datatype):
     """Support function for get_batch / get_batch pipe (to avoid code repetition)"""
-    data_b = mpu.broadcast_data(keys, data, datatype)
+    data_b = data
 
     # Unpack.
-    tokens_ = data_b["text"].long()
-    labels = tokens_[:, 1:].contiguous()
-    tokens = tokens_[:, :-1].contiguous()
+    tokens = data_b["text"] #.long()
+    #labels = tokens_[:, :] #.contiguous()
+    #tokens = tokens_[:, :-1] #.contiguous()
 
     # Get the masks and position ids.
-    attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
-        data=tokens,
-        eod_token=neox_args.tokenizer.eod,
-        eod_mask_loss=neox_args.eod_mask_loss,
-    )
+    #attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
+    #    data=tokens,
+    #    eod_token=neox_args.tokenizer.eod,
+    #    eod_mask_loss=neox_args.eod_mask_loss,
+    #)
 
-    return tokens, labels, loss_mask, attention_mask, position_ids
+    return tokens #, labels, loss_mask, attention_mask, position_ids
 
 
 def get_batch(neox_args, data_iterator):
@@ -203,28 +205,43 @@ def forward_step(data_iterator, neox_args, timers, return_logits=False):
     # Get the batch.
     if timers is not None:
         timers("batch generator").start()
-    tokens, labels, loss_mask, attention_mask, position_ids = get_batch(
-        neox_args=neox_args, data_iterator=data_iterator
-    )
+    # tokens = get_batch(
+    #     neox_args=neox_args, data_iterator=data_iterator
+    # )
+    tokens = next(data_iterator)['text']
     if timers is not None:
         timers("batch generator").stop()
-
+    
     def function(batch):
         """take an element of a batch, and return some metric."""
-        import re
-
-        pattern1 = re.compile(r' he ', re.IGNORECASE)
-        pattern2 = re.compile(r' she ', re.IGNORECASE)
-        loss = {str(pattern1): 0, str(pattern2): 0}
-
+        loss = {}
+        professions = ['carpenter', 'mechanician', 'construction worker', 'laborer', 'driver', 'sheriff', \
+                'mover', 'developer', 'farmer', 'guard', 'chief', 'janitor', 'lawyer', 'cook', 'physician', 'ceo', 'analyst', 'manager', 'supervisor', \
+                'salesperson', 'editor', 'designers', 'accountant', 'auditor', 'writer', 'baker', 'clerk', 'cashier', 'counselors', 'attendant', \
+                'teacher', 'sewer', 'librarian', 'assistant', 'cleaner', 'housekeeper', 'nurse', 'receptionist', 'hairdresser', 'secretary']
+        patterns = [re.compile(r' he[ ,.]', re.IGNORECASE), re.compile(r' she[ ,.]', re.IGNORECASE)] 
+        professions = [re.compile(fr' {profession}[,.]', re.IGNORECASE) for profession in professions]
+        for pattern in patterns:
+            for profession in professions:
+                loss[f'{(str(profession), str(pattern))}'] = [0,0]
         for elem in batch:
-            text = neox_args.tokenizer.detokenize(elem) #TODO: note that as is, get_batch drops the first token...\
             
-            for pattern in [pattern1, pattern2]:
-                res = re.findall(pattern, text)
-
-                loss[str(pattern)] += len(res)
-
+            text = neox_args.tokenizer.detokenize(np.array(elem)) #TODO: note that as is, get_batch drops the first token...\
+            
+             
+            res = {}
+            for pattern in [*professions, *patterns]:
+                res[pattern] = len(re.findall(pattern, text))
+            for pattern in professions:
+                #if res[pattern] > 0:
+                for pattern2 in patterns:
+                        #if res[pattern2] > 0:
+                            # print(f"{(str(pattern), str(pattern2))} = {res[pattern]}")
+                    loss[f'{(str(pattern), str(pattern2))}'][0] += res[pattern] 
+                    loss[f'{(str(pattern), str(pattern2))}'][1] += res[pattern2]
+            del text
+            del res
+            
         return loss
         
     loss = function(tokens)
@@ -435,7 +452,7 @@ def iterate(
             iteration=iteration,
             report_memory_flag=report_memory_flag,
         )
-        print(loss_dict)
+       # print(loss_dict)
 
         # Checkpointing
         if (

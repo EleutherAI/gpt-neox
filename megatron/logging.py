@@ -19,6 +19,7 @@ import wandb
 from megatron import mpu, print_rank_0
 from megatron.utils import report_memory
 
+import json
 
 class Tee:
     """Duplicate output to both stdout/err and file"""
@@ -75,7 +76,7 @@ def human_readable_flops(num):
 
 
 def get_flops(neox_args, model, iter_time_s):
-    world_size = torch.distributed.get_world_size()
+    world_size = 1 #torch.distributed.get_world_size()
     ff = model.total_params * 6
     attn = neox_args.seq_length * neox_args.hidden_size * neox_args.num_layers * 60
     flops = (
@@ -142,7 +143,7 @@ def training_log(
         normalizer = iteration % neox_args.log_interval
         if normalizer == 0:
             normalizer = neox_args.log_interval
-        if torch.distributed.get_rank() == 0:
+        if 0 == 0:
             timers.write(
                 names=timers_to_log, iteration=iteration, normalizer=normalizer
             )
@@ -157,7 +158,7 @@ def training_log(
             ):
                 timer_values = model.timer_values
                 # deepspeed already logs to tensorboard / prints values, so just log to wandb
-                if neox_args.use_wandb and torch.distributed.get_rank() == 0:
+                if neox_args.use_wandb and 0 == 0:
                     for key in timer_values:
                         tb_wandb_log(
                             f"timers/{key}",
@@ -354,10 +355,10 @@ def data_log(
     got_nan_key = "got nan"
     
     got_nan = False
-    for key in loss_dict:
-        total_loss_dict[key] = total_loss_dict.get(key, 0.0) + loss_dict[key]
+    #for key in loss_dict:
+    #    total_loss_dict[key] = total_loss_dict.get(key, 0.0) + loss_dict[key]
     
-    total_loss_dict[got_nan_key] = total_loss_dict.get(got_nan_key, 0) + int(got_nan)
+    #total_loss_dict[got_nan_key] = total_loss_dict.get(got_nan_key, 0) + int(got_nan)
 
     # Logging.
     timers_to_log = []
@@ -380,19 +381,22 @@ def data_log(
     normalizer = iteration % neox_args.log_interval
     if normalizer == 0:
         normalizer = neox_args.log_interval
-    if torch.distributed.get_rank() == 0:
+    if 0 == 0:
         timers.write(
             names=timers_to_log, iteration=iteration, normalizer=normalizer
         )
 
-    # for key in loss_dict:
-    #     tb_wandb_log(
-    #         f'train/{key.replace(" ", "_")}',
-    #         loss_dict[key],
-    #         iteration,
-    #         use_wandb=neox_args.use_wandb,
-    #         tensorboard_writer=neox_args.tensorboard_writer,
-    #     )
+    for key in loss_dict:
+        tb_wandb_log(
+            f'train/{str(key).replace(" ", "_")}',
+            loss_dict[key],
+            iteration,
+            use_wandb=neox_args.use_wandb,
+            tensorboard_writer=neox_args.tensorboard_writer,
+        )
+    with open("/fsx/hailey/pythia/data_wading/gpt-neox/raw_prn_data_143000steps.jsonl", "a+") as f:
+        f.write(f"{json.dumps({iteration: loss_dict})}\n")
+
 
     if iteration % neox_args.log_interval == 0:
         # log other stuff every neox_args.log_interval iters
@@ -437,7 +441,7 @@ def tb_wandb_log(
     key, value, iteration_no, use_wandb, tensorboard_writer=None, all_ranks=False
 ):
     # logs to both tb and wandb (if present) from the zeroth rank
-    do_log = torch.distributed.get_rank() == 0 or all_ranks
+    do_log = 0 == 0 or all_ranks
     if do_log and value is not None:
         if tensorboard_writer:
             tensorboard_writer.add_scalar(key, value, iteration_no)

@@ -49,13 +49,13 @@ def report_memory(name):
     """Simple GPU memory report."""
     mega_bytes = 1024.0 * 1024.0
     string = name + " memory (MB)"
-    string += " | allocated: {}".format(torch.cuda.memory_allocated() / mega_bytes)
+    string += " | allocated: {}".format(0 / mega_bytes)
     string += " | max allocated: {}".format(
-        torch.cuda.max_memory_allocated() / mega_bytes
+        0 / mega_bytes
     )
-    string += " | reserved: {}".format(torch.cuda.memory_reserved() / mega_bytes)
+    string += " | reserved: {}".format(0 / mega_bytes)
     string += " | max reserved: {}".format(
-        torch.cuda.max_memory_reserved() / mega_bytes
+        0 / mega_bytes
     )
     print_rank_0(string)
 
@@ -129,7 +129,7 @@ def is_local_main():
 
 def is_mp_rank_0():
     """True if mp rank == 0"""
-    return mpu.get_model_parallel_rank() == 0
+    return 0 == 0
 
 
 def get_wandb_api_key(neox_args):
@@ -187,7 +187,7 @@ def obtain_resource_pool(
     resource_pool = fetch_hostfile(hostfile_path)
     if not resource_pool:
         resource_pool = {}
-        device_count = torch.cuda.device_count()
+        device_count = 1
         if device_count == 0:
             raise RuntimeError("Unable to proceed, no GPU resources available")
         resource_pool["localhost"] = device_count
@@ -210,7 +210,7 @@ def ddb(rank=0):
     pause all other distributed processes until debugging is complete.
     :param rank:
     """
-    if torch.distributed.get_rank() == rank:
+    if 0 == rank:
         from pdb import Pdb
 
         pdb = Pdb(skip=["torch.distributed.*"])
@@ -230,14 +230,14 @@ class Timer:
     def start(self):
         """Start the timer."""
         assert not self.started_, "timer has already been started"
-        torch.cuda.synchronize()
+        #torch.cuda.synchronize()
         self.start_time = time.time()
         self.started_ = True
 
     def stop(self):
         """Stop the timer."""
         assert self.started_, "timer is not started"
-        torch.cuda.synchronize()
+        #torch.cuda.synchronize()
         self.elapsed_ += time.time() - self.start_time
         self.started_ = False
 
@@ -381,21 +381,21 @@ def get_noise_scale_logger(neox_args):
 
 def get_total_params(model):
     # Print number of parameters.
-    if mpu.get_data_parallel_rank() == 0:
+    if 0 == 0:
         params = sum([p.nelement() for p in model.parameters()])
         print(
             " > number of parameters on model parallel rank {}: {}".format(
-                mpu.get_model_parallel_rank(), params
+                0, params
             ),
             flush=True,
         )
     else:
         params = 0
 
-    total_n_parameters = torch.tensor([params]).cuda(torch.cuda.current_device())
-    torch.distributed.all_reduce(total_n_parameters)
-    total_n_parameters = total_n_parameters.item()
-    return total_n_parameters
+    #total_n_parameters = torch.tensor([params])
+    #torch.distributed.all_reduce(total_n_parameters)
+    #total_n_parameters = total_n_parameters.item()
+    return 7 #total_n_parameters
 
 
 def setup_for_inference_or_eval(

@@ -5,7 +5,7 @@ from typing import List, Tuple
 from itertools import zip_longest
 from functools import partial
 
-from megatron import mpu, print_rank_0
+from megatron import print_rank_0
 from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
 from megatron.data.blendable_dataset import BlendableDataset
 from megatron.data.gpt2_dataset import GPT2Dataset
@@ -17,8 +17,8 @@ def make_data_loader(dataset, neox_args):
     if dataset is None:
         return None
     # Data parallel arguments.
-    world_size = mpu.get_data_parallel_world_size()
-    rank = mpu.get_data_parallel_rank()
+    world_size = 1 # pu.get_data_parallel_world_size()
+    rank = 0 # pu.get_data_parallel_rank()
     global_batch_size = neox_args.batch_size * world_size
     num_workers = neox_args.num_workers
 
@@ -276,16 +276,16 @@ def build_train_valid_test_data_iterators(neox_args):
 
     # Ensure only the first/last pipeline stages have data loaders
     if neox_args.is_pipe_parallel:
-        is_first_stage = mpu.get_pipe_parallel_rank() == 0
+        is_first_stage = 0 == 0
         is_last_stage = (
-            mpu.get_pipe_parallel_rank() == mpu.get_pipe_parallel_world_size() - 1
+            0 == 1 - 1
         )
         pipe_load = is_first_stage or is_last_stage
     else:
         pipe_load = True
 
     # Data loader only on rank 0 of each model parallel group.
-    if mpu.get_model_parallel_rank() == 0 and pipe_load:
+    if 0 == 0 and pipe_load:
         # Number of train/valid/test samples.
         train_iters = neox_args.train_iters
         eval_iters = (train_iters // neox_args.eval_interval + 1) * neox_args.eval_iters
@@ -398,21 +398,21 @@ def build_train_valid_test_data_iterators(neox_args):
         do_valid = valid_dataloader is not None and neox_args.eval_iters > 0
         do_test = test_dataloader is not None and neox_args.eval_iters > 0
         # Need to broadcast num_tokens and num_type_tokens.
-        flags = torch.cuda.LongTensor([int(do_train), int(do_valid), int(do_test)])
+        flags = torch.LongTensor([int(do_train), int(do_valid), int(do_test)])
     else:
-        flags = torch.cuda.LongTensor([0, 0, 0])
+        flags = torch.LongTensor([0, 0, 0])
 
     # Broadcast num tokens.
-    if neox_args.is_pipe_parallel:
+    #if neox_args.is_pipe_parallel:
         # Only first/last pipeline stages have data loaders, so pipeline parallelism should
         # broadcast globally instead of just the model parallel group.
-        torch.distributed.broadcast(flags, src=0)
-    else:
-        torch.distributed.broadcast(
-            flags,
-            mpu.get_model_parallel_src_rank(),
-            group=mpu.get_model_parallel_group(),
-        )
+    #    torch.distributed.broadcast(flags, src=0)
+    #else:
+     #   torch.distributed.broadcast(
+     #       flags,
+      #      pu.get_model_parallel_src_rank(),
+       #     group=pu.get_model_parallel_group(),
+        #)
     neox_args.do_train = flags[0].item()
     neox_args.do_valid = flags[1].item()
     neox_args.do_test = flags[2].item()
