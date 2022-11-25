@@ -14,8 +14,19 @@ sys.path.append(
 )
 from megatron.tokenizer import build_tokenizer
 
+
+"""
+A script for converting saved NeoX Checkpoints to Huggingface (HF) compatible GPT-NeoX type models.
+
+Note that this script does not support all NeoX features. 
+Please investigate carefully whether your model is compatible with all architectures supported by the GPTNeoXForCausalLM class in HF.
+
+(e.g. position embeddings such as AliBi may not be supported by Huggingface's GPT-NeoX architecture.
+"""
+
+
 def load_partitions(input_checkpoint_path, mp_partitions, layer_idx) -> list[torch.Tensor]:
-    """Returns a list containing all weights of a given layer from a model (across MP partitions)"""
+    """Returns a list containing all weights in a given layer from a model (across MP partitions)"""
 
     loaded_tp_ranks = [
         torch.load(os.path.join(input_checkpoint_path, 
@@ -62,7 +73,7 @@ def create_config(neox_config):
     try: # GPT2TokenizerFast raises NotImplementedError
         pad_token = tokenizer.pad
     except:
-        pad_token = 1 # follows convention from NeoX-20b tokenizer
+        pad_token = 1 # pad defaulting to 1. follows convention from GPT-NeoX-20b tokenizer
 
     # set all config values.
     hf_config = GPTNeoXConfig(
@@ -81,6 +92,7 @@ def create_config(neox_config):
         bos_token_id=tokenizer.eod,
         eos_token_id=tokenizer.eod,
         tie_word_embeddings=(not get_key(neox_config, 'no-weight-tying', False)),
+        use_parallel_residual=get_key(neox_config, 'gpt-j-residual', False)
     )
     return hf_config
 
@@ -96,7 +108,7 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
     # TODO: how to deal with vocab size? need to pass tokenizer and calc on the fly. 
     hf_config = create_config(loaded_config)
 
-    hf_model = GPTNeoXForCausalLM(hf_config).half().cuda() # nice-to-have: lazy init weights somehow?
+    hf_model = GPTNeoXForCausalLM(hf_config).half() # nice-to-have: lazy init weights somehow?
     
     mp_partitions = get_key(loaded_config, 'model-parallel-size')
 
@@ -210,18 +222,18 @@ if __name__ == '__main__':
     parser.add_argument(
         "--input_dir",
         type=str,
-        help='Checkpoint dir, which should contain (e.g. a folder named "global_step150000")',
+        help='Path to NeoX checkpoint, e.g. /path/to/model/global_step143000',
     )
     parser.add_argument(
         "--config_file",
         type=str,
-        help='Path to config file for the input checkpoint. '
+        help='Path to config file for the input NeoX checkpoint.'
     )
     parser.add_argument(
-        "--output_dir", type=str, help="Output dir, to save the HF Model and configs"
+        "--output_dir", type=str, help="Output dir, where to save the HF Model, tokenizer, and configs"
     )
     parser.add_argument(
-        "--upload", action='store_true'
+        "--upload", action='store_true', help="Set to true in order to upload to the HF Hub directly."
     )
     args = parser.parse_args()
 
@@ -239,23 +251,16 @@ if __name__ == '__main__':
     
     if tokenizer_type  == 'HFTokenizer':
         print(f"saving tokenizer from file {get_key(loaded_config, 'vocab-file')}")
-        from transformers import PreTrainedTokenizerFast, AutoTokenizer, AutoModelForCausalLM
-
+        from transformers import PreTrainedTokenizerFast
         tokenizer = PreTrainedTokenizerFast(tokenizer_file=get_key(loaded_config, 'vocab-file'))
-        # tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-neox-20b")
-        print(tokenizer)
+        print("loaded tokenizer: ", tokenizer)
         tokenizer.save_pretrained(args.output_dir)
         print("tokenizer saved!")
-        
-        del hf_model
-        del tokenizer
-        hf_model = AutoModelForCausalLM.from_pretrained(args.output_dir, cache_dir="./plsdelete")
-        tokenizer = AutoTokenizer.from_pretrained(args.output_dir, cache_dir="./plsdelete")
         
         
     if args.upload:
         repo_name = input("Provide a repository name for the HF Hub: ")
-        create_repo(repo_name, repo_type="model", private=True, use_auth_token=True)
+        create_repo(repo_name, repo_type="model", private=False, use_auth_token=True)
 
         api = HfApi()
         api.upload_folder(
