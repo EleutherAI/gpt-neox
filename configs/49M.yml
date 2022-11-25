@@ -34,6 +34,7 @@
   },
   "min_lr": 0.00008,
 
+  # for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
   "zero_optimization": {
     "stage": 1,
     "allgather_partitions": True,
@@ -42,7 +43,6 @@
     "reduce_scatter": True,
     "reduce_bucket_size": 500000000,
     "contiguous_gradients": True,
-    "cpu_offload": False
   },
 
   # batch / data settings
