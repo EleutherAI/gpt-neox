@@ -36,6 +36,7 @@ from .neox_args import (
 
 # ZERO defaults by deespeed
 # These values should not be changed unless defaults in deepspeed are changed
+# for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
 ZERO_DEFAULTS = {
     "stage": 0,
     "allgather_partitions": True,
@@ -45,7 +46,6 @@ ZERO_DEFAULTS = {
     "reduce_scatter": True,
     "reduce_bucket_size": int(5e8),
     "contiguous_gradients": False,
-    "cpu_offload": False,
 }
 
 # NeoX optimizer defaults

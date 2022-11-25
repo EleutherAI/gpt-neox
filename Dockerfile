@@ -78,10 +78,16 @@ RUN pip install torch==1.8.1+cu111 -f https://download.pytorch.org/whl/torch_sta
 COPY requirements/requirements.txt .
 COPY requirements/requirements-onebitadam.txt .
 COPY requirements/requirements-sparseattention.txt .
-RUN pip install -r requirements.txt && pip install -r requirements-onebitadam.txt && pip install -r requirements-sparseattention.txt && pip cache purge
+RUN pip install -r requirements.txt && pip install -r requirements-onebitadam.txt && \
+    pip install -r requirements-sparseattention.txt && \
+    pip install protobuf==3.20.* && \
+    pip cache purge
 
 ## Install APEX
 RUN pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@a651e2c24ecf97cbf367fd3f330df36760e1c597
+
+COPY megatron/ megatron
+RUN python megatron/fused_kernels/setup.py install
 
 # Clear staging
 RUN mkdir -p /tmp && chmod 0777 /tmp

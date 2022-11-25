@@ -760,6 +760,7 @@ def generate_samples_interactive(
             batch_context_tokens,
             batch_token_generation_start_index,
             batch_token_generation_end_index,
+            batch_generated_token_logits,
             is_done,
         ) in stream_tokens(
             neox_args=neox_args,
