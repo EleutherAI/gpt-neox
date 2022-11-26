@@ -105,7 +105,6 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
 
     hf_config = GPTNeoXConfig()
 
-    # TODO: how to deal with vocab size? need to pass tokenizer and calc on the fly. 
     hf_config = create_config(loaded_config)
 
     hf_model = GPTNeoXForCausalLM(hf_config).half() # nice-to-have: lazy init weights somehow?
