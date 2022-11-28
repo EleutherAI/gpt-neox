@@ -11,5 +11,5 @@ sentencepiece
 six
 tokenizers==0.12.1
 transformers~=4.24.0
-huggingface_hub=0.11.0
+huggingface_hub==0.11.0
 wandb==0.10.28
