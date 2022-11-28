@@ -421,6 +421,11 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
     Use checkpoint to set the values of the scheduler (learning rate, warmup iterations, minimum learning rate, maximum number of iterations, and decay style from checkpoint and ignore input arguments.
     """
 
+    stochastic_depth_prob: float = 0.0
+    """
+    Probability of dropping a layer with stochastic depth (a.k.a. LayerDrop, see https://arxiv.org/abs/1909.11556).
+    """
+
 
 @dataclass
 class NeoXArgsLogging(NeoXArgsTemplate):

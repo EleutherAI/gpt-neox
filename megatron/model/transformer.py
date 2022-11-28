@@ -23,6 +23,7 @@ import torch.nn.functional as F
 import torch.nn as nn
 
 from .norms import get_norm
+from .stochastic_depth import stochastic_depth
 from megatron import mpu
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
 from megatron.model.activations import get_activation
@@ -545,6 +546,9 @@ class ParallelTransformerLayer(nn.Module):
         self.bias_dropout_fusion = neox_args.bias_dropout_fusion
         self.gpt_j_residual = neox_args.gpt_j_residual
 
+        # TODO(nora): Maybe make this configurable on a per-layer basis?
+        self.stochastic_depth_prob = neox_args.stochastic_depth_prob
+
         if self.gpt_j_residual:
             self.reduce = mpu.mappings.reduce_from_model_parallel_region
 
@@ -623,11 +627,21 @@ class ParallelTransformerLayer(nn.Module):
                 )
 
             # output = output + residual
-            output = residual + self.reduce(output)
+            delta = stochastic_depth(
+                self.reduce(output),
+                p=self.stochastic_depth_prob,
+                mode="row",
+                training=self.training
+            )
+            output = residual + delta
         else:
             # pseudocode:
-            # x = x + attn(ln1(x))
-            # x = x + mlp(ln2(x))
+            # x1 = x0 + attn(ln1(x0))
+            # x2 = x1 + mlp(ln2(x1))
+            # or equivalently:
+            # x2 = x0 + delta,
+            # where delta = attn(ln1(x0)) + mlp(ln2(x0 + attn(ln1(x0)))).
+            # when stochastic_depth_prob > 0, we randomly zero out the delta term.
 
             residual = x
 
