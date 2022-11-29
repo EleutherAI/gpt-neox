@@ -74,6 +74,8 @@ The Polyglot Project is an effort to train powerful non-English pretrained langu
 
 ## Fill-in-the-Middle
 
+EleutherAI-affiliated research lab CarperAI has also used this codebase to train models using FIM (fill-in-the-middle), a data transformation proposed in [Bavarian et al. 2022](https://arxiv.org/abs/2207.14255) with a similar technique also used by [Fried et al.](https://arxiv.org/abs/2204.05999) and [Aghajanyan et al. 2022](https://arxiv.org/abs/2201.07520), to enable typically autoregressive left-to-right language models to perform text infilling conditioned on both "left" and "right" context. A 1.3B parameter model trained on [the Pile](pile.eleuther.ai) is available [here](https://huggingface.co/CarperAI/FIM-NeoX-1.3B), with further experiments and and models forthcoming.
+
 
 # Quick Start
 
