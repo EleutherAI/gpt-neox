@@ -3,11 +3,7 @@
 
 # GPT-NeoX
 
-This repository records [EleutherAI](https://www.eleuther.ai)'s work-in-progress for training large-scale language models on GPUs. Our current framework is based on NVIDIA's [Megatron Language Model](https://github.com/NVIDIA/Megatron-LM) and has been augmented with techniques from [DeepSpeed](https://www.deepspeed.ai) as well as some novel optimizations.
-
-We aim to make this repo a centralized and accessible place to gather techniques for training large-scale autoregressive language models, and accelerate research into large-scale training. Additionally, we hope to train and open source a 175B parameter GPT-3 replication along the way. Please note, however, that this is a research codebase that is primarily designed for performance over ease of use. We endeavour to make it as easy to use as is feasible, but if there's anything in the readme that is unclear or you think you've found a bug, please open an issue.
-
-If you are interested in contributing, please [join our Discord](https://discord.gg/zBGx3azzUn) and head to the `#gpt-neox` channel. We're working with cloud compute provider [CoreWeave](https://www.coreweave.com/) for training, and hope to release the weights of smaller models as we progress up to 175B parameters.
+This repository records [EleutherAI](https://www.eleuther.ai)'s library for training large-scale language models on GPUs. Our current framework is based on NVIDIA's [Megatron Language Model](https://github.com/NVIDIA/Megatron-LM) and has been augmented with techniques from [DeepSpeed](https://www.deepspeed.ai) as well as some novel optimizations. We aim to make this repo a centralized and accessible place to gather techniques for training large-scale autoregressive language models, and accelerate research into large-scale training.
 
 For those looking for a TPU-centric codebase, we recommend [Mesh Transformer JAX](https://github.com/kingoflolz/mesh-transformer-jax).
 
@@ -108,42 +104,14 @@ You can then run a container based on this image. For instance, the below snippe
 nvidia-docker run --rm -it -e NVIDIA_VISIBLE_DEVICES=0,1,2,3 --shm-size=1g --ulimit memlock=-1 --mount type=bind,src=$PWD,dst=/gpt-neox gpt-neox
 ```
 
-## Using a Pretrained Model
-
-GPT-NeoX-20B (currently the only pretrained model we provide) **is a very large model**. The weights alone take up around 40GB in GPU memory and, due to the tensor parallelism scheme as well as the high memory usage, you will need **at minimum** 2 GPUs with a total of ~45GB of GPU VRAM to run inference, and significantly more for training. Unfortunately the model is not yet possible to use on a single consumer GPU.
-
-GPT-NeoX parameters are defined in a YAML configuration file which is passed to the `deepy.py` launcher. For more details on the configuration file, see [Configuration](#configuration). The configuration file for GPT-NeoX-20B is at `./configs/20B.yml` - but you may need to edit some fields to specify where your model and tokenizer are saved. In the config file edit the following fields:
-
-```yaml
-  "vocab-file": "./20B_checkpoints/20B_tokenizer.json",
-  "save": "./20B_checkpoints",
-  "load": "./20B_checkpoints",
-```
-
-changing `./20B_checkpoints` to the path to the root folder of the downloaded checkpoints. If the checkpoints exist at `./20B_checkpoints` you can leave this as is.
-
-Depending on the number of GPUs you're using, you may also need to change the parallelism settings. To run inference on the 20B model on 2 GPUs, change:
-
-```yaml
-   "pipe-parallel-size": 4,
-```
-
-to:
-
-```yaml
-   "pipe-parallel-size": 1,
-```
-
-If you're using 8 GPUs, you can leave this unchanged.
-
-All functionality (inference included), should be launched in parallel using `deepy.py`, a wrapper around the `deepspeed` launcher.
+All functionality (inference included), should be launched using `deepy.py`, a wrapper around the `deepspeed` launcher.
 
 We currently offer three main functions:
 1. `train.py` is used for training and finetuning models.
 2. `evaluate.py` is used to evaluate a trained model using the [language model evaluation harness](https://github.com/EleutherAI/lm-evaluation-harness).
 3. `generate.py` is used to sample text from a trained model.
 
-and can be launched with:
+which can be launched with:
 
 ```bash
 ./deepy.py [script.py] [./path/to/config_1.yml] [./path/to/config_2.yml] ... [./path/to/config_n.yml]
