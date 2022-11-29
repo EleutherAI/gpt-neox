@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright (c) 2021, EleutherAI contributors
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
@@ -38,8 +37,8 @@ from .random import get_cuda_rng_tracker
 from .utils import divide
 from .utils import VocabUtility
 
-def _initialize_affine_weight_gpu(weight, init_method,
-                                  partition_dim, stride=1):
+
+def _initialize_affine_weight_gpu(weight, init_method, partition_dim, stride=1):
     """Initialize affine weight for model parallel on GPU."""
 
     weight.model_parallel = True
@@ -50,10 +49,17 @@ def _initialize_affine_weight_gpu(weight, init_method,
         init_method(weight)
 
 
-def _initialize_affine_weight_cpu(neox_args, weight, output_size, input_size,
-                                  per_partition_size, partition_dim,
-                                  init_method, stride=1,
-                                  return_master_weight=False):
+def _initialize_affine_weight_cpu(
+    neox_args,
+    weight,
+    output_size,
+    input_size,
+    per_partition_size,
+    partition_dim,
+    init_method,
+    stride=1,
+    return_master_weight=False,
+):
     """Initialize affine weight for model parallel.
 
     Build the master weight on all processes and scatter
@@ -64,16 +70,17 @@ def _initialize_affine_weight_cpu(neox_args, weight, output_size, input_size,
     weight.partition_stride = stride
 
     # Initialize master weight
-    master_weight = torch.empty(output_size, input_size,
-                                dtype=torch.float,
-                                requires_grad=False)
+    master_weight = torch.empty(
+        output_size, input_size, dtype=torch.float, requires_grad=False
+    )
     init_method(master_weight)
     master_weight = master_weight.to(dtype=neox_args.params_dtype)
 
     # Split and copy
     per_partition_per_stride_size = divide(per_partition_size, stride)
-    weight_list = torch.split(master_weight, per_partition_per_stride_size,
-                              dim=partition_dim)
+    weight_list = torch.split(
+        master_weight, per_partition_per_stride_size, dim=partition_dim
+    )
     rank = get_model_parallel_rank()
     world_size = get_model_parallel_world_size()
     my_weight_list = weight_list[rank::world_size]
@@ -96,7 +103,9 @@ class VocabParallelEmbedding(torch.nn.Module):
         init_method: method to initialize weights.
     """
 
-    def __init__(self, neox_args, num_embeddings, embedding_dim, init_method=init.xavier_normal_):
+    def __init__(
+        self, neox_args, num_embeddings, embedding_dim, init_method=init.xavier_normal_
+    ):
         super(VocabParallelEmbedding, self).__init__()
         # Keep the input dimensions.
         self.num_embeddings = num_embeddings
@@ -104,49 +113,74 @@ class VocabParallelEmbedding(torch.nn.Module):
         # Set the detauls for compatibility.
         self.padding_idx = None
         self.max_norm = None
-        self.norm_type = 2.
+        self.norm_type = 2.0
         self.scale_grad_by_freq = False
         self.sparse = False
         self._weight = None
         self.model_parallel_size = get_model_parallel_world_size()
         # Divide the weight matrix along the vocabulary dimension.
-        self.vocab_start_index, self.vocab_end_index = \
-            VocabUtility.vocab_range_from_global_vocab_size(
-                self.num_embeddings, get_model_parallel_rank(),
-                self.model_parallel_size)
-        self.num_embeddings_per_partition = self.vocab_end_index - \
-                                            self.vocab_start_index
+        (
+            self.vocab_start_index,
+            self.vocab_end_index,
+        ) = VocabUtility.vocab_range_from_global_vocab_size(
+            self.num_embeddings, get_model_parallel_rank(), self.model_parallel_size
+        )
+        self.num_embeddings_per_partition = (
+            self.vocab_end_index - self.vocab_start_index
+        )
 
         # Allocate weights and initialize.
         if neox_args.use_cpu_initialization:
-            self.weight = Parameter(torch.empty(
-                self.num_embeddings_per_partition, self.embedding_dim,
-                dtype=neox_args.params_dtype))
+            self.weight = Parameter(
+                torch.empty(
+                    self.num_embeddings_per_partition,
+                    self.embedding_dim,
+                    dtype=neox_args.params_dtype,
+                )
+            )
             _initialize_affine_weight_cpu(
-                neox_args, self.weight, self.num_embeddings, self.embedding_dim,
-                self.num_embeddings_per_partition, 0, init_method)
+                neox_args,
+                self.weight,
+                self.num_embeddings,
+                self.embedding_dim,
+                self.num_embeddings_per_partition,
+                0,
+                init_method,
+            )
         else:
-            self.weight = Parameter(torch.empty(
-                self.num_embeddings_per_partition, self.embedding_dim,
-                device=torch.cuda.current_device(), dtype=neox_args.params_dtype))
-            _initialize_affine_weight_gpu(self.weight, init_method,
-                                          partition_dim=0, stride=1)
+            self.weight = Parameter(
+                torch.empty(
+                    self.num_embeddings_per_partition,
+                    self.embedding_dim,
+                    device=torch.cuda.current_device(),
+                    dtype=neox_args.params_dtype,
+                )
+            )
+            _initialize_affine_weight_gpu(
+                self.weight, init_method, partition_dim=0, stride=1
+            )
 
     def forward(self, input_):
         if self.model_parallel_size > 1:
             # Build the mask.
-            input_mask = (input_ < self.vocab_start_index) | \
-                         (input_ >= self.vocab_end_index)
+            input_mask = (input_ < self.vocab_start_index) | (
+                input_ >= self.vocab_end_index
+            )
             # Mask the input.
             masked_input = input_.clone() - self.vocab_start_index
             masked_input[input_mask] = 0
         else:
             masked_input = input_
             # Get the embeddings.
-        output_parallel = F.embedding(masked_input, self.weight,
-                                      self.padding_idx, self.max_norm,
-                                      self.norm_type, self.scale_grad_by_freq,
-                                      self.sparse)
+        output_parallel = F.embedding(
+            masked_input,
+            self.weight,
+            self.padding_idx,
+            self.max_norm,
+            self.norm_type,
+            self.scale_grad_by_freq,
+            self.sparse,
+        )
         # Mask the output embedding.
         if self.model_parallel_size > 1:
             output_parallel[input_mask, :] = 0.0
@@ -169,7 +203,16 @@ class ParallelRelativePositionBias(torch.nn.Module):
         heads: number of attention heads (total)
     """
 
-    def __init__(self, neox_args, scale, causal=True, num_buckets=32, max_distance=128, heads=8, init_method=init.xavier_normal_):
+    def __init__(
+        self,
+        neox_args,
+        scale,
+        causal=True,
+        num_buckets=32,
+        max_distance=128,
+        heads=8,
+        init_method=init.xavier_normal_,
+    ):
         super().__init__()
         self.scale = scale
         self.causal = causal
@@ -180,7 +223,7 @@ class ParallelRelativePositionBias(torch.nn.Module):
         # Set the defaults for compatibility.
         self.padding_idx = None
         self.max_norm = None
-        self.norm_type = 2.
+        self.norm_type = 2.0
         self.scale_grad_by_freq = False
         self.sparse = False
         self._weight = None
@@ -188,24 +231,41 @@ class ParallelRelativePositionBias(torch.nn.Module):
         self.model_parallel_rank = get_model_parallel_rank()
 
         # Divide the weight matrix along the heads dimension.
-        self.head_start_index, self.head_end_index = self.get_heads_range(self.heads, self.model_parallel_rank,
-                                                                          self.model_parallel_size)
+        self.head_start_index, self.head_end_index = self.get_heads_range(
+            self.heads, self.model_parallel_rank, self.model_parallel_size
+        )
         self.num_heads_per_partition = self.head_end_index - self.head_start_index
 
         # Allocate weights and initialize.
         if neox_args.use_cpu_initialization:
-            self.weight = Parameter(torch.empty(
-                self.num_buckets, self.num_heads_per_partition,
-                dtype=neox_args.params_dtype))
+            self.weight = Parameter(
+                torch.empty(
+                    self.num_buckets,
+                    self.num_heads_per_partition,
+                    dtype=neox_args.params_dtype,
+                )
+            )
             _initialize_affine_weight_cpu(
-                neox_args, self.weight, self.num_buckets, self.heads,
-                self.num_heads_per_partition, partition_dim=1, init_method=init_method)
+                neox_args,
+                self.weight,
+                self.num_buckets,
+                self.heads,
+                self.num_heads_per_partition,
+                partition_dim=1,
+                init_method=init_method,
+            )
         else:
-            self.weight = Parameter(torch.empty(
-                self.num_buckets, self.num_heads_per_partition,
-                device=torch.cuda.current_device(), dtype=neox_args.params_dtype))
-            _initialize_affine_weight_gpu(self.weight, init_method,
-                                          partition_dim=1, stride=1)
+            self.weight = Parameter(
+                torch.empty(
+                    self.num_buckets,
+                    self.num_heads_per_partition,
+                    device=torch.cuda.current_device(),
+                    dtype=neox_args.params_dtype,
+                )
+            )
+            _initialize_affine_weight_gpu(
+                self.weight, init_method, partition_dim=1, stride=1
+            )
         self._q_len_cached = None
         self._k_len_cached = None
         self._rel_pos_bucket_cached = None
@@ -217,7 +277,9 @@ class ParallelRelativePositionBias(torch.nn.Module):
         index_l = index_f + per_partition_n_heads
         return index_f, index_l
 
-    def _relative_position_bucket(self, relative_position, num_buckets=32, max_distance=128):
+    def _relative_position_bucket(
+        self, relative_position, num_buckets=32, max_distance=128
+    ):
         ret = 0
         n = -relative_position
         if not self.causal:
@@ -230,10 +292,17 @@ class ParallelRelativePositionBias(torch.nn.Module):
         max_exact = num_buckets // 2
         is_small = n < max_exact
 
-        val_if_large = max_exact + (
-                torch.log(n.float() / max_exact) / math.log(max_distance / max_exact) * (num_buckets - max_exact)
-        ).long()
-        val_if_large = torch.min(val_if_large, torch.full_like(val_if_large, num_buckets - 1))
+        val_if_large = (
+            max_exact
+            + (
+                torch.log(n.float() / max_exact)
+                / math.log(max_distance / max_exact)
+                * (num_buckets - max_exact)
+            ).long()
+        )
+        val_if_large = torch.min(
+            val_if_large, torch.full_like(val_if_large, num_buckets - 1)
+        )
 
         ret += torch.where(is_small, n, val_if_large)
         self._rel_pos_bucket_cached = ret
@@ -243,16 +312,28 @@ class ParallelRelativePositionBias(torch.nn.Module):
         if self._q_len_cached != q_len or self._k_len_cached != k_len:
             # cache bucket if first step seq len stays constant
             self._q_len_cached, self._k_len_cached = q_len, k_len
-            q_pos = torch.arange(q_len, dtype=torch.long, device=torch.cuda.current_device())
-            k_pos = torch.arange(k_len, dtype=torch.long, device=torch.cuda.current_device())
+            q_pos = torch.arange(
+                q_len, dtype=torch.long, device=torch.cuda.current_device()
+            )
+            k_pos = torch.arange(
+                k_len, dtype=torch.long, device=torch.cuda.current_device()
+            )
             rel_pos = k_pos[None, :] - q_pos[:, None]
-            rp_bucket = self._relative_position_bucket(rel_pos, num_buckets=self.num_buckets,
-                                                       max_distance=self.max_distance)
+            rp_bucket = self._relative_position_bucket(
+                rel_pos, num_buckets=self.num_buckets, max_distance=self.max_distance
+            )
         else:
             rp_bucket = self._rel_pos_bucket_cached
-        values = F.embedding(rp_bucket, self.weight, self.padding_idx,
-                             self.max_norm, self.norm_type, self.scale_grad_by_freq, self.sparse)
-        bias = values.movedim(2,0).unsqueeze(0)
+        values = F.embedding(
+            rp_bucket,
+            self.weight,
+            self.padding_idx,
+            self.max_norm,
+            self.norm_type,
+            self.scale_grad_by_freq,
+            self.sparse,
+        )
+        bias = values.movedim(2, 0).unsqueeze(0)
         return bias * self.scale
 
 
@@ -276,14 +357,22 @@ class ColumnParallelLinear(torch.nn.Module):
                                      set to False. It returns the master weights
                                      used for initialization.
         skip_bias_add: This was added to enable performance optimations where bias
-                       can be fused with other elementwise operations. we skip 
+                       can be fused with other elementwise operations. we skip
                        adding bias but instead return it.
     """
 
-    def __init__(self, neox_args, input_size, output_size, bias=True, gather_output=True,
-                 init_method=init.xavier_normal_, stride=1,
-                 keep_master_weight_for_test=False,
-                 skip_bias_add=False):
+    def __init__(
+        self,
+        neox_args,
+        input_size,
+        output_size,
+        bias=True,
+        gather_output=True,
+        init_method=init.xavier_normal_,
+        stride=1,
+        keep_master_weight_for_test=False,
+        skip_bias_add=False,
+    ):
         super(ColumnParallelLinear, self).__init__()
 
         # Keep input parameters
@@ -300,29 +389,52 @@ class ColumnParallelLinear(torch.nn.Module):
         # we allocate the transpose.
         # Initialize weight.
         if neox_args.use_cpu_initialization:
-            self.weight = Parameter(torch.empty(self.output_size_per_partition,
-                                                self.input_size,
-                                                dtype=neox_args.params_dtype))
+            self.weight = Parameter(
+                torch.empty(
+                    self.output_size_per_partition,
+                    self.input_size,
+                    dtype=neox_args.params_dtype,
+                )
+            )
             self.master_weight = _initialize_affine_weight_cpu(
-                neox_args, self.weight, self.output_size, self.input_size,
-                self.output_size_per_partition, 0, init_method,
-                stride=stride, return_master_weight=keep_master_weight_for_test)
+                neox_args,
+                self.weight,
+                self.output_size,
+                self.input_size,
+                self.output_size_per_partition,
+                0,
+                init_method,
+                stride=stride,
+                return_master_weight=keep_master_weight_for_test,
+            )
         else:
-            self.weight = Parameter(torch.empty(
-                self.output_size_per_partition, self.input_size,
-                device=torch.cuda.current_device(), dtype=neox_args.params_dtype))
-            _initialize_affine_weight_gpu(self.weight, init_method,
-                                          partition_dim=0, stride=stride)
+            self.weight = Parameter(
+                torch.empty(
+                    self.output_size_per_partition,
+                    self.input_size,
+                    device=torch.cuda.current_device(),
+                    dtype=neox_args.params_dtype,
+                )
+            )
+            _initialize_affine_weight_gpu(
+                self.weight, init_method, partition_dim=0, stride=stride
+            )
 
         if bias:
             if neox_args.use_cpu_initialization:
-                self.bias = Parameter(torch.empty(
-                    self.output_size_per_partition, dtype=neox_args.params_dtype))
+                self.bias = Parameter(
+                    torch.empty(
+                        self.output_size_per_partition, dtype=neox_args.params_dtype
+                    )
+                )
             else:
-                self.bias = Parameter(torch.empty(
-                    self.output_size_per_partition,
-                    device=torch.cuda.current_device(),
-                    dtype=neox_args.params_dtype))
+                self.bias = Parameter(
+                    torch.empty(
+                        self.output_size_per_partition,
+                        device=torch.cuda.current_device(),
+                        dtype=neox_args.params_dtype,
+                    )
+                )
             self.bias.model_parallel = True
             self.bias.partition_dim = 0
             self.bias.stride = stride
@@ -330,11 +442,13 @@ class ColumnParallelLinear(torch.nn.Module):
             with torch.no_grad():
                 self.bias.zero_()
         else:
-            self.register_parameter('bias', None)
+            self.register_parameter("bias", None)
 
     def set_parallel_output(self, value: bool):
         assert isinstance(value, bool)
-        self.gather_output = not value # if gather_output is True, parallel output is False, so we set the opposite
+        self.gather_output = (
+            not value
+        )  # if gather_output is True, parallel output is False, so we set the opposite
 
     def forward(self, input_):
         # Set up backprop all-reduce.
@@ -378,16 +492,23 @@ class RowParallelLinear(torch.nn.Module):
                                      set to False. It returns the master weights
                                      used for initialization.
         skip_bias_add: This was added to enable performance optimations where bias
-                       can be fused with other elementwise operations. we skip 
+                       can be fused with other elementwise operations. we skip
                        adding bias but instead return it.
     """
 
-    def __init__(self, neox_args, input_size, output_size, bias=True,
-                 input_is_parallel=False,
-                 init_method=init.xavier_normal_, stride=1,
-                 keep_master_weight_for_test=False,
-                 skip_bias_add=False,
-                 parallel_output=False):
+    def __init__(
+        self,
+        neox_args,
+        input_size,
+        output_size,
+        bias=True,
+        input_is_parallel=False,
+        init_method=init.xavier_normal_,
+        stride=1,
+        keep_master_weight_for_test=False,
+        skip_bias_add=False,
+        parallel_output=False,
+    ):
         super(RowParallelLinear, self).__init__()
 
         # Keep input parameters
@@ -405,32 +526,54 @@ class RowParallelLinear(torch.nn.Module):
         # we allocate the transpose.
         # Initialize weight.
         if neox_args.use_cpu_initialization:
-            self.weight = Parameter(torch.empty(self.output_size,
-                                                self.input_size_per_partition,
-                                                dtype=neox_args.params_dtype))
+            self.weight = Parameter(
+                torch.empty(
+                    self.output_size,
+                    self.input_size_per_partition,
+                    dtype=neox_args.params_dtype,
+                )
+            )
             self.master_weight = _initialize_affine_weight_cpu(
-                neox_args, self.weight, self.output_size, self.input_size,
-                self.input_size_per_partition, 1, init_method,
-                stride=stride, return_master_weight=keep_master_weight_for_test)
+                neox_args,
+                self.weight,
+                self.output_size,
+                self.input_size,
+                self.input_size_per_partition,
+                1,
+                init_method,
+                stride=stride,
+                return_master_weight=keep_master_weight_for_test,
+            )
         else:
-            self.weight = Parameter(torch.empty(
-                self.output_size, self.input_size_per_partition,
-                device=torch.cuda.current_device(), dtype=neox_args.params_dtype))
-            _initialize_affine_weight_gpu(self.weight, init_method,
-                                          partition_dim=1, stride=stride)
+            self.weight = Parameter(
+                torch.empty(
+                    self.output_size,
+                    self.input_size_per_partition,
+                    device=torch.cuda.current_device(),
+                    dtype=neox_args.params_dtype,
+                )
+            )
+            _initialize_affine_weight_gpu(
+                self.weight, init_method, partition_dim=1, stride=stride
+            )
         if bias:
             if neox_args.use_cpu_initialization:
-                self.bias = Parameter(torch.empty(self.output_size,
-                                                  dtype=neox_args.params_dtype))
+                self.bias = Parameter(
+                    torch.empty(self.output_size, dtype=neox_args.params_dtype)
+                )
             else:
-                self.bias = Parameter(torch.empty(
-                    self.output_size, device=torch.cuda.current_device(),
-                    dtype=neox_args.params_dtype))
+                self.bias = Parameter(
+                    torch.empty(
+                        self.output_size,
+                        device=torch.cuda.current_device(),
+                        dtype=neox_args.params_dtype,
+                    )
+                )
             # Always initialize bias to zero.
             with torch.no_grad():
                 self.bias.zero_()
         else:
-            self.register_parameter('bias', None)
+            self.register_parameter("bias", None)
 
     def set_parallel_output(self, parallel_output: bool):
         assert isinstance(parallel_output, bool)

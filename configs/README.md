@@ -38,6 +38,7 @@ For a detailed list of all the arguments available for neox, see [neox_arguments
        "betas": [0.9, 0.95]
      }
    },
+   # for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
    "zero_optimization": {
     "stage": 0,
     "allgather_partitions": True,
@@ -46,7 +47,6 @@ For a detailed list of all the arguments available for neox, see [neox_arguments
     "reduce_scatter": True,
     "reduce_bucket_size": 500000000,
     "contiguous_gradients": True,
-    "cpu_offload": False
   },
 
    # batch / data settings
@@ -68,7 +68,7 @@ For a detailed list of all the arguments available for neox, see [neox_arguments
    "attention-dropout": 0,
 
    # precision settings
-   "fp16": { 
+   "fp16": {
      "enabled": true,
      "loss_scale": 0,
      "loss_scale_window": 1000,
@@ -80,7 +80,7 @@ For a detailed list of all the arguments available for neox, see [neox_arguments
    "lr-decay-iters": 320000,
    "lr-decay-style": "cosine",
    "warmup": 0.01,
-  
+
    # misc. training settings
    "distributed-backend": "nccl",
    "save-interval": 10000,
@@ -123,14 +123,14 @@ These can be set to any integer between `0` and `num_gpus`, and `num_gpus` must 
    "scaled-upper-triang-masked-softmax-fusion": false,
    "train-iters": 320000,
 ```
-An example of some basic settings used to configure your model's architecture and number of training steps. 
-                                                                 
+An example of some basic settings used to configure your model's architecture and number of training steps.
+
 ### Optimizer Settings:
 
-Our optimizer configuration has a similar syntax to deepspeed's. Different optimizers will have different arguments for "params". 
+Our optimizer configuration has a similar syntax to deepspeed's. Different optimizers will have different arguments for "params".
 Learning rate should be configured from here using the `"lr"` field of `optimizer["params"]`.
 
-```yaml 
+```yaml
   # optimizer settings
    "optimizer": {
      "type": "Adam",
@@ -156,15 +156,16 @@ Available optimizer types are:
        "comm_backend_name": "nccl"
      }
 ```
-    
-- `"CPU_Adam"`/`"CPU_torch_adam"`: Adam optimizer on CPU. Either megatron's version ("CPU_Adam") or torch's ("CPU_torch_adam") 
+
+- `"CPU_Adam"`/`"CPU_torch_adam"`: Adam optimizer on CPU. Either megatron's version ("CPU_Adam") or torch's ("CPU_torch_adam")
 - `"SM3"`: SM3 or [Memory adaptive efficient optimization optimizer](https://arxiv.org/pdf/1901.11150.pdf). We have found this doesn't work well with fp16 training.
 - `"madgrad_wd"`: MADGRAD or [A Momentumized, Adaptive, Dual Averaged Gradient Method for Stochastic
-    Optimizer] weight decay has been implemented AdamW style instead of the original madgrad Adam style. https://arxiv.org/abs/2101.11075 
-    
+    Optimizer] weight decay has been implemented AdamW style instead of the original madgrad Adam style. https://arxiv.org/abs/2101.11075
+
 ### ZeRO Optimization:
 
 ```yaml
+# for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
   "zero_optimization": {
         "stage": 0,
         "allgather_partitions": True,
@@ -173,7 +174,6 @@ Available optimizer types are:
         "reduce_scatter": True,
         "reduce_bucket_size": 500000000,
         "contiguous_gradients": True,
-        "cpu_offload": False
   },
   "zero_allow_untested_optimizer": false,
 
@@ -195,7 +195,7 @@ N.B - ZeRO stages 2+ are incompatible with pipeline parallelism. Please set `"pi
 Our global batch size configuration follows deepspeed's and can be configured in a number of ways. At least any one of `"train_batch_size"` and `"train_micro_batch_size_per_gpu"`.
 - `"train_batch_size"`: The effective training batch size. This is the amount of data samples that leads to one step of model update. train_batch_size is aggregated by the batch size that a single GPU processes in one forward/backward pass (a.k.a., train_step_batch_size), the gradient accumulation steps (a.k.a., gradient_accumulation_steps), and the number of GPUs.
 - `"train_micro_batch_size_per_gpu""`: Batch size to be processed by one GPU in one step (without gradient accumulation). When specified, `gradient_accumulation_steps` is automatically calculated using train_batch_size and number of GPUs.
-- `"gradient_accumulation_steps"`: Number of training steps to accumulate gradients before averaging and applying them. This feature is sometimes useful to improve scalability since it results in less frequent communication of gradients between steps. Another impact of this feature is the ability to train with larger batch sizes per GPU. When specified, train_step_batch_size is automatically calculated using train_batch_size and number of GPUs. 
+- `"gradient_accumulation_steps"`: Number of training steps to accumulate gradients before averaging and applying them. This feature is sometimes useful to improve scalability since it results in less frequent communication of gradients between steps. Another impact of this feature is the ability to train with larger batch sizes per GPU. When specified, train_step_batch_size is automatically calculated using train_batch_size and number of GPUs.
 
 ### Dataset / Tokenizer / Checkpoint / Logging Settings:
 
@@ -226,7 +226,7 @@ Our global batch size configuration follows deepspeed's and can be configured in
    "warmup": 0.01,
 ```
 
-Settings used to modify the learning rate over time. 
+Settings used to modify the learning rate over time.
 
 N.B - `OneBitAdam` requires you to use deepspeed's internal lr scheduler because reasons. Currently the lr decay style defaults to deepspeed's `WarmupDecay
 
@@ -246,7 +246,7 @@ gpt-neox's mixed precision training is configured identically to DeepSpeed's, pl
 An example config for fp16 training:
 
 ```yaml
-   "fp16": { 
+   "fp16": {
      "enabled": true,
      "loss_scale": 0,
      "loss_scale_window": 1000,
@@ -256,5 +256,45 @@ An example config for fp16 training:
 ```
 
 To train in fp32, simply set `fp16["enabled"]` to `false`.
+
+
+### SLURM Settings
+
+If you are running GPT-NeoX on a SLURM cluster and wish to use SLURM to coordinate nodes, then you must set the following variables in your config:
+
+```yaml
+    "launcher": "slurm",
+    "deepspeed_slurm": true
+```
+
+Additionally, you need to modify _all_ of your configs to conform to the JSON. When launching a GPT-NeoX job you can specify multiple YAML config files. Internally, all of these files are merged into one config and then passed as a single long command line argument to Deep(er)Speed. When using SLURM and its internal command `srun`, python fails to parse this long command line argument unless it is in the more restrictive JSON format. In practice, the example NeoX configs are already very close to JSON. As an example, this is a snippet of a YAML-compatible config, N.B. the comment the capital-F `False`:
+
+```yaml
+    # optimizer settings
+   "optimizer": {
+     "type": "OneBitAdam",
+     "params": {
+       "lr": 0.0001,
+       "freeze_step": 23000,
+       "betas": [0.9, 0.95],
+       "cuda_aware": False,
+       "comm_backend_name": "nccl"
+     }
+```
+
+To make this JSON just remove the comment and use all lowercase for the boolean:
+
+```yaml
+   "optimizer": {
+     "type": "OneBitAdam",
+     "params": {
+       "lr": 0.0001,
+       "freeze_step": 23000,
+       "betas": [0.9, 0.95],
+       "cuda_aware": false,
+       "comm_backend_name": "nccl"
+     }
+```
+
 
 ** TODO: bf16 docs **

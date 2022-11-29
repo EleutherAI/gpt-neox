@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright (c) 2021, EleutherAI contributors
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
@@ -38,7 +37,7 @@ from pprint import pformat
 
 def check_checkpoint_args(neox_args, checkpoint_args):
     """Ensure fixed arguments for a model are the same for the input
-    arguments and the one retreived frm checkpoint."""
+    arguments and the one retrieved from checkpoint."""
 
     assert isinstance(checkpoint_args, dict), "args stored in checkpoint is a dict"
     for checkpoint_arg_name, checkpoint_arg_value in checkpoint_args.items():
@@ -58,13 +57,15 @@ def do_forward_pass(neox_args, model, inference=False):
     # get context tokens
     # always forward full batch size
     context_tokens_tensor = (
-        torch.arange(2049).repeat((neox_args.train_micro_batch_size_per_gpu, 1)).cuda()
+        torch.arange(neox_args.seq_length + 1)
+        .repeat((neox_args.train_micro_batch_size_per_gpu, 1))
+        .cuda()
     )
 
     # forward
     if inference:
         tokens, attention_mask, position_ids = get_batch(
-            neox_args, context_tokens_tensor[:, :2048]
+            neox_args, context_tokens_tensor[:, : neox_args.seq_length]
         )
         model_inputs = (
             tokens,
@@ -78,7 +79,7 @@ def do_forward_pass(neox_args, model, inference=False):
         _, logits = model.eval_batch(data_iter=data_iterator, return_logits=True)
     else:
         tokens, attention_mask, position_ids = get_batch(
-            neox_args, context_tokens_tensor[:, :2048]
+            neox_args, context_tokens_tensor[:, : neox_args.seq_length]
         )
         logits = model((tokens, position_ids, attention_mask))
 
@@ -183,8 +184,8 @@ def save_ds_checkpoint(iteration, model, neox_args):
 
     if neox_args.checkpoint_validation_with_forward_pass:
         logits = do_forward_pass(neox_args=neox_args, model=model)
-        sd['checkpoint_validation_logits'] = logits
-    
+        sd["checkpoint_validation_logits"] = logits
+
     # checkpoint folder name
     tag = f"global_step{iteration}"
 
@@ -192,12 +193,13 @@ def save_ds_checkpoint(iteration, model, neox_args):
     model.save_checkpoint(neox_args.save, tag=tag, client_state=sd)
 
     # save config files
-    if  torch.distributed.get_rank() == 0 and neox_args.config_files is not None:
+    if torch.distributed.get_rank() == 0 and neox_args.config_files is not None:
         configs_directory = os.path.join(neox_args.save, tag, "configs")
-        os.makedirs(configs_directory)
+        os.makedirs(configs_directory, exist_ok=True)
         for config_filename, config_data in neox_args.config_files.items():
             with open(os.path.join(configs_directory, config_filename), "w") as f:
                 f.write(config_data)
+
 
 def save_checkpoint(neox_args, iteration, model, optimizer, lr_scheduler):
     """Save a model checkpoint."""

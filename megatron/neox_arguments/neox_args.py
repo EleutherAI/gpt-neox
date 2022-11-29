@@ -51,8 +51,8 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
 
     pipe_partition_method: str = "type:transformer|mlp"
     """
-    method used to distribute model layers across pipeline stages. Choose from "parameters", which balances the number 
-    of parameters on each pipeline stage, "uniform", which naively balances the number of layers per stage, or 
+    method used to distribute model layers across pipeline stages. Choose from "parameters", which balances the number
+    of parameters on each pipeline stage, "uniform", which naively balances the number of layers per stage, or
     "type:[regex]", which balances layers whose class names match [regex]
     """
 
@@ -63,7 +63,7 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
 
     is_pipe_parallel: bool = False
     """
-    flag to determine whether pipeline parallelism is on - shouldn't be set by user, is automatically determined 
+    flag to determine whether pipeline parallelism is on - shouldn't be set by user, is automatically determined
     according to pipeline parallel size.
     """
 
@@ -141,6 +141,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     T5 relative positional encoding max distance, default 128.
     """
 
+    opt_pos_emb_offset: int = 0
+    """
+    Learned position embedding offset (only used by OPT, where it should be set to 2).
+    """
+
     no_weight_tying: bool = False
     """
     Disables weight tying between embedding weights and final Linear layer
@@ -150,18 +155,18 @@ class NeoXArgsModel(NeoXArgsTemplate):
 
     """
     Attention configuration for gpt-neox
-    
-    The first item in the list specifies the attention type(s), and should be a list of strings. The second item 
+
+    The first item in the list specifies the attention type(s), and should be a list of strings. The second item
     specifies the number of times to repeat those attention types in the full list.
-    
+
     attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird]
-                                
+
     So a 12 layer network with only global attention could be specified like:
         [[[`global`], 12]]
-        
+
     or a 12 layer network with alternating global / local like:
         [[[`global`, `local`], 6]]
-        
+
     If none is specified, this defaults to
         [[[`global`], n_layers]]
     """
@@ -170,13 +175,13 @@ class NeoXArgsModel(NeoXArgsTemplate):
 
     """
     Sparsity configuration dict as defined in https://www.deepspeed.ai/docs/config-json/#sparse-attention
-    
-    Note that since neox is autoregressive, attention is always "unidirectional" and `horizontal_global_attention` is 
+
+    Note that since neox is autoregressive, attention is always "unidirectional" and `horizontal_global_attention` is
     always false.
-    
-    The main difference between our sparsity config and deepspeed's is that `mode` is ignored - since it is instead 
+
+    The main difference between our sparsity config and deepspeed's is that `mode` is ignored - since it is instead
     specified in attention_config defining each layer.
-    
+
     An example config is given below:
           "sparse_attention": {
             "block": 16,
@@ -278,7 +283,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
         "small_init",
     ] = "normal"
     """
-    Init function used on all layers except ff residual outputs - choose from 
+    Init function used on all layers except ff residual outputs - choose from
     ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
     """
 
@@ -293,7 +298,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
         "small_init",
     ] = "scaled_normal"
     """
-    Init function used for ff residual outputs - choose from 
+    Init function used for ff residual outputs - choose from
     ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
     """
 
@@ -324,7 +329,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
 
     soft_prompt_tuning: dict = None
     """
-    Dictionary configuring the soft prompt tuning parameters. 
+    Dictionary configuring the soft prompt tuning parameters.
     If enabled, will train *only* the soft prompt, and freezes the rest of the model.
     parameters in the dict are:
         'enabled': bool = True # enables soft prompting
@@ -407,7 +412,7 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
 
     min_lr: float = 0.0
     """
-    Minumum value for learning rate. The scheduler clips values below this threshold.
+    Minimum value for learning rate. The scheduler clips values below this threshold.
     """
 
     warmup: float = 0.01
@@ -447,6 +452,9 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     wandb_host: str = "https://api.wandb.ai"
     """url of the wandb host"""
 
+    wandb_init_all_ranks: bool = False
+    """Initialize wandb on all ranks."""
+
     git_hash: str = get_git_commit_hash()
     """current git hash of repository"""
 
@@ -470,15 +478,20 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Interval between logging.
     """
 
+    log_grad_pct_zeros: bool = False
+    """
+    Log the percentage of zeros for the gradient of each parameter to wandb / tensorboard (useful for debugging). Needs wandb_init_all_ranks set to True if using pipeline parallelism to log all ranks.
+    """
+
     log_param_norm: bool = False
     """
-    Log the frob norm of the parameters to wandb / tensorboard (useful for debugging).
+    Log the frob norm of the parameters to wandb / tensorboard (useful for debugging). Needs wandb_init_all_ranks set to True if using pipeline parallelism to log all ranks.
     """
 
     log_grad_norm: bool = False
     """
     Log the frob norm of the gradients to wandb / tensorboard (useful for debugging).
-    (N.B - this will only work with pp = 0 for now, as we don't have access to the gradients of the model because 
+    (N.B - this will only work with pp = 0 for now, as we don't have access to the gradients of the model because
     deepspeed.)
     """
 
@@ -489,7 +502,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
 
     log_gradient_noise_scale: bool = False
     """
-    Whether to log the gradient noise scale when training (cf. https://arxiv.org/abs/1812.06162 for explanation) 
+    Whether to log the gradient noise scale when training (cf. https://arxiv.org/abs/1812.06162 for explanation)
     """
 
     gradient_noise_scale_n_batches: int = 5
@@ -577,6 +590,11 @@ class NeoXArgsOther(NeoXArgsTemplate):
     Run via MPI, this will attempt to discover the necessary variables to initialize torch distributed from the MPI environment
     """
 
+    deepspeed_slurm: bool = False
+    """
+    Run via SLURM, this will attempt to discover the necessary variables to initialize torch distributed from the SLURM environment
+    """
+
     user_script: str = None
     """
     user script to be run
@@ -615,7 +633,11 @@ class NeoXArgsTokenizer(NeoXArgsTemplate):
     """
 
     tokenizer_type: Literal[
-        "GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "SPMTokenizer", "CharLevelTokenizer"
+        "GPT2BPETokenizer",
+        "HFTokenizer",
+        "HFGPT2Tokenizer",
+        "SPMTokenizer",
+        "CharLevelTokenizer",
     ] = "GPT2BPETokenizer"
     """
     Type of tokenizer to use - should be one of ["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "SPMTokenizer", "CharLevelTokenizer"]
@@ -623,13 +645,13 @@ class NeoXArgsTokenizer(NeoXArgsTemplate):
 
     padded_vocab_size: int = None
     """
-    Total (padded) vocabulary size of tokenizer. Configured after launching of training, 
+    Total (padded) vocabulary size of tokenizer. Configured after launching of training,
     as it's dependent on the parallelism size.
     """
 
     tokenizer = None
     """
-    tokenizer object loaded into memory and accesible by other functions
+    tokenizer object loaded into memory and accessible by other functions
     """
 
 
@@ -680,7 +702,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     weight_by_num_documents: bool = False
     """
     If True, Builds dataset weights from a multinomial distribution over groups of data according to the number of
-    documents in each group. 
+    documents in each group.
 
     WARNING: setting this to True will override any user provided weights
 
@@ -915,7 +937,7 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     Text Generation arguments
     """
 
-    text_gen_type: str = "unconditional"
+    text_gen_type: str = None
     """
     How to generate text/sample the model.
     Options: `unconditional`, `input-file`, `interactive`
@@ -936,6 +958,11 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
     """
 
+    return_logits: bool = False
+    """
+    Boolean for whether to return the logits for generated tokens
+    """
+
     maximum_tokens: int = 64
     """
     maximum number of tokens to be generated
@@ -948,7 +975,7 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
 
     sample_output_file: str = "samples.txt"
     """
-    Output file 
+    Output file
     """
 
     num_samples: int = 1

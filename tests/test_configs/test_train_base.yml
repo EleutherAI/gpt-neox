@@ -29,6 +29,7 @@
      }
    },
 
+   # for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
    "zero_optimization": {
     "stage": 0,
     "allgather_partitions": True,
@@ -37,7 +38,6 @@
     "reduce_scatter": True,
     "reduce_bucket_size": 500000000,
     "contiguous_gradients": True,
-    "cpu_offload": False
   },
 
    # batch / data settings
@@ -58,7 +58,7 @@
    "attention_dropout": 0.0,
 
    # precision settings
-   "fp16": { 
+   "fp16": {
      "enabled": true,
      "loss_scale": 0,
      "loss_scale_window": 1000,

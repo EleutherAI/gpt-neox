@@ -1,5 +1,3 @@
-# coding=utf-8
-
 # Copyright (c) 2021 Josh Levy-Kramer <josh@levykramer.co.uk>.
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
@@ -75,14 +73,21 @@ def get_attn_mask(seq_length, device):
     return mask < 0.5
 
 
-def get_ltor_masks_and_position_ids(data, eod_token, eod_mask_loss=False):
+def get_ltor_masks_and_position_ids(
+    data,
+    eod_token,
+    eod_mask_loss=False,
+):
     """Build masks and position id for left to right model."""
 
     # Extract batch size and sequence length.
     batch_size, seq_length = data.size()
 
     # Attention mask (lower triangular).
-    attention_mask = get_attn_mask(seq_length=seq_length, device=data.device)
+    attention_mask = get_attn_mask(
+        seq_length=seq_length,
+        device=data.device,
+    )
 
     # Loss mask.
     loss_mask = torch.ones(data.size(), dtype=torch.float, device=data.device)
@@ -97,8 +102,12 @@ def get_ltor_masks_and_position_ids(data, eod_token, eod_mask_loss=False):
 
 
 def local_rank():
-    """ Local rank of process """
+    """Local rank of process"""
     local_rank = os.environ.get("LOCAL_RANK")
+
+    if local_rank is None:
+        local_rank = os.environ.get("SLURM_LOCALID")
+
     if local_rank is None:
         print(
             "utils.local_rank() environment variable LOCAL_RANK not set, defaulting to 0",
@@ -109,12 +118,12 @@ def local_rank():
 
 
 def is_bnb_available():
-    """ True if bitsandbytes optimizers are available """
+    """True if bitsandbytes optimizers are available"""
     return importlib.util.find_spec("bitsandbytes") is not None
 
 
 def is_local_main():
-    """ True if is the local main process """
+    """True if is the local main process"""
     return local_rank() == 0
 
 
@@ -124,7 +133,7 @@ def is_mp_rank_0():
 
 
 def get_wandb_api_key(neox_args):
-    """ Get Weights and Biases API key from ENV or .netrc file. Otherwise return None """
+    """Get Weights and Biases API key from ENV or .netrc file. Otherwise return None"""
     if "WANDB_LOCAL" in os.environ:
         return "LOCAL"
     if "WANDB_API_KEY" in os.environ:
@@ -141,8 +150,11 @@ def init_wandb(neox_args):
     if neox_args.use_wandb == False:
         return
 
-    use_wandb = is_local_main() and (get_wandb_api_key(neox_args=neox_args) is not None)
-    neox_args.update_value("use_wandb", use_wandb)
+    if not neox_args.wandb_init_all_ranks:
+        use_wandb = is_local_main() and (
+            get_wandb_api_key(neox_args=neox_args) is not None
+        )
+        neox_args.update_value("use_wandb", use_wandb)
     if neox_args.use_wandb:
         group_name = neox_args.wandb_group
         name = f"{socket.gethostname()}-{local_rank()}" if group_name else None
@@ -268,7 +280,7 @@ class Timers:
         """Write timers to a tensorboard writer"""
         # currently when using add_scalars,
         # torch.utils.add_scalars makes each timer its own run, which
-        # polutes the runs list, so we just add each as a scalar
+        # pollutes the runs list, so we just add each as a scalar
         assert normalizer > 0.0
         for name in names:
             value = self.timers[name].elapsed(reset=reset) / normalizer
@@ -387,14 +399,13 @@ def get_total_params(model):
 
 
 def setup_for_inference_or_eval(
-    inference=True, get_key_value=True, overwrite_values=None
+    use_cache=True,
+    overwrite_values=None,
 ):
     """
     Initializes the model for evaluation or inference (doesn't load optimizer states, etc.) from command line args.
 
-    inference: bool
-        Whether to initialize in inference mode
-    get_key_value: bool
+    use_cache: bool
         Whether to use key value caching in inference.
     overwrite_values: dict
         Optional Values to overwrite in the model config.
@@ -403,7 +414,7 @@ def setup_for_inference_or_eval(
     from megatron.neox_arguments import NeoXArgs
     from megatron.initialize import initialize_megatron
     from megatron.training import setup_model_and_optimizer
-
+    
     _overwrite_values = {
         "checkpoint_activations": False,
         "partition_activations": False,
@@ -419,17 +430,21 @@ def setup_for_inference_or_eval(
     if neox_args.load is None:
         raise ValueError("`load` parameter must be supplied to load a model`")
 
+    # initialize wandb
+    init_wandb(neox_args=neox_args)
+
     # initialize megatron
     initialize_megatron(neox_args)
 
     # set up model and load checkpoint.
     model, _, _ = setup_model_and_optimizer(
         neox_args=neox_args,
-        inference=inference,
-        get_key_value=get_key_value,
+        use_cache=use_cache,
         iteration=neox_args.iteration,
     )  # we use setup_model_and_optimizer instead of get_model in order to initialize deepspeed
     print_rank_0("Finished loading model")
+
+    model.module.inference_mode(use_cache=use_cache)
     return model, neox_args
 
 

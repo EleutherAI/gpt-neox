@@ -14,6 +14,7 @@ best_download.download_file = _download_file
 
 import os
 import sys
+import dataclasses
 from functools import partial
 
 sys.path.append(
@@ -23,9 +24,8 @@ from tqdm import tqdm
 import torch
 import torch.nn.functional as F
 
-from lm_eval.base import CacheHook
 from lm_eval.models.gpt2 import GPT2LM
-from lm_eval import tasks, evaluator, utils
+from lm_eval import tasks, evaluator, utils, base
 from megatron.text_generation_utils import generate_samples_from_prompt
 from megatron import mpu
 
@@ -40,17 +40,17 @@ class EvalHarnessAdapter(GPT2LM):
         neox_args: a NeoXArgs object containing the model configuration.
         batch_size (optional): An argument to override the batch size, which defaults to batch size per gpu * dp world size.
     """
-    def __init__(self, model, forward_step_fn, neox_args, batch_size=None):
 
-        self.device = torch.device(f"cuda:{neox_args.local_rank}")
-        self.VOCAB_SIZE = neox_args.padded_vocab_size
-        self.tokenizer = neox_args.tokenizer
-        self.EOT_TOKEN_ID = neox_args.tokenizer.eod_id
+    def __init__(self, model, forward_step_fn, neox_args, batch_size=None):
+        self.cache_hook = base.CacheHook(None)
         self.model = model
         self.neox_args = neox_args
-        self.cache_hook = CacheHook(None)
-        self.max_length = neox_args.max_position_embeddings // 2
-        self.max_gen_toks = 128
+        self.tokenizer = neox_args.tokenizer
+        self._device = torch.device(f"cuda:{neox_args.local_rank}")
+        self._eot_token_id = neox_args.tokenizer.eod_id
+        self._max_length = neox_args.max_position_embeddings // 2
+        self._max_gen_toks = 128
+        self._vocab_size = neox_args.padded_vocab_size
 
         # parallelism args:
         self.is_main = neox_args.rank == 0
@@ -66,8 +66,9 @@ class EvalHarnessAdapter(GPT2LM):
         self.dp_group = mpu.get_data_parallel_group()
         self.is_mp_rank_0 = mpu.get_model_parallel_rank() == 0
 
-        self.batch_size = batch_size or (neox_args.batch_size * self.dp_world_size) # default batch size to bs per gpu * dp size
-
+        self._batch_size = batch_size or (
+            neox_args.batch_size * self.dp_world_size
+        )  # default batch size to bs per gpu * dp size
         # some utility functions:
         # we need to patch tokenizer methods, because lm_eval uses them internally:
         self.tokenizer.encode = self.tokenizer.tokenize
@@ -79,10 +80,40 @@ class EvalHarnessAdapter(GPT2LM):
             generate_samples_from_prompt,
             neox_args=neox_args,
             model=model,
-            maximum_tokens=self.max_gen_toks,
+            maximum_tokens=self._max_gen_toks,
             temperature=0.0,
-            broadcast_generated_tokens=True,
         )
+
+    @property
+    def vocab_size(self):
+        return self._vocab_size
+
+    @property
+    def eot_token_id(self):
+        # we use EOT because end of *text* is more accurate for what we're doing than end of *sentence*
+        return self._eot_token_id
+
+    @property
+    def max_length(self):
+        return self._max_length
+
+    @property
+    def max_gen_toks(self):
+        return self._max_gen_toks
+
+    @property
+    def batch_size(self):
+        return self._batch_size
+
+    @property
+    def device(self):
+        return self._device
+
+    def tok_encode(self, string: str):
+        return self.tokenizer.encode(string)
+
+    def tok_decode(self, tokens):
+        return self.tokenizer.decode(tokens)
 
     def greedy_until(self, requests):
         """
@@ -95,7 +126,7 @@ class EvalHarnessAdapter(GPT2LM):
         :param requests: Dictionary of requests containing the context (prompt) and 'until' - a token or
                          list of stop tokens.
         """
-        self.model.module.inference_mode(cache=True)  # tell model to cache kv pairs
+        self.model.module.inference_mode(use_cache=True)  # tell model to cache kv pairs
         res = []
 
         def _collate(x):
@@ -137,7 +168,7 @@ class EvalHarnessAdapter(GPT2LM):
         :param disable_tqdm: If True, disable tqdm progress bar.
         """
         self.model.module.inference_mode(
-            cache=False
+            use_cache=False
         )  # tell model to gather parallel outputs, but not cache key-value pairs
 
         disable_tqdm = disable_tqdm if self.is_main else True
@@ -154,7 +185,7 @@ class EvalHarnessAdapter(GPT2LM):
                 tqdm(reord.get_reordered(), disable=disable_tqdm), self.batch_size
             ):
                 inps, contlens, inplens, padding_length = [], [], [], None
-                for _, context_enc, continuation_enc in chunk:
+                for cache_key, context_enc, continuation_enc in chunk:
                     # when too long to fit in context, truncate from the left
                     inp = torch.tensor(
                         (context_enc + continuation_enc)[-(self.max_length + 1) :][:-1],
@@ -229,8 +260,14 @@ class EvalHarnessAdapter(GPT2LM):
                 else:
                     logits_sums = torch.zeros(res_len, dtype=torch.float32).cuda()
                     max_equals = torch.zeros(res_len, dtype=torch.int64).cuda()
-                torch.distributed.broadcast(tensor=logits_sums, src=src_rank)
-                torch.distributed.broadcast(tensor=max_equals, src=src_rank)
+                torch.distributed.broadcast(
+                    tensor=logits_sums,
+                    src=src_rank,
+                    group=mpu.get_pipe_parallel_group(),
+                )
+                torch.distributed.broadcast(
+                    tensor=max_equals, src=src_rank, group=mpu.get_pipe_parallel_group()
+                )
                 max_equals = [bool(i) for i in max_equals.tolist()]
                 logits_sums = logits_sums.tolist()
                 res = list(zip(logits_sums, max_equals))
@@ -250,9 +287,13 @@ class EvalHarnessAdapter(GPT2LM):
             # In this case we pad the batch
             padded_size = self.dp_world_size - (batch_size % self.dp_world_size)
 
-            print_rank_0(f'WARNING: Batch size ({batch_size}) must be divisible by dp world size ({self.dp_world_size}). Padding inputs to {padded_size}.')
-            
-            inps = torch.cat([inps] + [ inps[0:1, ...] for _ in range(padded_size) ], dim=0) # pad with first inp item
+            print_rank_0(
+                f"WARNING: Batch size ({batch_size}) must be divisible by dp world size ({self.dp_world_size}). Padding inputs to {padded_size}."
+            )
+
+            inps = torch.cat(
+                [inps] + [inps[0:1, ...] for _ in range(padded_size)], dim=0
+            )  # pad with first inp item
             padded = True
 
         assert (
@@ -277,7 +318,7 @@ class EvalHarnessAdapter(GPT2LM):
                 tensor_list, logits, group=mpu.get_data_parallel_group()
             )
             logits = torch.cat(tensor_list, dim=0)
-            return logits 
+            return logits
 
     def _model_call(self, inps):
         batch_size = inps.shape[0]
@@ -301,8 +342,21 @@ class EvalHarnessAdapter(GPT2LM):
             logits = logits[:batch_size, ...]
         return logits
 
+    def _model_generate(self, context, max_length, eos_token_id):
+        # Isn't used because we override `greedy_until``.
+        raise NotImplementedError()
+
     @torch.no_grad()
-    def run_eval(self, eval_tasks=None, num_fewshot=0, bootstrap_iters=2):
+    def run_eval(
+        self,
+        eval_tasks=None,
+        num_fewshot=0,
+        bootstrap_iters=2,
+        description_dict=None,
+        use_cache=True,
+        name="neox",
+        limit=None,
+    ):
         was_training = self.model.training
         self.model.eval()
         in_micro_batches = (
@@ -319,6 +373,18 @@ class EvalHarnessAdapter(GPT2LM):
                 "pubmedqa",
             ]
 
+        # Returns a list containing all values of the task registry that
+        # match at least one of the patterns
+        import fnmatch
+        def pattern_match(patterns, source_list):
+            task_names = set()
+            for pattern in patterns:
+                for matching in fnmatch.filter(source_list, pattern):
+                    task_names.add(matching)
+            return list(task_names)
+        eval_tasks = pattern_match(eval_tasks, tasks.ALL_TASKS)
+        print(f"Found tasks: {eval_tasks}")
+
         # **HACK INCOMING**:
         # first get task dict on local main rank
         # the tasks are downloaded *as they are initialized*, and the downloads don't like multithreading.
@@ -330,14 +396,32 @@ class EvalHarnessAdapter(GPT2LM):
             torch.distributed.barrier()
         task_dict = tasks.get_task_dict(eval_tasks)
 
+        lm = self
+        if use_cache:
+            # TODO(jon-tow): Append a subset of `neox_args` to the cache database
+            # name arg to distinguish model runs that use different configurations.
+            lm = base.CachingLM(lm, "lm_cache/" + name + ".db")
+
         results = evaluator.evaluate(
-            lm=self,
+            lm=lm,
             task_dict=tasks.get_task_dict(eval_tasks),
-            provide_description=False,
+            description_dict=description_dict,
             num_fewshot=num_fewshot,
-            limit=None,
+            limit=limit,
             bootstrap_iters=bootstrap_iters,
         )
+
+        results["config"] = {
+            "model": name,
+            "model_args": dataclasses.asdict(self.neox_args),
+            "num_fewshot": num_fewshot,
+            "batch_size": self.batch_size,
+            "device": str(self.device),
+            "no_cache": not use_cache,
+            "limit": limit,
+            "bootstrap_iters": bootstrap_iters,
+            "description_dict": description_dict,
+        }
 
         if was_training:
             self.model.train()
@@ -346,8 +430,16 @@ class EvalHarnessAdapter(GPT2LM):
 
 
 def run_eval_harness(
-    model, forward_step_fn, neox_args, batch_size=None, eval_tasks=None, num_fewshot=0, bootstrap_iters=2
+    model,
+    forward_step_fn,
+    neox_args,
+    batch_size=None,
+    eval_tasks=None,
+    num_fewshot=0,
+    bootstrap_iters=2,
 ):
     print_rank_0("Running evaluation harness...")
-    adapter = EvalHarnessAdapter(model, forward_step_fn, neox_args, batch_size)
-    return adapter.run_eval(eval_tasks=eval_tasks, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters)
+    adapter = EvalHarnessAdapter(model, forward_step_fn, neox_args, batch_size=batch_size)
+    return adapter.run_eval(
+        eval_tasks=eval_tasks, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters,
+    )

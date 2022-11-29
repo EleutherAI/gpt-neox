@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +14,12 @@
 
 import torch
 
-from .initialize import get_model_parallel_group, get_model_parallel_world_size, get_model_parallel_rank, get_fp32_allreduce
+from .initialize import (
+    get_model_parallel_group,
+    get_model_parallel_world_size,
+    get_model_parallel_rank,
+    get_fp32_allreduce,
+)
 from .utils import split_tensor_along_last_dim
 
 
@@ -167,6 +171,7 @@ class _GatherFromModelParallelRegion(torch.autograd.Function):
 # -----------------
 # Helper functions.
 # -----------------
+
 
 def copy_to_model_parallel_region(input_):
     return _CopyToModelParallelRegion.apply(input_)

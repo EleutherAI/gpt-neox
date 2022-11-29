@@ -36,6 +36,7 @@ from .neox_args import (
 
 # ZERO defaults by deespeed
 # These values should not be changed unless defaults in deepspeed are changed
+# for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
 ZERO_DEFAULTS = {
     "stage": 0,
     "allgather_partitions": True,
@@ -45,7 +46,6 @@ ZERO_DEFAULTS = {
     "reduce_scatter": True,
     "reduce_bucket_size": int(5e8),
     "contiguous_gradients": False,
-    "cpu_offload": False,
 }
 
 # NeoX optimizer defaults
@@ -76,6 +76,9 @@ BASE_CLASSES = [
 
 DEEPSPEED_ARG_CLASSES = [NeoXArgsDeepspeedRunner, NeoXArgsDeepspeedConfig]
 NEOX_ARG_CLASSES = [i for i in BASE_CLASSES if i not in DEEPSPEED_ARG_CLASSES]
+
+if "DLTS_HOSTFILE" in os.environ:
+    DLTS_HOSTFILE = os.environ["DLTS_HOSTFILE"]
 
 
 @dataclass
@@ -172,13 +175,15 @@ class NeoXArgs(*BASE_CLASSES):
             # load original config files to save unchanged with checkpoint
             # saving the original config retains comments
             filename = os.path.basename(conf_file_name)
-            assert filename not in config_files, "At least two config files have the same filename. This will result in conflicts when saving out configs with the checkpoint in one single directory. Please use unique names for configs."
+            assert (
+                filename not in config_files
+            ), "At least two config files have the same filename. This will result in conflicts when saving out configs with the checkpoint in one single directory. Please use unique names for configs."
             config_files[filename] = open(conf_file_name).read()
 
         # add config file content to neox args to make them accessible in code
         # this is used when saving checkpoints
         config["config_files"] = config_files
-        
+
         # Configuration parameters not specified
         params_not_in_config = sorted(
             list(set(cls.__dataclass_fields__.keys()) - set(config.keys()))
@@ -279,6 +284,29 @@ class NeoXArgs(*BASE_CLASSES):
             default=None,
             help="prefix to append to eval results file",
         )
+        parser.add_argument(
+            "-H",
+            "--hostfile",
+            type=str,
+            help="Hostfile path (in MPI style) that defines the "
+            "resource pool available to the job (e.g., "
+            "worker-0 slots=4)",
+        )
+        group = parser.add_argument_group(title="Generation args")
+        group.add_argument(
+            "-i",
+            "--sample_input_file",
+            type=str,
+            default=None,
+            help="Optionally overwrite `sample_input_file` for generate.py",
+        )
+        group.add_argument(
+            "-o",
+            "--sample_output_file",
+            type=str,
+            default=None,
+            help="Optionally overwrite `sample_output_file` for generate.py",
+        )
         args_parsed = parser.parse_args()
 
         # Validate user_script exists
@@ -301,8 +329,10 @@ class NeoXArgs(*BASE_CLASSES):
                 overwrite_values[k] = v
 
         # load args
-        neox_args = cls.from_ymls(paths_to_yml_files=conf_files, overwrite_values=overwrite_values)
-        
+        neox_args = cls.from_ymls(
+            paths_to_yml_files=conf_files, overwrite_values=overwrite_values
+        )
+
         if neox_args.wandb_group is not None:
             # concat the wandb group name with a uid to make sure it's unique
             import wandb
@@ -361,6 +391,12 @@ class NeoXArgs(*BASE_CLASSES):
                 args_list.extend(
                     self.convert_key_value_to_command_line_arg(key, configured_value)
                 )
+        if "DLTS_HOSTFILE" in os.environ:
+            args_list.extend(
+                self.convert_key_value_to_command_line_arg(
+                    "hostfile", os.environ["DLTS_HOSTFILE"]
+                )
+            )
 
         if (
             "--include" in args_list or "--exclude" in args_list
@@ -510,6 +546,11 @@ class NeoXArgs(*BASE_CLASSES):
             from deepspeed.utils.distributed import mpi_discovery
 
             mpi_discovery()
+
+        if self.deepspeed_slurm:
+            os.environ["LOCAL_RANK"] = os.environ["SLURM_LOCALID"]
+            os.environ["RANK"] = os.environ["SLURM_PROCID"]
+            os.environ["WORLD_SIZE"] = os.environ["SLURM_NTASKS"]
 
         self.update_value("local_rank", int(os.getenv("LOCAL_RANK", "0")))
         self.update_value("rank", int(os.getenv("RANK", "0")))
@@ -770,6 +811,13 @@ class NeoXArgs(*BASE_CLASSES):
         if self.test_data_paths and (self.test_data_weights is None):
             self.test_data_weights = [1.0] * len(self.test_data_paths)
 
+        # if a sample input file is provided, default text_gen_type type to input-file
+        if self.text_gen_type is None:
+            if self.sample_input_file:
+                self.update_value("text_gen_type", "input-file")
+            else:
+                self.update_value("text_gen_type", "unconditional")
+
     ############################################################################################################################
     # start of validation functions
 
@@ -828,7 +876,7 @@ class NeoXArgs(*BASE_CLASSES):
         if self.hidden_size % self.num_attention_heads != 0:
             error_message = (
                 self.__class__.__name__
-                + ".validate_values() hidden_size must be divisable by num_attention_heads"
+                + ".validate_values() hidden_size must be divisible by num_attention_heads"
             )
             logging.error(error_message)
             raise ValueError(error_message)

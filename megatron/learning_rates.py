@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,11 +22,18 @@ from megatron import print_rank_0
 class AnnealingLR(object):
     """Anneals the learning rate."""
 
-    def __init__(self, optimizer, start_lr,
-                 warmup_iter, total_iters,
-                 decay_style, last_iter, min_lr=0.0,
-                 use_checkpoint_lr_scheduler=True,
-                 override_lr_scheduler=False):
+    def __init__(
+        self,
+        optimizer,
+        start_lr,
+        warmup_iter,
+        total_iters,
+        decay_style,
+        last_iter,
+        min_lr=0.0,
+        use_checkpoint_lr_scheduler=True,
+        override_lr_scheduler=False,
+    ):
 
         # Class values.
         self.optimizer = optimizer
@@ -41,16 +47,17 @@ class AnnealingLR(object):
         self.override_lr_scheduler = override_lr_scheduler
         self.use_checkpoint_lr_scheduler = use_checkpoint_lr_scheduler
         if self.override_lr_scheduler:
-            assert not self.use_checkpoint_lr_scheduler, 'both override and '\
-                'use-checkpoint are set.'
+            assert not self.use_checkpoint_lr_scheduler, (
+                "both override and " "use-checkpoint are set."
+            )
         # Set the learning rate
         self.step(self.num_iters)
 
-        print_rank_0('> learning rate decay style: {}'.format(self.decay_style))
+        print_rank_0("> learning rate decay style: {}".format(self.decay_style))
 
     def get_lr(self):
         """Learning rate decay functions from:
-              https://openreview.net/pdf?id=BJYwwY9ll pg. 4"""
+        https://openreview.net/pdf?id=BJYwwY9ll pg. 4"""
 
         num_iters_ = min(self.num_iters, self.end_iter - self.warmup_iter)
         # Warmup.
@@ -58,12 +65,15 @@ class AnnealingLR(object):
             return float(self.start_lr) * num_iters_ / self.warmup_iter
 
         num_iters_ = num_iters_ - self.warmup_iter
-        if self.decay_style == 'linear':
+        if self.decay_style == "linear":
             lr = self.start_lr * (self.end_iter - num_iters_) / self.end_iter
-        elif self.decay_style == 'cosine':
-            lr = self.start_lr / 2.0 * (math.cos(
-                math.pi * num_iters_ / self.end_iter) + 1)
-        elif self.decay_style == 'exponential':
+        elif self.decay_style == "cosine":
+            lr = (
+                self.start_lr
+                / 2.0
+                * (math.cos(math.pi * num_iters_ / self.end_iter) + 1)
+            )
+        elif self.decay_style == "exponential":
             # exp(-0.693) = 1/2
             lr = self.start_lr * math.exp(-0.693 * num_iters_ / self.end_iter)
         else:
@@ -77,16 +87,16 @@ class AnnealingLR(object):
         self.num_iters = step_num
         new_lr = self.get_lr()
         for group in self.optimizer.param_groups:
-            group['lr'] = new_lr
+            group["lr"] = new_lr
 
     def state_dict(self):
         state_dict = {
-            'start_lr': self.start_lr,
-            'warmup_iter': self.warmup_iter,
-            'num_iters': self.num_iters,
-            'decay_style': self.decay_style,
-            'end_iter': self.end_iter,
-            'min_lr': self.min_lr
+            "start_lr": self.start_lr,
+            "warmup_iter": self.warmup_iter,
+            "num_iters": self.num_iters,
+            "decay_style": self.decay_style,
+            "end_iter": self.end_iter,
+            "min_lr": self.min_lr,
         }
         return state_dict
 
@@ -94,30 +104,34 @@ class AnnealingLR(object):
         """Auxiliary function for checking the values in the checkpoint and
         setting them."""
         if self.override_lr_scheduler:
-            print_rank_0(' > overriding {} value to {}'.format(name, cls_value))
+            print_rank_0(" > overriding {} value to {}".format(name, cls_value))
             return cls_value
 
         if not self.use_checkpoint_lr_scheduler:
-            assert cls_value == sd_value, 'AnnealingLR: class input value' \
-                'and checkpoint values for {} do not match'.format(name)
-        print_rank_0(' > using checkpoint value {} for {}'.format(sd_value,
-                                                                  name))
+            assert cls_value == sd_value, (
+                "AnnealingLR: class input value"
+                "and checkpoint values for {} do not match".format(name)
+            )
+        print_rank_0(" > using checkpoint value {} for {}".format(sd_value, name))
         return sd_value
 
     def load_state_dict(self, sd):
 
-        self.start_lr = self._check_and_set(self.start_lr, sd['start_lr'],
-                                            'learning rate')
-        self.min_lr = self._check_and_set(self.min_lr, sd['min_lr'],
-                                          'minimum learning rate')
-        self.warmup_iter = self._check_and_set(self.warmup_iter,
-                                               sd['warmup_iter'],
-                                               'warmup iterations')
-        self.end_iter = self._check_and_set(self.end_iter, sd['end_iter'],
-                                            'total number of iterations')
-        self.decay_style = self._check_and_set(self.decay_style,
-                                               sd['decay_style'],
-                                               'decay style')
+        self.start_lr = self._check_and_set(
+            self.start_lr, sd["start_lr"], "learning rate"
+        )
+        self.min_lr = self._check_and_set(
+            self.min_lr, sd["min_lr"], "minimum learning rate"
+        )
+        self.warmup_iter = self._check_and_set(
+            self.warmup_iter, sd["warmup_iter"], "warmup iterations"
+        )
+        self.end_iter = self._check_and_set(
+            self.end_iter, sd["end_iter"], "total number of iterations"
+        )
+        self.decay_style = self._check_and_set(
+            self.decay_style, sd["decay_style"], "decay style"
+        )
 
-        self.num_iters = sd['num_iters']
+        self.num_iters = sd["num_iters"]
         self.step(self.num_iters)

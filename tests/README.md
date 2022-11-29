@@ -6,9 +6,14 @@ Tests use pytests with coverage and forked plugins. Install with:
 pip install -r requirements/requirements-dev.txt
 ```
 
+Download the required test data
+```bash
+python prepare_data.py
+```
+
 # Run
 
-Tests can be run using pytest. 
+Tests can be run using pytest.
 
 * The argument --forked needs to be provided
 * A coverage report can be created using the optional arguments --cov-report and --cov (see pytest documentation)
@@ -36,3 +41,11 @@ If a html coverage report has been created a simple http server can be run to se
 ```bash
 python -m http.server --directory htmlcov 8000
 ```
+
+
+## Tips and Tricks
+if You see this kind of error:
+```
+RuntimeError: Cannot re-initialize CUDA in forked subprocess. To use CUDA with multiprocessing, you must use the 'spawn' start method
+```
+It means that you used some pytorch.cuda function before the test creates the processes.

@@ -27,7 +27,7 @@ LR Scheduler Arguments
 
     Default = 0.0
 
-    Minumum value for learning rate. The scheduler clips values below this threshold.
+    Minimum value for learning rate. The scheduler clips values below this threshold.
 
 
 
@@ -101,9 +101,17 @@ Logging Arguments
 
 
 
+- **wandb_init_all_ranks**: bool
+
+    Default = False
+
+    Initialize wandb on all ranks.
+
+
+
 - **git_hash**: str
 
-    Default = 875f8ad
+    Default = 4746148
 
     current git hash of repository
 
@@ -133,11 +141,19 @@ Logging Arguments
 
 
 
+- **log_grad_pct_zeros**: bool
+
+    Default = False
+
+    Log the percentage of zeros for the gradient of each parameter to wandb / tensorboard (useful for debugging). Needs wandb_init_all_ranks set to True if using pipeline parallelism to log all ranks.
+
+
+
 - **log_param_norm**: bool
 
     Default = False
 
-    Log the frob norm of the parameters to wandb / tensorboard (useful for debugging).
+    Log the frob norm of the parameters to wandb / tensorboard (useful for debugging). Needs wandb_init_all_ranks set to True if using pipeline parallelism to log all ranks.
 
 
 
@@ -146,7 +162,7 @@ Logging Arguments
     Default = False
 
     Log the frob norm of the gradients to wandb / tensorboard (useful for debugging).
-    (N.B - this will only work with pp = 0 for now, as we don't have access to the gradients of the model because 
+    (N.B - this will only work with pp = 0 for now, as we don't have access to the gradients of the model because
     deepspeed.)
 
 
@@ -237,11 +253,11 @@ Model Arguments
 
 
 
-- **norm**: typing.Literal['layernorm', 'rmsnorm', 'scalenorm', 'apexlayernorm']
+- **norm**: typing.Literal['layernorm', 'rmsnorm', 'scalenorm']
 
     Default = layernorm
 
-    Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm", "apexlayernorm".
+    Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm".
 
 
 
@@ -269,7 +285,7 @@ Model Arguments
 
 
 
-- **pos_emb**: typing.Literal['learned', 'rotary', 'sinusoidal', 'rpe', 'none']
+- **pos_emb**: typing.Literal['learned', 'rotary', 'sinusoidal', 'rpe', 'alibi', 'none']
 
     Default = learned
 
@@ -293,6 +309,14 @@ Model Arguments
 
 
 
+- **opt_pos_emb_offset**: int
+
+    Default = 0
+
+    Learned position embedding offset (only used by OPT, where it should be set to 2).
+
+
+
 - **no_weight_tying**: bool
 
     Default = False
@@ -306,18 +330,18 @@ Model Arguments
     Default = None
 
     Attention configuration for gpt-neox
-    
-    The first item in the list specifies the attention type(s), and should be a list of strings. The second item 
+
+    The first item in the list specifies the attention type(s), and should be a list of strings. The second item
     specifies the number of times to repeat those attention types in the full list.
-    
+
     attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird]
-                                
+
     So a 12 layer network with only global attention could be specified like:
         [[[`global`], 12]]
-        
+
     or a 12 layer network with alternating global / local like:
         [[[`global`, `local`], 6]]
-        
+
     If none is specified, this defaults to
         [[[`global`], n_layers]]
 
@@ -328,13 +352,13 @@ Model Arguments
     Default = None
 
     Sparsity configuration dict as defined in https://www.deepspeed.ai/docs/config-json/#sparse-attention
-    
-    Note that since neox is autoregressive, attention is always "unidirectional" and `horizontal_global_attention` is 
+
+    Note that since neox is autoregressive, attention is always "unidirectional" and `horizontal_global_attention` is
     always false.
-    
-    The main difference between our sparsity config and deepspeed's is that `mode` is ignored - since it is instead 
+
+    The main difference between our sparsity config and deepspeed's is that `mode` is ignored - since it is instead
     specified in attention_config defining each layer.
-    
+
     An example config is given below:
           "sparse_attention": {
             "block": 16,
@@ -372,14 +396,6 @@ Model Arguments
     Default = 128
 
     Pad the vocab size to be divisible by this value. This is added for computational efficiency reasons.
-
-
-
-- **apply_residual_connection_post_layernorm**: bool
-
-    Default = False
-
-    If set, use original BERT residual connection ordering.
 
 
 
@@ -483,7 +499,7 @@ Model Arguments
 
     Default = normal
 
-    Init function used on all layers except ff residual outputs - choose from 
+    Init function used on all layers except ff residual outputs - choose from
     ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
 
 
@@ -492,7 +508,7 @@ Model Arguments
 
     Default = scaled_normal
 
-    Init function used for ff residual outputs - choose from 
+    Init function used for ff residual outputs - choose from
     ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
 
 
@@ -503,6 +519,41 @@ Model Arguments
 
     the dimension of the single head self attention in gmlp model (not used in gpt models).
     If None - gmlp model doesn't use attention.
+
+
+
+- **gpt_j_residual**: bool
+
+    Default = False
+
+    If false, we use the conventional residual path:
+      x = x + attn(ln1(x))
+      x = x + mlp(ln2(x))
+    Otherwise, we use the residual path from GPT-J, which offers a slight speedup:
+      x = ln(x)
+      x = x + attn(x) + mlp(x)
+
+
+
+- **soft_prompt_tuning**: dict
+
+    Default = None
+
+    Dictionary configuring the soft prompt tuning parameters.
+    If enabled, will train *only* the soft prompt, and freezes the rest of the model.
+    parameters in the dict are:
+        'enabled': bool = True # enables soft prompting
+        'num_tokens': int = 10 # length of the soft prompt in tokens
+        'init_string': str = '' # if provided, initialize the soft prompt with the word embeddings of this string
+        'init_range': float = 0.5 # if no init string is provided, initialize the soft prompt with a uniform distribution between -init_range and init_rang
+
+
+
+- **output_layer_parallelism**: typing.Literal['row', 'column']
+
+    Default = row
+
+    Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
 
 
 
@@ -517,6 +568,14 @@ Optimizer Arguments
     Default = adam
 
     Type of optimizer to use. Choose from ['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd]
+
+
+
+- **use_bnb_optimizer**: bool
+
+    Default = False
+
+    Whether to enable the bitsandbytes optimizers
 
 
 
@@ -614,22 +673,6 @@ Misc. Arguments
 
 
 
-- **reset_position_ids**: bool
-
-    Default = False
-
-    Reset posistion ids after end-of-document token.
-
-
-
-- **reset_attention_mask**: bool
-
-    Default = False
-
-    Reset self attention mask after end-of-document token.
-
-
-
 - **eod_mask_loss**: bool
 
     Default = False
@@ -694,6 +737,14 @@ Misc. Arguments
 
 
 
+- **deepspeed_slurm**: bool
+
+    Default = False
+
+    Run via SLURM, this will attempt to discover the necessary variables to initialize torch distributed from the SLURM environment
+
+
+
 - **user_script**: str
 
     Default = None
@@ -734,6 +785,14 @@ Misc. Arguments
 
 
 
+- **global_num_gpus**: int
+
+    Default = None
+
+    Set during launching
+
+
+
 ## NeoXArgsParallelism
 
 Parallelism Arguments
@@ -760,8 +819,8 @@ Parallelism Arguments
 
     Default = type:transformer|mlp
 
-    method used to distribute model layers across pipeline stages. Choose from "parameters", which balances the number 
-    of parameters on each pipeline stage, "uniform", which naively balances the number of layers per stage, or 
+    method used to distribute model layers across pipeline stages. Choose from "parameters", which balances the number
+    of parameters on each pipeline stage, "uniform", which naively balances the number of layers per stage, or
     "type:[regex]", which balances layers whose class names match [regex]
 
 
@@ -778,7 +837,7 @@ Parallelism Arguments
 
     Default = False
 
-    flag to determine whether pipeline parallelism is on - shouldn't be set by user, is automatically determined 
+    flag to determine whether pipeline parallelism is on - shouldn't be set by user, is automatically determined
     according to pipeline parallel size.
 
 
@@ -828,6 +887,14 @@ Text Generation arguments
 
 
 
+- **return_logits**: bool
+
+    Default = False
+
+    Boolean for whether to return the logits for generated tokens
+
+
+
 - **maximum_tokens**: int
 
     Default = 64
@@ -846,7 +913,7 @@ Text Generation arguments
 
 - **sample_output_file**: str
 
-    Default = None
+    Default = samples.txt
 
     Output file
 
@@ -854,9 +921,9 @@ Text Generation arguments
 
 - **num_samples**: int
 
-    Default = 0
+    Default = 1
 
-    Number of samples to generate unconditionally, defaults to 0 and interactive conditional sampling
+    Number of samples to generate unconditionally, defaults to 1 and interactive conditional sampling
 
 
 
@@ -885,14 +952,6 @@ Text Generation arguments
 
 
 
-- **char_level_ppl**: bool
-
-    Default = False
-
-    Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
-
-
-
 ## NeoXArgsTokenizer
 
 Tokenizer Arguments
@@ -911,7 +970,7 @@ Tokenizer Arguments
 
     Default = None
 
-    Total (padded) vocabulary size of tokenizer. Configured after launching of training, 
+    Total (padded) vocabulary size of tokenizer. Configured after launching of training,
     as it's dependent on the parallelism size.
 
 
@@ -986,7 +1045,7 @@ Training Arguments
     Default = False
 
     If True, Builds dataset weights from a multinomial distribution over groups of data according to the number of
-    documents in each group. 
+    documents in each group.
 
     WARNING: setting this to True will override any user provided weights
 
@@ -1034,6 +1093,14 @@ Training Arguments
     Default = None
 
     Output directory to save checkpoints to.
+
+
+
+- **config_files**: dict
+
+    Default = None
+
+    Store of original config files mapping config filename to file contents
 
 
 
@@ -1327,6 +1394,14 @@ Training Arguments
 
 
 
+- **char_level_ppl**: bool
+
+    Default = False
+
+    Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
+
+
+
 ## NeoXArgsDeepspeedConfig
 
 Args for deepspeed config
@@ -1386,7 +1461,7 @@ Args for deepspeed config
     dict containing the keys type and params
 
     type: The scheduler name. See here (https://deepspeed.readthedocs.io/en/latest/schedulers.html) for list of support schedulers.
-    
+
     params: Dictionary of parameters to instantiate scheduler. The parameter names should match scheduler constructor signature.
 
 
@@ -1507,7 +1582,7 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = None
 
     list of hostnames / ssh aliases and the number of GPUs per host
-    
+
     example file contents:
     worker-1 slots=4
     worker-2 slots=4
@@ -1577,4 +1652,12 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = False
 
     If true, autodetects nvlink pairs and remaps cuda visible devices to place them next to each other. This is an Eleuther addition to deepspeed, and should speed up model parallel training on setups with nvlink pairs when mp=2.
+
+
+
+- **slurm_comment**: str
+
+    Default = None
+
+    If using SLURM launcher adds a `--comment` to the srun command that launches the job. Sometimes necessary for cluster rules, or so I've heard.
 
