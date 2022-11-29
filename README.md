@@ -333,6 +333,21 @@ where `--eval_tasks` is a list of evaluation tasks followed by spaces, e.g `--ev
 
 # Exporting to HuggingFace
 
+GPT-NeoX is optimized heavily for training only, and GPT-NeoX model checkpoints are not compatible out of the box with other deep learning libraries. To make models easily loadable and sharable with end users, and for further exporting to various other frameworks, GPT-NeoX supports checkpoint conversion to the [HuggingFace Transformers](https://arxiv.org/abs/1910.03771) GPTNeoXModel format. 
+
+To convert a NeoX checkpoint to Huggingface-loadable format, run:
+```bash
+python ./tools/convert_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location
+```
+Then to upload a model to [the Huggingface Hub](https://huggingface.co/), run:
+```
+huggingface-cli login
+python ./tools/upload.py
+```
+and input the requested information, including HF hub user token.
+
+Note, however, that this compatibility is not one-to-one, and only certain configurations from GPT-NeoX are supported in the Huggingface GPTNeoXModel class. Advanced features such as alternative positional embeddings may require new Transformers modeling code and new conversion script tweaks.
+
 # Monitoring
 
 In addition to storing logs locally, we provide built-in support for two popular experiment monitoring frameworks: [Weights & Biases](https://wandb.ai/site) and [TensorBoard](https://www.tensorflow.org/tensorboard/)
