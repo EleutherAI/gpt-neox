@@ -280,6 +280,8 @@ Although this is not strictly necessary, we find it useful to define the model p
 
 # Inference
 
+**For most uses we recommend deploying models trained using the GPT-NeoX library via the HuggingFace Transformers library which is better optimized for inference.**
+
 We support three types of generation from a pretrained model:
 1. Unconditional generation
 2. Conditional generation based on an input read from a file
