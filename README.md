@@ -362,7 +362,7 @@ To cite our 20 billion parameter model, please use
 
 ## Licensing
 
-This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright &copy; 2021, EleutherAI contributors (in alphabetical order): Alex Andonian, Quentin Anthony, Stella Biderman, Sid Black, Preetham Gali, Leo Gao, Eric Hallahan, Josh Levy-Kramer, Connor Leahy, Lucas Nestler, Kip Parker, Michael Pieler, Shivanshu Purohit, Tri Songz, Phil Wang, Samuel Weinbach. Licensed under the Apache License:
+This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright (c) 2021, EleutherAI. Licensed under the Apache License:
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -376,7 +376,9 @@ This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyri
     See the License for the specific language governing permissions and
     limitations under the License.
 
-This repository is based off code written by NVIDIA that is licensed under the Apache License, Version 2.0. In accordance with the Apache License, all files that are modifications of code originally written by NVIDIA maintain a NVIDIA copyright header. All files that do not contain such a header are original to EleutherAI contributors. When the NVIDIA code has been modified from its original version, that fact is noted in the copyright header. All derivative works of this repository must preserve these headers under the terms of the Apache License.
+This repository is based off code written by NVIDIA that is licensed under the Apache License, Version 2.0. In accordance with the Apache License, all files that are modifications of code originally written by NVIDIA maintain a NVIDIA copyright header. All files that do not contain such a header are the exclusive copyright of EleutherAI. When the NVIDIA code has been modified from its original version, that fact is noted in the copyright header. All derivative works of this repository must preserve these headers under the terms of the Apache License.
+
+This repository also contains code written by a number of other authors. Such contributions are marked and the relevant licensing is included where appropriate.
 
 For full terms, see the `LICENSE` file. If you have any questions, comments, or concerns about licensing please email us at contact@eleuther.ai.
 
