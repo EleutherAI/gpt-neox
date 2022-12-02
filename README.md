@@ -362,6 +362,8 @@ To cite our 20 billion parameter model, please use
 }
 ```
 
+Citation instructions for other pretrained models can be found [in the appropriate repository](#pretrained-models).
+
 ## Licensing
 
 This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright &copy; 2021, EleutherAI contributors (in alphabetical order): Alex Andonian, Quentin Anthony, Stella Biderman, Sid Black, Preetham Gali, Leo Gao, Eric Hallahan, Josh Levy-Kramer, Connor Leahy, Lucas Nestler, Kip Parker, Michael Pieler, Shivanshu Purohit, Tri Songz, Phil Wang, Samuel Weinbach. Licensed under the Apache License:
