@@ -61,5 +61,5 @@
    "wall_clock_breakdown": true,
    "launcher": "slurm",
    "deepspeed_slurm": true,
-   "slurm_comment": "neox"
+   "comment": "neox"
 }
