@@ -3,7 +3,7 @@
 ## Add mup neox args to your config
 
 ```
-\# mup
+# mup
 
 "use-mup": true,
 
@@ -13,7 +13,7 @@
 
 "coord-check": false, # generate coord check plots to verify mup's implementation in neox
 
-\# mup hp search
+# mup hp search
 
 "mup-init-scale": 1.0,
 
