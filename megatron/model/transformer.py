@@ -260,7 +260,7 @@ class ParallelSelfAttention(nn.Module):
 
         self.attention_type = neox_args.attention_config[layer_number]
         self.use_flash_attention = self.attention_type == "flash"
-        self.sparse = self.attention_type != "global"
+        self.sparse = self.attention_type not in ("global", "flash")
         if self.sparse:
             self.sparse_attn = configure_sparse_attention(
                 neox_args,
