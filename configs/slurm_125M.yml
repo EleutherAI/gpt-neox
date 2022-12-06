@@ -26,7 +26,7 @@
     "overlap_comm": true,
     "reduce_scatter": true,
     "reduce_bucket_size": 500000000,
-    "contiguous_gradients": true,
+    "contiguous_gradients": true
   },
    "train_micro_batch_size_per_gpu": 4,
    "data-impl": "mmap",
