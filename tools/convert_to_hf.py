@@ -89,6 +89,16 @@ def create_config(neox_config):
     except:
         pad_token = 1 # pad defaulting to 1. follows convention from GPT-NeoX-20b tokenizer
 
+
+    # TODO: change the default value here based on discussion regarding `gpt_j_tied` config parameter's default
+    use_tied_lns = get_key(neox_config, 'gpt-j-tied', False)
+
+    if not use_tied_lns:
+        raise NotImplementedError(
+                """ERROR: Huggingface Transformers does not yet support a single shared layernorm 
+                per transformer block for GPT-NeoX models trained  w/ GPT-J parallel residuals.
+                See https://github.com/EleutherAI/gpt-neox/pull/481 for further details."""
+    
     # set all config values.
     hf_config = GPTNeoXConfig(
         vocab_size=args.padded_vocab_size,

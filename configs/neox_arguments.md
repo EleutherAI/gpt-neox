@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 94c66b3
+    Default = bcb277e
 
     current git hash of repository
 
@@ -532,6 +532,18 @@ Model Arguments
     Otherwise, we use the residual path from GPT-J, which offers a slight speedup:
       x = ln(x)
       x = x + attn(x) + mlp(x)
+
+
+
+- **gpt_j_tied**: bool
+
+    Default = False
+
+    If false, we use
+      x = x + attn(ln1(x)) + mlp(ln2(x))
+    Otherwise, we tie the layer norms
+      y = ln(x)
+      x = x + attn(y) + mlp(y)
 
 
 
