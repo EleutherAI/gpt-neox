@@ -14,6 +14,7 @@
 
 import torch
 
+
 def ema(avg, beta, yi, i):
     """Exponential moving average"""
     if avg is None:

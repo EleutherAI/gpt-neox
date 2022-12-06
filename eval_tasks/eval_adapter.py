@@ -390,12 +390,14 @@ class EvalHarnessAdapter(GPT2LM):
         # Returns a list containing all values of the task registry that
         # match at least one of the patterns
         import fnmatch
+
         def pattern_match(patterns, source_list):
             task_names = set()
             for pattern in patterns:
                 for matching in fnmatch.filter(source_list, pattern):
                     task_names.add(matching)
             return list(task_names)
+
         eval_tasks = pattern_match(eval_tasks, tasks.ALL_TASKS)
         print(f"Found tasks: {eval_tasks}")
 
@@ -453,7 +455,11 @@ def run_eval_harness(
     bootstrap_iters=2,
 ):
     print_rank_0("Running evaluation harness...")
-    adapter = EvalHarnessAdapter(model, forward_step_fn, neox_args, batch_size=batch_size)
+    adapter = EvalHarnessAdapter(
+        model, forward_step_fn, neox_args, batch_size=batch_size
+    )
     return adapter.run_eval(
-        eval_tasks=eval_tasks, num_fewshot=num_fewshot, bootstrap_iters=bootstrap_iters,
+        eval_tasks=eval_tasks,
+        num_fewshot=num_fewshot,
+        bootstrap_iters=bootstrap_iters,
     )

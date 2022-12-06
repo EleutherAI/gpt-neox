@@ -414,7 +414,7 @@ def setup_for_inference_or_eval(
     from megatron.neox_arguments import NeoXArgs
     from megatron.initialize import initialize_megatron
     from megatron.training import setup_model_and_optimizer
-    
+
     _overwrite_values = {
         "checkpoint_activations": False,
         "partition_activations": False,

@@ -4,16 +4,16 @@
   "train-data-paths": ["/mnt/ssd-1/data/enron/enron_train_text_document"],
   "valid-data-paths": ["/mnt/ssd-1/data/enron/enron_val_text_document"],
   "test-data-paths": ["/mnt/ssd-1/data/enron/enron_test_text_document"],
-  
+
   # if using multiple datasets, provide weights for them to be sampled with
   # "train-data-weights": [1., 2.],
   # "test-data-weights": [2., 1.],
   # "valid-data-weights": [0.5, 0.4],
 
-  
+
   # If you would like the code to create val and test datasets from your training set use the following instead
   # "split" determines the relative size of train, val, and test
-  
+
   # "split" 995,4,1
   # "data_path": "/mnt/ssd-1/data/enron/enron_train_text_document",
 

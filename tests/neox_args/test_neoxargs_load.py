@@ -75,7 +75,9 @@ def test_neoxargs_load_arguments_small_local_setup_text_generation():
     """
     verify small.yml can be loaded together with text generation without raising validation errors
     """
-    run_neox_args_load_test(["small.yml", "local_setup.yml", "text_generation.yml", "cpu_mock_config.yml"])
+    run_neox_args_load_test(
+        ["small.yml", "local_setup.yml", "text_generation.yml", "cpu_mock_config.yml"]
+    )
 
 
 @pytest.mark.cpu

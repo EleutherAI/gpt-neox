@@ -303,7 +303,7 @@ where `--eval_tasks` is a list of evaluation tasks followed by spaces, e.g `--ev
 
 # Exporting to HuggingFace
 
-GPT-NeoX is optimized heavily for training only, and GPT-NeoX model checkpoints are not compatible out of the box with other deep learning libraries. To make models easily loadable and sharable with end users, and for further exporting to various other frameworks, GPT-NeoX supports checkpoint conversion to the [HuggingFace Transformers](https://arxiv.org/abs/1910.03771) GPTNeoXModel format. 
+GPT-NeoX is optimized heavily for training only, and GPT-NeoX model checkpoints are not compatible out of the box with other deep learning libraries. To make models easily loadable and sharable with end users, and for further exporting to various other frameworks, GPT-NeoX supports checkpoint conversion to the [HuggingFace Transformers](https://arxiv.org/abs/1910.03771) GPTNeoXModel format.
 
 To convert a NeoX checkpoint to Huggingface-loadable format, run:
 ```bash
