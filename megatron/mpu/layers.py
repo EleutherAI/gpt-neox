@@ -407,7 +407,7 @@ class ColumnParallelLinear(torch.nn.Module):
         stride=1,
         keep_master_weight_for_test=False,
         skip_bias_add=False,
-        mup_rescale_parameters=True, # nick
+        mup_rescale_parameters=False,
     ):
         super(ColumnParallelLinear, self).__init__()
 
@@ -537,7 +537,7 @@ class ColumnParallelLinear(torch.nn.Module):
         )  # if gather_output is True, parallel output is False, so we set the opposite
 
     def forward(self, input_):
-        if self.use_mup and self.mup_rescale_parameters: # nick
+        if self.use_mup and self.mup_rescale_parameters:
             input_ /= self.width_mult()
         # Set up backprop all-reduce.
         input_parallel = copy_to_model_parallel_region(input_)
@@ -596,7 +596,7 @@ class RowParallelLinear(torch.nn.Module):
         keep_master_weight_for_test=False,
         skip_bias_add=False,
         parallel_output=False,
-        mup_rescale_parameters=True, # nick was false
+        mup_rescale_parameters=False,
     ):
         super(RowParallelLinear, self).__init__()
 
@@ -721,7 +721,7 @@ class RowParallelLinear(torch.nn.Module):
         self.parallel_output = parallel_output
 
     def forward(self, input_):
-        if self.use_mup and self.mup_rescale_parameters: # nick
+        if self.use_mup and self.mup_rescale_parameters:
             input_ /= self.width_mult()
         # Set up backprop all-reduce.
         if self.input_is_parallel:

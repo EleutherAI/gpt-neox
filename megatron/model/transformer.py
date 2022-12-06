@@ -280,7 +280,7 @@ class ParallelSelfAttention(nn.Module):
                 fusion_type=get_fusion_type(neox_args),
                 mask_func=self.attention_mask_func,
                 softmax_in_fp32=self.attention_softmax_in_fp32,
-                scale=(coeff / neox_args.mup_attn_temp) if coeff is not None else None, # TODO nick: deepspeed sparse attention scaling patch?
+                scale=(coeff / neox_args.mup_attn_temp) if coeff is not None else None, # TODO: deepspeed sparse attention scaling patch?
             )
 
             # Dropout. Note that for a single iteration, this layer will generate
