@@ -413,6 +413,13 @@ class NeoXArgs(*BASE_CLASSES):
                 )
             )
 
+        if "MASTER_ADDR" in os.environ:
+            args_list.extend(
+                self.convert_key_value_to_command_line_arg(
+                    "master_addr", os.environ["MASTER_ADDR"]
+                )
+            )
+
         if (
             "--include" in args_list or "--exclude" in args_list
         ) and "--num_gpus" in args_list:
