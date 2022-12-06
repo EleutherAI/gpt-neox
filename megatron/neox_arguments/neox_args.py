@@ -331,6 +331,15 @@ class NeoXArgsModel(NeoXArgsTemplate):
       x = ln(x)
       x = x + attn(x) + mlp(x)
     """
+    
+    gpt_j_tied: bool = False
+    """
+    If false, we use
+      x = x + attn(ln1(x)) + mlp(ln2(x))
+    Otherwise, we tie the layer norms
+      y = ln(x)
+      x = x + attn(y) + mlp(y)
+    """
 
     soft_prompt_tuning: dict = None
     """
