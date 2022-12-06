@@ -405,10 +405,18 @@ class NeoXArgs(*BASE_CLASSES):
                 args_list.extend(
                     self.convert_key_value_to_command_line_arg(key, configured_value)
                 )
+
         if "DLTS_HOSTFILE" in os.environ:
             args_list.extend(
                 self.convert_key_value_to_command_line_arg(
                     "hostfile", os.environ["DLTS_HOSTFILE"]
+                )
+            )
+
+        if "MASTER_ADDR" in os.environ:
+            args_list.extend(
+                self.convert_key_value_to_command_line_arg(
+                    "master_addr", os.environ["MASTER_ADDR"]
                 )
             )
 

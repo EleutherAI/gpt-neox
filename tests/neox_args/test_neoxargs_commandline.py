@@ -149,7 +149,9 @@ def test_neoxargs_consume_neox_args():
     from megatron.neox_arguments import NeoXArgs
 
     # intitially load config from files as would be the case in deepy.py
-    yaml_list = get_configs_with_path(["small.yml", "local_setup.yml", "cpu_mock_config.yml"])
+    yaml_list = get_configs_with_path(
+        ["small.yml", "local_setup.yml", "cpu_mock_config.yml"]
+    )
     args_baseline = NeoXArgs.from_ymls(yaml_list)
     args_baseline.update_value("user_script", str(get_root_directory() / "train.py"))
     deepspeed_main_args = args_baseline.get_deepspeed_main_args()

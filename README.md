@@ -66,7 +66,7 @@ The Pythia Scaling Suite is a suite of models ranging from 19M parameters to 13B
 
 ## Polyglot
 
-The Polyglot Project is an effort to train powerful non-English pretrained language models to promote the accessibility of this technology to researchers outside the dominant powerhouses of machine learning. EleutherAI has trained and released 1.3B, 3.8B, and 5.8B parameter Korean language models, the largest of which outpreforms all other publicly avaliable language models on Korean language tasks. Further details about the project and links to the models can be found [here](https://github.com/EleutherAI/polyglot).
+The Polyglot Project is an effort to train powerful non-English pretrained language models to promote the accessibility of this technology to researchers outside the dominant powerhouses of machine learning. EleutherAI has trained and released 1.3B, 3.8B, and 5.8B parameter Korean language models, the largest of which outpreforms all other publicly available language models on Korean language tasks. Further details about the project and links to the models can be found [here](https://github.com/EleutherAI/polyglot).
 
 ## Fill-in-the-Middle
 
@@ -303,7 +303,7 @@ where `--eval_tasks` is a list of evaluation tasks followed by spaces, e.g `--ev
 
 # Exporting to HuggingFace
 
-GPT-NeoX is optimized heavily for training only, and GPT-NeoX model checkpoints are not compatible out of the box with other deep learning libraries. To make models easily loadable and sharable with end users, and for further exporting to various other frameworks, GPT-NeoX supports checkpoint conversion to the [HuggingFace Transformers](https://arxiv.org/abs/1910.03771) GPTNeoXModel format. 
+GPT-NeoX is optimized heavily for training only, and GPT-NeoX model checkpoints are not compatible out of the box with other deep learning libraries. To make models easily loadable and shareable with end users, and for further exporting to various other frameworks, GPT-NeoX supports checkpoint conversion to the [HuggingFace Transformers](https://arxiv.org/abs/1910.03771) GPTNeoXModel format.
 
 To convert a NeoX checkpoint to Huggingface-loadable format, run:
 ```bash

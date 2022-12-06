@@ -60,7 +60,6 @@ def main():
                     neox_args.iteration,
                     use_wandb=neox_args.use_wandb,
                 )
-        
 
         pprint(results)
         results_path = (

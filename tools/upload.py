@@ -42,4 +42,3 @@ for file in files:
         revision=branch_name,
     )
     print(f"Successfully uploaded {file} !")
-
