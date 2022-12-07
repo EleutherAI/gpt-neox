@@ -82,7 +82,8 @@ class EvalHarnessAdapter(GPT2LM):
             neox_args=neox_args,
             model=model,
             maximum_tokens=self._max_gen_toks,
-            temperature=0.0,
+            temperature=neox_args.temperature,
+            top_p=1.0,
         )
 
     @property
@@ -148,12 +149,11 @@ class EvalHarnessAdapter(GPT2LM):
                 s = cont[0]["text"] or ""
             else:
                 s = ""
-
+     
             for term in until:
                 s = s.split(term)[0]
-
             # partial caching
-            self.cache_hook.add_partial("greedy_until", (context, until), s)
+            #self.cache_hook.add_partial("greedy_until", (context, until), s)
 
             res.append(s)
 
@@ -378,6 +378,10 @@ class EvalHarnessAdapter(GPT2LM):
         # first get task dict on local main rank
         # the tasks are downloaded *as they are initialized*, and the downloads don't like multithreading.
         # so we download them once on the local main rank, wait, and then initialize them on all other ranks, which *should* load from the cache.
+        if self.is_local_main and self.dp_rank == 0:
+            os.environ['CODE_DUMP_INFILL_PATH'] = os.environ['CODE_SETTING_PATH'] #'/fsx/code-fim/FIM-clean/gpt-neox/NEW_NEW_FIMalibi_pass10.jsonl'
+            print("setting CODE_DUMP_INFILL_PATH to", os.environ['CODE_DUMP_INFILL_PATH'])
+
         if self.is_local_main:
             task_dict = tasks.get_task_dict(eval_tasks)
         # torch barrier
