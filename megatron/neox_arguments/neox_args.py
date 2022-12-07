@@ -1,3 +1,17 @@
+# Copyright (c) 2021, EleutherAI
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import subprocess
 from dataclasses import dataclass
 
@@ -334,6 +348,15 @@ class NeoXArgsModel(NeoXArgsTemplate):
       x = ln(x)
       x = x + attn(x) + mlp(x)
     """
+    
+    gpt_j_tied: bool = False
+    """
+    If false, we use
+      x = x + attn(ln1(x)) + mlp(ln2(x))
+    Otherwise, we tie the layer norms
+      y = ln(x)
+      x = x + attn(y) + mlp(y)
+    """
 
     soft_prompt_tuning: dict = None
     """
@@ -596,6 +619,11 @@ class NeoXArgsOther(NeoXArgsTemplate):
     deepspeed_mpi: bool = False
     """
     Run via MPI, this will attempt to discover the necessary variables to initialize torch distributed from the MPI environment
+    """
+
+    deepspeed_slurm: bool = False
+    """
+    Run via SLURM, this will attempt to discover the necessary variables to initialize torch distributed from the SLURM environment
     """
 
     user_script: str = None
@@ -959,6 +987,11 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     top_k: int = 0
     """
     integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
+    """
+
+    return_logits: bool = False
+    """
+    Boolean for whether to return the logits for generated tokens
     """
 
     maximum_tokens: int = 64

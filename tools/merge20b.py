@@ -1,3 +1,17 @@
+# Copyright (c) 2021, EleutherAI
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import argparse
 import os
 import torch
@@ -70,57 +84,77 @@ def merge_model_weights(input_checkpoint_path, output_checkpoint_path):
         merged = {}
 
         # RowParallelLinear
-        merged["mlp.dense_4h_to_h.weight"] = torch.cat([
-            loaded_tp1["mlp.dense_4h_to_h.weight"],
-            loaded_tp2["mlp.dense_4h_to_h.weight"]
-        ], dim=1)
-        merged["attention.dense.weight"] = torch.cat([
-            loaded_tp1["attention.dense.weight"],
-            loaded_tp2["attention.dense.weight"]
-        ], dim=1)
+        merged["mlp.dense_4h_to_h.weight"] = torch.cat(
+            [
+                loaded_tp1["mlp.dense_4h_to_h.weight"],
+                loaded_tp2["mlp.dense_4h_to_h.weight"],
+            ],
+            dim=1,
+        )
+        merged["attention.dense.weight"] = torch.cat(
+            [
+                loaded_tp1["attention.dense.weight"],
+                loaded_tp2["attention.dense.weight"],
+            ],
+            dim=1,
+        )
         merged["mlp.dense_4h_to_h.bias"] = (
-                loaded_tp1["mlp.dense_4h_to_h.bias"]
-                + loaded_tp2["mlp.dense_4h_to_h.bias"]
+            loaded_tp1["mlp.dense_4h_to_h.bias"] + loaded_tp2["mlp.dense_4h_to_h.bias"]
         )
         merged["attention.dense.bias"] = (
-                loaded_tp1["attention.dense.bias"]
-                + loaded_tp2["attention.dense.bias"]
+            loaded_tp1["attention.dense.bias"] + loaded_tp2["attention.dense.bias"]
         )
 
         # Layer Norms
         merged["input_layernorm.weight"] = (
-            loaded_tp1["input_layernorm.weight"]
-            + loaded_tp2["input_layernorm.weight"]) / 2
+            loaded_tp1["input_layernorm.weight"] + loaded_tp2["input_layernorm.weight"]
+        ) / 2
         merged["input_layernorm.bias"] = (
-            loaded_tp1["input_layernorm.bias"]
-            + loaded_tp2["input_layernorm.bias"]) / 2
+            loaded_tp1["input_layernorm.bias"] + loaded_tp2["input_layernorm.bias"]
+        ) / 2
         merged["post_attention_layernorm.weight"] = (
             loaded_tp1["post_attention_layernorm.weight"]
-            + loaded_tp2["post_attention_layernorm.weight"]) / 2
+            + loaded_tp2["post_attention_layernorm.weight"]
+        ) / 2
         merged["post_attention_layernorm.bias"] = (
             loaded_tp1["post_attention_layernorm.bias"]
-            + loaded_tp2["post_attention_layernorm.bias"]) / 2
+            + loaded_tp2["post_attention_layernorm.bias"]
+        ) / 2
 
         # ColumnParallelLinear
-        merged["mlp.dense_h_to_4h.weight"] = torch.cat([
-            loaded_tp1["mlp.dense_h_to_4h.weight"],
-            loaded_tp2["mlp.dense_h_to_4h.weight"],
-        ], dim=0)
-        merged["mlp.dense_h_to_4h.bias"] = torch.cat([
-            loaded_tp1["mlp.dense_h_to_4h.bias"],
-            loaded_tp2["mlp.dense_h_to_4h.bias"],
-        ], dim=0)
-        merged["attention.query_key_value.weight"] = torch.cat([
-            loaded_tp1["attention.query_key_value.weight"],
-            loaded_tp2["attention.query_key_value.weight"],
-        ], dim=0)
-        merged["attention.query_key_value.bias"] = torch.cat([
-            loaded_tp1["attention.query_key_value.bias"],
-            loaded_tp2["attention.query_key_value.bias"],
-        ], dim=0)
+        merged["mlp.dense_h_to_4h.weight"] = torch.cat(
+            [
+                loaded_tp1["mlp.dense_h_to_4h.weight"],
+                loaded_tp2["mlp.dense_h_to_4h.weight"],
+            ],
+            dim=0,
+        )
+        merged["mlp.dense_h_to_4h.bias"] = torch.cat(
+            [
+                loaded_tp1["mlp.dense_h_to_4h.bias"],
+                loaded_tp2["mlp.dense_h_to_4h.bias"],
+            ],
+            dim=0,
+        )
+        merged["attention.query_key_value.weight"] = torch.cat(
+            [
+                loaded_tp1["attention.query_key_value.weight"],
+                loaded_tp2["attention.query_key_value.weight"],
+            ],
+            dim=0,
+        )
+        merged["attention.query_key_value.bias"] = torch.cat(
+            [
+                loaded_tp1["attention.query_key_value.bias"],
+                loaded_tp2["attention.query_key_value.bias"],
+            ],
+            dim=0,
+        )
 
         # Just take one
-        merged["attention.rotary_emb.inv_freq"] = loaded_tp1["attention.rotary_emb.inv_freq"]
+        merged["attention.rotary_emb.inv_freq"] = loaded_tp1[
+            "attention.rotary_emb.inv_freq"
+        ]
 
         torch.save(merged, os.path.join(output_checkpoint_path, filename_tp1))
         del loaded_tp1
@@ -129,41 +163,70 @@ def merge_model_weights(input_checkpoint_path, output_checkpoint_path):
 
     # Load input embedding
     pbar.set_description(f"Merging input embedding")
-    loaded_tp1 = torch.load(os.path.join(input_checkpoint_path, "layer_00-model_00-model_states.pt"))
-    loaded_tp2 = torch.load(os.path.join(input_checkpoint_path, "layer_00-model_01-model_states.pt"))
-    merged = {"word_embeddings.weight": torch.cat([
-        loaded_tp1["word_embeddings.weight"],
-        loaded_tp2["word_embeddings.weight"],
-    ], dim=0)}
-    torch.save(merged, os.path.join(output_checkpoint_path, "layer_00-model_00-model_states.pt"))
+    loaded_tp1 = torch.load(
+        os.path.join(input_checkpoint_path, "layer_00-model_00-model_states.pt")
+    )
+    loaded_tp2 = torch.load(
+        os.path.join(input_checkpoint_path, "layer_00-model_01-model_states.pt")
+    )
+    merged = {
+        "word_embeddings.weight": torch.cat(
+            [
+                loaded_tp1["word_embeddings.weight"],
+                loaded_tp2["word_embeddings.weight"],
+            ],
+            dim=0,
+        )
+    }
+    torch.save(
+        merged,
+        os.path.join(output_checkpoint_path, "layer_00-model_00-model_states.pt"),
+    )
     del loaded_tp1
     del loaded_tp2
     pbar.update(1)
 
     # Load final layer norm
     pbar.set_description(f"Merging final layer norm")
-    loaded_tp1 = torch.load(os.path.join(input_checkpoint_path, "layer_47-model_00-model_states.pt"))
-    loaded_tp2 = torch.load(os.path.join(input_checkpoint_path, "layer_47-model_01-model_states.pt"))
+    loaded_tp1 = torch.load(
+        os.path.join(input_checkpoint_path, "layer_47-model_00-model_states.pt")
+    )
+    loaded_tp2 = torch.load(
+        os.path.join(input_checkpoint_path, "layer_47-model_01-model_states.pt")
+    )
     merged = {
         "norm.weight": (loaded_tp1["norm.weight"] + loaded_tp2["norm.weight"]) / 2,
         "norm.bias": (loaded_tp1["norm.bias"] + loaded_tp2["norm.bias"]) / 2,
     }
-    torch.save(merged, os.path.join(output_checkpoint_path, "layer_47-model_00-model_states.pt"))
+    torch.save(
+        merged,
+        os.path.join(output_checkpoint_path, "layer_47-model_00-model_states.pt"),
+    )
     del loaded_tp1
     del loaded_tp2
     pbar.update(1)
 
     # Load output embedding
     pbar.set_description(f"Merging output embedding")
-    loaded_tp1 = torch.load(os.path.join(input_checkpoint_path, "layer_48-model_00-model_states.pt"))
-    loaded_tp2 = torch.load(os.path.join(input_checkpoint_path, "layer_48-model_01-model_states.pt"))
+    loaded_tp1 = torch.load(
+        os.path.join(input_checkpoint_path, "layer_48-model_00-model_states.pt")
+    )
+    loaded_tp2 = torch.load(
+        os.path.join(input_checkpoint_path, "layer_48-model_01-model_states.pt")
+    )
     merged = {
-        "final_linear.weight": torch.cat([
-            loaded_tp1["final_linear.weight"],
-            loaded_tp2["final_linear.weight"],
-        ], dim=0),
+        "final_linear.weight": torch.cat(
+            [
+                loaded_tp1["final_linear.weight"],
+                loaded_tp2["final_linear.weight"],
+            ],
+            dim=0,
+        ),
     }
-    torch.save(merged, os.path.join(output_checkpoint_path, "layer_48-model_00-model_states.pt"))
+    torch.save(
+        merged,
+        os.path.join(output_checkpoint_path, "layer_48-model_00-model_states.pt"),
+    )
     del loaded_tp1
     del loaded_tp2
     pbar.update(1)
@@ -178,9 +241,11 @@ def merge(input_dir, output_dir):
     for i in range(8):
         modify_model_states(
             input_model_state_path=os.path.join(
-                input_checkpoint_path, f"mp_rank_{i:02d}_model_states.pt"),
+                input_checkpoint_path, f"mp_rank_{i:02d}_model_states.pt"
+            ),
             output_model_state_path=os.path.join(
-                output_checkpoint_path, f"mp_rank_{i:02d}_model_states.pt"),
+                output_checkpoint_path, f"mp_rank_{i:02d}_model_states.pt"
+            ),
         )
     modify_config(
         input_config_path=os.path.join(input_dir, "configs", "20B.yml"),
@@ -200,14 +265,18 @@ def merge(input_dir, output_dir):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Merge 20B checkpoint.')
-    parser.add_argument('--input_dir', type=str,
-                        help='Checkpoint dir, which should contain (e.g. a folder named "global_step150000")')
-    parser.add_argument('--output_dir', type=str,
-                        help='Output dir, to save the 1-GPU weights configs')
+    parser = argparse.ArgumentParser(description="Merge 20B checkpoint.")
+    parser.add_argument(
+        "--input_dir",
+        type=str,
+        help='Checkpoint dir, which should contain (e.g. a folder named "global_step150000")',
+    )
+    parser.add_argument(
+        "--output_dir", type=str, help="Output dir, to save the 1-GPU weights configs"
+    )
     args = parser.parse_args()
     merge(args.input_dir, args.output_dir)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

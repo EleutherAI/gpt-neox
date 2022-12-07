@@ -1,4 +1,4 @@
-# Copyright (c) 2021, EleutherAI contributors
+# Copyright (c) 2021, EleutherAI
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
 # Copyright 2018 The Open AI Team Authors and The HuggingFace Inc. team.
@@ -65,10 +65,10 @@ def bytes_to_unicode():
     )
     cs = bs[:]
     n = 0
-    for b in range(2 ** 8):
+    for b in range(2**8):
         if b not in bs:
             bs.append(b)
-            cs.append(2 ** 8 + n)
+            cs.append(2**8 + n)
             n += 1
     cs = [_chr(n) for n in cs]
     return dict(zip(bs, cs))

@@ -6,9 +6,9 @@
    "model-parallel-size": 1,
 
    # model settings
-   "num-layers": 96,
-   "hidden-size": 12288,
-   "num-attention-heads": 96,
+   "num-layers": 24,
+   "hidden-size": 1024,
+   "num-attention-heads": 16,
    "seq-length": 2048,
    "max-position-embeddings": 2048,
    "norm": "layernorm",
@@ -29,12 +29,13 @@
    "optimizer": {
      "type": "Adam",
      "params": {
-       "lr": 0.00006,
+       "lr": 0.0003,
        "betas": [0.9, 0.95],
        "eps": 1.0e-8,
      }
    },
-   "min_lr": 0.000006,
+   "min_lr": 0.00003,
+
    # for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
    "zero_optimization": {
     "stage": 1,
@@ -45,7 +46,6 @@
     "reduce_bucket_size": 500000000,
     "contiguous_gradients": True,
   },
-
    # batch / data settings
    "train_micro_batch_size_per_gpu": 4,
    "data-impl": "mmap",

@@ -1,4 +1,4 @@
-# Copyright (c) 2021 Josh Levy-Kramer <josh@levykramer.co.uk>.
+# Copyright (c) 2021, EleutherAI
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
@@ -104,6 +104,10 @@ def get_ltor_masks_and_position_ids(
 def local_rank():
     """Local rank of process"""
     local_rank = os.environ.get("LOCAL_RANK")
+
+    if local_rank is None:
+        local_rank = os.environ.get("SLURM_LOCALID")
+
     if local_rank is None:
         print(
             "utils.local_rank() environment variable LOCAL_RANK not set, defaulting to 0",
@@ -425,6 +429,9 @@ def setup_for_inference_or_eval(
 
     if neox_args.load is None:
         raise ValueError("`load` parameter must be supplied to load a model`")
+
+    # initialize wandb
+    init_wandb(neox_args=neox_args)
 
     # initialize megatron
     initialize_megatron(neox_args)
