@@ -30,8 +30,6 @@ from megatron.mpu import set_model_parallel_rank, set_model_parallel_world_size
 import deepspeed
 import inspect
 
-from deepspeed.utils import distributed
-
 
 def initialize_megatron(neox_args, allow_no_cuda=False):
     """Set initialize distributed and set autoresume and random seeds.
@@ -148,7 +146,7 @@ def _initialize_distributed(neox_args):
                 neox_args.local_rank = device
             torch.cuda.set_device(device)
 
-        distributed.init_distributed(
+        deepspeed.init_distributed(
             dist_backend=neox_args.distributed_backend,
             auto_mpi_discovery=True,
             distributed_port=os.getenv("MASTER_PORT", "6000"),
