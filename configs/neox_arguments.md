@@ -344,7 +344,7 @@ Model Arguments
 
     If none is specified, this defaults to
         [[[`global`], n_layers]]
-    
+
     "flash" attention refers to optimized global attention for Ampere (and some other) generation GPUs described here [Flash-Attention](https://github.com/HazyResearch/flash-attention).
 
 
@@ -940,7 +940,7 @@ Text Generation arguments
 
 - **eval_results_prefix**: str
 
-    Default = 
+    Default =
 
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
 
@@ -1528,7 +1528,7 @@ Args for deepspeed config
 
     Default = None
 
-    
+
 
 
 
@@ -1662,4 +1662,3 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = None
 
     If using SLURM launcher adds a `--comment` to the srun command that launches the job. Sometimes necessary for cluster rules, or so I've heard.
-
