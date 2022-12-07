@@ -1,0 +1,5 @@
+# CPU unit tests should be independent of the presence of GPUs on the test server
+# host. This configuration mocks these GPU resources and other dependencies.
+{
+  "global_num_gpus": 1
+}
