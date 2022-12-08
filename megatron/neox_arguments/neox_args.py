@@ -331,7 +331,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
       x = ln(x)
       x = x + attn(x) + mlp(x)
     """
-    
+
     gpt_j_tied: bool = False
     """
     If false, we use
