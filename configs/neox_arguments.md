@@ -7,7 +7,7 @@ LR Scheduler Arguments
 
 
 
-- **lr_decay_style**: typing.Literal['constant', 'linear', 'cosine', 'exponential']
+- **lr_decay_style**: Literal
 
     Default = linear
 
@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = e617cdf
+    Default = 1fcaba8
 
     current git hash of repository
 
@@ -205,7 +205,7 @@ Model Arguments
 
 
 
-- **precision**: typing.Literal['fp16', 'fp32', 'bfloat16']
+- **precision**: Literal
 
     Default = None
 
@@ -253,7 +253,7 @@ Model Arguments
 
 
 
-- **norm**: typing.Literal['layernorm', 'rmsnorm', 'scalenorm']
+- **norm**: Literal
 
     Default = layernorm
 
@@ -285,7 +285,7 @@ Model Arguments
 
 
 
-- **pos_emb**: typing.Literal['learned', 'rotary', 'sinusoidal', 'rpe', 'alibi', 'none']
+- **pos_emb**: Literal
 
     Default = learned
 
@@ -399,7 +399,7 @@ Model Arguments
 
 
 
-- **activation**: typing.Literal['gelu', 'geglu', 'relu', 'softsign', 'swish', 'mish']
+- **activation**: Literal
 
     Default = gelu
 
@@ -495,7 +495,7 @@ Model Arguments
 
 
 
-- **init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init']
+- **init_method**: Literal
 
     Default = normal
 
@@ -504,7 +504,7 @@ Model Arguments
 
 
 
-- **output_layer_init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init']
+- **output_layer_init_method**: Literal
 
     Default = scaled_normal
 
@@ -561,7 +561,7 @@ Model Arguments
 
 
 
-- **output_layer_parallelism**: typing.Literal['row', 'column']
+- **output_layer_parallelism**: Literal
 
     Default = row
 
@@ -575,7 +575,7 @@ Optimizer Arguments
 
 
 
-- **optimizer_type**: typing.Literal['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd']
+- **optimizer_type**: Literal
 
     Default = adam
 
@@ -970,7 +970,7 @@ Tokenizer Arguments
 
 
 
-- **tokenizer_type**: typing.Literal['GPT2BPETokenizer', 'HFTokenizer', 'HFGPT2Tokenizer', 'SPMTokenizer', 'CharLevelTokenizer']
+- **tokenizer_type**: Literal
 
     Default = GPT2BPETokenizer
 
