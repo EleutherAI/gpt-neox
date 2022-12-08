@@ -1,3 +1,17 @@
+# Copyright (c) 2021, EleutherAI
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import subprocess
 from dataclasses import dataclass
 
@@ -316,6 +330,15 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Otherwise, we use the residual path from GPT-J, which offers a slight speedup:
       x = ln(x)
       x = x + attn(x) + mlp(x)
+    """
+    
+    gpt_j_tied: bool = False
+    """
+    If false, we use
+      x = x + attn(ln1(x)) + mlp(ln2(x))
+    Otherwise, we tie the layer norms
+      y = ln(x)
+      x = x + attn(y) + mlp(y)
     """
 
     soft_prompt_tuning: dict = None

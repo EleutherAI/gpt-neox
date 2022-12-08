@@ -19,7 +19,6 @@
        "eps": 1.0e-8
      }
    },
-   # for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
    "zero_optimization": {
     "stage": 0,
     "allgather_partitions": true,
@@ -27,7 +26,7 @@
     "overlap_comm": true,
     "reduce_scatter": true,
     "reduce_bucket_size": 500000000,
-    "contiguous_gradients": true,
+    "contiguous_gradients": true
   },
    "train_micro_batch_size_per_gpu": 4,
    "data-impl": "mmap",
@@ -61,5 +60,5 @@
    "wall_clock_breakdown": true,
    "launcher": "slurm",
    "deepspeed_slurm": true,
-   "slurm_comment": "neox"
+   "comment": "neox"
 }

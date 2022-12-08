@@ -1,3 +1,6 @@
+# Copyright (c) 2021, EleutherAI
+# This file is based on code by the authors denoted below and has been modified from its original version.
+#
 # Copyright (c) Facebook, Inc. and its affiliates.
 #
 # This source code is licensed under the MIT license found in the

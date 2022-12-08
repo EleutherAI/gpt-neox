@@ -16,11 +16,11 @@
    "no-weight-tying": true,
    "gpt_j_residual": false,
    "output_layer_parallelism": "column",
-   
+
    # these should provide some speedup but takes a while to build, set to true if desired
    "scaled-upper-triang-masked-softmax-fusion": false,
    "bias-gelu-fusion": false,
-   
+
    # init methods
    "init_method": "small_init",
    "output_layer_init_method": "wang_init",
@@ -46,7 +46,7 @@
     "contiguous_gradients": True,
   },
    "min_lr": 0.000012,
-   
+
    # batch / data settings
    "train_micro_batch_size_per_gpu": 4,
    "data-impl": "mmap",
