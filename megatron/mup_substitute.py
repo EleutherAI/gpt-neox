@@ -24,7 +24,6 @@ def _get_coord_data(neox_args, timers, lr_scheduler, models, dataloader, optcls,
     for i in range(nseeds):
         torch.manual_seed(i)
         for width, model in models.items():
-            print("nick creating new model")
             model = model()
             model.train()
             optimizer = optcls(model)
@@ -54,7 +53,6 @@ def _get_coord_data(neox_args, timers, lr_scheduler, models, dataloader, optcls,
                 for handle in remove_hooks:
                     handle.remove()
 
-            print("nick finished a model")
             import gc
             del model
             gc.collect()
