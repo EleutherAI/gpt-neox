@@ -1,3 +1,17 @@
+# Copyright (c) 2021, EleutherAI
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 load all confings in neox/configs in order to perform validations implemented in NeoXArgs
 """
@@ -61,7 +75,9 @@ def test_neoxargs_load_arguments_small_local_setup_text_generation():
     """
     verify small.yml can be loaded together with text generation without raising validation errors
     """
-    run_neox_args_load_test(["small.yml", "local_setup.yml", "text_generation.yml", "cpu_mock_config.yml"])
+    run_neox_args_load_test(
+        ["small.yml", "local_setup.yml", "text_generation.yml", "cpu_mock_config.yml"]
+    )
 
 
 @pytest.mark.cpu
