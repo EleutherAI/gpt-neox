@@ -1,3 +1,17 @@
+# Copyright (c) 2021, EleutherAI
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 import yaml
 import json
@@ -36,6 +50,7 @@ from .neox_args import (
 
 # ZERO defaults by deespeed
 # These values should not be changed unless defaults in deepspeed are changed
+# for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
 ZERO_DEFAULTS = {
     "stage": 0,
     "allgather_partitions": True,
@@ -45,7 +60,6 @@ ZERO_DEFAULTS = {
     "reduce_scatter": True,
     "reduce_bucket_size": int(5e8),
     "contiguous_gradients": False,
-    "cpu_offload": False,
 }
 
 # NeoX optimizer defaults
@@ -391,10 +405,18 @@ class NeoXArgs(*BASE_CLASSES):
                 args_list.extend(
                     self.convert_key_value_to_command_line_arg(key, configured_value)
                 )
+
         if "DLTS_HOSTFILE" in os.environ:
             args_list.extend(
                 self.convert_key_value_to_command_line_arg(
                     "hostfile", os.environ["DLTS_HOSTFILE"]
+                )
+            )
+
+        if "MASTER_ADDR" in os.environ:
+            args_list.extend(
+                self.convert_key_value_to_command_line_arg(
+                    "master_addr", os.environ["MASTER_ADDR"]
                 )
             )
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2021 Josh Levy-Kramer <josh@levykramer.co.uk>.
+# Copyright (c) 2021, EleutherAI
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
@@ -414,7 +414,7 @@ def setup_for_inference_or_eval(
     from megatron.neox_arguments import NeoXArgs
     from megatron.initialize import initialize_megatron
     from megatron.training import setup_model_and_optimizer
-    
+
     _overwrite_values = {
         "checkpoint_activations": False,
         "partition_activations": False,

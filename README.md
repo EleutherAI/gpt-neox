@@ -3,17 +3,19 @@
 
 # GPT-NeoX
 
-This repository records [EleutherAI](https://www.eleuther.ai)'s work-in-progress for training large-scale language models on GPUs. Our current framework is based on NVIDIA's [Megatron Language Model](https://github.com/NVIDIA/Megatron-LM) and has been augmented with techniques from [DeepSpeed](https://www.deepspeed.ai) as well as some novel optimizations.
-
-We aim to make this repo a centralized and accessible place to gather techniques for training large-scale autoregressive language models, and accelerate research into large-scale training. Additionally, we hope to train and open source a 175B parameter GPT-3 replication along the way. Please note, however, that this is a research codebase that is primarily designed for performance over ease of use. We endeavour to make it as easy to use as is feasible, but if there's anything in the readme that is unclear or you think you've found a bug, please open an issue.
-
-If you are interested in contributing, please [join our Discord](https://discord.gg/zBGx3azzUn) and head to the `#gpt-neox` channel. We're working with cloud compute provider [CoreWeave](https://www.coreweave.com/) for training, and hope to release the weights of smaller models as we progress up to 175B parameters.
+This repository records [EleutherAI](https://www.eleuther.ai)'s library for training large-scale language models on GPUs. Our current framework is based on NVIDIA's [Megatron Language Model](https://github.com/NVIDIA/Megatron-LM) and has been augmented with techniques from [DeepSpeed](https://www.deepspeed.ai) as well as some novel optimizations. We aim to make this repo a centralized and accessible place to gather techniques for training large-scale autoregressive language models, and accelerate research into large-scale training.
 
 For those looking for a TPU-centric codebase, we recommend [Mesh Transformer JAX](https://github.com/kingoflolz/mesh-transformer-jax).
+
+**If you are not looking to train models with billions of parameters from scratch, this is likely the wrong library to use. For generic inference needs, we recommend you use the HuggingFace `transformers` library instead which supports GPT-NeoX models.**
 
 # Contents
 
 - [Pretrained Models](#pretrained-models)
+  * [GPT-NeoX-20B](#gpt-neox-20b)
+  * [Pythia](#pythia)
+  * [Polyglot](#polyglot)
+  * [Fill-in-the-Middle](#fill-in-the-middle)
 - [Quick Start](#quick-start)
 - [Configuration](#configuration)
 - [Datasets](#datasets)
@@ -22,6 +24,7 @@ For those looking for a TPU-centric codebase, we recommend [Mesh Transformer JAX
 - [Training and Finetuning](#training-and-finetuning)
 - [Inference](#inference)
 - [Evaluation](#evaluation)
+- [Exporting to HuggingFace](#exporting-to-huggingface)
 - [Monitoring](#monitoring)
   * [Weights & Biases](#wandb)
   * [TensorBoard](#tensorboard)
@@ -59,6 +62,19 @@ Weights can be alternatively be downloaded using a BitTorrent client. Torrent fi
 
 We additionally have 150 checkpoints saved throughout training, one every 1,000 steps. We are working on figuring out how to best serve these at scale, but in the meanwhile people interested in working with the partially trained checkpoints can email us at contact@eleuther.ai to arrange access.
 
+## Pythia
+
+The Pythia Scaling Suite is a suite of models ranging from 19M parameters to 13B parameters trained on [the Pile](pile.eleuther.ai) intended to promote research on interpretability and training dynamics of large language models. Further details about the project and links to the models can be found [here](https://github.com/EleutherAI/pythia).
+
+## Polyglot
+
+The Polyglot Project is an effort to train powerful non-English pretrained language models to promote the accessibility of this technology to researchers outside the dominant powerhouses of machine learning. EleutherAI has trained and released 1.3B, 3.8B, and 5.8B parameter Korean language models, the largest of which outpreforms all other publicly available language models on Korean language tasks. Further details about the project and links to the models can be found [here](https://github.com/EleutherAI/polyglot).
+
+## Fill-in-the-Middle
+
+EleutherAI's Carper lab has also used this codebase to train models using FIM (fill-in-the-middle), a data transformation proposed in [Bavarian et al. 2022](https://arxiv.org/abs/2207.14255) with a similar technique also used by [Fried et al.](https://arxiv.org/abs/2204.05999) and [Aghajanyan et al. 2022](https://arxiv.org/abs/2201.07520), to enable typically autoregressive left-to-right language models to perform text infilling conditioned on both "left" and "right" context. A 1.3B parameter model trained on [the Pile](pile.eleuther.ai) is available [here](https://huggingface.co/CarperAI/FIM-NeoX-1.3B), with further experiments and and models forthcoming.
+
+
 # Quick Start
 
 ## Environment and Dependencies
@@ -92,42 +108,14 @@ You can then run a container based on this image. For instance, the below snippe
 nvidia-docker run --rm -it -e NVIDIA_VISIBLE_DEVICES=0,1,2,3 --shm-size=1g --ulimit memlock=-1 --mount type=bind,src=$PWD,dst=/gpt-neox gpt-neox
 ```
 
-## Using a Pretrained Model
-
-GPT-NeoX-20B (currently the only pretrained model we provide) **is a very large model**. The weights alone take up around 40GB in GPU memory and, due to the tensor parallelism scheme as well as the high memory usage, you will need **at minimum** 2 GPUs with a total of ~45GB of GPU VRAM to run inference, and significantly more for training. Unfortunately the model is not yet possible to use on a single consumer GPU.
-
-GPT-NeoX parameters are defined in a YAML configuration file which is passed to the `deepy.py` launcher. For more details on the configuration file, see [Configuration](#configuration). The configuration file for GPT-NeoX-20B is at `./configs/20B.yml` - but you may need to edit some fields to specify where your model and tokenizer are saved. In the config file edit the following fields:
-
-```yaml
-  "vocab-file": "./20B_checkpoints/20B_tokenizer.json",
-  "save": "./20B_checkpoints",
-  "load": "./20B_checkpoints",
-```
-
-changing `./20B_checkpoints` to the path to the root folder of the downloaded checkpoints. If the checkpoints exist at `./20B_checkpoints` you can leave this as is.
-
-Depending on the number of GPUs you're using, you may also need to change the parallelism settings. To run inference on the 20B model on 2 GPUs, change:
-
-```yaml
-   "pipe-parallel-size": 4,
-```
-
-to:
-
-```yaml
-   "pipe-parallel-size": 1,
-```
-
-If you're using 8 GPUs, you can leave this unchanged.
-
-All functionality (inference included), should be launched in parallel using `deepy.py`, a wrapper around the `deepspeed` launcher.
+All functionality (inference included), should be launched using `deepy.py`, a wrapper around the `deepspeed` launcher.
 
 We currently offer three main functions:
 1. `train.py` is used for training and finetuning models.
 2. `evaluate.py` is used to evaluate a trained model using the [language model evaluation harness](https://github.com/EleutherAI/lm-evaluation-harness).
 3. `generate.py` is used to sample text from a trained model.
 
-and can be launched with:
+which can be launched with:
 
 ```bash
 ./deepy.py [script.py] [./path/to/config_1.yml] [./path/to/config_2.yml] ... [./path/to/config_n.yml]
@@ -294,6 +282,8 @@ Although this is not strictly necessary, we find it useful to define the model p
 
 # Inference
 
+**For most uses we recommend deploying models trained using the GPT-NeoX library via the HuggingFace Transformers library which is better optimized for inference.**
+
 We support three types of generation from a pretrained model:
 1. Unconditional generation
 2. Conditional generation based on an input read from a file
@@ -313,6 +303,22 @@ python ./deepy.py evaluate.py -d configs your_configs.yml --eval_tasks task1 tas
 
 where `--eval_tasks` is a list of evaluation tasks followed by spaces, e.g `--eval_tasks lambada hellaswag piqa sciq`. For details of all tasks available, refer to the [lm-evaluation-harness repo](https://github.com/EleutherAI/lm-evaluation-harness).
 
+# Exporting to HuggingFace
+
+GPT-NeoX is optimized heavily for training only, and GPT-NeoX model checkpoints are not compatible out of the box with other deep learning libraries. To make models easily loadable and shareable with end users, and for further exporting to various other frameworks, GPT-NeoX supports checkpoint conversion to the [HuggingFace Transformers](https://arxiv.org/abs/1910.03771) GPTNeoXModel format.
+
+To convert a NeoX checkpoint to Huggingface-loadable format, run:
+```bash
+python ./tools/convert_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location
+```
+Then to upload a model to [the Huggingface Hub](https://huggingface.co/), run:
+```
+huggingface-cli login
+python ./tools/upload.py
+```
+and input the requested information, including HF hub user token.
+
+Note, however, that this compatibility is not one-to-one, and only certain configurations from GPT-NeoX are supported in the Huggingface GPTNeoXModel class. Advanced features such as alternative positional embeddings may require new Transformers modeling code and new conversion script tweaks.
 
 # Monitoring
 
@@ -360,9 +366,11 @@ To cite our 20 billion parameter model, please use
 }
 ```
 
+Citation instructions for other pretrained models can be found [in the appropriate repository](#pretrained-models).
+
 ## Licensing
 
-This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright &copy; 2021, EleutherAI contributors (in alphabetical order): Alex Andonian, Quentin Anthony, Stella Biderman, Sid Black, Preetham Gali, Leo Gao, Eric Hallahan, Josh Levy-Kramer, Connor Leahy, Lucas Nestler, Kip Parker, Michael Pieler, Shivanshu Purohit, Tri Songz, Phil Wang, Samuel Weinbach. Licensed under the Apache License:
+This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright (c) 2021, EleutherAI. Licensed under the Apache License:
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -376,7 +384,9 @@ This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyri
     See the License for the specific language governing permissions and
     limitations under the License.
 
-This repository is based off code written by NVIDIA that is licensed under the Apache License, Version 2.0. In accordance with the Apache License, all files that are modifications of code originally written by NVIDIA maintain a NVIDIA copyright header. All files that do not contain such a header are original to EleutherAI contributors. When the NVIDIA code has been modified from its original version, that fact is noted in the copyright header. All derivative works of this repository must preserve these headers under the terms of the Apache License.
+This repository is based off code written by NVIDIA that is licensed under the Apache License, Version 2.0. In accordance with the Apache License, all files that are modifications of code originally written by NVIDIA maintain a NVIDIA copyright header. All files that do not contain such a header are the exclusive copyright of EleutherAI. When the NVIDIA code has been modified from its original version, that fact is noted in the copyright header. All derivative works of this repository must preserve these headers under the terms of the Apache License.
+
+This repository also contains code written by a number of other authors. Such contributions are marked and the relevant licensing is included where appropriate.
 
 For full terms, see the `LICENSE` file. If you have any questions, comments, or concerns about licensing please email us at contact@eleuther.ai.
 
@@ -384,14 +394,15 @@ For full terms, see the `LICENSE` file. If you have any questions, comments, or 
 
 The following publications have come out of this project:
 
- - Black, Biderman, Hallahan, Anthony, Gao, Golding, He, Leahy, McDonell, Phang, Pieler, Prashanth, Purohit, Reynolds, Tow, Wang, and Weinbach. "[GPT-NeoX-20B: An Open-Source Autoregressive Language Model](https://arxiv.org/abs/2204.06745)." In *Proceedings of the ACL Workshop on Challenges \& Perspectives in Creating Large Language Models*. 2022.s
+ - Black, Biderman, Hallahan, Anthony, Gao, Golding, He, Leahy, McDonell, Phang, Pieler, Prashanth, Purohit, Reynolds, Tow, Wang, and Weinbach. "[GPT-NeoX-20B: An Open-Source Autoregressive Language Model](https://arxiv.org/abs/2204.06745)." In *Proceedings of the ACL Workshop on Challenges \& Perspectives in Creating Large Language Models*. 2022.
 
 The following publications by other research groups use this library:
 - Chi, Fan, Ramadge, and Rudnicky. "[KERPLE: Kernelized Relative Positional Embedding for Length Extrapolation](https://arxiv.org/abs/2205.09921)". _arXiv preprint arXiv:2205.09921_. 2022.
 - Horawalavithana, Ayton, Sharma, Howland, Subramanian, Vasquez, Cosbey, Glenski, and Volkova. "[Foundation Models of Scientific Knowledge for Chemistry: Opportunities, Challenges and Lessons Learned](https://openreview.net/pdf?id=SLX-I2MHUZ9)." In *Proceedings of the ACL Workshop on Challenges \& Perspectives in Creating Large Language Models*. 2022.
 - Kolak, Martins, Le Goues, and Hellendoorn. "[Patch Generation with Language Models: Feasibility and Scaling Behavior](https://openreview.net/forum?id=rHlzJh_b1-5)"." In *Proceedings of the Deep Learning for Code Workshop at ICLR*. 2022.
+- Muennighoff, Niklas. "[SGPT: GPT Sentence Embeddings for Semantic Search](https://arxiv.org/abs/2202.08904)." *arXiv preprint arXiv:2202.08904*. 2022.
 - Xu, Alon, Neubig, and Hellendoorn. "[A Systematic Evaluation of Large Language Models of Code](https://arxiv.org/abs/2202.13169)." In *Proceedings of the ICLR Workshop on Deep Learning For Code*. 2022.
 
 ## Acknowledgements
 
-We run our experiments on a Kubernetes cluster generously provided by [CoreWeave](https://coreweave.com/).
+We run our experiments on a Kubernetes cluster generously provided by [CoreWeave](https://coreweave.com/) and a SLURM cluster provided by [Stability AI](https://stability.ai).

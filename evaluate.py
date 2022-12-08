@@ -1,4 +1,4 @@
-# Copyright (c) 2021, EleutherAI contributors
+# Copyright (c) 2021, EleutherAI
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
@@ -23,7 +23,7 @@ sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
 )
 from megatron.training import forward_step
-from megatron.utils import setup_for_inference_or_eval
+from megatron.utils import setup_for_inference_or_eval, init_wandb
 from megatron.logging import tb_wandb_log
 from eval_tasks import run_eval_harness
 from pprint import pprint
@@ -31,7 +31,7 @@ from datetime import datetime
 import json
 
 
-def main(): 
+def main():
     model, neox_args = setup_for_inference_or_eval(use_cache=False)
     results = run_eval_harness(
         model,
@@ -41,7 +41,7 @@ def main():
         bootstrap_iters=10000,
     )
     if neox_args.rank == 0:
-
+        init_wandb(neox_args=neox_args)
         # log to wandb
         for k, v in results["results"].items():
             if isinstance(v, dict):
@@ -60,7 +60,6 @@ def main():
                     neox_args.iteration,
                     use_wandb=neox_args.use_wandb,
                 )
-        
 
         pprint(results)
         results_path = (

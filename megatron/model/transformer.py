@@ -1,5 +1,5 @@
-#
-# Copyright 2021 Biderman et al. This file is based on code by the authors denoted below and has been modified from its original version.
+# Copyright (c) 2021 EleutherAI
+# This file is based on code by the authors denoted below and has been modified from its original version.
 #
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
@@ -544,6 +544,7 @@ class ParallelTransformerLayer(nn.Module):
         self.hidden_dropout = neox_args.hidden_dropout
         self.bias_dropout_fusion = neox_args.bias_dropout_fusion
         self.gpt_j_residual = neox_args.gpt_j_residual
+        self.gpt_j_tied = neox_args.gpt_j_tied
 
         if self.gpt_j_residual:
             self.reduce = mpu.mappings.reduce_from_model_parallel_region
@@ -562,6 +563,8 @@ class ParallelTransformerLayer(nn.Module):
         )
 
         # Layernorm on the output of the attention layer.
+        # If GPT-J residuals are used, this is surpurfulous but leaving it in
+        # leads to cleaner code
         self.post_attention_layernorm = norm(neox_args.hidden_size, eps=eps)
 
         # MLP
@@ -591,14 +594,23 @@ class ParallelTransformerLayer(nn.Module):
         # x: [b, s, h]
         if self.gpt_j_residual:
             # pseudocode:
-            # x = x + attn(ln1(x)) + mlp(ln2(x))
+            # x = x + attn(ln(x)) + mlp(ln(x))
             # this means we can avoid doing the allreduce in the attn / mlp outputs
             # to save communication time (we can do a single allreduce after we add mlp / attn outputs).
-
-            # attention_output = attn(ln1(x))
+            # due to a bug, the two layernorms are not tied in GPT-NeoX-20B. This is non-desirable, but
+            # we preserve the functionality for backwards compatibility
+            
             residual = x
+            # applies the correct normalization depending on if the norms are tied
+            if self.gpt_j_tied:
+                x1, x2 = self.input_layernorm(x), self.post_attention_layernorm(x)
+            else:
+                x = self.input_layernorm(x)
+                x1, x2 = x, x
+                
+            # attention operator
             attention_output, attention_bias = self.attention(
-                self.input_layernorm(x), attention_mask, layer_past=layer_past
+                x1, attention_mask, layer_past=layer_past
             )
             if self.use_cache:
                 attention_output, presents = attention_output
@@ -612,8 +624,8 @@ class ParallelTransformerLayer(nn.Module):
                     prob=self.hidden_dropout,
                 )
 
-            # output = mlp(ln2(x)) + attention_output
-            mlp_output, mlp_bias = self.mlp(self.post_attention_layernorm(x))
+            # mlp operator
+            mlp_output, mlp_bias = self.mlp(x2)
             with torch.enable_grad():
                 output = bias_dropout_fn(
                     mlp_output,
@@ -622,8 +634,8 @@ class ParallelTransformerLayer(nn.Module):
                     prob=self.hidden_dropout,
                 )
 
-            # output = output + residual
-            output = residual + self.reduce(output)
+            # output = (x + attn(ln(x)) + mlp(ln(x))
+            output   = residual         + self.reduce(output)
         else:
             # pseudocode:
             # x = x + attn(ln1(x))

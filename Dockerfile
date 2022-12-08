@@ -1,3 +1,17 @@
+# Copyright (c) 2021, EleutherAI
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 FROM nvidia/cuda:11.1.1-devel-ubuntu20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -78,10 +92,16 @@ RUN pip install torch==1.8.1+cu111 -f https://download.pytorch.org/whl/torch_sta
 COPY requirements/requirements.txt .
 COPY requirements/requirements-onebitadam.txt .
 COPY requirements/requirements-sparseattention.txt .
-RUN pip install -r requirements.txt && pip install -r requirements-onebitadam.txt && pip install -r requirements-sparseattention.txt && pip cache purge
+RUN pip install -r requirements.txt && pip install -r requirements-onebitadam.txt && \
+    pip install -r requirements-sparseattention.txt && \
+    pip install protobuf==3.20.* && \
+    pip cache purge
 
 ## Install APEX
 RUN pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@a651e2c24ecf97cbf367fd3f330df36760e1c597
+
+COPY megatron/ megatron
+RUN python megatron/fused_kernels/setup.py install
 
 # Clear staging
 RUN mkdir -p /tmp && chmod 0777 /tmp
