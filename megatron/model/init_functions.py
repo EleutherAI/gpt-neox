@@ -2,7 +2,10 @@ import math
 
 import torch
 
-import mup # nick TODO
+try:
+    import mup
+except ImportError:
+    pass
 
 def init_method_normal(sigma, use_mup_outer=False):
     """Init method based on N(0, sigma)."""
