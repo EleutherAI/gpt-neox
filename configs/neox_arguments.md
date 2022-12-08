@@ -7,7 +7,7 @@ LR Scheduler Arguments
 
 
 
-- **lr_decay_style**: Literal
+- **lr_decay_style**: typing.Literal['constant', 'linear', 'cosine', 'exponential']
 
     Default = linear
 
@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 1fcaba8
+    Default = e617cdf
 
     current git hash of repository
 
@@ -205,7 +205,7 @@ Model Arguments
 
 
 
-- **precision**: Literal
+- **precision**: typing.Literal['fp16', 'fp32', 'bfloat16']
 
     Default = None
 
@@ -253,7 +253,7 @@ Model Arguments
 
 
 
-- **norm**: Literal
+- **norm**: typing.Literal['layernorm', 'rmsnorm', 'scalenorm']
 
     Default = layernorm
 
@@ -285,7 +285,7 @@ Model Arguments
 
 
 
-- **pos_emb**: Literal
+- **pos_emb**: typing.Literal['learned', 'rotary', 'sinusoidal', 'rpe', 'alibi', 'none']
 
     Default = learned
 
@@ -399,7 +399,7 @@ Model Arguments
 
 
 
-- **activation**: Literal
+- **activation**: typing.Literal['gelu', 'geglu', 'relu', 'softsign', 'swish', 'mish']
 
     Default = gelu
 
@@ -495,7 +495,7 @@ Model Arguments
 
 
 
-- **init_method**: Literal
+- **init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init']
 
     Default = normal
 
@@ -504,7 +504,7 @@ Model Arguments
 
 
 
-- **output_layer_init_method**: Literal
+- **output_layer_init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init']
 
     Default = scaled_normal
 
@@ -561,7 +561,7 @@ Model Arguments
 
 
 
-- **output_layer_parallelism**: Literal
+- **output_layer_parallelism**: typing.Literal['row', 'column']
 
     Default = row
 
@@ -575,7 +575,7 @@ Optimizer Arguments
 
 
 
-- **optimizer_type**: Literal
+- **optimizer_type**: typing.Literal['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd']
 
     Default = adam
 
@@ -970,7 +970,7 @@ Tokenizer Arguments
 
 
 
-- **tokenizer_type**: Literal
+- **tokenizer_type**: typing.Literal['GPT2BPETokenizer', 'HFTokenizer', 'HFGPT2Tokenizer', 'SPMTokenizer', 'CharLevelTokenizer']
 
     Default = GPT2BPETokenizer
 
