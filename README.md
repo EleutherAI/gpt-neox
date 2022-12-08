@@ -7,6 +7,8 @@ This repository records [EleutherAI](https://www.eleuther.ai)'s library for trai
 
 For those looking for a TPU-centric codebase, we recommend [Mesh Transformer JAX](https://github.com/kingoflolz/mesh-transformer-jax).
 
+**If you are not looking to train models with billions of parameters from scratch, this is likely the wrong library to use. For generic inference needs, we recommend you use the HuggingFace `transformers` library instead which supports GPT-NeoX models.**
+
 # Contents
 
 - [Pretrained Models](#pretrained-models)
