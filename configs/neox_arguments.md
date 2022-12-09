@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = f742006
+    Default = 166c5b6
 
     current git hash of repository
 
@@ -1493,6 +1493,7 @@ Training Arguments
     Default = 2
 
     What to scale width by when creating the delta model for mup
+
 
 
 ## NeoXArgsDeepspeedConfig
