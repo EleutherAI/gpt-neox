@@ -608,7 +608,10 @@ def train(
         if (
             neox_args.save
             and neox_args.save_interval
-            and iteration % neox_args.save_interval == 0
+            and (
+                    iteration % neox_args.save_interval == 0
+                    or iteration in neox_args.extra_save_iters
+                )
         ):
             save_checkpoint(
                 neox_args=neox_args,

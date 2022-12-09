@@ -774,6 +774,12 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Number of iterations between checkpoint saves.
     """
 
+    extra_save_iters: list = None
+    """
+    Additional iterations when a checkpoint should be saved.
+    Must be a list of ints or `None`.
+    """
+
     no_save_optim: bool = False
     """
     Do not save current optimizer.
