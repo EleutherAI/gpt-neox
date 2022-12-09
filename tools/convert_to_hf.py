@@ -105,7 +105,7 @@ def create_config(neox_config):
     # TODO: change the default value here based on discussion regarding `gpt_j_tied` config parameter's default
     use_tied_lns = get_key(neox_config, 'gpt-j-tied', False)
 
-    if not use_tied_lns:
+    if use_tied_lns:
         raise NotImplementedError(
                 """ERROR: Huggingface Transformers does not yet support a single shared layernorm 
                 per transformer block for GPT-NeoX models trained  w/ GPT-J parallel residuals.
