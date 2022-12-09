@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import subprocess
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 try:
     from .template import NeoXArgsTemplate
@@ -185,7 +185,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
         [[[`global`], n_layers]]
     """
 
-    sparsity_config: dict = field(default_factory=dict)
+    sparsity_config: dict = None
 
     """
     Sparsity configuration dict as defined in https://www.deepspeed.ai/docs/config-json/#sparse-attention
@@ -774,7 +774,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Number of iterations between checkpoint saves.
     """
 
-    extra_save_iters: list = field(default_factory=list)
+    extra_save_iters: list = None
     """
     Additional iterations when a checkpoint should be saved.
     Must be a list of ints or `None`.
