@@ -109,7 +109,7 @@ def create_config(neox_config):
         raise NotImplementedError(
                 """ERROR: Huggingface Transformers does not yet support a single shared layernorm 
                 per transformer block for GPT-NeoX models trained  w/ GPT-J parallel residuals.
-                See https://github.com/EleutherAI/gpt-neox/pull/481 for further details."""
+                See https://github.com/EleutherAI/gpt-neox/pull/481 for further details.""")
     
     # set all config values.
     hf_config = GPTNeoXConfig(
