@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 5bba068
+    Default = 88ad3af
 
     current git hash of repository
 
@@ -1137,6 +1137,15 @@ Training Arguments
     Default = None
 
     Number of iterations between checkpoint saves.
+
+
+
+- **extra_save_iters**: list
+
+    Default = None
+
+    Additional iterations when a checkpoint should be saved.
+    Must be a list of ints or `None`.
 
 
 
