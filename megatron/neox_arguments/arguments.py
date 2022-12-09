@@ -820,16 +820,6 @@ class NeoXArgs(*BASE_CLASSES):
                 not self.partition_activations
             ), "GMLP Blocks are not compatible with partition activations"
 
-        # Sparsity config
-        if self.sparsity_config is None:
-            # Can't have a default value as an empty dict so need to set it here
-            self.update_value("sparsity_config", {})
-        
-        # extra save iterations
-        if self.extra_save_iters is None:
-            # Can't have empty list as a default value so set it here
-            self.update_value("extra_save_iters", [])
-
         # Adding equal dataset weights if none are provided
         if self.train_data_paths and (self.train_data_weights is None):
             self.train_data_weights = [1.0] * len(self.train_data_paths)
