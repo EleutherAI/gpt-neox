@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 1bf3649
+    Default = 1bdff72
 
     current git hash of repository
 
@@ -349,7 +349,7 @@ Model Arguments
 
 - **sparsity_config**: dict
 
-    Default = <dataclasses._MISSING_TYPE object at 0x7f8c0c1ddeb0>
+    Default = None
 
     Sparsity configuration dict as defined in https://www.deepspeed.ai/docs/config-json/#sparse-attention
 
@@ -1142,7 +1142,7 @@ Training Arguments
 
 - **extra_save_iters**: list
 
-    Default = <dataclasses._MISSING_TYPE object at 0x7f8c0c1ddeb0>
+    Default = None
 
     Additional iterations when a checkpoint should be saved.
     Must be a list of ints or `None`.
