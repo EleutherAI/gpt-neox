@@ -991,6 +991,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Scalar by which we multiply vectors representing relative position
     """
 
+    mup_width_scale: int = 2
+    """
+    What to scale width by when creating the delta model for mup
+    """
+
 
 @dataclass
 class NeoXArgsTextgen(NeoXArgsTemplate):

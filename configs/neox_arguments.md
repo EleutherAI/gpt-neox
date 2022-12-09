@@ -1488,6 +1488,13 @@ Training Arguments
 
 
 
+- **mup_width_scale**: int
+
+    Default = 2
+
+    What to scale width by when creating the delta model for mup
+
+
 ## NeoXArgsDeepspeedConfig
 
 Args for deepspeed config

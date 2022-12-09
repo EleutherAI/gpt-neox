@@ -96,7 +96,7 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
     del base_model
 
     old_hidden_size = neox_args.hidden_size
-    neox_args.hidden_size = neox_args.hidden_size * 2
+    neox_args.hidden_size = neox_args.hidden_size * neox_args.mup_width_scale
 
     delta_model = GPT2ModelPipe(
                     neox_args=neox_args,
