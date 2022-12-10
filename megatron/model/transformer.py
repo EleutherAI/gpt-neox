@@ -144,6 +144,7 @@ class ParallelLinear(nn.Module):
         neox_args,
         parallel_output=True,
         init_method=nn.init.xavier_normal_,
+        is_last_layer=False,
     ):
         super().__init__()
         parallelism = neox_args.output_layer_parallelism
@@ -156,6 +157,7 @@ class ParallelLinear(nn.Module):
                 init_method=init_method,
                 gather_output=not parallel_output,
                 skip_bias_add=False,
+                mup_rescale_parameters=is_last_layer, # rescale params only called if neox_args.use_mup = True, despite it not being included here
             )
         else:
             self.final_linear = mpu.RowParallelLinear(
@@ -167,6 +169,7 @@ class ParallelLinear(nn.Module):
                 init_method=init_method,
                 parallel_output=parallel_output,
                 skip_bias_add=False,
+                mup_rescale_parameters=is_last_layer, # only called if neox_args.use_mup = True, despite it not being included here
             )
 
     def forward(self, hidden_states):
@@ -229,6 +232,9 @@ class ParallelSelfAttention(nn.Module):
             coeff = max(1, self.layer_number)
             self.norm_factor *= coeff
 
+        if neox_args.use_mup:
+            self.norm_factor = self.hidden_size_per_attention_head
+
         self.rpe = rpe
 
         if self.pos_emb == "alibi":
@@ -274,7 +280,7 @@ class ParallelSelfAttention(nn.Module):
                 fusion_type=get_fusion_type(neox_args),
                 mask_func=self.attention_mask_func,
                 softmax_in_fp32=self.attention_softmax_in_fp32,
-                scale=coeff,
+                scale=(coeff / neox_args.mup_attn_temp) if coeff is not None else None, # TODO: deepspeed sparse attention scaling patch?
             )
 
             # Dropout. Note that for a single iteration, this layer will generate
