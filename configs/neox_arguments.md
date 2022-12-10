@@ -334,7 +334,7 @@ Model Arguments
     The first item in the list specifies the attention type(s), and should be a list of strings. The second item
     specifies the number of times to repeat those attention types in the full list.
 
-    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird]
+    attention type choices:  [global, local, sparse_fixed, sparse_variable, bigbird, bslongformer, gmlp, amlp, flash]
 
     So a 12 layer network with only global attention could be specified like:
         [[[`global`], 12]]
@@ -344,6 +344,8 @@ Model Arguments
 
     If none is specified, this defaults to
         [[[`global`], n_layers]]
+
+    "flash" attention refers to optimized global attention for Ampere (and some other) generation GPUs described here [Flash-Attention](https://github.com/HazyResearch/flash-attention).
 
 
 
@@ -950,7 +952,7 @@ Text Generation arguments
 
 - **eval_results_prefix**: str
 
-    Default = 
+    Default =
 
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
 
@@ -1538,7 +1540,7 @@ Args for deepspeed config
 
     Default = None
 
-    
+
 
 
 
@@ -1670,6 +1672,4 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 - **comment**: str
 
     Default = None
-
     Adds a `--comment` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometime necessary for cluster rules, or so I've heard.
-
