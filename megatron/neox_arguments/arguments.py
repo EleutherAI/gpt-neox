@@ -738,24 +738,26 @@ class NeoXArgs(*BASE_CLASSES):
         # derive steps where checkpoint should be saved
         if self.checkpoint_factor or self.extra_save_iters:
             if self.extra_save_iters:
-                save_iters = extra_save_iters
+                save_iters = set(self.extra_save_iters)
             else:
                 save_iters = []
             
             step = self.checkpoint_factor # don't save step 0 or 1
             while step < self.train_iters:
-                save_iters.append(step)
+                save_iters.add(step)
                 if self.checkpoint_scale == "log":
                     step *= self.checkpoint_factor
                 elif self.checkpoint_scale == "linear":
                     step += self.checkpoint_factor
             
-            save_iters = save_iters.sort()
-
+            save_iters = list(save_iters)
+            save_iters.sort()
+        
         self.update_values(
             {
                 "save_iters": save_iters,
             }
+        )
 
         # derive precision
         if (self.fp16 or {}).get("type", self.precision) == "bfloat16":
@@ -948,7 +950,7 @@ class NeoXArgs(*BASE_CLASSES):
         if self.save is not None and self.checkpoint_factor is None and self.extra_save_iters is None:
             error_message = (
                 self.__class__.__name__
-                + ".validate_values() checkpoint_factor or extra_save_iters  must be defined if save is defined"
+                + ".validate_values() checkpoint_factor or extra_save_iters must be defined if save is defined"
             )
             logging.error(error_message)
             raise ValueError(error_message)
