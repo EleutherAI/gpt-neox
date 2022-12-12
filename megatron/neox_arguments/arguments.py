@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import os
 from pathlib import Path
 import yaml
@@ -416,9 +417,8 @@ class NeoXArgs(*BASE_CLASSES):
         return cls.from_dict(args_dict=megatron_config)
 
     @staticmethod
-    def set_up_autotuning(config_fp, overwrite_values):
-        with open(config_fp) as jsonfile:
-            config = json.load(jsonfile)
+    def set_up_autotuning(encoded_config, overwrite_values):
+        config = base64.urlsafe_b64decode(encoded_config).decode('utf-8')
         overwrite_values = overwrite_values if overwrite_values else {}
         for tuning_param in AUTOTUNING_ARGS:
             # TODO: This is for autotuning specifically, may cause surprises for someone with a weird setup
