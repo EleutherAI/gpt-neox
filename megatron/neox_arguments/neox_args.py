@@ -635,6 +635,11 @@ class NeoXArgsOther(NeoXArgsTemplate):
     Set during training
     """
 
+    save_iters: list = None
+    """
+    Set during training
+    """
+
     global_num_gpus: int = None
     """
     Set during launching
@@ -770,9 +775,29 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     save input and output of a forward pass with the checkpoint and validate after load
     """
 
-    save_interval: int = None
+    checkpoint_scale: Literal["linear", "log"] = "linear"
     """
-    Number of iterations between checkpoint saves.
+    How step at which checkpoints are saved should scale. "linear" implies 1 checkpoint will be saved at every multiple of `checkpoint-factor`,
+    while "log" implies that the number of steps between each checkpoint will be multiplied by `checkpoint-factor` at each step, starting from step 1.
+    """
+
+    checkpoint_factor: int = None
+    """
+    Acts as a multiplier on either the "log" or "linear" checkpoint spacing.
+
+    With `checkpoint-scale="linear"`, `checkpoint-factor=20`, and `train-iters=100`, checkpoints will be saved at 
+    steps [20, 40, 60, 80, 100].
+
+    With `checkpoint-scale="log"`, `checkpoint-factor=2`, and `train-iters=100`, checkpoints will be saved at 
+    steps [1, 2, 4, 8, 16, 32, 64, 100].
+
+    Note that the last checkpoint step is always saved.
+    """
+
+    extra_save_iters: list = None
+    """
+    Additional iterations when a checkpoint should be saved.
+    Must be a list of ints or `None`.
     """
 
     no_save_optim: bool = False
