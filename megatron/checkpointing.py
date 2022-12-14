@@ -1,4 +1,4 @@
-# Copyright (c) 2021, EleutherAI contributors
+# Copyright (c) 2021, EleutherAI
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
@@ -17,6 +17,7 @@
 
 """Input/output checkpointing."""
 
+import json
 import os
 import re
 import shutil
@@ -198,7 +199,10 @@ def save_ds_checkpoint(iteration, model, neox_args):
         os.makedirs(configs_directory, exist_ok=True)
         for config_filename, config_data in neox_args.config_files.items():
             with open(os.path.join(configs_directory, config_filename), "w") as f:
-                f.write(config_data)
+                if isinstance(config_data, str):
+                    f.write(config_data)
+                else:
+                    json.dump(config_data, f)
 
 
 def save_checkpoint(neox_args, iteration, model, optimizer, lr_scheduler):

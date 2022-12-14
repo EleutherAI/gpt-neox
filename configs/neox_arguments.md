@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 62c2de8
+    Default = 34e8816
 
     current git hash of repository
 
@@ -334,7 +334,7 @@ Model Arguments
     The first item in the list specifies the attention type(s), and should be a list of strings. The second item
     specifies the number of times to repeat those attention types in the full list.
 
-    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird]
+    attention type choices:  [global, local, sparse_fixed, sparse_variable, bigbird, bslongformer, gmlp, amlp, flash]
 
     So a 12 layer network with only global attention could be specified like:
         [[[`global`], 12]]
@@ -344,6 +344,8 @@ Model Arguments
 
     If none is specified, this defaults to
         [[[`global`], n_layers]]
+
+    "flash" attention refers to optimized global attention for Ampere (and some other) generation GPUs described here [Flash-Attention](https://github.com/HazyResearch/flash-attention).
 
 
 
@@ -532,6 +534,18 @@ Model Arguments
     Otherwise, we use the residual path from GPT-J, which offers a slight speedup:
       x = ln(x)
       x = x + attn(x) + mlp(x)
+
+
+
+- **gpt_j_tied**: bool
+
+    Default = False
+
+    If false, we use
+      x = x + attn(ln1(x)) + mlp(ln2(x))
+    Otherwise, we tie the layer norms
+      y = ln(x)
+      x = x + attn(y) + mlp(y)
 
 
 
@@ -938,7 +952,7 @@ Text Generation arguments
 
 - **eval_results_prefix**: str
 
-    Default = 
+    Default =
 
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
 
@@ -1526,7 +1540,7 @@ Args for deepspeed config
 
     Default = None
 
-    
+
 
 
 
@@ -1655,9 +1669,7 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
-- **slurm_comment**: str
+- **comment**: str
 
     Default = None
-
-    If using SLURM launcher adds a `--comment` to the srun command that launches the job. Sometimes necessary for cluster rules, or so I've heard.
-
+    Adds a `--comment` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometime necessary for cluster rules, or so I've heard.
