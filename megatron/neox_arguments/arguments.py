@@ -740,7 +740,7 @@ class NeoXArgs(*BASE_CLASSES):
             if self.extra_save_iters:
                 save_iters = set(self.extra_save_iters)
             else:
-                save_iters = []
+                save_iters = set()
             
             step = self.checkpoint_factor # don't save step 0 or 1
             while step < self.train_iters:
