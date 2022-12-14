@@ -157,6 +157,10 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
 
     # Unpack.
     tokens_ = data_b["text"].long()
+    
+    # intervene
+    tokens_ = replace_tokens(tokens_)
+
     labels = tokens_[:, 1:].contiguous()
     tokens = tokens_[:, :-1].contiguous()
 
@@ -168,6 +172,27 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
     )
 
     return tokens, labels, loss_mask, attention_mask, position_ids
+
+def replace_tokens(tokens):
+    """intervene by replacing selected tokens"""
+
+    replacement_map = {
+            754: 1500, #orig -> new
+            3032: 4058,
+            8389: 10759,
+            1328: 2993,
+            521: 617,
+            344: 703,
+            779: 617,
+            8701: 379,
+            13243: 379,
+            248: 6689,
+          }
+    
+    for (orig, new) in replacement_map.items():
+        tokens[tokens==orig] = new
+
+    return tokens
 
 
 def get_batch(neox_args, data_iterator):
