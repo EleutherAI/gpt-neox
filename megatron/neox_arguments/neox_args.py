@@ -34,6 +34,7 @@ ATTENTION_TYPE_CHOICES = [
     "bslongformer",
     "gmlp",
     "amlp",
+    "flash",
 ]
 
 
