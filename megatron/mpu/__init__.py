@@ -35,6 +35,8 @@ from .initialize import get_io_parallel_group
 from .initialize import initialize_model_parallel
 from .initialize import model_parallel_is_initialized
 
+from .initialize import mock_model_parallel
+
 from .layers import ColumnParallelLinear
 from .layers import RowParallelLinear
 from .layers import VocabParallelEmbedding

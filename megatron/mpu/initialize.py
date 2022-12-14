@@ -195,8 +195,10 @@ def get_model_parallel_world_size():
     global _MPU_WORLD_SIZE
     if _MPU_WORLD_SIZE is not None:
         return _MPU_WORLD_SIZE
-    return torch.distributed.get_world_size(group=get_model_parallel_group())
-
+    elif torch.distributed.is_initialized():
+        return torch.distributed.get_world_size(group=get_model_parallel_group())
+    else:
+        return 1
 
 def set_model_parallel_rank(rank):
     """Set model parallel rank."""
@@ -209,8 +211,10 @@ def get_model_parallel_rank():
     global _MPU_RANK
     if _MPU_RANK is not None:
         return _MPU_RANK
-    return torch.distributed.get_rank(group=get_model_parallel_group())
-
+    elif torch.distributed.is_initialized():
+        return torch.distributed.get_rank(group=get_model_parallel_group())
+    else:
+        return 0
 
 def get_model_parallel_src_rank():
     """Calculate the global rank corresponding to a local rank zero
@@ -238,13 +242,17 @@ def get_data_parallel_src_rank():
 
 def get_data_parallel_world_size():
     """Return world size for the data parallel group."""
-    return torch.distributed.get_world_size(group=get_data_parallel_group())
-
+    if torch.distributed.is_initialized():
+        return torch.distributed.get_world_size(group=get_data_parallel_group())
+    else:
+        return 1
 
 def get_data_parallel_rank():
     """Return my rank for the data parallel group."""
-    return torch.distributed.get_rank(group=get_data_parallel_group())
-
+    if torch.distributed.is_initialized():
+        return torch.distributed.get_rank(group=get_data_parallel_group())
+    else:
+        return 0
 
 def get_topology():
     return _MPU_TOPOLOGY
@@ -258,13 +266,17 @@ def get_pipe_parallel_group():
 
 def get_pipe_parallel_rank():
     """Return my rank for the pipe parallel group."""
-    return torch.distributed.get_rank(group=get_pipe_parallel_group())
-
+    if torch.distributed.is_initialized():
+        return torch.distributed.get_rank(group=get_pipe_parallel_group())
+    else:
+        return 0
 
 def get_pipe_parallel_world_size():
     """Return world size for the pipe parallel group."""
-    return torch.distributed.get_world_size(group=get_pipe_parallel_group())
-
+    if torch.distributed.is_initialized():
+        return torch.distributed.get_world_size(group=get_pipe_parallel_group())
+    else:
+        return 1
 
 def destroy_model_parallel():
     """Set the groups to none."""
@@ -290,3 +302,20 @@ def get_fp32_allreduce():
     """Get the fp32 allreduce flag"""
     assert _FP32_ALLREDUCE is not None, "fp32_allreduce is not Initialized"
     return _FP32_ALLREDUCE
+
+def mock_model_parallel():
+    """set fake defaults for MPU globals. use if don't want to init distributed"""
+    global _DATA_PARALLEL_GROUP
+    _DATA_PARALLEL_GROUP = [0]
+    global _PIPE_PARALLEL_GROUP
+    _PIPE_PARALLEL_GROUP = [0]
+    global _IO_PARALLEL_GROUP
+    _IO_PARALLEL_GROUP = [0]
+    global _MPU_WORLD_SIZE
+    global _MPU_RANK
+    _MPU_WORLD_SIZE = 1
+    _MPU_RANK = 0
+    global _MPU_TOPOLOGY
+    _MPU_TOPOLOGY = [0,0,0]
+    global _FP32_ALLREDUCE
+    _FP32_ALLREDUCE = True

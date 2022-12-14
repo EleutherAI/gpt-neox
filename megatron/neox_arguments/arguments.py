@@ -662,6 +662,7 @@ class NeoXArgs(*BASE_CLASSES):
         # number of gpus
         # Get number of GPUs param or hostfile to determine train_batch_size
         global_num_gpus = getattr(self, "global_num_gpus", None)
+        global_num_gpus = 1
         if global_num_gpus is None:
             if self.hostfile is not None or os.path.exists(DLTS_HOSTFILE):
                 hostfile_path = self.hostfile or DLTS_HOSTFILE
