@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 34e8816
+    Default = 12f6f76
 
     current git hash of repository
 
@@ -334,7 +334,7 @@ Model Arguments
     The first item in the list specifies the attention type(s), and should be a list of strings. The second item
     specifies the number of times to repeat those attention types in the full list.
 
-    attention type choices:  [global, local, sparse_fixed, sparse_variable, bigbird, bslongformer, gmlp, amlp, flash]
+    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird]
 
     So a 12 layer network with only global attention could be specified like:
         [[[`global`], 12]]
@@ -344,8 +344,6 @@ Model Arguments
 
     If none is specified, this defaults to
         [[[`global`], n_layers]]
-
-    "flash" attention refers to optimized global attention for Ampere (and some other) generation GPUs described here [Flash-Attention](https://github.com/HazyResearch/flash-attention).
 
 
 
@@ -799,6 +797,14 @@ Misc. Arguments
 
 
 
+- **save_iters**: list
+
+    Default = None
+
+    Set during training
+
+
+
 - **global_num_gpus**: int
 
     Default = None
@@ -952,7 +958,7 @@ Text Generation arguments
 
 - **eval_results_prefix**: str
 
-    Default =
+    Default = 
 
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
 
@@ -1134,11 +1140,37 @@ Training Arguments
 
 
 
-- **save_interval**: int
+- **checkpoint_scale**: typing.Literal['linear', 'log']
+
+    Default = linear
+
+    How step at which checkpoints are saved should scale. "linear" implies 1 checkpoint will be saved at every multiple of `checkpoint-factor`,
+    while "log" implies that the number of steps between each checkpoint will be multiplied by `checkpoint-factor` at each step, starting from step 1.
+
+
+
+- **checkpoint_factor**: int
 
     Default = None
 
-    Number of iterations between checkpoint saves.
+    Acts as a multiplier on either the "log" or "linear" checkpoint spacing.
+
+    With `checkpoint-scale="linear"`, `checkpoint-factor=20`, and `train-iters=100`, checkpoints will be saved at 
+    steps [20, 40, 60, 80, 100].
+
+    With `checkpoint-scale="log"`, `checkpoint-factor=2`, and `train-iters=100`, checkpoints will be saved at 
+    steps [1, 2, 4, 8, 16, 32, 64, 100].
+
+    Note that the last checkpoint step is always saved.
+
+
+
+- **extra_save_iters**: list
+
+    Default = None
+
+    Additional iterations when a checkpoint should be saved.
+    Must be a list of ints or `None`.
 
 
 
@@ -1540,7 +1572,7 @@ Args for deepspeed config
 
     Default = None
 
-
+    
 
 
 
@@ -1672,4 +1704,6 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 - **comment**: str
 
     Default = None
+
     Adds a `--comment` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometime necessary for cluster rules, or so I've heard.
+
