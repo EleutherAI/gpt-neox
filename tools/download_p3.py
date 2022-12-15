@@ -6,6 +6,8 @@ from typing import List
 from promptsource.templates import DatasetTemplates
 from datasets import load_dataset
 
+from tqdm import tqdm
+
 from p3_configs import T0_TRAIN_DATASETS
 
 # stores all names of promptsource templates to use as lists of strings
@@ -42,25 +44,25 @@ def apply_to_hf_dataset(
 
     ds = ds[split]
 
+    templates = DatasetTemplates(dataset_name, subset_name=subset_name)
+
     if limit is not None:
         limit = min(limit, len(ds))
         if len(prompts) == 0:
             prompts = templates.all_template_names
-        if limit =< len(ds):
+        if limit <= len(ds):
             limit = limit // len(prompts)
         ds = ds.select(range(limit))
 
-    templates = DatasetTemplates(dataset_name, subset_name=subset_name)
-
     metadata = f"{dataset_name}_{subset_name}_{split}" if subset_name else f"{dataset_name}_{split}"
 
-    with open(f'/mnt/hdd/data/p3_raw/p3_train.jsonl', mode='w') as f:
+    with open(f'/mnt/hdd/p3_raw/p3_raw_{split}.jsonl', mode='a+') as f:
         if len(prompts) == 0:
             prompts = templates.all_template_names
-        for prompt in prompts:
+        for prompt in tqdm(prompts):
             template = templates[prompt]
 
-            for example in ds:
+            for example in tqdm(ds):
                 try:
                     inputs, targets = template.apply(example)
                 except:
@@ -69,9 +71,14 @@ def apply_to_hf_dataset(
 
                 # TODO: how to deal with multiple-target examples? rn we take the first one always
                 # do strip() on targets because Promptsource always has leading whitespace in returned targets
-                f.write(json.dumps({
-                    "text": inputs + targets[0].strip()} + "\n"))
-
+                if isinstance(targets, list):
+                    targets = targets[0]
+                if targets:
+                    #print(inputs + targets.strip())
+                    f.write(json.dumps({
+                            "text": inputs + targets.strip(), "metadata": metadata}) + '\n')
+                else:
+                    print("exception:", targets)
 
 # def apply_to_tf_dataset()
 # TODO(Hailey): implement this function to apply FLAN prompts to a FLAN TFDS dataset, or HF dataset?
@@ -88,7 +95,7 @@ if __name__ == '__main__':
     all_tasks = T0_TRAIN_DATASETS.keys()
     all_prompts = T0_TRAIN_DATASETS
 
-    for task in all_tasks:
+    for task in tqdm(all_tasks):
         ds_name, subset = task
         apply_to_hf_dataset(ds_name, all_prompts[task], subset_name=subset, split=sys.argv[1])
 
