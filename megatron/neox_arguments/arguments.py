@@ -33,7 +33,7 @@ except ImportError:
 from deepspeed.launcher.runner import DLTS_HOSTFILE
 from megatron.logging import Tee
 from megatron.tokenizer import build_tokenizer
-from megatron.utils import obtain_resource_pool, expand_attention_types
+from megatron.utils import obtain_resource_pool, expand_attention_types, expand_stochastic_depth
 from .deepspeed_args import NeoXArgsDeepspeedConfig, NeoXArgsDeepspeedRunner
 from .neox_args import (
     NeoXArgsModel,
@@ -848,7 +848,23 @@ class NeoXArgs(*BASE_CLASSES):
         if self.sparsity_config is None:
             # Can't have a default value as an empty dict so need to set it here
             self.update_value("sparsity_config", {})
-        
+       
+        # stochastic depth config
+        if self.stochastic_depth_config is None:
+            self.update_value("stochastic_depth_config", [[[0.0], self.num_layers]])
+        self.update_value(
+            "stochastic_depth_config",
+            expand_stochastic_depth(self.stochastic_depth_config, self.num_layers),
+        )
+        assert (
+            len(self.stochastic_depth_config) == self.num_layers
+        ), "Length of attention config list must equal num_layers"
+        for item in self.stochastic_depth_config:
+            assert (
+                item >= 0.0 and item <= 1.0
+            ), f"Probability value {item} invalid for stochastic depth. Must be between 1.0 and 0.0"
+
+
         # Adding equal dataset weights if none are provided
         if self.train_data_paths and (self.train_data_weights is None):
             self.train_data_weights = [1.0] * len(self.train_data_paths)

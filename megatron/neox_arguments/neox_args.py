@@ -445,9 +445,21 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
     Use checkpoint to set the values of the scheduler (learning rate, warmup iterations, minimum learning rate, maximum number of iterations, and decay style from checkpoint and ignore input arguments.
     """
 
-    stochastic_depth_prob: float = 0.0
+    stochastic_depth_config: list = None
     """
-    Probability of dropping a layer with stochastic depth (a.k.a. LayerDrop, see https://arxiv.org/abs/1909.11556).
+    Probability of dropping each layer with stochastic depth (a.k.a. LayerDrop, see https://arxiv.org/abs/1909.11556).
+
+    The first item in the list specifies the probabilities, and should be a list of floats between 0 and 1. The second item
+    specifies the number of times to repeat those attention types in the full list.
+
+    So a 12 layer network with p=0.1 of layer dropout for all layers could be specified like:
+        [[[0.1], 12]]
+
+    or a 12 layer network with alternating no layer dropping / p=0.1 dropping like:
+        [[[0, 0.1], 6]]
+
+    If none is specified, this defaults to
+        [[[0.0], n_layers]]
     """
 
 
