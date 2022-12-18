@@ -287,10 +287,32 @@ class Enwik8(DataDownloader):
 
 class P3(DataDownloader):
     name = "p3"
-    urls = [] # download from a different script for now.
+    urls = ["p3_raw_train.jsonl"] # download from a different script for now.
+
+    def tokenize(self):
+        parent_folder = "/mnt/hdd/p3_20B_tokenizer"
+        jsonl_filepath = "/mnt/hdd/p3_raw/p3_raw_train.jsonl" 
+
+        cmd = f"python tools/preprocess_data.py \
+            --input {jsonl_filepath} \
+            --output-prefix {parent_folder}/{self.name} \
+            --vocab {self.vocab_file} \
+            --dataset-impl mmap \
+            --tokenizer-type {self.tokenizer_type} \
+            --merge-file {self.merge_file} \
+            --append-eod \
+            --workers {self.num_workers} "
+
+        if self.num_docs is not None:
+            cmd += f"--num-docs {self.num_docs} "
+
+        if self.ftfy:
+            cmd += f"--ftfy "
+
+        os.system(cmd)
 
     def prepare(self):
-        self.download()
+        #self.download()
         self.tokenize()
 
 
