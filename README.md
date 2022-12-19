@@ -12,6 +12,7 @@ For those looking for a TPU-centric codebase, we recommend [Mesh Transformer JAX
 # Contents
 - [Quick Start](#quick-start)
   * [Setup](#setup)
+  * [Download Datasets and Models](#download-datasets-and-models)
   * [Usage](#usage)
 - [Configuration](#configuration)
 - [Datasets](#datasets)
@@ -46,7 +47,7 @@ You can then run a container based on this image. For instance, the below snippe
 nvidia-docker run --rm -it -e NVIDIA_VISIBLE_DEVICES=0,1,2,3 --shm-size=1g --ulimit memlock=-1 --mount type=bind,src=$PWD,dst=/gpt-neox gpt-neox
 ```
 
-## Datasets and Models
+## Download Datasets and Models
 
 
 
