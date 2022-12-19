@@ -11,7 +11,7 @@ For those looking for a TPU-centric codebase, we recommend [Mesh Transformer JAX
 
 # Contents
 - [Quick Start](#quick-start)
-  * [Containerized Setup](#containerized-setup)
+  * [Setup](#setup)
   * [Usage](#usage)
 - [Configuration](#configuration)
 - [Datasets](#datasets)
@@ -37,7 +37,7 @@ For those looking for a TPU-centric codebase, we recommend [Mesh Transformer JAX
 
 # Quick Start
 
-## Containerized Setup
+## Setup
 
 We also provide a Dockerfile if you prefer to run NeoX in a container. To use this option, first build an image named `gpt-neox` from the repository root directory with `docker build -t gpt-neox -f Dockerfile .`. We also host pre-built images on Docker Hub at `leogao2/gpt-neox`.
 
@@ -48,6 +48,13 @@ nvidia-docker run --rm -it -e NVIDIA_VISIBLE_DEVICES=0,1,2,3 --shm-size=1g --uli
 
 ## Datasets and Models
 
+
+
+```
+python prepare_data.py -d ./data
+```
+
+
 ## Usage
 
 All functionality (inference included), should be launched using `deepy.py`, a wrapper around the `deepspeed` launcher.
@@ -57,32 +64,18 @@ We currently offer three main functions:
 2. `evaluate.py` is used to evaluate a trained model using the [language model evaluation harness](https://github.com/EleutherAI/lm-evaluation-harness).
 3. `generate.py` is used to sample text from a trained model.
 
-which can be launched with:
+any of which can be launched with a command in the following form:
 
 ```bash
 ./deepy.py [script.py] [./path/to/config_1.yml] [./path/to/config_2.yml] ... [./path/to/config_n.yml]
 ```
 
-E.G To generate text unconditionally with the GPT-NeoX-20B model, you can use the following:
+For example, to generate text unconditionally with the GPT-NeoX-20B model, you can use the following:
 ```bash
 ./deepy.py generate.py ./configs/20B.yml
 ```
 
-Or optionally pass in a text file (e.g `prompt.txt`) to use as the prompt, which should be a plain `.txt` file with each prompt separated by newline characters, also passing in the path to an output file.
-
-```bash
-./deepy.py generate.py ./configs/20B.yml -i prompt.txt -o sample_outputs.txt
-```
-
-To reproduce our evaluation numbers on, for example, TriviaQA and PIQA use:
-
-```bash
-./deepy.py evaluate.py ./configs/20B.yml --eval_tasks triviaqa piqa
-```
-
-You can add an arbitrary list of evaluation tasks here, for details of all tasks available, see [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness).
-
-For more details on each entry point, see the [Training and Finetuning](#training-and-finetuning), [Inference](#inference) and [Evaluation](#evaluation) 
+Or to start training a new 125M parameter model run:
 
 # Configuration
 
@@ -94,26 +87,26 @@ For a more detailed guide to all the features available and how to configure the
 
 # Configuration
 
-### Host Setup
+## Host Setup
 
 First make sure you are in an environment with Python 3.8 with an appropriate version of PyTorch 1.8 or later installed. **Note:** Some of the libraries that GPT-NeoX depends on have not been updated to be compatible with Python 3.10+. Python 3.9 appears to work, but this codebase has been developed and tested for Python 3.8.
 
-To install the remaining basic dependencies, run:
-
-```bash
-pip install -r requirements/requirements.txt
-python ./megatron/fused_kernels/setup.py install # optional if not using fused kernels
-```
-
-from the repository root.
-
-<aside>
+< aside>
 
 **Warning:** Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), our fork of the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library with some added changes. We strongly recommend using Anaconda, a virtual machine, or some other form of environment isolation before continuing. Failure to do so may cause other repositories that rely on DeepSpeed to break.
 
 </aside>
 
-### Flash Attention
+To install the remaining basic dependencies, run:
+
+```bash
+pip install -r requirements/requirements.txt
+python ./megatron/fused_kernels/setup.py install # optional, only needed if using fused kernels
+```
+
+from the repository root.
+
+## Flash Attention
 
 To use [Flash-Attention](https://github.com/HazyResearch/flash-attention), install the additional dependencies in  `./requirements/requirements-flashattention.txt` and set the attention type in your configuration accordingly (see [configs](./configs/)). This can provide significant speed-ups over regular attention on certain GPU architectures, including Ampere GPUs (such as A100s); see the repository for more details.
 
@@ -236,8 +229,6 @@ python ./deepy.py train.py -d configs small.yml local_setup.yml
 This will deploy the `train.py` script on all nodes with one process per GPU. The worker nodes and number of GPUs are specified in the `/job/hostfile` file (see [parameter documentation](configs/README.md)), or can simply be passed in as the `num_gpus` arg if running on a single node setup.
 
 Although this is not strictly necessary, we find it useful to define the model parameters in one config file (e.g `configs/small.yml`) and the data path parameters in another (e.g `configs/local_setup.yml`).
-
-
 
 # Pretrained Models
 
