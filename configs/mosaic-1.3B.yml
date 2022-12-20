@@ -78,13 +78,11 @@
   "steps_per_print": 10,
   "wall_clock_breakdown": true,
  
-  "train-data-paths": ["/fsx/pile/pile_20B_tokenizer_text_document"],
-  "valid-data-paths": ["/fsx/pile/pile_20B_tokenizer_text_document"],
-  "test-data-paths": ["/fsx/pile/pile_20B_tokenizer_text_document"],
+  "train-data-paths": ["/mnt/nvme/pile_deduped/pile_0.87_deduped_text_document"],
+  "valid-data-paths": ["/mnt/nvme/pile_deduped/pile_0.87_deduped_text_document"],
+  "test-data-paths": ["/mnt/nvme/pile_deduped/pile_0.87_deduped_text_document"],
 
   "tokenizer-type": "HFTokenizer",
-  "vocab-file": "/fsx/pile/20B_tokenizer.json",
+  "vocab-file": "/mnt/nvme/home/hailey/gpt-neox/data/20B_tokenizer.json",
 
-  "launcher": "slurm",
-  "deepspeed_slurm": true
 }
