@@ -72,8 +72,7 @@ The Polyglot Project is an effort to train powerful non-English pretrained langu
 
 ## Fill-in-the-Middle
 
-EleutherAI's Carper lab has also used this codebase to train models using FIM (fill-in-the-middle), a data transformation proposed in [Bavarian et al. 2022](https://arxiv.org/abs/2207.14255) with a similar technique also used by [Fried et al.](https://arxiv.org/abs/2204.05999) and [Aghajanyan et al. 2022](https://arxiv.org/abs/2201.07520), to enable typically autoregressive left-to-right language models to perform text infilling conditioned on both "left" and "right" context. A 1.3B parameter model trained on [the Pile](pile.eleuther.ai) is available [here](https://huggingface.co/CarperAI/FIM-NeoX-1.3B), with further experiments and and models forthcoming.
-
+EleutherAI's [Carper lab](https://www.carper.ai) has also used this codebase to train models using FIM (fill-in-the-middle), a data transformation proposed in [Bavarian et al. 2022](https://arxiv.org/abs/2207.14255) with a similar technique also used by [Fried et al.](https://arxiv.org/abs/2204.05999) and [Aghajanyan et al. 2022](https://arxiv.org/abs/2201.07520), to enable typically autoregressive left-to-right language models to perform text infilling conditioned on both "left" and "right" context. A 1.3B parameter model trained on [the Pile](pile.eleuther.ai) is available [here](https://huggingface.co/CarperAI/FIM-NeoX-1.3B), with further experiments and and models forthcoming.
 
 # Quick Start
 
@@ -99,6 +98,11 @@ from the repository root.
 </aside>
 
 
+### Flash Attention
+
+To use [Flash-Attention](https://github.com/HazyResearch/flash-attention), install the additional dependencies in  `./requirements/requirements-flashattention.txt` and set the attention type in your configuration accordingly (see [configs](./configs/)). This can provide significant speed-ups over regular attention on certain GPU architectures, including Ampere GPUs (such as A100s); see the repository for more details.
+
+
 ### Containerized Setup
 
 We also provide a Dockerfile if you prefer to run NeoX in a container. To use this option, first build an image named `gpt-neox` from the repository root directory with `docker build -t gpt-neox -f Dockerfile .`. We also host pre-built images on Docker Hub at `leogao2/gpt-neox`.
@@ -107,6 +111,8 @@ You can then run a container based on this image. For instance, the below snippe
 ```
 nvidia-docker run --rm -it -e NVIDIA_VISIBLE_DEVICES=0,1,2,3 --shm-size=1g --ulimit memlock=-1 --mount type=bind,src=$PWD,dst=/gpt-neox gpt-neox
 ```
+
+## Usage
 
 All functionality (inference included), should be launched using `deepy.py`, a wrapper around the `deepspeed` launcher.
 
@@ -132,29 +138,18 @@ Or optionally pass in a text file (e.g `prompt.txt`) to use as the prompt, which
 ./deepy.py generate.py ./configs/20B.yml -i prompt.txt -o sample_outputs.txt
 ```
 
-To reproduce our evaluation numbers on, for example, lambada and PIQA use:
+To reproduce our evaluation numbers on, for example, TriviaQA and PIQA use:
 
 ```bash
-./deepy.py evaluate.py ./configs/20B.yml --eval_tasks lambada piqa
+./deepy.py evaluate.py ./configs/20B.yml --eval_tasks triviaqa piqa
 ```
 
 You can add an arbitrary list of evaluation tasks here, for details of all tasks available, see [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness).
 
-For more details on each entry point, see the [Training and Finetuning](#training-and-finetuning), [Inference](#inference) and [Evaluation](#evaluation) sections.
-
-## Running on a single GPU
-
-We provide a simple script for merging the 20B checkpoints to be run on a single GPU. First, download the slim weights from [above](#download-links), and run the following script:
-
-```bash
-python tools/merge20b.py --input_dir ./20B_checkpoints --output_dir ./20B_checkpoints_merged
-```
-
-As an alternative, you can also use [Minimal GPT-NeoX-20B](https://github.com/zphang/minimal-gpt-neox-20b) implementation, which runs and pure PyTorch on a single GPU, and does not require DeepSpeed.
-
+For more details on each entry point, see the [Training and Finetuning](#training-and-finetuning), [Inference](#inference) and [Evaluation](#evaluation) 
 # Configuration
 
-GPT-NeoX parameters are defined in a YAML configuration file which is passed to the deepy.py launcher. We have provided some example .yaml files in [configs](./configs/), including one for GPT-NeoX-20B, and example configuration files for other model sizes.
+GPT-NeoX parameters are defined in a YAML configuration file which is passed to the deepy.py launcher. We have provided some example .yaml files in [configs](./configs/), including one for GPT-NeoX-20B, and example configuration files for other model sizes. 
 
 These files are generally complete, but non-optimal. For example, depending on your specific GPU configuration, you may need to change some settings such as `pipe-parallel-size`, `model-parallel-size` to increase or decrease the degree of parallelisation, `train_micro_batch_size_per_gpu` or `gradient-accumulation-steps` to modify batch size related settings, or the `zero_optimization` dict to modify how optimizer states are parallelised across workers.
 
