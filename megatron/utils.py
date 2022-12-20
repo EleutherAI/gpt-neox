@@ -349,10 +349,10 @@ def expand_stochastic_depth(stochastic_depth_config, num_layers):
     :return:
     """
     # if only floats are found in the config, we assume it's already expanded
-    if all([isinstance(i, float) for i in attention_config]):
-        return attention_config
+    if all([isinstance(i, float) for i in stochastic_depth_config]):
+        return stochastic_depth_config
     newlist = []
-    for item in attention_config:
+    for item in stochastic_depth_config:
         # instead of specifying a number - we can specify 'all' to extend this pattern across all layers
         if item[1] == "all":
             assert num_layers % len(item[0]) == 0, (
