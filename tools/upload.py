@@ -13,13 +13,17 @@
 # limitations under the License.
 
 import os
+import sys
 
 from huggingface_hub import HfApi, create_repo
 
-converted_ckpt = input("Where is the checkpoint folder (HF format) you want to use? ")
-repo_name = input("Provide a repository name for the HF Hub: ")
-branch_name = input("Provide a repo branch for the HF Hub (choose main as default): ")
-create_repo(repo_name, repo_type="model", private=False)
+converted_ckpt = sys.argv[1] #input("Where is the checkpoint folder (HF format) you want to use? ")
+repo_name = sys.argv[2] #input("Provide a repository name for the HF Hub: ")
+branch_name = sys.argv[3] #input("Provide a repo branch for the HF Hub (choose main as default): ")
+try:
+    create_repo(repo_name, repo_type="model", private=True, use_auth_token="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")
+except:
+    pass
 
 files = os.listdir(converted_ckpt)
 
@@ -29,7 +33,11 @@ if branch_name != "main":
         repo_id=repo_name,
         repo_type="model",
         branch=branch_name,
+        use_auth_token="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",
     )
+
+files = [file for file in files if (file.endswith(".bin") or file.endswith(".idx"))]
+
 print(f"to upload: {files}")
 for file in files:
     print(f"Uploading {file}...")
@@ -40,5 +48,6 @@ for file in files:
         repo_type="model",
         commit_message=f"Upload {file}",
         revision=branch_name,
+        use_auth_token="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",
     )
     print(f"Successfully uploaded {file} !")

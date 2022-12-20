@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM nvidia/cuda:11.1.1-devel-ubuntu20.04
+FROM nvidia/cuda:11.7.1-devel-ubuntu18.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -88,13 +88,15 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
     echo 'export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:$LD_LIBRARY_PATH' >> /home/mchorse/.bashrc
 
 #### Python packages
-RUN pip install torch==1.8.1+cu111 -f https://download.pytorch.org/whl/torch_stable.html && pip cache purge
+RUN pip install torch==1.13.1+cu117 -f https://download.pytorch.org/whl/torch_stable.html && pip cache purge
 COPY requirements/requirements.txt .
 COPY requirements/requirements-onebitadam.txt .
 COPY requirements/requirements-sparseattention.txt .
+COPY requirements/requirements-flashattention.txt .
 RUN pip install -r requirements.txt && pip install -r requirements-onebitadam.txt && \
     pip install -r requirements-sparseattention.txt && \
     pip install protobuf==3.20.* && \
+    pip install -r requirements-flashattention.txt && \
     pip cache purge
 
 ## Install APEX

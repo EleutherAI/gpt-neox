@@ -76,7 +76,7 @@ def human_readable_flops(num):
 def get_flops(neox_args, model, iter_time_s):
     world_size = torch.distributed.get_world_size()
     ff = model.total_params * 6
-    attn = neox_args.seq_length * neox_args.hidden_size * neox_args.num_layers * 60
+    attn = neox_args.seq_length * neox_args.hidden_size * neox_args.num_layers * 12 # 60
     flops = (
         neox_args.train_batch_size
         * neox_args.seq_length
