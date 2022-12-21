@@ -59,6 +59,7 @@ def build_tokenizer(args):
 
     # Add vocab size.
     args.padded_vocab_size = _vocab_size_with_padding(tokenizer.vocab_size, args)
+    tokenizer._padded_vocab_size = args.padded_vocab_size
 
     return tokenizer
 
@@ -90,6 +91,11 @@ class AbstractTokenizer(ABC):
     @property
     @abstractmethod
     def vocab_size(self):
+        pass
+
+    @property
+    @abstractmethod
+    def padded_vocab_size(self):
         pass
 
     @property
@@ -156,9 +162,15 @@ class _GPT2BPETokenizer(AbstractTokenizer):
         )
         self.eod_id = self.tokenizer.encoder["<|endoftext|>"]
 
+        self._padded_vocab_size = None
+
     @property
     def vocab_size(self):
         return len(self.tokenizer.encoder)
+
+    @property
+    def padded_vocab_size(self):
+        return self._padded_vocab_size
 
     @property
     def vocab(self):
@@ -189,9 +201,15 @@ class SentencePieceTokenizer(AbstractTokenizer):
         self.tokenizer = spm.SentencePieceProcessor(model_file=vocab_file)
         self.eod_id = self.tokenizer.piece_to_id("<|endoftext|>")
 
+        self._padded_vocab_size = None
+
     @property
     def vocab_size(self):
         return self.tokenizer.get_piece_size()
+
+    @property
+    def padded_vocab_size(self):
+        return self._padded_vocab_size
 
     @property
     def vocab(self):
@@ -229,9 +247,15 @@ class HFTokenizer(AbstractTokenizer):
         self.eod_id = self.tokenizer.token_to_id("<|endoftext|>")
         self.pad_id = self.tokenizer.token_to_id("<|padding|>")
 
+        self._padded_vocab_size = None
+
     @property
     def vocab_size(self):
         return self.tokenizer.get_vocab_size()
+    
+    @property
+    def padded_vocab_size(self):
+        return self._padded_vocab_size
 
     @property
     def vocab(self):
@@ -273,10 +297,16 @@ class HFGPT2Tokenizer(AbstractTokenizer):
         self.tokenizer.add_special_tokens({"pad_token": "<|padding|>"})
         self.eod_id = self.tokenizer.eos_token_id
         self.pad_id = self.tokenizer.pad_token_id
+	
+        self._padded_vocab_size = None
 
     @property
     def vocab_size(self):
         return len(self.tokenizer)
+    
+    @property
+    def padded_vocab_size(self):
+        return self._padded_vocab_size
 
     @property
     def vocab(self):
@@ -312,12 +342,18 @@ class CharLevelTokenizer(AbstractTokenizer):
         self.eod_id = 0
         self.pad_id = 1
 
+        self._padded_vocab_size = None
+
     def clamp(self, n):
         return max(32, min(n, self.vocab_size))
 
     @property
     def vocab_size(self):
         return self._vocab_size
+
+    @property
+    def padded_vocab_size(self):
+        return self._padded_vocab_size
 
     @property
     def vocab(self):

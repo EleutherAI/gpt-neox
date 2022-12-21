@@ -86,6 +86,24 @@ def get_flops(neox_args, model, iter_time_s):
     return flops
 
 
+def get_flops_bad(neox_args, model, iter_time_s):
+    # General TFLOPs formula (borrowed from Equation 3 in Section 5.1 of
+    # https://arxiv.org/pdf/2104.04473.pdf).
+
+    world_size = torch.distributed.get_world_size()
+
+    # The factor of 4 is when used with activation check-pointing,
+    # otherwise it will be 3, but for 200B model, activation check-pointing will always be on.
+    checkpoint_activations_factor = 4 if (neox_args.gradient_accumulation_steps > 1) else 3
+    # GLU activations double the hidden states in the upscaling feed-forward in each transformer layer
+    # This leads to 16bsh^2 instead of 8bsh^2 per first feed-forward layer in MLP, thus we increase the coefficient by 8.
+    # Refer to https://github.com/bigscience-workshop/Megatron-DeepSpeed/pull/283#issue-1260805063 for more details.
+    coefficient = 32 if neox_args.activation in ["geglu"] else 24
+    flops_per_iteration = (coefficient * checkpoint_activations_factor * neox_args.train_batch_size * neox_args.seq_length * neox_args.num_layers * (neox_args.hidden_size**2)) * (1. + (neox_args.seq_length / (6. * neox_args.hidden_size)) + (neox_args.tokenizer.padded_vocab_size / (16. * neox_args.num_layers * neox_args.hidden_size)))
+    flops = flops_per_iteration / (iter_time_s * world_size)
+
+    return flops
+
 def training_log(
     neox_args,
     timers,
