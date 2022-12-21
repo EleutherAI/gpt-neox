@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 5388452
+    Default = beb9e26
 
     current git hash of repository
 
@@ -1701,17 +1701,9 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
-<<<<<<< HEAD
-- **slurm_comment**: str
-
-    Default = None
-
-    If using SLURM launcher adds a `--comment` to the srun command that launches the job. Sometimes necessary for cluster rules, or so I've heard.
-=======
 - **comment**: str
 
     Default = None
 
     Adds a `--comment` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometime necessary for cluster rules, or so I've heard.
->>>>>>> main
 
