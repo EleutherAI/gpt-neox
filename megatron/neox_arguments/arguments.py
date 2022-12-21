@@ -576,7 +576,7 @@ class NeoXArgs(*BASE_CLASSES):
 
         if self.deepspeed_mosaic:
             os.environ["LOCAL_RANK"] = os.environ["LOCAL_RANK"]
-            os.environ["RANK"] = os.environ["RANK"]
+            os.environ["RANK"] = str(int(os.environ["NODE_RANK"]) + int(os.environ["LOCAL_RANK"]))
             os.environ["WORLD_SIZE"] = os.environ["WORLD_SIZE"]
 
         self.update_value("local_rank", int(os.getenv("LOCAL_RANK", "0")))
