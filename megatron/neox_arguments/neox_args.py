@@ -610,6 +610,11 @@ class NeoXArgsOther(NeoXArgsTemplate):
     Run via SLURM, this will attempt to discover the necessary variables to initialize torch distributed from the SLURM environment
     """
 
+    deepspeed_mosaic: bool = False
+    """
+    Run via MCLI, this will attempt to discover the necessary variables to initialize torch distributed from the MCLI environment
+    """
+
     user_script: str = None
     """
     user script to be run
