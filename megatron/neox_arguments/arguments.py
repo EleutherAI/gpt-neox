@@ -574,6 +574,11 @@ class NeoXArgs(*BASE_CLASSES):
             os.environ["RANK"] = os.environ["SLURM_PROCID"]
             os.environ["WORLD_SIZE"] = os.environ["SLURM_NTASKS"]
 
+        if self.deepspeed_mosaic:
+            os.environ["LOCAL_RANK"] = os.environ["LOCAL_RANK"]
+            os.environ["RANK"] = os.environ["RANK"]
+            os.environ["WORLD_SIZE"] = os.environ["WORLD_SIZE"]
+
         self.update_value("local_rank", int(os.getenv("LOCAL_RANK", "0")))
         self.update_value("rank", int(os.getenv("RANK", "0")))
         self.update_value("world_size", int(os.getenv("WORLD_SIZE", "1")))
