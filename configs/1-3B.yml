@@ -6,44 +6,50 @@
    "model-parallel-size": 1,
 
    # model settings
-   "num-layers": 12,
-   "hidden-size": 768,
-   "num-attention-heads": 12,
+   "num-layers": 24,
+   "hidden-size": 2048,
+   "num-attention-heads": 16,
    "seq-length": 2048,
    "max-position-embeddings": 2048,
    "norm": "layernorm",
    "pos-emb": "rotary",
    "no-weight-tying": true,
+   "gpt_j_residual": false,
+   "output_layer_parallelism": "column",
 
    # these should provide some speedup but takes a while to build, set to true if desired
    "scaled-upper-triang-masked-softmax-fusion": false,
    "bias-gelu-fusion": false,
 
+   # init methods
+   "init_method": "small_init",
+   "output_layer_init_method": "wang_init",
 
    # optimizer settings
    "optimizer": {
      "type": "Adam",
      "params": {
-       "lr": 0.0006,
-       "betas": [0.9, 0.999],
-       "eps": 1.0e-8,
+       "lr": 0.0002,
+       "betas": [0.9, 0.95],
+       "eps":  1.0e-8,
      }
    },
+   "min_lr": 0.00002,
+
+   # for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
    "zero_optimization": {
-    "stage": 0,
+    "stage": 1,
     "allgather_partitions": True,
     "allgather_bucket_size": 500000000,
     "overlap_comm": True,
     "reduce_scatter": True,
     "reduce_bucket_size": 500000000,
     "contiguous_gradients": True,
-    "cpu_offload": False
   },
 
    # batch / data settings
    "train_micro_batch_size_per_gpu": 4,
    "data-impl": "mmap",
-   "split": "949,50,1",
 
    # activation checkpointing
    "checkpoint-activations": true,
@@ -53,21 +59,20 @@
 
    # regularization
    "gradient_clipping": 1.0,
-   "weight-decay": 0.0,
-   "hidden-dropout": 0.0,
-   "attention-dropout": 0.0,
+   "weight-decay": 0.1,
+   "hidden-dropout": 0,
+   "attention-dropout": 0,
 
    # precision settings
    "fp16": {
+     "fp16": true,
      "enabled": true,
-     "type": "bfloat16", # set bf16 as precision
      "loss_scale": 0,
      "loss_scale_window": 1000,
      "hysteresis": 2,
      "min_loss_scale": 1
    },
 
-   "fp32_allreduce": True, # without a patch to torch, bf16 models have to do the allreduce in fp32
    # misc. training settings
    "train-iters": 320000,
    "lr-decay-iters": 320000,

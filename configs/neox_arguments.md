@@ -535,6 +535,18 @@ Model Arguments
 
 
 
+- **gpt_j_tied**: bool
+
+    Default = False
+
+    If false, we use
+      x = x + attn(ln1(x)) + mlp(ln2(x))
+    Otherwise, we tie the layer norms
+      y = ln(x)
+      x = x + attn(y) + mlp(y)
+
+
+
 - **soft_prompt_tuning**: dict
 
     Default = None
@@ -778,6 +790,14 @@ Misc. Arguments
 
 
 - **do_test**: int
+
+    Default = None
+
+    Set during training
+
+
+
+- **save_iters**: list
 
     Default = None
 
@@ -1120,11 +1140,37 @@ Training Arguments
 
 
 
-- **save_interval**: int
+- **checkpoint_scale**: typing.Literal['linear', 'log']
+
+    Default = linear
+
+    How step at which checkpoints are saved should scale. "linear" implies 1 checkpoint will be saved at every multiple of `checkpoint-factor`,
+    while "log" implies that the number of steps between each checkpoint will be multiplied by `checkpoint-factor` at each step, starting from step 1.
+
+
+
+- **checkpoint_factor**: int
 
     Default = None
 
-    Number of iterations between checkpoint saves.
+    Acts as a multiplier on either the "log" or "linear" checkpoint spacing.
+
+    With `checkpoint-scale="linear"`, `checkpoint-factor=20`, and `train-iters=100`, checkpoints will be saved at 
+    steps [20, 40, 60, 80, 100].
+
+    With `checkpoint-scale="log"`, `checkpoint-factor=2`, and `train-iters=100`, checkpoints will be saved at 
+    steps [1, 2, 4, 8, 16, 32, 64, 100].
+
+    Note that the last checkpoint step is always saved.
+
+
+
+- **extra_save_iters**: list
+
+    Default = None
+
+    Additional iterations when a checkpoint should be saved.
+    Must be a list of ints or `None`.
 
 
 
@@ -1655,9 +1701,17 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
+<<<<<<< HEAD
 - **slurm_comment**: str
 
     Default = None
 
     If using SLURM launcher adds a `--comment` to the srun command that launches the job. Sometimes necessary for cluster rules, or so I've heard.
+=======
+- **comment**: str
+
+    Default = None
+
+    Adds a `--comment` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometime necessary for cluster rules, or so I've heard.
+>>>>>>> main
 
