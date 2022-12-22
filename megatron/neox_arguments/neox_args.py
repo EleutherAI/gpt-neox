@@ -1007,6 +1007,11 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     """
     maximum number of tokens to be generated
     """
+    
+    prompt_end: str = "\n"
+    """
+    a single prompt's end. Defaults to newline
+    """
 
     sample_input_file: str = None
     """

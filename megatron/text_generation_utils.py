@@ -552,6 +552,7 @@ def generate_samples_input_from_file(
     output_file=None,
     eos_token_id: int = None,
     maximum_tokens: int = 64,
+    prompt_end: str = '\n',
     recompute: bool = False,
     temperature: float = 0.0,
     top_k: int = 0,
@@ -592,8 +593,9 @@ def generate_samples_input_from_file(
     print_rank_0(
         "generate_samples_input_from_file() loading input from {}".format(input_file)
     )
-    with open(input_file, "r") as f:
-        prompts = f.readlines()
+    with open(input_file, "r", encoding="utf-8") as f:
+        prompts = f.read()
+        prompts = prompts.split(prompt_end)
     prompts = [p.strip() for p in prompts]
     prompts = [p for p in prompts if len(p) > 0]
     print_rank_0(
