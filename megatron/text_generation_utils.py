@@ -552,7 +552,7 @@ def generate_samples_input_from_file(
     output_file=None,
     eos_token_id: int = None,
     maximum_tokens: int = 64,
-    prompt_end: str = '\n',
+    prompt_end: str = "\n",
     recompute: bool = False,
     temperature: float = 0.0,
     top_k: int = 0,
@@ -657,8 +657,8 @@ def generate_samples_unconditional(
 
     eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
     maximum_tokens: maximum number of tokens to be generated
-    prompt_end: end of a single input prompt. Defaults to newline character '\n'. Other prompt-end sequences may be useful when generating indent-aware completions (e.g. code). The interactive mode will reroll the user-input requiest until the stop-char is met 
-    
+    prompt_end: end of a single input prompt. Defaults to newline character '\n'. Other prompt-end sequences may be useful when generating indent-aware completions (e.g. code). The interactive mode will reroll the user-input requiest until the stop-char is met
+
     recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
 
     temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
@@ -703,7 +703,7 @@ def generate_samples_interactive(
     neox_args,
     model,
     maximum_tokens: int = 64,
-    prompt_end: str = '\n',
+    prompt_end: str = "\n",
     eos_token_id: int = None,
     recompute: bool = False,
     temperature: float = 0.0,
@@ -746,13 +746,15 @@ def generate_samples_interactive(
             raw_text = ""
             while True:
                 current_input = input("Context prompt >>> ")
-                if prompt_end == '\n':
+                if prompt_end == "\n":
                     raw_text += current_input
                     break
                 if prompt_end in current_input:
                     raw_text += current_input.split(prompt_end)[0]
                     break
-                raw_text += current_input + '\n' #read newline since we stripped it on input
+                raw_text += (
+                    current_input + "\n"
+                )  # read newline since we stripped it on input
             context_tokens = neox_args.tokenizer.tokenize(raw_text)
             if len(context_tokens) == 0:
                 context_tokens = [neox_args.tokenizer.eod]

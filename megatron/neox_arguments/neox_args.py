@@ -332,7 +332,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
       x = ln(x)
       x = x + attn(x) + mlp(x)
     """
-    
+
     gpt_j_tied: bool = False
     """
     If false, we use
@@ -1007,7 +1007,7 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     """
     maximum number of tokens to be generated
     """
-    
+
     prompt_end: str = "\n"
     """
     a single prompt's end. Defaults to newline
