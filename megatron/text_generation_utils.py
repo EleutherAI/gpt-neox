@@ -701,6 +701,7 @@ def generate_samples_interactive(
     neox_args,
     model,
     maximum_tokens: int = 64,
+    prompt_end: str = '\n',
     eos_token_id: int = None,
     recompute: bool = False,
     temperature: float = 0.0,
@@ -740,7 +741,16 @@ def generate_samples_interactive(
 
         if torch.distributed.is_initialized() and torch.distributed.get_rank() == 0:
             os.system("clear")
-            raw_text = input("Context prompt >>> ")
+            raw_text = ""
+            while True:
+                current_input = input("Context prompt >>> ")
+                if prompt_end == '\n':
+                    raw_text += current_input
+                    break
+                if prompt_end in current_input:
+                    raw_text += current_input.split(prompt_end)[0]
+                    break
+                raw_text += current_input + '\n' #read newline since we stripped it on input
             context_tokens = neox_args.tokenizer.tokenize(raw_text)
             if len(context_tokens) == 0:
                 context_tokens = [neox_args.tokenizer.eod]

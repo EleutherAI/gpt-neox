@@ -76,6 +76,7 @@ def main():
             recompute=neox_args.recompute,
             temperature=neox_args.temperature,
             maximum_tokens=neox_args.maximum_tokens,
+            prompt_end=neox_args.prompt_end,
             top_k=neox_args.top_k,
             top_p=neox_args.top_p,
         )
