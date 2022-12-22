@@ -387,33 +387,40 @@ class EvalHarnessAdapter(HuggingFaceAutoLM):
                 "mathqa",
                 "pubmedqa",
             ]
-        eval_tasks = eval_tasks[0]
-        template_names = tasks.list_templates(eval_tasks)
-
+        #eval_tasks = eval_tasks[0]
+        task_templates = {}
+        for task in eval_tasks:
+            task_templates[task] = tasks.list_templates(task)
+        print("task_templates: ", task_templates)
         # Returns a list containing all values of the task registry that
         # match at least one of the patterns
-        import fnmatch
+        #import fnmatch
 
-        def pattern_match(patterns, source_list):
-            task_names = set()
-            for pattern in patterns:
-                for matching in fnmatch.filter(source_list, pattern):
-                    task_names.add(matching)
-            return list(task_names)
+        #def pattern_match(patterns, source_list):
+        #    task_names = set()
+        #    for pattern in patterns:
+        #        for matching in fnmatch.filter(source_list, pattern):
+        #            task_names.add(matching)
+        #    return list(task_names)
 
-        eval_tasks = pattern_match(eval_tasks, tasks.ALL_TASKS)
+        #eval_tasks = pattern_match(eval_tasks, tasks.ALL_TASKS)
         print(f"Found tasks: {eval_tasks}")
 
         # **HACK INCOMING**:
         # first get task dict on local main rank
         # the tasks are downloaded *as they are initialized*, and the downloads don't like multithreading.
         # so we download them once on the local main rank, wait, and then initialize them on all other ranks, which *should* load from the cache.
+        task_dict = []
         if self.is_local_main:
-            task_dict = tasks.get_task_list(eval_tasks, template_names)
+            for eval_task in eval_tasks:
+                task_dict.extend(tasks.get_task_list(eval_task, task_templates[eval_task]))
         # torch barrier
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
-        task_dict = tasks.get_task_list(eval_tasks, template_names)
+        task_dict = []
+        for eval_task in eval_tasks:
+            task_dict.extend(tasks.get_task_list(eval_task, task_templates[eval_task]))
+        print(task_dict)
 
         lm = self
         if use_cache:
