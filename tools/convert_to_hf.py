@@ -60,14 +60,14 @@ def load_partitions(
 
 def get_state(
     state_dicts: list[torch.Tensor], 
-    layer_idx: int,
     key: str,
+    layer_idx: int,
 ) -> torch.Tensor:
     """Accesses all MP partitions of a given layer/weight's state."""
     # main DeepSpeed saves each MP partition 
     key = f"sequential.{layer_idx}.{key}"
 
-    return [state_dict[key] for state_dict in state_dicts]
+    return [state_dict["module"][key] for state_dict in state_dicts]
 
 
 def get_key(loaded_config, key, default=None):
@@ -199,9 +199,9 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
             "post_attention_layernorm.weight",
             "post_attention_layernorm.bias",
         ]:
-            state_dict[key] = (sum(get_state(loaded_tp_ranks, key, layer_i + 2)) / len(
+            state_dict[key] = sum(get_state(loaded_tp_ranks, key, layer_i + 2)) / len(
                 loaded_tp_ranks
-            )
+                )
 
         # LinearWithTPMerge
         for key in [
@@ -233,11 +233,6 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
         hf_layer.load_state_dict(state_dict)
 
     # Load final layer norm
-    loaded_tp_ranks = load_partitions(
-        input_checkpoint_path, mp_partitions, get_key(loaded_config, "num-layers") + 3
-    )
-
-
     hf_model.gpt_neox.final_layer_norm.load_state_dict(
         {
             "weight": (sum(get_state(loaded_tp_ranks, "norm.weight", get_key(loaded_config, "num-layers") + 3))) / len(loaded_tp_ranks),
