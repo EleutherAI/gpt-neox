@@ -746,7 +746,7 @@ def generate_samples_interactive(
             raw_text = ""
             while True:
                 current_input = input("Context prompt >>> ")
-                if prompt_end == "\n":
+                if prompt_end == "\n": # we need to handle '\n' case as 'input' strips it and leads to lines being squashed
                     raw_text += current_input
                     break
                 if prompt_end in current_input:
@@ -754,7 +754,7 @@ def generate_samples_interactive(
                     break
                 raw_text += (
                     current_input + "\n"
-                )  # read newline since we stripped it on input
+                )  # re-add newline since we stripped it on input
             context_tokens = neox_args.tokenizer.tokenize(raw_text)
             if len(context_tokens) == 0:
                 context_tokens = [neox_args.tokenizer.eod]
