@@ -657,7 +657,7 @@ def generate_samples_unconditional(
 
     eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
     maximum_tokens: maximum number of tokens to be generated
-    prompt_end: end of a single input prompt. Defaults to newline character '\n'. Other prompt-end sequences may be useful when generating indent-aware completions (e.g. code). The interactive mode will reroll the user-input requiest until the stop-char is met
+    prompt_end: end of a single input prompt. Defaults to newline character '\n'. Other prompt-end sequences may be useful when generating indent-aware completions (e.g. code). The interactive mode will reroll the user-input request until the stop-char is met
 
     recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
 
@@ -746,7 +746,9 @@ def generate_samples_interactive(
             raw_text = ""
             while True:
                 current_input = input("Context prompt >>> ")
-                if prompt_end == "\n": # we need to handle '\n' case as 'input' strips it and leads to lines being squashed
+                if (
+                    prompt_end == "\n"
+                ):  # we need to handle '\n' case as 'input' strips it and leads to lines being squashed
                     raw_text += current_input
                     break
                 if prompt_end in current_input:

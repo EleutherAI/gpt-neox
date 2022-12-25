@@ -958,7 +958,7 @@ Text Generation arguments
 
 - **eval_results_prefix**: str
 
-    Default = 
+    Default =
 
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
 
@@ -1155,10 +1155,10 @@ Training Arguments
 
     Acts as a multiplier on either the "log" or "linear" checkpoint spacing.
 
-    With `checkpoint-scale="linear"`, `checkpoint-factor=20`, and `train-iters=100`, checkpoints will be saved at 
+    With `checkpoint-scale="linear"`, `checkpoint-factor=20`, and `train-iters=100`, checkpoints will be saved at
     steps [20, 40, 60, 80, 100].
 
-    With `checkpoint-scale="log"`, `checkpoint-factor=2`, and `train-iters=100`, checkpoints will be saved at 
+    With `checkpoint-scale="log"`, `checkpoint-factor=2`, and `train-iters=100`, checkpoints will be saved at
     steps [1, 2, 4, 8, 16, 32, 64, 100].
 
     Note that the last checkpoint step is always saved.
@@ -1572,7 +1572,7 @@ Args for deepspeed config
 
     Default = None
 
-    
+
 
 
 
@@ -1706,4 +1706,3 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = None
 
     Adds a `--comment` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometime necessary for cluster rules, or so I've heard.
-
