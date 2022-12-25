@@ -663,7 +663,7 @@ class ParallelTransformerLayer(nn.Module):
             # to save communication time (we can do a single allreduce after we add mlp / attn outputs).
             # due to a bug, the two layernorms are not tied in GPT-NeoX-20B. This is non-desirable, but
             # we preserve the functionality for backwards compatibility
-            
+
             residual = x
             # applies the correct normalization depending on if the norms are tied
             if self.gpt_j_tied:
@@ -671,7 +671,7 @@ class ParallelTransformerLayer(nn.Module):
             else:
                 x = self.input_layernorm(x)
                 x1, x2 = x, x
-                
+
             # attention operator
             attention_output, attention_bias = self.attention(
                 x1, attention_mask, layer_past=layer_past
@@ -699,7 +699,7 @@ class ParallelTransformerLayer(nn.Module):
                 )
 
             # output = (x + attn(ln(x)) + mlp(ln(x))
-            output   = residual         + self.reduce(output)
+            output = residual + self.reduce(output)
         else:
             # pseudocode:
             # x = x + attn(ln1(x))

@@ -112,7 +112,7 @@ def pretrain(neox_args):
                 optimizer=optimizer,
                 lr_scheduler=lr_scheduler,
             )
-            
+
         iteration = train(
             neox_args=neox_args,
             timers=timers,
@@ -615,10 +615,7 @@ def train(
         )
 
         # Checkpointing
-        if (
-            neox_args.save
-            and iteration in neox_args.save_iters
-        ):
+        if neox_args.save and iteration in neox_args.save_iters:
             save_checkpoint(
                 neox_args=neox_args,
                 iteration=iteration,
