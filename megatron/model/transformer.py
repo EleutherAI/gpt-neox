@@ -666,7 +666,7 @@ class ParallelTransformerLayer(nn.Module):
 
             residual = x
             # applies the correct normalization depending on if the norms are tied
-            if self.gpt_j_tied:
+            if not self.gpt_j_tied:
                 x1, x2 = self.input_layernorm(x), self.post_attention_layernorm(x)
             else:
                 x = self.input_layernorm(x)
