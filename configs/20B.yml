@@ -27,7 +27,6 @@
   "rotary_pct": 0.25,
   "no-weight-tying": true,
   "gpt_j_residual": true,
-  "gpt_j_tied": true,
   "output_layer_parallelism": "column",
   "scaled-upper-triang-masked-softmax-fusion": true,
   "bias-gelu-fusion": true,
