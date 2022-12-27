@@ -612,7 +612,7 @@ class ParallelTransformerLayer(nn.Module):
         self.gpt_j_tied = neox_args.gpt_j_tied
 
         # TODO(nora): Maybe make this configurable on a per-layer basis?
-        self.stochastic_depth_prob = neox_args.stochastic_depth_prob
+        self.stochastic_depth_prob = neox_args.stochastic_depth_config[layer_number]
 
         if self.gpt_j_residual:
             self.reduce = mpu.mappings.reduce_from_model_parallel_region
