@@ -242,12 +242,6 @@ class NeoXArgs(*BASE_CLASSES):
         group = parser.add_argument_group(title="Training Configuration")
 
         group.add_argument(
-            "user_script",
-            type=str,
-            help="User script to launch, followed by any required " "arguments.",
-        )
-
-        group.add_argument(
             "--conf_dir",
             "-d",
             type=str,
@@ -255,12 +249,12 @@ class NeoXArgs(*BASE_CLASSES):
             help="Directory to prefix to all configuration file paths",
         )
 
-        group.add_argument(
-            "conf_file",
-            type=str,
-            nargs="+",
-            help="Configuration file path. Multiple files can be provided and will be merged.",
-        )
+        #group.add_argument(
+        #    "conf_file",
+        #    type=str,
+        #    nargs="+",
+        #    help="Configuration file path. Multiple files can be provided and will be merged.",
+        #)
 
         group = parser.add_argument_group(title="Weights and Biases monitoring args")
 
@@ -321,21 +315,15 @@ class NeoXArgs(*BASE_CLASSES):
             default=None,
             help="Optionally overwrite `sample_output_file` for generate.py",
         )
-        args_parsed = parser.parse_args()
-
-        # Validate user_script exists
-        assert os.path.exists(
-            args_parsed.user_script
-        ), f"User script could not be found: {args_parsed.user_script}"
-
+        args_parsed = parser.parse_known_args()[0]
+        
         # load config files
-        conf_files = args_parsed.conf_file
         if args_parsed.conf_dir:
-            conf_files = [os.path.join(args_parsed.conf_dir, f) for f in conf_files]
-
+            conf_files = [args_parsed.conf_dir]
+        
         # enables us to pass in `small` instead of `small.yml`
         conf_files = [(cf if cf.endswith(".yml") else cf + ".yml") for cf in conf_files]
-
+        
         # determine overwrite values
         overwrite_values = dict()
         for k, v in vars(args_parsed).items():
