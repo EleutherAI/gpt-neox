@@ -285,6 +285,40 @@ class Enwik8(DataDownloader):
     urls = ["https://data.deepai.org/enwik8.zip"]
 
 
+class DiffData1(DataDownloader):
+    name = "diff_data_1"
+    urls = ["/fsx/diff_models/diff_data/plain_text_data/1-deduped_train/data_0_time1672763963_default.jsonl.zst"]
+
+    def tokenize(self):
+        """tokenizes dataset"""
+        parent_folder = self.base_dir
+        jsonl_filepath = ",".join(
+            [url for url in self.urls]
+        )
+
+        cmd = f"python tools/preprocess_data.py \
+            --input {jsonl_filepath} \
+            --output-prefix {parent_folder}/{self.name} \
+            --vocab {self.vocab_file} \
+            --dataset-impl mmap \
+            --tokenizer-type {self.tokenizer_type} \
+            --merge-file {self.merge_file} \
+            --append-eod \
+            --workers {self.num_workers} "
+
+        if self.num_docs is not None:
+            cmd += f"--num-docs {self.num_docs} "
+
+        if self.ftfy:
+            cmd += f"--ftfy "
+
+        os.system(cmd)
+
+    def prepare(self):
+        if not self.exists():
+            #self.download()
+            self.tokenize()
+
 def maybe_download_gpt2_tokenizer_data(tokenizer_type, data_dir):
     if tokenizer_type is None or tokenizer_type == "GPT2BPETokenizer":
         GPT2_VOCAB_FP = f"{data_dir}//gpt2-vocab.json"
@@ -316,6 +350,7 @@ DATA_DOWNLOADERS = {
     "c4": C4,
     "c4_openwebtext": C4OpenWebText,
     "enwik8": Enwik8,
+    "diff_data_1": DiffData1,
 }
 
 

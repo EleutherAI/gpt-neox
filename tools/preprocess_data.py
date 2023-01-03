@@ -46,6 +46,7 @@ class Encoder(object):
         Encoder.tokenizer = build_tokenizer(self.args)
 
     def encode(self, text):
+        text = text["text"]
         if self.args.ftfy:
             text = ftfy.fix_text(text)
         ids = {}
