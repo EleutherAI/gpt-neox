@@ -332,7 +332,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
       x = ln(x)
       x = x + attn(x) + mlp(x)
     """
-    
+
     gpt_j_tied: bool = False
     """
     If false, we use
@@ -785,10 +785,10 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     """
     Acts as a multiplier on either the "log" or "linear" checkpoint spacing.
 
-    With `checkpoint-scale="linear"`, `checkpoint-factor=20`, and `train-iters=100`, checkpoints will be saved at 
+    With `checkpoint-scale="linear"`, `checkpoint-factor=20`, and `train-iters=100`, checkpoints will be saved at
     steps [20, 40, 60, 80, 100].
 
-    With `checkpoint-scale="log"`, `checkpoint-factor=2`, and `train-iters=100`, checkpoints will be saved at 
+    With `checkpoint-scale="log"`, `checkpoint-factor=2`, and `train-iters=100`, checkpoints will be saved at
     steps [1, 2, 4, 8, 16, 32, 64, 100].
 
     Note that the last checkpoint step is always saved.
@@ -1006,6 +1006,11 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     maximum_tokens: int = 64
     """
     maximum number of tokens to be generated
+    """
+
+    prompt_end: str = "\n"
+    """
+    a single prompt's end. Defaults to newline
     """
 
     sample_input_file: str = None
