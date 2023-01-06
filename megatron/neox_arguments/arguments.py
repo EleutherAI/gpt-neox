@@ -418,7 +418,9 @@ class NeoXArgs(*BASE_CLASSES):
 
     @staticmethod
     def set_up_autotuning(encoded_config, overwrite_values):
-        config = base64.urlsafe_b64decode(encoded_config).decode('utf-8')
+        config = json.loads(
+            base64.urlsafe_b64decode(encoded_config).decode('utf-8')
+        )
         overwrite_values = overwrite_values if overwrite_values else {}
         for tuning_param in AUTOTUNING_ARGS:
             # TODO: This is for autotuning specifically, may cause surprises for someone with a weird setup
