@@ -21,9 +21,10 @@ except ImportError:
     from template import NeoXArgsTemplate
 
 try:
-    from typing import Literal, Union
+    from typing import List, Literal, Union
 except ImportError:
-    from typing_extensions import Literal, Union
+    from typing_extensions import List, Literal, Union
+
 
 ATTENTION_TYPE_CHOICES = [
     "global",
@@ -378,7 +379,7 @@ class NeoXArgsOptimizer(NeoXArgsTemplate):
     Whether to enable the bitsandbytes optimizers
     """
 
-    zero_stage: Union[int, list[int], Literal['all']] = None
+    zero_stage: Union[int, List[int], Literal['all']] = None
     """
     Zero Optimizer stage
     """
