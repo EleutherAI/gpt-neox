@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 27e56e3
+    Default = 22a04ac
 
     current git hash of repository
 
@@ -591,7 +591,7 @@ Optimizer Arguments
 
 
 
-- **zero_stage**: int
+- **zero_stage**: typing.Union[int, typing.List[int], typing.Literal['all']]
 
     Default = None
 
@@ -1625,6 +1625,14 @@ Args for deepspeed config
 
 
 
+- **autotuning**: dict
+
+    Default = None
+
+    Dictionary as described in DeepSpeed autotuning documentation: https://github.com/microsoft/DeepSpeed/tree/master/deepspeed/autotuning
+
+
+
 ## NeoXArgsDeepspeedRunner
 
 Args for deepspeed runner (deepspeed.launcher.runner).
@@ -1694,7 +1702,7 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
-- **launcher**: str
+- **launcher**: typing.Literal['pdsh', 'openmpi', 'mvapich', 'slurm']
 
     Default = pdsh
 
@@ -1707,6 +1715,14 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = False
 
     If true, autodetects nvlink pairs and remaps cuda visible devices to place them next to each other. This is an Eleuther addition to deepspeed, and should speed up model parallel training on setups with nvlink pairs when mp=2.
+
+
+
+- **autotuning_run**: str
+
+    Default = None
+
+    Either "tune", "run", or `None`.
 
 
 
