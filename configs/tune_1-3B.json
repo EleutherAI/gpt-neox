@@ -77,6 +77,7 @@
    "eval-iters": 10,
    "launcher": "slurm",
    "deepspeed_slurm": true,
+   "no_ssh_check": true,
 
    "log-interval": 10,
    "steps_per_print": 10,
