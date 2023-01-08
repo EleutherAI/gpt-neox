@@ -165,8 +165,19 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
     """Support function for get_batch / get_batch pipe (to avoid code repetition)"""
     data_b = mpu.broadcast_data(keys, data, datatype)
 
+    for i, data in enumerate(data_b["text"]):
+        shape = data.shape
+        old = data
+        string = tokenizer.detokenize(data.cpu().numpy().tolist()).replace(" he ", " she ").replace(" him ", " her ").replace(" his ", " her ").replace(" He ", " She ").replace(" Him ", " Her ").replace(" His ", " Her ")
+        data = torch.Tensor(tokenizer.tokenize(string)).to(data_b["text"].device)
+        if data.shape == shape:
+            data_b["text"][i] = data
+        else:
+            pass
+
     # Unpack.
     tokens_ = data_b["text"].long()
+
     labels = tokens_[:, 1:].contiguous()
     tokens = tokens_[:, :-1].contiguous()
 
