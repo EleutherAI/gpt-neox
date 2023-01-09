@@ -460,9 +460,6 @@ class NeoXArgs(*BASE_CLASSES):
                 )
 
         if self.deepspeed_slurm:
-            args_list.extend(
-                self.convert_key_value_to_command_line_arg('no_ssh_check', True)
-            )
             comment = getattr(self, 'comment')
             if comment:   
                 args_list.extend(
