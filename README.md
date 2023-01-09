@@ -7,6 +7,8 @@ This repository records [EleutherAI](https://www.eleuther.ai)'s library for trai
 
 For those looking for a TPU-centric codebase, we recommend [Mesh Transformer JAX](https://github.com/kingoflolz/mesh-transformer-jax).
 
+**If you are not looking to train models with billions of parameters from scratch, this is likely the wrong library to use. For generic inference needs, we recommend you use the HuggingFace `transformers` library instead which supports GPT-NeoX models.**
+
 # Contents
 
 - [Pretrained Models](#pretrained-models)
@@ -96,8 +98,9 @@ from the repository root.
 
 </aside>
 
-
 ### TensorBoard
+=======
+### Flash Attention
 
 To use [Flash-Attention](https://github.com/HazyResearch/flash-attention), install the additional dependencies in  `./requirements/requirements-flashattention.txt` and set the attention type in your configuration accordingly (see [configs](./configs/)). This can provide significant speed-ups over regular attention on certain GPU architectures, including Ampere GPUs (such as A100s); see the repository for more details.
 

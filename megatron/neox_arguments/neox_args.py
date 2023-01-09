@@ -367,10 +367,11 @@ class NeoXArgsOptimizer(NeoXArgsTemplate):
     """
 
     optimizer_type: Literal[
-        "adam", "onebitadam", "cpu_adam", "cpu_torch_adam", "sm3", "madgrad_wd"
+        "adam", "onebitadam", "cpu_adam", "cpu_torch_adam", "sm3", "madgrad_wd", "sgd"
     ] = "adam"
     """
-    Type of optimizer to use. Choose from ['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd]
+    Type of optimizer to use. Choose from ['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd', 'sgd']
+    NOTE: sgd will use MuSGD from Mup. Mup must be enabled for this optimizer.
     """
 
     use_bnb_optimizer: bool = False
@@ -635,6 +636,11 @@ class NeoXArgsOther(NeoXArgsTemplate):
     Set during training
     """
 
+    save_iters: list = None
+    """
+    Set during training
+    """
+
     global_num_gpus: int = None
     """
     Set during launching
@@ -770,9 +776,29 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     save input and output of a forward pass with the checkpoint and validate after load
     """
 
-    save_interval: int = None
+    checkpoint_scale: Literal["linear", "log"] = "linear"
     """
-    Number of iterations between checkpoint saves.
+    How step at which checkpoints are saved should scale. "linear" implies 1 checkpoint will be saved at every multiple of `checkpoint-factor`,
+    while "log" implies that the number of steps between each checkpoint will be multiplied by `checkpoint-factor` at each step, starting from step 1.
+    """
+
+    checkpoint_factor: int = None
+    """
+    Acts as a multiplier on either the "log" or "linear" checkpoint spacing.
+
+    With `checkpoint-scale="linear"`, `checkpoint-factor=20`, and `train-iters=100`, checkpoints will be saved at 
+    steps [20, 40, 60, 80, 100].
+
+    With `checkpoint-scale="log"`, `checkpoint-factor=2`, and `train-iters=100`, checkpoints will be saved at 
+    steps [1, 2, 4, 8, 16, 32, 64, 100].
+
+    Note that the last checkpoint step is always saved.
+    """
+
+    extra_save_iters: list = None
+    """
+    Additional iterations when a checkpoint should be saved.
+    Must be a list of ints or `None`.
     """
 
     no_save_optim: bool = False
@@ -943,6 +969,57 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     char_level_ppl: bool = False
     """
     Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
+    """
+
+    use_mup: bool = False
+    """
+    Whether to use Microsoft's Mup https://github.com/microsoft/mup
+    """
+
+    coord_check: bool = False
+    """
+    Whether to generate a "coord check" plot to verify mup's implementation in neox
+    """
+
+    save_base_shapes: bool = False
+    """
+    Whether to save base shapes for mup. This will save the shapes to the path specified in base-shapes-file.
+    """
+
+    base_shapes_file: str = None
+    """
+    Path to the base shapes to save to/load from
+    """
+
+    mup_init_scale: float = 1.0
+    """
+    Initialization scale: All the parameters are multiplied by this value
+    """
+
+    mup_attn_temp: float = 1.0
+    """
+    Attention temperature: Reciprocal of the multiplier applied to the input to attention softmax
+    """
+
+    mup_output_temp: float = 1.0
+    """
+    Output temperature: Reciprocal of the multiplier applied to the input to softmax that
+    produces the distribution over output tokens.
+    """
+
+    mup_embedding_mult: float = 1.0
+    """
+    Scalar by which we multiply the output of the embedding layer
+    """
+
+    mup_rp_embedding_mult: float = 1.0
+    """
+    Scalar by which we multiply vectors representing relative position
+    """
+
+    mup_width_scale: int = 2
+    """
+    What to scale width by when creating the delta model for mup
     """
 
 

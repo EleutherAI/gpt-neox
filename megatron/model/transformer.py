@@ -144,6 +144,7 @@ class ParallelLinear(nn.Module):
         neox_args,
         parallel_output=True,
         init_method=nn.init.xavier_normal_,
+        is_last_layer=False,
     ):
         super().__init__()
         parallelism = neox_args.output_layer_parallelism
@@ -156,6 +157,7 @@ class ParallelLinear(nn.Module):
                 init_method=init_method,
                 gather_output=not parallel_output,
                 skip_bias_add=False,
+                mup_rescale_parameters=is_last_layer, # rescale params only called if neox_args.use_mup = True, despite it not being included here
             )
         else:
             self.final_linear = mpu.RowParallelLinear(
@@ -167,6 +169,7 @@ class ParallelLinear(nn.Module):
                 init_method=init_method,
                 parallel_output=parallel_output,
                 skip_bias_add=False,
+                mup_rescale_parameters=is_last_layer, # only called if neox_args.use_mup = True, despite it not being included here
             )
 
     def forward(self, hidden_states):
@@ -229,6 +232,9 @@ class ParallelSelfAttention(nn.Module):
             coeff = max(1, self.layer_number)
             self.norm_factor *= coeff
 
+        if neox_args.use_mup:
+            self.norm_factor = self.hidden_size_per_attention_head
+
         self.rpe = rpe
 
         if self.pos_emb == "alibi":
@@ -261,6 +267,7 @@ class ParallelSelfAttention(nn.Module):
         self.attention_type = neox_args.attention_config[layer_number]
         self.use_flash_attention = self.attention_type == "flash"
         self.sparse = self.attention_type not in ("global", "flash")
+        self.sparse = self.attention_type != "global" and not self.use_flash_attention
         if self.sparse:
             self.sparse_attn = configure_sparse_attention(
                 neox_args,
@@ -274,6 +281,10 @@ class ParallelSelfAttention(nn.Module):
                 self.flash_attention_function = flash_attn_unpadded_qkvpacked_func
                 if self.pos_emb == "alibi":
                     raise ValueError('Flash attention is currently not compatible with AliBi positional embeddings. Use sinuisoidal, learned, or rotary embeddings instead.')
+                from megatron.model.flash_attention import (
+                    flash_attn_unpadded_qkvpacked_func,
+                )
+
             else:
                 self.scale_mask_softmax = FusedScaleMaskSoftmax(
                     input_in_fp16=self.fp16,
@@ -413,9 +424,16 @@ class ParallelSelfAttention(nn.Module):
             key_layer.size(0),
         )
         # [s, b, np, hn] -> [b, s, np, hn] -> [b * s, 1, np, hn]
-        query_layer = query_layer.transpose(0, 1).reshape(output_size[0] * output_size[2], 1, output_size[1], -1)
-        key_layer = key_layer.transpose(0, 1).reshape(output_size[0] * output_size[3], 1, output_size[1], -1)
-        value_layer = value_layer.transpose(0, 1).reshape(output_size[0] * output_size[3], 1, output_size[1], -1)
+
+        query_layer = query_layer.transpose(0, 1).reshape(
+            output_size[0] * output_size[2], 1, output_size[1], -1
+        )
+        key_layer = key_layer.transpose(0, 1).reshape(
+            output_size[0] * output_size[3], 1, output_size[1], -1
+        )
+        value_layer = value_layer.transpose(0, 1).reshape(
+            output_size[0] * output_size[3], 1, output_size[1], -1
+        )
 
         # Combined q/k/v into [b * s, 3, np, hn].
         qkv = torch.concat([query_layer, key_layer, value_layer], dim=1)
@@ -423,13 +441,26 @@ class ParallelSelfAttention(nn.Module):
         batch_size = output_size[0]
         seqlen = output_size[2]
         max_s = seqlen
-        cu_seqlens = torch.arange(0, (batch_size + 1) * seqlen, step=seqlen, dtype=torch.int32, device=qkv.device)
+
+        cu_seqlens = torch.arange(
+            0,
+            (batch_size + 1) * seqlen,
+            step=seqlen,
+            dtype=torch.int32,
+            device=qkv.device,
+        )
         output = self.flash_attention_function(
-            qkv, cu_seqlens, max_s, self.dropout_p if self.training else 0.0,
-            softmax_scale=None, causal=True
+            qkv,
+            cu_seqlens,
+            max_s,
+            self.dropout_p if self.training else 0.0,
+            softmax_scale=None,
+            causal=True,
         )
         # [b * sq, np, hn] -> [b, sq, np, hn]
-        matmul_result = output.view(output_size[0], output_size[2], output.shape[1], output.shape[2])
+        matmul_result = output.view(
+            output_size[0], output_size[2], output.shape[1], output.shape[2]
+        )
         # [b, sq, np, hn] -> [b, np, sq, hn]
         matmul_result = matmul_result.transpose(1, 2)
 
@@ -523,9 +554,7 @@ class ParallelSelfAttention(nn.Module):
             present = torch.stack((key_layer, value_layer))
 
         if self.use_flash_attention:
-            context_layer = self.flash_attention(
-                query_layer, key_layer, value_layer
-            )
+            context_layer = self.flash_attention(query_layer, key_layer, value_layer)
         elif not self.sparse:
             context_layer = self.attention(
                 query_layer, key_layer, value_layer, layer_past, attention_mask
