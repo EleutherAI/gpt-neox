@@ -266,6 +266,7 @@ class ParallelSelfAttention(nn.Module):
 
         self.attention_type = neox_args.attention_config[layer_number]
         self.use_flash_attention = self.attention_type == "flash"
+        self.sparse = self.attention_type not in ("global", "flash")
         self.sparse = self.attention_type != "global" and not self.use_flash_attention
         if self.sparse:
             self.sparse_attn = configure_sparse_attention(
@@ -276,15 +277,14 @@ class ParallelSelfAttention(nn.Module):
             )
         else:
             if self.use_flash_attention:
+                from megatron.model.flash_attention import flash_attn_unpadded_qkvpacked_func
+                self.flash_attention_function = flash_attn_unpadded_qkvpacked_func
+                if self.pos_emb == "alibi":
+                    raise ValueError('Flash attention is currently not compatible with AliBi positional embeddings. Use sinuisoidal, learned, or rotary embeddings instead.')
                 from megatron.model.flash_attention import (
                     flash_attn_unpadded_qkvpacked_func,
                 )
 
-                self.flash_attention_function = flash_attn_unpadded_qkvpacked_func
-                if self.pos_emb == "alibi":
-                    raise ValueError(
-                        "Flash attention is currently not compatible with AliBi positional embeddings. Use sinuisoidal, learned, or rotary embeddings instead."
-                    )
             else:
                 self.scale_mask_softmax = FusedScaleMaskSoftmax(
                     input_in_fp16=self.fp16,
@@ -424,6 +424,7 @@ class ParallelSelfAttention(nn.Module):
             key_layer.size(0),
         )
         # [s, b, np, hn] -> [b, s, np, hn] -> [b * s, 1, np, hn]
+
         query_layer = query_layer.transpose(0, 1).reshape(
             output_size[0] * output_size[2], 1, output_size[1], -1
         )
@@ -440,6 +441,7 @@ class ParallelSelfAttention(nn.Module):
         batch_size = output_size[0]
         seqlen = output_size[2]
         max_s = seqlen
+
         cu_seqlens = torch.arange(
             0,
             (batch_size + 1) * seqlen,

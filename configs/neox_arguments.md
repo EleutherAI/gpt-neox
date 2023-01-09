@@ -334,7 +334,7 @@ Model Arguments
     The first item in the list specifies the attention type(s), and should be a list of strings. The second item
     specifies the number of times to repeat those attention types in the full list.
 
-    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird]
+    attention type choices:  [global, local, sparse_fixed, sparse_variable, bigbird, bslongformer, gmlp, amlp, flash]
 
     So a 12 layer network with only global attention could be specified like:
         [[[`global`], 12]]
@@ -344,6 +344,8 @@ Model Arguments
 
     If none is specified, this defaults to
         [[[`global`], n_layers]]
+    
+    "flash" attention refers to optimized global attention for Ampere (and some other) generation GPUs described here [Flash-Attention](https://github.com/HazyResearch/flash-attention).
 
 
 
