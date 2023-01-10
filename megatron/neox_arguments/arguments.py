@@ -498,21 +498,17 @@ class NeoXArgs(*BASE_CLASSES):
 
         # add user script
         args_list.append(self.user_script)
-        deepspeed_fp = Path('~/deepspeed_config.json').expanduser()
 
         self.configure_distributed_args()
 
         # get deepspeed_config
         args_list.append("--deepspeed_config")
-        args_list.append(str(deepspeed_fp))
-        if self.rank == 0:
-            with open(deepspeed_fp, mode='w') as dsfile:
-                json.dump(self.deepspeed_config, dsfile)
+        encoded_ds_config = base64.urlsafe_b64encode(json.dumps(self.deepspeed_config))
+        args_list.append(str(encoded_ds_config))
 
         megatron_fp = Path('~/megatron_config.json').expanduser()
         # get all config values
         args_list.append("--megatron_config")
-        args_list.append(str(megatron_fp))
         neox_args = self.get_parent_class_value_dict(
             *self.__class__.__bases__, only_non_defaults=True
         )
