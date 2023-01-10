@@ -502,8 +502,10 @@ class NeoXArgs(*BASE_CLASSES):
         self.configure_distributed_args()
 
         # get deepspeed_config
-        args_list.append("--deepspeed_config")
-        encoded_ds_config = base64.urlsafe_b64encode(json.dumps(self.deepspeed_config))
+        args_list.append("--deepspeed_config")        
+        encoded_ds_config = base64.urlsafe_b64encode(
+            json.dumps(self.deepspeed_config).encode('utf-8')
+        )
         args_list.append(str(encoded_ds_config))
 
         megatron_fp = Path('~/megatron_config.json').expanduser()
