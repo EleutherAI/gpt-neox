@@ -511,7 +511,7 @@ class NeoXArgs(*BASE_CLASSES):
         megatron_fp = Path('~/megatron_config.json').expanduser()
         # get all config values
         args_list.append("--megatron_config")
-        args_list.append(megatron_fp)
+        args_list.append(str(megatron_fp))
         neox_args = self.get_parent_class_value_dict(
             *self.__class__.__bases__, only_non_defaults=True
         )
