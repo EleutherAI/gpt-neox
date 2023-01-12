@@ -500,15 +500,24 @@ class NeoXArgs(*BASE_CLASSES):
         args_list.append(self.user_script)
 
         self.configure_distributed_args()
-
+        cwd = Path.cwd()
+        
         # get deepspeed_config
-        args_list.append("--deepspeed_config")        
-        encoded_ds_config = base64.urlsafe_b64encode(
-            json.dumps(self.deepspeed_config).encode('utf-8')
-        )
-        args_list.append(str(encoded_ds_config))
+        args_list.append("--deepspeed_config")  
+        
+        if self.autotuning_run is not None:
+            ds_fp = cwd / Path('ds_config.json')
+            if self.rank == 0:
+                with open(ds_fp, mode='w') as ds_file:
+                    json.dump(self.deepspeed_config, ds_file)
+            args_list.append(str(ds_fp))
+        else:
+            encoded_ds_config = base64.urlsafe_b64encode(
+                json.dumps(self.deepspeed_config).encode('utf-8')
+            )
+            args_list.append(str(encoded_ds_config))
 
-        megatron_fp = Path('~/megatron_config.json').expanduser()
+        megatron_fp = cwd / Path('megatron_config.json')
         # get all config values
         args_list.append("--megatron_config")
         args_list.append(str(megatron_fp))
