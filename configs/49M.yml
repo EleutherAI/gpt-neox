@@ -1,0 +1,91 @@
+{
+  # parallelism settings
+  "pipe-parallel-size": 1,
+  "model-parallel-size": 1,
+
+  # model settings
+  "num-layers": 10,
+  "hidden-size": 640,
+  "num-attention-heads": 10,
+  "seq-length": 2048,
+  "max-position-embeddings": 2048,
+  "pos-emb": "rotary",
+  "rotary-pct": 0.25,
+  "no-weight-tying": true,
+  "gpt-j-residual": true,
+  "output-layer-parallelism": "column",
+
+  # these should provide some speedup but takes a while to build, set to true if desired
+  "scaled-upper-triang-masked-softmax-fusion": false,
+  "bias-gelu-fusion": false,
+
+  # init methods
+  "init_method": "small_init",
+  "output_layer_init_method": "wang_init",
+
+  # optimizer settings
+  "optimizer": {
+    "type": "Adam",
+    "params": {
+      "lr": 0.0008,
+      "betas": [0.9, 0.95],
+      "eps": 1.0e-8,
+    }
+  },
+  "min_lr": 0.00008,
+
+  # for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
+  "zero_optimization": {
+    "stage": 1,
+    "allgather_partitions": True,
+    "allgather_bucket_size": 500000000,
+    "overlap_comm": True,
+    "reduce_scatter": True,
+    "reduce_bucket_size": 500000000,
+    "contiguous_gradients": True,
+  },
+
+  # batch / data settings
+  "train_micro_batch_size_per_gpu": 32,
+  "gas": 1,
+  "data-impl": "mmap",
+  "num_workers": 1,
+
+  # activation checkpointing
+  "checkpoint-activations": true,
+  "checkpoint-num-layers": 1,
+  "partition-activations": true,
+  "synchronize-each-layer": true,
+
+  # regularization
+  "gradient_clipping": 1.0,
+  "weight-decay": 0.1,
+  "hidden-dropout": 0,
+  "attention-dropout": 0,
+
+  # precision settings
+  "fp16": {
+    "fp16": true,
+    "enabled": true,
+    "loss_scale": 0,
+    "loss_scale_window": 1000,
+    "initial_scale_power": 12,
+    "hysteresis": 2,
+    "min_loss_scale": 1,
+  },
+
+  # misc. training settings
+  "train-iters": 143000,
+  "lr-decay-iters": 143000,
+  "distributed-backend": "nccl",
+  "lr-decay-style": "cosine",
+  "warmup": 0.01,
+  "checkpoint-factor": 1000,
+  "eval-interval": 100000,
+  "eval-iters": 10,
+
+  # logging
+  "log-interval": 10,
+  "steps_per_print": 10,
+  "wall_clock_breakdown": true,
+}

@@ -1,3 +1,17 @@
+# Copyright (c) 2021, EleutherAI
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import subprocess
 from dataclasses import dataclass
 
@@ -20,6 +34,7 @@ ATTENTION_TYPE_CHOICES = [
     "bslongformer",
     "gmlp",
     "amlp",
+    "flash",
 ]
 
 
@@ -318,6 +333,15 @@ class NeoXArgsModel(NeoXArgsTemplate):
       x = x + attn(x) + mlp(x)
     """
 
+    gpt_j_tied: bool = False
+    """
+    If false, we use
+      x = x + attn(ln1(x)) + mlp(ln2(x))
+    Otherwise, we tie the layer norms
+      y = ln(x)
+      x = x + attn(y) + mlp(y)
+    """
+
     soft_prompt_tuning: dict = None
     """
     Dictionary configuring the soft prompt tuning parameters.
@@ -611,6 +635,11 @@ class NeoXArgsOther(NeoXArgsTemplate):
     Set during training
     """
 
+    save_iters: list = None
+    """
+    Set during training
+    """
+
     global_num_gpus: int = None
     """
     Set during launching
@@ -746,9 +775,29 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     save input and output of a forward pass with the checkpoint and validate after load
     """
 
-    save_interval: int = None
+    checkpoint_scale: Literal["linear", "log"] = "linear"
     """
-    Number of iterations between checkpoint saves.
+    How step at which checkpoints are saved should scale. "linear" implies 1 checkpoint will be saved at every multiple of `checkpoint-factor`,
+    while "log" implies that the number of steps between each checkpoint will be multiplied by `checkpoint-factor` at each step, starting from step 1.
+    """
+
+    checkpoint_factor: int = None
+    """
+    Acts as a multiplier on either the "log" or "linear" checkpoint spacing.
+
+    With `checkpoint-scale="linear"`, `checkpoint-factor=20`, and `train-iters=100`, checkpoints will be saved at
+    steps [20, 40, 60, 80, 100].
+
+    With `checkpoint-scale="log"`, `checkpoint-factor=2`, and `train-iters=100`, checkpoints will be saved at
+    steps [1, 2, 4, 8, 16, 32, 64, 100].
+
+    Note that the last checkpoint step is always saved.
+    """
+
+    extra_save_iters: list = None
+    """
+    Additional iterations when a checkpoint should be saved.
+    Must be a list of ints or `None`.
     """
 
     no_save_optim: bool = False
@@ -957,6 +1006,11 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     maximum_tokens: int = 64
     """
     maximum number of tokens to be generated
+    """
+
+    prompt_end: str = "\n"
+    """
+    a single prompt's end. Defaults to newline
     """
 
     sample_input_file: str = None

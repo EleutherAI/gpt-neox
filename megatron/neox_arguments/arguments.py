@@ -1,3 +1,17 @@
+# Copyright (c) 2021, EleutherAI
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 import yaml
 import json
@@ -36,6 +50,7 @@ from .neox_args import (
 
 # ZERO defaults by deespeed
 # These values should not be changed unless defaults in deepspeed are changed
+# for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
 ZERO_DEFAULTS = {
     "stage": 0,
     "allgather_partitions": True,
@@ -45,7 +60,6 @@ ZERO_DEFAULTS = {
     "reduce_scatter": True,
     "reduce_bucket_size": int(5e8),
     "contiguous_gradients": False,
-    "cpu_offload": False,
 }
 
 # NeoX optimizer defaults
@@ -394,6 +408,7 @@ class NeoXArgs(*BASE_CLASSES):
                 args_list.extend(
                     self.convert_key_value_to_command_line_arg(key, configured_value)
                 )
+
         if "DLTS_HOSTFILE" in os.environ:
             args_list.extend(
                 self.convert_key_value_to_command_line_arg(
@@ -401,19 +416,10 @@ class NeoXArgs(*BASE_CLASSES):
                 )
             )
 
-        if self.deepspeed_slurm:
-            args_list.extend(
-                self.convert_key_value_to_command_line_arg("no_ssh_check", True)
-            )
-            comment = getattr(self, "comment")
-            if comment:
-                args_list.extend(
-                    self.convert_key_value_to_command_line_arg("comment", comment)
-                )
-            master_address = os.environ["SLURM_JOB_NODELIST"].split("\n")[0]
+        if "MASTER_ADDR" in os.environ:
             args_list.extend(
                 self.convert_key_value_to_command_line_arg(
-                    "master_addr", master_address
+                    "master_addr", os.environ["MASTER_ADDR"]
                 )
             )
 
@@ -732,6 +738,30 @@ class NeoXArgs(*BASE_CLASSES):
             }
         )
 
+        # derive steps where checkpoint should be saved
+        if self.checkpoint_factor or self.extra_save_iters:
+            if self.extra_save_iters:
+                save_iters = set(self.extra_save_iters)
+            else:
+                save_iters = set()
+
+            step = self.checkpoint_factor  # don't save step 0 or 1
+            while step < self.train_iters:
+                save_iters.add(step)
+                if self.checkpoint_scale == "log":
+                    step *= self.checkpoint_factor
+                elif self.checkpoint_scale == "linear":
+                    step += self.checkpoint_factor
+
+            save_iters = list(save_iters)
+            save_iters.sort()
+
+        self.update_values(
+            {
+                "save_iters": save_iters,
+            }
+        )
+
         # derive precision
         if (self.fp16 or {}).get("type", self.precision) == "bfloat16":
             self.update_value("precision", "bfloat16")
@@ -920,10 +950,14 @@ class NeoXArgs(*BASE_CLASSES):
             raise ValueError(error_message)
             return False
 
-        if self.save is not None and self.save_interval is None:
+        if (
+            self.save is not None
+            and self.checkpoint_factor is None
+            and self.extra_save_iters is None
+        ):
             error_message = (
                 self.__class__.__name__
-                + ".validate_values() save_interval must be defined if save is defined"
+                + ".validate_values() checkpoint_factor or extra_save_iters must be defined if save is defined"
             )
             logging.error(error_message)
             raise ValueError(error_message)

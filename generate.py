@@ -1,6 +1,7 @@
 #!/usr/bin/env python
-# Copyright (c) 2021 Josh Levy-Kramer <josh@levykramer.co.uk>. All rights reserved.
+# Copyright (c) 2021 EleutherAI
 # This file is based on code by the authors denoted below and has been modified from its original version.
+#
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -61,6 +62,7 @@ def main():
             input_file=neox_args.sample_input_file,
             output_file=neox_args.sample_output_file,
             maximum_tokens=neox_args.maximum_tokens,
+            prompt_end=neox_args.prompt_end,
             recompute=neox_args.recompute,
             temperature=neox_args.temperature,
             top_k=neox_args.top_k,
@@ -74,6 +76,7 @@ def main():
             recompute=neox_args.recompute,
             temperature=neox_args.temperature,
             maximum_tokens=neox_args.maximum_tokens,
+            prompt_end=neox_args.prompt_end,
             top_k=neox_args.top_k,
             top_p=neox_args.top_p,
         )

@@ -14,6 +14,7 @@
    "norm": "layernorm",
    "pos-emb": "rotary",
    "no-weight-tying": true,
+   "use-bnb-optimizer": true,
 
    # these should provide some speedup but takes a while to build, set to true if desired
    "scaled-upper-triang-masked-softmax-fusion": false,
@@ -29,6 +30,7 @@
        "eps": 1.0e-8,
      }
    },
+   # for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
    "zero_optimization": {
     "stage": 0,
     "allgather_partitions": True,
@@ -37,7 +39,6 @@
     "reduce_scatter": True,
     "reduce_bucket_size": 500000000,
     "contiguous_gradients": True,
-    "cpu_offload": False
   },
 
    # batch / data settings
@@ -72,7 +73,7 @@
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
-   "save-interval": 10000,
+   "checkpoint-factor": 10000,
    "eval-interval": 1000,
    "eval-iters": 10,
 
@@ -81,7 +82,4 @@
    "steps_per_print": 10,
    "keep-last-n-checkpoints": 4,
    "wall_clock_breakdown": true,
-
-  #  networking
-  "hostfile": "/mock_path"
 }

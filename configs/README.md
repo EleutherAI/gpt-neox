@@ -38,6 +38,7 @@ For a detailed list of all the arguments available for neox, see [neox_arguments
        "betas": [0.9, 0.95]
      }
    },
+   # for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
    "zero_optimization": {
     "stage": 0,
     "allgather_partitions": True,
@@ -46,7 +47,6 @@ For a detailed list of all the arguments available for neox, see [neox_arguments
     "reduce_scatter": True,
     "reduce_bucket_size": 500000000,
     "contiguous_gradients": True,
-    "cpu_offload": False
   },
 
    # batch / data settings
@@ -165,6 +165,7 @@ Available optimizer types are:
 ### ZeRO Optimization:
 
 ```yaml
+# for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
   "zero_optimization": {
         "stage": 0,
         "allgather_partitions": True,
@@ -173,7 +174,6 @@ Available optimizer types are:
         "reduce_scatter": True,
         "reduce_bucket_size": 500000000,
         "contiguous_gradients": True,
-        "cpu_offload": False
   },
   "zero_allow_untested_optimizer": false,
 

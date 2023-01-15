@@ -46,6 +46,8 @@
       },
 
   "min_lr": 0.97e-5,
+
+  # for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
   "zero_optimization": {
   "stage": 1,
   "allgather_partitions": True,
@@ -54,7 +56,6 @@
   "reduce_scatter": True,
   "reduce_bucket_size": 1260000000,
   "contiguous_gradients": True,
-  "cpu_offload": False
   },
 
   # batch / data settings (assuming 96 GPUs)
@@ -93,7 +94,7 @@
   "distributed-backend": "nccl",
   "lr-decay-style": "cosine",
   "warmup": 0.01,
-  "save-interval": 500,
+  "checkpoint-factor": 500, # this variable previously called `save-interval`
   "eval-interval": 1000,
   "eval-iters": 10,
 

@@ -1,5 +1,6 @@
-# Copyright (c) 2021  Josh Levy-Kramer <josh@levykramer.co.uk>. All rights reserved.
+# Copyright (c) 2021, EleutherAI
 # This file is based on code by the authors denoted below and has been modified from its original version.
+#
 # Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -551,6 +552,7 @@ def generate_samples_input_from_file(
     output_file=None,
     eos_token_id: int = None,
     maximum_tokens: int = 64,
+    prompt_end: str = "\n",
     recompute: bool = False,
     temperature: float = 0.0,
     top_k: int = 0,
@@ -569,6 +571,7 @@ def generate_samples_input_from_file(
 
     eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
     maximum_tokens: maximum number of tokens to be generated
+    prompt_end: end of a single input prompt. Defaults to newline character '\n'. Other prompt-end sequences may be useful when generating indent-aware completions (e.g. code)
 
     recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
 
@@ -591,8 +594,9 @@ def generate_samples_input_from_file(
     print_rank_0(
         "generate_samples_input_from_file() loading input from {}".format(input_file)
     )
-    with open(input_file, "r") as f:
-        prompts = f.readlines()
+    with open(input_file, "r", encoding="utf-8") as f:
+        prompts = f.read()
+        prompts = prompts.split(prompt_end)
     prompts = [p.strip() for p in prompts]
     prompts = [p for p in prompts if len(p) > 0]
     print_rank_0(
@@ -653,6 +657,7 @@ def generate_samples_unconditional(
 
     eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
     maximum_tokens: maximum number of tokens to be generated
+    prompt_end: end of a single input prompt. Defaults to newline character '\n'. Other prompt-end sequences may be useful when generating indent-aware completions (e.g. code). The interactive mode will reroll the user-input request until the stop-char is met
 
     recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
 
@@ -698,6 +703,7 @@ def generate_samples_interactive(
     neox_args,
     model,
     maximum_tokens: int = 64,
+    prompt_end: str = "\n",
     eos_token_id: int = None,
     recompute: bool = False,
     temperature: float = 0.0,
@@ -737,7 +743,20 @@ def generate_samples_interactive(
 
         if torch.distributed.is_initialized() and torch.distributed.get_rank() == 0:
             os.system("clear")
-            raw_text = input("Context prompt >>> ")
+            raw_text = ""
+            while True:
+                current_input = input("Context prompt >>> ")
+                if (
+                    prompt_end == "\n"
+                ):  # we need to handle '\n' case as 'input' strips it and leads to lines being squashed
+                    raw_text += current_input
+                    break
+                if prompt_end in current_input:
+                    raw_text += current_input.split(prompt_end)[0]
+                    break
+                raw_text += (
+                    current_input + "\n"
+                )  # re-add newline since we stripped it on input
             context_tokens = neox_args.tokenizer.tokenize(raw_text)
             if len(context_tokens) == 0:
                 context_tokens = [neox_args.tokenizer.eod]
@@ -760,6 +779,7 @@ def generate_samples_interactive(
             batch_context_tokens,
             batch_token_generation_start_index,
             batch_token_generation_end_index,
+            batch_generated_token_logits,
             is_done,
         ) in stream_tokens(
             neox_args=neox_args,
