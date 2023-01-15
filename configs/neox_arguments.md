@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 075a525
+    Default = ac09852
 
     current git hash of repository
 
@@ -1581,10 +1581,16 @@ Args for deepspeed config
 
     Default = None
 
+    
+
+
 
 - **curriculum_learning**: dict
 
     Default = None
+
+    
+
 
 
 - **curriculum_seqlen**: int
