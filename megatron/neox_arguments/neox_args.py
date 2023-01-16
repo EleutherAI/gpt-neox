@@ -379,7 +379,7 @@ class NeoXArgsOptimizer(NeoXArgsTemplate):
     Whether to enable the bitsandbytes optimizers
     """
 
-    zero_stage: Union[int, List[int], Literal['all']] = None
+    zero_stage: Union[int, List[int], Literal["all"]] = None
     """
     Zero Optimizer stage
     """
