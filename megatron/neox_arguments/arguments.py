@@ -1128,8 +1128,6 @@ class NeoXArgs(*BASE_CLASSES):
         At runtime, checks types are actually the type specified.
         """
         for field_name, field_def in self.__dataclass_fields__.items():
-
-
             actual_value = getattr(self, field_name)
             if actual_value is None:
                 continue  # we allow for some values not to be configured
