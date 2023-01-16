@@ -515,8 +515,8 @@ class NeoXArgs(*BASE_CLASSES):
         else:
             encoded_ds_config = base64.urlsafe_b64encode(
                 json.dumps(self.deepspeed_config).encode("utf-8")
-            )
-            args_list.append(str(encoded_ds_config))
+            ).decode("utf-8")
+            args_list.append(encoded_ds_config)
 
         megatron_fp = cwd / Path("megatron_config.json")
         # get all config values
