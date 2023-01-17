@@ -19,27 +19,34 @@ Assumes a dataset of jsonl files in the same format as the neox training set.
 from tokenizers import Tokenizer, decoders, models, pre_tokenizers, processors, trainers
 from tokenizers.normalizers import NFKC
 
+import datasets
+
 from glob import glob
 import os
 import json
 import argparse
 
 
-def load_jsonl(input_path, quiet=True) -> list:
+def load_jsonl(input_path, quiet=False) -> list:
     """
     Read list of objects from a JSON lines file.
     """
     data = []
-    with open(input_path, "r", encoding="utf-8") as f:
-        for line in f:
-            data.append(json.loads(line.rstrip("\n|\r")))
+    #with open(input_path, "r", encoding="utf-8") as f:
+    #    for line in f:
+    #        data.append(json.loads(line.rstrip("\n|\r")))
+    try:
+        data = datasets.load_from_disk(input_path)
+    except FileNotFoundError:
+        data = []
     if not quiet:
-        print("Loaded {} records from {}".format(len(data), input_path))
+        print("Loaded {} records from {}\n".format(len(data), input_path))
     return data
 
 
 def json_iterator(input_dir, text_key="text"):
-    all_jsonls = glob(f"{input_dir}/*.jsonl") + glob(f"{input_dir}/*.json")
+    all_jsonls = [x[0] for x in os.walk(input_dir)] #glob(f"{input_dir}/*.jsonl") + glob(f"{input_dir}/*.json")
+    print(all_jsonls)
     for j in all_jsonls:
         data = load_jsonl(j)
         for doc in data:
@@ -73,7 +80,18 @@ def train_tokenizer(
 
     # And then train
     trainer = trainers.BpeTrainer(
-        vocab_size=vocab_size, special_tokens=["<|endoftext|>", "<|padding|>"]
+            vocab_size=vocab_size, special_tokens=["<|endoftext|>", "<|padding|>", \
+                    "!", "\"", "\#", "$", "%", "&", "\'", "*", "+", "-", ".", "/", ":", ";", \
+                    "<", "=", ">", "?", "\\", "^", "_", "|", "(", ")", "[", "]", "{", "}", \
+                    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", \
+                    " ", "  ", "   ", "    ", "     ", "      ", \
+                    "       ", "        ", "         ", "          ", \
+                    "           ", "            ", "             ", "              ", \
+                    "               ", "                ", "                 ", \
+                    "                  ", "                   ", "                    ", \
+                    "                     ", "                      ", "                       ", \
+                    "                        "]
+        #special_tokens=["<|endoftext|>", "<|padding|>"]
     )
     tokenizer.train_from_iterator(json_iterator(input_dir), trainer)
 
@@ -102,7 +120,7 @@ def parse_args():
         type=str,
         help="type of tokenizer to train, currently only BPE is supported",
         choices=["BPE"],
-        default=["BPE"],
+        default="BPE",
     )
     parser.add_argument(
         "-v",
