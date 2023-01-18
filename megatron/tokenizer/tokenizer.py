@@ -253,7 +253,10 @@ class HFTokenizer(AbstractTokenizer):
     @property
     def eod(self):
         return self.eod_id
-
+    
+    @property
+    def pad(self):
+        return self.pad_id
 
 class HFGPT2Tokenizer(AbstractTokenizer):
     """Designed to Integrate the pretrained OpenAI GPT2 Tokenizers from HF"""

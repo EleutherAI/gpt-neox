@@ -165,16 +165,29 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
     """Support function for get_batch / get_batch pipe (to avoid code repetition)"""
     data_b = mpu.broadcast_data(keys, data, datatype)
 
+    unchanged = 0
     for i, data in enumerate(data_b["text"]):
-        shape = data.shape
         old = data
-        string = tokenizer.detokenize(data.cpu().numpy().tolist()).replace(" he ", " she ").replace(" him ", " her ").replace(" his ", " her ").replace(" He ", " She ").replace(" Him ", " Her ").replace(" His ", " Her ")
-        data = torch.Tensor(tokenizer.tokenize(string)).to(data_b["text"].device)
-        if data.shape == shape:
-            data_b["text"][i] = data
-        else:
-            pass
+        string = tokenizer.detokenize(data.cpu().numpy().tolist())
 
+        intervened_string = string.replace(" he ", " she ").replace(" him ", " her ").replace(" his ", " her ").replace(" He ", " She ").replace(" Him ", " Her ").replace(" His ", " Her ")
+        data = torch.Tensor(tokenizer.tokenize(string)).to(data_b["text"].device)
+        if intervened_string != string:
+            
+            if data.shape[0] < old.shape[0]:
+                # pad to length
+                data = torch.nn.functional.pad(data, (0, old.shape[0] - data.shape[0],), "constant", tokenizer.pad)
+            elif data.shape[0] > old.shape[0]:
+                # truncate to correct size
+                data = data[:old.shape[0]]
+            # confirm we set data to correct size
+            assert data.shape == old.shape, f"'{data.shape}', '{old.shape}'"
+
+            data_b["text"][i] = data
+            
+        else:
+            unchanged += 1
+            pass
     # Unpack.
     tokens_ = data_b["text"].long()
 
