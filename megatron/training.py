@@ -169,8 +169,12 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
     for i, data in enumerate(data_b["text"]):
         old = data
         string = tokenizer.detokenize(data.cpu().numpy().tolist())
-
-        intervened_string = string.replace(" he ", " she ").replace(" him ", " her ").replace(" his ", " her ").replace(" He ", " She ").replace(" Him ", " Her ").replace(" His ", " Her ")
+        
+        swap_to_f_prns = True
+        if swap_to_f_prns is True:
+            intervened_string = string.replace(" he ", " she ").replace(" him ", " her ").replace(" his ", " her ").replace(" He ", " She ").replace(" Him ", " Her ").replace(" His ", " Her ")
+        else:
+            intervened_string = string.replace(" she ", " he ").replace(" her ", " him ").replace(" She ", " He ").replace(" Her ", " Him ").replace(" hers ", " his ").replace(" Hers ", " his ")
         data = torch.Tensor(tokenizer.tokenize(string)).to(data_b["text"].device)
         if intervened_string != string:
             
