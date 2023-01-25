@@ -38,7 +38,9 @@ def main():
         forward_step,
         neox_args,
         eval_tasks=neox_args.eval_tasks,
+        num_fewshot=neox_args.num_fewshot,
         bootstrap_iters=10000,
+        description_dict=neox_args.description_dict,
     )
     if neox_args.rank == 0:
         init_wandb(neox_args=neox_args)

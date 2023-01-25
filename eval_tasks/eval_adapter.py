@@ -453,6 +453,7 @@ def run_eval_harness(
     eval_tasks=None,
     num_fewshot=0,
     bootstrap_iters=2,
+    description_dict=None,
 ):
     print_rank_0("Running evaluation harness...")
     adapter = EvalHarnessAdapter(
@@ -462,4 +463,5 @@ def run_eval_harness(
         eval_tasks=eval_tasks,
         num_fewshot=num_fewshot,
         bootstrap_iters=bootstrap_iters,
+        description_dict=description_dict,
     )
