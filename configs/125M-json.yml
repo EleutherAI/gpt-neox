@@ -1,6 +1,6 @@
 {
   "pipe-parallel-size": 1,
-  "model-parallel-size": 4,
+  "model-parallel-size": 1,
 
   "num-layers": 12,
   "hidden-size": 768,
