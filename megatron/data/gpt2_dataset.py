@@ -136,6 +136,7 @@ def _build_index_mappings(
     sample_idx_filename = _filename + "_sample_idx.npy"
     shuffle_idx_filename = _filename + "_shuffle_idx.npy"
 
+    print('+'*50, os.environ['LOCAL_RANK'])
     if not use_shared_fs:
         world_size = os.environ['WORLD_SIZE']
         device_count = torch.cuda.device_count()
