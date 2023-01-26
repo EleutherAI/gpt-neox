@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = f6a8f5d
+    Default = 62e9440
 
     current git hash of repository
 
@@ -344,7 +344,7 @@ Model Arguments
 
     If none is specified, this defaults to
         [[[`global`], n_layers]]
-    
+
     "flash" attention refers to optimized global attention for Ampere (and some other) generation GPUs described here [Flash-Attention](https://github.com/HazyResearch/flash-attention).
 
 
@@ -926,6 +926,15 @@ Text Generation arguments
 
 
 
+- **prompt_end**: str
+
+    Default =
+
+
+    a single prompt's end. Defaults to newline
+
+
+
 - **sample_input_file**: str
 
     Default = None
@@ -961,7 +970,7 @@ Text Generation arguments
 
 - **eval_results_prefix**: str
 
-    Default = 
+    Default =
 
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
 
@@ -1158,10 +1167,10 @@ Training Arguments
 
     Acts as a multiplier on either the "log" or "linear" checkpoint spacing.
 
-    With `checkpoint-scale="linear"`, `checkpoint-factor=20`, and `train-iters=100`, checkpoints will be saved at 
+    With `checkpoint-scale="linear"`, `checkpoint-factor=20`, and `train-iters=100`, checkpoints will be saved at
     steps [20, 40, 60, 80, 100].
 
-    With `checkpoint-scale="log"`, `checkpoint-factor=2`, and `train-iters=100`, checkpoints will be saved at 
+    With `checkpoint-scale="log"`, `checkpoint-factor=2`, and `train-iters=100`, checkpoints will be saved at
     steps [1, 2, 4, 8, 16, 32, 64, 100].
 
     Note that the last checkpoint step is always saved.
@@ -1656,7 +1665,7 @@ Args for deepspeed config
 
     Default = None
 
-    
+
 
 
 
@@ -1790,4 +1799,3 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = None
 
     Adds a `--comment` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometime necessary for cluster rules, or so I've heard.
-

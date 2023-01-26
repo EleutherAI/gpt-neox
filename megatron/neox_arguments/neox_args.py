@@ -1060,6 +1060,11 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     maximum number of tokens to be generated
     """
 
+    prompt_end: str = "\n"
+    """
+    a single prompt's end. Defaults to newline
+    """
+
     sample_input_file: str = None
     """
     Get input from file instead of interactive mode, each line is an input.
@@ -1096,7 +1101,7 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     Number of examples to use for "few shot" or "in-context" evaluation.
     """
 
-    description_dict: str = None
+    description_dict_path: str = None
     """
-    Path to extra task-specific parameters
+    Path to config with extra task-specific parameters.
     """

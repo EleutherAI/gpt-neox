@@ -157,7 +157,7 @@ class ParallelLinear(nn.Module):
                 init_method=init_method,
                 gather_output=not parallel_output,
                 skip_bias_add=False,
-                mup_rescale_parameters=is_last_layer, # rescale params only called if neox_args.use_mup = True, despite it not being included here
+                mup_rescale_parameters=is_last_layer,  # rescale params only called if neox_args.use_mup = True, despite it not being included here
             )
         else:
             self.final_linear = mpu.RowParallelLinear(
@@ -169,7 +169,7 @@ class ParallelLinear(nn.Module):
                 init_method=init_method,
                 parallel_output=parallel_output,
                 skip_bias_add=False,
-                mup_rescale_parameters=is_last_layer, # only called if neox_args.use_mup = True, despite it not being included here
+                mup_rescale_parameters=is_last_layer,  # only called if neox_args.use_mup = True, despite it not being included here
             )
 
     def forward(self, hidden_states):
@@ -277,10 +277,15 @@ class ParallelSelfAttention(nn.Module):
             )
         else:
             if self.use_flash_attention:
-                from megatron.model.flash_attention import flash_attn_unpadded_qkvpacked_func
+                from megatron.model.flash_attention import (
+                    flash_attn_unpadded_qkvpacked_func,
+                )
+
                 self.flash_attention_function = flash_attn_unpadded_qkvpacked_func
                 if self.pos_emb == "alibi":
-                    raise ValueError('Flash attention is currently not compatible with AliBi positional embeddings. Use sinuisoidal, learned, or rotary embeddings instead.')
+                    raise ValueError(
+                        "Flash attention is currently not compatible with AliBi positional embeddings. Use sinuisoidal, learned, or rotary embeddings instead."
+                    )
                 from megatron.model.flash_attention import (
                     flash_attn_unpadded_qkvpacked_func,
                 )
@@ -671,15 +676,15 @@ class ParallelTransformerLayer(nn.Module):
             # to save communication time (we can do a single allreduce after we add mlp / attn outputs).
             # due to a bug, the two layernorms are not tied in GPT-NeoX-20B. This is non-desirable, but
             # we preserve the functionality for backwards compatibility
-            
+
             residual = x
             # applies the correct normalization depending on if the norms are tied
             if self.gpt_j_tied:
-                x1, x2 = self.input_layernorm(x), self.post_attention_layernorm(x)
-            else:
                 x = self.input_layernorm(x)
                 x1, x2 = x, x
-                
+            else:
+                x1, x2 = self.input_layernorm(x), self.post_attention_layernorm(x)
+
             # attention operator
             attention_output, attention_bias = self.attention(
                 x1, attention_mask, layer_past=layer_past
@@ -707,7 +712,7 @@ class ParallelTransformerLayer(nn.Module):
                 )
 
             # output = (x + attn(ln(x)) + mlp(ln(x))
-            output   = residual         + self.reduce(output)
+            output = residual + self.reduce(output)
         else:
             # pseudocode:
             # x = x + attn(ln1(x))
