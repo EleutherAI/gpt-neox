@@ -136,17 +136,13 @@ def _build_index_mappings(
     sample_idx_filename = _filename + "_sample_idx.npy"
     shuffle_idx_filename = _filename + "_shuffle_idx.npy"
 
-    print('+'*50, os.environ['LOCAL_RANK'])
     if not use_shared_fs:
-        world_size = os.environ['WORLD_SIZE']
-        device_count = torch.cuda.device_count()
-        num_nodes = int(world_size) // device_count
-        is_rank_zero = torch.distributed.get_rank() % num_nodes == 0
+        should_process_dataset = int(os.environ['LOCAL_RANK']) == 0
     else:
-        is_rank_zero = torch.distributed.get_rank() == 0
+        should_process_dataset = torch.distributed.get_rank() == 0
 
     # Build the indexed mapping if not exist.
-    if is_rank_zero:
+    if should_process_dataset:
         if (
             (not os.path.isfile(doc_idx_filename))
             or (not os.path.isfile(sample_idx_filename))
