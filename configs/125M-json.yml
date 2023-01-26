@@ -24,20 +24,20 @@
     "params": {
       "lr": 0.0006,
       "betas": [0.9, 0.95],
-      "eps": 1.0e-8,
+      "eps": 1.0e-8
     }
   },
   "min_lr": 0.00006,
 
   "zero_optimization": {
-  "stage": 1,
-  "allgather_partitions": True,
-  "allgather_bucket_size": 500000000,
-  "overlap_comm": True,
-  "reduce_scatter": True,
-  "reduce_bucket_size": 500000000,
-  "contiguous_gradients": True,
-},
+    "stage": 1,
+    "allgather_partitions": true,
+    "allgather_bucket_size": 500000000,
+    "overlap_comm": true,
+    "reduce_scatter": true,
+    "reduce_bucket_size": 500000000,
+    "contiguous_gradients": true
+  },
 
   "train_micro_batch_size_per_gpu": 4,
   "data-impl": "mmap",
