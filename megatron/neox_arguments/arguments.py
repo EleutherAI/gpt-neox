@@ -377,6 +377,7 @@ class NeoXArgs(*BASE_CLASSES):
         )
 
         args_parsed, _ = parser.parse_known_args()
+        print(args_parsed.megatron_config)
         megatron_config = json.loads(args_parsed.megatron_config)
         if overwrite_values is not None:
             megatron_config.update(overwrite_values)
