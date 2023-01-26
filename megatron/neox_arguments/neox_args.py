@@ -686,6 +686,8 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Path to combined dataset to split.
     """
 
+    use_shared_fs: bool = True
+
     train_data_paths: list = None
     """
     List of paths to train datasets.
