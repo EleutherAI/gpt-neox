@@ -180,7 +180,6 @@ class NeoXArgs(*BASE_CLASSES):
                     raise ValueError(
                         f"Conf file {conf_file_name} has the following duplicate keys with previously loaded file: {conf_key}"
                     )
-                print('+'*30, conf_key, conf_value)
                 conf_key_converted = conf_key.replace(
                     "-", "_"
                 )  # TODO remove replace and update configuration files?

@@ -190,3 +190,5 @@ class NeoXArgsDeepspeedRunner(NeoXArgsTemplate):
     """
     Adds a `--comment` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometime necessary for cluster rules, or so I've heard.
     """
+
+    force_multi: bool = False
