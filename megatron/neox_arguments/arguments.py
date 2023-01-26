@@ -180,6 +180,7 @@ class NeoXArgs(*BASE_CLASSES):
                     raise ValueError(
                         f"Conf file {conf_file_name} has the following duplicate keys with previously loaded file: {conf_key}"
                     )
+
                 conf_key_converted = conf_key.replace(
                     "-", "_"
                 )  # TODO remove replace and update configuration files?
@@ -377,7 +378,6 @@ class NeoXArgs(*BASE_CLASSES):
         )
 
         args_parsed, _ = parser.parse_known_args()
-        print(args_parsed.megatron_config)
         megatron_config = json.loads(args_parsed.megatron_config)
         if overwrite_values is not None:
             megatron_config.update(overwrite_values)
