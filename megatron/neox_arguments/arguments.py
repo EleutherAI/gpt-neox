@@ -75,15 +75,6 @@ OPT_PARAMS_DEFAULTS = {
     "cuda_aware": False,
 }
 
-
-AUTOTUNING_ARGS = (
-    "train_batch_size",
-    "train_micro_batch_size_per_gpu",
-    "gradient_accumulation_steps",
-    "zero_optimization",
-    "autotuning",
-)
-
 BASE_CLASSES = [
     NeoXArgsDeepspeedRunner,
     NeoXArgsDeepspeedConfig,
@@ -344,15 +335,6 @@ class NeoXArgs(*BASE_CLASSES):
             help="Optionally overwrite `sample_output_file` for generate.py",
         )
 
-        tuning = parser.add_argument_group(title="DeepSpeed Autotuning")
-        tuning.add_argument(
-            "--autotuning",
-            type=str,
-            default=None,
-            choices=("tune", "run"),
-            help="Use DeepSpeed's autotuning feature to optimize certain hyperparameters. For more details refer to documentation here: https://www.deepspeed.ai/tutorials/autotuning/",
-        )
-
         args_parsed = parser.parse_args()
 
         # Validate user_script exists
@@ -374,9 +356,7 @@ class NeoXArgs(*BASE_CLASSES):
         # determine overwrite values
         overwrite_values = dict()
         for k, v in vars(args_parsed).items():
-            if k == "autotuning" and v is not None:
-                overwrite_values["autotuning_run"] = v
-            elif k not in ["conf_dir", "conf_file"] and v is not None:
+            if k not in ["conf_dir", "conf_file"] and v is not None:
                 overwrite_values[k] = v
 
         # load args
@@ -413,32 +393,12 @@ class NeoXArgs(*BASE_CLASSES):
             default=None,
             help="json dict dumped as string in NeoXArgs.get_deepspeed_main_args()",
         )
-        parser.add_argument(
-            "--deepspeed_config",
-            type=str,
-            default=None,
-            help="Only need this (at this stage) for autotuning",
-        )
         args_parsed, _ = parser.parse_known_args()
         with open(args_parsed.megatron_config) as jsonfile:
             megatron_config = json.load(jsonfile)
-        if args_parsed.deepspeed_config is not None:
-            overwrite_values = cls.set_up_autotuning(
-                args_parsed.deepspeed_config, overwrite_values
-            )
         if overwrite_values is not None:
             megatron_config.update(overwrite_values)
         return cls.from_dict(args_dict=megatron_config)
-
-    @staticmethod
-    def set_up_autotuning(encoded_config, overwrite_values):
-        config = json.loads(base64.urlsafe_b64decode(encoded_config).decode("utf-8"))
-        overwrite_values = overwrite_values if overwrite_values else {}
-        for tuning_param in AUTOTUNING_ARGS:
-            # TODO: This is for autotuning specifically, may cause surprises for someone with a weird setup
-            if tuning_param in config:
-                overwrite_values[tuning_param] = config[tuning_param]
-        return overwrite_values
 
     @staticmethod
     def convert_key_value_to_command_line_arg(k, v):
@@ -455,17 +415,8 @@ class NeoXArgs(*BASE_CLASSES):
 
         args_list = list()
 
-        if self.autotuning_run is not None:
-            args_list.extend(
-                self.convert_key_value_to_command_line_arg(
-                    "autotuning", self.autotuning_run
-                )
-            )
-
         # get deepspeed runner args, and only pass them in to deepspeed launcher if they differ from defaults
         for key, default_value in NeoXArgsDeepspeedRunner().defaults():
-            if key == "autotuning_run":
-                continue
             configured_value = getattr(self, key)
             if configured_value != default_value:
                 args_list.extend(
@@ -518,17 +469,10 @@ class NeoXArgs(*BASE_CLASSES):
         # get deepspeed_config
         args_list.append("--deepspeed_config")
 
-        if self.autotuning_run is not None:
-            ds_fp = cwd / Path("ds_config.json")
-            if self.rank == 0:
-                with open(ds_fp, mode="w") as ds_file:
-                    json.dump(self.deepspeed_config, ds_file)
-            args_list.append(str(ds_fp))
-        else:
-            encoded_ds_config = base64.urlsafe_b64encode(
-                json.dumps(self.deepspeed_config).encode("utf-8")
-            ).decode("utf-8")
-            args_list.append(encoded_ds_config)
+        encoded_ds_config = base64.urlsafe_b64encode(
+            json.dumps(self.deepspeed_config).encode("utf-8")
+        ).decode("utf-8")
+        args_list.append(encoded_ds_config)
 
         megatron_fp = cwd / Path("megatron_config.json")
         # get all config values
@@ -869,32 +813,27 @@ class NeoXArgs(*BASE_CLASSES):
             )  # a dict is overwritten and not updated key by key
         try:
             stage = self.zero_optimization["stage"]
-            if stage in (0, 1, 2, 3):
-                self.update_values(
-                    {
-                        "zero_stage": self.zero_optimization.get(
-                            "stage", ZERO_DEFAULTS["stage"]
-                        ),
-                        "zero_reduce_scatter": self.zero_optimization.get(
-                            "reduce_scatter", ZERO_DEFAULTS["reduce_scatter"]
-                        ),
-                        "zero_contiguous_gradients": self.zero_optimization.get(
-                            "contiguous_gradients",
-                            ZERO_DEFAULTS["contiguous_gradients"],
-                        ),
-                        "zero_reduce_bucket_size": self.zero_optimization.get(
-                            "reduce_bucket_size", ZERO_DEFAULTS["reduce_bucket_size"]
-                        ),
-                        "zero_allgather_bucket_size": self.zero_optimization.get(
-                            "allgather_bucket_size",
-                            ZERO_DEFAULTS["allgather_bucket_size"],
-                        ),
-                    }
-                )
-            else:
-                assert (
-                    self.autotuning is not None
-                ), f"Zero Stage must be an integer unless you are doing autotuning, not {stage}"
+            self.update_values(
+                {
+                    "zero_stage": self.zero_optimization.get(
+                        "stage", ZERO_DEFAULTS["stage"]
+                    ),
+                    "zero_reduce_scatter": self.zero_optimization.get(
+                        "reduce_scatter", ZERO_DEFAULTS["reduce_scatter"]
+                    ),
+                    "zero_contiguous_gradients": self.zero_optimization.get(
+                        "contiguous_gradients",
+                        ZERO_DEFAULTS["contiguous_gradients"],
+                    ),
+                    "zero_reduce_bucket_size": self.zero_optimization.get(
+                        "reduce_bucket_size", ZERO_DEFAULTS["reduce_bucket_size"]
+                    ),
+                    "zero_allgather_bucket_size": self.zero_optimization.get(
+                        "allgather_bucket_size",
+                        ZERO_DEFAULTS["allgather_bucket_size"],
+                    ),
+                }
+            )
         except KeyError as ke:
             print(f"Zero Optimization config: {self.zero_optimization}")
             raise ke
@@ -1146,9 +1085,6 @@ class NeoXArgs(*BASE_CLASSES):
             actual_value = getattr(self, field_name)
             if actual_value is None:
                 continue  # we allow for some values not to be configured
-
-            if self.autotuning is not None and actual_value == "auto":
-                continue
 
             actual_type = type(actual_value)
             if actual_type != field_def.type:
