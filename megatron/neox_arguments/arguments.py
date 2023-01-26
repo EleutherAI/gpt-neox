@@ -577,6 +577,7 @@ class NeoXArgs(*BASE_CLASSES):
         self.update_value("local_rank", int(os.getenv("LOCAL_RANK", "0")))
         self.update_value("rank", int(os.getenv("RANK", "0")))
         self.update_value("world_size", int(os.getenv("WORLD_SIZE", "1")))
+        self.update_value("global_num_gpus", self.world_size)
 
         if self.rank == 0:
             print(
