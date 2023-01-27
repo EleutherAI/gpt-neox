@@ -33,6 +33,8 @@ import json
 
 def main():
     model, neox_args = setup_for_inference_or_eval(use_cache=False)
+    with open(neox_args.description_dict_path) as descript_file:
+        description = json.load(descript_file)
     results = run_eval_harness(
         model,
         forward_step,
@@ -40,7 +42,7 @@ def main():
         eval_tasks=neox_args.eval_tasks,
         num_fewshot=neox_args.num_fewshot,
         bootstrap_iters=10000,
-        description_dict=neox_args.description_dict_path,
+        description_dict=description,
     )
     if neox_args.rank == 0:
         init_wandb(neox_args=neox_args)
