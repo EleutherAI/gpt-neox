@@ -33,8 +33,9 @@ import json
 
 def main():
     model, neox_args = setup_for_inference_or_eval(use_cache=False)
-    with open(neox_args.description_dict_path) as descript_file:
-        description = json.load(descript_file)
+    if neox_args.description_dict_path:
+        with open(neox_args.description_dict_path) as descript_file:
+            description = json.load(descript_file)
     results = run_eval_harness(
         model,
         forward_step,
