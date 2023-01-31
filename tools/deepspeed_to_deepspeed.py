@@ -19,6 +19,7 @@ from deepspeed.checkpoint.deepspeed_checkpoint import (
 
 from deepspeed.checkpoint import (
     DeepSpeedCheckpoint,
+    NeoxCheckpoint,
     get_model_ckpt_name_for_rank,
     get_zero_ckpt_name_for_rank,
     get_layer_ckpt_name_for_rank,
@@ -150,7 +151,7 @@ def main():
         f"Converting DeepSpeed checkpoint in {args.input_folder} to DeepSpeed checkpoint in {args.output_folder}"
     )
 
-    ds_checkpoint = DeepSpeedCheckpoint(
+    ds_checkpoint = NeoxCheckpoint(
         args.input_folder, args.target_tp, args.target_pp, args.target_dp
     )
     iteration = ds_checkpoint.get_iteration()

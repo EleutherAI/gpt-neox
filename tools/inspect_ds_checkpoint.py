@@ -8,7 +8,7 @@ if root_repo_path not in sys.path:
 
 import argparse
 
-from deepspeed.checkpoint import DeepSpeedCheckpoint
+from deepspeed.checkpoint import NeoxCheckpoint
 
 
 def list_files(file_list, tag):
@@ -90,7 +90,7 @@ def main():
     print(f"Inspecting DeepSpeed Checkpoint")
     args = parse_arguments()
 
-    ds_checkpoint = DeepSpeedCheckpoint(args.folder, args.target_tp, args.target_pp)
+    ds_checkpoint = NeoxCheckpoint(args.folder, args.target_tp, args.target_pp)
     ds_checkpoint.validate_files()
 
     show_simple_state(ds_checkpoint)
