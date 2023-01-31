@@ -368,11 +368,12 @@ class TiktokenTokenizer(AbstractTokenizer):
 
     @property
     def vocab(self):
-        raise NotImplementedError
+        raise NotImplementedError("TiktokenTokenizer does not implement vocabulary access.")
 
     @property
     def inv_vocab(self):
-        raise NotImplementedError
+        raise NotImplementedError("TiktokenTokenizer does not implement vocabulary access. \
+                To get the idx-th token in vocabulary, use tokenizer.decode([idx]) .")
 
     def tokenize(self, text: str):
         return self.tokenizer.encode(text) #,  allowed_special="all")
