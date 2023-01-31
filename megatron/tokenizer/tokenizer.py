@@ -24,6 +24,7 @@ from tokenizers import Tokenizer
 from transformers import GPT2Tokenizer, GPT2TokenizerFast
 import numpy as np
 import sentencepiece as spm
+import tiktoken
 from typing import List, Union
 from .gpt2_tokenization import GPT2Tokenizer
 
@@ -52,6 +53,9 @@ def build_tokenizer(args):
         tokenizer = HFGPT2Tokenizer(args.vocab_file)
     elif args.tokenizer_type.lower() == "CharLevelTokenizer".lower():
         tokenizer = CharLevelTokenizer(vocab_size=512)
+    elif args.tokenizer_type.lower() == "TiktokenTokenizer".lower():
+        assert args.vocab_file is not None
+        tokenizer = TiktokenTokenizer(args.vocab_file)
     else:
         raise NotImplementedError(
             "{} tokenizer is not " "implemented.".format(args.tokenizer_type)
@@ -345,3 +349,46 @@ class CharLevelTokenizer(AbstractTokenizer):
     @property
     def eod(self):
         return self.eod_id
+
+
+class TiktokenTokenizer(AbstractTokenizer):
+    """Tokenizer from OpenAI's tiktoken implementation"""
+
+    def __init__(self, vocab_file):
+        name = "TiktokenTokenizer"
+        super().__init__(name)
+
+        self.tokenizer = tiktoken.get_encoding(vocab_file)
+        self.eod_id = self.tokenizer.eot_token
+        self.pad_id = None
+
+    @property
+    def vocab_size(self):
+        return self.tokenizer.n_vocab
+
+    @property
+    def vocab(self):
+        raise NotImplementedError
+
+    @property
+    def inv_vocab(self):
+        raise NotImplementedError
+
+    def tokenize(self, text: str):
+        return self.tokenizer.encode(text) #,  allowed_special="all")
+
+    def tokenize_batch(self, text_batch: List[str]):
+        return self.tokenizer.encode_batch(text_batch, allowed_special="all")
+
+    def detokenize(self, token_ids):
+        return self.tokenizer.decode(tokens=token_ids, errors="strict")
+
+    @property
+    def eod(self):
+        return self.eod_id
+
+    @property
+    def pad(self):
+        raise NotImplementedError
+
+
