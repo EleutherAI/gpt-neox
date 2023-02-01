@@ -7,7 +7,7 @@ import torch
 from pathlib import Path
 
 # insert megatron's root dir into sys.path
-root_repo_path = str(Path(__file__).resolve().parents[2])
+root_repo_path = str(Path(__file__).resolve().parents[1])
 if root_repo_path not in sys.path:
     sys.path.insert(0, root_repo_path)
 
