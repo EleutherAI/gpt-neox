@@ -76,11 +76,11 @@ def _create_transformer_layer_checkpoint(
 def _strip_vocab_padding(ds_checkpoint, padded_vocab_tensor):
     target_args = ds_checkpoint.get_args()
     checkpoint_info = ds_checkpoint.get_checkpoint_info()
-    target_args.tensor_model_parallel_size = ds_checkpoint.tp_degree
-    target_args.padded_vocab_size = _vocab_size_with_padding(
+    target_args["tensor_model_parallel_size"] = ds_checkpoint.tp_degree
+    target_args[PADDED_VOCAB_SIZE] = _vocab_size_with_padding(
         checkpoint_info[ORIGINAL_VOCAB_SIZE], target_args
     )
-    assert target_args.padded_vocab_size <= padded_vocab_tensor.numel()
+    assert target_args[PADDED_VOCAB_SIZE] <= padded_vocab_tensor.numel()
     checkpoint_info[PADDED_VOCAB_SIZE] = target_args.padded_vocab_size
     unpadded_vocab_tensor = torch.narrow(
         padded_vocab_tensor, 0, 0, target_args.padded_vocab_size
@@ -118,8 +118,8 @@ def _create_2d_parallel_checkpoint(ds_checkpoint, base_folder, tp_index, pp_inde
 
     # Adjust specific fields
     sd[ARGS_KEY] = ds_checkpoint.get_args()
-    sd[ARGS_KEY].tensor_model_parallel_size = ds_checkpoint.tp_degree
-    sd[ARGS_KEY].pipeline_model_parallel_size = ds_checkpoint.pp_degree
+    sd[ARGS_KEY]["tensor_model_parallel_size"] = ds_checkpoint.tp_degree
+    sd[ARGS_KEY]["pipeline_model_parallel_size"] = ds_checkpoint.pp_degree
     sd[CHECKPOINT_INFO_KEY][PADDED_VOCAB_SIZE] = sd[ARGS_KEY].padded_vocab_size
     _save_checkpoint(ckpt_path, sd)
 
