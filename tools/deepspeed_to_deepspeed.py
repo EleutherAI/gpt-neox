@@ -124,6 +124,8 @@ def _create_2d_parallel_checkpoint(ds_checkpoint, base_folder, tp_index, pp_inde
     sd[ARGS_KEY] = ds_checkpoint.get_args()
     sd[ARGS_KEY]["tensor_model_parallel_size"] = ds_checkpoint.tp_degree
     sd[ARGS_KEY]["pipeline_model_parallel_size"] = ds_checkpoint.pp_degree
+    if CHECKPOINT_INFO_KEY not in sd:
+        sd[CHECKPOINT_INFO_KEY] = {}
     sd[CHECKPOINT_INFO_KEY][PADDED_VOCAB_SIZE] = sd[ARGS_KEY][PADDED_VOCAB_SIZE]
     _save_checkpoint(ckpt_path, sd)
 
