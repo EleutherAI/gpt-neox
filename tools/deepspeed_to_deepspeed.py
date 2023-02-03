@@ -1,10 +1,11 @@
 #!/usr/bin/env python
-import sys
 import argparse
 import os
-import torch
-
 from pathlib import Path
+import sys
+import torch
+import yaml
+
 
 # insert megatron's root dir into sys.path
 root_repo_path = str(Path(__file__).resolve().parents[1])
@@ -12,6 +13,7 @@ if root_repo_path not in sys.path:
     sys.path.insert(0, root_repo_path)
 
 from megatron.tokenizer.tokenizer import _vocab_size_with_padding
+from megatron.neox_arguments import NeoXArgs
 from deepspeed.checkpoint.deepspeed_checkpoint import (
     ARGS_KEY,
     CHECKPOINT_INFO_KEY,
@@ -46,6 +48,7 @@ def parse_arguments():
         type=str,
         help="Output Megatron checkpoint folder",
     )
+    parser.add_argument("--config", type=str, help="Path to yml config")
     parser.add_argument("--target_tp", default=None, type=int, help="Target TP degree")
     parser.add_argument("--target_pp", default=None, type=int, help="Target PP degree")
     parser.add_argument("--target_dp", default=None, type=int, help="Target DP degree")
@@ -73,22 +76,23 @@ def _create_transformer_layer_checkpoint(
         _save_checkpoint(ckpt_path, sd)
 
 
-def _strip_vocab_padding(ds_checkpoint, padded_vocab_tensor):
+def _strip_vocab_padding(ds_checkpoint, padded_vocab_tensor, tokenizer):
     target_args = ds_checkpoint.get_args()
-    checkpoint_info = ds_checkpoint.get_checkpoint_info()
+    # checkpoint_info = ds_checkpoint.get_checkpoint_info()
+
     target_args["tensor_model_parallel_size"] = ds_checkpoint.tp_degree
     target_args[PADDED_VOCAB_SIZE] = _vocab_size_with_padding(
-        checkpoint_info[ORIGINAL_VOCAB_SIZE], target_args
+        tokenizer.vocab_size, target_args
     )
     assert target_args[PADDED_VOCAB_SIZE] <= padded_vocab_tensor.numel()
-    checkpoint_info[PADDED_VOCAB_SIZE] = target_args.padded_vocab_size
+    checkpoint_info[PADDED_VOCAB_SIZE] = target_args[PADDED_VOCAB_SIZE]
     unpadded_vocab_tensor = torch.narrow(
-        padded_vocab_tensor, 0, 0, target_args.padded_vocab_size
+        padded_vocab_tensor, 0, 0, target_args[PADDED_VOCAB_SIZE]
     )
     return unpadded_vocab_tensor.clone()
 
 
-def _create_embedding_layer_checkpoint(ds_checkpoint, base_folder, tp_index):
+def _create_embedding_layer_checkpoint(ds_checkpoint, base_folder, tp_index, neox_args):
     sd = ds_checkpoint.get_embedding_state(tp_index)
     if ds_checkpoint.is_change_tp_degree():
         sd[WORD_EMBEDDINGS_KEY] = _strip_vocab_padding(
@@ -150,6 +154,9 @@ def main():
     print(
         f"Converting DeepSpeed checkpoint in {args.input_folder} to DeepSpeed checkpoint in {args.output_folder}"
     )
+
+    neox_args = NeoXArgs.from_ymls([args.config])
+    neox_args.build_tokenizer()
 
     ds_checkpoint = NeoxCheckpoint(
         args.input_folder, args.target_tp, args.target_pp, args.target_dp
