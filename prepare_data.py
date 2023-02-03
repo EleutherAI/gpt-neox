@@ -20,6 +20,7 @@ TOKENIZER_CHOICES = [
     "HFTokenizer",
     "GPT2BPETokenizer",
     "CharLevelTokenizer",
+    "TiktokenTokenizer",
 ]
 DATASET_CHOICES = [i for i in DATA_DOWNLOADERS.keys() if i != "pass"]
 

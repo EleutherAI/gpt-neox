@@ -132,13 +132,11 @@ class Embedding(torch.nn.Module):
         # Embeddings.
         words_embeddings = self.word_embeddings(input_ids)
         if self.use_pos_emb and self.embedding_type in ["learned", "sinusoidal"]:
-            if self.layer_past is not None:
-                position_ids = position_ids + self.layer_past + 1
-
-            self.layer_past = position_ids[:, -1]
-
-            # OPT always adds 2 for some reason, according to the HF implementation
             if self.opt_pos_emb_offset:
+                if self.layer_past is not None:
+                    position_ids = position_ids + self.layer_past + 1
+                self.layer_past = position_ids[:, -1]
+                # OPT always adds 2 for some reason, according to the HF implementation
                 position_ids = position_ids + self.opt_pos_emb_offset
             position_embeddings = self.position_embeddings(position_ids)
             embeddings = words_embeddings + position_embeddings
