@@ -85,18 +85,18 @@ def _strip_vocab_padding(ds_checkpoint, padded_vocab_tensor, tokenizer):
         tokenizer.vocab_size, target_args
     )
     assert target_args[PADDED_VOCAB_SIZE] <= padded_vocab_tensor.numel()
-    checkpoint_info[PADDED_VOCAB_SIZE] = target_args[PADDED_VOCAB_SIZE]
+    # checkpoint_info[PADDED_VOCAB_SIZE] = target_args[PADDED_VOCAB_SIZE]
     unpadded_vocab_tensor = torch.narrow(
         padded_vocab_tensor, 0, 0, target_args[PADDED_VOCAB_SIZE]
     )
     return unpadded_vocab_tensor.clone()
 
 
-def _create_embedding_layer_checkpoint(ds_checkpoint, base_folder, tp_index, neox_args):
+def _create_embedding_layer_checkpoint(ds_checkpoint, base_folder, tp_index, tokenizer):
     sd = ds_checkpoint.get_embedding_state(tp_index)
     if ds_checkpoint.is_change_tp_degree():
         sd[WORD_EMBEDDINGS_KEY] = _strip_vocab_padding(
-            ds_checkpoint, sd[WORD_EMBEDDINGS_KEY]
+            ds_checkpoint, sd[WORD_EMBEDDINGS_KEY], tokenizer
         )
     layer_id = ds_checkpoint.get_embedding_layer_id()
     ckpt_path = get_layer_ckpt_name_for_rank(
@@ -156,7 +156,7 @@ def main():
     )
 
     neox_args = NeoXArgs.from_ymls([args.config])
-    neox_args.build_tokenizer()
+    tokenizer = neox_args.build_tokenizer()
 
     ds_checkpoint = NeoxCheckpoint(
         args.input_folder, args.target_tp, args.target_pp, args.target_dp
@@ -170,7 +170,7 @@ def main():
     base_folder = os.path.join(args.output_folder, latest_tag)
 
     for i in range(ds_checkpoint.tp_degree):
-        _create_embedding_layer_checkpoint(ds_checkpoint, base_folder, i)
+        _create_embedding_layer_checkpoint(ds_checkpoint, base_folder, i, tokenizer)
         _create_final_norm_layer_checkpoint(ds_checkpoint, base_folder, i)
 
         for j in range(ds_checkpoint.pp_degree):
