@@ -658,9 +658,10 @@ class NeoXArgsTokenizer(NeoXArgsTemplate):
         "HFGPT2Tokenizer",
         "SPMTokenizer",
         "CharLevelTokenizer",
+        "TiktokenTokenizer",
     ] = "GPT2BPETokenizer"
     """
-    Type of tokenizer to use - should be one of ["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "SPMTokenizer", "CharLevelTokenizer"]
+    Type of tokenizer to use - should be one of ["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "SPMTokenizer", "CharLevelTokenizer", "TiktokenTokenizer"]
     """
 
     padded_vocab_size: int = None
@@ -684,6 +685,12 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     data_path: str = None
     """
     Path to combined dataset to split.
+    """
+
+    use_shared_fs: bool = True
+    """
+    Whether to use a shared filesystem for data loading. If False, local rank 0 on all nodes will preprocess the data,
+    otherwise only global rank 0 will preprocess the data. This is implemented in megatron/data/gpt2_dataset.py::_build_index_mappings.
     """
 
     train_data_paths: list = None

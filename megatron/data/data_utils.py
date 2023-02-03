@@ -85,6 +85,7 @@ def build_the_dataset(
 
 def build_train_valid_test_datasets(
     data_prefix,
+    use_shared_fs,
     data_impl,
     splits_string,
     train_valid_test_num_samples,
@@ -131,6 +132,7 @@ def build_train_valid_test_datasets(
                 train_valid_test_num_samples[index],
                 seq_length,
                 seed,
+                use_shared_fs=use_shared_fs
             )
         return dataset
 
@@ -394,6 +396,7 @@ def build_train_valid_test_data_iterators(neox_args):
             # split dataset into train, valid and test from data_path
             train_ds, valid_ds, test_ds = build_train_valid_test_datasets(
                 data_prefix=neox_args.data_path,
+                use_shared_fs=neox_args.use_shared_fs,
                 data_impl=neox_args.data_impl,
                 splits_string=neox_args.split,
                 train_valid_test_num_samples=train_val_test_num_samples,
