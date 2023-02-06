@@ -76,12 +76,12 @@ def _create_transformer_layer_checkpoint(
         _save_checkpoint(ckpt_path, sd)
 
 
-def _strip_vocab_padding(ds_checkpoint, padded_vocab_tensor, tokenizer):
+def _strip_vocab_padding(ds_checkpoint, padded_vocab_tensor, neox_args):
     target_args = ds_checkpoint.get_args()
     # checkpoint_info = ds_checkpoint.get_checkpoint_info()
 
     target_args["tensor_model_parallel_size"] = ds_checkpoint.tp_degree
-    target_args[PADDED_VOCAB_SIZE] = tokenizer.padded_vocab_size
+    target_args[PADDED_VOCAB_SIZE] = neox_args.padded_vocab_size
     # target_args[PADDED_VOCAB_SIZE] = _vocab_size_with_padding(
     #    tokenizer.vocab_size, target_args
     # )
@@ -173,9 +173,7 @@ def main():
     base_folder = os.path.join(args.output_folder, latest_tag)
 
     for i in range(ds_checkpoint.tp_degree):
-        _create_embedding_layer_checkpoint(
-            ds_checkpoint, base_folder, i, neox_args.tokenizer
-        )
+        _create_embedding_layer_checkpoint(ds_checkpoint, base_folder, i, neox_args)
         _create_final_norm_layer_checkpoint(ds_checkpoint, base_folder, i)
 
         for j in range(ds_checkpoint.pp_degree):
