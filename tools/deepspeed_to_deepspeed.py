@@ -158,7 +158,7 @@ def main():
     )
 
     neox_args = NeoXArgs.from_ymls([args.config])
-    tokenizer = neox_args.build_tokenizer()
+    neox_args.build_tokenizer()
 
     ds_checkpoint = NeoxCheckpoint(
         args.input_folder, args.target_tp, args.target_pp, args.target_dp
@@ -172,7 +172,9 @@ def main():
     base_folder = os.path.join(args.output_folder, latest_tag)
 
     for i in range(ds_checkpoint.tp_degree):
-        _create_embedding_layer_checkpoint(ds_checkpoint, base_folder, i, tokenizer)
+        _create_embedding_layer_checkpoint(
+            ds_checkpoint, base_folder, i, neox_args.tokenizer
+        )
         _create_final_norm_layer_checkpoint(ds_checkpoint, base_folder, i)
 
         for j in range(ds_checkpoint.pp_degree):
