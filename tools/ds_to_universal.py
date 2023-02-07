@@ -23,8 +23,8 @@ root_repo_path = str(Path(__file__).resolve().parents[2])
 if root_repo_path not in sys.path:
     sys.path.insert(0, root_repo_path)
 
-
-from deepspeed.checkpoint import DeepSpeedCheckpoint
+from megatron.neox_arguments import NeoXArgs
+from deepspeed.checkpoint import DeepSpeedCheckpoint, NeoxCheckpoint
 
 MODEL_KEY = "model"
 ARGS_KEY = "args"
@@ -47,6 +47,7 @@ def parse_arguments():
     parser.add_argument(
         "--output_folder", type=str, help="Output Megatron checkpoint folder"
     )
+    parser.add_argument("--config", type=str)
     parser.add_argument("--target_tp", default=1, type=int, help="Target TP degree")
     parser.add_argument("--target_pp", default=1, type=int, help="Target PP degree")
     parser.add_argument(
@@ -321,9 +322,11 @@ def main():
         f"Converting DeepSpeed checkpoint in {args.input_folder} to Universal checkpoint in {args.output_folder}"
     )
 
-    ds_checkpoint = DeepSpeedCheckpoint(
+    ds_checkpoint = NeoxCheckpoint(
         args.input_folder
     )  # , 1, 2) # args.target_tp, args.target_pp)
+    neox_args = NeoXArgs.from_ymls([args.config])
+    neox_args.build_tokenizer()
 
     iteration = ds_checkpoint.get_iteration()
     # _create_latest_file(args.output_folder, iteration)
