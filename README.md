@@ -181,7 +181,7 @@ The tokenized data will be saved out to two files: `[data-dir]/[dataset-name]/[d
 
 ## Using Custom Data
 
-To prepare your own dataset for training with custom data, format it as one large [jsonl](https://jsonlines.org/)-formatted file with each item in the list of dictionaries being a separate document. The document text should be grouped under one JSON key, i.e `"text"`. Any auxiliary data stored in other fields will not be
+To prepare your own dataset for training with custom data, format it as one large [jsonl](https://jsonlines.org/)-formatted file with each item in the list of dictionaries being a separate document. The document text should be grouped under one JSON key, i.e `"text"`. Any auxiliary data stored in other fields will not be used.
 
 Next make sure to download the GPT2 tokenizer vocab, and merge files from the following links:
 
