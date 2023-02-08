@@ -16,11 +16,23 @@
 # limitations under the License.
 
 """Train"""
+import os
+import logging 
+logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
+
 from megatron.neox_arguments import NeoXArgs
 from megatron.training import pretrain
 
+
+
 if __name__ == "__main__":
-    neox_args = NeoXArgs.consume_neox_args()
+    # 复用deepy.py的代码，在这里生成所有的参数，前三个参数是不需要的，直接丢掉
+    neox_args = NeoXArgs.consume_deepy_args()
+    deepspeed_main_args = neox_args.get_deepspeed_main_args()
+    args=deepspeed_main_args[2:]
+    
+    # 传入我们生成的参数列表
+    neox_args = NeoXArgs.consume_neox_args(args=args)
     neox_args.configure_distributed_args()
     neox_args.build_tokenizer()  # tokenizer needs to be build in training in order to set the padding vocab
     neox_args.initialize_tensorboard_writer()  # is initialized if tensorboard directory is defined

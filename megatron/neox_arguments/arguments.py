@@ -357,7 +357,7 @@ class NeoXArgs(*BASE_CLASSES):
         return neox_args
 
     @classmethod
-    def consume_neox_args(cls, overwrite_values=None):
+    def consume_neox_args(cls, overwrite_values=None,args=None):
         """
         Deepspeed launcher needs to pass the arguments for `pretrain_gpt2.py` across to all machines.
 
@@ -377,7 +377,7 @@ class NeoXArgs(*BASE_CLASSES):
             help="json dict dumped as string in NeoXArgs.get_deepspeed_main_args()",
         )
 
-        args_parsed, _ = parser.parse_known_args()
+        args_parsed, _ = parser.parse_known_args(args=args)
         megatron_config = json.loads(args_parsed.megatron_config)
         if overwrite_values is not None:
             megatron_config.update(overwrite_values)
