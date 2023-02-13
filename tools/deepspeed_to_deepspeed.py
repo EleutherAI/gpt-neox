@@ -12,7 +12,6 @@ root_repo_path = str(Path(__file__).resolve().parents[1])
 if root_repo_path not in sys.path:
     sys.path.insert(0, root_repo_path)
 
-from megatron.tokenizer.tokenizer import _vocab_size_with_padding
 from megatron.neox_arguments import NeoXArgs
 from deepspeed.checkpoint.deepspeed_checkpoint import (
     ARGS_KEY,
@@ -20,7 +19,6 @@ from deepspeed.checkpoint.deepspeed_checkpoint import (
 )
 
 from deepspeed.checkpoint import (
-    DeepSpeedCheckpoint,
     NeoxCheckpoint,
     get_model_ckpt_name_for_rank,
     get_zero_ckpt_name_for_rank,
@@ -57,6 +55,23 @@ def parse_arguments():
     return args
 
 
+def _vocab_size_with_padding(orig_vocab_size, divisible_by, tp_size):
+    """Pad vocab size so it is divisible by model parallel size and
+    still having GPU friendly size."""
+
+    after = orig_vocab_size
+    multiple = divisible_by * tp_size
+    while (after % multiple) != 0:
+        after += 1
+
+    print(
+        " > padded vocab (size: {}) with {} dummy tokens "
+        "(new size: {})".format(orig_vocab_size, after - orig_vocab_size, after),
+        flush=True,
+    )
+    return after
+
+
 def _save_checkpoint(file_path, chkpt_sd):
     dir, _ = os.path.split(file_path)
     os.makedirs(dir, exist_ok=True)
@@ -77,20 +92,17 @@ def _create_transformer_layer_checkpoint(
 
 
 def _strip_vocab_padding(ds_checkpoint, padded_vocab_tensor, neox_args):
-    target_args = NeoXArgs.from_dict(ds_checkpoint.get_args())
-
+    target_args = ds_checkpoint.get_args()
     # checkpoint_info = ds_checkpoint.get_checkpoint_info()
 
-    target_args.tensor_model_parallel_size = ds_checkpoint.tp_degree
+    target_args["tensor_model_parallel_size"] = ds_checkpoint.tp_degree
     # target_args[PADDED_VOCAB_SIZE] = neox_args.padded_vocab_size
-    target_args.padded_vocab_size = _vocab_size_with_padding(
+    padded_vocab_size = _vocab_size_with_padding(
         neox_args.tokenizer.vocab_size, target_args
     )
-    assert target_args.padded_vocab_size <= padded_vocab_tensor.numel()
+    assert padded_vocab_size <= padded_vocab_tensor.numel()
     # checkpoint_info[PADDED_VOCAB_SIZE] = target_args[PADDED_VOCAB_SIZE]
-    unpadded_vocab_tensor = torch.narrow(
-        padded_vocab_tensor, 0, 0, target_args.padded_vocab_size
-    )
+    unpadded_vocab_tensor = torch.narrow(padded_vocab_tensor, 0, 0, padded_vocab_size)
     return unpadded_vocab_tensor.clone()
 
 
