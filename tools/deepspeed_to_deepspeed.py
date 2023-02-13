@@ -95,10 +95,12 @@ def _strip_vocab_padding(ds_checkpoint, padded_vocab_tensor, neox_args):
     target_args = ds_checkpoint.get_args()
     # checkpoint_info = ds_checkpoint.get_checkpoint_info()
 
-    target_args["tensor_model_parallel_size"] = ds_checkpoint.tp_degree
+    # target_args["tensor_model_parallel_size"] = ds_checkpoint.tp_degree
     # target_args[PADDED_VOCAB_SIZE] = neox_args.padded_vocab_size
     padded_vocab_size = _vocab_size_with_padding(
-        neox_args.tokenizer.vocab_size, target_args
+        neox_args.tokenizer.vocab_size,
+        target_args["make_vocab_size_divisible_by"],
+        ds_checkpoint.tp_degree,
     )
     assert padded_vocab_size <= padded_vocab_tensor.numel()
     # checkpoint_info[PADDED_VOCAB_SIZE] = target_args[PADDED_VOCAB_SIZE]
