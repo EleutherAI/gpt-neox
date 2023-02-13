@@ -111,6 +111,7 @@ def _strip_vocab_padding(ds_checkpoint, padded_vocab_tensor, neox_args):
 def _create_embedding_layer_checkpoint(ds_checkpoint, base_folder, tp_index, tokenizer):
     sd = ds_checkpoint.get_embedding_state(tp_index)
     if ds_checkpoint.is_change_tp_degree():
+        print(f"TP index: {tp_index}, embeddings shape {sd[WORD_EMBEDDINGS_KEY].shape}")
         sd[WORD_EMBEDDINGS_KEY] = _strip_vocab_padding(
             ds_checkpoint, sd[WORD_EMBEDDINGS_KEY], tokenizer
         )
