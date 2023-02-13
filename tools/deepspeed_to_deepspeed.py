@@ -102,9 +102,10 @@ def _strip_vocab_padding(ds_checkpoint, padded_vocab_tensor, neox_args):
         target_args["make_vocab_size_divisible_by"],
         ds_checkpoint.tp_degree,
     )
+    padded_layer_size = padded_vocab_size / ds_checkpoint.tp_degree
     assert padded_vocab_size <= padded_vocab_tensor.numel()
     # checkpoint_info[PADDED_VOCAB_SIZE] = target_args[PADDED_VOCAB_SIZE]
-    unpadded_vocab_tensor = torch.narrow(padded_vocab_tensor, 0, 0, padded_vocab_size)
+    unpadded_vocab_tensor = torch.narrow(padded_vocab_tensor, 0, 0, padded_layer_size)
     return unpadded_vocab_tensor.clone()
 
 
