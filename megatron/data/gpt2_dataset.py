@@ -37,6 +37,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
         seq_length,
         seed,
         build_index_mappings=True,
+        use_shared_fs=True
     ):
 
         self.name = name
@@ -56,6 +57,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
                 num_samples,
                 seq_length,
                 seed,
+                use_shared_fs=use_shared_fs
             )
             self.shuffle_idx_len = self.shuffle_idx.shape[0] - 1
             self.sample_idx_len = self.sample_idx.shape[0] - 1
@@ -110,7 +112,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
 
 
 def _build_index_mappings(
-    name, data_prefix, documents, sizes, num_samples, seq_length, seed
+    name, data_prefix, documents, sizes, num_samples, seq_length, seed, use_shared_fs=True
 ):
     """Build doc-idx, sample-idx, and shuffle-idx.
     doc-idx: is an array (ordered) of documents to be used in training.
@@ -134,8 +136,13 @@ def _build_index_mappings(
     sample_idx_filename = _filename + "_sample_idx.npy"
     shuffle_idx_filename = _filename + "_shuffle_idx.npy"
 
+    if not use_shared_fs:
+        should_process_dataset = int(os.environ['LOCAL_RANK']) == 0
+    else:
+        should_process_dataset = torch.distributed.get_rank() == 0
+
     # Build the indexed mapping if not exist.
-    if torch.distributed.get_rank() == 0:
+    if should_process_dataset:
         if (
             (not os.path.isfile(doc_idx_filename))
             or (not os.path.isfile(sample_idx_filename))
