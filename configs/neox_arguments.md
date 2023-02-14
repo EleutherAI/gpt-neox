@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 7ed7bc6
+    Default = 3b417f2
 
     current git hash of repository
 
@@ -334,7 +334,7 @@ Model Arguments
     The first item in the list specifies the attention type(s), and should be a list of strings. The second item
     specifies the number of times to repeat those attention types in the full list.
 
-    attention type choices:  [global, local, sparse_fixed, sparse_variable, bigbird, bslongformer, gmlp, amlp, flash]
+    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird]
 
     So a 12 layer network with only global attention could be specified like:
         [[[`global`], 12]]
@@ -344,8 +344,6 @@ Model Arguments
 
     If none is specified, this defaults to
         [[[`global`], n_layers]]
-    
-    "flash" attention refers to optimized global attention for Ampere (and some other) generation GPUs described here [Flash-Attention](https://github.com/HazyResearch/flash-attention).
 
 
 
@@ -1800,6 +1798,14 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = False
 
     If true, autodetects nvlink pairs and remaps cuda visible devices to place them next to each other. This is an Eleuther addition to deepspeed, and should speed up model parallel training on setups with nvlink pairs when mp=2.
+
+
+
+- **no_ssh_check**: bool
+
+    Default = False
+
+    If true, overrides the default check where DeepSpeed confirms that the headnode is accessible via ssh.
 
 
 
