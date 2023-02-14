@@ -721,14 +721,6 @@ def train(
     # Turn on training mode which enables dropout.
     model.train()
 
-    for module_ in model.modules():
-        datatype = None
-        if isinstance(module_, mpu.RowParallelLinear) or isinstance(
-            module_, mpu.ColumnParallelLinear
-        ):
-            datatype = module_.weight.dtype
-        print(f"{module_}: {datatype}")
-
     # Tracking loss.
     total_loss_dict = {}
 
