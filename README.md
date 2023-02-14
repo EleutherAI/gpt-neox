@@ -7,7 +7,7 @@ This repository records [EleutherAI](https://www.eleuther.ai)'s library for trai
 
 For those looking for a TPU-centric codebase, we recommend [Mesh Transformer JAX](https://github.com/kingoflolz/mesh-transformer-jax).
 
-**If you are not looking to train models with billions of parameters from scratch, this is likely the wrong library to use. For generic inference needs, we recommend you use the HuggingFace `transformers` library instead which supports GPT-NeoX models.**
+**If you are not looking to train models with billions of parameters from scratch, this is likely the wrong library to use. For generic inference needs, we recommend you use the Hugging Face `transformers` library instead which supports GPT-NeoX models.**
 
 # Contents
 
@@ -24,7 +24,7 @@ For those looking for a TPU-centric codebase, we recommend [Mesh Transformer JAX
 - [Training and Finetuning](#training-and-finetuning)
 - [Inference](#inference)
 - [Evaluation](#evaluation)
-- [Exporting to HuggingFace](#exporting-to-huggingface)
+- [Exporting to Hugging Face](#exporting-to-hugging-face)
 - [Monitoring](#monitoring)
   * [Weights & Biases](#wandb)
   * [TensorBoard](#tensorboard)
@@ -72,8 +72,7 @@ The Polyglot Project is an effort to train powerful non-English pretrained langu
 
 ## Fill-in-the-Middle
 
-EleutherAI's Carper lab has also used this codebase to train models using FIM (fill-in-the-middle), a data transformation proposed in [Bavarian et al. 2022](https://arxiv.org/abs/2207.14255) with a similar technique also used by [Fried et al.](https://arxiv.org/abs/2204.05999) and [Aghajanyan et al. 2022](https://arxiv.org/abs/2201.07520), to enable typically autoregressive left-to-right language models to perform text infilling conditioned on both "left" and "right" context. A 1.3B parameter model trained on [the Pile](pile.eleuther.ai) is available [here](https://huggingface.co/CarperAI/FIM-NeoX-1.3B), with further experiments and and models forthcoming.
-
+EleutherAI's [Carper lab](https://www.carper.ai) has also used this codebase to train models using FIM (fill-in-the-middle), a data transformation proposed in [Bavarian et al. 2022](https://arxiv.org/abs/2207.14255) with a similar technique also used by [Fried et al.](https://arxiv.org/abs/2204.05999) and [Aghajanyan et al. 2022](https://arxiv.org/abs/2201.07520), to enable typically autoregressive left-to-right language models to perform text infilling conditioned on both "left" and "right" context. A 1.3B parameter model trained on [the Pile](pile.eleuther.ai) is available [here](https://huggingface.co/CarperAI/FIM-NeoX-1.3B), with further experiments and and models forthcoming.
 
 # Quick Start
 
@@ -114,6 +113,8 @@ You can then run a container based on this image. For instance, the below snippe
 nvidia-docker run --rm -it -e NVIDIA_VISIBLE_DEVICES=0,1,2,3 --shm-size=1g --ulimit memlock=-1 --mount type=bind,src=$PWD,dst=/gpt-neox gpt-neox
 ```
 
+## Usage
+
 All functionality (inference included), should be launched using `deepy.py`, a wrapper around the `deepspeed` launcher.
 
 We currently offer three main functions:
@@ -138,26 +139,15 @@ Or optionally pass in a text file (e.g `prompt.txt`) to use as the prompt, which
 ./deepy.py generate.py ./configs/20B.yml -i prompt.txt -o sample_outputs.txt
 ```
 
-To reproduce our evaluation numbers on, for example, lambada and PIQA use:
+To reproduce our evaluation numbers on, for example, TriviaQA and PIQA use:
 
 ```bash
-./deepy.py evaluate.py ./configs/20B.yml --eval_tasks lambada piqa
+./deepy.py evaluate.py ./configs/20B.yml --eval_tasks triviaqa piqa
 ```
 
 You can add an arbitrary list of evaluation tasks here, for details of all tasks available, see [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness).
 
-For more details on each entry point, see the [Training and Finetuning](#training-and-finetuning), [Inference](#inference) and [Evaluation](#evaluation) sections.
-
-## Running on a single GPU
-
-We provide a simple script for merging the 20B checkpoints to be run on a single GPU. First, download the slim weights from [above](#download-links), and run the following script:
-
-```bash
-python tools/merge20b.py --input_dir ./20B_checkpoints --output_dir ./20B_checkpoints_merged
-```
-
-As an alternative, you can also use [Minimal GPT-NeoX-20B](https://github.com/zphang/minimal-gpt-neox-20b) implementation, which runs and pure PyTorch on a single GPU, and does not require DeepSpeed.
-
+For more details on each entry point, see the [Training and Finetuning](#training-and-finetuning), [Inference](#inference) and [Evaluation](#evaluation)
 # Configuration
 
 GPT-NeoX parameters are defined in a YAML configuration file which is passed to the deepy.py launcher. We have provided some example .yaml files in [configs](./configs/), including one for GPT-NeoX-20B, and example configuration files for other model sizes.
@@ -192,7 +182,7 @@ The tokenized data will be saved out to two files: `[data-dir]/[dataset-name]/[d
 
 ## Using Custom Data
 
-To prepare your own dataset for training with custom data, format it as one large [jsonl](https://jsonlines.org/)-formatted file with each item in the list of dictionaries being a separate document. The document text should be grouped under one JSON key, i.e `"text"`. Any auxiliary data stored in other fields will not be
+To prepare your own dataset for training with custom data, format it as one large [jsonl](https://jsonlines.org/)-formatted file with each item in the list of dictionaries being a separate document. The document text should be grouped under one JSON key, i.e `"text"`. Any auxiliary data stored in other fields will not be used.
 
 Next make sure to download the GPT2 tokenizer vocab, and merge files from the following links:
 
@@ -203,7 +193,7 @@ Or use the 20B tokenizer (for which only a single Vocab file is needed):
 
 - Vocab: https://the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights/20B_tokenizer.json
 
-(alternatively, you can provide any tokenizer file that can be loaded by Huggingface's tokenizers library with the `Tokenizer.from_pretrained()` command)
+(alternatively, you can provide any tokenizer file that can be loaded by Hugging Face's tokenizers library with the `Tokenizer.from_pretrained()` command)
 
 You can now pretokenize your data using `tools/preprocess_data.py`, the arguments for which are detailed below:
 
@@ -288,7 +278,7 @@ Although this is not strictly necessary, we find it useful to define the model p
 
 # Inference
 
-**For most uses we recommend deploying models trained using the GPT-NeoX library via the HuggingFace Transformers library which is better optimized for inference.**
+**For most uses we recommend deploying models trained using the GPT-NeoX library via the Hugging Face Transformers library which is better optimized for inference.**
 
 We support three types of generation from a pretrained model:
 1. Unconditional generation
@@ -309,22 +299,22 @@ python ./deepy.py evaluate.py -d configs your_configs.yml --eval_tasks task1 tas
 
 where `--eval_tasks` is a list of evaluation tasks followed by spaces, e.g `--eval_tasks lambada hellaswag piqa sciq`. For details of all tasks available, refer to the [lm-evaluation-harness repo](https://github.com/EleutherAI/lm-evaluation-harness).
 
-# Exporting to HuggingFace
+# Exporting to Hugging Face
 
-GPT-NeoX is optimized heavily for training only, and GPT-NeoX model checkpoints are not compatible out of the box with other deep learning libraries. To make models easily loadable and shareable with end users, and for further exporting to various other frameworks, GPT-NeoX supports checkpoint conversion to the [HuggingFace Transformers](https://arxiv.org/abs/1910.03771) GPTNeoXModel format.
+GPT-NeoX is optimized heavily for training only, and GPT-NeoX model checkpoints are not compatible out of the box with other deep learning libraries. To make models easily loadable and shareable with end users, and for further exporting to various other frameworks, GPT-NeoX supports checkpoint conversion to the [Hugging Face Transformers](https://arxiv.org/abs/1910.03771) GPTNeoXModel format.
 
-To convert a NeoX checkpoint to Huggingface-loadable format, run:
+To convert a NeoX checkpoint to Hugging Face-loadable format, run:
 ```bash
 python ./tools/convert_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location
 ```
-Then to upload a model to [the Huggingface Hub](https://huggingface.co/), run:
+Then to upload a model to [the Hugging Face Hub](https://huggingface.co/), run:
 ```
 huggingface-cli login
 python ./tools/upload.py
 ```
 and input the requested information, including HF hub user token.
 
-Note, however, that this compatibility is not one-to-one, and only certain configurations from GPT-NeoX are supported in the Huggingface GPTNeoXModel class. Advanced features such as alternative positional embeddings may require new Transformers modeling code and new conversion script tweaks.
+Note, however, that this compatibility is not one-to-one, and only certain configurations from GPT-NeoX are supported in the Hugging Face GPTNeoXModel class. Advanced features such as alternative positional embeddings may require new Transformers modeling code and new conversion script tweaks.
 
 # Monitoring
 

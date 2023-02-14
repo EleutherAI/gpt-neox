@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = f6a8f5d
+    Default = 7ed7bc6
 
     current git hash of repository
 
@@ -926,6 +926,15 @@ Text Generation arguments
 
 
 
+- **prompt_end**: str
+
+    Default = 
+
+
+    a single prompt's end. Defaults to newline
+
+
+
 - **sample_input_file**: str
 
     Default = None
@@ -981,11 +990,11 @@ Tokenizer Arguments
 
 
 
-- **tokenizer_type**: typing.Literal['GPT2BPETokenizer', 'HFTokenizer', 'HFGPT2Tokenizer', 'SPMTokenizer', 'CharLevelTokenizer']
+- **tokenizer_type**: typing.Literal['GPT2BPETokenizer', 'HFTokenizer', 'HFGPT2Tokenizer', 'SPMTokenizer', 'CharLevelTokenizer', 'TiktokenTokenizer']
 
     Default = GPT2BPETokenizer
 
-    Type of tokenizer to use - should be one of ["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "SPMTokenizer", "CharLevelTokenizer"]
+    Type of tokenizer to use - should be one of ["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "SPMTokenizer", "CharLevelTokenizer", "TiktokenTokenizer"]
 
 
 
@@ -1009,6 +1018,15 @@ Training Arguments
     Default = None
 
     Path to combined dataset to split.
+
+
+
+- **use_shared_fs**: bool
+
+    Default = True
+
+    Whether to use a shared filesystem for data loading. If False, local rank 0 on all nodes will preprocess the data,
+    otherwise only global rank 0 will preprocess the data. This is implemented in megatron/data/gpt2_dataset.py::_build_index_mappings.
 
 
 
@@ -1158,10 +1176,10 @@ Training Arguments
 
     Acts as a multiplier on either the "log" or "linear" checkpoint spacing.
 
-    With `checkpoint-scale="linear"`, `checkpoint-factor=20`, and `train-iters=100`, checkpoints will be saved at 
+    With `checkpoint-scale="linear"`, `checkpoint-factor=20`, and `train-iters=100`, checkpoints will be saved at
     steps [20, 40, 60, 80, 100].
 
-    With `checkpoint-scale="log"`, `checkpoint-factor=2`, and `train-iters=100`, checkpoints will be saved at 
+    With `checkpoint-scale="log"`, `checkpoint-factor=2`, and `train-iters=100`, checkpoints will be saved at
     steps [1, 2, 4, 8, 16, 32, 64, 100].
 
     Note that the last checkpoint step is always saved.

@@ -6,6 +6,7 @@
 
   # Params for all
   "maximum_tokens": 102,
+  "prompt_end": "\n",
   "temperature": 1.0,
   "top_p": 0.0,
   "top_k": 0,
