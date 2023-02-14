@@ -89,6 +89,11 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     Configuration for using mixed precision/FP16 training that leverages NVIDIA’s Apex package.
     """
 
+    bf16: dict = None
+    """
+    Configuration for using bfloat16 during training.
+    """
+
     amp: dict = None
     """
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#automatic-mixed-precision-amp-training-options
