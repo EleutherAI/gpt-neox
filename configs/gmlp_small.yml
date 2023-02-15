@@ -60,7 +60,7 @@
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
-   "save-interval": 10000,
+   "checkpoint-factor": 10000,
    "eval-interval": 1000,
    "eval-iters": 10,
 

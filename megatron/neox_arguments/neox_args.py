@@ -332,7 +332,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
       x = ln(x)
       x = x + attn(x) + mlp(x)
     """
-    
+
     gpt_j_tied: bool = False
     """
     If false, we use
@@ -658,9 +658,10 @@ class NeoXArgsTokenizer(NeoXArgsTemplate):
         "HFGPT2Tokenizer",
         "SPMTokenizer",
         "CharLevelTokenizer",
+        "TiktokenTokenizer",
     ] = "GPT2BPETokenizer"
     """
-    Type of tokenizer to use - should be one of ["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "SPMTokenizer", "CharLevelTokenizer"]
+    Type of tokenizer to use - should be one of ["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "SPMTokenizer", "CharLevelTokenizer", "TiktokenTokenizer"]
     """
 
     padded_vocab_size: int = None
@@ -684,6 +685,12 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     data_path: str = None
     """
     Path to combined dataset to split.
+    """
+
+    use_shared_fs: bool = True
+    """
+    Whether to use a shared filesystem for data loading. If False, local rank 0 on all nodes will preprocess the data,
+    otherwise only global rank 0 will preprocess the data. This is implemented in megatron/data/gpt2_dataset.py::_build_index_mappings.
     """
 
     train_data_paths: list = None
@@ -785,10 +792,10 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     """
     Acts as a multiplier on either the "log" or "linear" checkpoint spacing.
 
-    With `checkpoint-scale="linear"`, `checkpoint-factor=20`, and `train-iters=100`, checkpoints will be saved at 
+    With `checkpoint-scale="linear"`, `checkpoint-factor=20`, and `train-iters=100`, checkpoints will be saved at
     steps [20, 40, 60, 80, 100].
 
-    With `checkpoint-scale="log"`, `checkpoint-factor=2`, and `train-iters=100`, checkpoints will be saved at 
+    With `checkpoint-scale="log"`, `checkpoint-factor=2`, and `train-iters=100`, checkpoints will be saved at
     steps [1, 2, 4, 8, 16, 32, 64, 100].
 
     Note that the last checkpoint step is always saved.
@@ -1006,6 +1013,11 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     maximum_tokens: int = 64
     """
     maximum number of tokens to be generated
+    """
+
+    prompt_end: str = "\n"
+    """
+    a single prompt's end. Defaults to newline
     """
 
     sample_input_file: str = None
