@@ -528,7 +528,9 @@ class NeoXArgs(*BASE_CLASSES):
 
     def print(self):
         """Print arguments."""
-        if self.rank == 0 or self.rank is None:
+        # if self.rank == 0 or self.rank is None:
+        # don't print every gpu
+        if torch.distributed.is_initialized() and torch.distributed.get_rank() == 0:
             print("-------------------- arguments --------------------", flush=True)
             str_list = []
             for arg in vars(self):

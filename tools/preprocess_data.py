@@ -20,6 +20,7 @@
 import argparse
 import multiprocessing
 import os
+from pickle import GLOBAL
 import sys
 
 import lm_dataformat as lmd
@@ -36,7 +37,7 @@ import ftfy
 from megatron.tokenizer import build_tokenizer
 from megatron.data import indexed_dataset
 from threading import Semaphore
-
+LOG_DATA_NUM = 10
 
 class Encoder(object):
     def __init__(self, args):
@@ -49,6 +50,7 @@ class Encoder(object):
     def encode(self, text):
         if self.args.ftfy:
             text = ftfy.fix_text(text)
+        
         ids = {}
         for key in self.args.jsonl_keys:
             doc_ids = []
@@ -58,6 +60,10 @@ class Encoder(object):
             if self.args.append_eod:
                 doc_ids[-1].append(Encoder.tokenizer.eod)
             ids[key] = doc_ids
+            global LOG_DATA_NUM
+            if self.args.log_data and LOG_DATA_NUM > 0 :
+                LOG_DATA_NUM -= 1
+                print('text before process: \n', text, '\nid after processed: \n', text_ids)
         return ids, len(text)
 
 
@@ -94,6 +100,7 @@ def get_args():
             "GPT2BPETokenizer",
             "CharLevelTokenizer",
             "TiktokenTokenizer",
+            "HFGPTNeoXTokenizerFast",
         ],
         help="What type of tokenizer to use.",
     )
@@ -136,6 +143,12 @@ def get_args():
         type=int,
         default=100,
         help="Interval between progress updates",
+    )
+    group.add_argument(
+        "--log-data",
+        action="store_true",
+        default=False,
+        help="whether log data",
     )
     args = parser.parse_args()
     args.keep_empty = False

@@ -17,6 +17,7 @@ import argparse
 
 TOKENIZER_CHOICES = [
     "HFGPT2Tokenizer",
+    "HFGPTNeoXTokenizerFast",
     "HFTokenizer",
     "GPT2BPETokenizer",
     "CharLevelTokenizer",

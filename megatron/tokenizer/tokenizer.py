@@ -19,9 +19,10 @@
 
 from abc import ABC
 from abc import abstractmethod
+import os
 
 from tokenizers import Tokenizer
-from transformers import GPT2Tokenizer, GPT2TokenizerFast
+from transformers import GPT2Tokenizer, GPT2TokenizerFast, GPTNeoXTokenizerFast
 import numpy as np
 import sentencepiece as spm
 import tiktoken
@@ -51,6 +52,12 @@ def build_tokenizer(args):
                 "WARNING: No vocab file found, loading Huggingface's pretrained GPT2Tokenizer"
             )
         tokenizer = HFGPT2Tokenizer(args.vocab_file)
+    elif args.tokenizer_type.lower() == "HFGPTNeoXTokenizerFast".lower():
+        if args.vocab_file is None or os.path.isdir(args.vocab_file):
+            print(
+                "WARNING: No vocab dir found, loading Huggingface's pretrained GPTNeoXTokenizerFast"
+            )
+        tokenizer = HFGPTNeoXTokenizerFast(args.vocab_file)
     elif args.tokenizer_type.lower() == "CharLevelTokenizer".lower():
         tokenizer = CharLevelTokenizer(vocab_size=512)
     elif args.tokenizer_type.lower() == "TiktokenTokenizer".lower():
@@ -277,6 +284,43 @@ class HFGPT2Tokenizer(AbstractTokenizer):
         self.tokenizer.add_special_tokens({"pad_token": "<|padding|>"})
         self.eod_id = self.tokenizer.eos_token_id
         self.pad_id = self.tokenizer.pad_token_id
+
+    @property
+    def vocab_size(self):
+        return len(self.tokenizer)
+
+    @property
+    def vocab(self):
+        return self.tokenizer.get_vocab()
+
+    @property
+    def inv_vocab(self):
+        return self.tokenizer._tokenizer.decoder
+
+    def tokenize(self, text: str):
+        return self.tokenizer.encode(text)
+
+    def tokenize_batch(self, text_batch: Union[List[str], str]):
+        if isinstance(text_batch, str):
+            text_batch = [text_batch]
+        return [self.tokenize(t) for t in text_batch]
+
+    def detokenize(self, token_ids):
+        return self.tokenizer.decode(token_ids)
+
+    @property
+    def eod(self):
+        return self.eod_id
+
+class HFGPTNeoXTokenizerFast(AbstractTokenizer):
+    """Designed to Integrate the GPTNeoX Tokenizers from HF, with IDEA-CCNL vocab """
+
+    def __init__(self, vocab_file=None, fast=True):
+        name = "HFGPTNeoXTokenizerFast"
+        super().__init__(name)
+        self.tokenizer = GPTNeoXTokenizerFast.from_pretrained(vocab_file)
+        self.pad_id = self.tokenizer.pad_token_id
+        self.eod_id = self.tokenizer.eos_token_id
 
     @property
     def vocab_size(self):

@@ -56,7 +56,7 @@ from megatron.utils import (
 )
 from megatron.model.gpt2_model import cross_entropy
 from eval_tasks import run_eval_harness
-
+SHOW_DATA = True
 
 def pretrain(neox_args):
     """Main training program.
@@ -176,6 +176,19 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
         eod_token=neox_args.tokenizer.eod,
         eod_mask_loss=neox_args.eod_mask_loss,
     )
+
+    # print the sample at start
+    global SHOW_DATA
+    if SHOW_DATA:
+        SHOW_DATA = False
+        print_rank_0('tokens: {}'.format(tokens[0]))
+        print_rank_0('labels: {}'.format(labels[0]))
+        print_rank_0('attention_mask: {}'.format(attention_mask[0]))
+        print_rank_0('loss_mask: {}'.format(loss_mask[0]))
+        print_rank_0('position_ids: {}'.format(position_ids[0]))
+
+        print_rank_0('tokens text: {}'.format(tokenizer.detokenize(tokens[0].tolist())))
+        print_rank_0('labels text : {}'.format(tokenizer.detokenize(labels[0].tolist())))
 
     return tokens, labels, loss_mask, attention_mask, position_ids
 
