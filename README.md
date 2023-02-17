@@ -10,18 +10,20 @@ For those looking for a TPU-centric codebase, we recommend [Mesh Transformer JAX
 **If you are not looking to train models with billions of parameters from scratch, this is likely the wrong library to use. For generic inference needs, we recommend you use the Hugging Face `transformers` library instead which supports GPT-NeoX models.**
 
 # Contents
-
-- [Pretrained Models](#pretrained-models)
-  * [GPT-NeoX-20B](#gpt-neox-20b)
-  * [Pythia](#pythia)
-  * [Polyglot](#polyglot)
-  * [Fill-in-the-Middle](#fill-in-the-middle)
 - [Quick Start](#quick-start)
+  * [Setup](#setup)
+  * [Download Datasets and Models](#download-datasets-and-models)
+  * [Usage](#usage)
 - [Configuration](#configuration)
 - [Datasets](#datasets)
   * [Preconfigured Datasets](#preconfigured-datasets)
   * [Using Custom Data](#using-custom-data)
 - [Training and Finetuning](#training-and-finetuning)
+- [Pretrained Models](#pretrained-models)
+  * [GPT-NeoX-20B](#gpt-neox-20b)
+  * [Pythia](#pythia)
+  * [Polyglot](#polyglot)
+  * [Fill-in-the-Middle](#fill-in-the-middle)
 - [Inference](#inference)
 - [Evaluation](#evaluation)
 - [Exporting to Hugging Face](#exporting-to-hugging-face)
@@ -34,76 +36,9 @@ For those looking for a TPU-centric codebase, we recommend [Mesh Transformer JAX
   * [Publications](#publications)
   * [Acknowledgements](#acknowledgements)
 
-# Pretrained Models
-
-## GPT-NeoX-20B
-
-GPT-NeoX-20B is a 20 billion parameter autoregressive language model trained on [the Pile](https://arxiv.org/abs/2101.00027). Technical details about GPT-NeoX-20B can be found in [the associated paper](https://arxiv.org/abs/2204.06745). The configuration file for this model is both available at [`./configs/20B.yml`](./configs/20B.yml) and included in the download links below.
-
-### Download Links
-
-[Slim weights](https://the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights/) - (No optimizer states, for inference or finetuning, 39GB)
-
-To download from the command line to a folder named `20B_checkpoints`, use the following command:
-
-```bash
-wget --cut-dirs=5 -nH -r --no-parent --reject "index.html*" https://the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights/ -P 20B_checkpoints
-```
-
-[Full weights](https://the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights/) - (Including optimizer states, 268GB)
-
-To download from the command line to a folder named `20B_checkpoints`, use the following command:
-
-```bash
-wget --cut-dirs=5 -nH -r --no-parent --reject "index.html*" https://the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights/ -P 20B_checkpoints
-```
-
-Weights can be alternatively be downloaded using a BitTorrent client. Torrent files can be downloaded here: [slim weights](https://the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights.torrent), [full weights](https://the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights.torrent).
-
-We additionally have 150 checkpoints saved throughout training, one every 1,000 steps. We are working on figuring out how to best serve these at scale, but in the meanwhile people interested in working with the partially trained checkpoints can email us at contact@eleuther.ai to arrange access.
-
-## Pythia
-
-The Pythia Scaling Suite is a suite of models ranging from 19M parameters to 13B parameters trained on [the Pile](pile.eleuther.ai) intended to promote research on interpretability and training dynamics of large language models. Further details about the project and links to the models can be found [here](https://github.com/EleutherAI/pythia).
-
-## Polyglot
-
-The Polyglot Project is an effort to train powerful non-English pretrained language models to promote the accessibility of this technology to researchers outside the dominant powerhouses of machine learning. EleutherAI has trained and released 1.3B, 3.8B, and 5.8B parameter Korean language models, the largest of which outpreforms all other publicly available language models on Korean language tasks. Further details about the project and links to the models can be found [here](https://github.com/EleutherAI/polyglot).
-
-## Fill-in-the-Middle
-
-EleutherAI's [Carper lab](https://www.carper.ai) has also used this codebase to train models using FIM (fill-in-the-middle), a data transformation proposed in [Bavarian et al. 2022](https://arxiv.org/abs/2207.14255) with a similar technique also used by [Fried et al.](https://arxiv.org/abs/2204.05999) and [Aghajanyan et al. 2022](https://arxiv.org/abs/2201.07520), to enable typically autoregressive left-to-right language models to perform text infilling conditioned on both "left" and "right" context. A 1.3B parameter model trained on [the Pile](pile.eleuther.ai) is available [here](https://huggingface.co/CarperAI/FIM-NeoX-1.3B), with further experiments and and models forthcoming.
-
 # Quick Start
 
-## Environment and Dependencies
-
-### Host Setup
-
-First make sure you are in an environment with Python 3.8 with an appropriate version of PyTorch 1.8 or later installed. **Note:** Some of the libraries that GPT-NeoX depends on have not been updated to be compatible with Python 3.10+. Python 3.9 appears to work, but this codebase has been developed and tested for Python 3.8.
-
-To install the remaining basic dependencies, run:
-
-```bash
-pip install -r requirements/requirements.txt
-python ./megatron/fused_kernels/setup.py install # optional if not using fused kernels
-```
-
-from the repository root.
-
-<aside>
-
-**Warning:** Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), our fork of the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library with some added changes. We strongly recommend using Anaconda, a virtual machine, or some other form of environment isolation before continuing. Failure to do so may cause other repositories that rely on DeepSpeed to break.
-
-</aside>
-
-
-### Flash Attention
-
-To use [Flash-Attention](https://github.com/HazyResearch/flash-attention), install the additional dependencies in  `./requirements/requirements-flashattention.txt` and set the attention type in your configuration accordingly (see [configs](./configs/)). This can provide significant speed-ups over regular attention on certain GPU architectures, including Ampere GPUs (such as A100s); see the repository for more details.
-
-
-### Containerized Setup
+## Setup
 
 We also provide a Dockerfile if you prefer to run NeoX in a container. To use this option, first build an image named `gpt-neox` from the repository root directory with `docker build -t gpt-neox -f Dockerfile .`. We also host pre-built images on Docker Hub at `leogao2/gpt-neox`.
 
@@ -111,6 +46,15 @@ You can then run a container based on this image. For instance, the below snippe
 ```
 nvidia-docker run --rm -it -e NVIDIA_VISIBLE_DEVICES=0,1,2,3 --shm-size=1g --ulimit memlock=-1 --mount type=bind,src=$PWD,dst=/gpt-neox gpt-neox
 ```
+
+## Download Datasets and Models
+
+
+
+```
+python prepare_data.py -d ./data
+```
+
 
 ## Usage
 
@@ -121,39 +65,51 @@ We currently offer three main functions:
 2. `evaluate.py` is used to evaluate a trained model using the [language model evaluation harness](https://github.com/EleutherAI/lm-evaluation-harness).
 3. `generate.py` is used to sample text from a trained model.
 
-which can be launched with:
+any of which can be launched with a command in the following form:
 
 ```bash
 ./deepy.py [script.py] [./path/to/config_1.yml] [./path/to/config_2.yml] ... [./path/to/config_n.yml]
 ```
 
-E.G To generate text unconditionally with the GPT-NeoX-20B model, you can use the following:
+For example, to generate text unconditionally with the GPT-NeoX-20B model, you can use the following:
 ```bash
 ./deepy.py generate.py ./configs/20B.yml
 ```
 
-Or optionally pass in a text file (e.g `prompt.txt`) to use as the prompt, which should be a plain `.txt` file with each prompt separated by newline characters, also passing in the path to an output file.
+Or to start training a new 125M parameter model run:
 
-```bash
-./deepy.py generate.py ./configs/20B.yml -i prompt.txt -o sample_outputs.txt
-```
-
-To reproduce our evaluation numbers on, for example, TriviaQA and PIQA use:
-
-```bash
-./deepy.py evaluate.py ./configs/20B.yml --eval_tasks triviaqa piqa
-```
-
-You can add an arbitrary list of evaluation tasks here, for details of all tasks available, see [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness).
-
-For more details on each entry point, see the [Training and Finetuning](#training-and-finetuning), [Inference](#inference) and [Evaluation](#evaluation)
 # Configuration
 
-GPT-NeoX parameters are defined in a YAML configuration file which is passed to the deepy.py launcher. We have provided some example .yaml files in [configs](./configs/), including one for GPT-NeoX-20B, and example configuration files for other model sizes.
+GPT-NeoX parameters are defined in a YAML configuration file which is passed to the deepy.py launcher. We have provided some example .yaml files in [configs](./configs/), including one for GPT-NeoX-20B, and example configuration files for other model sizes. 
 
 These files are generally complete, but non-optimal. For example, depending on your specific GPU configuration, you may need to change some settings such as `pipe-parallel-size`, `model-parallel-size` to increase or decrease the degree of parallelisation, `train_micro_batch_size_per_gpu` or `gradient-accumulation-steps` to modify batch size related settings, or the `zero_optimization` dict to modify how optimizer states are parallelised across workers.
 
 For a more detailed guide to all the features available and how to configure them, see [the configuration README](configs/README.md), and for documentation of every possible argument, see [configs/neox_arguments.md](configs/neox_arguments.md).
+
+# Configuration
+
+## Host Setup
+
+First make sure you are in an environment with Python 3.8 with an appropriate version of PyTorch 1.8 or later installed. **Note:** Some of the libraries that GPT-NeoX depends on have not been updated to be compatible with Python 3.10+. Python 3.9 appears to work, but this codebase has been developed and tested for Python 3.8.
+
+< aside>
+
+**Warning:** Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), our fork of the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library with some added changes. We strongly recommend using Anaconda, a virtual machine, or some other form of environment isolation before continuing. Failure to do so may cause other repositories that rely on DeepSpeed to break.
+
+</aside>
+
+To install the remaining basic dependencies, run:
+
+```bash
+pip install -r requirements/requirements.txt
+python ./megatron/fused_kernels/setup.py install # optional, only needed if using fused kernels
+```
+
+from the repository root.
+
+## Flash Attention
+
+To use [Flash-Attention](https://github.com/HazyResearch/flash-attention), install the additional dependencies in  `./requirements/requirements-flashattention.txt` and set the attention type in your configuration accordingly (see [configs](./configs/)). This can provide significant speed-ups over regular attention on certain GPU architectures, including Ampere GPUs (such as A100s); see the repository for more details.
 
 # Datasets
 
@@ -274,6 +230,46 @@ python ./deepy.py train.py -d configs small.yml local_setup.yml
 This will deploy the `train.py` script on all nodes with one process per GPU. The worker nodes and number of GPUs are specified in the `/job/hostfile` file (see [parameter documentation](configs/README.md)), or can simply be passed in as the `num_gpus` arg if running on a single node setup.
 
 Although this is not strictly necessary, we find it useful to define the model parameters in one config file (e.g `configs/small.yml`) and the data path parameters in another (e.g `configs/local_setup.yml`).
+
+# Pretrained Models
+
+## GPT-NeoX-20B
+
+GPT-NeoX-20B is a 20 billion parameter autoregressive language model trained on [the Pile](https://arxiv.org/abs/2101.00027). Technical details about GPT-NeoX-20B can be found in [the associated paper](https://arxiv.org/abs/2204.06745). The configuration file for this model is both available at [`./configs/20B.yml`](./configs/20B.yml) and included in the download links below.
+
+### Download Links
+
+[Slim weights](https://the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights/) - (No optimizer states, for inference or finetuning, 39GB)
+
+To download from the command line to a folder named `20B_checkpoints`, use the following command:
+
+```bash
+wget --cut-dirs=5 -nH -r --no-parent --reject "index.html*" https://the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights/ -P 20B_checkpoints
+```
+
+[Full weights](https://the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights/) - (Including optimizer states, 268GB)
+
+To download from the command line to a folder named `20B_checkpoints`, use the following command:
+
+```bash
+wget --cut-dirs=5 -nH -r --no-parent --reject "index.html*" https://the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights/ -P 20B_checkpoints
+```
+
+Weights can be alternatively be downloaded using a BitTorrent client. Torrent files can be downloaded here: [slim weights](https://the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights.torrent), [full weights](https://the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights.torrent).
+
+We additionally have 150 checkpoints saved throughout training, one every 1,000 steps. We are working on figuring out how to best serve these at scale, but in the meanwhile people interested in working with the partially trained checkpoints can email us at contact@eleuther.ai to arrange access.
+
+## Pythia
+
+The Pythia Scaling Suite is a suite of models ranging from 19M parameters to 13B parameters trained on [the Pile](pile.eleuther.ai) intended to promote research on interpretability and training dynamics of large language models. Further details about the project and links to the models can be found [here](https://github.com/EleutherAI/pythia).
+
+## Polyglot
+
+The Polyglot Project is an effort to train powerful non-English pretrained language models to promote the accessibility of this technology to researchers outside the dominant powerhouses of machine learning. EleutherAI has trained and released 1.3B, 3.8B, and 5.8B parameter Korean language models, the largest of which outpreforms all other publicly available language models on Korean language tasks. Further details about the project and links to the models can be found [here](https://github.com/EleutherAI/polyglot).
+
+## Fill-in-the-Middle
+
+EleutherAI's [Carper lab](https://www.carper.ai) has also used this codebase to train models using FIM (fill-in-the-middle), a data transformation proposed in [Bavarian et al. 2022](https://arxiv.org/abs/2207.14255) with a similar technique also used by [Fried et al.](https://arxiv.org/abs/2204.05999) and [Aghajanyan et al. 2022](https://arxiv.org/abs/2201.07520), to enable typically autoregressive left-to-right language models to perform text infilling conditioned on both "left" and "right" context. A 1.3B parameter model trained on [the Pile](pile.eleuther.ai) is available [here](https://huggingface.co/CarperAI/FIM-NeoX-1.3B), with further experiments and and models forthcoming.
 
 # Inference
 
