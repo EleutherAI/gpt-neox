@@ -50,7 +50,8 @@ def load_partitions(
             os.path.join(
                 input_checkpoint_path,
                 f"mp_rank_{i:02}_model_states.pt",
-            )
+            ),
+            map_location=torch.device("cpu"),
         )
         for i in range(mp_partitions)
     ]
@@ -307,6 +308,8 @@ if __name__ == "__main__":
         print("loaded tokenizer: ", tokenizer)
         tokenizer.save_pretrained(args.output_dir)
         print("tokenizer saved!")
+        
+        print(tokenizer.decode(hf_model.generate(tokenizer.encode("Hello, I am testing ", return_tensors="pt"))[0]))
 
     if args.upload:
         repo_name = input("Provide a repository name for the HF Hub: ")

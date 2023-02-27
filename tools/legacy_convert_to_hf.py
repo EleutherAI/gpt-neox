@@ -50,7 +50,8 @@ def load_partitions(
             os.path.join(
                 input_checkpoint_path,
                 f"layer_{layer_idx:02}-model_{i:02}-model_states.pt",
-            )
+            ),
+            map_location=torch.device("cpu"),
         )
         for i in range(mp_partitions)
     ]
@@ -146,7 +147,7 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
 
     hf_model = GPTNeoXForCausalLM(
         hf_config
-    ).half()  # nice-to-have: lazy init weights somehow?
+    ) #.half()  # nice-to-have: lazy init weights somehow?
 
     mp_partitions = get_key(loaded_config, "model-parallel-size")
 
@@ -307,6 +308,8 @@ if __name__ == "__main__":
         print("loaded tokenizer: ", tokenizer)
         tokenizer.save_pretrained(args.output_dir)
         print("tokenizer saved!")
+        
+        print(tokenizer.decode(hf_model.generate(tokenizer.encode("Hello, my name is ", return_tensors="pt"), max_new_tokens=60)[0]))
 
     if args.upload:
         repo_name = input("Provide a repository name for the HF Hub: ")
