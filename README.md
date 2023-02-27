@@ -12,6 +12,8 @@ For those looking for a TPU-centric codebase, we recommend [Mesh Transformer JAX
 # Contents
 
 * [Quick Start](#quick-start)
+  * [Environment and Dependencies](#environment-and-dependencies)
+  * [Usage](#usage)
 * [Configuration](#configuration)
 * [Datasets](#datasets)
   * [Preconfigured Datasets](#preconfigured-datasets)
