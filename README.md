@@ -11,68 +11,28 @@ For those looking for a TPU-centric codebase, we recommend [Mesh Transformer JAX
 
 # Contents
 
-- [Pretrained Models](#pretrained-models)
-  * [GPT-NeoX-20B](#gpt-neox-20b)
-  * [Pythia](#pythia)
-  * [Polyglot](#polyglot)
-  * [Fill-in-the-Middle](#fill-in-the-middle)
-- [Quick Start](#quick-start)
-- [Configuration](#configuration)
-- [Datasets](#datasets)
+* [Quick Start](#quick-start)
+* [Configuration](#configuration)
+* [Datasets](#datasets)
   * [Preconfigured Datasets](#preconfigured-datasets)
   * [Using Custom Data](#using-custom-data)
-- [Training and Finetuning](#training-and-finetuning)
-- [Inference](#inference)
-- [Evaluation](#evaluation)
-- [Exporting to Hugging Face](#exporting-to-hugging-face)
-- [Monitoring](#monitoring)
+* [Training and Finetuning](#training-and-finetuning)
+  * [Select Pretrained Models](#pretrained-models)
+    * [GPT-NeoX-20B](#gpt-neox-20b)
+    * [Pythia](#pythia)
+    * [Polyglot](#polyglot)
+    * [Fill-in-the-Middle](#fill-in-the-middle)
+* [Inference](#inference)
+* [Evaluation](#evaluation)
+* [Exporting to Hugging Face](#exporting-to-hugging-face)
+* [Monitoring](#monitoring)
   * [Weights & Biases](#wandb)
   * [TensorBoard](#tensorboard)
-- [Administrative Notes](#administrative-notes)
+* [Administrative Notes](#administrative-notes)
   * [Citing GPT-NeoX](#citing-gpt-neox)
   * [Licensing](#licensing)
   * [Publications](#publications)
   * [Acknowledgements](#acknowledgements)
-
-# Pretrained Models
-
-## GPT-NeoX-20B
-
-GPT-NeoX-20B is a 20 billion parameter autoregressive language model trained on [the Pile](https://arxiv.org/abs/2101.00027). Technical details about GPT-NeoX-20B can be found in [the associated paper](https://arxiv.org/abs/2204.06745). The configuration file for this model is both available at [`./configs/20B.yml`](./configs/20B.yml) and included in the download links below.
-
-### Download Links
-
-[Slim weights](https://the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights/) - (No optimizer states, for inference or finetuning, 39GB)
-
-To download from the command line to a folder named `20B_checkpoints`, use the following command:
-
-```bash
-wget --cut-dirs=5 -nH -r --no-parent --reject "index.html*" https://the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights/ -P 20B_checkpoints
-```
-
-[Full weights](https://the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights/) - (Including optimizer states, 268GB)
-
-To download from the command line to a folder named `20B_checkpoints`, use the following command:
-
-```bash
-wget --cut-dirs=5 -nH -r --no-parent --reject "index.html*" https://the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights/ -P 20B_checkpoints
-```
-
-Weights can be alternatively be downloaded using a BitTorrent client. Torrent files can be downloaded here: [slim weights](https://the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights.torrent), [full weights](https://the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights.torrent).
-
-We additionally have 150 checkpoints saved throughout training, one every 1,000 steps. We are working on figuring out how to best serve these at scale, but in the meanwhile people interested in working with the partially trained checkpoints can email us at contact@eleuther.ai to arrange access.
-
-## Pythia
-
-The Pythia Scaling Suite is a suite of models ranging from 19M parameters to 13B parameters trained on [the Pile](pile.eleuther.ai) intended to promote research on interpretability and training dynamics of large language models. Further details about the project and links to the models can be found [here](https://github.com/EleutherAI/pythia).
-
-## Polyglot
-
-The Polyglot Project is an effort to train powerful non-English pretrained language models to promote the accessibility of this technology to researchers outside the dominant powerhouses of machine learning. EleutherAI has trained and released 1.3B, 3.8B, and 5.8B parameter Korean language models, the largest of which outpreforms all other publicly available language models on Korean language tasks. Further details about the project and links to the models can be found [here](https://github.com/EleutherAI/polyglot).
-
-## Fill-in-the-Middle
-
-EleutherAI's [Carper lab](https://www.carper.ai) has also used this codebase to train models using FIM (fill-in-the-middle), a data transformation proposed in [Bavarian et al. 2022](https://arxiv.org/abs/2207.14255) with a similar technique also used by [Fried et al.](https://arxiv.org/abs/2204.05999) and [Aghajanyan et al. 2022](https://arxiv.org/abs/2201.07520), to enable typically autoregressive left-to-right language models to perform text infilling conditioned on both "left" and "right" context. A 1.3B parameter model trained on [the Pile](pile.eleuther.ai) is available [here](https://huggingface.co/CarperAI/FIM-NeoX-1.3B), with further experiments and and models forthcoming.
 
 # Quick Start
 
@@ -274,6 +234,45 @@ python ./deepy.py train.py -d configs small.yml local_setup.yml
 This will deploy the `train.py` script on all nodes with one process per GPU. The worker nodes and number of GPUs are specified in the `/job/hostfile` file (see [parameter documentation](configs/README.md)), or can simply be passed in as the `num_gpus` arg if running on a single node setup.
 
 Although this is not strictly necessary, we find it useful to define the model parameters in one config file (e.g `configs/small.yml`) and the data path parameters in another (e.g `configs/local_setup.yml`).
+
+
+## Pretrained Models
+
+### GPT-NeoX-20B
+
+GPT-NeoX-20B is a 20 billion parameter autoregressive language model trained on [the Pile](https://arxiv.org/abs/2101.00027). Technical details about GPT-NeoX-20B can be found in [the associated paper](https://arxiv.org/abs/2204.06745). The configuration file for this model is both available at [`./configs/20B.yml`](./configs/20B.yml) and included in the download links below.
+
+[Slim weights](https://the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights/) - (No optimizer states, for inference or finetuning, 39GB)
+
+To download from the command line to a folder named `20B_checkpoints`, use the following command:
+
+```bash
+wget --cut-dirs=5 -nH -r --no-parent --reject "index.html*" https://the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights/ -P 20B_checkpoints
+```
+
+[Full weights](https://the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights/) - (Including optimizer states, 268GB)
+
+To download from the command line to a folder named `20B_checkpoints`, use the following command:
+
+```bash
+wget --cut-dirs=5 -nH -r --no-parent --reject "index.html*" https://the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights/ -P 20B_checkpoints
+```
+
+Weights can be alternatively be downloaded using a BitTorrent client. Torrent files can be downloaded here: [slim weights](https://the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights.torrent), [full weights](https://the-eye.eu/public/AI/models/GPT-NeoX-20B/full_weights.torrent).
+
+We additionally have 150 checkpoints saved throughout training, one every 1,000 steps. We are working on figuring out how to best serve these at scale, but in the meanwhile people interested in working with the partially trained checkpoints can email us at contact@eleuther.ai to arrange access.
+
+### Pythia
+
+The Pythia Scaling Suite is a suite of models ranging from 19M parameters to 13B parameters trained on [the Pile](pile.eleuther.ai) intended to promote research on interpretability and training dynamics of large language models. Further details about the project and links to the models can be found [here](https://github.com/EleutherAI/pythia).
+
+### Polyglot
+
+The Polyglot Project is an effort to train powerful non-English pretrained language models to promote the accessibility of this technology to researchers outside the dominant powerhouses of machine learning. EleutherAI has trained and released 1.3B, 3.8B, and 5.8B parameter Korean language models, the largest of which outpreforms all other publicly available language models on Korean language tasks. Further details about the project and links to the models can be found [here](https://github.com/EleutherAI/polyglot).
+
+### Fill-in-the-Middle
+
+EleutherAI's [Carper lab](https://www.carper.ai) has also used this codebase to train models using FIM (fill-in-the-middle), a data transformation proposed in [Bavarian et al. 2022](https://arxiv.org/abs/2207.14255) with a similar technique also used by [Fried et al.](https://arxiv.org/abs/2204.05999) and [Aghajanyan et al. 2022](https://arxiv.org/abs/2201.07520), to enable typically autoregressive left-to-right language models to perform text infilling conditioned on both "left" and "right" context. A 1.3B parameter model trained on [the Pile](pile.eleuther.ai) is available [here](https://huggingface.co/CarperAI/FIM-NeoX-1.3B), with further experiments and and models forthcoming.
 
 # Inference
 
