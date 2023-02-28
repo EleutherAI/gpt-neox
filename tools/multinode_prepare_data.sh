@@ -43,7 +43,7 @@ done
 
 # Add the rank to the --output-prefix argument if it is set
 if [[ -n "$prefix_arg" ]]; then
-    py_args="$py_args $prefix_arg$rank)"
+    py_args="$py_args $prefix_arg$rank"
 else
     # Inject a default --output-prefix argument containing the rank
     py_args="$py_args --output-prefix rank${rank}"
