@@ -31,15 +31,27 @@ sed -n "${start_line},${end_line}p" "$text_file" > "$chunk_file"
 # Parse additional flags to be passed to the Python script
 shift 1  # Shift past the first three arguments
 py_args=""
+prefix_arg=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --output-prefix=*) prefix_arg="$1"; shift;;
+        --output-prefix) prefix_arg="$1 $2"; shift 2;;
         --*) py_args="$py_args $1 $2"; shift 2;;
         *) echo "Unknown argument: $1"; exit 1;;
     esac
 done
 
-echo "processing $chunk_file with rank $rank at world size $world_size"
+# Add the rank to the --output-prefix argument if it is set
+if [[ -n "$prefix_arg" ]]; then
+    py_args="$py_args $(echo $prefix_arg | sed "s/=/_${rank}=/")"
+else
+    # Inject a default --output-prefix argument containing the rank
+    py_args="$py_args --output-prefix rank${rank}"
+fi
 
+
+echo "processing $chunk_file with rank $rank at world size $world_size"
+echo "using the following args: $py_args"
 # Call the Python script with the list of file paths in the chunk
 python prepare_data.py --input $(tr '\n' ',' < "$chunk_file" | sed 's/,$/\n/') $py_args
 
