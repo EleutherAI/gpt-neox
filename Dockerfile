@@ -31,9 +31,8 @@ RUN apt-get update -y && \
 
 ### SSH
 # Set password
-RUN echo 'password' >> password.txt && \
-    mkdir /var/run/sshd && \
-    echo "root:`cat password.txt`" | chpasswd && \
+RUN mkdir /var/run/sshd && \
+    echo "root:password" | chpasswd && \
     # Allow root login with password
     sed -i 's/PermitRootLogin without-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     # Prevent user being kicked off after login
@@ -41,9 +40,7 @@ RUN echo 'password' >> password.txt && \
     echo 'AuthorizedKeysFile     .ssh/authorized_keys' >> /etc/ssh/sshd_config && \
     echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config && \
     # FIX SUDO BUG: https://github.com/sudo-project/sudo/issues/42
-    echo "Set disable_coredump false" >> /etc/sudo.conf && \
-    # Clean up
-    rm password.txt
+    echo "Set disable_coredump false" >> /etc/sudo.conf
 
 # Expose SSH port
 EXPOSE 22
