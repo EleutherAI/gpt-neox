@@ -64,6 +64,13 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     params: Dictionary of parameters to instantiate scheduler. The parameter names should match scheduler constructor signature.
     """
 
+    # ---Communication Options---
+
+    communication_data_type: bool = None
+    """
+    During gradient averaging, perform communication with selected data type. By default it will be determined by selected regime
+    """
+
     fp32_allreduce: bool = False
     """
     During gradient averaging perform allreduce with 32 bit values
@@ -84,23 +91,48 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     Enable sparse compression of torch.nn.Embedding gradients.
     """
 
+    # ---FP16 Training Options---
+
     fp16: dict = None
     """
     Configuration for using mixed precision/FP16 training that leverages NVIDIA’s Apex package.
+
+    Dictionary options as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#fp16-training-options
     """
+
+    # ---BFLOAT16 Training Options---
+
+    bf16: dict = None
+    """
+    Configuration for using bfloat16 floating-point format as an alternative to FP16. BFLOAT16 requires hardware support (e.g., NVIDIA A100).
+
+    Dictionary options as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#bfloat16-training-options
+    """
+
+    # ---Automatic Mixed Precision (AMP) Training Options---
 
     amp: dict = None
     """
+    Configuration for using automatic mixed precision (AMP) training that leverages NVIDIA’s Apex AMP package.
+
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#automatic-mixed-precision-amp-training-options
     """
 
-    gradient_clipping: float = 0.0
+    gradient_clipping: float = 1.0
     """
     Enable gradient clipping with provided value
     """
 
+    # ---ZeRO Optimization Options---
+
     zero_optimization: dict = None
-    """"""
+    """
+    Configuration for using ZeRO optimization.
+
+    Multi-level dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#zero-optimization-options
+    """
+
+    # ---Logging Options---
 
     steps_per_print: int = 10
     """
@@ -117,14 +149,113 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     Print out state information of DeepSpeed object after initialization.
     """
 
+    # ---Autotuning Options---
+    autotuning: dict = None
+    """
+    Configuration for using autotuning.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#autotuning
+    """
+
+    # ---FLOPS Profiler Options---
+
     flops_profiler: dict = None
     """
+    Configuration for using FLOPS profiler.
+
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#flops-profiler
     """
 
-    zero_allow_untested_optimizer: bool = False
+    # ---Activation Checkpointing Options---
+
+    activation_checkpointing: dict = None
     """
-    Whether Deepspeed Zero Optimizer will allow an optimizer that hasn't been tested by the deepspeed team
+    Configuration for using activation checkpointing.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#activation-checkpointing
+    """
+
+    # ---Sparse Attention Options---
+
+    sparse_attention: dict = None
+    """
+    Configuration for using sparse attention.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#sparse-attention
+
+    """
+
+    # ---Data Efficiency Options---
+
+    data_efficiency: dict = None
+    """
+    Configuration for using data efficiency.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#data-efficiency
+    """
+
+    # ---Monitoring Module Options---
+
+    tensorboard: dict = None
+    """
+    Configuration for using tensorboard.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#monitoring-module-tensorboard-wandb-csv
+    """
+
+    wandb: dict = None
+    """
+    Configuration for using wandb.
+    """
+
+    csv_monitor: dict = None
+    """
+    Configuration for using csv_monitor.
+    """
+
+    # ---Elastic Training Options---
+
+    elasticity: dict = None
+    """
+    Configuration for using elastic training.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#elastic-training-config-v01-and-v02
+    """
+
+    # ---Communication Logging Options---
+
+    comms_logger: dict = None
+    """
+    Configuration for using communication logger.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#communication-logging
+    """
+
+    # ---Compression Options---
+
+    compression_training: dict = None
+    """
+    Configuration for using compression training.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#compression
+    """
+
+    # ---Checkpointing Options---
+
+    checkpoint: dict = None
+    """
+    Configuration for using checkpointing.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#checkpoint-options
+    """
+
+    # ---Data Type Options---
+
+    data_types: dict = None
+    """
+    Configuration for using data types.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#data-type-options
     """
 
 
