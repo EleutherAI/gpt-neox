@@ -24,7 +24,6 @@ from tokenizers import Tokenizer
 from transformers import GPT2Tokenizer, GPT2TokenizerFast
 import numpy as np
 import sentencepiece as spm
-import tiktoken
 from typing import List, Union
 from .gpt2_tokenization import GPT2Tokenizer
 
@@ -353,6 +352,11 @@ class CharLevelTokenizer(AbstractTokenizer):
 
 class TiktokenTokenizer(AbstractTokenizer):
     """Tokenizer from OpenAI's tiktoken implementation"""
+        try:
+            import tiktoken
+        except ModuleNotFoundError:
+            print("Please install tiktoken: (https://github.com/openai/tiktoken)")
+            raise Exception
 
     def __init__(self, vocab_file):
         name = "TiktokenTokenizer"
