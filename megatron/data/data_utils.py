@@ -249,7 +249,7 @@ def build_weighted_datasets(
     return train_datasets, valid_datasets, test_datasets
 
 
-def weights_by_num_docs(l, alpha=0.3):
+def weights_by_num_docs(l: list, alpha=0.3):
     """
     Builds weights from a multinomial distribution over groups of data according to the number of
     samples in each group.
@@ -263,6 +263,9 @@ def weights_by_num_docs(l, alpha=0.3):
 
     See https://arxiv.org/abs/1911.02116 for more details
     """
+    if len(l) == 1:
+        return [1.0]
+
     total_n_docs = sum(l)
     unbiased_sample_probs = [i / total_n_docs for i in l]
 
