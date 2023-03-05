@@ -56,8 +56,8 @@ class SpatialGatingUnit(nn.Module):
         self.causal = causal
         self.use_attn = d_attn is not None
 
-        norm, eps = get_norm(neox_args)
-        self.norm = norm(d_ff, eps=eps)
+        norm, eps, norm_kwargs = get_norm(self.neox_args)
+        self.norm = norm(d_ff, eps=eps, **norm_kwargs)
         self.proj = nn.Linear(neox_args.seq_length, neox_args.seq_length)
         if self.use_attn:
             assert mask_fn is not None

@@ -162,6 +162,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Learned position embedding offset (only used by OPT, where it should be set to 2).
     """
 
+    llama_rotary: bool = False
+    """
+    If true, use LLaMA's interleaved rotary. Otherwise, use GPT-NeoX-20B rotary.
+    """
+
     no_weight_tying: bool = False
     """
     Disables weight tying between embedding weights and final Linear layer
@@ -228,9 +233,9 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Pad the vocab size to be divisible by this value. This is added for computational efficiency reasons.
     """
 
-    activation: Literal["gelu", "geglu", "relu", "softsign", "swish", "mish"] = "gelu"
+    activation: Literal["gelu", "geglu", "relu", "softsign", "swish", "mish", "silu"] = "gelu"
     """
-    Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish"]
+    Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish", "silu"]
     """
 
     scaled_upper_triang_masked_softmax_fusion: bool = False
@@ -341,6 +346,26 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Otherwise, we tie the layer norms
       y = ln(x)
       x = x + attn(y) + mlp(y)
+    """
+
+    use_bias_in_norms: bool = True
+    """
+    If false, norms (e.g. LayerNorm) will not have bias terms
+    """
+    use_bias_in_attn_linear: bool = True
+    """
+    If false, attn_linear (e.g. QKVO) will not have bias terms
+    """
+
+    mlp_type: str = "regular"
+    """
+    Types:
+        regular: Megatron implementation
+        llama: LLaMA MLP
+    """
+    llama_mlp_multiple_of: int = 256
+    """
+    LLaMA MLP sizes are padded to a nice number
     """
 
     soft_prompt_tuning: dict = None
