@@ -21,6 +21,7 @@ import torch
 from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
 from megatron.model.fused_softmax import SoftmaxFusionTypes
 from types import GeneratorType
+import torch.distributed as dist
 
 
 def get_params_for_weight_decay_optimization(module, neox_args):
@@ -120,7 +121,33 @@ class SequentialWrapper(torch.nn.Module):
         """
         _set_use_cache(self.sequential, False)
 
-    def forward(self, forward_input):
+    def forward(
+        self, forward_input, curriculum_seqlen=None, labels=None, neox_args=None
+    ):
+
+        if (
+            curriculum_seqlen is not None
+            and isinstance(forward_input, tuple)
+            and len(forward_input) == 3
+        ):
+            neox_args.update_value("curriculum_seqlen", curriculum_seqlen)
+            tokens = forward_input[0]
+            input_ids = forward_input[1]
+            attention_mask = forward_input[2]
+            if curriculum_seqlen < input_ids.size()[1]:
+                # seqlen-based curriculum learning
+                # input_ids, position_ids, labels have size [batch size, seqlen]
+                input_ids = input_ids[:, :curriculum_seqlen].contiguous()
+                tokens = tokens[:, :curriculum_seqlen].contiguous()
+                # position_ids = position_ids[:, :curriculum_seqlen].contiguous()
+                if labels is not None:
+                    labels = labels[:, :curriculum_seqlen].contiguous()
+                # attention_mask has size [1, 1, seqlen, seqlen]
+                attention_mask = attention_mask[
+                    :, :, :curriculum_seqlen, :curriculum_seqlen
+                ].contiguous()
+            forward_input = (tokens, input_ids, attention_mask)
+
         def exec_range_func(start, end):
             """Helper function to be used with checkpoint()
             Adapted from torch.utils.checkpoint:checkpoint_sequential()
