@@ -351,10 +351,8 @@ class NeoXArgs(*BASE_CLASSES):
 
                 # Check if the W&B group name is configured
                 if neox_args.wandb_group is None:
-                    import uuid
-
-                    # Set a UUID4 as group name if no group name is provided
-                    neox_args.wandb_group = uuid.uuid4()
+                    # Set a randomized string as group name if no group name is provided
+                    neox_args.wandb_group = wandb.sdk.lib.runid.generate_id()
                 else:
                     # Concatenate the W&B group name with a randomized string to ensure uniqueness.
                     neox_args.wandb_group += "_" + wandb.sdk.lib.runid.generate_id()
