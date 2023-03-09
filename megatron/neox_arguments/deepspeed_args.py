@@ -102,6 +102,14 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     zero_optimization: dict = None
     """"""
 
+    curriculum_learning: dict = None
+    """"""
+
+    curriculum_seqlen: int = 0
+    """
+    Internal var for tracking the current seqlen
+    """
+
     steps_per_print: int = 10
     """
     Print train loss every N steps.

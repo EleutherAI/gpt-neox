@@ -334,7 +334,10 @@ class NeoXArgs(*BASE_CLASSES):
             conf_files = [os.path.join(args_parsed.conf_dir, f) for f in conf_files]
 
         # enables us to pass in `small` instead of `small.yml`
-        conf_files = [(cf if cf.endswith(".yml") else cf + ".yml") for cf in conf_files]
+        conf_files = [
+            (cf if cf.endswith(".yml") or cf.endswith(".json") else cf + ".yml")
+            for cf in conf_files
+        ]
 
         # determine overwrite values
         overwrite_values = dict()
