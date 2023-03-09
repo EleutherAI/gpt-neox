@@ -352,11 +352,11 @@ class CharLevelTokenizer(AbstractTokenizer):
 
 class TiktokenTokenizer(AbstractTokenizer):
     """Tokenizer from OpenAI's tiktoken implementation"""
-        try:
-            import tiktoken
-        except ModuleNotFoundError:
-            print("Please install tiktoken: (https://github.com/openai/tiktoken)")
-            raise Exception
+    try:
+        import tiktoken
+    except ModuleNotFoundError:
+        print("Please install tiktoken: (https://github.com/openai/tiktoken)")
+        raise Exception
 
     def __init__(self, vocab_file):
         name = "TiktokenTokenizer"
