@@ -93,6 +93,7 @@ COPY requirements/requirements-onebitadam.txt .
 COPY requirements/requirements-sparseattention.txt .
 RUN pip install -r requirements.txt && pip install -r requirements-onebitadam.txt && \
     pip install -r requirements-sparseattention.txt && \
+    pip install -r requirements-flashattention.txt && \
     pip install -r requirements-wandb.txt && \
     pip install protobuf==3.20.* && \
     pip cache purge
