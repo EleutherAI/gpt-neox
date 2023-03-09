@@ -27,6 +27,7 @@ import sys
 
 import torch
 import deepspeed
+from deepspeed.runtime.data_pipeline.curriculum_scheduler import CurriculumScheduler
 import numpy as np
 
 from megatron.utils import (
@@ -301,7 +302,7 @@ def get_batch(neox_args, data_iterator):
     )
 
 
-def get_batch_pipe(data, neox_args):
+def get_batch_pipe(data, neox_args, curr_scheduler=None):
     """A modification of get_batch() to work with the latest batch instead of an iterator."""
     # Items and their type.
     keys = ["text"]
@@ -310,12 +311,31 @@ def get_batch_pipe(data, neox_args):
     tokens, labels, loss_mask, attention_mask, position_ids = _get_batch(
         neox_args, neox_args.tokenizer, keys, data, datatype
     )
+    if curr_scheduler is not None:
+        # iteration + 1 to align with how/when DeepSpeed updates the buffers
+        curriculum_seqlen = curr_scheduler.update_difficulty(neox_args.iteration + 1)
+        if curriculum_seqlen < tokens.size()[1]:
+            # seqlen-based curriculum learning
+            # input_ids, position_ids, labels have size [batch size, seqlen]
+            # input_ids = input_ids[:, :curriculum_seqlen].contiguous()
+            tokens = tokens[:, :curriculum_seqlen].contiguous()
+            position_ids = position_ids[:, :curriculum_seqlen].contiguous()
+            if labels is not None:
+                labels = labels[:, :curriculum_seqlen].contiguous()
+            if loss_mask is not None:
+                loss_mask = loss_mask[:, :curriculum_seqlen].contiguous()
+            # attention_mask has size [1, 1, seqlen, seqlen]
+            attention_mask = attention_mask[
+                :, :, :curriculum_seqlen, :curriculum_seqlen
+            ].contiguous()
 
     # unpack data
     return (tokens, position_ids, attention_mask), (labels, loss_mask)
 
 
-def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
+def forward_step(
+    data_iterator, model, neox_args, timers, return_logits=False, is_train=False
+):
     """Forward step."""
     if neox_args.is_pipe_parallel:
         return model.eval_batch(data_iterator, return_logits=return_logits)
@@ -326,10 +346,18 @@ def forward_step(data_iterator, model, neox_args, timers, return_logits=False):
     tokens, labels, loss_mask, attention_mask, position_ids = get_batch(
         neox_args=neox_args, data_iterator=data_iterator
     )
+
     if timers is not None:
         timers("batch generator").stop()
 
-    outputs = model((tokens, position_ids, attention_mask))
+    outputs = model((tokens, position_ids, attention_mask), neox_args=neox_args)
+    if (
+        is_train
+        and neox_args.curriculum_learning
+        and neox_args.curriculum_seqlen < neox_args.seq_length
+    ):
+        loss_mask = loss_mask[:, : neox_args.curriculum_seqlen].contiguous()
+        labels = labels[:, : neox_args.curriculum_seqlen].contiguous()
     loss = cross_entropy(
         outputs, (labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy
     )
@@ -589,7 +617,17 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
 
         if neox_args.is_pipe_parallel:
             model.set_has_attention_mask(True)
-            model.set_batch_fn(partial(get_batch_pipe, neox_args=neox_args))
+            if neox_args.curriculum_learning:
+                curr_scheduler = CurriculumScheduler(neox_args.curriculum_learning)
+                if iteration is not None and iteration > 0:
+                    curr_scheduler.update_difficulty(iteration)
+            else:
+                curr_scheduler = None
+            model.set_batch_fn(
+                partial(
+                    get_batch_pipe, neox_args=neox_args, curr_scheduler=curr_scheduler
+                )
+            )
     else:
         raise ValueError("Must be using deepspeed to run neox")
 
@@ -647,6 +685,7 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
                 timers=timers,
                 data_iterator=data_iterator,
                 model=model,
+                is_train=True,
             )
             timers("forward").stop()
             losses.append(loss)
@@ -736,6 +775,7 @@ def train(
             lr_scheduler=lr_scheduler,
         )
         iteration += 1
+        neox_args.iteration = iteration
 
         overflow_monitor.check(skipped_iter)  # check for repeated overflow
         if neox_args.log_gradient_noise_scale:  # log noise scale if applicable

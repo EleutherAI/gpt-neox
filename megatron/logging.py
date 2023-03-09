@@ -297,6 +297,16 @@ def training_log(
             1, neox_args.log_interval - total_loss_dict[skipped_iters_key]
         )
 
+        # log curriculum learning
+        if neox_args.curriculum_learning:
+            tb_wandb_log(
+                "curriculum_seqlen",
+                neox_args.curriculum_seqlen,
+                iteration,
+                use_wandb=neox_args.use_wandb,
+                tensorboard_writer=neox_args.tensorboard_writer,
+            )
+
         # log tflop / gpu
         flops_per_s_per_gpu = get_flops(
             neox_args=neox_args, model=model, iter_time_s=iteration_time
