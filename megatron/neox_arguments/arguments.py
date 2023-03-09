@@ -212,8 +212,6 @@ class NeoXArgs(*BASE_CLASSES):
         if overwrite_values is not None:
             for k, v in overwrite_values.items():
                 config[k] = v
-        # dbg:
-        print("config: ", config)
 
         # instantiate class and return
         # duplicate values and unrecognized keys are again checked upon instantiation
@@ -354,15 +352,6 @@ class NeoXArgs(*BASE_CLASSES):
             import wandb
 
             neox_args.wandb_group += "_" + wandb.util.generate_id()
-        print(
-            "---------------------------------MAIN ARGS-----------------------------------------"
-        )
-
-        neox_args.print()
-
-        print(
-            "---------------------------------END MAIN ARGS-----------------------------------------"
-        )
 
         return neox_args
 
@@ -405,26 +394,28 @@ class NeoXArgs(*BASE_CLASSES):
         return [f"--{k}", str(v)]
 
     def get_extra_deepspeed_args(self):
-        ds_args_dict = dict()
-
+        """
+        Sets up the extra arguments for deepspeed. This is done by reading in the `deepspeed_extra_args` dictionary from
+            the configuration file, and then adding any arguments where values differ from those specified in the dataclass.
+        """
         neox_args = self.get_parent_class_value_dict(
             *self.__class__.__bases__, only_non_defaults=True
         )
 
         for key, value in self.deepspeed_extra_args.items():
-            # Check to make sure the key is not already present in the dataclass, and raise an exception if it is
-            # This is to prevent users from accidentally overwriting the default values
+            # Check to make sure the key is not already changed from defaults, and raise an exception if it is
+            # This is to prevent users from accidentally writing arguments both in deepspeed_extra_args and in the base level
+            # of the configuration file
             if hasattr(neox_args, key):
                 raise ValueError(
                     f"Key {key} is already specified elsewhere. Reading in a different value from the 'deepspeed_extra_args' option in the configuration file will cause undefined behavior."
                 )
         for key, default_value in NeoXArgsDeepspeedConfig().defaults():
-            # Check to see if the specified value is different from the default value, and if so, add it to the dict
+            # Check to see if the specified value is different from the default value, and if so, add it to the dataclass object
             if key in self.deepspeed_extra_args:
                 configured_value = self.deepspeed_extra_args[key]
                 if configured_value != default_value:
-                    ds_args_dict[key] = configured_value
-        return ds_args_dict
+                    self.__setattr__(key, configured_value)
 
     def get_deepspeed_main_args(self):
 
@@ -470,10 +461,8 @@ class NeoXArgs(*BASE_CLASSES):
         # get deepspeed_config
         args_list.append("--deepspeed_config")
         if self.deepspeed_extra_args is not None:
-            ds_config = self.deepspeed_config
-            ds_config.update(self.get_extra_deepspeed_args())
-            args_list.append(json.dumps(ds_config))
-            # print(type(self.deepspeed_config))
+            self.get_extra_deepspeed_args()
+            args_list.append(json.dumps(self.deepspeed_config))
         else:
             args_list.append(json.dumps(self.deepspeed_config))
 

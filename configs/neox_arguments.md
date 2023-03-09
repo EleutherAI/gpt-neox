@@ -1707,13 +1707,119 @@ Args for deepspeed config
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#flops-profiler
 
 
+### Extra Arguments
 
-- **zero_allow_untested_optimizer**: bool
+- **deepspeed_extra_args**: dict
+    
+    Dictionary of extra arguments to be included in the yaml config file.
+    
 
-    Default = False
+    
+**All arguments below should be included in the deepspeed_extra_args item, if desired.**
 
-    Whether Deepspeed Zero Optimizer will allow an optimizer that hasn't been tested by the deepspeed team
 
+
+- **communication_data_type**: bool
+    
+    During gradient averaging, perform communication with selected data type. By default it will be determined by selected regime
+    
+
+- **bf16**: dict
+    
+    Configuration for using bfloat16 floating-point format as an alternative to FP16. BFLOAT16 requires hardware support (e.g., NVIDIA A100).
+
+    Dictionary options as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#bfloat16-training-options
+    
+
+
+- **autotuning**: dict
+    
+    Configuration for using autotuning.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#autotuning
+    
+
+
+- **activation_checkpointing**: dict
+    
+    Configuration for using activation checkpointing.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#activation-checkpointing
+    
+
+    
+- **sparse_attention**: dict
+    
+    Configuration for using sparse attention.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#sparse-attention
+
+    
+
+- **data_efficiency**: dict
+    
+    Configuration for using data efficiency.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#data-efficiency
+    
+
+
+- **tensorboard**: dict
+    
+    Configuration for using tensorboard.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#monitoring-module-tensorboard-wandb-csv
+    
+
+- **wandb**: dict
+    
+    Configuration for using wandb.
+    
+
+- **csv_monitor**: dict
+    
+    Configuration for using csv_monitor.
+    
+
+
+- **elasticity**: dict
+    
+    Configuration for using elastic training.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#elastic-training-config-v01-and-v02
+    
+
+
+- **comms_logger**: dict
+    
+    Configuration for using communication logger.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#communication-logging
+    
+
+
+- **compression_training**: dict
+    
+    Configuration for using compression training.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#compression
+    
+
+
+- **checkpoint**: dict
+    
+    Configuration for using checkpointing.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#checkpoint-options
+    
+
+
+- **data_types**: dict
+    
+    Configuration for using data types.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#data-type-options
+    
 
 
 ## NeoXArgsDeepspeedRunner

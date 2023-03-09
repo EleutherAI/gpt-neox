@@ -82,22 +82,14 @@
   "steps_per_print": 10,
   "wall_clock_breakdown": true,
 
-  # # additional deepspeed args not specified above
-  # "deepspeed_extra_args": {
-  #   "comms_logger": {
-  #       "enabled": true,
-  #       "verbose": false,
-  #       "prof_all": true,
-  #       "debug": false
-  #   },
-  #   "flops_profiler": {
-  #       "enabled": true,
-  #       "profile_step": 1,
-  #       "module_depth": -1,
-  #       "top_modules": 1,
-  #       "detailed": true,
-  #       "output_file": null,
-  #   }
-  # }
+  # additional deepspeed args not specified above
+  "deepspeed_extra_args": {
+    "comms_logger": {
+        "enabled": true,
+        "verbose": true,
+        "prof_all": true,
+        "debug": false
+    },
+  }
 
 }

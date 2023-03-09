@@ -646,7 +646,7 @@ class NeoXArgsOther(NeoXArgsTemplate):
     Set during launching
     """
 
-    deepspeed_extra_args: dict = None
+    # deepspeed_extra_args: dict = None
     """
     Contains the deepspeed configuration, if desired
     """
