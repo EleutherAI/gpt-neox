@@ -186,6 +186,11 @@ class NeoXArgsDeepspeedRunner(NeoXArgsTemplate):
     If true, autodetects nvlink pairs and remaps cuda visible devices to place them next to each other. This is an Eleuther addition to deepspeed, and should speed up model parallel training on setups with nvlink pairs when mp=2.
     """
 
+    no_ssh_check: bool = False
+    """
+    If true, overrides the default check where DeepSpeed confirms that the headnode is accessible via ssh.
+    """
+
     comment: str = None
     """
     Adds a `--comment` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometime necessary for cluster rules, or so I've heard.

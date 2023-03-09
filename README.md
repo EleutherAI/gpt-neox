@@ -59,7 +59,8 @@ from the repository root.
 
 </aside>
 
-
+### TensorBoard
+=======
 ### Flash Attention
 
 To use [Flash-Attention](https://github.com/HazyResearch/flash-attention), install the additional dependencies in  `./requirements/requirements-flashattention.txt` and set the attention type in your configuration accordingly (see [configs](./configs/)). This can provide significant speed-ups over regular attention on certain GPU architectures, including Ampere GPUs (such as A100s); see the repository for more details.
