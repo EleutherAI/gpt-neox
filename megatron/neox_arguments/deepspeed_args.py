@@ -25,7 +25,7 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     """
     Args for deepspeed config
     Every argument included here will be included in deepspeed config json
-    #TODO this list is not complete as compared to https://www.deepspeed.ai/docs/config-json/
+    As of Mar 8 2023, up to date compared to https://www.deepspeed.ai/docs/config-json/
     """
 
     deepspeed: bool = True

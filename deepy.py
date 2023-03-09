@@ -35,4 +35,13 @@ if wandb_token is not None:
     os.environ["WANDB_API_KEY"] = wandb_token
 
 if __name__ == "__main__":
+    # print("Next: Pass args to deepspeed.launcher.runner.main")
+    # print(
+    #     "---------------------------------DEEPSPEED ARGS-----------------------------------------"
+    # )
+    # for item in deepspeed_main_args:
+    #     print(item + "\n")
+    # print(
+    #     "--------------------------------- END DEEPSPEED ARGS-----------------------------------------"
+    # )
     main(deepspeed_main_args)
