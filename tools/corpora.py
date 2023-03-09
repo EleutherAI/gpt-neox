@@ -164,13 +164,13 @@ class Enron(DataDownloader):
 
 class PileSubset(DataDownloader):
     name = "pile_00"
-    urls = ["https://mystic.the-eye.eu/public/AI/pile/train/00.jsonl.zst"]
+    urls = ["https://the-eye.eu/public/AI/pile/train/00.jsonl.zst"]
 
 
 class Pile(DataDownloader):
     name = "pile"
     urls = [
-        f"https://mystic.the-eye.eu/public/AI/pile/train/{i:02}.jsonl.zst"
+        f"https://the-eye.eu/public/AI/pile/train/{i:02}.jsonl.zst"
         for i in range(30)
     ]
 
@@ -183,62 +183,62 @@ class Github(DataDownloader):
 class ArXiv(DataDownloader):
     name = "arxiv"
     urls = [
-        "https://mystic.the-eye.eu/public/AI/pile_preliminary_components/2020-09-08-arxiv-extracts-nofallback-until-2007-068.tar.gz"
+        "https://the-eye.eu/public/AI/pile_preliminary_components/2020-09-08-arxiv-extracts-nofallback-until-2007-068.tar.gz"
     ]
 
 
 class EuroParl(DataDownloader):
     name = "europarl"
     urls = [
-        "https://mystic.the-eye.eu/public/AI/pile_preliminary_components/EuroParliamentProceedings_1996_2011.jsonl.zst"
+        "https://the-eye.eu/public/AI/pile_preliminary_components/EuroParliamentProceedings_1996_2011.jsonl.zst"
     ]
 
 
 class FreeLaw(DataDownloader):
     name = "freelaw"
     urls = [
-        "https://mystic.the-eye.eu/public/AI/pile_preliminary_components/FreeLaw_Opinions.jsonl.zst"
+        "https://the-eye.eu/public/AI/pile_preliminary_components/FreeLaw_Opinions.jsonl.zst"
     ]
 
 
 class NiH(DataDownloader):
     name = "nih"
     urls = [
-        "https://mystic.the-eye.eu/public/AI/pile_preliminary_components/NIH_ExPORTER_awarded_grant_text.jsonl.zst"
+        "https://the-eye.eu/public/AI/pile_preliminary_components/NIH_ExPORTER_awarded_grant_text.jsonl.zst"
     ]
 
 
 class PubMed(DataDownloader):
     name = "pubmed"
     urls = [
-        "https://mystic.the-eye.eu/public/AI/pile_preliminary_components/PMC_extracts.tar.gz"
+        "https://the-eye.eu/public/AI/pile_preliminary_components/PMC_extracts.tar.gz"
     ]
 
 
 class Books1(DataDownloader):
     name = "books1"
     urls = [
-        "https://mystic.the-eye.eu/public/AI/pile_preliminary_components/books1.tar.gz"
+        "https://the-eye.eu/public/AI/pile_preliminary_components/books1.tar.gz"
     ]
 
 
 class Books3(DataDownloader):
     name = "books3"
     urls = [
-        "https://mystic.the-eye.eu/public/AI/pile_preliminary_components/books3.tar.gz"
+        "https://the-eye.eu/public/AI/pile_preliminary_components/books3.tar.gz"
     ]
 
 
 class HackerNews(DataDownloader):
     name = "hackernews"
-    urls = ["https://mystic.the-eye.eu/public/AI/pile_preliminary_components/hn.tar.gz"]
+    urls = ["https://the-eye.eu/public/AI/pile_preliminary_components/hn.tar.gz"]
     num_docs = 373000
 
 
 class OpenWebText2(DataDownloader):
     name = "openwebtext2"
     urls = [
-        "https://mystic.the-eye.eu/public/AI/pile_preliminary_components/openwebtext2.jsonl.zst.tar"
+        "https://the-eye.eu/public/AI/pile_preliminary_components/openwebtext2.jsonl.zst.tar"
     ]
     num_docs = 17103000
 
@@ -246,28 +246,28 @@ class OpenWebText2(DataDownloader):
 class StackExchange(DataDownloader):
     name = "stackexchange"
     urls = [
-        "https://mystic.the-eye.eu/public/AI/pile_preliminary_components/stackexchange_dataset.tar"
+        "https://the-eye.eu/public/AI/pile_preliminary_components/stackexchange_dataset.tar"
     ]
 
 
 class UbuntuIRC(DataDownloader):
     name = "ubuntu_irc"
     urls = [
-        "https://mystic.the-eye.eu/public/AI/pile_preliminary_components/ubuntu_irc_until_2020_9_1.jsonl.zst"
+        "https://the-eye.eu/public/AI/pile_preliminary_components/ubuntu_irc_until_2020_9_1.jsonl.zst"
     ]
 
 
 class YoutubeSubtitles(DataDownloader):
     name = "youtube_subtitles"
     urls = [
-        "https://mystic.the-eye.eu/public/AI/pile_preliminary_components/yt_subs.jsonl.zst"
+        "https://the-eye.eu/public/AI/pile_preliminary_components/yt_subs.jsonl.zst"
     ]
 
 
 class C4(DataDownloader):
     name = "c4"
     urls = [
-        f"https://mystic.the-eye.eu/eleuther_staging/c4/en/c4-train.{i:05}-of-01024.json.gz"
+        f"https://the-eye.eu/eleuther_staging/c4/en/c4-train.{i:05}-of-01024.json.gz"
         for i in range(1024)
     ]
 
@@ -275,7 +275,7 @@ class C4(DataDownloader):
 class C4OpenWebText(DataDownloader):
     name = "c4_openwebtext"
     urls = [
-        f"https://mystic.the-eye.eu/eleuther_staging/c4/realnewslike/c4-train.{i:05}-of-00512.json.gz"
+        f"https://the-eye.eu/eleuther_staging/c4/realnewslike/c4-train.{i:05}-of-00512.json.gz"
         for i in range(512)
     ]
 
