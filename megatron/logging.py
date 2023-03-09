@@ -14,7 +14,12 @@
 
 import sys
 import torch
-import wandb
+
+try:
+    import wandb
+except ModuleNotFoundError:
+    pass
+
 from megatron import mpu, print_rank_0
 from megatron.utils import report_memory
 
