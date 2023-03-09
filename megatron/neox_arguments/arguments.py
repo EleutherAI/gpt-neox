@@ -18,7 +18,6 @@ from pathlib import Path
 import yaml
 import json
 import logging
-import shortuuid
 import copy
 import torch
 import argparse
@@ -278,13 +277,13 @@ class NeoXArgs(*BASE_CLASSES):
             "--wandb_group",
             type=str,
             default=None,
-            help='Weights and Biases group name - used to group together "runs".',
+            help='Weights & Biases group name - used to group together "runs".',
         )
         group.add_argument(
             "--wandb_team",
             type=str,
             default=None,
-            help="Team name for Weights and Biases.",
+            help="Weights & Biases team name.",
         )
 
         group = parser.add_argument_group(title="Eval args")
@@ -372,11 +371,22 @@ class NeoXArgs(*BASE_CLASSES):
             paths_to_yml_files=conf_files, overwrite_values=overwrite_values
         )
 
-        if neox_args.wandb_group is not None:
-            # concat the wandb group name with a uid to make sure it's unique
-            import wandb
+        if neox_args.use_wandb:
+            try:
+                import wandb
 
-            neox_args.wandb_group += "_" + wandb.util.generate_id()
+                # Check if the W&B group name is configured
+                if neox_args.wandb_group is None:
+                    # Set a randomized string as group name if no group name is provided
+                    neox_args.wandb_group = wandb.sdk.lib.runid.generate_id()
+                else:
+                    # Concatenate the W&B group name with a randomized string to ensure uniqueness.
+                    neox_args.wandb_group += "_" + wandb.sdk.lib.runid.generate_id()
+            except ModuleNotFoundError as e:
+                if e.name == "wandb":
+                    e.msg += "\nWeights & Biases monitoring was requested but `wandb` was not found. Install `wandb` to use Weights & Biases, or set the `use_wandb` configuration option to a boolean false to disable Weights & Biases logging."
+                raise e
+
         neox_args.print()
 
         return neox_args
@@ -735,12 +745,6 @@ class NeoXArgs(*BASE_CLASSES):
         """
         Derives additional configuration values necessary for training from the current config
         """
-
-        # wandb
-        # sets a unique wandb group
-        if self.wandb_group is None:
-            # if none is defined a uuid is set for the run
-            self.wandb_group = shortuuid.uuid()
 
         # number of gpus
         # Get number of GPUs param or hostfile to determine train_batch_size

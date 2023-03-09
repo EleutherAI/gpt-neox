@@ -88,10 +88,13 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
 #### Python packages
 RUN pip install torch==1.8.1+cu111 -f https://download.pytorch.org/whl/torch_stable.html && pip cache purge
 COPY requirements/requirements.txt .
+COPY requirements/requirements-wandb.txt .
 COPY requirements/requirements-onebitadam.txt .
 COPY requirements/requirements-sparseattention.txt .
 RUN pip install -r requirements.txt && pip install -r requirements-onebitadam.txt && \
     pip install -r requirements-sparseattention.txt && \
+    pip install -r requirements-flashattention.txt && \
+    pip install -r requirements-wandb.txt && \
     pip install protobuf==3.20.* && \
     pip cache purge
 
