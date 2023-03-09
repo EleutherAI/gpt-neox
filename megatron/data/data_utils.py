@@ -85,6 +85,7 @@ def build_the_dataset(
 
 def build_train_valid_test_datasets(
     data_prefix,
+    use_shared_fs,
     data_impl,
     splits_string,
     train_valid_test_num_samples,
@@ -131,6 +132,7 @@ def build_train_valid_test_datasets(
                 train_valid_test_num_samples[index],
                 seq_length,
                 seed,
+                use_shared_fs=use_shared_fs
             )
         return dataset
 
@@ -247,7 +249,7 @@ def build_weighted_datasets(
     return train_datasets, valid_datasets, test_datasets
 
 
-def weights_by_num_docs(l, alpha=0.3):
+def weights_by_num_docs(l: list, alpha=0.3):
     """
     Builds weights from a multinomial distribution over groups of data according to the number of
     samples in each group.
@@ -261,6 +263,9 @@ def weights_by_num_docs(l, alpha=0.3):
 
     See https://arxiv.org/abs/1911.02116 for more details
     """
+    if len(l) == 1:
+        return [1.0]
+
     total_n_docs = sum(l)
     unbiased_sample_probs = [i / total_n_docs for i in l]
 
@@ -394,6 +399,7 @@ def build_train_valid_test_data_iterators(neox_args):
             # split dataset into train, valid and test from data_path
             train_ds, valid_ds, test_ds = build_train_valid_test_datasets(
                 data_prefix=neox_args.data_path,
+                use_shared_fs=neox_args.use_shared_fs,
                 data_impl=neox_args.data_impl,
                 splits_string=neox_args.split,
                 train_valid_test_num_samples=train_val_test_num_samples,

@@ -367,10 +367,11 @@ class NeoXArgsOptimizer(NeoXArgsTemplate):
     """
 
     optimizer_type: Literal[
-        "adam", "onebitadam", "cpu_adam", "cpu_torch_adam", "sm3", "madgrad_wd"
+        "adam", "onebitadam", "cpu_adam", "cpu_torch_adam", "sm3", "madgrad_wd", "sgd"
     ] = "adam"
     """
-    Type of optimizer to use. Choose from ['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd]
+    Type of optimizer to use. Choose from ['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd', 'sgd']
+    NOTE: sgd will use MuSGD from Mup. Mup must be enabled for this optimizer.
     """
 
     use_bnb_optimizer: bool = False
@@ -658,9 +659,10 @@ class NeoXArgsTokenizer(NeoXArgsTemplate):
         "HFGPT2Tokenizer",
         "SPMTokenizer",
         "CharLevelTokenizer",
+        "TiktokenTokenizer",
     ] = "GPT2BPETokenizer"
     """
-    Type of tokenizer to use - should be one of ["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "SPMTokenizer", "CharLevelTokenizer"]
+    Type of tokenizer to use - should be one of ["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "SPMTokenizer", "CharLevelTokenizer", "TiktokenTokenizer"]
     """
 
     padded_vocab_size: int = None
@@ -684,6 +686,12 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     data_path: str = None
     """
     Path to combined dataset to split.
+    """
+
+    use_shared_fs: bool = True
+    """
+    Whether to use a shared filesystem for data loading. If False, local rank 0 on all nodes will preprocess the data,
+    otherwise only global rank 0 will preprocess the data. This is implemented in megatron/data/gpt2_dataset.py::_build_index_mappings.
     """
 
     train_data_paths: list = None
@@ -968,6 +976,57 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     char_level_ppl: bool = False
     """
     Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
+    """
+
+    use_mup: bool = False
+    """
+    Whether to use Microsoft's Mup https://github.com/microsoft/mup
+    """
+
+    coord_check: bool = False
+    """
+    Whether to generate a "coord check" plot to verify mup's implementation in neox
+    """
+
+    save_base_shapes: bool = False
+    """
+    Whether to save base shapes for mup. This will save the shapes to the path specified in base-shapes-file.
+    """
+
+    base_shapes_file: str = None
+    """
+    Path to the base shapes to save to/load from
+    """
+
+    mup_init_scale: float = 1.0
+    """
+    Initialization scale: All the parameters are multiplied by this value
+    """
+
+    mup_attn_temp: float = 1.0
+    """
+    Attention temperature: Reciprocal of the multiplier applied to the input to attention softmax
+    """
+
+    mup_output_temp: float = 1.0
+    """
+    Output temperature: Reciprocal of the multiplier applied to the input to softmax that
+    produces the distribution over output tokens.
+    """
+
+    mup_embedding_mult: float = 1.0
+    """
+    Scalar by which we multiply the output of the embedding layer
+    """
+
+    mup_rp_embedding_mult: float = 1.0
+    """
+    Scalar by which we multiply vectors representing relative position
+    """
+
+    mup_width_scale: int = 2
+    """
+    What to scale width by when creating the delta model for mup
     """
 
 

@@ -101,8 +101,8 @@ dtypes = {
     3: np.int16,
     4: np.int32,
     5: np.int64,
-    6: np.float,
-    7: np.double,
+    6: np.float32,
+    7: np.float64,
     8: np.uint16,
 }
 
@@ -274,8 +274,8 @@ class IndexedDatasetBuilder(object):
         np.int16: 2,
         np.int32: 4,
         np.int64: 8,
-        np.float: 4,
-        np.double: 8,
+        np.float32: 4,
+        np.float64: 8,
     }
 
     def __init__(self, out_file, dtype=np.int32):
@@ -287,12 +287,13 @@ class IndexedDatasetBuilder(object):
         self.element_size = self.element_sizes[self.dtype]
         self.doc_idx = [0]
 
-    def add_item(self, tensor):
-        bytes = self.out_file.write(np.array(tensor.numpy(), dtype=self.dtype))
+    def add_item(self, np_array):
+        assert isinstance(np_array, np.ndarray) and np_array.dtype == self.dtype
+        bytes = self.out_file.write(np_array)
         self.data_offsets.append(self.data_offsets[-1] + bytes / self.element_size)
-        for s in tensor.size():
+        for s in np_array.shape:
             self.sizes.append(s)
-        self.dim_offsets.append(self.dim_offsets[-1] + len(tensor.size()))
+        self.dim_offsets.append(self.dim_offsets[-1] + len(np_array.shape))
 
     def end_document(self):
         self.doc_idx.append(len(self.sizes))
@@ -360,14 +361,11 @@ class MMapIndexedDataset(torch.utils.data.Dataset):
 
                 @staticmethod
                 def _get_pointers(sizes):
-                    dtype_size = dtype().itemsize
-                    address = 0
-                    pointers = []
+                    pointers = np.zeros(len(sizes), dtype=np.int64)
+                    sizes = np.array(sizes, dtype=np.int64)
 
-                    for size in sizes:
-                        pointers.append(address)
-                        address += size * dtype_size
-
+                    np.cumsum(sizes[:-1], out=pointers[1:])
+                    pointers = pointers * dtype().itemsize
                     return pointers
 
                 def write(self, sizes, doc_idx):
@@ -568,8 +566,12 @@ class MMapIndexedDatasetBuilder(object):
         self._sizes = []
         self._doc_idx = [0]
 
-    def add_item(self, tensor):
-        np_array = np.array(tensor.numpy(), dtype=self._dtype)
+    @property
+    def dtype(self):
+        return self._dtype
+
+    def add_item(self, np_array):
+        assert isinstance(np_array, np.ndarray) and np_array.dtype == self.dtype
         self._data_file.write(np_array.tobytes(order="C"))
         self._sizes.append(np_array.size)
 
