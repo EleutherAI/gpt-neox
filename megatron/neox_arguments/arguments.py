@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import os
+from pathlib import Path
 import yaml
 import json
 import logging
@@ -20,16 +22,15 @@ import shortuuid
 import copy
 import torch
 import argparse
-import shutil
 
 from dataclasses import dataclass
 from typing import List, Dict
 from socket import gethostname
 
 try:
-    from typing import Literal
+    from typing import Literal, Union
 except ImportError:
-    from typing_extensions import Literal
+    from typing_extensions import Literal, Union
 from deepspeed.launcher.runner import DLTS_HOSTFILE
 from megatron.logging import Tee
 from megatron.tokenizer import build_tokenizer
@@ -73,6 +74,15 @@ OPT_PARAMS_DEFAULTS = {
     "momentum": 0.0,
     "cuda_aware": False,
 }
+
+
+AUTOTUNING_ARGS = (
+    "train_batch_size",
+    "train_micro_batch_size_per_gpu",
+    "gradient_accumulation_steps",
+    "zero_optimization",
+    "autotuning",
+)
 
 BASE_CLASSES = [
     NeoXArgsDeepspeedRunner,
@@ -321,6 +331,16 @@ class NeoXArgs(*BASE_CLASSES):
             default=None,
             help="Optionally overwrite `sample_output_file` for generate.py",
         )
+
+        tuning = parser.add_argument_group(title="DeepSpeed Autotuning")
+        tuning.add_argument(
+            "--autotuning",
+            type=str,
+            default=None,
+            choices=("tune", "run"),
+            help="Use DeepSpeed's autotuning feature to optimize certain hyperparameters. For more details refer to documentation here: https://www.deepspeed.ai/tutorials/autotuning/",
+        )
+
         args_parsed = parser.parse_args()
 
         # Validate user_script exists
@@ -335,14 +355,16 @@ class NeoXArgs(*BASE_CLASSES):
 
         # enables us to pass in `small` instead of `small.yml`
         conf_files = [
-            (cf if cf.endswith(".yml") or cf.endswith(".json") else cf + ".yml")
+            (cf if (cf.endswith(".yml") or cf.endswith(".json")) else cf + ".yml")
             for cf in conf_files
         ]
 
         # determine overwrite values
         overwrite_values = dict()
         for k, v in vars(args_parsed).items():
-            if k not in ["conf_dir", "conf_file"] and v is not None:
+            if k == "autotuning" and v is not None:
+                overwrite_values["autotuning_run"] = v
+            elif k not in ["conf_dir", "conf_file"] and v is not None:
                 overwrite_values[k] = v
 
         # load args
@@ -379,12 +401,32 @@ class NeoXArgs(*BASE_CLASSES):
             default=None,
             help="json dict dumped as string in NeoXArgs.get_deepspeed_main_args()",
         )
-
+        parser.add_argument(
+            "--deepspeed_config",
+            type=str,
+            default=None,
+            help="Only need this (at this stage) for autotuning",
+        )
         args_parsed, _ = parser.parse_known_args()
-        megatron_config = json.loads(args_parsed.megatron_config)
+        with open(args_parsed.megatron_config) as jsonfile:
+            megatron_config = json.load(jsonfile)
+        if args_parsed.deepspeed_config is not None:
+            overwrite_values = cls.set_up_autotuning(
+                args_parsed.deepspeed_config, overwrite_values
+            )
         if overwrite_values is not None:
             megatron_config.update(overwrite_values)
         return cls.from_dict(args_dict=megatron_config)
+
+    @staticmethod
+    def set_up_autotuning(encoded_config, overwrite_values):
+        config = json.loads(base64.urlsafe_b64decode(encoded_config).decode("utf-8"))
+        overwrite_values = overwrite_values if overwrite_values else {}
+        for tuning_param in AUTOTUNING_ARGS:
+            # TODO: This is for autotuning specifically, may cause surprises for someone with a weird setup
+            if tuning_param in config:
+                overwrite_values[tuning_param] = config[tuning_param]
+        return overwrite_values
 
     @staticmethod
     def convert_key_value_to_command_line_arg(k, v):
@@ -401,13 +443,33 @@ class NeoXArgs(*BASE_CLASSES):
 
         args_list = list()
 
+        if self.autotuning_run is not None:
+            args_list.extend(
+                self.convert_key_value_to_command_line_arg(
+                    "autotuning", self.autotuning_run
+                )
+            )
+
         # get deepspeed runner args, and only pass them in to deepspeed launcher if they differ from defaults
         for key, default_value in NeoXArgsDeepspeedRunner().defaults():
+            if key == "autotuning_run":
+                continue
             configured_value = getattr(self, key)
             if configured_value != default_value:
                 args_list.extend(
                     self.convert_key_value_to_command_line_arg(key, configured_value)
                 )
+
+        if self.deepspeed_slurm:
+            comment = getattr(self, "comment")
+            if comment:
+                args_list.extend(
+                    self.convert_key_value_to_command_line_arg("comment", comment)
+                )
+            # master_address = os.environ['SLURM_JOB_NODELIST'].split('\n')[0]
+            # args_list.extend(
+            #    self.convert_key_value_to_command_line_arg('master_addr', master_address)
+            # )
 
         if "DLTS_HOSTFILE" in os.environ:
             args_list.extend(
@@ -438,17 +500,34 @@ class NeoXArgs(*BASE_CLASSES):
         # add user script
         args_list.append(self.user_script)
 
+        self.configure_distributed_args()
+        cwd = Path.cwd()
+
         # get deepspeed_config
         args_list.append("--deepspeed_config")
-        args_list.append(json.dumps(self.deepspeed_config))
 
+        if self.autotuning_run is not None:
+            ds_fp = cwd / Path("ds_config.json")
+            if self.rank == 0:
+                with open(ds_fp, mode="w") as ds_file:
+                    json.dump(self.deepspeed_config, ds_file)
+            args_list.append(str(ds_fp))
+        else:
+            encoded_ds_config = base64.urlsafe_b64encode(
+                json.dumps(self.deepspeed_config).encode("utf-8")
+            ).decode("utf-8")
+            args_list.append(encoded_ds_config)
+
+        megatron_fp = cwd / Path("megatron_config.json")
         # get all config values
         args_list.append("--megatron_config")
+        args_list.append(str(megatron_fp))
         neox_args = self.get_parent_class_value_dict(
             *self.__class__.__bases__, only_non_defaults=True
         )
-        args_list.append(json.dumps(neox_args))
-
+        if self.rank == 0:
+            with open(megatron_fp, mode="w") as megafile:
+                json.dump(neox_args, megafile)
         return args_list
 
     ############################################################################################################################
@@ -459,9 +538,10 @@ class NeoXArgs(*BASE_CLASSES):
         """
         returns a dict containing variables within deepspeed config
         """
-        return self.get_parent_class_value_dict(
+        config = self.get_parent_class_value_dict(
             NeoXArgsDeepspeedConfig, only_non_defaults=True
         )
+        return config
 
     @property
     def deepspeed_runner(self) -> dict:
@@ -708,7 +788,7 @@ class NeoXArgs(*BASE_CLASSES):
             logging.error(error_message)
             raise AssertionError(error_message)
 
-        # Automatically derive train_batch_size = train_micro_batch_size_per_gpu*global_num_gpus*gradient_accumulation_steps
+            # Automatically derive train_batch_size = train_micro_batch_size_per_gpu*global_num_gpus*gradient_accumulation_steps
         (
             train_batch_size,
             train_micro_batch_size_per_gpu,
@@ -775,25 +855,37 @@ class NeoXArgs(*BASE_CLASSES):
             self.zero_optimization = copy.deepcopy(
                 ZERO_DEFAULTS
             )  # a dict is overwritten and not updated key by key
-        self.update_values(
-            {
-                "zero_stage": self.zero_optimization.get(
-                    "stage", ZERO_DEFAULTS["stage"]
-                ),
-                "zero_reduce_scatter": self.zero_optimization.get(
-                    "reduce_scatter", ZERO_DEFAULTS["reduce_scatter"]
-                ),
-                "zero_contiguous_gradients": self.zero_optimization.get(
-                    "contiguous_gradients", ZERO_DEFAULTS["contiguous_gradients"]
-                ),
-                "zero_reduce_bucket_size": self.zero_optimization.get(
-                    "reduce_bucket_size", ZERO_DEFAULTS["reduce_bucket_size"]
-                ),
-                "zero_allgather_bucket_size": self.zero_optimization.get(
-                    "allgather_bucket_size", ZERO_DEFAULTS["allgather_bucket_size"]
-                ),
-            }
-        )
+        try:
+            stage = self.zero_optimization["stage"]
+            if stage in (0, 1, 2, 3):
+                self.update_values(
+                    {
+                        "zero_stage": self.zero_optimization.get(
+                            "stage", ZERO_DEFAULTS["stage"]
+                        ),
+                        "zero_reduce_scatter": self.zero_optimization.get(
+                            "reduce_scatter", ZERO_DEFAULTS["reduce_scatter"]
+                        ),
+                        "zero_contiguous_gradients": self.zero_optimization.get(
+                            "contiguous_gradients",
+                            ZERO_DEFAULTS["contiguous_gradients"],
+                        ),
+                        "zero_reduce_bucket_size": self.zero_optimization.get(
+                            "reduce_bucket_size", ZERO_DEFAULTS["reduce_bucket_size"]
+                        ),
+                        "zero_allgather_bucket_size": self.zero_optimization.get(
+                            "allgather_bucket_size",
+                            ZERO_DEFAULTS["allgather_bucket_size"],
+                        ),
+                    }
+                )
+            else:
+                assert (
+                    self.autotuning is not None
+                ), f"Zero Stage must be an integer unless you are doing autotuning, not {stage}"
+        except KeyError as ke:
+            print(f"Zero Optimization config: {self.zero_optimization}")
+            raise ke
 
         # optimizer and scheduler
         opt_params = self.optimizer or {
@@ -1039,10 +1131,12 @@ class NeoXArgs(*BASE_CLASSES):
         At runtime, checks types are actually the type specified.
         """
         for field_name, field_def in self.__dataclass_fields__.items():
-
             actual_value = getattr(self, field_name)
             if actual_value is None:
                 continue  # we allow for some values not to be configured
+
+            if self.autotuning is not None and actual_value == "auto":
+                continue
 
             actual_type = type(actual_value)
             if actual_type != field_def.type:
@@ -1069,6 +1163,17 @@ class NeoXArgs(*BASE_CLASSES):
                         + f"{field_name}: '{actual_value}' Not in accepted values: '{accepted_values}'"
                     )
                     return False
+                elif field_def.type.__origin__ == Union:
+                    accepted_types = field_def.type.__args__
+                    if actual_type in accepted_types:
+                        continue
+                    else:
+                        logging.error(
+                            self.__class__.__name__
+                            + ".validate_types() "
+                            + f"{field_name}: '{actual_type}' not in {accepted_types}"
+                        )
+                        return False
 
                 logging.error(
                     self.__class__.__name__

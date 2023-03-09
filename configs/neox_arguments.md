@@ -592,7 +592,7 @@ Optimizer Arguments
 
 
 
-- **zero_stage**: int
+- **zero_stage**: typing.Union[int, typing.List[int], typing.Literal['all']]
 
     Default = None
 
@@ -1732,6 +1732,14 @@ Args for deepspeed config
 
 
 
+- **autotuning**: dict
+
+    Default = None
+
+    Dictionary as described in DeepSpeed autotuning documentation: https://github.com/microsoft/DeepSpeed/tree/master/deepspeed/autotuning
+
+
+
 ## NeoXArgsDeepspeedRunner
 
 Args for deepspeed runner (deepspeed.launcher.runner).
@@ -1801,7 +1809,7 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
-- **launcher**: str
+- **launcher**: typing.Literal['pdsh', 'openmpi', 'mvapich', 'slurm']
 
     Default = pdsh
 
@@ -1817,6 +1825,12 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
+- **autotuning_run**: str
+
+    Default = None
+
+    Either "tune", "run", or `None`.
+    
 - **no_ssh_check**: bool
 
     Default = False
@@ -1830,4 +1844,12 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = None
 
     Adds a `--comment` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometime necessary for cluster rules, or so I've heard.
+
+
+
+- **no_ssh_check**: bool
+
+    Default = False
+
+    If `True` and running with multiple nodes, then DeepSpeedd doesn't conduct a check to ensure the head node is reachable with ssh.
 

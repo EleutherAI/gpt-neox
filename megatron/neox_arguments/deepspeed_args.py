@@ -19,6 +19,11 @@ try:
 except ImportError:
     from template import NeoXArgsTemplate
 
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
+
 
 @dataclass
 class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
@@ -135,6 +140,9 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     Whether Deepspeed Zero Optimizer will allow an optimizer that hasn't been tested by the deepspeed team
     """
 
+    autotuning: dict = None
+    """Dictionary as described in DeepSpeed autotuning documentation: https://github.com/microsoft/DeepSpeed/tree/master/deepspeed/autotuning"""
+
 
 @dataclass
 class NeoXArgsDeepspeedRunner(NeoXArgsTemplate):
@@ -184,7 +192,7 @@ class NeoXArgsDeepspeedRunner(NeoXArgsTemplate):
     IP address of node 0, will be inferred via 'hostname -I' if not specified.
     """
 
-    launcher: str = "pdsh"
+    launcher: Literal["pdsh", "openmpi", "mvapich", "slurm"] = "pdsh"
     """
     Launcher backend for multi-node training. Options currently include PDSH, OpenMPI, MVAPICH.
     """
@@ -194,12 +202,23 @@ class NeoXArgsDeepspeedRunner(NeoXArgsTemplate):
     If true, autodetects nvlink pairs and remaps cuda visible devices to place them next to each other. This is an Eleuther addition to deepspeed, and should speed up model parallel training on setups with nvlink pairs when mp=2.
     """
 
+
+    autotuning_run: str = None
+    """
+    Either "tune", "run", or `None`.
+
     no_ssh_check: bool = False
     """
     If true, overrides the default check where DeepSpeed confirms that the headnode is accessible via ssh.
+
     """
 
     comment: str = None
     """
     Adds a `--comment` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometime necessary for cluster rules, or so I've heard.
+    """
+
+    no_ssh_check: bool = False
+    """
+    If `True` and running with multiple nodes, then DeepSpeedd doesn't conduct a check to ensure the head node is reachable with ssh.
     """
