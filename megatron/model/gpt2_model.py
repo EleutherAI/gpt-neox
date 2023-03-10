@@ -222,6 +222,9 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                 heads=self.neox_args.num_attention_heads,
             )
 
+        if self.neox_args.use_mup and self.neox_args.mup_input_temp is not None:
+            self.specs.append(lambda x: x * self.neox_args.mup_input_temp)
+
         # Transformer layers
         for i in range(self.neox_args.num_layers):
             layer_type = self.neox_args.attention_config[i]
@@ -259,6 +262,9 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         self.specs.append(
             LayerSpec(NormPipe, norm, self.neox_args.hidden_size, eps=eps)
         )
+
+        if self.neox_args.use_mup and self.neox_args.output_temp is not None:
+            self.specs.append(lambda x: x * self.neox_args.mup_output_temp / self.neox_args.hidden_size)
 
         # outputs are now a single tensor: hidden_states
 

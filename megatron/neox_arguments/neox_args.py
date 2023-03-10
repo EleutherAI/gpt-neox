@@ -1030,6 +1030,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     What to scale width by when creating the delta model for mup
     """
 
+    mup_deferred_init: bool = False
+    """
+    Whether to fully initialize the base and delta models (set to true for big target models)
+    """
+
 
 @dataclass
 class NeoXArgsTextgen(NeoXArgsTemplate):
