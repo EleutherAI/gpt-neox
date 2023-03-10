@@ -402,6 +402,8 @@ class NeoXArgs(*BASE_CLASSES):
             *self.__class__.__bases__, only_non_defaults=True
         )
 
+        extra_ds_args = dict()
+
         for key, value in self.deepspeed_extra_args.items():
             # Check to make sure the key is not already changed from defaults, and raise an exception if it is
             # This is to prevent users from accidentally writing arguments both in deepspeed_extra_args and in the base level
@@ -410,12 +412,9 @@ class NeoXArgs(*BASE_CLASSES):
                 raise ValueError(
                     f"Key {key} is already specified elsewhere. Reading in a different value from the 'deepspeed_extra_args' option in the configuration file will cause undefined behavior."
                 )
-        for key, default_value in NeoXArgsDeepspeedConfig().defaults():
-            # Check to see if the specified value is different from the default value, and if so, add it to the dataclass object
-            if key in self.deepspeed_extra_args:
-                configured_value = self.deepspeed_extra_args[key]
-                if configured_value != default_value:
-                    self.__setattr__(key, configured_value)
+            extra_ds_args[key] = value
+
+        return extra_ds_args
 
     def get_deepspeed_main_args(self):
 
@@ -460,11 +459,8 @@ class NeoXArgs(*BASE_CLASSES):
 
         # get deepspeed_config
         args_list.append("--deepspeed_config")
-        if self.deepspeed_extra_args is not None:
-            self.get_extra_deepspeed_args()
-            args_list.append(json.dumps(self.deepspeed_config))
-        else:
-            args_list.append(json.dumps(self.deepspeed_config))
+
+        args_list.append(json.dumps(self.deepspeed_config))
 
         # get all config values
         args_list.append("--megatron_config")
@@ -483,7 +479,7 @@ class NeoXArgs(*BASE_CLASSES):
         """
         returns a dict containing variables within deepspeed config
         """
-        return self.get_parent_class_value_dict(
+        return self.get_parent_class_value_dict_extra_ds(
             NeoXArgsDeepspeedConfig, only_non_defaults=True
         )
 
@@ -525,6 +521,35 @@ class NeoXArgs(*BASE_CLASSES):
                     if value == default_value:
                         continue
                 result[key] = getattr(self, key)
+        return result
+
+    def get_parent_class_value_dict_extra_ds(
+        self, *parent_classes, only_non_defaults=False
+    ) -> dict:
+        """
+        takes a sequence of parent classes and returns corresponding values (with defaults set)
+        """
+        # TODO no Nones or non-defaults
+        result = dict()
+        for parent in parent_classes:
+            for key, default_value in parent().defaults():
+                if key in [
+                    "tokenizer",
+                    "tensorboard_writer",
+                    "adlr_autoresume_object",
+                    "deepspeed_extra_args",
+                ]:
+                    continue
+                if only_non_defaults:
+                    value = getattr(self, key)
+                    if value == default_value:
+                        continue
+                result[key] = getattr(self, key)
+
+        if self.deepspeed_extra_args is not None:
+            extra_ds_args = self.get_extra_deepspeed_args()
+            result.update(extra_ds_args)
+
         return result
 
     @property

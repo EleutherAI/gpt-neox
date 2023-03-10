@@ -233,7 +233,7 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
 
     # ---Communication Logging Options---
 
-    comms_logger: dict = None
+    # comms_logger: dict = None
     """
     Configuration for using communication logger.
 
