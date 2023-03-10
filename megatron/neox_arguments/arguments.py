@@ -527,7 +527,16 @@ class NeoXArgs(*BASE_CLASSES):
         self, *parent_classes, only_non_defaults=False
     ) -> dict:
         """
-        takes a sequence of parent classes and returns corresponding values (with defaults set)
+        Takes a sequence of parent classes and returns corresponding values (with defaults set).
+        Also adds in any extra deepspeed arguments that are specified in the configuration file.
+
+        Args:
+            parent_classes: sequence of parent classes
+            only_non_defaults: if True, only returns values that differ from defaults
+
+        Returns:
+            dict of arguments and values
+
         """
         # TODO no Nones or non-defaults
         result = dict()

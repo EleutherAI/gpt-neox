@@ -142,15 +142,6 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#flops-profiler
     """
 
-    # ---EXTRA ARGUMENTS---
-
-    deepspeed_extra_args: dict = None
-    """
-    Dictionary of extra arguments to be included in the yaml config file.
-    """
-
-    # All arguments below should be included in the deepspeed_extra_args item, if desired
-
     # ---Communication Options---
 
     communication_data_type: bool = None
@@ -233,7 +224,7 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
 
     # ---Communication Logging Options---
 
-    # comms_logger: dict = None
+    comms_logger: dict = None
     """
     Configuration for using communication logger.
 
@@ -265,6 +256,13 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     Configuration for using data types.
 
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#data-type-options
+    """
+
+    # ---EXTRA ARGUMENTS---
+
+    deepspeed_extra_args: dict = None
+    """
+    Dictionary of extra arguments to be included in the yaml config file. This can be used for any argument not included in the above list.
     """
 
 

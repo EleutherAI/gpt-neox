@@ -1705,23 +1705,13 @@ Args for deepspeed config
     Default = None
 
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#flops-profiler
-
-
-### Extra Arguments
-
-- **deepspeed_extra_args**: dict
     
-    Dictionary of extra arguments to be included in the yaml config file.
-    
-
-    
-**All arguments below should be included in the deepspeed_extra_args item, if desired.**
-
 
 
 - **communication_data_type**: bool
     
     During gradient averaging, perform communication with selected data type. By default it will be determined by selected regime
+    
     
 
 - **bf16**: dict
@@ -1819,6 +1809,14 @@ Args for deepspeed config
     Configuration for using data types.
 
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#data-type-options
+
+
+
+    ### Extra Arguments
+
+- **deepspeed_extra_args**: dict
+    
+    Dictionary of extra arguments to be included in the yaml config file.
     
 
 

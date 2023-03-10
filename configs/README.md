@@ -210,7 +210,7 @@ Our global batch size configuration follows deepspeed's and can be configured in
     },
 }
 ```
-Additional DeepSpeed settings besides those mentioned above should be wrapped in the `"deepspeed_extra_args` argument, as in the example above. Currently, all settings specified in https://www.deepspeed.ai/docs/config-json as of 9 Match 2023 are supported. If any settings are duplicated here from elsewhere in the YAML, the system will throw an exception and notify the user. An exhaustive list of possible arguments can be found in [neox_arguments.md](neox_arguments.md).
+Additional DeepSpeed settings besides those mentioned above should be wrapped in the `"deepspeed_extra_args` argument, as in the example above. This functionality is designed to allow arguments not specified by existing dataclasses to be passed to DeepSpeed (e.g. when new functionalities are implemented). If any settings are duplicated here from elsewhere in the YAML, the system will throw an exception and notify the user.
 
 ### Dataset / Tokenizer / Checkpoint / Logging Settings:
 
