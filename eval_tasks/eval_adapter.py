@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from megatron.utils import is_local_main, print_rank_0
+from megatron.utils import is_local_main, print_rank_0, is_pipe_parallel, is_data_parallel
 import best_download
 
 # patch best_download (eval harness downloader) to only happen on the first local rank
@@ -70,11 +70,12 @@ class EvalHarnessAdapter(GPT2LM):
         self.is_main = neox_args.rank == 0
         self.is_local_main = neox_args.local_rank == 0
         self.is_model_parallel = neox_args.model_parallel_size > 1
-        self.is_pipe_parallel = self.model.is_pipe_parallel
-        self.is_data_parallel = self.model.is_data_parallel
+        self.is_pipe_parallel = is_pipe_parallel(self.model)
+        self.is_data_parallel = is_data_parallel(self.model)
         self.is_last_stage = (
             True if not self.is_pipe_parallel else model.is_last_stage()
         )  # only the last stage of the pipeline model will receive the logits
+        self.model.micro_batches = model.gradient_accumulation_steps()
         self.dp_world_size = mpu.get_data_parallel_world_size()
         self.dp_rank = mpu.get_data_parallel_rank()
         self.dp_group = mpu.get_data_parallel_group()
