@@ -1,6 +1,7 @@
 {
    "pipe-parallel-size": 1,
    "model-parallel-size": 1,
+
    "num-layers": 12,
    "hidden-size": 768,
    "num-attention-heads": 12,
@@ -9,8 +10,11 @@
    "norm": "layernorm",
    "pos-emb": "rotary",
    "no-weight-tying": true,
-   "scaled-upper-triang-masked-softmax-fusion": true,
-   "bias-gelu-fusion": true,
+
+   "scaled-upper-triang-masked-softmax-fusion": false,
+   "bias-gelu-fusion": false,
+
+
    "optimizer": {
      "type": "Adam",
      "params": {
@@ -19,26 +23,21 @@
        "eps": 1.0e-8
      }
    },
-   "zero_optimization": {
-    "stage": 0,
-    "allgather_partitions": true,
-    "allgather_bucket_size": 500000000,
-    "overlap_comm": true,
-    "reduce_scatter": true,
-    "reduce_bucket_size": 500000000,
-    "contiguous_gradients": true
-  },
-   "train_micro_batch_size_per_gpu": 4,
+
+   "train_micro_batch_size_per_gpu": 1,
    "data-impl": "mmap",
    "split": "949,50,1",
+
    "checkpoint-activations": true,
    "checkpoint-num-layers": 1,
    "partition-activations": true,
    "synchronize-each-layer": true,
+
    "gradient_clipping": 1.0,
    "weight-decay": 0.0,
    "hidden-dropout": 0.0,
    "attention-dropout": 0.0,
+
    "fp16": {
      "enabled": true,
      "loss_scale": 0,
@@ -46,19 +45,34 @@
      "hysteresis": 2,
      "min_loss_scale": 1
    },
+
    "train-iters": 320000,
    "lr-decay-iters": 320000,
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
-   "checkpoint-factor": 10000,
+   "save-interval": 10000,
    "eval-interval": 1000,
    "eval-iters": 10,
+
    "log-interval": 100,
    "steps_per_print": 10,
    "keep-last-n-checkpoints": 4,
    "wall_clock_breakdown": true,
    "launcher": "slurm",
    "deepspeed_slurm": true,
-   "comment": "neox"
+   "comment": "neox",
+   "autotuning": {
+       "enabled": true,
+       "arg_mappings": {
+       "train_micro_batch_size_per_gpu": "--train_micro_batch_size_per_gpu",
+       "gradient_accumulation_steps ": "--gradient_accumulation_steps"
+     }
+   },
+   "zero_optimization": {
+      "stage": [0, 1, 2, 3]
+   },
+  "train-data-paths": ["/fsx/pile_deduped/pile_0.87_deduped_text_document"],
+  "valid-data-paths": ["/fsx/pile_deduped/pile_0.87_deduped_text_document"],
+  "test-data-paths": ["/fsx/pile_deduped/pile_0.87_deduped_text_document"]
 }

@@ -462,4 +462,5 @@ def run_eval_harness(
         eval_tasks=eval_tasks,
         num_fewshot=num_fewshot,
         bootstrap_iters=bootstrap_iters,
+        use_cache=False,
     )

@@ -26,9 +26,17 @@
     "overlap_comm": true,
     "reduce_scatter": true,
     "reduce_bucket_size": 500000000,
-    "contiguous_gradients": true
+    "contiguous_gradients": true,
+    "cpu_offload": false
   },
-   "train_micro_batch_size_per_gpu": 4,
+   "train_micro_batch_size_per_gpu": 1,
+   "autotuning_config": {
+     "enabled": true,
+     "arg_mappings": {
+       "train_micro_batch_size_per_gpu": "--train_micro_batch_size_per_gpu",
+       "gradient_accumulation_steps ": "--gradient_accumulation_steps"
+     }
+   },
    "data-impl": "mmap",
    "split": "949,50,1",
    "checkpoint-activations": true,
@@ -46,12 +54,12 @@
      "hysteresis": 2,
      "min_loss_scale": 1
    },
-   "train-iters": 320000,
+   "train-iters": 200,
    "lr-decay-iters": 320000,
    "distributed-backend": "nccl",
    "lr-decay-style": "cosine",
    "warmup": 0.01,
-   "checkpoint-factor": 10000,
+   "save-interval": 10000,
    "eval-interval": 1000,
    "eval-iters": 10,
    "log-interval": 100,

@@ -24,8 +24,11 @@ import socket
 from typing import Dict, List
 
 import requests
-import wandb
-from wandb import UsageError
+
+try:
+    import wandb
+except ModuleNotFoundError:
+    pass
 
 import torch
 
@@ -33,7 +36,7 @@ from deepspeed.launcher.runner import fetch_hostfile, parse_inclusion_exclusion
 
 from megatron import print_rank_0
 from megatron import mpu
-from deepspeed import PipelineEngine, DeepSpeedEngine
+
 from collections import deque
 
 
@@ -167,7 +170,7 @@ def init_wandb(neox_args):
                 force=False,
                 entity=neox_args.wandb_team,
             )
-        except UsageError as e:
+        except wandb.UsageError as e:
             neox_args.update_value("use_wandb", False)
             print(e)
             print(
