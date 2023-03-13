@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 3b417f2
+    Default = be9acbf
 
     current git hash of repository
 
@@ -1649,6 +1649,14 @@ Args for deepspeed config
     Default = None
 
     Configuration for using mixed precision/FP16 training that leverages NVIDIA’s Apex package.
+
+
+
+- **bf16**: dict
+
+    Default = None
+
+    Configuration for using bfloat16 precision during training.
 
 
 
