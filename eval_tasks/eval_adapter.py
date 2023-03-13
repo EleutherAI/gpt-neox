@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from megatron.utils import is_local_main, print_rank_0, is_pipe_parallel, is_data_parallel
+from megatron.utils import is_local_main, print_rank_0
 import best_download
 
 # patch best_download (eval harness downloader) to only happen on the first local rank
@@ -34,6 +34,7 @@ from functools import partial
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
 )
+from deepspeed import PipelineEngine 
 from tqdm import tqdm
 import torch
 import torch.nn.functional as F
@@ -70,8 +71,8 @@ class EvalHarnessAdapter(GPT2LM):
         self.is_main = neox_args.rank == 0
         self.is_local_main = neox_args.local_rank == 0
         self.is_model_parallel = neox_args.model_parallel_size > 1
-        self.is_pipe_parallel = is_pipe_parallel(self.model)
-        self.is_data_parallel = is_data_parallel(self.model)
+        self.is_pipe_parallel = isinstance(self.model, PipelineEngine) and self.model.is_pipe_parallel
+        self.is_data_parallel = isinstance(self.model, PipelineEngine) and self.model.is_data_parallel
         self.is_last_stage = (
             True if not self.is_pipe_parallel else model.is_last_stage()
         )  # only the last stage of the pipeline model will receive the logits

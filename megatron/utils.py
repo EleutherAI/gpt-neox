@@ -33,7 +33,6 @@ except ModuleNotFoundError:
 import torch
 
 from deepspeed.launcher.runner import fetch_hostfile, parse_inclusion_exclusion
-from deepspeed import DeepSpeedEngine, PipelineEngine 
 
 from megatron import print_rank_0
 from megatron import mpu
@@ -481,13 +480,3 @@ class CharCounter:
         end = time.time()
         self.total_time += end - start
         return batch
-
-
-def is_pipe_parallel(engine: DeepSpeedEngine):
-    """Check if the `deepspeed` module is pipeline parallel."""
-    return isinstance(engine, PipelineEngine) and engine.is_pipe_parallel
-
-
-def is_data_parallel(engine: DeepSpeedEngine):
-    """Check if the `deepspeed` module is data parallel."""
-    return isinstance(engine, PipelineEngine) and engine.is_data_parallel
