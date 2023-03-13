@@ -30,6 +30,7 @@ import os
 import sys
 import dataclasses
 from functools import partial
+from pathlib import Path
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
@@ -354,6 +355,7 @@ class EvalHarnessAdapter(GPT2LM):
         # restore to original shape
         if padded and logits is not None:
             logits = logits[:batch_size, ...]
+
         return logits
 
     def _model_generate(self, context, max_length, eos_token_id):
