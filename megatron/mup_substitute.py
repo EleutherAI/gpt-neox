@@ -1,6 +1,6 @@
-'''
+"""
 Helper functions for performing coord check.
-'''
+"""
 import os
 from copy import copy
 from itertools import product
@@ -13,12 +13,30 @@ import torch.nn.functional as F
 from mup import coord_check as mup_coord_check
 from megatron.training import train_step
 
-def _get_coord_data(neox_args, timers, lr_scheduler, models, dataloader, optcls, nsteps=3,
-                dict_in_out=False, flatten_input=False, flatten_output=False, 
-                output_name='loss', lossfn='xent', filter_module_by_name=None,
-                fix_data=True, cuda=True, nseeds=1, 
-                output_fdict=None, input_fdict=None, param_fdict=None,
-                show_progress=True, one_hot_target=False):
+
+def _get_coord_data(
+    neox_args,
+    timers,
+    lr_scheduler,
+    models,
+    dataloader,
+    optcls,
+    nsteps=3,
+    dict_in_out=False,
+    flatten_input=False,
+    flatten_output=False,
+    output_name="loss",
+    lossfn="xent",
+    filter_module_by_name=None,
+    fix_data=True,
+    cuda=True,
+    nseeds=1,
+    output_fdict=None,
+    input_fdict=None,
+    param_fdict=None,
+    show_progress=True,
+    one_hot_target=False,
+):
     df = []
 
     for i in range(nseeds):
@@ -27,18 +45,26 @@ def _get_coord_data(neox_args, timers, lr_scheduler, models, dataloader, optcls,
             model = model()
             model.train()
             optimizer = optcls(model)
-            for step in range(nsteps+1):
+            for step in range(nsteps + 1):
                 remove_hooks = []
                 # add hooks
                 for name, module in model.named_modules():
                     if filter_module_by_name and not filter_module_by_name(name):
                         continue
-                    remove_hooks.append(module.register_forward_hook(
-                        mup_coord_check._record_coords(df, width, name, step+1,
-                            output_fdict=output_fdict,
-                            input_fdict=input_fdict,
-                            param_fdict=param_fdict)))
-               
+                    remove_hooks.append(
+                        module.register_forward_hook(
+                            mup_coord_check._record_coords(
+                                df,
+                                width,
+                                name,
+                                step + 1,
+                                output_fdict=output_fdict,
+                                input_fdict=input_fdict,
+                                param_fdict=param_fdict,
+                            )
+                        )
+                    )
+
                 # train for a step
                 loss_dict, skipped_iter = train_step(
                     neox_args=neox_args,
@@ -54,16 +80,26 @@ def _get_coord_data(neox_args, timers, lr_scheduler, models, dataloader, optcls,
                     handle.remove()
 
             import gc
+
             del model
             gc.collect()
 
     return pd.DataFrame(df)
 
 
-def get_coord_data(neox_args, timers, lr_scheduler, models, dataloader, optimizer='sgd', lr=None, mup=True,
-                    filter_trainable_by_name=None,
-                    **kwargs):
-    '''Get coord data for coord check.
+def get_coord_data(
+    neox_args,
+    timers,
+    lr_scheduler,
+    models,
+    dataloader,
+    optimizer="sgd",
+    lr=None,
+    mup=True,
+    filter_trainable_by_name=None,
+    **kwargs
+):
+    """Get coord data for coord check.
     Train the models in `models` with data from `dataloader` and optimizer
     specified by `optimizer` and `lr` for `nsteps` steps, and record coordinate
     statistics specified by `output_fdict`, `input_fdict`, `param_fdict`. By
@@ -71,7 +107,7 @@ def get_coord_data(neox_args, timers, lr_scheduler, models, dataloader, optimize
     This function wraps around `_get_coord_data`, with the main difference being
     user can specify common optimizers via a more convenient interface.
     Inputs:
-        models: 
+        models:
             a dict of lazy models, where the keys are numbers indicating width.
             Each entry of `models` is a function that instantiates a model given
             nothing.
@@ -82,16 +118,16 @@ def get_coord_data(neox_args, timers, lr_scheduler, models, dataloader, optimize
             is used in a loop and the rest of `dataloder` is ignored.
         optimizer:
             a string in `['sgd', 'adam', 'adamw']`, with default being `'sgd'`.
-        lr: 
+        lr:
             learning rate. By default is 0.1 for `'sgd'` and 1e-3 for others.
-        mup: 
+        mup:
             If True, then use the optimizer from `mup.optim`; otherwise, use the
             one from `torch.optim`.
-        filter_trainable_by_name: 
+        filter_trainable_by_name:
             a function that returns a bool given module names (from
             `model.named_modules()`), or None. If not None, then only modules
             whose name yields True will be trained.
-        nsteps: 
+        nsteps:
             number of steps to train the model
         dict_in_out:
             whether the data loader contains Huggingface-style dict input and
@@ -120,7 +156,7 @@ def get_coord_data(neox_args, timers, lr_scheduler, models, dataloader, optimize
             whether to use cuda or not. Default: True
         nseeds:
             number of times to repeat the training, each with different seeds.
-        output_fdict, input_fdict, param_fdict: 
+        output_fdict, input_fdict, param_fdict:
             function dicts to be used in `_record_coords`. By default, only `l1`
             is computed for output activations of each module.
         show_progress:
@@ -134,21 +170,22 @@ def get_coord_data(neox_args, timers, lr_scheduler, models, dataloader, optimize
         `'width', 'module', 't'` as well as names of statistics recorded, such
         as `'l1'` (see `FDICT` for other premade statistics that can be
         collected).
-        
+
     Breaking Changes:
         In v1.0.0, when `lossfn=='mse'`, the target is automatically converted
         to a one hot vector before loss computation. Starting in v1.1.0, this
         behavior is turned off, and the user needs to explicitly turn on this
         behavior by setting `one_hot_target=True`.
-    '''
+    """
     if lr is None:
-        lr = 0.1 if optimizer == 'sgd' else 1e-3
+        lr = 0.1 if optimizer == "sgd" else 1e-3
     if mup:
         from mup.optim import MuAdam as Adam
         from mup.optim import MuAdamW as AdamW
         from mup.optim import MuSGD as SGD
     else:
         from torch.optim import SGD, Adam, AdamW
+
     def get_trainable(model):
         params = model.parameters()
         if filter_trainable_by_name is not None:
@@ -157,17 +194,19 @@ def get_coord_data(neox_args, timers, lr_scheduler, models, dataloader, optimize
                 if filter_trainable_by_name(name):
                     params.append(p)
         return params
-    if optimizer == 'sgd':
+
+    if optimizer == "sgd":
         optcls = lambda model: SGD(get_trainable(model), lr=lr)
-    elif optimizer == 'adam':
+    elif optimizer == "adam":
         optcls = lambda model: Adam(get_trainable(model), lr=lr)
-    elif optimizer == 'adamw':
+    elif optimizer == "adamw":
         optcls = lambda model: AdamW(get_trainable(model), lr=lr)
     elif optimizer is None:
-        raise ValueError('optimizer should be sgd|adam|adamw or a custom function')
-    
-    data = _get_coord_data(neox_args, timers, lr_scheduler, models, dataloader, optcls, **kwargs)
-    data['optimizer'] = optimizer
-    data['lr'] = lr
-    return data
+        raise ValueError("optimizer should be sgd|adam|adamw or a custom function")
 
+    data = _get_coord_data(
+        neox_args, timers, lr_scheduler, models, dataloader, optcls, **kwargs
+    )
+    data["optimizer"] = optimizer
+    data["lr"] = lr
+    return data
