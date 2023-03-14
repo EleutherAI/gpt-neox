@@ -1,9 +1,9 @@
 # Data paths and options when using EleutherAI cluster
 {
   # you may include multiple distinct datasets if desired
-  "train-data-paths": ["/mnt/ssd-1/data/enron/enron_train_text_document"],
-  "valid-data-paths": ["/mnt/ssd-1/data/enron/enron_val_text_document"],
-  "test-data-paths": ["/mnt/ssd-1/data/enron/enron_test_text_document"],
+  "train-data-paths": ["/mnt/ssd-1/data/enwik8/enwik8_text_document"],
+  "valid-data-paths": ["/mnt/ssd-1/data/enwik8/enwik8_val_text_document"],
+  "test-data-paths": ["/mnt/ssd-1/data/enwik8/enwik8_test_text_document"],
 
   # if using multiple datasets, provide weights for them to be sampled with
   # "train-data-weights": [1., 2.],
@@ -15,7 +15,7 @@
   # "split" determines the relative size of train, val, and test
 
   # "split" 995,4,1
-  # "data_path": "/mnt/ssd-1/data/enron/enron_train_text_document",
+  # "data_path": "/mnt/ssd-1/data/enwik8/enwik8_text_document",
 
   "vocab-file": "/mnt/ssd-1/data/gpt2-vocab.json",
   "merge-file": "/mnt/ssd-1/data/gpt2-merges.txt",
