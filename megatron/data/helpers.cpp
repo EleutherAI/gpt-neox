@@ -111,7 +111,7 @@ py::array build_sample_idx(const py::array_t<int32_t>& sizes_,
 
     // Mapping and it's length (1D).
     int64_t num_samples = (num_epochs * tokens_per_epoch - 1) / seq_length;
-    int32_t* sample_idx = new int32_t[2 * (num_samples + 1)];
+    int64_t* sample_idx = new int64_t[2 * (num_samples + 1)];
 
     cout << "    using:" << endl << std::flush;
     cout << "     number of documents:       " << doc_idx_.shape(0) / num_epochs << endl
@@ -161,12 +161,12 @@ py::array build_sample_idx(const py::array_t<int32_t>& sizes_,
 
     // Method to deallocate memory.
     py::capsule free_when_done(sample_idx, [](void* mem_) {
-        int32_t* mem = reinterpret_cast<int32_t*>(mem_);
+        int64_t* mem = reinterpret_cast<int64_t*>(mem_);
         delete[] mem;
     });
 
     // Return the numpy array.
-    const auto byte_size = sizeof(int32_t);
+    const auto byte_size = sizeof(int64_t);
     return py::array(std::vector<int64_t>{num_samples + 1, 2},  // shape
                      {2 * byte_size, byte_size},                // C-style contiguous strides
                      sample_idx,                                // the data pointer

@@ -253,7 +253,7 @@ def _build_sample_idx(sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch):
 
     # Total number of samples. For -1 see comments in `_num_epochs`.
     num_samples = (num_epochs * tokens_per_epoch - 1) // seq_length
-    sample_idx = np.zeros([num_samples + 1, 2], dtype=np.int32)
+    sample_idx = np.zeros([num_samples + 1, 2], dtype=np.int64)
 
     # Index into sample_idx.
     sample_index = 0
