@@ -157,7 +157,7 @@ class ParallelLinear(nn.Module):
                 init_method=init_method,
                 gather_output=not parallel_output,
                 skip_bias_add=False,
-                mup_rescale_parameters=is_last_layer, # rescale params only called if neox_args.use_mup = True, despite it not being included here
+                mup_rescale_parameters=is_last_layer,  # rescale params only called if neox_args.use_mup = True, despite it not being included here
             )
         else:
             self.final_linear = mpu.RowParallelLinear(
@@ -169,7 +169,7 @@ class ParallelLinear(nn.Module):
                 init_method=init_method,
                 parallel_output=parallel_output,
                 skip_bias_add=False,
-                mup_rescale_parameters=is_last_layer, # only called if neox_args.use_mup = True, despite it not being included here
+                mup_rescale_parameters=is_last_layer,  # only called if neox_args.use_mup = True, despite it not being included here
             )
 
     def forward(self, hidden_states):
@@ -277,10 +277,15 @@ class ParallelSelfAttention(nn.Module):
             )
         else:
             if self.use_flash_attention:
-                from megatron.model.flash_attention import flash_attn_unpadded_qkvpacked_func
+                from megatron.model.flash_attention import (
+                    flash_attn_unpadded_qkvpacked_func,
+                )
+
                 self.flash_attention_function = flash_attn_unpadded_qkvpacked_func
                 if self.pos_emb == "alibi":
-                    raise ValueError('Flash attention is currently not compatible with AliBi positional embeddings. Use sinuisoidal, learned, or rotary embeddings instead.')
+                    raise ValueError(
+                        "Flash attention is currently not compatible with AliBi positional embeddings. Use sinuisoidal, learned, or rotary embeddings instead."
+                    )
                 from megatron.model.flash_attention import (
                     flash_attn_unpadded_qkvpacked_func,
                 )

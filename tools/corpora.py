@@ -183,8 +183,7 @@ class PileSubset(DataDownloader):
 class Pile(DataDownloader):
     name = "pile"
     urls = [
-        f"https://the-eye.eu/public/AI/pile/train/{i:02}.jsonl.zst"
-        for i in range(30)
+        f"https://the-eye.eu/public/AI/pile/train/{i:02}.jsonl.zst" for i in range(30)
     ]
 
 
@@ -230,16 +229,12 @@ class PubMed(DataDownloader):
 
 class Books1(DataDownloader):
     name = "books1"
-    urls = [
-        "https://the-eye.eu/public/AI/pile_preliminary_components/books1.tar.gz"
-    ]
+    urls = ["https://the-eye.eu/public/AI/pile_preliminary_components/books1.tar.gz"]
 
 
 class Books3(DataDownloader):
     name = "books3"
-    urls = [
-        "https://the-eye.eu/public/AI/pile_preliminary_components/books3.tar.gz"
-    ]
+    urls = ["https://the-eye.eu/public/AI/pile_preliminary_components/books3.tar.gz"]
 
 
 class HackerNews(DataDownloader):
