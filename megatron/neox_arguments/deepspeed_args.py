@@ -143,6 +143,9 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     autotuning: dict = None
     """Dictionary as described in DeepSpeed autotuning documentation: https://github.com/microsoft/DeepSpeed/tree/master/deepspeed/autotuning"""
 
+    load_universal: bool = False
+    """Flag for whether the checkpoint to be loaded is a universal checkpoint."""
+
 
 @dataclass
 class NeoXArgsDeepspeedRunner(NeoXArgsTemplate):
