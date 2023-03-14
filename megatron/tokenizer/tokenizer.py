@@ -352,6 +352,7 @@ class CharLevelTokenizer(AbstractTokenizer):
 
 class TiktokenTokenizer(AbstractTokenizer):
     """Tokenizer from OpenAI's tiktoken implementation"""
+
     try:
         import tiktoken
     except ModuleNotFoundError:
@@ -372,15 +373,19 @@ class TiktokenTokenizer(AbstractTokenizer):
 
     @property
     def vocab(self):
-        raise NotImplementedError("TiktokenTokenizer does not implement vocabulary access.")
+        raise NotImplementedError(
+            "TiktokenTokenizer does not implement vocabulary access."
+        )
 
     @property
     def inv_vocab(self):
-        raise NotImplementedError("TiktokenTokenizer does not implement vocabulary access. \
-                To get the idx-th token in vocabulary, use tokenizer.decode([idx]) .")
+        raise NotImplementedError(
+            "TiktokenTokenizer does not implement vocabulary access. \
+                To get the idx-th token in vocabulary, use tokenizer.decode([idx]) ."
+        )
 
     def tokenize(self, text: str):
-        return self.tokenizer.encode(text) #,  allowed_special="all")
+        return self.tokenizer.encode(text)  # ,  allowed_special="all")
 
     def tokenize_batch(self, text_batch: List[str]):
         return self.tokenizer.encode_batch(text_batch, allowed_special="all")
@@ -395,5 +400,3 @@ class TiktokenTokenizer(AbstractTokenizer):
     @property
     def pad(self):
         raise NotImplementedError
-
-

@@ -46,4 +46,4 @@ The values under `mup hp search` were added and correspond to appendix F.4 from 
 
 ## Transfer
 
-With the best LR set and the best mup HPs set, revert the value of hidden-size in the scaled-up config and run again.  
+With the best LR set and the best mup HPs set, revert the value of hidden-size in the scaled-up config and run again.
