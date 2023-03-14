@@ -195,17 +195,6 @@ def _merge_zero_shards(param_base_path, state, tp_degree, slice_shape):
 ORIGINAL_VOCAB_SIZE = "original_vocab_size"
 
 
-def _strip_vocab_padding(ds_checkpoint, padded_vocab_tensor):
-    checkpoint_info = ds_checkpoint.get_checkpoint_info()
-    padding_tensor = padded_vocab_tensor.narrow(
-        0,
-        checkpoint_info[ORIGINAL_VOCAB_SIZE],
-        padded_vocab_tensor.shape[0] - checkpoint_info[ORIGINAL_VOCAB_SIZE],
-    )
-    # print(f'{padded_vocab_tensor[checkpoint_info[ORIGINAL_VOCAB_SIZE]-3:,:]=}')
-    return padded_vocab_tensor.narrow(0, 0, checkpoint_info[ORIGINAL_VOCAB_SIZE])
-
-
 WEIGHTS_TO_AVERAGE_PATTERNS = [
     r"tied_modules.embed.word_embeddings.norm.weight",
     r"tied_modules.embed.word_embeddings.norm.bias",
@@ -225,15 +214,17 @@ WEIGHTS_WITH_ROW_PARALLELISM_CONTAIN = [
 ]
 
 
-def _get_vocab_divisibility_padding_tensor(ds_checkpoint, padded_vocab_tensor):
-    checkpoint_info = ds_checkpoint.get_checkpoint_info()
-    if padded_vocab_tensor.shape[0] > checkpoint_info[ORIGINAL_VOCAB_SIZE]:
+def _get_vocab_divisibility_padding_tensor(padded_vocab_tensor, neox_args):
+    # checkpoint_info = ds_checkpoint.get_checkpoint_info()
+    if padded_vocab_tensor.shape[0] > neox_args.tokenizer.vocab_size:
         return padded_vocab_tensor[-1]
     else:
         return torch.zeros(padded_vocab_tensor.shape[1])
 
 
-def merge_tp_slices(ds_checkpoint, dir, slice_dir, tp_degree, name_and_shape):
+def merge_tp_slices(
+    ds_checkpoint, neox_args, dir, slice_dir, tp_degree, name_and_shape
+):
     name, shape = name_and_shape
     slice_base_path = os.path.join(slice_dir, name)
     param_base_path = os.path.join(dir, name)
@@ -263,7 +254,7 @@ def merge_tp_slices(ds_checkpoint, dir, slice_dir, tp_degree, name_and_shape):
             # param = _strip_vocab_padding(ds_checkpoint, param)
             ckpt_dict[
                 "vocab_divisibility_padding_tensor"
-            ] = _get_vocab_divisibility_padding_tensor(ds_checkpoint, param)
+            ] = _get_vocab_divisibility_padding_tensor(neox_args, param)
             # print(f"After {param.shape=}")
 
         # print(f"Final shape: {param.shape}")
@@ -300,13 +291,14 @@ def _extract_zero_shard_files(args, ds_checkpoint, slice_shapes, temp_dir):
     _do_parallel_work(do_work, work_chunks, args.num_extract_workers)
 
 
-def _merge_tp_slice_files(args, ds_checkpoint, slice_shapes, temp_dir):
+def _merge_tp_slice_files(args, ds_checkpoint, neox_args, slice_shapes, temp_dir):
     work_chunks = list(_get_chunks(list(slice_shapes.items()), args.num_merge_workers))
     # pprint(work_chunks)
     zero_output_folder = os.path.join(args.output_folder, "zero")
     do_work = partial(
         merge_tp_slices,
         ds_checkpoint,
+        neox_args,
         zero_output_folder,
         temp_dir,
         ds_checkpoint.tp_degree,
@@ -347,7 +339,7 @@ def main():
     _extract_zero_shard_files(args, ds_checkpoint, slice_shapes, temp_dir)
 
     print("*** 2. Merging slices")
-    _merge_tp_slice_files(args, ds_checkpoint, slice_shapes, temp_dir)
+    _merge_tp_slice_files(args, ds_checkpoint, neox_args, slice_shapes, temp_dir)
 
     shutil.rmtree(temp_dir, ignore_errors=True)
 
