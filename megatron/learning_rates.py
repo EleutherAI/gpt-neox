@@ -95,7 +95,7 @@ class AnnealingLR(object):
             if self.use_mup and "width_mult" in group:
                 group["lr"] = new_lr / group["width_mult"]
             else:
-                group['lr'] = new_lr
+                group["lr"] = new_lr
 
     def state_dict(self):
         state_dict = {
