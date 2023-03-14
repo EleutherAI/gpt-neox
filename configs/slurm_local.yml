@@ -1,5 +1,5 @@
 {
-  "data-path": "data/enron/enron_text_document",
+  "data-path": "data/enwik8/enwik8_text_document",
   "vocab-file": "data/gpt2-vocab.json",
   "merge-file": "data/gpt2-merges.txt",
   "save": "checkpoints",

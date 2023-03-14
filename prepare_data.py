@@ -30,7 +30,7 @@ def get_args():
     parser.add_argument(
         "dataset",
         nargs="?",
-        default="enron",
+        default="enwik8",
         help="name of dataset to download.",
         choices=DATASET_CHOICES,
     )
