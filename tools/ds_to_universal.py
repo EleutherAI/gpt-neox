@@ -254,7 +254,7 @@ def merge_tp_slices(
             # param = _strip_vocab_padding(ds_checkpoint, param)
             ckpt_dict[
                 "vocab_divisibility_padding_tensor"
-            ] = _get_vocab_divisibility_padding_tensor(neox_args, param)
+            ] = _get_vocab_divisibility_padding_tensor(param, neox_args)
             # print(f"After {param.shape=}")
 
         # print(f"Final shape: {param.shape}")
