@@ -42,7 +42,7 @@
 
 ## Tune mup hyperparameters and LR
 
-The values under `mup hp search` were added and correspond to appendix F.4 from https://arxiv.org/pdf/2203.03466.pdf. These and LR are tuned with a random search using the scaled-up config (tested with 6-7B.yml) but with hidden-size set to the value from the scaled-down config (small.yml).
+The values under `mup hp search` were added and correspond to appendix F.4 from https://arxiv.org/pdf/2203.03466.pdf. These and LR are tuned with a random search using the scaled-up config (tested with 6-7B.yml) but with hidden-size set to the value from the scaled-down config (125M.yml).
 
 ## Transfer
 

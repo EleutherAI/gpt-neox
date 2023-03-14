@@ -238,12 +238,12 @@ You can also optionally pass in a config prefix, which will assume all your conf
 E.G:
 
 ```bash
-python ./deepy.py train.py -d configs small.yml local_setup.yml
+python ./deepy.py train.py -d configs 125M.yml local_setup.yml
 ```
 
 This will deploy the `train.py` script on all nodes with one process per GPU. The worker nodes and number of GPUs are specified in the `/job/hostfile` file (see [parameter documentation](configs/README.md)), or can simply be passed in as the `num_gpus` arg if running on a single node setup.
 
-Although this is not strictly necessary, we find it useful to define the model parameters in one config file (e.g `configs/small.yml`) and the data path parameters in another (e.g `configs/local_setup.yml`).
+Although this is not strictly necessary, we find it useful to define the model parameters in one config file (e.g `configs/125M.yml`) and the data path parameters in another (e.g `configs/local_setup.yml`).
 
 
 ## Pretrained Models
@@ -293,7 +293,7 @@ We support three types of generation from a pretrained model:
 2. Conditional generation based on an input read from a file
 3. Interactive generation, which allows for multiple rounds of back-and-forth between a user and the language model via a command line interface
 
-All three types of text generation can be launched via `python ./deepy.py generate.py -d configs small.yml local_setup.yml text_generation.yml` with the appropriate values set in `configs/text_generation.yml`.
+All three types of text generation can be launched via `python ./deepy.py generate.py -d configs 125M.yml local_setup.yml text_generation.yml` with the appropriate values set in `configs/text_generation.yml`.
 
 # Evaluation
 
