@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = ebaeec1
+    Default = 5f09348
 
     current git hash of repository
 
@@ -1545,6 +1545,14 @@ Training Arguments
     Default = 2
 
     What to scale width by when creating the delta model for mup
+
+
+
+- **mup_deferred_init**: bool
+
+    Default = False
+
+    Whether to fully initialize the base and delta models (set to true for big target models)
 
 
 

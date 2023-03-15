@@ -227,7 +227,10 @@ class ParallelSelfAttention(nn.Module):
         )
 
         coeff = None
-        self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
+        if neox_args.use_mup:
+            self.norm_factor = self.hidden_size_per_attention_head / neox_args.mup_attn_temp
+        else:
+            self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
         if self.apply_query_key_layer_scaling:
             coeff = max(1, self.layer_number)
             self.norm_factor *= coeff
