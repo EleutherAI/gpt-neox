@@ -57,11 +57,11 @@ from megatron.utils import (
 from megatron.model.gpt2_model import cross_entropy
 from eval_tasks import run_eval_harness
 
-def mup_weights_reinit(neox_args, model):
 
+def mup_weights_reinit(neox_args, model):
     def has_method(o, name):
         return callable(getattr(o, name, None))
-    
+
     for layer in model.modules():
         # This normally would happen in set_base_shapes if we actually were able to use the MuReadout class
         if hasattr(layer, "mup_rescale_parameters") and layer.mup_rescale_parameters:
@@ -84,18 +84,20 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
             print("Please install torchdistx https://github.com/pytorch/torchdistx")
             raise Exception
         base_model = torchdistx.deferred_init.deferred_init(GPT2ModelPipe(
-                                                            neox_args=neox_args,
-                                                            num_tokentypes=0,
-                                                            parallel_output=True,
-                                                            topology=mpu.get_topology(),
-                                                            use_cache=use_cache))
+                                                                neox_args=neox_args,
+                                                                num_tokentypes=0,
+                                                                parallel_output=True,
+                                                                topology=mpu.get_topology(),
+                                                                use_cache=use_cache,
+                                                             )
     else:
         base_model = GPT2ModelPipe(
-                        neox_args=neox_args,
-                        num_tokentypes=0,
-                        parallel_output=True,
-                        topology=mpu.get_topology(),
-                        use_cache=use_cache)
+            neox_args=neox_args,
+            num_tokentypes=0,
+            parallel_output=True,
+            topology=mpu.get_topology(),
+            use_cache=use_cache,
+        )
 
     print(f'MEM AFTER BASE MUP: {torch.cuda.memory_allocated(device_index)} on rank {torch.distributed.get_rank()}')
 
@@ -123,18 +125,20 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
             print("Please install torchdistx https://github.com/pytorch/torchdistx")
             raise Exception
         delta_model = torchdistx.deferred_init.deferred_init(GPT2ModelPipe(
-                                                             neox_args=neox_args,
-                                                             num_tokentypes=0,
-                                                             parallel_output=True,
-                                                             topology=mpu.get_topology(),
-                                                             use_cache=use_cache))
+                                                                neox_args=neox_args,
+                                                                num_tokentypes=0,
+                                                                parallel_output=True,
+                                                                topology=mpu.get_topology(),
+                                                                use_cache=use_cache,
+                                                             )
     else:
         delta_model = GPT2ModelPipe(
-                neox_args=neox_args,
-                num_tokentypes=0,
-                parallel_output=True,
-                topology=mpu.get_topology(),
-                use_cache=use_cache)
+            neox_args=neox_args,
+            num_tokentypes=0,
+            parallel_output=True,
+            topology=mpu.get_topology(),
+            use_cache=use_cache,
+        )
 
     print(f'MEM AFTER BASE MUP: {torch.cuda.memory_allocated(device_index)} on rank {torch.distributed.get_rank()}')
 
@@ -148,10 +152,11 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
     neox_args.hidden_size = old_hidden_size
 
     save_shapes = f"{neox_args.base_shapes_file}.{torch.distributed.get_rank()}"
-    print(f'saving base shapes at {save_shapes}')
+    print(f"saving base shapes at {save_shapes}")
     mup.make_base_shapes(base_shapes, delta_shapes, savefile=save_shapes)
-    print(f'base shapes saved...exiting')
+    print(f"base shapes saved...exiting")
     sys.exit(1)
+
 
 def mup_coord_check(neox_args, timers, lr_scheduler, train_data_iterator):
     from megatron.mup_substitute import get_coord_data
@@ -169,6 +174,7 @@ def mup_coord_check(neox_args, timers, lr_scheduler, train_data_iterator):
             neox_args.hidden_size = old_hidden_size
 
             return model
+
         return gen
 
     models = {}
@@ -178,15 +184,20 @@ def mup_coord_check(neox_args, timers, lr_scheduler, train_data_iterator):
         models[hidden_size] = lazy_model(hidden_size)
 
     neox_args.use_mup = True
-    df_up = get_coord_data(neox_args, timers, lr_scheduler, models, train_data_iterator, mup=True)
+    df_up = get_coord_data(
+        neox_args, timers, lr_scheduler, models, train_data_iterator, mup=True
+    )
     neox_args.use_mup = False
-    df_sp = get_coord_data(neox_args, timers, lr_scheduler, models, train_data_iterator, mup=False)
+    df_sp = get_coord_data(
+        neox_args, timers, lr_scheduler, models, train_data_iterator, mup=False
+    )
 
     plot_coord_data(df_up, save_to=f"coord_check_up.{torch.distributed.get_rank()}.jpg")
     plot_coord_data(df_sp, save_to=f"coord_check_sp.{torch.distributed.get_rank()}.jpg")
 
     print_rank_0("Saved coord check plots... exiting")
     sys.exit(1)
+
 
 def pretrain(neox_args):
     """Main training program.
@@ -491,7 +502,10 @@ def get_optimizer(model, neox_args):
     param_groups = _param_groups
 
     # If we're using mup, then the optimizer must be adam or sgd
-    assert not neox_args.use_mup or (neox_args.optimizer_type.lower() == "adam" or neox_args.optimizer_type.lower() == "sgd"), f'If use_mup == True, you must specify either the adam or sgd optimizers. You passed: {neox_args.optimizer_type.lower()}'
+    assert not neox_args.use_mup or (
+        neox_args.optimizer_type.lower() == "adam"
+        or neox_args.optimizer_type.lower() == "sgd"
+    ), f"If use_mup == True, you must specify either the adam or sgd optimizers. You passed: {neox_args.optimizer_type.lower()}"
 
     if neox_args.optimizer_type.lower() in ["cpu_adam", "cpu_torch_adam"]:
         if neox_args.optimizer == "cpu_torch_adam":
@@ -524,14 +538,13 @@ def get_optimizer(model, neox_args):
     elif neox_args.optimizer_type.lower() == "adam":
         # Use Adam
         if neox_args.use_mup:
-                try:
-                    from mup import MuAdam
-                    adam_optimizer = MuAdam
-                except ModuleNotFoundError:
-                    print(
-                        "Please install mup https://github.com/microsoft/mup"
-                    )
-                    raise Exception
+            try:
+                from mup import MuAdam
+
+                adam_optimizer = MuAdam
+            except ModuleNotFoundError:
+                print("Please install mup https://github.com/microsoft/mup")
+                raise Exception
         else:
             if neox_args.use_bnb_optimizer:
                 try:
@@ -563,9 +576,7 @@ def get_optimizer(model, neox_args):
         try:
             from mup import MuSGD
         except ModuleNotFoundError:
-            print(
-                "Please install mup https://github.com/microsoft/mup"
-            )
+            print("Please install mup https://github.com/microsoft/mup")
             raise Exception
         optimizer = MuSGD(
             param_groups,

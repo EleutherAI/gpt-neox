@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = cbed1b5
+    Default = ebaeec1
 
     current git hash of repository
 
@@ -1830,7 +1830,9 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = None
 
     Either "tune", "run", or `None`.
-    
+
+
+
 - **no_ssh_check**: bool
 
     Default = False
@@ -1844,12 +1846,4 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = None
 
     Adds a `--comment` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometime necessary for cluster rules, or so I've heard.
-
-
-
-- **no_ssh_check**: bool
-
-    Default = False
-
-    If `True` and running with multiple nodes, then DeepSpeedd doesn't conduct a check to ensure the head node is reachable with ssh.
 
