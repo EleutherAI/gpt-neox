@@ -91,6 +91,7 @@ COPY requirements/requirements.txt .
 COPY requirements/requirements-wandb.txt .
 COPY requirements/requirements-onebitadam.txt .
 COPY requirements/requirements-sparseattention.txt .
+COPY requirements/requirements-flashattention.txt .
 RUN pip install -r requirements.txt && pip install -r requirements-onebitadam.txt && \
     pip install -r requirements-sparseattention.txt && \
     pip install -r requirements-flashattention.txt && \
