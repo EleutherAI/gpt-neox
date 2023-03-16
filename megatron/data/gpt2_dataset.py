@@ -164,7 +164,7 @@ def _build_index_mappings(
             doc_idx = _build_doc_idx(documents, num_epochs, np_rng)
             np.save(doc_idx_filename, doc_idx, allow_pickle=True)
             print_rank_0(
-                " > elasped time to build and save doc-idx mapping "
+                " > elapsed time to build and save doc-idx mapping "
                 "(seconds): {:4f}".format(time.time() - start_time)
             )
             # sample-idx.
@@ -174,11 +174,16 @@ def _build_index_mappings(
 
             assert doc_idx.dtype == np.int32
             assert sizes.dtype == np.int32
-            sample_idx = helpers.build_sample_idx(
-                sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch
-            )
-            # sample_idx = _build_sample_idx(sizes, doc_idx, seq_length,
-            #                               num_epochs, tokens_per_epoch)
+
+            num_samples = (num_epochs * tokens_per_epoch - 1) / seq_length
+            if 2 * (num_samples + 1) < np.iinfo(np.int32).max:
+                sample_idx = helpers.build_sample_idx_int32(
+                    sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch
+                )
+            else:
+                sample_idx = helpers.build_sample_idx_int64(
+                    sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch
+                )
             np.save(sample_idx_filename, sample_idx, allow_pickle=True)
             print_rank_0(
                 " > elapsed time to build and save sample-idx mapping "
@@ -260,7 +265,7 @@ def _build_sample_idx(sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch):
 
     # Total number of samples. For -1 see comments in `_num_epochs`.
     num_samples = (num_epochs * tokens_per_epoch - 1) // seq_length
-    sample_idx = np.zeros([num_samples + 1, 2], dtype=np.int32)
+    sample_idx = np.zeros([num_samples + 1, 2], dtype=np.int64)
 
     # Index into sample_idx.
     sample_index = 0
