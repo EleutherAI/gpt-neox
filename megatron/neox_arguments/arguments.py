@@ -352,7 +352,7 @@ class NeoXArgs(*BASE_CLASSES):
         if args_parsed.conf_dir:
             conf_files = [os.path.join(args_parsed.conf_dir, f) for f in conf_files]
 
-        # enables us to pass in `small` instead of `small.yml`
+        # enables us to pass in `125M` instead of `125M.yml`
         conf_files = [
             (cf if (cf.endswith(".yml") or cf.endswith(".json")) else cf + ".yml")
             for cf in conf_files

@@ -132,7 +132,7 @@ def build_train_valid_test_datasets(
                 train_valid_test_num_samples[index],
                 seq_length,
                 seed,
-                use_shared_fs=use_shared_fs
+                use_shared_fs=use_shared_fs,
             )
         return dataset
 

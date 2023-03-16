@@ -63,37 +63,37 @@ def run_neox_args_load_test(yaml_files):
 
 
 @pytest.mark.cpu
-def test_neoxargs_load_arguments_small_local_setup():
+def test_neoxargs_load_arguments_125M_local_setup():
     """
-    verify small.yml can be loaded without raising validation errors
+    verify 125M.yml can be loaded without raising validation errors
     """
-    run_neox_args_load_test(["small.yml", "local_setup.yml", "cpu_mock_config.yml"])
+    run_neox_args_load_test(["125M.yml", "local_setup.yml", "cpu_mock_config.yml"])
 
 
 @pytest.mark.cpu
-def test_neoxargs_load_arguments_small_local_setup_text_generation():
+def test_neoxargs_load_arguments_125M_local_setup_text_generation():
     """
-    verify small.yml can be loaded together with text generation without raising validation errors
+    verify 125M.yml can be loaded together with text generation without raising validation errors
     """
     run_neox_args_load_test(
-        ["small.yml", "local_setup.yml", "text_generation.yml", "cpu_mock_config.yml"]
+        ["125M.yml", "local_setup.yml", "text_generation.yml", "cpu_mock_config.yml"]
     )
 
 
 @pytest.mark.cpu
-def test_neoxargs_load_arguments_medium_local_setup():
+def test_neoxargs_load_arguments_350M_local_setup():
     """
-    verify medium.yml can be loaded without raising validation errors
+    verify 350M.yml can be loaded without raising validation errors
     """
-    run_neox_args_load_test(["medium.yml", "local_setup.yml", "cpu_mock_config.yml"])
+    run_neox_args_load_test(["350M.yml", "local_setup.yml", "cpu_mock_config.yml"])
 
 
 @pytest.mark.cpu
-def test_neoxargs_load_arguments_large_local_setup():
+def test_neoxargs_load_arguments_760M_local_setup():
     """
-    verify large.yml can be loaded without raising validation errors
+    verify 760M.yml can be loaded without raising validation errors
     """
-    run_neox_args_load_test(["large.yml", "local_setup.yml", "cpu_mock_config.yml"])
+    run_neox_args_load_test(["760M.yml", "local_setup.yml", "cpu_mock_config.yml"])
 
 
 @pytest.mark.cpu
@@ -121,11 +121,11 @@ def test_neoxargs_load_arguments_13B_local_setup():
 
 
 @pytest.mark.cpu
-def test_neoxargs_load_arguments_XL_local_setup():
+def test_neoxargs_load_arguments_1_3B_local_setup():
     """
-    verify XL.yml can be loaded without raising validation errors
+    verify 1-3B.yml can be loaded without raising validation errors
     """
-    run_neox_args_load_test(["XL.yml", "local_setup.yml", "cpu_mock_config.yml"])
+    run_neox_args_load_test(["1-3B.yml", "local_setup.yml", "cpu_mock_config.yml"])
 
 
 @pytest.mark.cpu

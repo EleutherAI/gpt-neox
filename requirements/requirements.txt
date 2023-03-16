@@ -1,3 +1,4 @@
+best_download
 deepspeed
 ftfy>=6.0.1
 git+https://github.com/EleutherAI/lm_dataformat.git@4eec05349977071bf67fc072290b95e31c8dd836
@@ -9,7 +10,6 @@ pybind11>=2.6.2
 regex
 sentencepiece
 six
-best_download
 tiktoken>=0.1.2
 tokenizers>=0.12.1
 transformers>=4.24.0
