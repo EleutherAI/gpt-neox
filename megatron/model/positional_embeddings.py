@@ -97,52 +97,6 @@ def apply_rotary_pos_emb_torch(
     return (q * cos) + (rotate_half(q) * sin), (k * cos) + (rotate_half(k) * sin)
 
 
-@torch.jit.script
-def apply_llama_rotary_pos_emb(q, k, cos, sin, offset: int = 0):
-    # Inefficient because of all the reshaping, probably
-    cos, sin = (
-        cos[offset: q.shape[0] + offset, ...],
-        sin[offset: q.shape[0] + offset, ...],
-    )
-    q_reshaped = q.unflatten(-1, (q.shape[-1] // 2, 2)).transpose(-2, -1).flatten(3)
-    k_reshaped = k.unflatten(-1, (k.shape[-1] // 2, 2)).transpose(-2, -1).flatten(3)
-    q_out = (q_reshaped * cos) + (rotate_half(q_reshaped) * sin)
-    k_out = (k_reshaped * cos) + (rotate_half(k_reshaped) * sin)
-    return (
-        q_out.unflatten(-1, (2, q_out.shape[-1]//2)).transpose(-2, -1).flatten(3),
-        k_out.unflatten(-1, (2, k_out.shape[-1]//2)).transpose(-2, -1).flatten(3),
-    )
-
-
-def apply_llama_rotary_pos_emb_torch(q, k, cos, sin, offset: int = 0):
-    # Inefficient because of all the reshaping, probably
-    cos, sin = (
-        cos[offset: q.shape[0] + offset, ...],
-        sin[offset: q.shape[0] + offset, ...],
-    )
-    q_reshaped = q.reshape(*q.shape[:-1], q.shape[-1] // 2, 2).transpose(-2, -1).flatten(3)
-    k_reshaped = k.reshape(*q.shape[:-1], k.shape[-1] // 2, 2).transpose(-2, -1).flatten(3)
-    q_out = (q_reshaped * cos) + (rotate_half(q_reshaped) * sin)
-    k_out = (k_reshaped * cos) + (rotate_half(k_reshaped) * sin)
-    return (
-        q_out.unflatten(-1, (2, q_out.shape[-1]//2)).transpose(-2, -1).flatten(3),
-        k_out.unflatten(-1, (2, k_out.shape[-1]//2)).transpose(-2, -1).flatten(3),
-    )
-
-
-def get_rotary_fn(bf16: bool, llama_rotary: bool):
-    if llama_rotary:
-        if bf16:
-            return apply_llama_rotary_pos_emb_torch
-        else:
-            return apply_llama_rotary_pos_emb
-    else:
-        if bf16:
-            return apply_rotary_pos_emb_torch
-        else:
-            return apply_rotary_pos_emb
-
-
 class AliBi(torch.nn.Module):
     def __init__(self, num_heads, mp_size=1, mp_rank=1):
         super().__init__()

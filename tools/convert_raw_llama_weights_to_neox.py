@@ -58,7 +58,7 @@ def convert_model(output_base_path, input_base_path, model_size: str, num_output
 
     model_path = os.path.join(output_base_path, "global_step0")
     os.makedirs(model_path, exist_ok=True)
-    write_file("0", os.path.join(output_base_path, "latest"))
+    write_file("global_step0", os.path.join(output_base_path, "latest"))
 
     params = read_json(os.path.join(input_base_path, "params.json"))
     num_input_shards = NUM_SHARDS[model_size]
@@ -70,6 +70,12 @@ def convert_model(output_base_path, input_base_path, model_size: str, num_output
     dims_per_head = hidden_size // num_heads
     # base = 10000.0
     # inv_freq = 1.0 / (base ** (torch.arange(0, dims_per_head, 2).float() / dims_per_head))
+
+    def permute_rotary(w):
+        assert w.shape == (num_heads, dims_per_head, hidden_size)
+        return w.view(num_heads, dims_per_head // 2, 2, hidden_size) \
+            .transpose(1, 2) \
+            .reshape(num_heads, dims_per_head, hidden_size)
 
     pbar = tqdm.tqdm(total=num_input_shards + num_layers + 3)
 
@@ -135,18 +141,18 @@ def convert_model(output_base_path, input_base_path, model_size: str, num_output
         helper.del_loaded(f"layers.{layer_i}.feed_forward.w3.weight")
 
         # Attention
-        w_q = torch.cat([
+        w_q = permute_rotary(torch.cat([
             loaded[rank][f"layers.{layer_i}.attention.wq.weight"].view(
                 num_heads_per_input_shard, dims_per_head, hidden_size
             )
             for rank in range(num_input_shards)
-        ], dim=0)
-        w_k = torch.cat([
+        ], dim=0))
+        w_k = permute_rotary(torch.cat([
             loaded[rank][f"layers.{layer_i}.attention.wk.weight"].view(
                 num_heads_per_input_shard, dims_per_head, hidden_size
             )
             for rank in range(num_input_shards)
-        ], dim=0)
+        ], dim=0))
         w_v = torch.cat([
             loaded[rank][f"layers.{layer_i}.attention.wv.weight"].view(
                 num_heads_per_input_shard, dims_per_head, hidden_size

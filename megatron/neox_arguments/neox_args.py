@@ -162,11 +162,6 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Learned position embedding offset (only used by OPT, where it should be set to 2).
     """
 
-    llama_rotary: bool = False
-    """
-    If true, use LLaMA's interleaved rotary. Otherwise, use GPT-NeoX-20B rotary.
-    """
-
     no_weight_tying: bool = False
     """
     Disables weight tying between embedding weights and final Linear layer

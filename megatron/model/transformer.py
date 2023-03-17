@@ -29,7 +29,8 @@ from megatron.model.activations import get_activation
 from megatron.model.utils import exists, get_fusion_type
 from megatron.model.positional_embeddings import (
     RotaryEmbedding,
-    get_rotary_fn,
+    apply_rotary_pos_emb_torch,
+    apply_rotary_pos_emb,
     AliBi,
 )
 from megatron.model.fused_bias_dropout import (
@@ -316,7 +317,6 @@ class ParallelSelfAttention(nn.Module):
             self.rotary_emb = RotaryEmbedding(
                 dim, base=neox_args.rotary_emb_base, precision=neox_args.params_dtype
             )
-            self.llama_rotary = neox_args.llama_rotary
         else:
             self.rotary_emb = None
 
@@ -596,7 +596,11 @@ class ParallelSelfAttention(nn.Module):
             else:
                 # full rotary
                 query_rot, key_rot = query_layer, key_layer
-            apply_rotary_fn = get_rotary_fn(bf16=self.bf16, llama_rotary=self.llama_rotary)
+
+            if self.bf16:
+                apply_rotary_fn = apply_rotary_pos_emb_torch
+            else:
+                apply_rotary_fn = apply_rotary_pos_emb
 
             seq_len = key_layer.shape[0]
             offset = 0
