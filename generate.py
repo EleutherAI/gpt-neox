@@ -31,7 +31,6 @@ def main():
     Generate text/sample model
     """
     model, neox_args = setup_for_inference_or_eval(use_cache=True)
-    neox_args.text_gen_type = "interactive"
     if neox_args.recompute:
         model.module.inference_mode(
             use_cache=False

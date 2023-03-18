@@ -73,11 +73,6 @@ def rotate_half(x):
     )  # dim=-1 triggers a bug in earlier torch versions
 
 
-# def rotate_half(x):
-#     x1, x2 = x[..., ::2], x[..., 1::2]
-#     return torch.stack((-x2, x1), dim=x1.ndim - 1).transpose(-2, -1).reshape(*x1.shape[:-1], -1)
-
-
 @torch.jit.script
 def apply_rotary_pos_emb(q, k, cos, sin, offset: int = 0):
     cos, sin = (

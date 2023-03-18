@@ -597,10 +597,9 @@ class ParallelSelfAttention(nn.Module):
                 # full rotary
                 query_rot, key_rot = query_layer, key_layer
 
-            if self.bf16:
-                apply_rotary_fn = apply_rotary_pos_emb_torch
-            else:
-                apply_rotary_fn = apply_rotary_pos_emb
+            apply_rotary_fn = (
+                apply_rotary_pos_emb_torch if self.bf16 else apply_rotary_pos_emb
+            )
 
             seq_len = key_layer.shape[0]
             offset = 0
@@ -869,9 +868,9 @@ class ParallelLinearPipe(ParallelLinear):
 class NormPipe(nn.Module):
     """Just a helper class to pass presents through to the output when doing inference with a Pipe Parallel model"""
 
-    def __init__(self, norm_class, hidden_size, eps, **norm_kwargs):
+    def __init__(self, norm_class, hidden_size, eps):
         super().__init__()
-        self.norm = norm_class(hidden_size, eps=eps, **norm_kwargs)
+        self.norm = norm_class(hidden_size, eps=eps)
 
     def forward(self, args):
         assert not isinstance(
