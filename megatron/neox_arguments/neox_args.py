@@ -612,6 +612,11 @@ class NeoXArgsOther(NeoXArgsTemplate):
     Run via SLURM, this will attempt to discover the necessary variables to initialize torch distributed from the SLURM environment
     """
 
+    deepspeed_jsrun: bool = False
+    """
+    Run via JSRUN, this will attempt to discover the necessary variables to initialize torch distributed from the IBM LSF environment
+    """
+
     user_script: str = None
     """
     user script to be run

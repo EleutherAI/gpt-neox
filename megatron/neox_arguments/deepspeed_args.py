@@ -192,7 +192,7 @@ class NeoXArgsDeepspeedRunner(NeoXArgsTemplate):
     IP address of node 0, will be inferred via 'hostname -I' if not specified.
     """
 
-    launcher: Literal["pdsh", "openmpi", "mvapich", "slurm"] = "pdsh"
+    launcher: Literal["pdsh", "openmpi", "mvapich", "slurm", "jsrun"] = "pdsh"
     """
     Launcher backend for multi-node training. Options currently include PDSH, OpenMPI, MVAPICH.
     """
