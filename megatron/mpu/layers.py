@@ -564,6 +564,71 @@ class ColumnParallelLinear(torch.nn.Module):
         return output, output_bias
 
 
+class ColumnParallelLinearIA3(ColumnParallelLinear):
+    def __init__(
+        self,
+        neox_args,
+        input_size,
+        output_size,
+        bias=True,
+        gather_output=True,
+        init_method=init.xavier_normal_,
+        stride=1,
+        keep_master_weight_for_test=False,
+        skip_bias_add=False,
+        mup_rescale_parameters=False,
+    ):
+        super().__init__(
+            neox_args,
+            input_size,
+            output_size,
+            bias=bias,
+            gather_output=gather_output,
+            init_method=init_method,
+            stride=stride,
+            keep_master_weight_for_test=keep_master_weight_for_test,
+            skip_bias_add=skip_bias_add,
+            mup_rescale_parameters=mup_rescale_parameters
+            )
+        if neox_args.use_cpu_initialization:
+            self.l_ff = Parameter(
+                torch.empty(
+                        self.output_size_per_partition, dtype=neox_args.params_dtype
+                    )
+                )
+        else:
+            self.l_ff = Parameter(
+                torch.empty(
+                        self.output_size_per_partition,
+                        device=torch.cuda.current_device(),
+                        dtype=neox_args.params_dtype,
+                    )
+                )
+            self.l_ff.model_parallel = True
+            self.l_ff.partition_dim = 0
+            self.l_ff.stride = stride
+            # Always initialize l_ff to ones.
+            with torch.no_grad():
+                torch.nn.init.ones_(self.l_ff)
+
+    def forward(self, input_):
+        if self.use_mup and self.mup_rescale_parameters:
+            input_ /= self.width_mult()
+        # Set up backprop all-reduce.
+        input_parallel = copy_to_model_parallel_region(input_)
+        # Matrix multiply.
+
+        bias = self.bias if not self.skip_bias_add else None
+        output_parallel = F.linear(input_parallel, self.weight, bias)
+        output_parallel *= self.l_ff  # apply IA3 rescaling
+        if self.gather_output:
+            # All-gather across the partitions.
+            output = gather_from_model_parallel_region(output_parallel)
+        else:
+            output = output_parallel
+        output_bias = self.bias if self.skip_bias_add else None
+        return output, output_bias
+
 class RowParallelLinear(torch.nn.Module):
     """Linear layer with row parallelism.
 

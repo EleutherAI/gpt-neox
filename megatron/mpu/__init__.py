@@ -36,6 +36,7 @@ from .initialize import initialize_model_parallel
 from .initialize import model_parallel_is_initialized
 
 from .layers import ColumnParallelLinear
+from .layers import ColumnParallelLinearIA3
 from .layers import RowParallelLinear
 from .layers import VocabParallelEmbedding
 from .layers import ParallelRelativePositionBias

@@ -355,9 +355,25 @@ class NeoXArgsModel(NeoXArgsTemplate):
     """
 
     output_layer_parallelism: Literal["row", "column"] = "row"
+    ia3_prompt_tuning: bool = False
+    """
+    Run IA3 prompt tuning based off:
+    Few-Shot Parameter-Efficient Fine-Tuning is Better and Cheaper than In-Context Learning
+    https://arxiv.org/pdf/2205.05638.pdf
+    """
 
     """
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
+    """
+
+    self_attention_cls: str = "ParallelSelfAttention"
+    """
+    Default class to use for self attention
+    """
+
+    mlp_column_parallel_cls: str = "ColumnParallelLinear"
+    """
+    Default class to use for linear column layer parallelism
     """
 
 

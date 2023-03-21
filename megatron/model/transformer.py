@@ -18,6 +18,7 @@
 """Transformer."""
 
 import math
+import sys
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
@@ -93,7 +94,9 @@ class ParallelMLP(nn.Module):
             if self.activation_type == "geglu"
             else ff_mult * neox_args.hidden_size
         )
-        self.dense_h_to_4h = mpu.ColumnParallelLinear(
+        mlp_column_parallel_cls = getattr(mpu, neox_args.mlp_column_parallel_cls)
+
+        self.dense_h_to_4h = mlp_column_parallel_cls(
             neox_args=neox_args,
             input_size=neox_args.hidden_size,
             output_size=ff_dim,
@@ -590,6 +593,166 @@ class ParallelSelfAttention(nn.Module):
         return output, bias
 
 
+class ParallelSelfAttentionIA3(ParallelSelfAttention):
+    def __init__(
+        self,
+        neox_args,
+        attention_mask_func,
+        init_method,
+        output_layer_init_method,
+        layer_number,
+        rpe=None,
+        rotary=False,
+        use_cache=False,
+        parallel_output=False,
+    ):
+        super().__init__(
+            neox_args,
+            attention_mask_func,
+            init_method,
+            output_layer_init_method,
+            layer_number,
+            rpe=rpe,
+            rotary=rotary,
+            use_cache=use_cache,
+            parallel_output=parallel_output,
+        )
+        self.l_k = self._create_ia3_parameter(neox_args)
+        self.l_v = self._create_ia3_parameter(neox_args)
+
+    def _create_ia3_parameter(self, neox_args):
+        if neox_args.use_cpu_initialization:
+            param = torch.nn.Parameter(
+                torch.empty(
+                        self.hidden_size_per_partition, dtype=neox_args.params_dtype
+                    )
+                )
+        else:
+            param = torch.nn.Parameter(
+                torch.empty(
+                        self.hidden_size_per_partition,
+                        device=torch.cuda.current_device(),
+                        dtype=neox_args.params_dtype,
+                    )
+                )
+            param.model_parallel = True
+            param.partition_dim = 0
+            #param.stride = stride
+            # Always initialize to ones.
+            with torch.no_grad():
+                torch.nn.init.ones_(param)
+        return param
+
+    def forward(self, hidden_states, attention_mask, layer_past=None):
+
+        # hidden_states: [sq, b, h]
+
+        # =====================
+        # Query, Key, and Value
+        # =====================
+
+        # Attention heads [sq, b, h] --> [sq, b, (np * 3 * hn)]
+        mixed_x_layer, _ = self.query_key_value(hidden_states)
+
+        # [sq, b, (np * 3 * hn)] --> [sq, b, np, 3 * hn]
+        new_tensor_shape = mixed_x_layer.size()[:-1] + (
+            self.num_attention_heads_per_partition,
+            3 * self.hidden_size_per_attention_head,
+        )
+        mixed_x_layer = mixed_x_layer.view(*new_tensor_shape)
+
+        # [sq, b, np, 3 * hn] --> 3 [sq, b, np, hn]
+        (query_layer, key_layer, value_layer) = mpu.split_tensor_along_last_dim(
+            mixed_x_layer, 3
+        )
+        # Apply IA3 rescaling to keys & values:
+        def _apply_ia3_rescaling(layer, scale_vector):
+            layer_size  = layer.shape
+            layer = layer.reshape(layer_size[0], layer_size[1], -1)
+            layer *= scale_vector
+            return layer.reshape(layer_size)
+
+        key_layer = _apply_ia3_rescaling(key_layer, self.l_k)
+        value_layer = _apply_ia3_rescaling(value_layer, self.l_v)
+
+        if exists(self.rotary_emb):
+            if exists(self.rotary_ndims):
+                # partial rotary
+                query_rot, query_pass = (
+                    query_layer[..., : self.rotary_ndims],
+                    query_layer[..., self.rotary_ndims :],
+                )
+                key_rot, key_pass = (
+                    key_layer[..., : self.rotary_ndims],
+                    key_layer[..., self.rotary_ndims :],
+                )
+            else:
+                # full rotary
+                query_rot, key_rot = query_layer, key_layer
+            apply_rotary_fn = (
+                apply_rotary_pos_emb_torch if self.bf16 else apply_rotary_pos_emb
+            )
+
+            seq_len = key_layer.shape[0]
+            offset = 0
+            if exists(layer_past) and layer_past.numel() > 0:
+                offset = layer_past[0].shape[0]
+                seq_len += offset
+            cos, sin = self.rotary_emb(value_layer, seq_len=seq_len)
+            query_layer, key_layer = apply_rotary_fn(
+                query_rot, key_rot, cos, sin, offset=offset
+            )
+
+            if exists(self.rotary_ndims):
+                query_layer = torch.cat((query_layer, query_pass), dim=-1)
+                key_layer = torch.cat((key_layer, key_pass), dim=-1)
+
+        # ==================================
+        # Cache key and value for inference
+        # ==================================
+
+        if exists(layer_past) and layer_past.numel() > 0:
+            past_key, past_value = layer_past
+            key_layer = torch.cat((past_key.type_as(key_layer), key_layer), dim=0)
+            value_layer = torch.cat(
+                (past_value.type_as(value_layer), value_layer), dim=0
+            )
+
+        if self.use_cache:
+            present = torch.stack((key_layer, value_layer))
+
+        if self.use_flash_attention:
+            context_layer = self.flash_attention(query_layer, key_layer, value_layer)
+        elif not self.sparse:
+            context_layer = self.attention(
+                query_layer, key_layer, value_layer, layer_past, attention_mask
+            )
+        else:
+            context_layer = self.sparse_attention(
+                query_layer, key_layer, value_layer, attention_mask
+            )
+
+        # [b, np, sq, hn] --> [sq, b, np, hn]
+        context_layer = context_layer.permute(2, 0, 1, 3).contiguous()
+
+        # [sq, b, np, hn] --> [sq, b, hp]
+        new_context_layer_shape = context_layer.size()[:-2] + (
+            self.hidden_size_per_partition,
+        )
+        context_layer = context_layer.view(*new_context_layer_shape)
+
+        # =================
+        # Output. [sq, b, h]
+        # =================
+
+        output, bias = self.dense(context_layer)
+
+        if self.use_cache:
+            output = [output, present]
+
+        return output, bias
+
+
 class ParallelTransformerLayer(nn.Module):
     """A single transformer layer.
 
@@ -625,9 +788,10 @@ class ParallelTransformerLayer(nn.Module):
 
         if self.gpt_j_residual:
             self.reduce = mpu.mappings.reduce_from_model_parallel_region
+        self_attention_cls = getattr(sys.modules[__name__], neox_args.self_attention_cls)
 
         # Self attention.
-        self.attention = ParallelSelfAttention(
+        self.attention = self_attention_cls(
             neox_args=neox_args,
             attention_mask_func=attention_mask_func,
             init_method=init_method,
