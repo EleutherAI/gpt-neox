@@ -274,7 +274,7 @@ We additionally have 150 checkpoints saved throughout training, one every 1,000 
 
 ### Pythia
 
-The Pythia Scaling Suite is a suite of models ranging from 19M parameters to 13B parameters trained on [the Pile](pile.eleuther.ai) intended to promote research on interpretability and training dynamics of large language models. Further details about the project and links to the models can be found [here](https://github.com/EleutherAI/pythia).
+The Pythia Scaling Suite is a suite of models ranging from 19M parameters to 13B parameters trained on [the Pile](https://pile.eleuther.ai) intended to promote research on interpretability and training dynamics of large language models. Further details about the project and links to the models can be found [here](https://github.com/EleutherAI/pythia).
 
 ### Polyglot
 
