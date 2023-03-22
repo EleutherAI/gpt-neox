@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from flash_attention import flash_attn_triton
+from flash_attn import flash_attn_triton
 import flash_attn_cuda
 
 
