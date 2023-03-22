@@ -152,6 +152,8 @@ def _initialize_distributed(neox_args):
             distributed_port=os.getenv("MASTER_PORT", "6000"),
             verbose=True,
         )
+        neox_args.rank = deepspeed.comm.get_rank()
+        neox_args.world_size = deepspeed.comm.get_world_size()
 
     # Setup 3D topology.
     pp = neox_args.pipe_parallel_size if neox_args.pipe_parallel_size >= 1 else 1
