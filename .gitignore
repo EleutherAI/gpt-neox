@@ -9,6 +9,8 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
+data-from-leecheng/.*
+data/.*
 develop-eggs/
 dist/
 downloads/
