@@ -187,4 +187,4 @@ def flash_attn_unpadded_qkvpacked_func_cuda(
 
 
 def flash_attn_unpadded_qkvpacked_func_triton(q, k, v, bias=None, causal=False):
-    flash_attn_triton.FlashAttnQKVPackedFunc.apply(q, k, v, bias=bias, causal=causal)
+    flash_attn_triton.FlashAttnQKVPackedFunc.apply(q, k, v, bias, causal)
