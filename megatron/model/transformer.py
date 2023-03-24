@@ -473,7 +473,7 @@ class ParallelSelfAttention(nn.Module):
         else:
             bias = self.alibi_embed.bias(sq, sk, query_layer.device, query_layer.dtype)
             matmul_result = self.flash_attention_function(
-                query_layer, key_layer, value_layer, bias, causal=True
+                query_layer, key_layer, value_layer, bias, True
             )
 
         return matmul_result
