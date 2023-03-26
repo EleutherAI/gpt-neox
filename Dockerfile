@@ -31,9 +31,9 @@ RUN apt-get update -y && \
 
 ### SSH
 # Set password
-RUN echo 'password' >> password.txt && \
-    mkdir /var/run/sshd && \
-    echo "root:`cat password.txt`" | chpasswd && \
+ENV PASSWORD=password
+RUN mkdir /var/run/sshd && \
+    echo "root:${PASSWORD}" | chpasswd && \
     # Allow root login with password
     sed -i 's/PermitRootLogin without-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     # Prevent user being kicked off after login
@@ -41,9 +41,7 @@ RUN echo 'password' >> password.txt && \
     echo 'AuthorizedKeysFile     .ssh/authorized_keys' >> /etc/ssh/sshd_config && \
     echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config && \
     # FIX SUDO BUG: https://github.com/sudo-project/sudo/issues/42
-    echo "Set disable_coredump false" >> /etc/sudo.conf && \
-    # Clean up
-    rm password.txt
+    echo "Set disable_coredump false" >> /etc/sudo.conf
 
 # Expose SSH port
 EXPOSE 22
@@ -90,10 +88,14 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
 #### Python packages
 RUN pip install torch==1.8.1+cu111 -f https://download.pytorch.org/whl/torch_stable.html && pip cache purge
 COPY requirements/requirements.txt .
+COPY requirements/requirements-wandb.txt .
 COPY requirements/requirements-onebitadam.txt .
 COPY requirements/requirements-sparseattention.txt .
+COPY requirements/requirements-flashattention.txt .
 RUN pip install -r requirements.txt && pip install -r requirements-onebitadam.txt && \
     pip install -r requirements-sparseattention.txt && \
+    pip install -r requirements-flashattention.txt && \
+    pip install -r requirements-wandb.txt && \
     pip install protobuf==3.20.* && \
     pip cache purge
 

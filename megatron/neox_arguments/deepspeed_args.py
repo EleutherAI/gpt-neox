@@ -19,6 +19,11 @@ try:
 except ImportError:
     from template import NeoXArgsTemplate
 
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
+
 
 @dataclass
 class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
@@ -117,6 +122,14 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     """
 
     # ---Logging Options---
+
+    curriculum_learning: dict = None
+    """"""
+
+    curriculum_seqlen: int = 0
+    """
+    Internal var for tracking the current seqlen
+    """
 
     steps_per_print: int = 10
     """
@@ -265,6 +278,9 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     Dictionary of extra arguments to be included in the yaml config file. This can be used for any argument not included in the above list.
     """
 
+    autotuning: dict = None
+    """Dictionary as described in DeepSpeed autotuning documentation: https://github.com/microsoft/DeepSpeed/tree/master/deepspeed/autotuning"""
+
 
 @dataclass
 class NeoXArgsDeepspeedRunner(NeoXArgsTemplate):
@@ -314,7 +330,7 @@ class NeoXArgsDeepspeedRunner(NeoXArgsTemplate):
     IP address of node 0, will be inferred via 'hostname -I' if not specified.
     """
 
-    launcher: str = "pdsh"
+    launcher: Literal["pdsh", "openmpi", "mvapich", "slurm"] = "pdsh"
     """
     Launcher backend for multi-node training. Options currently include PDSH, OpenMPI, MVAPICH.
     """
@@ -322,6 +338,11 @@ class NeoXArgsDeepspeedRunner(NeoXArgsTemplate):
     detect_nvlink_pairs: bool = False
     """
     If true, autodetects nvlink pairs and remaps cuda visible devices to place them next to each other. This is an Eleuther addition to deepspeed, and should speed up model parallel training on setups with nvlink pairs when mp=2.
+    """
+
+    autotuning_run: str = None
+    """
+    Either "tune", "run", or `None`.
     """
 
     no_ssh_check: bool = False
