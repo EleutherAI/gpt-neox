@@ -36,6 +36,7 @@ class AnnealingLR(object):
         min_lr=0.0,
         use_checkpoint_lr_scheduler=True,
         override_lr_scheduler=False,
+        use_mup=False,
     ):
 
         # Class values.
@@ -49,6 +50,7 @@ class AnnealingLR(object):
         self.decay_style = decay_style
         self.override_lr_scheduler = override_lr_scheduler
         self.use_checkpoint_lr_scheduler = use_checkpoint_lr_scheduler
+        self.use_mup = use_mup
         if self.override_lr_scheduler:
             assert not self.use_checkpoint_lr_scheduler, (
                 "both override and " "use-checkpoint are set."
@@ -90,7 +92,10 @@ class AnnealingLR(object):
         self.num_iters = step_num
         new_lr = self.get_lr()
         for group in self.optimizer.param_groups:
-            group["lr"] = new_lr
+            if self.use_mup and "width_mult" in group:
+                group["lr"] = new_lr / group["width_mult"]
+            else:
+                group["lr"] = new_lr
 
     def state_dict(self):
         state_dict = {

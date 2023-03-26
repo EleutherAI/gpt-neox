@@ -97,12 +97,12 @@
    "wall_clock_breakdown": true,
 
   # Suggested data paths when using GPT_NeoX locally
-  "data_path": "data/enron/enron_text_document",
+  "data_path": "data/enwik8/enwik8_text_document",
 
   # or for weighted datasets:
-  # "train-data-paths": ["data/enron/enron_text_document", "data/enron/enron_text_document"],
-  # "test-data-paths": ["data/enron/enron_text_document", "data/enron/enron_text_document"],
-  # "valid-data-paths": ["data/enron/enron_text_document", "data/enron/enron_text_document"],
+  # "train-data-paths": ["data/enwik8/enwik8_text_document", "data/enwik8/enwik8_text_document"],
+  # "test-data-paths": ["data/enwik8/enwik8_text_document", "data/enwik8/enwik8_text_document"],
+  # "valid-data-paths": ["data/enwik8/enwik8_text_document", "data/enwik8/enwik8_text_document"],
   # "train-data-weights": [1., 2.],
   # "test-data-weights": [2., 1.],
   # "valid-data-weights": [0.5, 0.4],

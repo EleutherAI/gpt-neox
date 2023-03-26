@@ -36,6 +36,7 @@ from .mappings import scatter_to_model_parallel_region
 from .random import get_cuda_rng_tracker
 from .utils import divide
 from .utils import VocabUtility
+from functools import partial
 
 
 def _initialize_affine_weight_gpu(weight, init_method, partition_dim, stride=1):
@@ -128,6 +129,7 @@ class VocabParallelEmbedding(torch.nn.Module):
         self.num_embeddings_per_partition = (
             self.vocab_end_index - self.vocab_start_index
         )
+        self.init_method = init_method
 
         # Allocate weights and initialize.
         if neox_args.use_cpu_initialization:
@@ -158,6 +160,25 @@ class VocabParallelEmbedding(torch.nn.Module):
             )
             _initialize_affine_weight_gpu(
                 self.weight, init_method, partition_dim=0, stride=1
+            )
+
+    def mup_reinitialize_weights(self, neox_args):
+        if neox_args.use_cpu_initialization:
+            _initialize_affine_weight_cpu(
+                neox_args,
+                self.weight,
+                self.num_embeddings,
+                self.embedding_dim,
+                self.num_embeddings_per_partition,
+                0,
+                partial(self.init_method, use_mup=True),
+            )
+        else:
+            _initialize_affine_weight_gpu(
+                self.weight,
+                partial(self.init_method, use_mup=True),
+                partition_dim=0,
+                stride=1,
             )
 
     def forward(self, input_):
@@ -235,6 +256,7 @@ class ParallelRelativePositionBias(torch.nn.Module):
             self.heads, self.model_parallel_rank, self.model_parallel_size
         )
         self.num_heads_per_partition = self.head_end_index - self.head_start_index
+        self.init_method = init_method
 
         # Allocate weights and initialize.
         if neox_args.use_cpu_initialization:
@@ -269,6 +291,25 @@ class ParallelRelativePositionBias(torch.nn.Module):
         self._q_len_cached = None
         self._k_len_cached = None
         self._rel_pos_bucket_cached = None
+
+    def mup_reinitialize_weights(self, neox_args):
+        if self.use_cpu_initialization:
+            _initialize_affine_weight_cpu(
+                neox_args,
+                self.weight,
+                self.num_buckets,
+                self.heads,
+                self.num_heads_per_partition,
+                partition_dim=1,
+                init_method=partial(self.init_method, use_mup=True),
+            )
+        else:
+            _initialize_affine_weight_gpu(
+                self.weight,
+                partial(self.init_method, use_mup=True),
+                partition_dim=1,
+                stride=1,
+            )
 
     @staticmethod
     def get_heads_range(global_n_heads, rank, world_size):
@@ -372,6 +413,7 @@ class ColumnParallelLinear(torch.nn.Module):
         stride=1,
         keep_master_weight_for_test=False,
         skip_bias_add=False,
+        mup_rescale_parameters=False,
     ):
         super(ColumnParallelLinear, self).__init__()
 
@@ -383,6 +425,10 @@ class ColumnParallelLinear(torch.nn.Module):
         world_size = get_model_parallel_world_size()
         self.output_size_per_partition = divide(output_size, world_size)
         self.skip_bias_add = skip_bias_add
+        self.init_method = init_method
+        self.stride = stride
+        self.mup_rescale_parameters = mup_rescale_parameters
+        self.use_mup = neox_args.use_mup
 
         # Parameters.
         # Note: torch.nn.functional.linear performs XA^T + b and as a result
@@ -444,6 +490,56 @@ class ColumnParallelLinear(torch.nn.Module):
         else:
             self.register_parameter("bias", None)
 
+    # Copied from Mup
+    def width_mult(self):
+        assert hasattr(self.weight, "infshape"), (
+            "Please call set_base_shapes(...). If using torch.nn.DataParallel, "
+            "switch to distributed training with "
+            "torch.nn.parallel.DistributedDataParallel instead"
+        )
+        return self.weight.infshape.width_mult()
+
+    # Copied from Mup
+    def _rescale_parameters(self):
+        """Rescale parameters to convert SP initialization to μP initialization.
+        Warning: This method is NOT idempotent and should be called only once
+        unless you know what you are doing.
+        """
+        if hasattr(self, "_has_rescaled_params") and self._has_rescaled_params:
+            raise RuntimeError(
+                "`_rescale_parameters` has been called once before already. "
+                "Unless you know what you are doing, usually you should not be calling `_rescale_parameters` more than once.\n"
+                "If you called `set_base_shapes` on a model loaded from a checkpoint, "
+                "or just want to re-set the base shapes of an existing model, "
+                "make sure to set the flag `rescale_params=False`.\n"
+                "To bypass this error and *still rescale parameters*, set `self._has_rescaled_params=False` before this call."
+            )
+        if self.bias is not None:
+            self.bias.data *= self.width_mult() ** 0.5
+        self.weight.data *= self.width_mult() ** 0.5
+        self._has_rescaled_params = True
+
+    def mup_reinitialize_weights(self, neox_args):
+        if neox_args.use_cpu_initialization:
+            self.master_weight = _initialize_affine_weight_cpu(
+                neox_args,
+                self.weight,
+                self.output_size,
+                self.input_size,
+                self.output_size_per_partition,
+                0,
+                partial(self.init_method, use_mup=True),
+                stride=self.stride,
+                return_master_weight=keep_master_weight_for_test,
+            )
+        else:
+            _initialize_affine_weight_gpu(
+                self.weight,
+                partial(self.init_method, use_mup=True),
+                partition_dim=0,
+                stride=self.stride,
+            )
+
     def set_parallel_output(self, value: bool):
         assert isinstance(value, bool)
         self.gather_output = (
@@ -451,6 +547,8 @@ class ColumnParallelLinear(torch.nn.Module):
         )  # if gather_output is True, parallel output is False, so we set the opposite
 
     def forward(self, input_):
+        if self.use_mup and self.mup_rescale_parameters:
+            input_ /= self.width_mult()
         # Set up backprop all-reduce.
         input_parallel = copy_to_model_parallel_region(input_)
         # Matrix multiply.
@@ -508,6 +606,7 @@ class RowParallelLinear(torch.nn.Module):
         keep_master_weight_for_test=False,
         skip_bias_add=False,
         parallel_output=False,
+        mup_rescale_parameters=False,
     ):
         super(RowParallelLinear, self).__init__()
 
@@ -520,6 +619,11 @@ class RowParallelLinear(torch.nn.Module):
         self.input_size_per_partition = divide(input_size, world_size)
         self.skip_bias_add = skip_bias_add
         self.parallel_output = parallel_output
+        self.init_method = init_method
+        self.stride = stride
+        self.keep_master_weight_for_test = keep_master_weight_for_test
+        self.mup_rescale_parameters = mup_rescale_parameters
+        self.use_mup = neox_args.use_mup
 
         # Parameters.
         # Note: torch.nn.functional.linear performs XA^T + b and as a result
@@ -575,11 +679,63 @@ class RowParallelLinear(torch.nn.Module):
         else:
             self.register_parameter("bias", None)
 
+    # Copied from Mup
+    def width_mult(self):
+        assert hasattr(self.weight, "infshape"), (
+            "Please call set_base_shapes(...). If using torch.nn.DataParallel, "
+            "switch to distributed training with "
+            "torch.nn.parallel.DistributedDataParallel instead"
+        )
+        return self.weight.infshape.width_mult()
+
+    # Copied from Mup
+    def _rescale_parameters(self):
+        """Rescale parameters to convert SP initialization to μP initialization.
+        Warning: This method is NOT idempotent and should be called only once
+        unless you know what you are doing.
+        """
+        if hasattr(self, "_has_rescaled_params") and self._has_rescaled_params:
+            raise RuntimeError(
+                "`_rescale_parameters` has been called once before already. "
+                "Unless you know what you are doing, usually you should not be calling `_rescale_parameters` more than once.\n"
+                "If you called `set_base_shapes` on a model loaded from a checkpoint, "
+                "or just want to re-set the base shapes of an existing model, "
+                "make sure to set the flag `rescale_params=False`.\n"
+                "To bypass this error and *still rescale parameters*, set `self._has_rescaled_params=False` before this call."
+            )
+        if self.bias is not None:
+            self.bias.data *= self.width_mult() ** 0.5
+        self.weight.data *= self.width_mult() ** 0.5
+        self._has_rescaled_params = True
+
+    def mup_reinitialize_weights(self, neox_args):
+        if neox_args.use_cpu_initialization:
+            self.master_weight = _initialize_affine_weight_cpu(
+                neox_args,
+                self.weight,
+                self.output_size,
+                self.input_size,
+                self.input_size_per_partition,
+                1,
+                partial(self.init_method, use_mup=True),
+                stride=self.stride,
+                return_master_weight=self.keep_master_weight_for_test,
+            )
+        else:
+            _initialize_affine_weight_gpu(
+                self.weight,
+                partial(self.init_method, use_mup=True),
+                partition_dim=1,
+                stride=self.stride,
+            )
+
     def set_parallel_output(self, parallel_output: bool):
         assert isinstance(parallel_output, bool)
         self.parallel_output = parallel_output
 
     def forward(self, input_):
+        if self.use_mup and self.mup_rescale_parameters:
+            input_ /= self.width_mult()
         # Set up backprop all-reduce.
         if self.input_is_parallel:
             input_parallel = input_

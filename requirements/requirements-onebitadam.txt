@@ -1,1 +1,1 @@
-cupy-cuda111==8.6.0
+cupy-cuda111>=8.6.0
