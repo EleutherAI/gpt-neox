@@ -51,7 +51,7 @@ def load_partitions(
                 input_checkpoint_path,
                 f"mp_rank_{i:02}_model_states.pt",
             ),
-            map_location=torch.device("cpu"),
+            map_location=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         )
         for i in range(mp_partitions)
     ]
