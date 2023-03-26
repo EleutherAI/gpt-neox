@@ -1,4 +1,4 @@
-# Copyright (c) 2021, EleutherAI
+# Copyright (c) 2023, EleutherAI
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ def load_partitions(
                 input_checkpoint_path,
                 f"layer_{layer_idx:02}-model_{i:02}-model_states.pt",
             ),
-            map_location=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            map_location=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         )
         for i in range(mp_partitions)
     ]
@@ -144,12 +144,10 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
 
     hf_config = create_config(loaded_config)
 
-    hf_model = GPTNeoXForCausalLM(
-        hf_config
-    )
-    
+    hf_model = GPTNeoXForCausalLM(hf_config)
+
     # save model in FP16 if Deepspeed fp16 was used in config, else 32 bit
-    fp16 =  get_key(loaded_config, "fp16")
+    fp16 = get_key(loaded_config, "fp16")
     if fp16:
         if fp16["fp16"]:
             hf_model.half()
