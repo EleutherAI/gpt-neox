@@ -267,7 +267,10 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             if self.neox_args.use_mup:
                 # Since we're using pipeline parallelism, we can't directly use MuReadout. Instead, use this workaround that does the same thing as MuReadout.
                 # https://github.com/microsoft/mup/issues/6#issuecomment-1082156274
-                lm_output = lm_output / self.tied_modules.embed.word_embeddings.weight.infshape.width_mult()
+                lm_output = (
+                    lm_output
+                    / self.tied_modules.embed.word_embeddings.weight.infshape.width_mult()
+                )
 
             logits = parallel_lm_logits(
                 lm_output, embedding.word_embeddings_weight, self.parallel_output
