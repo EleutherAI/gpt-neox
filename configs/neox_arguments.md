@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 95a918d
+    Default = 2a3424a
 
     current git hash of repository
 
@@ -1552,7 +1552,7 @@ Training Arguments
 
 Args for deepspeed config
     Every argument included here will be included in deepspeed config json
-    #TODO this list is not complete as compared to https://www.deepspeed.ai/docs/config-json/
+    As of Mar 8 2023, up to date compared to https://www.deepspeed.ai/docs/config-json/
 
 
 
@@ -1650,11 +1650,15 @@ Args for deepspeed config
 
     Configuration for using mixed precision/FP16 training that leverages NVIDIA’s Apex package.
 
+    Dictionary options as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#fp16-training-options
+
 
 
 - **amp**: dict
 
     Default = None
+
+    Configuration for using automatic mixed precision (AMP) training that leverages NVIDIA’s Apex AMP package.
 
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#automatic-mixed-precision-amp-training-options
 
@@ -1662,7 +1666,7 @@ Args for deepspeed config
 
 - **gradient_clipping**: float
 
-    Default = 0.0
+    Default = 1.0
 
     Enable gradient clipping with provided value
 
@@ -1672,7 +1676,9 @@ Args for deepspeed config
 
     Default = None
 
-    
+    Configuration for using ZeRO optimization.
+
+    Multi-level dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#zero-optimization-options
 
 
 
@@ -1720,127 +1726,151 @@ Args for deepspeed config
 
     Default = None
 
+    Configuration for using FLOPS profiler.
+
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#flops-profiler
-    
+
 
 
 - **communication_data_type**: bool
-    
+
+    Default = None
+
     During gradient averaging, perform communication with selected data type. By default it will be determined by selected regime
-    
-    
+
+
 
 - **bf16**: dict
-    
+
+    Default = None
+
     Configuration for using bfloat16 floating-point format as an alternative to FP16. BFLOAT16 requires hardware support (e.g., NVIDIA A100).
 
     Dictionary options as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#bfloat16-training-options
-    
 
-
-- **autotuning**: dict
-    
-    Configuration for using autotuning.
-
-    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#autotuning
-    
-
-
-- **activation_checkpointing**: dict
-    
-    Configuration for using activation checkpointing.
-
-    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#activation-checkpointing
-    
-
-    
-- **sparse_attention**: dict
-    
-    Configuration for using sparse attention.
-
-    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#sparse-attention
-
-    
-
-- **data_efficiency**: dict
-    
-    Configuration for using data efficiency.
-
-    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#data-efficiency
-    
-
-
-- **tensorboard**: dict
-    
-    Configuration for using tensorboard.
-
-    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#monitoring-module-tensorboard-wandb-csv
-    
-
-- **wandb**: dict
-    
-    Configuration for using wandb.
-    
-
-- **csv_monitor**: dict
-    
-    Configuration for using csv_monitor.
-    
-
-
-- **elasticity**: dict
-    
-    Configuration for using elastic training.
-
-    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#elastic-training-config-v01-and-v02
-    
-
-
-- **comms_logger**: dict
-    
-    Configuration for using communication logger.
-
-    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#communication-logging
-    
-
-
-- **compression_training**: dict
-    
-    Configuration for using compression training.
-
-    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#compression
-    
-
-
-- **checkpoint**: dict
-    
-    Configuration for using checkpointing.
-
-    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#checkpoint-options
-    
-
-
-- **data_types**: dict
-    
-    Configuration for using data types.
-
-    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#data-type-options
-
-
-
-    ### Extra Arguments
-
-- **deepspeed_extra_args**: dict
-    
-    Dictionary of extra arguments to be included in the yaml config file.
-    
 
 
 - **autotuning**: dict
 
     Default = None
 
-    Dictionary as described in DeepSpeed autotuning documentation: https://github.com/microsoft/DeepSpeed/tree/master/deepspeed/autotuning
+    Configuration for using autotuning.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#autotuning
+
+
+
+- **activation_checkpointing**: dict
+
+    Default = None
+
+    Configuration for using activation checkpointing.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#activation-checkpointing
+
+
+
+- **sparse_attention**: dict
+
+    Default = None
+
+    Configuration for using sparse attention.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#sparse-attention
+
+
+
+- **data_efficiency**: dict
+
+    Default = None
+
+    Configuration for using data efficiency.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#data-efficiency
+
+
+
+- **tensorboard**: dict
+
+    Default = None
+
+    Configuration for using tensorboard.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#monitoring-module-tensorboard-wandb-csv
+
+
+
+- **wandb**: dict
+
+    Default = None
+
+    Configuration for using wandb.
+
+
+
+- **csv_monitor**: dict
+
+    Default = None
+
+    Configuration for using csv_monitor.
+
+
+
+- **elasticity**: dict
+
+    Default = None
+
+    Configuration for using elastic training.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#elastic-training-config-v01-and-v02
+
+
+
+- **comms_logger**: dict
+
+    Default = None
+
+    Configuration for using communication logger.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#communication-logging
+
+
+
+- **compression_training**: dict
+
+    Default = None
+
+    Configuration for using compression training.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#compression
+
+
+
+- **checkpoint**: dict
+
+    Default = None
+
+    Configuration for using checkpointing.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#checkpoint-options
+
+
+
+- **data_types**: dict
+
+    Default = None
+
+    Configuration for using data types.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#data-type-options
+
+
+
+- **deepspeed_extra_args**: dict
+
+    Default = None
+
+    Dictionary of extra arguments to be included in the yaml config file. This can be used for any argument not included in the above list.
 
 
 
