@@ -22,7 +22,6 @@ from tqdm import tqdm
 import torch
 from transformers import GPTNeoXConfig, GPTNeoXForCausalLM
 
-from typing import List
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
@@ -42,7 +41,7 @@ Please investigate carefully whether your model is compatible with all architect
 
 def load_partitions(
     input_checkpoint_path, mp_partitions, layer_idx
-) -> List[torch.Tensor]:
+) -> list[torch.Tensor]:
     """Returns a list containing all weights in a given layer from a model (across MP partitions)"""
 
     loaded_tp_ranks = [
@@ -51,7 +50,7 @@ def load_partitions(
                 input_checkpoint_path,
                 f"layer_{layer_idx:02}-model_{i:02}-model_states.pt",
             ),
-            map_location=torch.device("cpu"),
+            map_location=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         )
         for i in range(mp_partitions)
     ]
@@ -103,16 +102,16 @@ def create_config(neox_config):
             1  # pad defaulting to 1. follows convention from GPT-NeoX-20b tokenizer
         )
 
-
     # TODO: change the default value here based on discussion regarding `gpt_j_tied` config parameter's default
-    use_tied_lns = get_key(neox_config, 'gpt-j-tied', False)
+    use_tied_lns = get_key(neox_config, "gpt-j-tied", False)
 
     if use_tied_lns:
         raise NotImplementedError(
-                """ERROR: Huggingface Transformers does not yet support a single shared layernorm 
+            """ERROR: Huggingface Transformers does not yet support a single shared layernorm
                 per transformer block for GPT-NeoX models trained  w/ GPT-J parallel residuals.
-                See https://github.com/EleutherAI/gpt-neox/pull/481 for further details.""")
-    
+                See https://github.com/EleutherAI/gpt-neox/pull/481 for further details."""
+        )
+
     # set all config values.
     hf_config = GPTNeoXConfig(
         vocab_size=args.padded_vocab_size,
@@ -147,7 +146,13 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
 
     hf_model = GPTNeoXForCausalLM(
         hf_config
-    ) #.half()  # nice-to-have: lazy init weights somehow?
+    )
+    
+    # save model in FP16 if Deepspeed fp16 was used in config, else 32 bit
+    fp16 =  get_key(loaded_config, "fp16")
+    if fp16:
+        if fp16["fp16"]:
+            hf_model.half()
 
     mp_partitions = get_key(loaded_config, "model-parallel-size")
 
@@ -308,8 +313,6 @@ if __name__ == "__main__":
         print("loaded tokenizer: ", tokenizer)
         tokenizer.save_pretrained(args.output_dir)
         print("tokenizer saved!")
-        
-        print(tokenizer.decode(hf_model.generate(tokenizer.encode("Hello, my name is ", return_tensors="pt"), max_new_tokens=60)[0]))
 
     if args.upload:
         repo_name = input("Provide a repository name for the HF Hub: ")
