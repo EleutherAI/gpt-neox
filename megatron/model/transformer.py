@@ -469,17 +469,22 @@ class ParallelSelfAttention(nn.Module):
             # [b, sq, np, hn] -> [b, np, sq, hn]
             matmul_result = matmul_result.transpose(1, 2)
         else:
-            # [s, b, np, hn] -> [b, sq, np, hn]
+            # [sq, b, np, hn] -> [b, sq, np, hn]
+            # np := num_heads / parallelism
+            # hn := hidden_size / num_heads
+            # triton wants [b, sq, n, d]
             sq = query_layer.size(0)
             sk = key_layer.size(0)
+            np = query_layer.size(2)
             query_layer = query_layer.transpose(0, 1)
             key_layer = key_layer.transpose(0, 1)
             value_layer = value_layer.transpose(0, 1)
             bias = self.alibi_embed.bias(sq, sk, query_layer.device, query_layer.dtype)
+            bias = bias.unsqueeze(1).tile((1, np, 1, 1))
             print(bias.shape)
             print(bias.dim())
             matmul_result = self.flash_attention_function(
-                query_layer, key_layer, value_layer, bias=bias.unsqueeze(1), causal=True
+                query_layer, key_layer, value_layer, bias=bias, causal=True
             )
         return matmul_result
 
