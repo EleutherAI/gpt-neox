@@ -81,4 +81,15 @@
   "log-interval": 10,
   "steps_per_print": 10,
   "wall_clock_breakdown": true,
+
+  # additional deepspeed args not specified above
+  "deepspeed_extra_args": {
+    "comms_logger": {
+        "enabled": true,
+        "verbose": true,
+        "prof_all": true,
+        "debug": false
+    },
+  }
+
 }
