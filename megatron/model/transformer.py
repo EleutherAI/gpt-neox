@@ -469,9 +469,21 @@ class ParallelSelfAttention(nn.Module):
             # [b, sq, np, hn] -> [b, np, sq, hn]
             matmul_result = matmul_result.transpose(1, 2)
         else:
+            """
+             h: hidden size
+            n: number of attention heads
+            p: number of model parallel partitions
+            np: n/p
+            hp: h/p
+            hn: h/n
+            b: batch size
+            s: sequence length
+            l: number of layers
+            """
             # [sq, b, np, hn] -> [b, sq, np, hn]
             # np := num_heads / parallelism
             # hn := hidden_size / num_heads
+            # torch.Size([8, 4096, 16, 128])
             # triton wants [b, sq, n, d]
             sq = query_layer.size(0)
             sk = key_layer.size(0)
@@ -480,9 +492,10 @@ class ParallelSelfAttention(nn.Module):
             key_layer = key_layer.transpose(0, 1)
             value_layer = value_layer.transpose(0, 1)
             bias = self.alibi_embed.bias(sq, sk, query_layer.device, query_layer.dtype)
+            print(bias.shape)
             bias = bias.unsqueeze(1).tile((1, np, 1, 1))
             print(bias.shape)
-            print(bias.dim())
+            print(query_layer.shape)
             matmul_result = self.flash_attention_function(
                 query_layer, key_layer, value_layer, bias=bias, causal=True
             )
