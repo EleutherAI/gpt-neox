@@ -483,7 +483,6 @@ class ParallelSelfAttention(nn.Module):
             # [sq, b, np, hn] -> [b, sq, np, hn]
             # np := num_heads / parallelism
             # hn := hidden_size / num_heads
-            # torch.Size([8, 4096, 16, 128])
             # triton wants [b, sq, n, d]
             sq = query_layer.size(0)
             b = query_layer.size(1)
@@ -496,6 +495,7 @@ class ParallelSelfAttention(nn.Module):
             matmul_result = self.flash_attention_function(
                 query_layer, key_layer, value_layer, bias=bias, causal=True
             )
+            matmul_result = matmul_result.transpose(1, 2)
         return matmul_result
 
     def sparse_attention(self, query_layer, key_layer, value_layer, attention_mask):
@@ -603,6 +603,8 @@ class ParallelSelfAttention(nn.Module):
         new_context_layer_shape = context_layer.size()[:-2] + (
             self.hidden_size_per_partition,
         )
+        # torch.Size([16, 8, 4096, 128])
+        # torch.Size([16, 8, 2048])
         context_layer = context_layer.view(*new_context_layer_shape)
 
         # =================
