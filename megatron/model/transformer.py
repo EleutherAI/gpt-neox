@@ -427,8 +427,6 @@ class ParallelSelfAttention(nn.Module):
             query_layer.size(0),
             key_layer.size(0),
         )
-        sq = query_layer.size(0)
-        sk = key_layer.size(0)
 
         if self.pos_emb != "alibi":
             # [s, b, np, hn] -> [b, s, np, hn] -> [b * s, 1, np, hn]
@@ -471,6 +469,12 @@ class ParallelSelfAttention(nn.Module):
             # [b, sq, np, hn] -> [b, np, sq, hn]
             matmul_result = matmul_result.transpose(1, 2)
         else:
+            # [s, b, np, hn] -> [b, sq, np, hn]
+            sq = query_layer.size(0)
+            sk = key_layer.size(0)
+            query_layer = query_layer.transpose(0, 1)
+            key_layer = key_layer.transpose(0, 1)
+            value_layer = value_layer.transpose(0, 1)
             bias = self.alibi_embed.bias(sq, sk, query_layer.device, query_layer.dtype)
             print(bias.shape)
             print(bias.dim())
