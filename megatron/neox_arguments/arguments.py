@@ -371,7 +371,6 @@ class NeoXArgs(*BASE_CLASSES):
             paths_to_yml_files=conf_files, overwrite_values=overwrite_values
         )
 
-
         if neox_args.use_wandb:
             try:
                 import wandb
@@ -491,6 +490,10 @@ class NeoXArgs(*BASE_CLASSES):
             if key == "autotuning_run":
                 continue
             configured_value = getattr(self, key)
+
+            if key == "force_multi":
+                if self.deepspeed_slurm or self.deepspeed_mpi:
+                    configured_value = True
             if configured_value != default_value:
                 args_list.extend(
                     self.convert_key_value_to_command_line_arg(key, configured_value)
@@ -502,10 +505,10 @@ class NeoXArgs(*BASE_CLASSES):
                 args_list.extend(
                     self.convert_key_value_to_command_line_arg("comment", comment)
                 )
-            # master_address = os.environ['SLURM_JOB_NODELIST'].split('\n')[0]
-            # args_list.extend(
-            #    self.convert_key_value_to_command_line_arg('master_addr', master_address)
-            # )
+        # master_address = os.environ['SLURM_JOB_NODELIST'].split('\n')[0]
+        # args_list.extend(
+        #    self.convert_key_value_to_command_line_arg('master_addr', master_address)
+        # )
 
         if "DLTS_HOSTFILE" in os.environ:
             args_list.extend(
@@ -553,11 +556,6 @@ class NeoXArgs(*BASE_CLASSES):
                 json.dumps(self.deepspeed_config).encode("utf-8")
             ).decode("utf-8")
             args_list.append(encoded_ds_config)
-
-        if self.deepspeed_mpi or self.deepspeed_slurm:
-            args_list.append(
-                "--force_multi"
-            )
 
         megatron_fp = cwd / Path("megatron_config.json")
         # get all config values
