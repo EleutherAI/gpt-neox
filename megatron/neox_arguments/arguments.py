@@ -371,6 +371,7 @@ class NeoXArgs(*BASE_CLASSES):
             paths_to_yml_files=conf_files, overwrite_values=overwrite_values
         )
 
+
         if neox_args.use_wandb:
             try:
                 import wandb
@@ -388,7 +389,7 @@ class NeoXArgs(*BASE_CLASSES):
                 raise e
 
             neox_args.wandb_group += "_" + wandb.util.generate_id()
-            
+
         neox_args.print()
 
         return neox_args
@@ -552,6 +553,11 @@ class NeoXArgs(*BASE_CLASSES):
                 json.dumps(self.deepspeed_config).encode("utf-8")
             ).decode("utf-8")
             args_list.append(encoded_ds_config)
+
+        if self.deepspeed_mpi or self.deepspeed_slurm:
+            args_list.append(
+                "--force_multi"
+            )
 
         megatron_fp = cwd / Path("megatron_config.json")
         # get all config values
