@@ -811,6 +811,7 @@ class ParallelTransformerLayer(nn.Module):
                 self.layer_past = presents
             with torch.enable_grad():
                 if attention_bias is not None:
+                    # Use special bias_dropout_fn if we have a bias term from the above attention layer
                     attention_output = bias_dropout_fn(
                         attention_output,
                         bias=attention_bias.expand_as(residual),
@@ -818,7 +819,9 @@ class ParallelTransformerLayer(nn.Module):
                         prob=self.hidden_dropout,
                     )
                 else:
-                    attention_output = attention_output + residual
+                    attention_output = torch.nn.functional.dropout(
+                        attention_output, p=self.hidden_dropout, training=self.training
+                    ) + residual
 
             # output = x + mlp(ln2(x))
             mlp_output, mlp_bias = self.mlp(
