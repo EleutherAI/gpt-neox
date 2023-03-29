@@ -121,8 +121,12 @@ def convert_model_pipeline(output_base_path, input_base_path, model_size: str, n
     pbar.update(1)
 
     # Layers
-    rope_freqs = loaded[0][f"rope.freqs"]
-    helper.del_loaded(f"rope.freqs")
+    if model_size == "7B":
+        rope_freqs = loaded[0]["layers.0.attention.inner_attention.rope.freqs"]
+        helper.del_loaded("layers.0.attention.inner_attention.rope.freqs")
+    else:
+        rope_freqs = loaded[0]["rope.freqs"]
+        helper.del_loaded("rope.freqs")
     for layer_i in range(num_layers):
 
         # Linear
@@ -278,8 +282,12 @@ def convert_model_sequential(output_base_path, input_base_path, model_size: str,
     helper.del_loaded("output.weight")
 
     # Layers
-    rope_freqs = loaded[0][f"rope.freqs"]
-    helper.del_loaded(f"rope.freqs")
+    if model_size == "7B":
+        rope_freqs = loaded[0]["layers.0.attention.inner_attention.rope.freqs"]
+        helper.del_loaded("layers.0.attention.inner_attention.rope.freqs")
+    else:
+        rope_freqs = loaded[0]["rope.freqs"]
+        helper.del_loaded("rope.freqs")
     for layer_i in range(num_layers):
 
         # Linear
