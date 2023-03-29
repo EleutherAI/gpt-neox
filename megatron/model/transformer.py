@@ -469,21 +469,7 @@ class ParallelSelfAttention(nn.Module):
             # [b, sq, np, hn] -> [b, np, sq, hn]
             matmul_result = matmul_result.transpose(1, 2)
         else:
-            """
-             h: hidden size
-            n: number of attention heads
-            p: number of model parallel partitions
-            np: n/p
-            hp: h/p
-            hn: h/n
-            b: batch size
-            s: sequence length
-            l: number of layers
-            """
             # [sq, b, np, hn] -> [b, sq, np, hn]
-            # np := num_heads / parallelism
-            # hn := hidden_size / num_heads
-            # triton wants [b, sq, n, d]
             sq = query_layer.size(0)
             b = query_layer.size(1)
             sk = key_layer.size(0)
@@ -603,8 +589,6 @@ class ParallelSelfAttention(nn.Module):
         new_context_layer_shape = context_layer.size()[:-2] + (
             self.hidden_size_per_partition,
         )
-        # torch.Size([16, 8, 4096, 128])
-        # torch.Size([16, 8, 2048])
         context_layer = context_layer.view(*new_context_layer_shape)
 
         # =================
