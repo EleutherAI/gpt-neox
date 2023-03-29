@@ -317,7 +317,6 @@ def configure_sparse_attention(neox_args, attention_type, num_attention_heads, m
         sparsity_config=sparsity_config,
         max_seq_length=neox_args.seq_length,
         attn_mask_mode="add",
-        mpu=mpu,
     )
 
 
