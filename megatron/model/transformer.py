@@ -87,7 +87,7 @@ class ParallelMLP(nn.Module):
         self.bias_gelu_fusion = neox_args.bias_gelu_fusion
 
         # auto scale so geglu has equal parameters
-        ff_mult = 4 * 2 / 3 if self.activation_type == "geglu" else 4
+        ff_mult = int(4 * 2 / 3) if self.activation_type == "geglu" else 4
         ff_dim = (
             int(ff_mult * neox_args.hidden_size) * 2
             if self.activation_type == "geglu"
