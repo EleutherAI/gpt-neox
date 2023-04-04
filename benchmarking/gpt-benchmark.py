@@ -55,12 +55,21 @@ def benchmark_model(
         end = time.time()
         responses.append(r)
         times.append(end - start)  # / (max_tokens - 3))
-        mtimes.append(sum(pipe.model.model_times()))
+        if use_deepspeed:
+            mtimes.append(sum(pipe.model.model_times()))
+
+    if use_deepspeed:
+        for_dataframe = np.vstack((times, mtimes, list(map(lambda t: t / (max_tokens - 3), times)))).T
+        columns = ["(e2e) latency", "(model-only) latency", "(e2e) per token latency"]
+
+    else:
+        for_dataframe = np.vstack((times, list(map(lambda t: t / (max_tokens - 3), times)))).T
+        columns = ["(e2e) latency", "(e2e) per token latency"]
 
     if local_rank == 0:
         df = pd.DataFrame(
-            np.vstack((times, mtimes, list(map(lambda t: t / (max_tokens - 3), times)))).T,
-            columns = ["(e2e) latency", "(model-only) latency", "(e2e) per token latency"])
+            for_dataframe,
+            columns = columns)
 
         df.to_csv(
             os.path.join(output_dir,
