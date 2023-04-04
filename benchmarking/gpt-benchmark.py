@@ -75,7 +75,6 @@ def main(models, output_dir, use_deepspeed, dtype, graphs, kernel_inject, max_to
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser = argparse.ArgumentParser()
     parser.add_argument("--output_dir", type=str, default='/home/mchorse/benchmarking/output', help="output_directory")
     parser.add_argument("--models", "-m", type=str, nargs='+', help="hf model names")
     parser.add_argument("--use_deepspeed", action="store_true", help="use deepspeed inference")
