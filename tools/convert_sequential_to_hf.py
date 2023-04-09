@@ -58,7 +58,7 @@ def load_partitions(input_checkpoint_path, mp_partitions) -> List[torch.Tensor]:
 
 
 def get_state(
-    state_dicts: list[torch.Tensor],
+    state_dicts: List[torch.Tensor],
     key: str,
     layer_idx: int,
 ) -> torch.Tensor:
@@ -157,7 +157,16 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
 
     hf_model = GPTNeoXForCausalLM(
         hf_config
-    ).half()  # nice-to-have: lazy init weights somehow?
+    )
+
+    # save model in FP16 if Deepspeed fp16 was used in config, else 32 bit
+    fp16 = get_key(loaded_config, "fp16")
+    if fp16:
+        try:
+            if fp16["fp16"]:
+            hf_model.half()
+        except:
+            print("Model not trained in fp16 mixed precision, saving weights in fp32...")
 
     mp_partitions = get_key(loaded_config, "model-parallel-size")
 

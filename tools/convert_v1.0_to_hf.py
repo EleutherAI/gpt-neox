@@ -18,6 +18,7 @@ import sys
 import yaml
 import argparse
 from tqdm import tqdm
+from typing import List
 
 import torch
 from transformers import GPTNeoXConfig, GPTNeoXForCausalLM
@@ -41,7 +42,7 @@ Please investigate carefully whether your model is compatible with all architect
 
 def load_partitions(
     input_checkpoint_path, mp_partitions, layer_idx
-) -> list[torch.Tensor]:
+) -> List[torch.Tensor]:
     """Returns a list containing all weights in a given layer from a model (across MP partitions)"""
 
     loaded_tp_ranks = [
@@ -149,9 +150,12 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
     # save model in FP16 if Deepspeed fp16 was used in config, else 32 bit
     fp16 = get_key(loaded_config, "fp16")
     if fp16:
-        if fp16["fp16"]:
+        try:
+            if fp16["fp16"]:
             hf_model.half()
-
+        except:
+            print("Model not trained in fp16 mixed precision, saving weights in fp32...")
+    
     mp_partitions = get_key(loaded_config, "model-parallel-size")
 
     ### Embedding layer ###
