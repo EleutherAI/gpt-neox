@@ -164,7 +164,7 @@ Or use the 20B tokenizer (for which only a single Vocab file is needed):
 
 (alternatively, you can provide any tokenizer file that can be loaded by Hugging Face's tokenizers library with the `Tokenizer.from_pretrained()` command)
 
-You can now pretokenize your data using `tools/preprocess_data.py`, the arguments for which are detailed below:
+You can now pretokenize your data using `tools/datasets/preprocess_data.py`, the arguments for which are detailed below:
 
 ```
 usage: preprocess_data.py [-h] --input INPUT [--jsonl-keys JSONL_KEYS [JSONL_KEYS ...]] [--num-docs NUM_DOCS] --tokenizer-type {HFGPT2Tokenizer,HFTokenizer,GPT2BPETokenizer,CharLevelTokenizer} [--vocab-file VOCAB_FILE] [--merge-file MERGE_FILE] [--append-eod] [--ftfy] --output-prefix OUTPUT_PREFIX
@@ -205,7 +205,7 @@ runtime:
 For example:
 
 ```bash
-python tools/preprocess_data.py \
+python tools/datasets/preprocess_data.py \
             --input ./data/mydataset.jsonl.zst \
             --output-prefix ./data/mydataset \
             --vocab ./data/gpt2-vocab.json \
@@ -313,18 +313,18 @@ GPT-NeoX is optimized heavily for training only, and GPT-NeoX model checkpoints 
 
 To convert a NeoX v2.0 checkpoint (with pipeline-parallel-size=1) to Hugging Face-loadable format, run:
 ```bash
-python ./tools/convert_sequential_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location
+python ./tools/checkpoints/convert_sequential_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location
 ```
 
 To convert a NeoX v1.0 checkpoint to Hugging Face format, run:
 ```bash
-python  ./tools/convert_v1.0_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location
+python  ./tools/checkpoints/convert_v1.0_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location
 ```
 
 Then to upload a model to [the Hugging Face Hub](https://huggingface.co/), run:
 ```bash
 huggingface-cli login
-python ./tools/upload.py
+python ./tools/checkpoints/upload.py
 ```
 and input the requested information, including HF hub user token.
 
