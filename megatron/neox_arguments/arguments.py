@@ -388,7 +388,7 @@ class NeoXArgs(*BASE_CLASSES):
                 raise e
 
             neox_args.wandb_group += "_" + wandb.util.generate_id()
-            
+
         neox_args.print()
 
         return neox_args
@@ -490,6 +490,10 @@ class NeoXArgs(*BASE_CLASSES):
             if key == "autotuning_run":
                 continue
             configured_value = getattr(self, key)
+
+            if key == "force_multi":
+                if self.deepspeed_slurm or self.deepspeed_mpi:
+                    configured_value = True
             if configured_value != default_value:
                 args_list.extend(
                     self.convert_key_value_to_command_line_arg(key, configured_value)

@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 557751f
+    Default = c6c1be7
 
     current git hash of repository
 
@@ -1956,6 +1956,14 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = pdsh
 
     Launcher backend for multi-node training. Options currently include PDSH, OpenMPI, MVAPICH.
+
+
+
+- **force_multi**: bool
+
+    Default = False
+
+    Force multi-node training even if only one node is specified.
 
 
 
