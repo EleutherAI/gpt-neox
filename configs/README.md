@@ -197,6 +197,21 @@ Our global batch size configuration follows deepspeed's and can be configured in
 - `"train_micro_batch_size_per_gpu""`: Batch size to be processed by one GPU in one step (without gradient accumulation). When specified, `gradient_accumulation_steps` is automatically calculated using train_batch_size and number of GPUs.
 - `"gradient_accumulation_steps"`: Number of training steps to accumulate gradients before averaging and applying them. This feature is sometimes useful to improve scalability since it results in less frequent communication of gradients between steps. Another impact of this feature is the ability to train with larger batch sizes per GPU. When specified, train_step_batch_size is automatically calculated using train_batch_size and number of GPUs.
 
+### Extra DeepSpeed Settings
+
+```yaml
+# additional deepspeed args not specified above
+"deepspeed_extra_args": {
+    "comms_logger": {
+        "enabled": true,
+        "verbose": true,
+        "prof_all": true,
+        "debug": false
+    },
+}
+```
+Additional DeepSpeed settings besides those mentioned above should be wrapped in the `"deepspeed_extra_args` argument, as in the example above. This functionality is designed to allow arguments not specified by existing dataclasses to be passed to DeepSpeed (e.g. when new functionalities are implemented). If any settings are duplicated here from elsewhere in the YAML, the system will throw an exception and notify the user.
+
 ### Dataset / Tokenizer / Checkpoint / Logging Settings:
 
 ```yaml

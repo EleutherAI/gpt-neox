@@ -387,6 +387,8 @@ class NeoXArgs(*BASE_CLASSES):
                     e.msg += "\nWeights & Biases monitoring was requested but `wandb` was not found. Install `wandb` to use Weights & Biases, or set the `use_wandb` configuration option to a boolean false to disable Weights & Biases logging."
                 raise e
 
+            neox_args.wandb_group += "_" + wandb.util.generate_id()
+
         neox_args.print()
 
         return neox_args
@@ -449,6 +451,29 @@ class NeoXArgs(*BASE_CLASSES):
             return []
         return [f"--{k}", str(v)]
 
+    def get_extra_deepspeed_args(self):
+        """
+        Sets up the extra arguments for deepspeed. This is done by reading in the `deepspeed_extra_args` dictionary from
+            the configuration file, and then adding any arguments where values differ from those specified in the dataclass.
+        """
+        neox_args = self.get_parent_class_value_dict(
+            *self.__class__.__bases__, only_non_defaults=True
+        )
+
+        extra_ds_args = dict()
+
+        for key, value in self.deepspeed_extra_args.items():
+            # Check to make sure the key is not already changed from defaults, and raise an exception if it is
+            # This is to prevent users from accidentally writing arguments both in deepspeed_extra_args and in the base level
+            # of the configuration file
+            if hasattr(neox_args, key):
+                raise ValueError(
+                    f"Key {key} is already specified elsewhere. Reading in a different value from the 'deepspeed_extra_args' option in the configuration file will cause undefined behavior."
+                )
+            extra_ds_args[key] = value
+
+        return extra_ds_args
+
     def get_deepspeed_main_args(self):
 
         args_list = list()
@@ -465,6 +490,10 @@ class NeoXArgs(*BASE_CLASSES):
             if key == "autotuning_run":
                 continue
             configured_value = getattr(self, key)
+
+            if key == "force_multi":
+                if self.deepspeed_slurm or self.deepspeed_mpi:
+                    configured_value = True
             if configured_value != default_value:
                 args_list.extend(
                     self.convert_key_value_to_command_line_arg(key, configured_value)
@@ -548,7 +577,7 @@ class NeoXArgs(*BASE_CLASSES):
         """
         returns a dict containing variables within deepspeed config
         """
-        config = self.get_parent_class_value_dict(
+        config = self.get_parent_class_value_dict_extra_ds(
             NeoXArgsDeepspeedConfig, only_non_defaults=True
         )
         return config
@@ -591,6 +620,44 @@ class NeoXArgs(*BASE_CLASSES):
                     if value == default_value:
                         continue
                 result[key] = getattr(self, key)
+        return result
+
+    def get_parent_class_value_dict_extra_ds(
+        self, *parent_classes, only_non_defaults=False
+    ) -> dict:
+        """
+        Takes a sequence of parent classes and returns corresponding values (with defaults set).
+        Also adds in any extra deepspeed arguments that are specified in the configuration file.
+
+        Args:
+            parent_classes: sequence of parent classes
+            only_non_defaults: if True, only returns values that differ from defaults
+
+        Returns:
+            dict of arguments and values
+
+        """
+        # TODO no Nones or non-defaults
+        result = dict()
+        for parent in parent_classes:
+            for key, default_value in parent().defaults():
+                if key in [
+                    "tokenizer",
+                    "tensorboard_writer",
+                    "adlr_autoresume_object",
+                    "deepspeed_extra_args",
+                ]:
+                    continue
+                if only_non_defaults:
+                    value = getattr(self, key)
+                    if value == default_value:
+                        continue
+                result[key] = getattr(self, key)
+
+        if self.deepspeed_extra_args is not None:
+            extra_ds_args = self.get_extra_deepspeed_args()
+            result.update(extra_ds_args)
+
         return result
 
     @property
