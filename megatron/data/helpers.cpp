@@ -173,7 +173,6 @@ py::array build_sample_idx_int32(const py::array_t<int32_t>& sizes_,
                      free_when_done);                           // numpy array references
 }
 
-
 py::array build_sample_idx_int64(const py::array_t<int32_t>& sizes_,
                                  const py::array_t<int32_t>& doc_idx_,
                                  const int32_t seq_length,

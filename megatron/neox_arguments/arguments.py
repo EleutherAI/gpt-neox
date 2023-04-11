@@ -388,7 +388,7 @@ class NeoXArgs(*BASE_CLASSES):
                 raise e
 
             neox_args.wandb_group += "_" + wandb.util.generate_id()
-            
+
         neox_args.print()
 
         return neox_args

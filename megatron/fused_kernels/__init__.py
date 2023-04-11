@@ -38,7 +38,7 @@ def load_fused_kernels():
         print(e)
         print("=" * 100)
         print(
-            f'ERROR: Fused kernels configured but not properly installed. Please run `pip install {str(srcpath)}` to install them'
+            f"ERROR: Fused kernels configured but not properly installed. Please run `pip install {str(srcpath)}` to install them"
         )
         print("=" * 100)
         exit()
