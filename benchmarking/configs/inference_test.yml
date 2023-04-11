@@ -1,0 +1,11 @@
+# GPT inference testing setup
+models:
+  - EleutherAI/pythia-70m
+  - EleutherAI/pythia-160m
+  - EleutherAI/pythia-410m
+  - EleutherAI/pythia-1b
+  - EleutherAI/pythia-1.4b
+
+world_size: 1
+trials: 100
+max_tokens: 128

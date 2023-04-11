@@ -1,17 +1,21 @@
-'''Copyright The Microsoft DeepSpeed Team'''
+'''Adapted from https://github.com/microsoft/DeepSpeed/blob/master/benchmarks/inference/gpt-bench.py'''
 
-import os
-import torch
-import time
-import deepspeed
 import argparse
-import pandas as pd
-import numpy as np
-from transformers import pipeline
+import os
+import time
+
+import deepspeed
 from deepspeed.accelerator import get_accelerator
+import numpy as np
+import pandas as pd
+from transformers import pipeline
+import torch
+import yaml
+
 
 def benchmark_model(
     model, output_dir, use_deepspeed, dtype, graphs, kernel_inject, max_tokens, local_rank, world_size, trials):
+
     deepspeed.init_distributed()
     if local_rank == 0:
         print("BENCHMARK SETTINGS:")
@@ -71,9 +75,20 @@ def benchmark_model(
             for_dataframe,
             columns = columns)
 
-        df.to_csv(
-            os.path.join(output_dir,
-            "{}_{}_max_tokens_{}_world_size_{}_benchmark.csv".format(model.split('/')[-1], str(dtype).split('.')[1], max_tokens, world_size)))
+    deepspeed_str = "deepspeed" if use_deepspeed else "hf"
+    deepspeed_dir = os.path.join(output_dir, deepspeed_str)
+    max_tokens_dir = os.path.join(deepspeed_dir, "max_tokens_{}".format(max_tokens))
+    world_size_dir = os.path.join(max_tokens_dir, "world_size_{}".format(world_size))
+
+    os.makedirs(world_size_dir, exist_ok=True)
+
+    fname = os.path.join(world_size_dir,
+                           "{}_{}_benchmark.csv".format(model.split('/')[-1], str(dtype).split('.')[1]))
+    
+    print("saving benchmark to {}".format(fname))
+
+    # save dataframe to CSV inside the directory for world_size
+    df.to_csv(fname, index=False)
 
 
 def main(models, output_dir, use_deepspeed, dtype, graphs, kernel_inject, max_tokens, local_rank, world_size, trials):
@@ -85,16 +100,30 @@ def main(models, output_dir, use_deepspeed, dtype, graphs, kernel_inject, max_to
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--output_dir", type=str, default='/home/mchorse/benchmarking/output', help="output_directory")
-    parser.add_argument("--models", "-m", type=str, nargs='+', help="hf model names")
+    parser.add_argument("--config", type=str, default='configs/inference_test.yml')
     parser.add_argument("--use_deepspeed", action="store_true", help="use deepspeed inference")
     parser.add_argument("--dtype", type=str, default="fp16", choices=["fp16", "fp32", "int8"], help="int8, fp16, or fp32")
     parser.add_argument("--graphs", action="store_true", help="CUDA Graphs on")
     parser.add_argument("--kernel-inject", action="store_true", help="inject kernels on")
-    parser.add_argument("--max-tokens", type=int, default=50, help="max new tokens")
     parser.add_argument("--local_rank", type=int, default=int(os.getenv("LOCAL_RANK", "0")), help="local rank")
-    parser.add_argument("--world_size", type=int, default=4, help="world size")
-    parser.add_argument("--trials", type=int, default=30, help="number of trials")
     args = parser.parse_args()
-    deepspeed.init_distributed()
-    main(**vars(args))
+
+    with open(args.config, "r") as f:
+        config = yaml.safe_load(f)
+
+    models = config["models"]
+    world_size = config["world_size"]
+    trials = config["trials"]
+    max_tokens = config["max_tokens"]
+
+    main(models=models,
+         output_dir=args.output_dir,
+         use_deepspeed=args.use_deepspeed,
+         dtype=args.dtype,
+         graphs=args.graphs,
+         kernel_inject=args.kernel_inject,
+         max_tokens=max_tokens,
+         local_rank=args.local_rank,
+         world_size=world_size,
+         trials=trials)
 
