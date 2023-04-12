@@ -67,10 +67,6 @@ class BlendableDataset(torch.utils.data.Dataset):
                 f"First 10 BlendableDataset indices: "
                 f"{self.dataset_index[:10]}, {self.dataset_sample_index[:10]}"
         )
-        resort_indices = np.argsort(self.dataset_index)
-
-        # self.dataset_index = self.dataset_index[resort_indices]
-        # self.dataset_sample_index = self.dataset_sample_index[resort_indices]
 
         # print_rank_0(
         #         f"Sorted BlendableDataset indices: "
