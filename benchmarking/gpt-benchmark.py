@@ -118,24 +118,18 @@ def main(models, output_dir, dtype, graphs, kernel_inject, max_tokens, local_ran
     hf_means = [x["(e2e) latency"].iloc[3:].mean() for x in hf_dfs]
     hf_std = [x["(e2e) latency"].iloc[3:].std() for x in hf_dfs]
 
-    # Create the figure and axes objects
+
     fig, ax = plt.subplots(figsize=(12, 4))
-    # Create the bar plot with error bars
     ax.bar(
         np.arange(len(ds_means)) - 0.24,
         ds_means, yerr=ds_std, align='center', alpha=0.5, ecolor='black', capsize=10, width=0.4, label='Deepspeed')
     ax.bar(
         np.arange(len(hf_means)) + 0.24,
         hf_means, yerr=hf_std, align='center', alpha=0.5, ecolor='black', capsize=10, width=0.4, label='Huggingface')
-
-    # Set the x-axis tick labels to be the index of the values list
     ax.set_xticks(np.arange(len(models)))
     ax.set_xticklabels(models)
-
-    # Set the labels and title
     ax.set_xlabel('Model')
     ax.set_ylabel('Time (s)')
-
     plt.legend()
     plt.tight_layout()
     plt.title("e2e latency (s), {} tokens, {} world size, {} trials".format(max_tokens, world_size, trials))
