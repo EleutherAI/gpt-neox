@@ -80,8 +80,5 @@
 
    "log-grad-norm": true,
 
-   "tokenizer_type": "HFTokenizer",
-
-   "launcher": "slurm",
-   "deepspeed_slurm": true
+   "tokenizer_type": "HFTokenizer"
 }
