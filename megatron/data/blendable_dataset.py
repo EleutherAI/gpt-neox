@@ -48,6 +48,9 @@ class BlendableDataset(torch.utils.data.Dataset):
         self.dataset_index = np.zeros(self.size, dtype=np.uint8)
         self.dataset_sample_index = np.zeros(self.size, dtype=np.int64)
 
+        # TODO: don't hardcode non-interleaving
+        interleaved = False
+
         from megatron.data import helpers
 
         helpers.build_blending_indices(
@@ -57,7 +60,22 @@ class BlendableDataset(torch.utils.data.Dataset):
             num_datasets,
             self.size,
             torch.distributed.get_rank() == 0,
+            interleaved,
         )
+
+        print_rank_0(
+                f"First 10 BlendableDataset indices: "
+                f"{self.dataset_index[:10]}, {self.dataset_sample_index[:10]}"
+        )
+        resort_indices = np.argsort(self.dataset_index)
+
+        # self.dataset_index = self.dataset_index[resort_indices]
+        # self.dataset_sample_index = self.dataset_sample_index[resort_indices]
+
+        # print_rank_0(
+        #         f"Sorted BlendableDataset indices: "
+        #         f"{self.dataset_index[:10]}, {self.dataset_sample_index[:10]}"
+        # )
 
         print(
             "> RANK {} elapsed time for building blendable dataset indices: "

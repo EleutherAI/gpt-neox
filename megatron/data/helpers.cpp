@@ -36,7 +36,8 @@ void build_blending_indices(py::array_t<uint8_t>& dataset_index,
                             const py::array_t<double>& weights,
                             const int32_t num_datasets,
                             const int64_t size,
-                            const bool verbose)
+                            const bool verbose,
+			    const bool interleaved)
 {
     /* Given multiple datasets and a weighting array, build samples
      such that it follows those weights.*/
@@ -52,28 +53,57 @@ void build_blending_indices(py::array_t<uint8_t>& dataset_index,
     int64_t current_samples[num_datasets];
     for (int64_t i = 0; i < num_datasets; ++i) { current_samples[i] = 0; }
 
-    // For each sample:
-    for (int64_t sample_idx = 0; sample_idx < size; ++sample_idx) {
-        // Determine where the max error in sampling is happening.
-        double sample_idx_double = std::max(static_cast<double>(sample_idx), 1.0);
-        int64_t max_error_index = 0;
-        double max_error =
-            weights_ptr[0] * sample_idx_double - static_cast<double>(current_samples[0]);
-        for (int64_t dataset_idx = 1; dataset_idx < num_datasets; ++dataset_idx) {
-            double error = weights_ptr[dataset_idx] * sample_idx_double -
+    // If not interleaved:
+    if (!interleaved) {
+    	for (int64_t sample_idx = 0; sample_idx < size; ++sample_idx) {
+
+        	int64_t max_error_index = 0;
+
+        	for (int64_t dataset_idx = 0; dataset_idx < num_datasets; ++dataset_idx) {
+           		// error here = num. samples we want to allocate to dataset_idx
+			// minus num. samples we have already
+			double error = weights_ptr[dataset_idx] * static_cast<double>(size) - 
+                   		static_cast<double>(current_samples[dataset_idx]);
+           		if (error > 0) {
+              			// if we've not already exceeded alotted mixing ratio given to this dataset:
+				// use it!
+              			max_error_index = dataset_idx;
+				break;
+           		}
+         	}
+
+        	// Populate indices.
+       		dataset_index_ptr[sample_idx] = static_cast<uint8_t>(max_error_index);
+        	dataset_sample_index_ptr[sample_idx] = current_samples[max_error_index];
+
+        	// Update the total samples.
+        	current_samples[max_error_index] += 1;
+    	}
+    }
+    else {
+    	// For each sample:
+    	for (int64_t sample_idx = 0; sample_idx < size; ++sample_idx) {
+        	// Determine where the max error in sampling is happening.
+        	double sample_idx_double = std::max(static_cast<double>(sample_idx), 1.0);
+        	int64_t max_error_index = 0;
+        	double max_error =
+            		weights_ptr[0] * sample_idx_double - static_cast<double>(current_samples[0]);
+        	for (int64_t dataset_idx = 1; dataset_idx < num_datasets; ++dataset_idx) {
+            		double error = weights_ptr[dataset_idx] * sample_idx_double -
                            static_cast<double>(current_samples[dataset_idx]);
-            if (error > max_error) {
-                max_error = error;
-                max_error_index = dataset_idx;
-            }
-        }
+            		if (error > max_error) {
+                		max_error = error;
+                		max_error_index = dataset_idx;
+            		}
+        	}
 
-        // Populate the indices.
-        dataset_index_ptr[sample_idx] = static_cast<uint8_t>(max_error_index);
-        dataset_sample_index_ptr[sample_idx] = current_samples[max_error_index];
+        	// Populate the indices.
+        	dataset_index_ptr[sample_idx] = static_cast<uint8_t>(max_error_index);
+        	dataset_sample_index_ptr[sample_idx] = current_samples[max_error_index];
 
-        // Update the total samples.
-        current_samples[max_error_index] += 1;
+        	// Update the total samples.
+        	current_samples[max_error_index] += 1;
+    	}
     }
 
     // print info
