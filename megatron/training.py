@@ -76,20 +76,24 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
     # Instantiation of the base model fails in the init function (init_functions.py) because we haven't called set_base_shapes on it at this point, so disable it temporarily here
     neox_args.use_mup = False
 
-    print(f'MEM BEFORE BASE MUP: {torch.cuda.memory_allocated(device_index)} on rank {torch.distributed.get_rank()}')
+    print(
+        f"MEM BEFORE BASE MUP: {torch.cuda.memory_allocated(device_index)} on rank {torch.distributed.get_rank()}"
+    )
     if neox_args.mup_deferred_init:
         try:
             from torchdistx import deferred_init
         except ModuleNotFoundError:
             print("Please install torchdistx https://github.com/pytorch/torchdistx")
             raise Exception
-        base_model = torchdistx.deferred_init.deferred_init(GPT2ModelPipe(
-                                                                neox_args=neox_args,
-                                                                num_tokentypes=0,
-                                                                parallel_output=True,
-                                                                topology=mpu.get_topology(),
-                                                                use_cache=use_cache,
-                                                             )
+        base_model = torchdistx.deferred_init.deferred_init(
+            GPT2ModelPipe(
+                neox_args=neox_args,
+                num_tokentypes=0,
+                parallel_output=True,
+                topology=mpu.get_topology(),
+                use_cache=use_cache,
+            )
+        )
     else:
         base_model = GPT2ModelPipe(
             neox_args=neox_args,
@@ -99,7 +103,9 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
             use_cache=use_cache,
         )
 
-    print(f'MEM AFTER BASE MUP: {torch.cuda.memory_allocated(device_index)} on rank {torch.distributed.get_rank()}')
+    print(
+        f"MEM AFTER BASE MUP: {torch.cuda.memory_allocated(device_index)} on rank {torch.distributed.get_rank()}"
+    )
 
     if not neox_args.is_pipe_parallel:
         base_model = base_model.to_sequential()
@@ -117,20 +123,24 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
     old_hidden_size = neox_args.hidden_size
     neox_args.hidden_size = neox_args.hidden_size * neox_args.mup_width_scale
 
-    print(f'MEM BEFORE DELTA MUP: {torch.cuda.memory_allocated(device_index)} on rank {torch.distributed.get_rank()}')
+    print(
+        f"MEM BEFORE DELTA MUP: {torch.cuda.memory_allocated(device_index)} on rank {torch.distributed.get_rank()}"
+    )
     if neox_args.mup_deferred_init:
         try:
             from torchdistx import deferred_init
         except ModuleNotFoundError:
             print("Please install torchdistx https://github.com/pytorch/torchdistx")
             raise Exception
-        delta_model = torchdistx.deferred_init.deferred_init(GPT2ModelPipe(
-                                                                neox_args=neox_args,
-                                                                num_tokentypes=0,
-                                                                parallel_output=True,
-                                                                topology=mpu.get_topology(),
-                                                                use_cache=use_cache,
-                                                             )
+        delta_model = torchdistx.deferred_init.deferred_init(
+            GPT2ModelPipe(
+                neox_args=neox_args,
+                num_tokentypes=0,
+                parallel_output=True,
+                topology=mpu.get_topology(),
+                use_cache=use_cache,
+            )
+        )
     else:
         delta_model = GPT2ModelPipe(
             neox_args=neox_args,
@@ -140,7 +150,9 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
             use_cache=use_cache,
         )
 
-    print(f'MEM AFTER BASE MUP: {torch.cuda.memory_allocated(device_index)} on rank {torch.distributed.get_rank()}')
+    print(
+        f"MEM AFTER BASE MUP: {torch.cuda.memory_allocated(device_index)} on rank {torch.distributed.get_rank()}"
+    )
 
     if not neox_args.is_pipe_parallel:
         delta_model = delta_model.to_sequential()
