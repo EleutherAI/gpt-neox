@@ -6,11 +6,14 @@ import time
 
 import deepspeed
 from deepspeed.accelerator import get_accelerator
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from transformers import pipeline
 import torch
 import yaml
+
+
 
 
 def benchmark_model(
@@ -89,19 +92,60 @@ def benchmark_model(
 
     # save dataframe to CSV inside the directory for world_size
     df.to_csv(fname, index=False)
+    return df
 
 
-def main(models, output_dir, use_deepspeed, dtype, graphs, kernel_inject, max_tokens, local_rank, world_size, trials):
+def main(models, output_dir, dtype, graphs, kernel_inject, max_tokens, local_rank, world_size, trials):
+    deepspeed_dfs = []
+    hf_dfs = []
+    print("Models to benchmark: {}".format(models))
     for model in models:
-        benchmark_model(
-            model, output_dir, use_deepspeed, dtype, graphs, kernel_inject, max_tokens, local_rank, world_size, trials)
+        print("Benchmarking model: {}".format(model))
+        # run using deepspeed
+        print("Running with deepspeed")
+        deepspeed_dfs.append(benchmark_model(
+            model, output_dir, True, dtype, graphs, kernel_inject, max_tokens, local_rank, world_size, trials))
 
+        # run using huggingface
+        print("Running with huggingface")
+        hf_dfs.append(benchmark_model(
+            model, output_dir, False, dtype, graphs, kernel_inject, max_tokens, local_rank, world_size, trials))
+
+    print("plotting results")
+    # drop first 3 rows (warmup)
+    ds_means = [x["(e2e) latency"].iloc[3:].mean() for x in deepspeed_dfs]
+    ds_std = [x["(e2e) latency"].iloc[3:].std() for x in deepspeed_dfs]
+    hf_means = [x["(e2e) latency"].iloc[3:].mean() for x in hf_dfs]
+    hf_std = [x["(e2e) latency"].iloc[3:].std() for x in hf_dfs]
+
+    # Create the figure and axes objects
+    fig, ax = plt.subplots(figsize=(12, 4))
+    # Create the bar plot with error bars
+    ax.bar(
+        np.arange(len(ds_means)) - 0.24,
+        ds_means, yerr=ds_std, align='center', alpha=0.5, ecolor='black', capsize=10, width=0.4, label='Deepspeed')
+    ax.bar(
+        np.arange(len(hf_means)) + 0.24,
+        hf_means, yerr=hf_std, align='center', alpha=0.5, ecolor='black', capsize=10, width=0.4, label='Huggingface')
+
+    # Set the x-axis tick labels to be the index of the values list
+    ax.set_xticks(np.arange(len(models)))
+    ax.set_xticklabels(models)
+
+    # Set the labels and title
+    ax.set_xlabel('Model')
+    ax.set_ylabel('Time (s)')
+
+    plt.legend()
+    plt.tight_layout()
+    plt.title("e2e latency (s), {} tokens, {} world size, {} trials".format(max_tokens, world_size, trials))
+    plt.savefig(os.path.join(output_dir, "benchmark.png"))
+    print("plot saved to {}".format(os.path.join(output_dir, "benchmark.png")))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--output_dir", type=str, default='/home/mchorse/benchmarking/output', help="output_directory")
     parser.add_argument("--config", type=str, default='configs/inference_test.yml')
-    parser.add_argument("--use_deepspeed", action="store_true", help="use deepspeed inference")
     parser.add_argument("--dtype", type=str, default="fp16", choices=["fp16", "fp32", "int8"], help="int8, fp16, or fp32")
     parser.add_argument("--graphs", action="store_true", help="CUDA Graphs on")
     parser.add_argument("--kernel-inject", action="store_true", help="inject kernels on")
@@ -118,7 +162,6 @@ if __name__ == "__main__":
 
     main(models=models,
          output_dir=args.output_dir,
-         use_deepspeed=args.use_deepspeed,
          dtype=args.dtype,
          graphs=args.graphs,
          kernel_inject=args.kernel_inject,
