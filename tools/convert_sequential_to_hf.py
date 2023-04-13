@@ -165,12 +165,15 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
     fp16 = get_key(loaded_config, "fp16")
     if fp16:
         try:
-            if fp16["fp16"]:
+            # current behavior is to pass "fp16": {"enabled": true}, when using upstream Deepspeed
+            if fp16["enabled"]:
                 hf_model.half()
                 print("Saving weights in fp16 precision...")
         except:
             try:
-                if fp16["bf16"]:
+                # attempt to access bf16 dict in yaml file, if fp16 not enabled
+                bf16 = get_key(loaded_config, "bf16")
+                if bf16:
                     hf_model.to(dtype=torch.bfloat16)
                     print("Saving weights in bf16 precision...")
             except:

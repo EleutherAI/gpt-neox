@@ -151,16 +151,16 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
     fp16 = get_key(loaded_config, "fp16")
     if fp16:
         try:
-            if fp16["fp16"]:
+            # this conditional is quite messy because there were a number of ways to specify bf16 or fp16 training
+            # in DeeperSpeed v1.0 .
+            if (fp16.get("fp16", None) or fp16["enabled"]) and not (fp16.get("type", None) == "bfloat16"):
                 hf_model.half()
                 print("Saving weights in fp16 precision...")
+            elif fp16.get("type", None) == "bfloat16":
+                hf_model.to(dtype=torch.bfloat16)
+                print("Saving weights in bf16 precision...")
         except:
-            try:
-                if fp16["bf16"]:
-                    hf_model.to(dtype=torch.bfloat16)
-                    print("Saving weights in bf16 precision...")
-            except:
-                print("Model not trained in fp16 / bf16 mixed precision, saving weights in fp32...")
+            print("Model not trained in fp16 / bf16 mixed precision, saving weights in fp32...")
     
     mp_partitions = get_key(loaded_config, "model-parallel-size")
 
