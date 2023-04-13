@@ -267,7 +267,6 @@ class ParallelSelfAttention(nn.Module):
         self.attention_type = neox_args.attention_config[layer_number]
         self.use_flash_attention = self.attention_type == "flash"
         self.sparse = self.attention_type not in ("global", "flash")
-        self.sparse = self.attention_type != "global" and not self.use_flash_attention
         if self.sparse:
             self.sparse_attn = configure_sparse_attention(
                 neox_args,
@@ -278,18 +277,18 @@ class ParallelSelfAttention(nn.Module):
         else:
             if self.use_flash_attention:
                 from megatron.model.flash_attention import (
-                    flash_attn_unpadded_qkvpacked_func,
+                    flash_attn_unpadded_qkvpacked_func_cuda,
+                    flash_attn_unpadded_qkvpacked_func_triton,
                 )
 
-                self.flash_attention_function = flash_attn_unpadded_qkvpacked_func
                 if self.pos_emb == "alibi":
-                    raise ValueError(
-                        "Flash attention is currently not compatible with AliBi positional embeddings. Use sinuisoidal, learned, or rotary embeddings instead."
+                    self.flash_attention_function = (
+                        flash_attn_unpadded_qkvpacked_func_triton
                     )
-                from megatron.model.flash_attention import (
-                    flash_attn_unpadded_qkvpacked_func,
-                )
-
+                else:
+                    self.flash_attention_function = (
+                        flash_attn_unpadded_qkvpacked_func_cuda
+                    )
             else:
                 self.scale_mask_softmax = FusedScaleMaskSoftmax(
                     input_in_fp16=self.fp16,
@@ -428,47 +427,61 @@ class ParallelSelfAttention(nn.Module):
             query_layer.size(0),
             key_layer.size(0),
         )
-        # [s, b, np, hn] -> [b, s, np, hn] -> [b * s, 1, np, hn]
 
-        query_layer = query_layer.transpose(0, 1).reshape(
-            output_size[0] * output_size[2], 1, output_size[1], -1
-        )
-        key_layer = key_layer.transpose(0, 1).reshape(
-            output_size[0] * output_size[3], 1, output_size[1], -1
-        )
-        value_layer = value_layer.transpose(0, 1).reshape(
-            output_size[0] * output_size[3], 1, output_size[1], -1
-        )
+        if self.pos_emb != "alibi":
+            # [s, b, np, hn] -> [b, s, np, hn] -> [b * s, 1, np, hn]
+            query_layer = query_layer.transpose(0, 1).reshape(
+                output_size[0] * output_size[2], 1, output_size[1], -1
+            )
+            key_layer = key_layer.transpose(0, 1).reshape(
+                output_size[0] * output_size[3], 1, output_size[1], -1
+            )
+            value_layer = value_layer.transpose(0, 1).reshape(
+                output_size[0] * output_size[3], 1, output_size[1], -1
+            )
+            # Combined q/k/v into [b * s, 3, np, hn].
+            qkv = torch.concat([query_layer, key_layer, value_layer], dim=1)
 
-        # Combined q/k/v into [b * s, 3, np, hn].
-        qkv = torch.concat([query_layer, key_layer, value_layer], dim=1)
+            batch_size = output_size[0]
+            seqlen = output_size[2]
+            max_s = seqlen
 
-        batch_size = output_size[0]
-        seqlen = output_size[2]
-        max_s = seqlen
+            cu_seqlens = torch.arange(
+                0,
+                (batch_size + 1) * seqlen,
+                step=seqlen,
+                dtype=torch.int32,
+                device=qkv.device,
+            )
 
-        cu_seqlens = torch.arange(
-            0,
-            (batch_size + 1) * seqlen,
-            step=seqlen,
-            dtype=torch.int32,
-            device=qkv.device,
-        )
-        output = self.flash_attention_function(
-            qkv,
-            cu_seqlens,
-            max_s,
-            self.dropout_p if self.training else 0.0,
-            softmax_scale=None,
-            causal=True,
-        )
-        # [b * sq, np, hn] -> [b, sq, np, hn]
-        matmul_result = output.view(
-            output_size[0], output_size[2], output.shape[1], output.shape[2]
-        )
-        # [b, sq, np, hn] -> [b, np, sq, hn]
-        matmul_result = matmul_result.transpose(1, 2)
-
+            output = self.flash_attention_function(
+                qkv,
+                cu_seqlens,
+                max_s,
+                self.dropout_p if self.training else 0.0,
+                softmax_scale=None,
+                causal=True,
+            )
+            # [b * sq, np, hn] -> [b, sq, np, hn]
+            matmul_result = output.view(
+                output_size[0], output_size[2], output.shape[1], output.shape[2]
+            )
+            # [b, sq, np, hn] -> [b, np, sq, hn]
+            matmul_result = matmul_result.transpose(1, 2)
+        else:
+            # [sq, b, np, hn] -> [b, sq, np, hn]
+            sq = query_layer.size(0)
+            b = query_layer.size(1)
+            sk = key_layer.size(0)
+            query_layer = query_layer.transpose(0, 1)
+            key_layer = key_layer.transpose(0, 1)
+            value_layer = value_layer.transpose(0, 1)
+            bias = self.alibi_embed.bias(sq, sk, query_layer.device, query_layer.dtype)
+            bias = bias.unsqueeze(0).tile((b, 1, 1, 1))
+            matmul_result = self.flash_attention_function(
+                query_layer, key_layer, value_layer, bias=bias, causal=True
+            )
+            matmul_result = matmul_result.transpose(1, 2)
         return matmul_result
 
     def sparse_attention(self, query_layer, key_layer, value_layer, attention_mask):

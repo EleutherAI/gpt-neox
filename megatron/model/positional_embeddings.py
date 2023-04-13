@@ -132,6 +132,51 @@ class AliBi(torch.nn.Module):
                 ]
             )
 
+    def bias(self, seq_len_q, seq_len_k, device, dtype):
+        # [b, np, sq, sk]
+        # seq_len_q = x.shape[-2]
+        # seq_len_k = x.shape[-1]
+
+        # Initialize the AliBi matrix to match the first provided key length; grow it exponentially
+        # afterwards if longer inputs are provided. This is important for inference, where we will
+        # encounter progressively longer samples; it should have no effect at training time.
+        if self.cached_seq_len is not None and self.cached_seq_len >= seq_len_k:
+            a = self.cached_matrix
+        else:
+            target_seq_len = (
+                seq_len_k if self.cached_seq_len is None else self.cached_seq_len * 4
+            )
+            a = -torch.tril(
+                torch.arange(target_seq_len)
+                .view(target_seq_len, 1)
+                .repeat(1, target_seq_len)
+                + torch.arange(0, -target_seq_len, -1)
+            )
+            a = a.to(device).to(dtype)
+            slopes = self.slopes.to(a.device).to(a.dtype)
+            a = a * slopes.view(self.slopes.shape[0], 1, 1)
+            self.cached_seq_len = target_seq_len
+            self.cached_matrix = a
+
+        # If the AliBi matrix is larger than the key length, clip it.
+        if self.cached_seq_len > seq_len_k:
+            a = self.cached_matrix[:, :seq_len_k, :seq_len_k]
+
+        if seq_len_q != seq_len_k:
+            # In the train case x has dimensionality [b, np, sq, sk] with sq == sk
+            # The number of query tokens is equal to the number of key tokens
+            # At inference time with cache in layer_past sq is not equal to sk. sq only contains one token (the last one in the full sequence)
+            # In this case we use the appropriate token index of the cache matrix.
+            # As the cache matrix could already be bigger from a past inference, not the last token index in the sq sequence is used
+            assert (
+                seq_len_q == 1
+            ), "assumption sq == sk unless at inference time with cache in layer_past with sq == 1"
+            a = a[:, seq_len_k - 1, :].view(
+                a.shape[0], 1, a.shape[2]
+            )  # seq_len_k - 1 points to the last token index in the current inference batch.
+
+        return a
+
     def forward(self, x):
         # [b, np, sq, sk]
         seq_len_q = x.shape[-2]
