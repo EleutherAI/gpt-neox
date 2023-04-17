@@ -13,6 +13,8 @@ from transformers import pipeline
 import torch
 import yaml
 
+from megatron.utils import print_rank_0, setup_for_inference_or_eval
+from megatron.text_generation_utils import generate_samples_from_prompt
 
 
 
@@ -119,6 +121,7 @@ def main(models, output_dir, dtype, graphs, kernel_inject, max_tokens, local_ran
     hf_std = [x["(e2e) latency"].iloc[3:].std() for x in hf_dfs]
 
 
+    # plot results
     fig, ax = plt.subplots(figsize=(12, 4))
     ax.bar(
         np.arange(len(ds_means)) - 0.24,
