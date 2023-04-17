@@ -8,6 +8,12 @@ from flash_attn import flash_attn_triton
 import flash_attn_cuda
 
 
+def flash_attn_unpadded_unpacked_func_triton(
+    q, k, v, bias=None, causal=False, softmax_scale=None
+):
+    return flash_attn_triton.flash_attn_func(q, k, v, bias, causal, softmax_scale)
+
+
 def _flash_attn_forward_cuda(
     q,
     k,
@@ -186,12 +192,6 @@ def flash_attn_unpadded_qkvpacked_func_cuda(
     )
 
 
-def flash_attn_unpadded_qkvpacked_func_triton(
-    q, k, v, bias=None, causal=False, softmax_scale=None
-):
-    return flash_attn_triton.flash_attn_func(q, k, v, bias, causal, softmax_scale)
-
-
 class FlashAttnKVPackedFunc(torch.autograd.Function):
     @staticmethod
     def forward(
@@ -211,7 +211,7 @@ class FlashAttnKVPackedFunc(torch.autograd.Function):
         rng_state = torch.cuda.get_rng_state() if dropout_p > 0 else None
         if softmax_scale is None:
             softmax_scale = q.shape[-1] ** (-0.5)
-        out, softmax_lse, S_dmask = _flash_attn_forward(
+        out, softmax_lse, S_dmask = _flash_attn_forward_cuda(
             q,
             kv[:, 0],
             kv[:, 1],
@@ -251,7 +251,7 @@ class FlashAttnKVPackedFunc(torch.autograd.Function):
             torch.cuda.set_rng_state(rng_state)
         dq = torch.empty_like(q)
         dkv = torch.empty_like(kv)
-        _flash_attn_backward(
+        _flash_attn_backward_cuda(
             dout,
             q,
             kv[:, 0],
@@ -274,7 +274,7 @@ class FlashAttnKVPackedFunc(torch.autograd.Function):
         return dq, dkv, None, None, None, None, None, None, None, None
 
 
-def flash_attn_unpadded_kvpacked_func(
+def flash_attn_unpadded_kvpacked_func_cuda(
     q,
     kv,
     cu_seqlens_q,
@@ -346,7 +346,7 @@ class FlashAttnFunc(torch.autograd.Function):
         rng_state = torch.cuda.get_rng_state() if dropout_p > 0 else None
         if softmax_scale is None:
             softmax_scale = q.shape[-1] ** (-0.5)
-        out, softmax_lse, S_dmask = _flash_attn_forward(
+        out, softmax_lse, S_dmask = _flash_attn_forward_cuda(
             q,
             k,
             v,
@@ -386,7 +386,7 @@ class FlashAttnFunc(torch.autograd.Function):
             cur_rng_state = torch.cuda.get_rng_state()
             torch.cuda.set_rng_state(rng_state)
         dq, dk, dv = torch.empty_like(q), torch.empty_like(k), torch.empty_like(v)
-        _flash_attn_backward(
+        _flash_attn_backward_cuda(
             dout,
             q,
             k,
@@ -409,7 +409,7 @@ class FlashAttnFunc(torch.autograd.Function):
         return dq, dk, dv, None, None, None, None, None, None, None, None
 
 
-def flash_attn_unpadded_func(
+def flash_attn_unpadded_func_cuda(
     q,
     k,
     v,

@@ -278,25 +278,23 @@ class ParallelSelfAttention(nn.Module):
             if self.use_flash_attention:
                 from megatron.model.flash_attention import (
                     flash_attn_unpadded_qkvpacked_func_cuda,
-                    flash_attn_unpadded_qkvpacked_func_triton,
-                    flash_attn_unpadded_kvpacked_func,
-                )
-
-                self.flash_attn_unpadded_kvpacked_func = (
-                    flash_attn_unpadded_kvpacked_func
-                )
-                self.flash_attn_unpadded_qkvpacked_func = (
-                    flash_attn_unpadded_qkvpacked_func_cuda
+                    flash_attn_unpadded_kvpacked_func_cuda,
+                    flash_attn_unpadded_unpacked_func_triton,
                 )
 
                 if self.pos_emb == "alibi":
                     self.flash_attention_function = (
-                        flash_attn_unpadded_qkvpacked_func_triton
+                        flash_attn_unpadded_unpacked_func_triton
                     )
                 else:
-                    self.flash_attention_function = (
-                        flash_attn_unpadded_qkvpacked_func_cuda
-                    )
+                    if self.training:
+                        self.flash_attention_function = (
+                            flash_attn_unpadded_qkvpacked_func_cuda
+                        )
+                    else:
+                        self.flash_attention_function = (
+                            flash_attn_unpadded_kvpacked_func_cuda
+                        )
             else:
                 self.scale_mask_softmax = FusedScaleMaskSoftmax(
                     input_in_fp16=self.fp16,
@@ -427,7 +425,7 @@ class ParallelSelfAttention(nn.Module):
         context_layer = context_layer.view(*output_size)
         return context_layer
 
-    def flash_attention(self, query_layer, key_layer, value_layer, layer_past):
+    def flash_attention(self, query_layer, key_layer, value_layer):
         # [b, np, sq, sk]
         output_size = (
             query_layer.size(1),
@@ -436,81 +434,101 @@ class ParallelSelfAttention(nn.Module):
             key_layer.size(0),
         )
 
-        # [sk, b, np, hn] -> [b, sk, np, hn] -> [b * sk, 1, np, hn]
-        key_layer = key_layer.transpose(0, 1).reshape(
-            output_size[0] * output_size[3], 1, output_size[1], -1
-        )
-        value_layer = value_layer.transpose(0, 1).reshape(
-            output_size[0] * output_size[3], 1, output_size[1], -1
-        )
+        if self.pos_emb != "alibi":
 
-        batch_size = output_size[0]
-        max_seqlen_q = output_size[2]
-        max_seqlen_k = output_size[3]
-
-        cu_seqlens_q = torch.arange(
-            0,
-            (batch_size + 1) * max_seqlen_q,
-            step=max_seqlen_q,
-            dtype=torch.int32,
-            device=query_layer.device,
-        )
-
-        cu_seqlens_k = torch.arange(
-            0,
-            (batch_size + 1) * max_seqlen_k,
-            step=max_seqlen_k,
-            dtype=torch.int32,
-            device=key_layer.device,
-        )
-
-        if layer_past is None:
-
-            # [sq, b, np, hn] -> [b * sq, 1, np, hn]
-            query_layer.transpose(0, 1).reshape(
-                output_size[0] * output_size[2], 1, output_size[1], -1
+            # [sk, b, np, hn] -> [b, sk, np, hn] -> [b * sk, 1, np, hn]
+            key_layer = key_layer.transpose(0, 1).reshape(
+                output_size[0] * output_size[3], 1, output_size[1], -1
+            )
+            value_layer = value_layer.transpose(0, 1).reshape(
+                output_size[0] * output_size[3], 1, output_size[1], -1
             )
 
-            # Combined q/k/v into [b * s, 3, np, hn].
-            qkv = torch.concat([query_layer, key_layer, value_layer], dim=1)
+            batch_size = output_size[0]
+            max_seqlen_q = output_size[2]
+            max_seqlen_k = output_size[3]
 
-            output = self.flash_attn_unpadded_qkvpacked_func(
-                qkv,
-                cu_seqlens_q,
-                max_seqlen_q,
-                self.dropout_p if self.training else 0.0,
-                softmax_scale=None,
-                causal=True,
+            cu_seqlens_q = torch.arange(
+                0,
+                (batch_size + 1) * max_seqlen_q,
+                step=max_seqlen_q,
+                dtype=torch.int32,
+                device=query_layer.device,
             )
+
+            cu_seqlens_k = torch.arange(
+                0,
+                (batch_size + 1) * max_seqlen_k,
+                step=max_seqlen_k,
+                dtype=torch.int32,
+                device=key_layer.device,
+            )
+
+            if self.training:
+
+                # [sq, b, np, hn] -> [b * sq, np, hn]
+                query_layer = query_layer.transpose(0, 1).reshape(
+                    output_size[0] * output_size[2], output_size[1], -1
+                )
+
+                # Combined k/v into [b * sk, 2, np, hn].
+                kv = torch.concat([key_layer, value_layer], dim=1)
+
+                output = self.flash_attn_unpadded_kvpacked_func(
+                    query_layer,
+                    kv,
+                    cu_seqlens_q,
+                    cu_seqlens_k,
+                    max_seqlen_q,
+                    max_seqlen_k,
+                    self.dropout_p if self.training else 0.0,
+                    softmax_scale=None,
+                    causal=True,
+                )
+
+            else:
+
+                # [sq, b, np, hn] -> [b * sq, 1, np, hn]
+                query_layer.transpose(0, 1).reshape(
+                    output_size[0] * output_size[2], 1, output_size[1], -1
+                )
+
+                # Combined q/k/v into [b * s, 3, np, hn].
+                qkv = torch.concat([query_layer, key_layer, value_layer], dim=1)
+
+                output = self.flash_attn_unpadded_qkvpacked_func(
+                    qkv,
+                    cu_seqlens_q,
+                    max_seqlen_q,
+                    self.dropout_p if self.training else 0.0,
+                    softmax_scale=None,
+                    causal=True,
+                )
+
+            # [b * sq, np, hn] -> [b, sq, np, hn]
+            matmul_result = output.view(
+                output_size[0], output_size[2], output.shape[1], output.shape[2]
+            )
+            # [b, sq, np, hn] -> [b, np, sq, hn]
+            matmul_result = matmul_result.transpose(1, 2)
 
         else:
+            # [sq, b, np, hn] -> [b, sq, np, hn]
+            sq = query_layer.size(0)
+            b = query_layer.size(1)
+            sk = key_layer.size(0)
 
-            # [sq, b, np, hn] -> [b * sq, np, hn]
-            query_layer = query_layer.transpose(0, 1).reshape(
-                output_size[0] * output_size[2], output_size[1], -1
+            query_layer = query_layer.transpose(0, 1)
+            key_layer = key_layer.transpose(0, 1)
+            value_layer = value_layer.transpose(0, 1)
+
+            bias = self.alibi_embed.bias(sq, sk, query_layer.device, query_layer.dtype)
+            bias = bias.unsqueeze(0).tile((b, 1, 1, 1))
+
+            matmul_result = self.flash_attention_function(
+                query_layer, key_layer, value_layer, bias=bias, causal=True
             )
-
-            # Combined k/v into [b * sk, 2, np, hn].
-            kv = torch.concat([key_layer, value_layer], dim=1)
-
-            output = self.flash_attn_unpadded_kvpacked_func(
-                query_layer,
-                kv,
-                cu_seqlens_q,
-                cu_seqlens_k,
-                max_seqlen_q,
-                max_seqlen_k,
-                self.dropout_p if self.training else 0.0,
-                softmax_scale=None,
-                causal=True,
-            )
-
-        # [b * sq, np, hn] -> [b, sq, np, hn]
-        matmul_result = output.view(
-            output_size[0], output_size[2], output.shape[1], output.shape[2]
-        )
-        # [b, sq, np, hn] -> [b, np, sq, hn]
-        matmul_result = matmul_result.transpose(1, 2)
+            matmul_result = matmul_result.transpose(1, 2)
 
         return matmul_result
 
@@ -602,9 +620,7 @@ class ParallelSelfAttention(nn.Module):
             present = torch.stack((key_layer, value_layer))
 
         if self.use_flash_attention:
-            context_layer = self.flash_attention(
-                query_layer, key_layer, value_layer, layer_past
-            )
+            context_layer = self.flash_attention(query_layer, key_layer, value_layer)
         elif not self.sparse:
             context_layer = self.attention(
                 query_layer, key_layer, value_layer, layer_past, attention_mask
