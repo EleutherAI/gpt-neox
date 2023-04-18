@@ -282,19 +282,9 @@ class ParallelSelfAttention(nn.Module):
                     flash_attn_unpadded_unpacked_func_triton,
                 )
 
-                if self.pos_emb == "alibi":
-                    self.flash_attention_function = (
-                        flash_attn_unpadded_unpacked_func_triton
-                    )
-                else:
-                    if self.training:
-                        self.flash_attention_function = (
-                            flash_attn_unpadded_qkvpacked_func_cuda
-                        )
-                    else:
-                        self.flash_attention_function = (
-                            flash_attn_unpadded_kvpacked_func_cuda
-                        )
+                self.flash_triton_fn = flash_attn_unpadded_unpacked_func_triton
+                self.flash_qkv_fn = flash_attn_unpadded_qkvpacked_func_cuda
+                self.flash_kv_fn = flash_attn_unpadded_kvpacked_func_cuda
             else:
                 self.scale_mask_softmax = FusedScaleMaskSoftmax(
                     input_in_fp16=self.fp16,
@@ -474,7 +464,7 @@ class ParallelSelfAttention(nn.Module):
                 # Combined k/v into [b * sk, 2, np, hn].
                 kv = torch.concat([key_layer, value_layer], dim=1)
 
-                output = self.flash_attention_function(
+                output = self.flash_kv_fn(
                     query_layer,
                     kv,
                     cu_seqlens_q,
@@ -496,7 +486,7 @@ class ParallelSelfAttention(nn.Module):
                 # Combined q/k/v into [b * s, 3, np, hn].
                 qkv = torch.concat([query_layer, key_layer, value_layer], dim=1)
 
-                output = self.flash_attention_function(
+                output = self.flash_qkv_fn(
                     qkv,
                     cu_seqlens_q,
                     max_seqlen_q,
@@ -525,7 +515,7 @@ class ParallelSelfAttention(nn.Module):
             bias = self.alibi_embed.bias(sq, sk, query_layer.device, query_layer.dtype)
             bias = bias.unsqueeze(0).tile((b, 1, 1, 1))
 
-            matmul_result = self.flash_attention_function(
+            matmul_result = self.flash_triton_fn(
                 query_layer, key_layer, value_layer, bias=bias, causal=True
             )
             matmul_result = matmul_result.transpose(1, 2)
