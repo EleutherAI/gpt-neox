@@ -474,7 +474,7 @@ class ParallelSelfAttention(nn.Module):
                 # Combined k/v into [b * sk, 2, np, hn].
                 kv = torch.concat([key_layer, value_layer], dim=1)
 
-                output = self.flash_attn_unpadded_kvpacked_func(
+                output = self.flash_attention_function(
                     query_layer,
                     kv,
                     cu_seqlens_q,
