@@ -13,10 +13,6 @@ from transformers import pipeline
 import torch
 import yaml
 
-from megatron.utils import print_rank_0, setup_for_inference_or_eval
-from megatron.text_generation_utils import generate_samples_from_prompt
-
-
 
 def benchmark_model(
     model, output_dir, use_deepspeed, dtype, graphs, kernel_inject, max_tokens, local_rank, world_size, trials):
@@ -38,7 +34,7 @@ def benchmark_model(
     else:
         dtype = torch.float32
 
-    pipe = pipeline("text-generation", model=model, framework="pt", device=local_rank)
+    pipe = pipeline("text-generation", model=model, framework="pt", device_map='auto')
 
     if dtype == torch.float16:
         pipe.model.half()
@@ -95,7 +91,7 @@ def benchmark_model(
     # save dataframe to CSV inside the directory for world_size
     df.to_csv(fname, index=False)
     return df
-
+    
 
 def main(models, output_dir, dtype, graphs, kernel_inject, max_tokens, local_rank, world_size, trials):
     deepspeed_dfs = []
@@ -112,6 +108,8 @@ def main(models, output_dir, dtype, graphs, kernel_inject, max_tokens, local_ran
         print("Running with huggingface")
         hf_dfs.append(benchmark_model(
             model, output_dir, False, dtype, graphs, kernel_inject, max_tokens, local_rank, world_size, trials))
+        
+
 
     print("plotting results")
     # drop first 3 rows (warmup)
