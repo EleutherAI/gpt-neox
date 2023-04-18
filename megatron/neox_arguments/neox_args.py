@@ -356,11 +356,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     """
     Types:
         regular: Megatron implementation
-        llama: LLaMA MLP
-    """
-    llama_mlp_multiple_of: int = 256
-    """
-    LLaMA MLP sizes are padded to a nice number
+        llama: LLaMA MLP (SiLU-gated MLP)
     """
 
     soft_prompt_tuning: dict = None

@@ -141,19 +141,21 @@ class LLaMAParallelMLP(nn.Module):
     hidden dimension, perform nonlinear transformation, and project the
     state back into h hidden dimension. At the end, dropout is also
     applied.
+
+    Note: multiple_of is used to compute the hidden dimension of the MLP
     """
 
     def __init__(
-        self, neox_args, init_method, output_layer_init_method, parallel_output=False
+        self, neox_args, init_method, output_layer_init_method, parallel_output=False,
+        multiple_of=256,
     ):
         super().__init__()
 
         self.activation_func = get_activation(neox_args)
         self.activation_type = neox_args.activation
-        self.multiple_of = neox_args.llama_mlp_multiple_of
 
         ff_dim = int(2 * neox_args.hidden_size * 4 / 3)
-        ff_dim = self.multiple_of * ((ff_dim + self.multiple_of - 1) // self.multiple_of)
+        ff_dim = self.multiple_of * ((ff_dim + multiple_of - 1) // multiple_of)
         self.w1 = mpu.ColumnParallelLinear(
             neox_args=neox_args,
             input_size=neox_args.hidden_size,
@@ -819,6 +821,7 @@ class ParallelTransformerLayer(nn.Module):
                         prob=self.hidden_dropout,
                     )
                 else:
+                    # Otherwise just apply dropout + residual
                     attention_output = torch.nn.functional.dropout(
                         attention_output, p=self.hidden_dropout, training=self.training
                     ) + residual
