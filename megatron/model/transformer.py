@@ -464,7 +464,7 @@ class ParallelSelfAttention(nn.Module):
                 device=key_layer.device,
             )
 
-            if self.training:
+            if not self.training:
 
                 # [sq, b, np, hn] -> [b * sq, np, hn]
                 query_layer = query_layer.transpose(0, 1).reshape(
@@ -496,7 +496,7 @@ class ParallelSelfAttention(nn.Module):
                 # Combined q/k/v into [b * s, 3, np, hn].
                 qkv = torch.concat([query_layer, key_layer, value_layer], dim=1)
 
-                output = self.flash_attn_unpadded_qkvpacked_func(
+                output = self.flash_attention_function(
                     qkv,
                     cu_seqlens_q,
                     max_seqlen_q,
