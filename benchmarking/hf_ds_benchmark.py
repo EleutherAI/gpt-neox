@@ -71,25 +71,26 @@ def benchmark_model(
         for_dataframe = np.vstack((times, list(map(lambda t: t / (max_tokens - 3), times)))).T
         columns = ["(e2e) latency", "(e2e) per token latency"]
 
-    if local_rank == 0:
-        df = pd.DataFrame(
-            for_dataframe,
-            columns = columns)
-
-    deepspeed_str = "deepspeed" if use_deepspeed else "hf"
-    deepspeed_dir = os.path.join(output_dir, deepspeed_str)
-    max_tokens_dir = os.path.join(deepspeed_dir, "max_tokens_{}".format(max_tokens))
-    world_size_dir = os.path.join(max_tokens_dir, "world_size_{}".format(world_size))
-
-    os.makedirs(world_size_dir, exist_ok=True)
-
-    fname = os.path.join(world_size_dir,
-                           "{}_{}_benchmark.csv".format(model.split('/')[-1], str(dtype).split('.')[1]))
+    df = pd.DataFrame(
+        for_dataframe,
+        columns = columns)
     
-    print("saving benchmark to {}".format(fname))
+    if local_rank == 0:
 
-    # save dataframe to CSV inside the directory for world_size
-    df.to_csv(fname, index=False)
+
+        deepspeed_str = "deepspeed" if use_deepspeed else "hf"
+        deepspeed_dir = os.path.join(output_dir, deepspeed_str)
+        max_tokens_dir = os.path.join(deepspeed_dir, "max_tokens_{}".format(max_tokens))
+        world_size_dir = os.path.join(max_tokens_dir, "world_size_{}".format(world_size))
+
+        os.makedirs(world_size_dir, exist_ok=True)
+
+        fname = os.path.join(world_size_dir,
+                            "{}_{}_benchmark.csv".format(model.split('/')[-1], str(dtype).split('.')[1]))
+        
+        print("saving benchmark to {}".format(fname))
+
+        df.to_csv(fname, index=False)
     return df
     
 
@@ -109,7 +110,6 @@ def main(models, output_dir, dtype, graphs, kernel_inject, max_tokens, local_ran
         hf_dfs.append(benchmark_model(
             model, output_dir, False, dtype, graphs, kernel_inject, max_tokens, local_rank, world_size, trials))
         
-
 
     print("plotting results")
     # drop first 3 rows (warmup)
