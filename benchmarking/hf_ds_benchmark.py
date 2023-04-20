@@ -113,22 +113,23 @@ def benchmark_gpt_neox(model):
 
     # pass to deepy.py using subprocess
     cmd = [
-        'python', '-m', 'deepy', 'neox_benchmark.py', gpt_neox_config, 'configs/benchmark_setup.yml']
+        'python', '-m', 'deepy', 'benchmarking/neox_benchmark.py',
+        gpt_neox_config, 'configs/benchmark_setup.yml',]
     current_directory = os.path.abspath(os.getcwd())
     parent_directory = os.path.dirname(current_directory)
-    process = subprocess.Popen(
+    result = subprocess.run(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=parent_directory)
     # Continuously read the standard output and standard error streams
-    for line in iter(process.stdout.readline, b''):
-        print(line.decode().strip())
-    # # Wait for the subprocess to complete and get the return code
-    # return_code = proc.wait()
-    # if return_code == 0:
-    #     df = pd.read_csv(io.StringIO(result.stdout.decode('utf-8')), index_col=0)
-    #     return df
-    # else:
-    #     raise ValueError(f"Error running subprocess: {result.stderr.decode('utf-8')}")
-    
+    output = result.stdout.decode().strip().split('\n')
+    for i, line in enumerate(output):
+        if 'Starting data generation...' in line:
+            start_index = i
+        elif 'Data generation complete!' in line:
+            end_index = i
+    data_output = '\n'.join(output[start_index+1:end_index])
+    df = pd.read_csv(io.StringIO(data_output))
+    print("Got dataframe: {}".format(df))
+
 
 def main(models, output_dir, dtype, graphs, kernel_inject, max_tokens, local_rank, world_size, trials):
     deepspeed_dfs = []

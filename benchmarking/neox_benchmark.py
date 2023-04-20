@@ -2,6 +2,11 @@
 
 import argparse
 import os
+import sys
+sys.path.insert(0, os.path.abspath(os.getcwd()))
+
+
+import tempfile
 import time
 
 import deepspeed
@@ -48,7 +53,6 @@ def main():
         top_p=neox_args.top_p,
     )
 
-    print(generated_texts)
     times = [x["duration_seconds"] for x in generated_texts]
 
     for_dataframe = np.vstack((times, list(map(lambda t: t / (max_tokens - 3), times)))).T
@@ -73,8 +77,9 @@ def main():
     
     # print("saving benchmark to {}".format(fname))
     # df.to_csv(fname, index=False)
-    print(df)
-    return df
+    print("Starting data generation...")
+    df.to_csv(sys.stdout, index=False)
+    print("Data generation complete!")
 
 
 if __name__ == "__main__":
