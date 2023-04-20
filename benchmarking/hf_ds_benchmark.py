@@ -1,7 +1,9 @@
 '''Adapted from https://github.com/microsoft/DeepSpeed/blob/master/benchmarks/inference/gpt-bench.py'''
 
 import argparse
+import io
 import os
+import subprocess
 import time
 
 import deepspeed
@@ -13,6 +15,16 @@ from transformers import pipeline
 import torch
 import yaml
 
+PYTHIA_TO_OLD_SUFFIXES = {
+    "70m": "19M",
+    "160m": "125M",
+    "410m": "350M",
+    "1b": "800M",
+    "1.4b": "1-3B",
+    "2.8b": "2.7B",
+    "6.9b": "6-7B",
+    "12b": "13B",
+    "20b": "20B"}
 
 def benchmark_model(
     model, output_dir, use_deepspeed, dtype, graphs, kernel_inject, max_tokens, local_rank, world_size, trials):
@@ -92,6 +104,30 @@ def benchmark_model(
 
         df.to_csv(fname, index=False)
     return df
+
+
+def benchmark_gpt_neox(model):
+    # get old model yaml file
+    old_suffix = PYTHIA_TO_OLD_SUFFIXES[model.split('-')[-1].split('-')[0]]
+    gpt_neox_config = 'configs/{}.yml'.format(old_suffix)
+
+    # pass to deepy.py using subprocess
+    cmd = [
+        'python', '-m', 'deepy', 'neox_benchmark.py', gpt_neox_config, 'configs/benchmark_setup.yml']
+    current_directory = os.path.abspath(os.getcwd())
+    parent_directory = os.path.dirname(current_directory)
+    process = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=parent_directory)
+    # Continuously read the standard output and standard error streams
+    for line in iter(process.stdout.readline, b''):
+        print(line.decode().strip())
+    # # Wait for the subprocess to complete and get the return code
+    # return_code = proc.wait()
+    # if return_code == 0:
+    #     df = pd.read_csv(io.StringIO(result.stdout.decode('utf-8')), index_col=0)
+    #     return df
+    # else:
+    #     raise ValueError(f"Error running subprocess: {result.stderr.decode('utf-8')}")
     
 
 def main(models, output_dir, dtype, graphs, kernel_inject, max_tokens, local_rank, world_size, trials):
@@ -100,6 +136,9 @@ def main(models, output_dir, dtype, graphs, kernel_inject, max_tokens, local_ran
     print("Models to benchmark: {}".format(models))
     for model in models:
         print("Benchmarking model: {}".format(model))
+        # run native gpt-neox
+        print("Running native gpt-neox")
+        print(benchmark_gpt_neox(model))
         # run using deepspeed
         print("Running with deepspeed")
         deepspeed_dfs.append(benchmark_model(
