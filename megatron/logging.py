@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import sys
+
 import torch
 
 try:
@@ -27,7 +28,7 @@ from megatron.utils import report_memory
 class Tee:
     """Duplicate output to both stdout/err and file"""
 
-    def __init__(self, file, err=False):
+    def __init__(self, file, err: bool = False) -> None:
         self.file = open(file, "w")
         self.err = err
         if not err:
@@ -37,14 +38,14 @@ class Tee:
             self.std = sys.stderr
             sys.stderr = self
 
-    def __del__(self):
+    def __del__(self) -> None:
         if not self.err:
             sys.stdout = self.std
         else:
             sys.stderr = self.std
         self.file.close()
 
-    def write(self, data):
+    def write(self, data) -> None:
         try:
             self.file.write(data)
         except OSError:
@@ -54,14 +55,14 @@ class Tee:
         except OSError:
             pass
 
-    def flush(self):
+    def flush(self) -> None:
         try:
             self.file.flush()
         except OSError:
             pass
 
 
-def human_readable_flops(num):
+def human_readable_flops(num) -> str:
     for unit in [
         "",
         "KFLOPS",
@@ -78,7 +79,7 @@ def human_readable_flops(num):
     return "%.1f%s" % (num, "Yi")
 
 
-def get_flops(neox_args, model, iter_time_s):
+def get_flops(neox_args, model, iter_time_s) -> float:
     world_size = torch.distributed.get_world_size()
     ff = model.total_params * 6
     attn = neox_args.seq_length * neox_args.hidden_size * neox_args.num_layers * 60
@@ -358,7 +359,12 @@ def training_log(
 
 
 def tb_wandb_log(
-    key, value, iteration_no, use_wandb, tensorboard_writer=None, all_ranks=False
+    key: str,
+    value: float,
+    iteration_no: int,
+    use_wandb: bool,
+    tensorboard_writer=None,
+    all_ranks: bool = False,
 ):
     # logs to both tb and wandb (if present) from the zeroth rank
     do_log = torch.distributed.get_rank() == 0 or all_ranks
