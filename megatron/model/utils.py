@@ -114,12 +114,14 @@ class SequentialWrapper(torch.nn.Module):
         :param cache: (bool) True if you want to use caching during inference, False otherwise
         """
         _set_use_cache(self.sequential, use_cache)
+        recursive_setattr(self.sequential, "training", False)
 
     def train_mode(self):
         """
         Sets up the model for training by turning off k/v caching.
         """
         _set_use_cache(self.sequential, False)
+        recursive_setattr(self.sequential, "training", True)
 
     def forward(
         self, forward_input, curriculum_seqlen=None, labels=None, neox_args=None
