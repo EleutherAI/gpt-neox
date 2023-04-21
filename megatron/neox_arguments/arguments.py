@@ -989,7 +989,7 @@ class NeoXArgs(*BASE_CLASSES):
         # Update 'is pipe parallel' flag
         # if we set pipe_parallel_size to 0 or 1, GPT2ModelPipe.to_sequential() is called, and we run training with
         # the sequential model without the PipelineModule wrapper to avoid the overhead it incurs
-        self.update_value("is_pipe_parallel", self.pipe_parallel_size >= 2)
+        self.update_value("is_pipe_parallel", self.pipe_parallel_size >= 1)
 
         # Attention config
         if self.attention_config is None:
