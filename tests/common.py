@@ -270,7 +270,8 @@ def model_setup(yaml_list=None, param_dict=None, clear_data=True):
         p_dict = param_dict.copy()
         p_dict.update(overwrite_values)
         args_loaded = NeoXArgs.from_dict(p_dict)
-
+    
+    args_loaded.configure_distributed_args()
     args_loaded.build_tokenizer()
 
     initialize_megatron(neox_args=args_loaded)

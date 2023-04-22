@@ -42,6 +42,7 @@ from megatron.model import (
     GPT2ModelPipe,
     SoftEmbedding,
     get_params_for_weight_decay_optimization,
+    add_adapters
 )
 from megatron.checkpointing import load_checkpoint, save_checkpoint
 from megatron.data.data_utils import build_train_valid_test_data_iterators
@@ -392,6 +393,11 @@ def get_model(neox_args, use_cache=False):
         topology=mpu.get_topology(),
         use_cache=use_cache,
     )
+    
+    ### add adapter
+    if neox_args.add_adapters:
+        add_adapters(neox_args,model,location='mlp') 
+        add_adapters(neox_args,model,location='attention') 
 
     ### soft prompt tuning stuff ###
     if neox_args.soft_prompt_tuning is not None and neox_args.soft_prompt_tuning.get(

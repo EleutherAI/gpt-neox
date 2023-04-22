@@ -89,6 +89,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     """
     Model Arguments
     """
+    
+    add_adapters: bool = False
+    """
+    add adapters on model transformer mlp and attention.
+    """
 
     precision: Literal["fp16", "fp32", "bfloat16"] = None
     """
