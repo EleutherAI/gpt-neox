@@ -128,8 +128,7 @@ def add_adapters(
 ):
     for names, module in model.named_modules():
         if 'image_prefix' in names:
-          continue
-          # avoid add adapter in image_prefix, may need modification when change the image_prefixer
+          continue # no adapter for image_prefix transformers
         names = [name for name,module in module.named_modules()]
         if location in names and location==ff_attr:
             mlp = getattr(module,ff_attr)

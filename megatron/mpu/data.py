@@ -19,7 +19,7 @@ from .initialize import get_model_parallel_rank
 from .initialize import get_model_parallel_src_rank
 
 
-_MAX_DATA_DIM = 4
+_MAX_DATA_DIM = 5 ### increase from 4 to 5 for broadcasting images
 
 
 def _check_data_types(keys, data, target_dtype):

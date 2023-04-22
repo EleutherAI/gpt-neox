@@ -180,14 +180,28 @@ class EmbeddingPipe(Embedding):
         return self.word_embeddings.weight
 
     def forward(self, args):
+        """Change to accept image and text pair""" 
+        
         assert (
-            len(args) == 3
-        ), f"Expected 3 arguments (input_ids, position_ids, attention_mask), but got {len(args)}."
+            len(args) == 4
+        ), f"Expected 4 arguments (images, input_ids, position_ids, attention_mask), but got {len(args)}."
 
-        input_ids = args[0]
-        position_ids = args[1]
-        attention_mask = args[2]
-        embeddings = super().forward(input_ids, position_ids)
+        images = args[0]
+        input_ids = args[1]
+        position_ids = args[2]
+        attention_mask = args[3]
+        
+        image_embeddings = self.image_prefix(images)
+        word_embeddings = super().forward(input_ids, position_ids)
+
+        embeddings = torch.cat(
+            (
+                image_embeddings,
+                word_embeddings[:, : -image_embeddings.shape[1], :],
+            ),  # remove padding in the word embedding before concatenating
+            dim=1,
+        )
+        
         return embeddings, attention_mask
 
 

@@ -342,6 +342,29 @@ def get_batch_pipe(data, neox_args, curr_scheduler=None):
     # unpack data
     return (tokens, position_ids, attention_mask), (labels, loss_mask)
 
+def get_batch_pipe_image_text(input,neox_args):
+    """
+    Get input of model from one batch of image-text pair dataset 
+    input:{'img': torch.tensor , 'text': torch.tensor }
+    """
+    # input = {"img":input[0], "text":input[1]} # change input into dict to use broadcast_data
+    images = mpu.broadcast_data(["img"],input,input['img'].dtype)
+    captions = mpu.broadcast_data(["text"],input,input['text'].dtype) 
+    images = images["img"].contiguous()
+    captions = captions["text"].contiguous()
+    
+    labels = captions 
+    # first token is img, label need shift one position
+    # results that label is exactly captions
+    # input_embed:[img_token_0, text_token_0,...text_token_n-1]
+    # labels:[text_token_0,text_token_1, ...text_token_n ]
+        
+    attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
+        data=captions,
+        eod_token=neox_args.tokenizer.eod,
+        eod_mask_loss=neox_args.eod_mask_loss,
+)
+    return (images, captions, position_ids, attention_mask), (labels, loss_mask)
 
 def forward_step(
     data_iterator, model, neox_args, timers, return_logits=False, is_train=False
@@ -395,17 +418,17 @@ def get_model(neox_args, use_cache=False):
     )
     
     ### add adapter
-    if neox_args.add_adapters:
-     
-        add_adapters(neox_args,
-                    model,
-                    downsample_factor=neox_args.adaper_downsample_factor,
-                    location='mlp') 
-    
-        add_adapters(neox_args,
-                    model,
-                    downsample_factor=neox_args.adaper_downsample_factor,
-                    location='attention') 
+    # if neox_args.add_adapters:
+    #     # add on mlp
+    #     add_adapters(neox_args,
+    #                 model,
+    #                 downsample_factor=neox_args.adaper_downsample_factor,
+    #                 location='mlp') 
+    #     ## add on attention
+    #     add_adapters(neox_args,
+    #                 model,
+    #                 downsample_factor=neox_args.adaper_downsample_factor,
+    #                 location='attention') 
     
     ### soft prompt tuning stuff ###
     if neox_args.soft_prompt_tuning is not None and neox_args.soft_prompt_tuning.get(
@@ -648,7 +671,8 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
                 curr_scheduler = None
             model.set_batch_fn(
                 partial(
-                    get_batch_pipe, neox_args=neox_args, curr_scheduler=curr_scheduler
+                    # get_batch_pipe, neox_args=neox_args, curr_scheduler=curr_scheduler
+                    get_batch_pipe_image_text, neox_args=neox_args
                 )
             )
     else:
