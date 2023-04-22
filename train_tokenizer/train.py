@@ -7,6 +7,7 @@ from tokenizers import (
     normalizers,
     decoders,
     Tokenizer,
+    processors,
 )
 from tokenizers.pre_tokenizers import (
     Punctuation,
@@ -14,6 +15,7 @@ from tokenizers.pre_tokenizers import (
     ByteLevel,
     UnicodeScripts,
     Sequence,
+    WhitespaceSplit,
 )
 import emoji
 from tokenizers.models import BPE, Unigram
@@ -40,7 +42,11 @@ def parse_args():
         "--vocab_size", type=int, default=102400, help="vocab size for tokenizer"
     )
     parser.add_argument(
-        "--data_path", type=str, required=True, help="takes str to single file"
+        "--data_path",
+        type=str,
+        required=True,
+        # default="~/corpus/jsonl/the_stack_smol.jsonl",
+        help="takes str to single file",
     )
     parser.add_argument("--save_path", type=str, default="tokenizer")
     parser.add_argument(
@@ -68,7 +74,17 @@ def parse_args():
         default=100,
         help="number of tokens to pad BEFORE tokenizer initialization",
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--preserve_whitespace",
+        type=str,
+        default="yes",
+        choices=["yes", "inference", "no"],
+        help="choose whitespace preservation. \n \
+            yes preserves during training and inference\n \
+            inference removes during training but resumes at inference\n \
+            no removes completely. this makes tokenizer non invertible(loses original)",
+    )
+    args, _ = parser.parse_known_args()
     return args
 
 
@@ -105,9 +121,15 @@ def main(args):
     buffer_tokens = [f"<unused{i}>" for i in range(args.buffer_tokens)]
     # calculate whitespace tokens
     whitespace = " "
-    whitespace_count = 2
+    whitespace_count = 2  # 4,2,1 whitespaces
+    # necessary for invertibility
+    if not args.preserve_whitespace == "yes":
+        last_whitespace = -1
+    else:
+        last_whitespace = 0  # only
     whitespace_list = [
-        whitespace * (2**count) for count in range(whitespace_count, 0, -1)
+        whitespace * (2**count)
+        for count in range(whitespace_count, last_whitespace, -1)
     ]
     # construct added_tokens
     added_tokens = (
@@ -126,16 +148,21 @@ def main(args):
     elif args.normalizer.lower() == "nfkc":
         normalizer = normalizers.NFKC()
     # common pretokenizer
-    pre_tokenizer = Sequence(
-        [
-            UnicodeScripts(),  # split on different unicode range
-            Punctuation(
-                behavior="isolated",
-            ),
-            Digits(individual_digits=True),
-            ByteLevel(add_prefix_space=False, use_regex=True),
-        ]
-    )
+    pre_tokenizer_list = [
+        UnicodeScripts(),  # split on different unicode range
+        Punctuation(
+            behavior="isolated",
+        ),
+        Digits(individual_digits=True),
+        ByteLevel(add_prefix_space=False, use_regex=True),
+    ]
+    # if yes, default to no whitespace handling
+    if not args.preserve_whitespace == "yes":
+        pre_tokenizer_list.insert(
+            0,
+            WhitespaceSplit(),
+        )  # whitespace split should be in front
+    pre_tokenizer = Sequence(pre_tokenizer_list)
     # common decoder
     decoder = decoders.ByteLevel(add_prefix_space=False, use_regex=True)
     if args.model.lower() == "bpe":
@@ -169,6 +196,13 @@ def main(args):
     )
     end = time()
     print(f"time elapsed: {(end - start) / 60:.2f}m")
+    # if preserve whitespace is set to "inference", remove Whitespace splitter
+    if args.preserve_whitespace == "inference":
+        for idx in range(len(pre_tokenizer_list)):
+            if isinstance(pre_tokenizer_list[idx], WhitespaceSplit):
+                pre_tokenizer_list.pop(idx)
+                break
+    tokenizer.pre_tokenizer = Sequence(pre_tokenizer_list)
     tokenizer_wrapper = GPT2TokenizerFast(
         tokenizer_object=tokenizer,
         vocab_size=args.vocab_size,
@@ -177,7 +211,8 @@ def main(args):
         eos_token=SPECIAL_TOKENS[0],
         unk_token=SPECIAL_TOKENS[0],
     )
-    text = "아!@ 진짜 억울해죽것네'''아니english123배고파씌 korea으😣악😣😳😣'''"
+
+    text = "아!@ 진짜      억울해죽것네'''아니english123배고파씌 korea으😣악😣😳😣'''"
     print(f"text: {text}")
     tokens = tokenizer_wrapper.tokenize(text)
     input_ids = tokenizer_wrapper(text)["input_ids"]
