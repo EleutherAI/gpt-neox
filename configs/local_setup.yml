@@ -15,8 +15,8 @@
   # "weight_by_num_documents": false,
   # "weighted_sampler_alpha": 0.3,
 
-  "vocab-file": "data/gpt2-vocab.json",
-  "merge-file": "data/gpt2-merges.txt",
+  "vocab-file": "/home/lfsm/code/gpt-neox/data/gpt2-vocab.json",
+  "merge-file": "/home/lfsm/code/gpt-neox/data/gpt2-merges.txt",
 
   "save": "checkpoints",
   "load": "checkpoints",

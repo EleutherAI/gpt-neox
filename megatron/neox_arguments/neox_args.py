@@ -94,6 +94,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     """
     add adapters on model transformer mlp and attention.
     """
+    
+    adaper_downsample_factor: int = 4
+    """
+    Downsample factor for adapter's linear layers
+    """
 
     precision: Literal["fp16", "fp32", "bfloat16"] = None
     """
@@ -538,6 +543,33 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     """
 
 
+@dataclass
+class NeoXArgsImageprefix(NeoXArgsTemplate):
+    """
+    Image_prefix Arguments
+    """
+
+    encoder_name: str = "openclip-H"
+    """
+    Different encoder for image_prefix, eg. "clip_resnet_large", openclip-H"
+    """
+
+    pretrained_img_encoder: bool = False
+    """
+    Whether use pretrained weight for image encoder.
+    """
+    
+    use_image_embed_layernorm: bool = False
+    """
+    Layer norm on output of image embedding
+    """
+
+    image_embed_dropout_prob: float = 0.0
+    """
+    Drop out on output of image embedding
+    """
+
+    
 @dataclass
 class NeoXArgsOther(NeoXArgsTemplate):
     """

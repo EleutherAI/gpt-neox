@@ -19,6 +19,7 @@ from torch.nn.parameter import Parameter
 from megatron import mpu
 from megatron.model.positional_embeddings import SinusoidalPositionalEmbedding
 from megatron.model.init_functions import get_init_methods
+from megatron.model.image_prefix import ImagePrefix
 
 
 class Embedding(torch.nn.Module):
@@ -164,6 +165,14 @@ class Embedding(torch.nn.Module):
 
 class EmbeddingPipe(Embedding):
     """Extends Embedding to forward attention_mask through the pipeline."""
+
+    def __init__(self, neox_args,  hidden_size, vocab_size, max_sequence_length, embedding_dropout_prob, init_method, num_tokentypes=0, use_pos_emb=True):
+        super().__init__(neox_args, hidden_size, vocab_size, max_sequence_length, embedding_dropout_prob, init_method, num_tokentypes, use_pos_emb)
+        
+        self.image_prefix = ImagePrefix(
+            config = neox_args,
+            out_dim=neox_args.hidden_size,
+        )
 
     @property
     def word_embeddings_weight(self):

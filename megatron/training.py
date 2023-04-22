@@ -396,9 +396,17 @@ def get_model(neox_args, use_cache=False):
     
     ### add adapter
     if neox_args.add_adapters:
-        add_adapters(neox_args,model,location='mlp') 
-        add_adapters(neox_args,model,location='attention') 
-
+     
+        add_adapters(neox_args,
+                    model,
+                    downsample_factor=neox_args.adaper_downsample_factor,
+                    location='mlp') 
+    
+        add_adapters(neox_args,
+                    model,
+                    downsample_factor=neox_args.adaper_downsample_factor,
+                    location='attention') 
+    
     ### soft prompt tuning stuff ###
     if neox_args.soft_prompt_tuning is not None and neox_args.soft_prompt_tuning.get(
         "enabled", False
