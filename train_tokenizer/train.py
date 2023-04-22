@@ -251,7 +251,7 @@ def main(args):
         unk_token=SPECIAL_TOKENS[0],  #
     )
 
-    text = "아!@ ㈝12시 진짜홀수ws     tOkeN  짝수ws    억울해죽것네'''newline\nnewline tab\ttab 아니enGlish123배고파씌 Korea으😣악😣😳😣'''"
+    text = "아!@ ㈝12시 진짜홀수ws     tOkeN  짝수ws    억울해죽것네'''newLine\nNewline taB\tTab 아니enGlish123배고파씌 Korea으😣악😣😳😣'''"
 
     tokens = tokenizer_wrapper.tokenize(text)
     input_ids = tokenizer_wrapper(text)["input_ids"]
