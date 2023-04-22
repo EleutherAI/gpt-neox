@@ -39,7 +39,9 @@ def parse_args():
     parser.add_argument(
         "--vocab_size", type=int, default=102400, help="vocab size for tokenizer"
     )
-    parser.add_argument("--data_path", type=str, required=True)
+    parser.add_argument(
+        "--data_path", type=str, required=True, help="takes str to single file"
+    )
     parser.add_argument("--save_path", type=str, default="tokenizer")
     parser.add_argument(
         "--normalizer",
@@ -57,37 +59,24 @@ def parse_args():
     parser.add_argument(
         "--cache_capacity",
         type=int,
-        default=10000,
+        default=10000,  # this is default for tokenizers. TODO: ablations
         help="cache_capacity in BPE.",
-    )
-    parser.add_argument(
-        "--num_proc",
-        type=int,
-        default=1,
-        help="number of processes to use. num_proc=0 uses all cores",
     )
     parser.add_argument(
         "--buffer_tokens",
         type=int,
         default=100,
-        help="number of buffer tokens to pad before tokenizer initialization",
+        help="number of tokens to pad BEFORE tokenizer initialization",
     )
     args = parser.parse_args()
     return args
 
 
 def main(args):
-    if args.num_proc == 0:
-        import multiprocessing
-
-        num_proc = multiprocessing.cpu_count()
+    if ".jsonl" in args.data_path:
+        dataset = load_dataset(args.data_path)
     else:
-        num_proc = args.num_proc
-
-    if ".json" in args.data_path:
-        dataset = load_dataset(args.data_path, num_proc=num_proc)
-    else:
-        dataset = load_from_disk(args.data_path)
+        dataset = load_from_disk(args.data_path)  # returns dataset
 
     # tokenizer arguments
     SPECIAL_TOKENS = [
@@ -101,7 +90,7 @@ def main(args):
         "<d>",
         "</d>",
     ]
-    with open("facial_expression.txt") as f:
+    """with open("facial_expression.txt") as f:
         facial_expression = [line.strip() for line in f.readlines()]
     emoji_unicode_face = list(
         set(
@@ -111,7 +100,7 @@ def main(args):
                 if "face" in i
             ]
         )
-    )
+    )"""
     # start with buffer tokens
     buffer_tokens = [f"<unused{i}>" for i in range(args.buffer_tokens)]
     # calculate whitespace tokens
@@ -123,16 +112,18 @@ def main(args):
     # construct added_tokens
     added_tokens = (
         SPECIAL_TOKENS
-        + facial_expression
-        + emoji_unicode_face
+        # + facial_expression
+        # + emoji_unicode_face
         + buffer_tokens
         + whitespace_list
     )
+    initial_alphabet = ByteLevel.alphabet()
+    initial_alphabet.sort()
 
     # tokenizer normalizer
-    if args.model.lower() == "nfc":
+    if args.normalizer.lower() == "nfc":
         normalizer = normalizers.NFC()
-    elif args.model.lower() == "nfkc":
+    elif args.normalizer.lower() == "nfkc":
         normalizer = normalizers.NFKC()
     # common pretokenizer
     pre_tokenizer = Sequence(
@@ -148,11 +139,18 @@ def main(args):
     # common decoder
     decoder = decoders.ByteLevel(add_prefix_space=False, use_regex=True)
     if args.model.lower() == "bpe":
-        tokenizer = Tokenizer(BPE(dropout=args.dropout))
+        tokenizer = Tokenizer(
+            BPE(
+                cache_capacity=args.cache_capacity,
+                dropout=args.dropout,
+                byte_fallback=False,
+            )
+        )
         trainer = BpeTrainer(
             vocab_size=args.vocab_size,
             special_tokens=added_tokens,
-            initial_alphabet=ByteLevel.alphabet(),
+            initial_alphabet=initial_alphabet,
+            continuing_subword_prefix=args.continuing_subword_prefix,
         )
     else:
         tokenizer = Tokenizer(Unigram())
@@ -170,7 +168,7 @@ def main(args):
         batch_iterator(dataset), trainer=trainer, length=len(dataset)
     )
     end = time()
-    print(f"time collapsed: {(end - start) / 60:.2f}m")
+    print(f"time elapsed: {(end - start) / 60:.2f}m")
     tokenizer_wrapper = GPT2TokenizerFast(
         tokenizer_object=tokenizer,
         vocab_size=args.vocab_size,
@@ -184,7 +182,8 @@ def main(args):
     tokens = tokenizer_wrapper.tokenize(text)
     input_ids = tokenizer_wrapper(text)["input_ids"]
     print(f"tokens: {tokens}")
-    print(f"decode: {tokenizer_wrapper.decode(input_ids)}")
+    print(f"decode: {(decoded := tokenizer_wrapper.decode(input_ids))}")
+    print(f"invertible: {decoded==text}")
     tokenizer_wrapper.save_pretrained(f"{args.save_path}")
 
 
