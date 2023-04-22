@@ -1,10 +1,14 @@
 import jsonlines
 import datasets
+import os
+
+print()
+
 
 def batch_iterator(
     dataset: datasets.arrow_dataset.Dataset,
     key: str = "text",
-    batch_size: int = 1000,
+    batch_size: int = 1024,
 ):
     for i in range(0, len(dataset), batch_size):
         yield dataset[i : i + batch_size][key]
@@ -12,6 +16,7 @@ def batch_iterator(
 
 def load_dataset(file_path, key="text"):
     data = []
+    file_path = file_path.replace("~", os.path.expanduser("~"))
     with jsonlines.open(file_path) as reader:
         for sample in reader.iter():
             try:
