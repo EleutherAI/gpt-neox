@@ -1,6 +1,7 @@
 import jsonlines
 import datasets
 import os
+from tqdm import tqdm
 
 print()
 
@@ -18,7 +19,7 @@ def load_dataset(file_path, key="text"):
     data = []
     file_path = file_path.replace("~", os.path.expanduser("~"))
     with jsonlines.open(file_path) as reader:
-        for sample in reader.iter():
+        for sample in reader.iter(allow_none=True, skip_empty=True, skip_invalid=True):
             try:
                 data.append({key: sample[key]})
             except:
