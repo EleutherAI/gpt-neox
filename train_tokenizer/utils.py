@@ -3,8 +3,6 @@ import datasets
 import os
 from tqdm import tqdm
 
-print()
-
 
 def batch_iterator(
     dataset: datasets.arrow_dataset.Dataset,
