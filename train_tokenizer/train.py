@@ -15,13 +15,15 @@ from tokenizers.pre_tokenizers import (
     ByteLevel,
     UnicodeScripts,
     Sequence,
+    Split,
     WhitespaceSplit,
+    Whitespace,
 )
 import emoji
 from tokenizers.models import BPE, Unigram
 from tokenizers.trainers import BpeTrainer, UnigramTrainer
 from utils import load_dataset, batch_iterator
-
+import os
 
 logger = logging.getLogger()
 
@@ -35,9 +37,7 @@ def parse_args():
         choices=["bpe", "unigram"],
         help="tokenizer model",
     )
-    parser.add_argument(
-        "--dropout", type=float, default=0.1, help="dropout rate for BPE"
-    )
+    parser.add_argument("--dropout", default=None, help="dropout rate for BPE")
     parser.add_argument(
         "--vocab_size", type=int, default=102400, help="vocab size for tokenizer"
     )
@@ -52,7 +52,7 @@ def parse_args():
     parser.add_argument(
         "--normalizer",
         type=str,
-        default="NFKC",
+        default="NFC",
         choices=["NFKC", "NFC"],
         help="unicode normalizer",
     )
@@ -71,8 +71,17 @@ def parse_args():
     parser.add_argument(
         "--buffer_tokens",
         type=int,
-        default=100,
+        default=512,
         help="number of tokens to pad BEFORE tokenizer initialization",
+    )
+    parser.add_argument(
+        "--whitespace_reservation",
+        type=int,
+        default=24,
+        help="number of whitespaces to add as special tokens. default length exponential. \n \
+            up to len = 2^(whitespace_reservation)",
+        # consider no repeat ngrams during generation. (3 indentations--> bad)
+        # TODO : 12 (linear)
     )
     parser.add_argument(
         "--preserve_whitespace",
@@ -84,64 +93,75 @@ def parse_args():
             inference removes during training but resumes at inference\n \
             no removes completely. this makes tokenizer non invertible(loses original)",
     )
+    parser.add_argument(
+        "--add_prefix_space",
+        type=bool,
+        default=True,
+        choices=[True, False],
+        help="add prefix space. True : 'Gword','word' ",
+    )
     args, _ = parser.parse_known_args()
     return args
 
 
 def main(args):
-    if ".jsonl" in args.data_path:
-        dataset = load_dataset(args.data_path)
+    data_path = args.data_path.replace("~", os.path.expanduser("~"))
+    if os.path.isfile(data_path):
+        if ".json" in data_path:
+            dataset = load_dataset(data_path)  # TODO : multiple jsonl file inputs
+        else:
+            dataset = load_from_disk(data_path)  # returns dataset
+    elif os.path.isdir(data_path):
+        pass  # TODO
     else:
-        dataset = load_from_disk(args.data_path)  # returns dataset
+        raise ValueError(f"Check --data_path : {data_path}")
 
     # tokenizer arguments
     SPECIAL_TOKENS = [
         "<s>",
         "</s>",
-        "<usr>",
-        "<pad>",
-        "<sys>",
-        "<unk>",
+        "<|usr|>",
+        "<|pad|>",
+        "<|sys|>",
+        "<|unk|>",
         "<|sep|>",
-        "<mask>",
-        "<d>",
-        "</d>",
-    ]
-    """with open("facial_expression.txt") as f:
+        "<|mask|>",
+        "<|d|>",
+        "<|/d|>",
+    ]  # TODO : add specific tokens. add || https://github.com/EleutherAI/dps/blob/master/dps/spark/utils/token_utils.py
+    with open("facial_expression.txt") as f:
         facial_expression = [line.strip() for line in f.readlines()]
-    emoji_unicode_face = list(
+    """emoji_unicode_face = list(
         set(
             [
-                emoji.EMOJI_UNICODE["en"][i][0]
+                emoji.EMOJI_UNICODE["en"][i][0] # emoji == 1.2.0
                 for i in emoji.EMOJI_UNICODE["en"].keys()
                 if "face" in i
             ]
         )
     )"""
-    # start with buffer tokens
-    buffer_tokens = [f"<unused{i}>" for i in range(args.buffer_tokens)]
     # calculate whitespace tokens
     whitespace = " "
-    whitespace_count = 2  # 4,2,1 whitespaces
-    # necessary for invertibility
-    if not args.preserve_whitespace == "yes":
-        last_whitespace = -1
-    else:
-        last_whitespace = 0  # only
+    whitespace_count = args.whitespace_reservation  # 4,2 whitespaces
+    # necessary for invertibility?
+    last_whitespace = 0  # -1 : include single white space.
+    # construct whitespaces
     whitespace_list = [
-        whitespace * (2**count)
-        for count in range(whitespace_count, last_whitespace, -1)
+        whitespace * count for count in range(whitespace_count, last_whitespace, -1)
     ]
-    # construct added_tokens
+    vocab_size = args.vocab_size - len(whitespace_list)  # we will add whitespace later
+    # construct buffer_tokens
+    buffer_token_count = args.buffer_tokens
+    buffer_tokens = [f"<|unused{i}|>" for i in range(buffer_token_count)]
+    # construct added_token
     added_tokens = (
         SPECIAL_TOKENS
         # + facial_expression
         # + emoji_unicode_face
         + buffer_tokens
-        + whitespace_list
+        # + whitespace_list #not a special token
     )
-    initial_alphabet = ByteLevel.alphabet()
-    initial_alphabet.sort()
+    add_prefix_space = args.add_prefix_space
 
     # tokenizer normalizer
     if args.normalizer.lower() == "nfc":
@@ -152,7 +172,7 @@ def main(args):
     pre_tokenizer_list = [
         UnicodeScripts(),  # split on different unicode range
         Punctuation(
-            behavior="isolated",
+            behavior="isolated",  # not contiguous /* */  /*******/
         ),
         Digits(individual_digits=True),
         ByteLevel(add_prefix_space=False, use_regex=True),
@@ -161,7 +181,7 @@ def main(args):
     if not args.preserve_whitespace == "yes":
         pre_tokenizer_list.insert(
             0,
-            WhitespaceSplit(),
+            Whitespace(),  # WhitespaceSplit()
         )  # whitespace split should be in front
     pre_tokenizer = Sequence(pre_tokenizer_list)
     # common decoder
@@ -174,16 +194,21 @@ def main(args):
                 byte_fallback=False,
             )
         )
+
+        initial_alphabet = ByteLevel.alphabet()
+        initial_alphabet.sort()
         trainer = BpeTrainer(
-            vocab_size=args.vocab_size,
+            vocab_size=vocab_size,
             special_tokens=added_tokens,
             initial_alphabet=initial_alphabet,
-            continuing_subword_prefix=args.continuing_subword_prefix,
+            continuing_subword_prefix=args.continuing_subword_prefix,  # ##word
         )
     else:
+        initial_alphabet = ByteLevel.alphabet()
+        initial_alphabet.sort()
         tokenizer = Tokenizer(Unigram())
         trainer = UnigramTrainer(
-            vocab_size=args.vocab_size,
+            vocab_size=vocab_size,
             special_tokens=added_tokens,
             initial_alphabet=ByteLevel.alphabet(),
         )
@@ -200,24 +225,27 @@ def main(args):
     # if preserve whitespace is set to "inference", remove Whitespace splitter
     if args.preserve_whitespace == "inference":
         for idx in range(len(pre_tokenizer_list)):
-            if isinstance(pre_tokenizer_list[idx], WhitespaceSplit):
+            if isinstance(pre_tokenizer_list[idx], Whitespace):
                 pre_tokenizer_list.pop(idx)
                 break
+    tokenizer.add_tokens(whitespace_list)
     tokenizer.pre_tokenizer = Sequence(pre_tokenizer_list)
     tokenizer_wrapper = GPT2TokenizerFast(
         tokenizer_object=tokenizer,
         vocab_size=args.vocab_size,
         additional_special_tokens=SPECIAL_TOKENS,
-        bos_token=SPECIAL_TOKENS[0],  # ?
-        eos_token=SPECIAL_TOKENS[0],  # ?
-        unk_token=SPECIAL_TOKENS[0],  # ?
+        bos_token=SPECIAL_TOKENS[0],  # GPT style all [0]
+        eos_token=SPECIAL_TOKENS[0],  #
+        unk_token=SPECIAL_TOKENS[0],  #
     )
 
-    text = "아!@ 진짜      억울해죽것네'''아니english123배고파씌 korea으😣악😣😳😣'''"
+    text = "아!@ ㈝12시 진짜홀수ws     tOkeN  짝수ws    억울해죽것네'''newline\nnewline tab\ttab 아니enGlish123배고파씌 Korea으😣악😣😳😣'''"
     print(f"text: {text}")
     tokens = tokenizer_wrapper.tokenize(text)
     input_ids = tokenizer_wrapper(text)["input_ids"]
     print(f"tokens: {tokens}")
+    print(f"original input length: {len(text)}")
+    print(f"length of tokens: {len(tokens)}")
     # print(f"decoded tokens: ") TODO : add decoded versions
     print(f"decode: {(decoded := tokenizer_wrapper.decode(input_ids))}")
     print(f"invertible: {decoded==text}")
