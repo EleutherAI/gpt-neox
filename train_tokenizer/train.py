@@ -78,10 +78,10 @@ def parse_args():
         "--whitespace_reservation",
         type=int,
         default=24,
-        help="number of whitespaces to add as special tokens. default length exponential. \n \
-            up to len = 2^(whitespace_reservation)",
+        help="number of whitespaces to add as special tokens. \n \
+            default length linear. \n \
+            sorted down from len = (whitespace_reservation)",
         # consider no repeat ngrams during generation. (3 indentations--> bad)
-        # TODO : 12 (linear)
     )
     parser.add_argument(
         "--preserve_whitespace",
@@ -92,6 +92,13 @@ def parse_args():
             yes preserves during training and inference\n \
             inference removes during training but resumes at inference\n \
             no removes completely. this makes tokenizer non invertible(loses original)",
+    )
+    parser.add_argument(
+        "--single_whitespace",
+        type=bool,
+        default=False,
+        choices=[True, False],
+        help="Whether to include single whitespace in vocab",
     )
     parser.add_argument(
         "--add_prefix_space",
@@ -143,12 +150,12 @@ def main(args):
     # calculate whitespace tokens
     whitespace = " "
     whitespace_count = args.whitespace_reservation  # 4,2 whitespaces
-    # necessary for invertibility?
-    last_whitespace = 0  # -1 : include single white space.
+
     # construct whitespaces
-    whitespace_list = [
-        whitespace * count for count in range(whitespace_count, last_whitespace, -1)
-    ]
+    whitespace_list = [whitespace * count for count in range(whitespace_count, 1, -1)]
+    if args.single_whitespace:
+        whitespace_list.append(" ")  # add single_whitespace
+    # necessary for invertibility?
     vocab_size = args.vocab_size - len(whitespace_list)  # we will add whitespace later
     # construct buffer_tokens
     buffer_token_count = args.buffer_tokens
