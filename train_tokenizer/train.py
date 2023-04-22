@@ -2,7 +2,7 @@ import argparse
 from time import time
 import logging
 from datasets import load_from_disk
-from transformers import GPT2TokenizerFast
+from transformers import PreTrainedTokenizerFast
 from tokenizers import (
     normalizers,
     decoders,
@@ -242,7 +242,7 @@ def main(args):
                 break
     tokenizer.add_tokens(whitespace_list)
     tokenizer.pre_tokenizer = Sequence(pre_tokenizer_list)
-    tokenizer_wrapper = GPT2TokenizerFast(
+    tokenizer_wrapper = PreTrainedTokenizerFast(
         tokenizer_object=tokenizer,
         vocab_size=args.vocab_size,
         additional_special_tokens=SPECIAL_TOKENS,
