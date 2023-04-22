@@ -115,11 +115,16 @@ def main(args):
     data_path = args.data_path.replace("~", os.path.expanduser("~"))
     if os.path.isfile(data_path):
         if ".json" in data_path:
-            dataset = load_dataset(data_path)  # TODO : multiple jsonl file inputs
-        else:
-            dataset = load_from_disk(data_path)  # returns dataset
+            dataset = load_dataset(data_path)
+        elif ".txt" in data_path:
+            raise ValueError(f"txt import not implemented : {data_path}")  # TODO
     elif os.path.isdir(data_path):
-        pass  # TODO
+        try:
+            dataset = load_from_disk(data_path)  # returns dataset
+        except FileNotFoundError as e:
+            print(f"{e}")
+            print("Trying to open as directory with jsonls")
+            raise ValueError("jsonl directory open not implemented")  # TODO
     else:
         raise ValueError(f"Check --data_path : {data_path}")
 
@@ -247,15 +252,36 @@ def main(args):
     )
 
     text = "아!@ ㈝12시 진짜홀수ws     tOkeN  짝수ws    억울해죽것네'''newline\nnewline tab\ttab 아니enGlish123배고파씌 Korea으😣악😣😳😣'''"
-    print(f"text: {text}")
+
     tokens = tokenizer_wrapper.tokenize(text)
     input_ids = tokenizer_wrapper(text)["input_ids"]
-    print(f"tokens: {tokens}")
-    print(f"original input length: {len(text)}")
-    print(f"length of tokens: {len(tokens)}")
-    # print(f"decoded tokens: ") TODO : add decoded versions
+    vocab_dict_vk = {v: k for k, v in tokenizer_wrapper.vocab.items()}
+    decoded_dict = {}
+    for idx, token in vocab_dict_vk.items():
+        decoded_dict[idx] = tokenizer.decoder.decode([token])
+    each_decode = []
+    ufb_count = 0
+    for id in input_ids:
+        decoded = decoded_dict[id]
+        if decoded == "�":
+            each_decode.append("|ufb|")
+            ufb_count += 1
+        else:
+            each_decode.append(decoded)
+
+    print(f"text: {text}")
     print(f"decode: {(decoded := tokenizer_wrapper.decode(input_ids))}")
     print(f"invertible: {decoded==text}")
+    print(f"tokens: {tokens}")
+    print(f"tokens recon: {each_decode}")
+    print(
+        f"original input length: char= {len(text)}, bytes= {len(text.encode('utf-8'))}"
+    )
+    print(f"token count: {len(tokens)}")
+    print(
+        f"unicode fallback portion: {ufb_count} /{len(tokens)} = {ufb_count / len(tokens):.3f}"
+    )
+
     tokenizer_wrapper.save_pretrained(f"{args.save_path}")
 
 
