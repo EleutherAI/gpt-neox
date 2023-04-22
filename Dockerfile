@@ -16,6 +16,13 @@ FROM nvidia/cuda:11.1.1-devel-ubuntu20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# metainformation
+LABEL org.opencontainers.image.version = "2.0"
+LABEL org.opencontainers.image.authors = "contact@eleuther.ai"
+LABEL org.opencontainers.image.source = "https://www.github.com/eleutherai/gpt-neox"
+LABEL org.opencontainers.image.licenses = " Apache-2.0"
+LABEL org.opencontainers.image.base.name="docker.io/nvidia/cuda:11.1.1-devel-ubuntu20.04"
+
 #### System package (uses default Python 3 version in Ubuntu 20.04)
 RUN apt-get update -y && \
     apt-get install -y \
@@ -35,7 +42,7 @@ ENV PASSWORD=password
 RUN mkdir /var/run/sshd && \
     echo "root:${PASSWORD}" | chpasswd && \
     # Allow root login with password
-    sed -i 's/PermitRootLogin without-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     # Prevent user being kicked off after login
     sed -i 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' /etc/pam.d/sshd && \
     echo 'AuthorizedKeysFile     .ssh/authorized_keys' >> /etc/ssh/sshd_config && \
