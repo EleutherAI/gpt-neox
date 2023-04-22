@@ -102,6 +102,7 @@ def main(args):
         "<pad>",
         "<sys>",
         "<unk>",
+        "<|sep|>",
         "<mask>",
         "<d>",
         "</d>",
@@ -207,9 +208,9 @@ def main(args):
         tokenizer_object=tokenizer,
         vocab_size=args.vocab_size,
         additional_special_tokens=SPECIAL_TOKENS,
-        bos_token=SPECIAL_TOKENS[0],
-        eos_token=SPECIAL_TOKENS[0],
-        unk_token=SPECIAL_TOKENS[0],
+        bos_token=SPECIAL_TOKENS[0],  # ?
+        eos_token=SPECIAL_TOKENS[0],  # ?
+        unk_token=SPECIAL_TOKENS[0],  # ?
     )
 
     text = "아!@ 진짜      억울해죽것네'''아니english123배고파씌 korea으😣악😣😳😣'''"
@@ -217,6 +218,7 @@ def main(args):
     tokens = tokenizer_wrapper.tokenize(text)
     input_ids = tokenizer_wrapper(text)["input_ids"]
     print(f"tokens: {tokens}")
+    # print(f"decoded tokens: ") TODO : add decoded versions
     print(f"decode: {(decoded := tokenizer_wrapper.decode(input_ids))}")
     print(f"invertible: {decoded==text}")
     tokenizer_wrapper.save_pretrained(f"{args.save_path}")
