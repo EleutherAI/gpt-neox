@@ -190,7 +190,7 @@ class EmbeddingPipe(Embedding):
         input_ids = args[1]
         position_ids = args[2]
         attention_mask = args[3]
-        
+
         image_embeddings = self.image_prefix(images)
         word_embeddings = super().forward(input_ids, position_ids)
 
@@ -201,7 +201,7 @@ class EmbeddingPipe(Embedding):
             ),  # remove padding in the word embedding before concatenating
             dim=1,
         )
-        
+
         return embeddings, attention_mask
 
 
