@@ -59,7 +59,7 @@ def load_from_path(path: str, key="text"):
                         ds_list.append(ds)
                 if os.path.isdir(subpath):
                     try:
-                        dataset = datasets.load_from_disk(subpath)
+                        ds_list.append(datasets.load_from_disk(subpath))
                     except:
                         # don't go recursive.
                         pass
