@@ -22,8 +22,9 @@ from tokenizers.pre_tokenizers import (
 import emoji
 from tokenizers.models import BPE, Unigram
 from tokenizers.trainers import BpeTrainer, UnigramTrainer
-from utils import load_dataset, batch_iterator
+from utils import load_dataset, batch_iterator, load_from_path
 import os
+import datasets
 
 logger = logging.getLogger()
 
@@ -57,6 +58,13 @@ def parse_args():
         help="unicode normalizer",
     )
     parser.add_argument(
+        "--byte_fallback",
+        type=bool,
+        default=False,
+        choices=[True, False],
+        help="Bytelevel() preprocessor vs BPE(byte_fallback)",
+    )
+    parser.add_argument(
         "--continuing_subword_prefix",
         type=str,
         default="",
@@ -71,7 +79,7 @@ def parse_args():
     parser.add_argument(
         "--buffer_tokens",
         type=int,
-        default=512,
+        default=100,
         help="number of tokens to pad BEFORE tokenizer initialization",
     )
     parser.add_argument(
@@ -107,12 +115,20 @@ def parse_args():
         choices=[True, False],
         help="add prefix space. True : 'Gword','word' ",
     )
+    parser.add_argument(
+        "--shuffle_seed",
+        type=int,
+        default=0,
+        help="corpus shuffle seed. 0(default) for no shuffling",
+    )
     args, _ = parser.parse_known_args()
     return args
 
 
 def main(args):
     data_path = args.data_path.replace("~", os.path.expanduser("~"))
+    """
+    
     if os.path.isfile(data_path):
         if ".json" in data_path:
             dataset = load_dataset(data_path)
@@ -127,6 +143,12 @@ def main(args):
             raise ValueError("jsonl directory open not implemented")  # TODO
     else:
         raise ValueError(f"Check --data_path : {data_path}")
+    """
+    dataset = load_from_path(data_path)
+    if dataset == None:
+        raise ValueError(f"Check --data_path : {data_path}")
+    if seed := args.shuffle_seed != 0:
+        dataset.shuffle(seed)
 
     # tokenizer arguments
     SPECIAL_TOKENS = [
@@ -141,8 +163,8 @@ def main(args):
         "<|d|>",
         "<|/d|>",
     ]  # TODO : add specific tokens. add || https://github.com/EleutherAI/dps/blob/master/dps/spark/utils/token_utils.py
-    with open("facial_expression.txt") as f:
-        facial_expression = [line.strip() for line in f.readlines()]
+    """with open("facial_expression.txt") as f:
+        facial_expression = [line.strip() for line in f.readlines()]"""
     """emoji_unicode_face = list(
         set(
             [
@@ -180,6 +202,7 @@ def main(args):
         normalizer = normalizers.NFC()
     elif args.normalizer.lower() == "nfkc":
         normalizer = normalizers.NFKC()
+
     # common pretokenizer
     pre_tokenizer_list = [
         UnicodeScripts(),  # split on different unicode range
@@ -189,26 +212,44 @@ def main(args):
         Digits(individual_digits=True),
         ByteLevel(add_prefix_space=False, use_regex=True),
     ]
+
+    # construct_pretokenizer
+    pre_tokenizer = Sequence(pre_tokenizer_list)
+
+    # set byte_fallback
+    byte_fallback = args.byte_fallback
+
     # if yes, default to no whitespace handling
     if not args.preserve_whitespace == "yes":
         pre_tokenizer_list.insert(
             0,
             Whitespace(),  # WhitespaceSplit()
         )  # whitespace split should be in front
-    pre_tokenizer = Sequence(pre_tokenizer_list)
     # common decoder
     decoder = decoders.ByteLevel(add_prefix_space=False, use_regex=True)
+
     if args.model.lower() == "bpe":
         tokenizer = Tokenizer(
             BPE(
                 cache_capacity=args.cache_capacity,
                 dropout=args.dropout,
-                byte_fallback=False,
+                byte_fallback=byte_fallback,
             )
         )
 
-        initial_alphabet = ByteLevel.alphabet()
-        initial_alphabet.sort()
+        # change behavior for byte_fallback
+        if byte_fallback:
+            initial_alphabet = []
+            decoder = decoders.ByteFallback()
+            for idx in range(len(pre_tokenizer_list)):
+                if isinstance(pre_tokenizer_list[idx], ByteLevel):
+                    pre_tokenizer_list.pop(idx)
+                    break
+            pre_tokenizer = Sequence(pre_tokenizer_list)
+        else:
+            initial_alphabet = ByteLevel.alphabet()
+            initial_alphabet.sort()
+
         trainer = BpeTrainer(
             vocab_size=vocab_size,
             special_tokens=added_tokens,
@@ -229,9 +270,11 @@ def main(args):
     tokenizer.decoder = decoder
 
     start = time()
-    tokenizer.train_from_iterator(
-        batch_iterator(dataset), trainer=trainer, length=len(dataset)
-    )
+    if isinstance(dataset, datasets.arrow_dataset.Dataset):
+        tokenizer.train_from_iterator(
+            batch_iterator(dataset), trainer=trainer, length=len(dataset)
+        )
+
     end = time()
     print(f"time elapsed: {(end - start) / 60:.2f}m")
     # if preserve whitespace is set to "inference", remove Whitespace splitter
@@ -242,10 +285,13 @@ def main(args):
                 break
     tokenizer.add_tokens(whitespace_list)
     tokenizer.pre_tokenizer = Sequence(pre_tokenizer_list)
+
+    # wrap tokenizer
+
     tokenizer_wrapper = PreTrainedTokenizerFast(
         tokenizer_object=tokenizer,
         vocab_size=args.vocab_size,
-        additional_special_tokens=SPECIAL_TOKENS,
+        additional_special_tokens=added_tokens,
         bos_token=SPECIAL_TOKENS[0],  # GPT style all [0]
         eos_token=SPECIAL_TOKENS[0],  #
         unk_token=SPECIAL_TOKENS[0],  #
@@ -269,8 +315,8 @@ def main(args):
         else:
             each_decode.append(decoded)
 
-    print(f"text: {text}")
-    print(f"decode: {(decoded := tokenizer_wrapper.decode(input_ids))}")
+    print(f"text:{text}")
+    print(f"decode:{(decoded := tokenizer_wrapper.decode(input_ids))}")
     print(f"invertible: {decoded==text}")
     print(f"tokens: {tokens}")
     print(f"tokens recon: {each_decode}")
