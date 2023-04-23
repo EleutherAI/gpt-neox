@@ -12,7 +12,7 @@
   "no-weight-tying": true,
   "gpt-j-residual": true,
   "output-layer-parallelism": "column",
-  
+
   "scaled-upper-triang-masked-softmax-fusion": true,
   "bias-gelu-fusion": true,
 
@@ -38,7 +38,7 @@
     "reduce_bucket_size": 500000000,
     "contiguous_gradients": true,
     "cpu_offload": false
-  }, 
+  },
 
   "fp16": {
     "enabled": true,
@@ -49,7 +49,7 @@
     "initial_scale_power": 12,
     "hysteresis": 2,
     "min_loss_scale": 1
-  }, 
+  },
 
   "fp32_allreduce": true,
 
