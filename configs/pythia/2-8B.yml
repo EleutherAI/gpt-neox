@@ -12,7 +12,7 @@
   "no-weight-tying": true,
   "gpt-j-residual": true,
   "output-layer-parallelism": "column",
-  
+
   "attention-config": [[["flash"], 32]],
 
   "scaled-upper-triang-masked-softmax-fusion": true,
