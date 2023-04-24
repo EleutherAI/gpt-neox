@@ -472,6 +472,25 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     wandb_init_all_ranks: bool = False
     """Initialize wandb on all ranks."""
 
+    wandb_id: str = None
+    """The wandb run ID. If not set, you can find the run id in the last part of the "Run Path" attribute or from the url,
+    e.g. something like `3f87uku2`.
+    """
+
+    wandb_resume: str = None
+    """Resume a run from a wandb id. E.g. add the following to your `yaml` config:
+    ```yaml
+    wand_id: "3f87uku2",  # Pull from the last part of the "Run Path" attribute or from the url
+    wandb_resume: "must",
+    ```
+    """
+
+    wandb_dir: str = None
+    """Directory to save wandb logs to."""
+
+    wandb_name: str = None
+    """Name of the wandb run."""
+
     git_hash: str = get_git_commit_hash()
     """current git hash of repository"""
 

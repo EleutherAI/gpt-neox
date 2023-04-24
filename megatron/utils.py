@@ -158,18 +158,22 @@ def init_wandb(neox_args):
             get_wandb_api_key(neox_args=neox_args) is not None
         )
         neox_args.update_value("use_wandb", use_wandb)
-    if neox_args.use_wandb:
+    if neox_args.use_wandb and neox_args.rank == 0:
         group_name = neox_args.wandb_group
-        name = f"{socket.gethostname()}-{local_rank()}" if group_name else None
+        kwargs = {
+            "project": neox_args.wandb_project,
+            "group": group_name,
+            "name": neox_args.wandb_name,
+            "save_code": False,
+            "force": False,
+            "entity": neox_args.wandb_team,
+            "dir": neox_args.wandb_dir,
+        }
+        if neox_args.wandb_id is not None:
+            kwargs["id"] = neox_args.wandb_id
+            kwargs["resume"] = neox_args.wandb_resume
         try:
-            wandb.init(
-                project=neox_args.wandb_project,
-                group=group_name,
-                name=name,
-                save_code=False,
-                force=False,
-                entity=neox_args.wandb_team,
-            )
+            wandb.init(**kwargs)
         except wandb.UsageError as e:
             neox_args.update_value("use_wandb", False)
             print(e)
@@ -177,7 +181,7 @@ def init_wandb(neox_args):
                 "Skipping wandb. Execute `wandb login` on local or main node machine to enable.",
                 flush=True,
             )
-        wandb.config.update(neox_args.all_config)
+        wandb.config.update(neox_args.all_config, allow_val_change=True)
 
 
 def obtain_resource_pool(
