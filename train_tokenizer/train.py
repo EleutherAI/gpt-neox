@@ -145,17 +145,6 @@ def main(args):
         "<|sep|>",
         "<|mask|>",
     ]  # TODO : add specific tokens. add || https://github.com/EleutherAI/dps/blob/master/dps/spark/utils/token_utils.py
-    """with open("facial_expression.txt") as f:
-        facial_expression = [line.strip() for line in f.readlines()]"""
-    """emoji_unicode_face = list(
-        set(
-            [
-                emoji.EMOJI_UNICODE["en"][i][0] # emoji == 1.2.0
-                for i in emoji.EMOJI_UNICODE["en"].keys()
-                if "face" in i
-            ]
-        )
-    )"""
     # calculate whitespace tokens
     whitespace = " "
     whitespace_count = args.whitespace_reservation  # 4,2 whitespaces
@@ -172,8 +161,6 @@ def main(args):
     # construct added_token
     added_tokens = (
         SPECIAL_TOKENS
-        # + facial_expression
-        # + emoji_unicode_face
         + buffer_tokens
         # + whitespace_list #not a special token
     )
