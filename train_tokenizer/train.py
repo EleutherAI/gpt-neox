@@ -213,9 +213,6 @@ def main(args):
         ByteLevel(add_prefix_space=False, use_regex=True),
     ]
 
-    # construct_pretokenizer
-    pre_tokenizer = Sequence(pre_tokenizer_list)
-
     # set byte_fallback
     byte_fallback = args.byte_fallback
 
@@ -227,6 +224,8 @@ def main(args):
         )  # whitespace split should be in front
     # common decoder
     decoder = decoders.ByteLevel(add_prefix_space=False, use_regex=True)
+    # construct_pretokenizer
+    pre_tokenizer = Sequence(pre_tokenizer_list)
 
     if args.model.lower() == "bpe":
         tokenizer = Tokenizer(
@@ -283,8 +282,8 @@ def main(args):
             if isinstance(pre_tokenizer_list[idx], Whitespace):
                 pre_tokenizer_list.pop(idx)
                 break
+        tokenizer.pre_tokenizer = Sequence(pre_tokenizer_list)
     tokenizer.add_tokens(whitespace_list)
-    tokenizer.pre_tokenizer = Sequence(pre_tokenizer_list)
 
     # wrap tokenizer
 
