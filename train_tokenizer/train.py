@@ -126,24 +126,8 @@ def parse_args():
 
 
 def main(args):
-    data_path = args.data_path.replace("~", os.path.expanduser("~"))
-    """
-    
-    if os.path.isfile(data_path):
-        if ".json" in data_path:
-            dataset = load_dataset(data_path)
-        elif ".txt" in data_path:
-            raise ValueError(f"txt import not implemented : {data_path}")  # TODO
-    elif os.path.isdir(data_path):
-        try:
-            dataset = load_from_disk(data_path)  # returns dataset
-        except FileNotFoundError as e:
-            print(f"{e}")
-            print("Trying to open as directory with jsonls")
-            raise ValueError("jsonl directory open not implemented")  # TODO
-    else:
-        raise ValueError(f"Check --data_path : {data_path}")
-    """
+    data_path = args.data_path
+
     dataset = load_from_path(data_path)
     if dataset == None:
         raise ValueError(f"Check --data_path : {data_path}")
@@ -160,8 +144,6 @@ def main(args):
         "<|unk|>",
         "<|sep|>",
         "<|mask|>",
-        "<|d|>",
-        "<|/d|>",
     ]  # TODO : add specific tokens. add || https://github.com/EleutherAI/dps/blob/master/dps/spark/utils/token_utils.py
     """with open("facial_expression.txt") as f:
         facial_expression = [line.strip() for line in f.readlines()]"""
