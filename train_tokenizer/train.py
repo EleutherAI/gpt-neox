@@ -104,6 +104,13 @@ def parse_args():
             no removes completely. this makes tokenizer non invertible(loses original)",
     )
     parser.add_argument(
+        "--remove_longspace",
+        type=bool,
+        default=False,
+        choices=[True, False],
+        help="during tokenizer training preprocessing, remove long whitespaces(longer than 16)",
+    )
+    parser.add_argument(
         "--single_whitespace",
         type=bool,
         default=False,
@@ -174,8 +181,8 @@ def main(args):
     elif args.normalizer.lower() == "nfkc":
         normalizer = normalizers.NFKC()
 
-    # use Split() to prevent long spaces
-    split_regex = re.compile(r"\s{16,}", cache_pattern=True)
+    # use Split() to prevent long spaces. allow up to (17 - 1) whitespace tokens
+    split_regex = re.compile(r"\s{17,}", cache_pattern=True)
     split_pattern = Regex(split_regex.pattern)
 
     # common pretokenizer
@@ -185,9 +192,12 @@ def main(args):
             behavior="isolated",  # not contiguous /* */  /*******/
         ),
         Digits(individual_digits=True),
-        Split(pattern=split_pattern, behavior="isolated", invert=False),
-        ByteLevel(add_prefix_space=False, use_regex=True),
     ]
+    if args.remove_longspace == True:
+        pre_tokenizer_list.append(
+            Split(pattern=split_pattern, behavior="removed", invert=False)
+        )
+    pre_tokenizer_list.append(ByteLevel(add_prefix_space=False, use_regex=True))
 
     # set byte_fallback
     byte_fallback = args.byte_fallback
@@ -254,11 +264,17 @@ def main(args):
     print(f"time elapsed: {(end - start) / 60:.2f}m")
     # if preserve whitespace is set to "inference", remove Whitespace splitter
     if args.preserve_whitespace == "inference":
-        for idx in range(len(pre_tokenizer_list)):
-            if isinstance(pre_tokenizer_list[idx], Whitespace):
-                pre_tokenizer_list.pop(idx)
+        for item in pre_tokenizer_list:
+            if isinstance(item, Whitespace):
+                pre_tokenizer_list.remove(item)
                 break
-        tokenizer.pre_tokenizer = Sequence(pre_tokenizer_list)
+
+    if args.remove_longspace == True:
+        for item in pre_tokenizer_list:
+            if isinstance(item, Split):
+                pre_tokenizer_list.remove(item)
+                break
+    tokenizer.pre_tokenizer = Sequence(pre_tokenizer_list)
     tokenizer.add_tokens(whitespace_list)
 
     # wrap tokenizer
