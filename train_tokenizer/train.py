@@ -8,6 +8,7 @@ from tokenizers import (
     decoders,
     Tokenizer,
     processors,
+    Regex,
 )
 from tokenizers.pre_tokenizers import (
     Punctuation,
@@ -24,6 +25,7 @@ from tokenizers.models import BPE, Unigram
 from tokenizers.trainers import BpeTrainer, UnigramTrainer
 from utils import load_dataset, batch_iterator, load_from_path
 import os
+import regex as re
 import datasets
 
 logger = logging.getLogger()
@@ -172,6 +174,10 @@ def main(args):
     elif args.normalizer.lower() == "nfkc":
         normalizer = normalizers.NFKC()
 
+    # use Split() to prevent long spaces
+    split_regex = re.compile(r"\s{16,}", cache_pattern=True)
+    split_pattern = Regex(split_regex.pattern)
+
     # common pretokenizer
     pre_tokenizer_list = [
         UnicodeScripts(),  # split on different unicode range
@@ -179,6 +185,7 @@ def main(args):
             behavior="isolated",  # not contiguous /* */  /*******/
         ),
         Digits(individual_digits=True),
+        Split(pattern=split_pattern, behavior="isolated", invert=False),
         ByteLevel(add_prefix_space=False, use_regex=True),
     ]
 
