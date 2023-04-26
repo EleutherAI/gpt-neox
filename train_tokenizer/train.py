@@ -183,7 +183,7 @@ def main(args):
 
     # use Split() to prevent long spaces. allow up to (17 - 1) whitespace tokens
     # also splits camel case
-    split_regex = re.compile(r"(?<=[a-z])(?=[A-Z])|\s{17,}", cache_pattern=True)
+    split_regex = re.compile(r"s{17,}", cache_pattern=True)
     split_pattern = Regex(split_regex.pattern)
 
     # common pretokenizer
@@ -196,8 +196,11 @@ def main(args):
     ]
     if args.remove_longspace == True:
         pre_tokenizer_list.append(
-            Split(pattern=split_pattern, behavior="isolated", invert=False)
+            Split(pattern=split_pattern, behavior="removed", invert=False)
         )
+    pre_tokenizer_list.append(
+        Split(r"(?<=[a-z])(?=[A-Z])"), behavior="isolated", invert=False
+    )
     pre_tokenizer_list.append(ByteLevel(add_prefix_space=False, use_regex=True))
 
     # set byte_fallback
