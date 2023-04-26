@@ -1,5 +1,5 @@
 {
-  "pipe-parallel-size": 2,
+  "pipe-parallel-size": 1,
   "model-parallel-size": 1,
 
   # model settings

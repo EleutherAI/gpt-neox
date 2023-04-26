@@ -1071,7 +1071,33 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     """
     What to scale width by when creating the delta model for mup
     """
+    
+    """extra args for multimodel webdataset"""
 
+    image_size: int = 224
+    """
+    Image size of image-input of model
+    """
+
+    train_num_samples: int = 407332084
+    """
+    Number of samples to run for training.
+    """
+
+    val_num_samples: int = 407332 
+    """
+    Number of samples to run for evaluation validation/test.
+    """    
+    
+    dataset_resampled: bool = False
+    """
+    Resample dataset to iter infinitely.
+    """ 
+    
+    train_data_upsampling_factors: str = None 
+    """
+    Resample dataset with different weights for each dataset. eg 1::1 , 1::2
+    """ 
 
 @dataclass
 class NeoXArgsTextgen(NeoXArgsTemplate):

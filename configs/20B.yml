@@ -4,7 +4,7 @@
 
 {
   # Tokenizer /  checkpoint settings - you will need to change these to the location you have them saved in
-  "vocab-file": "./20B_checkpoints/20B_tokenizer.json",
+  # "vocab-file": "/home/lfsm/code/gpt-neox/data/20B_tokenizer.json",
   "save": "./20B_checkpoints",
   "load": "./20B_checkpoints",
 
@@ -13,8 +13,8 @@
 
   # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
   # across the node boundaries )
-  "pipe-parallel-size": 4,
-  "model-parallel-size": 2,
+  "pipe-parallel-size": 1,
+  "model-parallel-size": 1,
 
   # model settings
   "num-layers": 44,
@@ -104,7 +104,8 @@
   "wall_clock_breakdown": false,
 
   ### NEW DATA: ####
-  "tokenizer_type": "HFTokenizer",
+  # "tokenizer_type": "HFTokenizer",
+  "tokenizer_type": "HFGPT2Tokenizer",
   "tensorboard-dir": "./tensorboard",
   "log-dir": "./logs",
 

@@ -258,6 +258,20 @@ class HFTokenizer(AbstractTokenizer):
         return self.eod_id
 
 
+import ftfy
+import html
+import regex as re
+
+def basic_clean(text):
+    text = ftfy.fix_text(text)
+    text = html.unescape(html.unescape(text))
+    return text.strip()
+
+def whitespace_clean(text):
+    text = re.sub(r'\s+', ' ', text)
+    text = text.strip()
+    return text
+
 class HFGPT2Tokenizer(AbstractTokenizer):
     """Designed to Integrate the pretrained OpenAI GPT2 Tokenizers from HF"""
 
@@ -289,13 +303,23 @@ class HFGPT2Tokenizer(AbstractTokenizer):
     def inv_vocab(self):
         return self.tokenizer._tokenizer.decoder
 
-    def tokenize(self, text: str):
-        return self.tokenizer.encode(text)
+    def tokenize(self, texts: Union[str, List[str]], context_length=2048):
+        if isinstance(texts, str):
+            texts = [texts]
+        texts = [whitespace_clean(basic_clean(text)) for text in texts]
+        input_ids = self.tokenizer(
+            texts,
+            return_tensors='pt',
+            max_length=context_length,
+            padding='max_length',
+            truncation=True,
+        ).input_ids
+        return input_ids
 
-    def tokenize_batch(self, text_batch: Union[List[str], str]):
-        if isinstance(text_batch, str):
-            text_batch = [text_batch]
-        return [self.tokenize(t) for t in text_batch]
+    # def tokenize_batch(self, text_batch: Union[List[str], str]):
+    #     if isinstance(text_batch, str):
+    #         text_batch = [text_batch]
+    #     return [self.tokenize(t) for t in text_batch]
 
     def detokenize(self, token_ids):
         return self.tokenizer.decode(token_ids)

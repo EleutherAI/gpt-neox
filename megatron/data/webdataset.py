@@ -248,8 +248,8 @@ class ResampledShards2(IterableDataset):
                 yield dict(url=self.rng.choices(self.urls, weights=self.weights, k=1)[0])
 
 
-def get_wds_data(args, preprocess_img, is_train, epoch=0, floor=False, preprocess_text=None):
-    input_shards = args.train_data if is_train else args.val_data
+def get_wds_data(args, is_train, epoch=0, floor=False):
+    input_shards = args.train_data_paths if is_train else args.valid_data_paths
     assert input_shards is not None
 
     resampled = getattr(args, 'dataset_resampled', False) and is_train
@@ -309,13 +309,24 @@ def get_wds_data(args, preprocess_img, is_train, epoch=0, floor=False, preproces
             # at this point, we have an iterator over the shards assigned to each worker
             wds.tarfile_to_samples(handler=log_and_continue),
         ])
+    ### build preprocess_img and preprocess_text from args
+    from transforms import get_clip_transforms
+    preprocess_img = get_clip_transforms(image_size=args.image_size)
+    
+    assert (
+        args.tokenizer.name in ['HFGPT2Tokenizer','HFGPT2TokenizerFast']
+        ), f"Webdataset only support HFGPT2Tokenizer or HFGPT2TokenizerFast"
+    
+    tokenize = args.tokenizer.tokenize
+    seq_length = args.seq_length
+    
     pipeline.extend([
         wds.select(filter_no_caption_or_no_image),
         wds.decode("pilrgb", handler=log_and_continue),
         wds.rename(image="jpg;png;jpeg;webp", text="txt"),
-        wds.map_dict(image=preprocess_img, text=preprocess_text),
+        wds.map_dict(image=preprocess_img,  text=lambda text: tokenize(text,seq_length)[0]),
         wds.to_tuple("image", "text"),
-        wds.batched(args.micro_batch_size, partial=not is_train)
+        wds.batched(args.batch_size, partial=not is_train)
     ])
 
     dataset = wds.DataPipeline(*pipeline)
@@ -326,7 +337,7 @@ def get_wds_data(args, preprocess_img, is_train, epoch=0, floor=False, preproces
             assert num_shards >= args.workers * args.world_size, 'number of shards must be >= total workers'
         # roll over and repeat a few samples to get same number of full batches on each node
         round_fn = math.floor if floor else math.ceil
-        global_batch_size = args.micro_batch_size * args.world_size
+        global_batch_size = args.batch_size * args.world_size
         num_batches = round_fn(num_samples / global_batch_size)
         num_workers = max(1, args.workers)
         num_worker_batches = round_fn(num_batches / num_workers)  # per dataloader worker
@@ -335,7 +346,7 @@ def get_wds_data(args, preprocess_img, is_train, epoch=0, floor=False, preproces
         dataset = dataset.with_epoch(num_worker_batches)  # each worker is iterating over this
     else:
         # last batches are partial, eval is done on single (master) node
-        num_batches = math.ceil(num_samples / args.micro_batch_size)
+        num_batches = math.ceil(num_samples / args.batch_size)
 
     dataloader = wds.WebLoader(
         dataset,
@@ -349,7 +360,7 @@ def get_wds_data(args, preprocess_img, is_train, epoch=0, floor=False, preproces
     # hoping to resolve via https://github.com/webdataset/webdataset/issues/169
     # if is_train:
     #     # roll over and repeat a few samples to get same number of full batches on each node
-    #     global_batch_size = args.micro_batch_size * args.world_size
+    #     global_batch_size = args.batch_size * args.world_size
     #     num_batches = math.ceil(num_samples / global_batch_size)
     #     num_workers = max(1, args.workers)
     #     num_batches = math.ceil(num_batches / num_workers) * num_workers
