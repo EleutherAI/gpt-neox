@@ -182,7 +182,8 @@ def main(args):
         normalizer = normalizers.NFKC()
 
     # use Split() to prevent long spaces. allow up to (17 - 1) whitespace tokens
-    split_regex = re.compile(r"\s{17,}", cache_pattern=True)
+    # also splits camel case
+    split_regex = re.compile(r"(?<=[a-z])(?=[A-Z])|\s{17,}", cache_pattern=True)
     split_pattern = Regex(split_regex.pattern)
 
     # common pretokenizer
