@@ -200,7 +200,11 @@ def main(args):
         )
     # camel case logic
     pre_tokenizer_list.append(
-        Split(pattern=r"(?<=[a-z])(?=[A-Z])", behavior="isolated", invert=False)
+        Split(
+            pattern=re.compile(r"(?<=[a-z])(?=[A-Z])", cache_pattern=True).pattern,
+            behavior="isolated",
+            invert=False,
+        )
     )
     pre_tokenizer_list.append(ByteLevel(add_prefix_space=False, use_regex=True))
 
