@@ -310,7 +310,7 @@ def get_wds_data(args, is_train, epoch=0, floor=False):
             wds.tarfile_to_samples(handler=log_and_continue),
         ])
     ### build preprocess_img and preprocess_text from args
-    from transforms import get_clip_transforms
+    from .transforms import get_clip_transforms
     preprocess_img = get_clip_transforms(image_size=args.image_size)
     
     assert (
@@ -334,12 +334,12 @@ def get_wds_data(args, is_train, epoch=0, floor=False):
     if is_train:
         if not resampled:
             num_shards = num_shards or len(expand_urls(input_shards)[0])
-            assert num_shards >= args.workers * args.world_size, 'number of shards must be >= total workers'
+            assert num_shards >= args.num_workers * args.world_size, 'number of shards must be >= total workers'
         # roll over and repeat a few samples to get same number of full batches on each node
         round_fn = math.floor if floor else math.ceil
         global_batch_size = args.batch_size * args.world_size
         num_batches = round_fn(num_samples / global_batch_size)
-        num_workers = max(1, args.workers)
+        num_workers = max(1, args.num_workers)
         num_worker_batches = round_fn(num_batches / num_workers)  # per dataloader worker
         num_batches = num_worker_batches * num_workers
         num_samples = num_batches * global_batch_size
@@ -352,7 +352,7 @@ def get_wds_data(args, is_train, epoch=0, floor=False):
         dataset,
         batch_size=None,
         shuffle=False,
-        num_workers=args.workers,
+        num_workers=args.num_workers,
         persistent_workers=True,
     )
 
@@ -362,7 +362,7 @@ def get_wds_data(args, is_train, epoch=0, floor=False):
     #     # roll over and repeat a few samples to get same number of full batches on each node
     #     global_batch_size = args.batch_size * args.world_size
     #     num_batches = math.ceil(num_samples / global_batch_size)
-    #     num_workers = max(1, args.workers)
+    #     num_workers = max(1, args.num_workers)
     #     num_batches = math.ceil(num_batches / num_workers) * num_workers
     #     num_samples = num_batches * global_batch_size
     #     dataloader = dataloader.with_epoch(num_batches)

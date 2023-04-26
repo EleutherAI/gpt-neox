@@ -1,12 +1,50 @@
 import sys
-sys.path.append('/home/lfsm/code/gpt-neox/')
+sys.path.append('/ccs/home/lfsm/code/gpt-neox')
 from megatron.neox_arguments import NeoXArgs
 
-ymls = ['/home/lfsm/code/gpt-neox/configs/20B.yml']
+ymls = [r'/ccs/home/lfsm/code/gpt-neox/configs/20B.yml']
 
 neox_args = NeoXArgs.from_ymls(ymls)
+neox_args.configure_distributed_args()
 neox_args.build_tokenizer()
 
+neox_args.train_data_paths = r'/gpfs/alpine/csc499/proj-shared/LAION-400m-webdataset/data/{41400..41401}.tar'
+neox_args.valid_data_paths = r'/gpfs/alpine/csc499/proj-shared/LAION-400m-webdataset/data/{41400..41401}.tar'
+
+
 from megatron.data.webdataset import get_wds_data
-data = get_wds_data(neox_args)
+train_data = get_wds_data(neox_args,is_train=True)
+
+train_dataloader = train_data.dataloader
+
+print('start get data')
+i=0
+for batch in train_dataloader:
+    i += 1
+    print(i)
+    print(batch[0].shape)
+    print(batch[1].shape)
+    print(batch)
+    if i % 10==0:
+        print(f"sample {i} times done")
+        break
+print(f'total sample number is {i}')
+
+val_data = get_wds_data(neox_args,is_train=False)
+
+val_dataloader = val_data.dataloader
+
+print('start get data')
+i=0
+for batch in val_dataloader:
+    i += 1
+    print(i)
+    print(batch[0].shape)
+    print(batch[1].shape)
+    print(batch)
+    if i % 10==0:
+        print(f"sample {i} times done")
+        break
+print(f'val total sample number is {i}')
+
 
