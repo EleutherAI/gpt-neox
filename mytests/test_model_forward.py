@@ -13,11 +13,12 @@ from megatron.training import setup_model_and_optimizer
 
 torch.manual_seed(7)
 
-neox_args = NeoXArgs.from_ymls(['/home/lfsm/code/gpt-neox/configs/800M.yml', '/home/lfsm/code/gpt-neox/configs/local_setup.yml'])
+# neox_args = NeoXArgs.from_ymls(['/home/lfsm/code/gpt-neox/configs/800M.yml', '/home/lfsm/code/gpt-neox/configs/local_setup.yml'])
+neox_args = NeoXArgs.from_ymls(['/home/lfsm/code/gpt-neox/configs/20B.yml'])
 neox_args.configure_distributed_args()
 neox_args.build_tokenizer()  # tokenizer needs to be build in training in order to set the padding vocab
 initialize_megatron(neox_args=neox_args)
-
+import pdb;pdb.set_trace()
 model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args)
 
 # pesudo dataset

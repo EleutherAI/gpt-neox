@@ -24,7 +24,7 @@ from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
 from megatron.data.blendable_dataset import BlendableDataset
 from megatron.data.gpt2_dataset import GPT2Dataset
 from megatron.data.samplers import DistributedBatchSampler
-
+from megatron.data.webdataset import get_wds_data
 
 def make_data_loader(dataset, neox_args):
     """Build dataloader given an input dataset."""
@@ -493,3 +493,71 @@ def compile_helper():
         import sys
 
         sys.exit(1)
+
+def build_web_train_valid_test_data_iterators(neox_args):
+    """XXX"""
+    (train_dataloader, valid_dataloader, test_dataloader) = (None, None, None)
+
+    print_rank_0("> building train, validation, and test datasets ...")
+    # Ensure only the first/last pipeline stages have data loaders
+    if neox_args.is_pipe_parallel:
+        is_first_stage = mpu.get_pipe_parallel_rank() == 0
+        is_last_stage = (
+            mpu.get_pipe_parallel_rank() == mpu.get_pipe_parallel_world_size() - 1
+        )
+        pipe_load = is_first_stage or is_last_stage
+    else:
+        pipe_load = True
+
+    # Data loader only on rank 0 of each model parallel group.
+    if mpu.get_model_parallel_rank() == 0 and pipe_load:
+        assert (
+            neox_args.train_data_path
+                ),f'in webdataset format, require --train_data_path'
+        train_data = get_wds_data(neox_args,is_train=True) 
+        valid_data = get_wds_data(neox_args,is_train=False) 
+        train_dataloader = train_data.dataloader
+        valid_dataloader = valid_data.dataloader
+        #[TODO] No test data set up yet 
+        
+        # Flags to know if we need to do training/validation/testing.
+        do_train = train_dataloader is not None and neox_args.train_iters > 0
+        do_valid = valid_dataloader is not None and neox_args.eval_iters > 0
+        do_test = test_dataloader is not None and neox_args.eval_iters > 0
+        flags = torch.cuda.LongTensor([int(do_train), int(do_valid), int(do_test)])
+    else:
+        flags = torch.cuda.LongTensor([0, 0, 0])
+
+    # Broadcast num tokens.
+    if neox_args.is_pipe_parallel:
+        # Only first/last pipeline stages have data loaders, so pipeline parallelism should
+        # broadcast globally instead of just the model parallel group.
+        torch.distributed.broadcast(flags, src=0)
+    else:
+        torch.distributed.broadcast(
+            flags,
+            mpu.get_model_parallel_src_rank(),
+            group=mpu.get_model_parallel_group(),
+        )
+    neox_args.do_train = flags[0].item()
+    neox_args.do_valid = flags[1].item()
+    neox_args.do_test = flags[2].item()
+    
+    # [TODO] may need to setup the start_iter and manage shard epoch here
+        # Build iterators.
+    if train_dataloader is not None:
+        train_data_iterator = iter(train_dataloader)
+    else:
+        train_data_iterator = None
+
+    if valid_dataloader is not None:
+        valid_data_iterator = iter(valid_dataloader)
+    else:
+        valid_data_iterator = None
+
+    if test_dataloader is not None:
+        test_data_iterator = iter(test_dataloader)
+    else:
+        test_data_iterator = None
+ 
+    return train_data_iterator, valid_data_iterator, test_data_iterator

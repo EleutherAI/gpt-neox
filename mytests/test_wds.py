@@ -1,6 +1,7 @@
 import sys
 sys.path.append('/ccs/home/lfsm/code/gpt-neox')
 from megatron.neox_arguments import NeoXArgs
+from megatron.data.data_utils import build_web_train_valid_test_data_iterators
 
 ymls = [r'/ccs/home/lfsm/code/gpt-neox/configs/20B.yml']
 
@@ -47,4 +48,7 @@ for batch in val_dataloader:
         break
 print(f'val total sample number is {i}')
 
+train_data_iterator, valid_data_iterator, test_data_iterator = build_web_train_valid_test_data_iterators(neox_args)
 
+print(next(train_data_iterator))
+print(next(valid_data_iterator))
