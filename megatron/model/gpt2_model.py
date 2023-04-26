@@ -321,6 +321,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         recursive_setattr(self.forward_funcs, "use_cache", use_cache, assert_type=bool)
         # then set parallel output of the final layer to false so we don't have to gather the output manually
         self._set_parallel_output(False)
+        recursive_setattr(self.forward_funcs, "training", False)
 
     def train_mode(self):
         """
@@ -331,6 +332,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         recursive_setattr(self.forward_funcs, "use_cache", False)
         # then set parallel output to true (more efficient training)
         self._set_parallel_output(True)
+        recursive_setattr(self.forward_funcs, "training", True)
 
     def clear_cache(self):
         """
