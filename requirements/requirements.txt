@@ -1,5 +1,5 @@
 best_download
-deepspeed+https://github.com/EleutherAI/DeeperSpeed.git
+git+https://github.com/EleutherAI/DeeperSpeed.git#egg=deepspeed
 ftfy>=6.0.1
 git+https://github.com/EleutherAI/lm_dataformat.git@4eec05349977071bf67fc072290b95e31c8dd836
 huggingface_hub>=0.11.0
