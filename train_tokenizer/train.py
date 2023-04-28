@@ -125,6 +125,13 @@ def parse_args():
         help="add prefix space. True : 'Gword','word' ",
     )
     parser.add_argument(
+        "--isolate_camelcase",
+        type=bool,
+        default=False,
+        choices=[True, False],
+        help="during tokenizer training preprocessing, isolate camelcases",
+    )
+    parser.add_argument(
         "--shuffle_seed",
         type=int,
         default=0,
@@ -185,6 +192,8 @@ def main(args):
     # also splits camel case
     split_regex = re.compile(r"s{17,}", cache_pattern=True)
     split_pattern = Regex(split_regex.pattern)
+    camel_case_regex = re.compile("(?<=[a-z])(?=[A-Z])", cache_pattern=True)
+    camel_case_pattern = Regex(camel_case_regex.pattern)
 
     # common pretokenizer
     pre_tokenizer_list = [
@@ -199,13 +208,14 @@ def main(args):
             Split(pattern=split_pattern, behavior="removed", invert=False)
         )
     # camel case logic
-    pre_tokenizer_list.append(
-        Split(
-            pattern=re.compile(r"(?<=[a-z])(?=[A-Z])", cache_pattern=True).pattern,
-            behavior="isolated",
-            invert=False,
+    if args.isolate_camelcase == True:
+        pre_tokenizer_list.append(
+            Split(
+                pattern=camel_case_pattern,
+                behavior="isolated",
+                invert=False,
+            )
         )
-    )
     pre_tokenizer_list.append(ByteLevel(add_prefix_space=False, use_regex=True))
 
     # set byte_fallback
@@ -278,7 +288,13 @@ def main(args):
                 pre_tokenizer_list.remove(item)
                 break
 
+    # remove preprocess only pretokenizers.
     if args.remove_longspace == True:
+        for item in pre_tokenizer_list:
+            if isinstance(item, Split):
+                pre_tokenizer_list.remove(item)
+                break
+    if args.isolate_camelcase == True:
         for item in pre_tokenizer_list:
             if isinstance(item, Split):
                 pre_tokenizer_list.remove(item)
