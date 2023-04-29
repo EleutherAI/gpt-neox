@@ -559,12 +559,12 @@ class NeoXArgsImageprefix(NeoXArgsTemplate):
     Whether use pretrained weight for image encoder.
     """
     
-    use_image_embed_layernorm: bool = False
+    use_image_embed_layernorm: bool = True
     """
     Layer norm on output of image embedding
     """
 
-    image_embed_dropout_prob: float = 0.0
+    image_embed_dropout_prob: float = 0.1
     """
     Drop out on output of image embedding
     """
@@ -735,21 +735,6 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     """
     Whether to use a shared filesystem for data loading. If False, local rank 0 on all nodes will preprocess the data,
     otherwise only global rank 0 will preprocess the data. This is implemented in megatron/data/gpt2_dataset.py::_build_index_mappings.
-    """
-
-    train_data_paths: list = None
-    """
-    List of paths to train datasets.
-    """
-
-    test_data_paths: list = None
-    """
-    List of paths to test datasets.
-    """
-
-    valid_data_paths: list = None
-    """
-    List of paths to validation datasets.
     """
 
     train_data_weights: list = None
@@ -1073,6 +1058,22 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     """
     
     """extra args for multimodel webdataset"""
+    
+    train_data_paths: str = None
+    """
+    Train datasets of shard paths, eg: {00001.tar::30000.tart} 
+    """
+
+    test_data_paths: str = None
+    """
+    Test datasets.
+    """
+
+    valid_data_paths: str = None
+    """
+    Validation datasets.
+    """
+
 
     image_size: int = 224
     """

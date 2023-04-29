@@ -12,13 +12,6 @@ def get_clip_transforms(
     return clip_preprocess(image_size)
 
 
-def maybe_add_batch_dim(t):
-    if t.ndim == 3:
-        return t.unsqueeze(0)
-    else:
-        return t
-
-
 def pad_img(desired_size):
     def fn(im):
         old_size = im.size  # old_size[0] is in (width, height) format
@@ -53,7 +46,6 @@ def clip_preprocess(n_px, use_pad=False):
             crop_or_pad(n_px, pad=use_pad),
             lambda image: image.convert("RGB"),
             T.ToTensor(),
-            maybe_add_batch_dim,
             T.Normalize(
                 (0.48145466, 0.4578275, 0.40821073),
                 (0.26862954, 0.26130258, 0.27577711),

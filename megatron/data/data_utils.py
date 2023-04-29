@@ -512,7 +512,7 @@ def build_web_train_valid_test_data_iterators(neox_args):
     # Data loader only on rank 0 of each model parallel group.
     if mpu.get_model_parallel_rank() == 0 and pipe_load:
         assert (
-            neox_args.train_data_path
+            neox_args.train_data_paths
                 ),f'in webdataset format, require --train_data_path'
         train_data = get_wds_data(neox_args,is_train=True) 
         valid_data = get_wds_data(neox_args,is_train=False) 
