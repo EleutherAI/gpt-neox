@@ -1,0 +1,30 @@
+# Suggested data paths when using GPT-NeoX locally
+{
+  "train-data-paths": "/gpfs/alpine/csc499/proj-shared/LAION-400m-webdataset/data/{00000..40000}.tar",
+  "valid-data-paths":"/gpfs/alpine/csc499/proj-shared/LAION-400m-webdataset/data/{40001..41000}.tar", 
+  "test-data-paths": "/gpfs/alpine/csc499/proj-shared/LAION-400m-webdataset/data/{41000..41455}.tar", 
+
+  # If weight_by_num_documents is True, Builds dataset weights from a multinomial distribution over groups of data according to the number of documents in each group.
+  # WARNING: setting this to True will override any user provided weights
+  # "weight_by_num_documents": false,
+  # "weighted_sampler_alpha": 0.3,
+
+  #"vocab-file": "/home/lfsm/code/gpt-neox/data/gpt2-vocab.json",
+  #"merge-file": "/home/lfsm/code/gpt-neox/data/gpt2-merges.txt",
+
+  "tokenizer_type": "HFGPT2Tokenizer",
+  
+  "save": "/gpfs/alpine/scratch/lfsm/csc499/checkpoints",
+  "load": "/gpfs/alpine/scratch/lfsm/csc499/checkpoints",
+  "checkpoint_validation_with_forward_pass": False,
+
+  "tensorboard-dir": "/gpfs/alpine/scratch/lfsm/csc499/tensorboard",
+  "log-dir": "/gpfs/alpine/scratch/lfsm/csc499/logs",
+  "use_wandb": False,
+  "wandb_host": "https://api.wandb.ai",
+  "wandb_project": "neox",
+
+  "launcher": "jsrun",
+  "deepspeed_jsrun": true,
+
+}

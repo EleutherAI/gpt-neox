@@ -2,13 +2,23 @@
 {
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
-   "pipe-parallel-size": 1,
-   "model-parallel-size": 1,
+   "pipe-parallel-size": 2,
+   "model-parallel-size": 3,
 
-   # model settings
+   # image_prefix settings
+   "encoder_name": "openclip-H",
+   "pretrained_img_encoder": false,
+   "use_image_embed_layernorm": true,
+   "image_embed_dropout_prob": 0.1,
+
+   # adapter settings
+   "add_adapters": False,
+   "adaper_downsample_factor": 8,
+
+   # gpt-neox settings
    "num-layers": 24,
-   "hidden-size": 2048,
-   "num-attention-heads": 16,
+   "hidden-size": 2304,
+   "num-attention-heads": 18,
    "seq-length": 2048,
    "max-position-embeddings": 2048,
    "norm": "layernorm",
