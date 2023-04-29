@@ -1,0 +1,12 @@
+cmake
+einops
+torchtyping
+typeguard
+gdown 
+tqdm
+timm
+accelerate
+git+https://github.com/openai/CLIP.git
+git+https://github.com/mlfoundations/open_clip
+braceexpand
+webdataset
