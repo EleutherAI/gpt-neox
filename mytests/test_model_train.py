@@ -10,41 +10,26 @@ from megatron import mpu
 import deepspeed
 from megatron.model import GPT2ModelPipe
 from megatron.training import setup_model_and_optimizer
+from megatron.data.data_utils import build_web_train_valid_test_data_iterators
 
 torch.manual_seed(7)
 
 neox_args = NeoXArgs.from_ymls(['/ccs/home/lfsm/code/gpt-neox/configs/19M.yml', '/ccs/home/lfsm/code/gpt-neox/configs/local_setup.yml'])
-#neox_args = NeoXArgs.from_ymls(['~/code/gpt-neox/configs/20B.yml'])
+#neox_args = NeoXArgs.from_ymls(['/home/lfsm/code/gpt-neox/configs/20B.yml'])
 neox_args.configure_distributed_args()
 neox_args.build_tokenizer()  # tokenizer needs to be build in training in order to set the padding vocab
+
+neox_args.train_data_paths = r'/gpfs/alpine/csc499/proj-shared/LAION-400m-webdataset/data/{41300..41401}.tar'
+neox_args.valid_data_paths = r'/gpfs/alpine/csc499/proj-shared/LAION-400m-webdataset/data/{41000..41101}.tar'
+
 initialize_megatron(neox_args=neox_args)
 model, optimizer, lr_scheduler = setup_model_and_optimizer(neox_args)
-
-# pesudo dataset
-
-# data_list = list()
-# context_tokens_tensor = torch.randint(
-#     0, 10000, (4, 2048 + 1)
-# ).to(torch.int64)
-# for i in range(10):
-#     data_list.append({"text": context_tokens_tensor.clone()})
-# data_iterator = iter(data_list)
-
-mbs = 1
-data_list = list()
-images = torch.ones(mbs,3,224,224).half()
-captions = torch.ones(mbs,2048).to(torch.int64)
-for i in range(10):
-    # data_list.append({"text":captions.clone()})
-    # data_list.append({'img':images.clone(),'text':captions.clone()})
-     data_list.append([images.clone(),captions.clone()])
-data_iterator = iter(data_list)
+train_data_iterator, valid_data_iterator, test_data_iterator = build_web_train_valid_test_data_iterators(neox_args)
 
 # forward test
 for i in range(10):
-    loss = model.train_batch(data_iter=data_iterator)
+    loss = model.train_batch(data_iter=train_data_iterator)
     print(loss)
-    # loss = train_step(neox_args,timers,data_iterator,model,optimizer,lr_scheduler)
     print(f'finish {i} step')
 
 """
