@@ -347,10 +347,9 @@ def get_batch_pipe_image_text(input,neox_args):
     Get input of model from one batch of image-text pair dataset 
     input:{'img': torch.tensor , 'text': torch.tensor }
     """
-    # input = {"img":input[0], "text":input[1]} # change input into dict to use broadcast_data
-    images = mpu.broadcast_data(["img"],input,input['img'].dtype)
-    captions = mpu.broadcast_data(["text"],input,input['text'].dtype) 
-    images = images["img"].contiguous()
+    images = mpu.broadcast_data(["img"],input,torch.float32)
+    captions = mpu.broadcast_data(["text"],input,torch.int64) 
+    images = images["img"].half().contiguous() ### change the image into half
     captions = captions["text"].contiguous()
     
     labels = captions 

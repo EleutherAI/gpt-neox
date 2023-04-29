@@ -248,6 +248,22 @@ class ResampledShards2(IterableDataset):
                 yield dict(url=self.rng.choices(self.urls, weights=self.weights, k=1)[0])
 
 
+def image_text_dict_collation_fn(samples):
+    """Customize collation_fn to generate dict batch """
+    assert isinstance(samples[0], (list, tuple)), type(samples[0])
+    batched = list(zip(*samples))
+    result = dict()
+    import torch
+    import numpy as np
+    for b in batched:
+        b = torch.stack(list(b))
+        if b.dim()>=3: # dim means image
+            result['img']=b
+        else:
+            result['text']=b
+    
+    return result
+
 def get_wds_data(args, is_train, epoch=0, floor=False):
     input_shards = args.train_data_paths if is_train else args.valid_data_paths
     assert input_shards is not None
@@ -326,7 +342,7 @@ def get_wds_data(args, is_train, epoch=0, floor=False):
         wds.rename(image="jpg;png;jpeg;webp", text="txt"),
         wds.map_dict(image=preprocess_img,  text=lambda text: tokenize(text,seq_length)[0]),
         wds.to_tuple("image", "text"),
-        wds.batched(args.batch_size, partial=not is_train)
+        wds.batched(args.batch_size, collation_fn=image_text_dict_collation_fn, partial=not is_train)
     ])
 
     dataset = wds.DataPipeline(*pipeline)
