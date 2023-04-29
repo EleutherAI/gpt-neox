@@ -83,3 +83,5 @@
   "wall_clock_breakdown": true,
 
   "tokenizer-type": "HFTokenizer"
+
+}

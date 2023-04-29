@@ -145,15 +145,32 @@ def shard_sequential_mp(num_mp_ranks,sequential):
                         ranks[x][k] = v[size_per_rank * x : size_per_rank * (x+1)]
                 
             elif len(v.shape) == 2:
-                # this code assumes that the index to shard is the larger one
-                # a better convetion should be used if one exists
-                min_ = np.argmin(v.shape)
-                max_ = 1 if min_ == 0 else 0
+
+                if reduce(np.logical_or,[x in k for x in [ "attention.dense.weight", 
+                                                           "mlp.dense_4h_to_h.weight", ]]):\
+                    # column parallel
+                    max_, min_ = 1, 0
+                elif reduce(np.logical_or,[x in k for x in [ "mlp.dense_h_to_4h.weight", 
+                                                             "mlp.dense_h_to_4h.bias", 
+                                                             "attention.query_key_value.weight", 
+                                                             "attention.query_key_value.bias",
+                                                             "word_embeddings.weight",
+                                                             "final_linear.weight" ]]):
+                    # row parallel
+                    max_, min_ = 0, 1
+                else:
+                    raise Exception("Unknown weight to shard: {}".format(k))
+
 
                 size_per_rank = v.shape[max_] / num_mp_ranks
                 if size_per_rank % 128 != 0.:
                     padded_size = (128 - (size_per_rank % 128)) + size_per_rank
-                    size_diff = int((padded_size * 4) - v.shape[max_])
+                    size_diff = int((padded_size * num_mp_ranks) - v.shape[max_])
+
+                    assert size_diff > 0, \
+                        "[ERROR] size diff is negative: {} for size_per_rank: {}, k:{}, shape:{}, padded_size:{}".format(
+                        size_diff,size_per_rank,k,v.shape,padded_size)
+
                     zero_pad = torch.zeros((size_diff,v.shape[min_])) if max_ == 0 \
                                 else torch.zeros((v.shape[min_],size_diff))
 
