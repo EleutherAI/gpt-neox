@@ -490,7 +490,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Write TensorBoard logs to this directory.
     """
 
-    log_interval: int = None
+    log_interval: int = 100
     """
     Interval between logging.
     """
