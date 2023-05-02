@@ -154,6 +154,8 @@ class LLaMAParallelMLP(nn.Module):
         self.activation_func = get_activation(neox_args)
         self.activation_type = neox_args.activation
 
+        self.multiple_of = multiple_of
+
         ff_dim = int(2 * neox_args.hidden_size * 4 / 3)
         ff_dim = self.multiple_of * ((ff_dim + multiple_of - 1) // multiple_of)
         self.w1 = mpu.ColumnParallelLinear(
