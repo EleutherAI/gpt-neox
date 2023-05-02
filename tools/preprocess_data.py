@@ -94,6 +94,7 @@ def get_args():
             "GPT2BPETokenizer",
             "CharLevelTokenizer",
             "TiktokenTokenizer",
+            "SPMTokenizer",
         ],
         help="What type of tokenizer to use.",
     )

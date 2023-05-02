@@ -135,7 +135,7 @@ Logging Arguments
 
 - **log_interval**: int
 
-    Default = None
+    Default = 100
 
     Interval between logging.
 

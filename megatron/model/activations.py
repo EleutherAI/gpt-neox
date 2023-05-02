@@ -45,6 +45,8 @@ def get_activation(neox_args):
         activation_func = swish
     elif neox_args.activation == "mish":
         activation_func = mish
+    elif neox_args.activation == "silu":
+        activation_func = F.silu
     else:
         raise ValueError(f"Activation function {neox_args.activation} not recognized")
     return activation_func
