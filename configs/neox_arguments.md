@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 1b1e4eb
+    Default = 507ad04
 
     current git hash of repository
 
@@ -135,7 +135,7 @@ Logging Arguments
 
 - **log_interval**: int
 
-    Default = None
+    Default = 100
 
     Interval between logging.
 
