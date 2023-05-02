@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 507ad04
+    Default = 5d2d78a
 
     current git hash of repository
 
@@ -399,11 +399,11 @@ Model Arguments
 
 
 
-- **activation**: typing.Literal['gelu', 'geglu', 'relu', 'softsign', 'swish', 'mish']
+- **activation**: typing.Literal['gelu', 'geglu', 'relu', 'softsign', 'swish', 'mish', 'silu']
 
     Default = gelu
 
-    Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish"]
+    Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish", "silu"]
 
 
 
@@ -547,6 +547,32 @@ Model Arguments
 
 
 
+- **use_bias_in_norms**: bool
+
+    Default = True
+
+    If false, norms (e.g. LayerNorm) will not have bias terms
+
+
+
+- **use_bias_in_attn_linear**: bool
+
+    Default = True
+
+    If false, attn_linear (e.g. QKVO) will not have bias terms
+
+
+
+- **mlp_type**: str
+
+    Default = regular
+
+    Types:
+        regular: Megatron implementation
+        llama: LLaMA MLP (SiLU-gated MLP)
+
+
+
 - **soft_prompt_tuning**: dict
 
     Default = None
@@ -563,7 +589,7 @@ Model Arguments
 
 - **output_layer_parallelism**: typing.Literal['row', 'column']
 
-    Default = row
+    Default = column
 
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
 
