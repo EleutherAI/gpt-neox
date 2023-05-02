@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 1b1e4eb
+    Default = 25e1fb0
 
     current git hash of repository
 
@@ -563,7 +563,7 @@ Model Arguments
 
 - **output_layer_parallelism**: typing.Literal['row', 'column']
 
-    Default = row
+    Default = column
 
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
 
