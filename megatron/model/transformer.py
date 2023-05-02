@@ -29,8 +29,8 @@ from megatron.model.activations import get_activation
 from megatron.model.utils import exists, get_fusion_type
 from megatron.model.positional_embeddings import (
     RotaryEmbedding,
-    apply_rotary_pos_emb,
     apply_rotary_pos_emb_torch,
+    apply_rotary_pos_emb,
     AliBi,
 )
 from megatron.model.fused_bias_dropout import (
@@ -134,6 +134,65 @@ class ParallelMLP(nn.Module):
         return output, output_bias
 
 
+class LLaMAParallelMLP(nn.Module):
+    """LLaMA's MLP.
+
+    MLP will take the input with h hidden state, project it to 4*h
+    hidden dimension, perform nonlinear transformation, and project the
+    state back into h hidden dimension. At the end, dropout is also
+    applied.
+
+    Note: multiple_of is used to compute the hidden dimension of the MLP
+    """
+
+    def __init__(
+        self, neox_args, init_method, output_layer_init_method, parallel_output=False,
+        multiple_of=256,
+    ):
+        super().__init__()
+
+        self.activation_func = get_activation(neox_args)
+        self.activation_type = neox_args.activation
+
+        self.multiple_of = multiple_of
+
+        ff_dim = int(2 * neox_args.hidden_size * 4 / 3)
+        ff_dim = self.multiple_of * ((ff_dim + multiple_of - 1) // multiple_of)
+        self.w1 = mpu.ColumnParallelLinear(
+            neox_args=neox_args,
+            input_size=neox_args.hidden_size,
+            output_size=ff_dim,
+            gather_output=False,
+            init_method=init_method,
+            skip_bias_add=True,
+            bias=False,
+        )
+        self.w3 = mpu.ColumnParallelLinear(
+            neox_args=neox_args,
+            input_size=neox_args.hidden_size,
+            output_size=ff_dim,
+            gather_output=False,
+            init_method=init_method,
+            skip_bias_add=True,
+            bias=False,
+        )
+        self.w2 = mpu.RowParallelLinear(
+            neox_args=neox_args,
+            input_size=ff_dim,
+            output_size=neox_args.hidden_size,
+            input_is_parallel=True,
+            init_method=output_layer_init_method,
+            skip_bias_add=True,
+            parallel_output=parallel_output,
+            bias=False,
+        )
+
+    def forward(self, hidden_states):
+        w1_out, _ = self.w1(hidden_states)
+        w3_out, _ = self.w3(hidden_states)
+        return self.w2(self.activation_func(w1_out) * w3_out)
+
+
 class ParallelLinear(nn.Module):
     """
     A Parallel Linear Layer transforming the transformer outputs from hidden_size -> vocab_size
@@ -224,6 +283,7 @@ class ParallelSelfAttention(nn.Module):
             output_size=3 * neox_args.hidden_size,
             gather_output=False,
             init_method=init_method,
+            bias=neox_args.use_bias_in_attn_linear,
         )
 
         coeff = None
@@ -310,6 +370,7 @@ class ParallelSelfAttention(nn.Module):
             init_method=output_layer_init_method,
             skip_bias_add=True,
             parallel_output=parallel_output,
+            bias=neox_args.use_bias_in_attn_linear,
         )
 
     def attention(
@@ -577,6 +638,7 @@ class ParallelSelfAttention(nn.Module):
             else:
                 # full rotary
                 query_rot, key_rot = query_layer, key_layer
+
             apply_rotary_fn = (
                 apply_rotary_pos_emb_torch if self.bf16 else apply_rotary_pos_emb
             )
@@ -673,6 +735,7 @@ class ParallelTransformerLayer(nn.Module):
         self.bias_dropout_fusion = neox_args.bias_dropout_fusion
         self.gpt_j_residual = neox_args.gpt_j_residual
         self.gpt_j_tied = neox_args.gpt_j_tied
+        self.mlp_type = neox_args.mlp_type
 
         if self.gpt_j_residual:
             self.reduce = mpu.mappings.reduce_from_model_parallel_region
@@ -696,12 +759,22 @@ class ParallelTransformerLayer(nn.Module):
         self.post_attention_layernorm = norm(neox_args.hidden_size, eps=eps)
 
         # MLP
-        self.mlp = ParallelMLP(
-            neox_args=neox_args,
-            init_method=init_method,
-            output_layer_init_method=output_layer_init_method,
-            parallel_output=self.gpt_j_residual,
-        )
+        if neox_args.mlp_type == "regular":
+            self.mlp = ParallelMLP(
+                neox_args=neox_args,
+                init_method=init_method,
+                output_layer_init_method=output_layer_init_method,
+                parallel_output=self.gpt_j_residual,
+            )
+        elif neox_args.mlp_type == "llama":
+            self.mlp = LLaMAParallelMLP(
+                neox_args=neox_args,
+                init_method=init_method,
+                output_layer_init_method=output_layer_init_method,
+                parallel_output=self.gpt_j_residual,
+            )
+        else:
+            raise KeyError(neox_args.mlp_type)
 
         self.layer_past = None  # used to cache k/v pairs in inference
 
@@ -779,24 +852,37 @@ class ParallelTransformerLayer(nn.Module):
                 attention_output, presents = attention_output
                 self.layer_past = presents
             with torch.enable_grad():
-                attention_output = bias_dropout_fn(
-                    attention_output,
-                    bias=attention_bias.expand_as(residual),
-                    residual=residual,
-                    prob=self.hidden_dropout,
-                )
+                if attention_bias is not None:
+                    # Use special bias_dropout_fn if we have a bias term from the above attention layer
+                    attention_output = bias_dropout_fn(
+                        attention_output,
+                        bias=attention_bias.expand_as(residual),
+                        residual=residual,
+                        prob=self.hidden_dropout,
+                    )
+                else:
+                    # Otherwise just apply dropout + residual
+                    attention_output = torch.nn.functional.dropout(
+                        attention_output, p=self.hidden_dropout, training=self.training
+                    ) + residual
 
             # output = x + mlp(ln2(x))
             mlp_output, mlp_bias = self.mlp(
                 self.post_attention_layernorm(attention_output)
             )
+
             with torch.enable_grad():
-                output = bias_dropout_fn(
-                    mlp_output,
-                    bias=mlp_bias.expand_as(attention_output),
-                    residual=attention_output,
-                    prob=self.hidden_dropout,
-                )
+                if self.mlp_type == "llama":
+                    # No dropout either
+                    assert mlp_bias is None
+                    output = mlp_output + attention_output
+                else:
+                    output = bias_dropout_fn(
+                        mlp_output,
+                        bias=mlp_bias.expand_as(attention_output),
+                        residual=attention_output,
+                        prob=self.hidden_dropout,
+                    )
 
         return output
 

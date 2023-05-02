@@ -1,0 +1,26 @@
+{
+  "pipe-parallel-size": 1,
+  "model-parallel-size": 8,
+  "make_vocab_size_divisible_by": 1,
+
+  # model settings
+  "num-layers": 80,
+  "hidden-size": 8192,
+  "num-attention-heads": 64,
+  "seq-length": 2048,
+  "max-position-embeddings": 2048,
+  "pos-emb": "rotary",
+  "rotary-pct": 1,
+  "no-weight-tying": true,
+  "gpt-j-residual": false,
+  "output-layer-parallelism": "column",
+  "norm": "rmsnorm",
+  "rms_norm_epsilon": 1.0e-6,
+
+  "scaled-upper-triang-masked-softmax-fusion": true,
+  "bias-gelu-fusion": false,
+  "use_bias_in_norms": false,
+  "use_bias_in_attn_linear": false,
+  "mlp_type": "llama",
+  "activation": "silu",
+}
