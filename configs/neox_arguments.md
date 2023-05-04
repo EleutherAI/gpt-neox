@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 5d2d78a
+    Default = b288f4c
 
     current git hash of repository
 
@@ -952,7 +952,7 @@ Text Generation arguments
 
 - **prompt_end**: str
 
-    Default =
+    Default = 
 
 
     a single prompt's end. Defaults to newline
@@ -994,7 +994,7 @@ Text Generation arguments
 
 - **eval_results_prefix**: str
 
-    Default =
+    Default = 
 
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
 
@@ -1720,7 +1720,7 @@ Args for deepspeed config
 
     Default = None
 
-
+    
 
 
 
@@ -1771,16 +1771,6 @@ Args for deepspeed config
     Default = None
 
     During gradient averaging, perform communication with selected data type. By default it will be determined by selected regime
-
-
-
-- **bf16**: dict
-
-    Default = None
-
-    Configuration for using bfloat16 floating-point format as an alternative to FP16. BFLOAT16 requires hardware support (e.g., NVIDIA A100).
-
-    Dictionary options as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#bfloat16-training-options
 
 
 
@@ -2022,3 +2012,4 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = None
 
     Adds a `--comment` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometime necessary for cluster rules, or so I've heard.
+
