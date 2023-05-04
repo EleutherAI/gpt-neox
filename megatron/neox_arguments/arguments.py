@@ -916,10 +916,11 @@ class NeoXArgs(*BASE_CLASSES):
         # derive precision
         fp16_conflict = "DeepSpeed fp16 field was set but precision conflicts"
         if self.fp16 and self.fp16.get("enabled", False):
-            if self.fp16.get("type") == "bfloat16":
-                assert self.precision == "bfloat16", fp16_conflict
+            dict_precision = self.fp16.get("type", "fp32")
+            if self.precision is None:
+                self.update_value("precision", dict_precision)
             else:
-                assert self.precision == "fp16", fp16_conflict
+                assert self.precision == dict_precision, fp16_conflict
 
         bf16_conflict = "DeepSpeed bf16 field was set but precision conflicts"
         if self.bf16 and self.bf16.get("enabled", False):
