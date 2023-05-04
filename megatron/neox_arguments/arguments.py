@@ -926,7 +926,13 @@ class NeoXArgs(*BASE_CLASSES):
             assert self.precision == "bfloat16", bf16_conflict
 
         if self.precision == "fp16":
-            self.update_value("fp16", {"type": "fp16", "enabled": True})
+            if isinstance(self.fp16, dict) and len(self.fp16) > 0:
+                fp16_args = copy.deepcopy(self.fp16)
+                fp16_args["enabled"] = True
+                fp16_args["type"] = "fp16"
+            else:
+                fp16_args = {"type": "fp16", "enabled": True}
+            self.update_value("fp16", fp16_args)
         elif self.precision == "bfloat16":
             self.update_value("bf16", {"enabled": True})
         else:
