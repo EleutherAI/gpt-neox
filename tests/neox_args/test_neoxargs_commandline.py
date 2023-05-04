@@ -34,13 +34,13 @@ def test_neoxargs_consume_deepy_args_with_config_dir():
     with patch(
         "sys.argv",
         [str(get_root_directory() / "deepy.py"), "train.py"]
-        + get_configs_with_path(["small.yml", "local_setup.yml"]),
+        + get_configs_with_path(["125M.yml", "local_setup.yml"]),
     ):
         args_loaded_consume = NeoXArgs.consume_deepy_args()
 
     # load neox args directly from yaml files
     args_loaded_yamls = NeoXArgs.from_ymls(
-        get_configs_with_path(["small.yml", "local_setup.yml"])
+        get_configs_with_path(["125M.yml", "local_setup.yml"])
     )
 
     # update values from yaml files that cannot otherwise be matched
@@ -62,13 +62,13 @@ def test_neoxargs_consume_deepy_args_without_yml_suffix():
     with patch(
         "sys.argv",
         [str(get_root_directory() / "deepy.py"), "train.py"]
-        + get_configs_with_path(["small", "local_setup", "cpu_mock_config.yml"]),
+        + get_configs_with_path(["125M", "local_setup", "cpu_mock_config.yml"]),
     ):
         args_loaded_consume = NeoXArgs.consume_deepy_args()
 
     # load neox args directly from yaml files
     args_loaded_yamls = NeoXArgs.from_ymls(
-        get_configs_with_path(["small.yml", "local_setup.yml", "cpu_mock_config.yml"])
+        get_configs_with_path(["125M.yml", "local_setup.yml", "cpu_mock_config.yml"])
     )
 
     # update values from yaml files that cannot otherwise be matched
@@ -91,14 +91,14 @@ def test_neoxargs_consume_deepy_args_with_hostfile_param():
     with patch(
         "sys.argv",
         [str(get_root_directory() / "deepy.py"), "train.py"]
-        + get_configs_with_path(["small", "local_setup", "cpu_mock_config.yml"])
+        + get_configs_with_path(["125M", "local_setup", "cpu_mock_config.yml"])
         + ["--hostfile=/mock_path"],
     ):
         args_loaded_consume = NeoXArgs.consume_deepy_args()
 
     # load neox args directly from yaml files
     args_loaded_yamls = NeoXArgs.from_ymls(
-        get_configs_with_path(["small.yml", "local_setup.yml", "cpu_mock_config.yml"])
+        get_configs_with_path(["125M.yml", "local_setup.yml", "cpu_mock_config.yml"])
     )
 
     # update values from yaml files that cannot otherwise be matched
@@ -125,13 +125,13 @@ def test_neoxargs_consume_deepy_args_with_config_dir():
             "-d",
             str(get_config_directory()),
         ]
-        + ["small.yml", "local_setup.yml", "cpu_mock_config.yml"],
+        + ["125M.yml", "local_setup.yml", "cpu_mock_config.yml"],
     ):
         args_loaded_consume = NeoXArgs.consume_deepy_args()
 
     # load neox args directly from yaml files
     args_loaded_yamls = NeoXArgs.from_ymls(
-        get_configs_with_path(["small.yml", "local_setup.yml", "cpu_mock_config.yml"])
+        get_configs_with_path(["125M.yml", "local_setup.yml", "cpu_mock_config.yml"])
     )
 
     # update values from yaml files that cannot otherwise be matched
@@ -150,7 +150,7 @@ def test_neoxargs_consume_neox_args():
 
     # intitially load config from files as would be the case in deepy.py
     yaml_list = get_configs_with_path(
-        ["small.yml", "local_setup.yml", "cpu_mock_config.yml"]
+        ["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]
     )
     args_baseline = NeoXArgs.from_ymls(yaml_list)
     args_baseline.update_value("user_script", str(get_root_directory() / "train.py"))

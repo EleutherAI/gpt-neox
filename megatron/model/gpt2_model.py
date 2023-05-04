@@ -267,7 +267,10 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             if self.neox_args.use_mup:
                 # Since we're using pipeline parallelism, we can't directly use MuReadout. Instead, use this workaround that does the same thing as MuReadout.
                 # https://github.com/microsoft/mup/issues/6#issuecomment-1082156274
-                lm_output = lm_output / self.tied_modules.embed.word_embeddings.weight.infshape.width_mult()
+                lm_output = (
+                    lm_output
+                    / self.tied_modules.embed.word_embeddings.weight.infshape.width_mult()
+                )
 
             logits = parallel_lm_logits(
                 lm_output, embedding.word_embeddings_weight, self.parallel_output
@@ -318,6 +321,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         recursive_setattr(self.forward_funcs, "use_cache", use_cache, assert_type=bool)
         # then set parallel output of the final layer to false so we don't have to gather the output manually
         self._set_parallel_output(False)
+        recursive_setattr(self.forward_funcs, "training", False)
 
     def train_mode(self):
         """
@@ -328,6 +332,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         recursive_setattr(self.forward_funcs, "use_cache", False)
         # then set parallel output to true (more efficient training)
         self._set_parallel_output(True)
+        recursive_setattr(self.forward_funcs, "training", True)
 
     def clear_cache(self):
         """

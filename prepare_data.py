@@ -21,6 +21,7 @@ TOKENIZER_CHOICES = [
     "GPT2BPETokenizer",
     "CharLevelTokenizer",
     "TiktokenTokenizer",
+    "SPMTokenizer",
 ]
 DATASET_CHOICES = [i for i in DATA_DOWNLOADERS.keys() if i != "pass"]
 
@@ -30,7 +31,7 @@ def get_args():
     parser.add_argument(
         "dataset",
         nargs="?",
-        default="enron",
+        default="enwik8",
         help="name of dataset to download.",
         choices=DATASET_CHOICES,
     )
@@ -54,6 +55,13 @@ def get_args():
     parser.add_argument(
         "-m", "--merge-file", default=None, help=f"Tokenizer merge file (if required)"
     )
+    parser.add_argument(
+        "-f",
+        "--force-redownload",
+        dest="force_redownload",
+        default=False,
+        action="store_true",
+    )
     return parser.parse_args()
 
 
@@ -65,4 +73,5 @@ if __name__ == "__main__":
         data_dir=args.data_dir,
         vocab_file=args.vocab_file,
         merge_file=args.merge_file,
+        force_redownload=args.force_redownload,
     )

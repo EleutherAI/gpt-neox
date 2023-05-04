@@ -24,7 +24,6 @@ from tokenizers import Tokenizer
 from transformers import GPT2Tokenizer, GPT2TokenizerFast
 import numpy as np
 import sentencepiece as spm
-import tiktoken
 from typing import List, Union
 from .gpt2_tokenization import GPT2Tokenizer
 
@@ -228,7 +227,6 @@ class HFTokenizer(AbstractTokenizer):
     def __init__(self, vocab_file):
         name = "HFTokenizer"
         super().__init__(name)
-
         self.tokenizer = Tokenizer.from_file(vocab_file)
         self.eod_id = self.tokenizer.token_to_id("<|endoftext|>")
         self.pad_id = self.tokenizer.token_to_id("<|padding|>")
@@ -355,6 +353,12 @@ class TiktokenTokenizer(AbstractTokenizer):
     """Tokenizer from OpenAI's tiktoken implementation"""
 
     def __init__(self, vocab_file):
+        try:
+            import tiktoken
+        except ModuleNotFoundError:
+            print("Please install tiktoken: (https://github.com/openai/tiktoken)")
+            raise Exception
+
         name = "TiktokenTokenizer"
         super().__init__(name)
 
@@ -368,15 +372,19 @@ class TiktokenTokenizer(AbstractTokenizer):
 
     @property
     def vocab(self):
-        raise NotImplementedError("TiktokenTokenizer does not implement vocabulary access.")
+        raise NotImplementedError(
+            "TiktokenTokenizer does not implement vocabulary access."
+        )
 
     @property
     def inv_vocab(self):
-        raise NotImplementedError("TiktokenTokenizer does not implement vocabulary access. \
-                To get the idx-th token in vocabulary, use tokenizer.decode([idx]) .")
+        raise NotImplementedError(
+            "TiktokenTokenizer does not implement vocabulary access. \
+                To get the idx-th token in vocabulary, use tokenizer.decode([idx]) ."
+        )
 
     def tokenize(self, text: str):
-        return self.tokenizer.encode(text) #,  allowed_special="all")
+        return self.tokenizer.encode(text)  # ,  allowed_special="all")
 
     def tokenize_batch(self, text_batch: List[str]):
         return self.tokenizer.encode_batch(text_batch, allowed_special="all")
@@ -391,5 +399,3 @@ class TiktokenTokenizer(AbstractTokenizer):
     @property
     def pad(self):
         raise NotImplementedError
-
-

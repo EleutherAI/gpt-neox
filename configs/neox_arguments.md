@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = be9acbf
+    Default = 5d2d78a
 
     current git hash of repository
 
@@ -135,7 +135,7 @@ Logging Arguments
 
 - **log_interval**: int
 
-    Default = None
+    Default = 100
 
     Interval between logging.
 
@@ -399,11 +399,11 @@ Model Arguments
 
 
 
-- **activation**: typing.Literal['gelu', 'geglu', 'relu', 'softsign', 'swish', 'mish']
+- **activation**: typing.Literal['gelu', 'geglu', 'relu', 'softsign', 'swish', 'mish', 'silu']
 
     Default = gelu
 
-    Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish"]
+    Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish", "silu"]
 
 
 
@@ -547,6 +547,32 @@ Model Arguments
 
 
 
+- **use_bias_in_norms**: bool
+
+    Default = True
+
+    If false, norms (e.g. LayerNorm) will not have bias terms
+
+
+
+- **use_bias_in_attn_linear**: bool
+
+    Default = True
+
+    If false, attn_linear (e.g. QKVO) will not have bias terms
+
+
+
+- **mlp_type**: str
+
+    Default = regular
+
+    Types:
+        regular: Megatron implementation
+        llama: LLaMA MLP (SiLU-gated MLP)
+
+
+
 - **soft_prompt_tuning**: dict
 
     Default = None
@@ -563,7 +589,7 @@ Model Arguments
 
 - **output_layer_parallelism**: typing.Literal['row', 'column']
 
-    Default = row
+    Default = column
 
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
 
@@ -592,7 +618,7 @@ Optimizer Arguments
 
 
 
-- **zero_stage**: int
+- **zero_stage**: typing.Union[int, typing.List[int], typing.Literal['all']]
 
     Default = None
 
@@ -926,7 +952,7 @@ Text Generation arguments
 
 - **prompt_end**: str
 
-    Default = 
+    Default =
 
 
     a single prompt's end. Defaults to newline
@@ -968,7 +994,7 @@ Text Generation arguments
 
 - **eval_results_prefix**: str
 
-    Default = 
+    Default =
 
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
 
@@ -1552,7 +1578,7 @@ Training Arguments
 
 Args for deepspeed config
     Every argument included here will be included in deepspeed config json
-    #TODO this list is not complete as compared to https://www.deepspeed.ai/docs/config-json/
+    As of Mar 8 2023, up to date compared to https://www.deepspeed.ai/docs/config-json/
 
 
 
@@ -1650,6 +1676,8 @@ Args for deepspeed config
 
     Configuration for using mixed precision/FP16 training that leverages NVIDIA’s Apex package.
 
+    Dictionary options as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#fp16-training-options
+
 
 
 - **bf16**: dict
@@ -1664,13 +1692,15 @@ Args for deepspeed config
 
     Default = None
 
+    Configuration for using automatic mixed precision (AMP) training that leverages NVIDIA’s Apex AMP package.
+
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#automatic-mixed-precision-amp-training-options
 
 
 
 - **gradient_clipping**: float
 
-    Default = 0.0
+    Default = 1.0
 
     Enable gradient clipping with provided value
 
@@ -1680,7 +1710,25 @@ Args for deepspeed config
 
     Default = None
 
-    
+    Configuration for using ZeRO optimization.
+
+    Multi-level dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#zero-optimization-options
+
+
+
+- **curriculum_learning**: dict
+
+    Default = None
+
+
+
+
+
+- **curriculum_seqlen**: int
+
+    Default = 0
+
+    Internal var for tracking the current seqlen
 
 
 
@@ -1712,15 +1760,151 @@ Args for deepspeed config
 
     Default = None
 
+    Configuration for using FLOPS profiler.
+
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#flops-profiler
 
 
 
-- **zero_allow_untested_optimizer**: bool
+- **communication_data_type**: bool
 
-    Default = False
+    Default = None
 
-    Whether Deepspeed Zero Optimizer will allow an optimizer that hasn't been tested by the deepspeed team
+    During gradient averaging, perform communication with selected data type. By default it will be determined by selected regime
+
+
+
+- **bf16**: dict
+
+    Default = None
+
+    Configuration for using bfloat16 floating-point format as an alternative to FP16. BFLOAT16 requires hardware support (e.g., NVIDIA A100).
+
+    Dictionary options as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#bfloat16-training-options
+
+
+
+- **autotuning**: dict
+
+    Default = None
+
+    Configuration for using autotuning.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#autotuning
+
+
+
+- **activation_checkpointing**: dict
+
+    Default = None
+
+    Configuration for using activation checkpointing.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#activation-checkpointing
+
+
+
+- **sparse_attention**: dict
+
+    Default = None
+
+    Configuration for using sparse attention.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#sparse-attention
+
+
+
+- **data_efficiency**: dict
+
+    Default = None
+
+    Configuration for using data efficiency.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#data-efficiency
+
+
+
+- **tensorboard**: dict
+
+    Default = None
+
+    Configuration for using tensorboard.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#monitoring-module-tensorboard-wandb-csv
+
+
+
+- **wandb**: dict
+
+    Default = None
+
+    Configuration for using wandb.
+
+
+
+- **csv_monitor**: dict
+
+    Default = None
+
+    Configuration for using csv_monitor.
+
+
+
+- **elasticity**: dict
+
+    Default = None
+
+    Configuration for using elastic training.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#elastic-training-config-v01-and-v02
+
+
+
+- **comms_logger**: dict
+
+    Default = None
+
+    Configuration for using communication logger.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#communication-logging
+
+
+
+- **compression_training**: dict
+
+    Default = None
+
+    Configuration for using compression training.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#compression
+
+
+
+- **checkpoint**: dict
+
+    Default = None
+
+    Configuration for using checkpointing.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#checkpoint-options
+
+
+
+- **data_types**: dict
+
+    Default = None
+
+    Configuration for using data types.
+
+    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#data-type-options
+
+
+
+- **deepspeed_extra_args**: dict
+
+    Default = None
+
+    Dictionary of extra arguments to be included in the yaml config file. This can be used for any argument not included in the above list.
 
 
 
@@ -1793,11 +1977,19 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
-- **launcher**: str
+- **launcher**: typing.Literal['pdsh', 'openmpi', 'mvapich', 'slurm']
 
     Default = pdsh
 
     Launcher backend for multi-node training. Options currently include PDSH, OpenMPI, MVAPICH.
+
+
+
+- **force_multi**: bool
+
+    Default = False
+
+    Force multi-node training even if only one node is specified.
 
 
 
@@ -1806,6 +1998,14 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = False
 
     If true, autodetects nvlink pairs and remaps cuda visible devices to place them next to each other. This is an Eleuther addition to deepspeed, and should speed up model parallel training on setups with nvlink pairs when mp=2.
+
+
+
+- **autotuning_run**: str
+
+    Default = None
+
+    Either "tune", "run", or `None`.
 
 
 
@@ -1822,4 +2022,3 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = None
 
     Adds a `--comment` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometime necessary for cluster rules, or so I've heard.
-
