@@ -1058,6 +1058,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     """
     
     """extra args for multimodel webdataset"""
+   
+    freeze_lm: bool = False
+    """
+    Freeze language model, make params require no grads
+    """
     
     train_data_paths: str = None
     """
@@ -1073,7 +1078,6 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     """
     Validation datasets.
     """
-
 
     image_size: int = 224
     """

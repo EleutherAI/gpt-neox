@@ -16,6 +16,7 @@
    "adaper_downsample_factor": 8,
 
    # gpt-neox settings
+   "freeze-lm": False,
    "num-layers": 24,
    "hidden-size": 2304,
    "num-attention-heads": 18,
