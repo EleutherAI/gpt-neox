@@ -542,7 +542,7 @@ class ParallelSelfAttention(nn.Module):
             else:
 
                 # [sq, b, np, hn] -> [b * sq, 1, np, hn]
-                query_layer.transpose(0, 1).reshape(
+                query_layer = query_layer.transpose(0, 1).reshape(
                     output_size[0] * output_size[2], 1, output_size[1], -1
                 )
 
