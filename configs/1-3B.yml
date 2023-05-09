@@ -2,24 +2,24 @@
 {
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
-   "pipe-parallel-size": 1,
-   "model-parallel-size": 1,
+   "pipe_parallel_size": 1,
+   "model_parallel_size": 1,
 
    # model settings
-   "num-layers": 24,
-   "hidden-size": 2048,
-   "num-attention-heads": 16,
-   "seq-length": 2048,
-   "max-position-embeddings": 2048,
+   "num_layers": 24,
+   "hidden_size": 2048,
+   "num_attention_heads": 16,
+   "seq_length": 2048,
+   "max_position_embeddings": 2048,
    "norm": "layernorm",
-   "pos-emb": "rotary",
-   "no-weight-tying": true,
+   "pos_emb": "rotary",
+   "no_weight_tying": true,
    "gpt_j_residual": false,
    "output_layer_parallelism": "column",
 
    # these should provide some speedup but takes a while to build, set to true if desired
-   "scaled-upper-triang-masked-softmax-fusion": false,
-   "bias-gelu-fusion": false,
+   "scaled_upper_triang_masked_softmax_fusion": false,
+   "bias_gelu_fusion": false,
 
    # init methods
    "init_method": "small_init",
@@ -49,19 +49,19 @@
 
    # batch / data settings
    "train_micro_batch_size_per_gpu": 4,
-   "data-impl": "mmap",
+   "data_impl": "mmap",
 
    # activation checkpointing
-   "checkpoint-activations": true,
-   "checkpoint-num-layers": 1,
-   "partition-activations": true,
-   "synchronize-each-layer": true,
+   "checkpoint_activations": true,
+   "checkpoint_num_layers": 1,
+   "partition_activations": true,
+   "synchronize_each_layer": true,
 
    # regularization
    "gradient_clipping": 1.0,
-   "weight-decay": 0.1,
-   "hidden-dropout": 0,
-   "attention-dropout": 0,
+   "weight_decay": 0.1,
+   "hidden_dropout": 0,
+   "attention_dropout": 0,
 
    # precision settings
    "fp16": {
@@ -74,18 +74,18 @@
    },
 
    # misc. training settings
-   "train-iters": 320000,
-   "lr-decay-iters": 320000,
-   "distributed-backend": "nccl",
-   "lr-decay-style": "cosine",
+   "train_iters": 320000,
+   "lr_decay_iters": 320000,
+   "distributed_backend": "nccl",
+   "lr_decay_style": "cosine",
    "warmup": 0.01,
-   "checkpoint-factor": 10000,
-   "eval-interval": 1000,
-   "eval-iters": 10,
+   "checkpoint_factor": 10000,
+   "eval_interval": 1000,
+   "eval_iters": 10,
 
    # logging
-   "log-interval": 100,
+   "log_interval": 100,
    "steps_per_print": 10,
-   "keep-last-n-checkpoints": 4,
+   "keep_last_n_checkpoints": 4,
    "wall_clock_breakdown": true,
 }

@@ -1,22 +1,22 @@
 {
-  "pipe-parallel-size": 1,
-  "model-parallel-size": 1,
+  "pipe_parallel_size": 1,
+  "model_parallel_size": 1,
 
-  "num-layers": 12,
-  "hidden-size": 768,
-  "num-attention-heads": 12,
-  "seq-length": 2048,
-  "max-position-embeddings": 2048,
-  "pos-emb": "rotary",
-  "rotary-pct": 0.25,
-  "no-weight-tying": true,
-  "gpt-j-residual": true,
-  "output-layer-parallelism": "column",
-  
-  "attention-config": [[["flash"], 12]],
+  "num_layers": 12,
+  "hidden_size": 768,
+  "num_attention_heads": 12,
+  "seq_length": 2048,
+  "max_position_embeddings": 2048,
+  "pos_emb": "rotary",
+  "rotary_pct": 0.25,
+  "no_weight_tying": true,
+  "gpt_j_residual": true,
+  "output_layer_parallelism": "column",
 
-  "scaled-upper-triang-masked-softmax-fusion": true,
-  "bias-gelu-fusion": true,
+  "attention_config": [[["flash"], 12]],
+
+  "scaled_upper_triang_masked_softmax_fusion": true,
+  "bias_gelu_fusion": true,
 
   "init_method": "small_init",
   "output_layer_init_method": "wang_init",
@@ -44,18 +44,18 @@
 
   "train_micro_batch_size_per_gpu": 32,
   "gas": 1,
-  "data-impl": "mmap",
+  "data_impl": "mmap",
   "num_workers": 1,
 
-  "checkpoint-activations": true,
-  "checkpoint-num-layers": 1,
-  "partition-activations": true,
-  "synchronize-each-layer": true,
+  "checkpoint_activations": true,
+  "checkpoint_num_layers": 1,
+  "partition_activations": true,
+  "synchronize_each_layer": true,
 
   "gradient_clipping": 1.0,
-  "weight-decay": 0.1,
-  "hidden-dropout": 0,
-  "attention-dropout": 0,
+  "weight_decay": 0.1,
+  "hidden_dropout": 0,
+  "attention_dropout": 0,
 
   "fp16": {
     "fp16": true,
@@ -67,19 +67,19 @@
     "min_loss_scale": 1
   },
 
-  "train-iters": 143000,
-  "lr-decay-iters": 143000,
-  "distributed-backend": "nccl",
-  "lr-decay-style": "cosine",
+  "train_iters": 143000,
+  "lr_decay_iters": 143000,
+  "distributed_backend": "nccl",
+  "lr_decay_style": "cosine",
   "warmup": 0.01,
-  "checkpoint-factor": 1000,
-  "extra-save-iters": [0,1,2,4,8,16,32,64,128,256,512],
-  "eval-interval": 143000,
-  "eval-iters": 10,
+  "checkpoint_factor": 1000,
+  "extra_save_iters": [0,1,2,4,8,16,32,64,128,256,512],
+  "eval_interval": 143000,
+  "eval_iters": 10,
 
-  "log-interval": 10,
+  "log_interval": 10,
   "steps_per_print": 10,
   "wall_clock_breakdown": true,
 
-  "tokenizer-type": "HFTokenizer"
+  "tokenizer_type": "HFTokenizer"
 }
