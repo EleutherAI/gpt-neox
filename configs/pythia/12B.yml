@@ -13,7 +13,7 @@
    "no_weight_tying": true,
    "gpt_j_residual": true,
    "output_layer_parallelism": "column",
-   
+
    "attention_config": [[["flash"], 36]],
 
    "scaled_upper_triang_masked_softmax_fusion": true,
@@ -63,7 +63,7 @@
      "hysteresis": 2,
      "min_loss_scale": 1
    },
- 
+
    "train_iters": 143000,
    "lr_decay_iters": 143000,
    "distributed_backend": "nccl",

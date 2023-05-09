@@ -447,9 +447,11 @@ def get_optimizer(model, neox_args):
     """Set up the optimizer."""
     if neox_args.no_load_optim:
         return None, None
-    
+
     if neox_args.optimizer is None:
-        print_rank_0(f'ERROR: Optimizer is None. Either set the optimizer dict in your config (if training) or set no_load_optim in your config (if inference)')
+        print_rank_0(
+            f"ERROR: Optimizer is None. Either set the optimizer dict in your config (if training) or set no_load_optim in your config (if inference)"
+        )
         exit()
     # Build parameter groups (weight decay and non-decay).
     param_groups = get_params_for_weight_decay_optimization(model, neox_args)
