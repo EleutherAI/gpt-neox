@@ -2,21 +2,21 @@
 {
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
-   "pipe-parallel-size": 1,
-   "model-parallel-size": 1,
+   "pipe_parallel_size": 1,
+   "model_parallel_size": 1,
    "attention_config": [[["gmlp"], "all"]],
 
 
    # model settings
-   "num-layers": 12,
-   "hidden-size": 768, # gmlp d_ff defaults to hidden_size * 4
+   "num_layers": 12,
+   "hidden_size": 768, # gmlp d_ff defaults to hidden_size * 4
    "gmlp_attn_dim": 64,
-   "num-attention-heads": 12, # this has no effect with gmlp - and amlp defaults to single head attention.
-   "seq-length": 2048,
-   "max-position-embeddings": 2048,
+   "num_attention_heads": 12, # this has no effect with gmlp - and amlp defaults to single head attention.
+   "seq_length": 2048,
+   "max_position_embeddings": 2048,
    "norm": "layernorm",
-   "pos-emb": "none",
-   "no-weight-tying": true,
+   "pos_emb": "none",
+   "no_weight_tying": true,
 
    # optimizer settings
    "optimizer": {
@@ -24,26 +24,26 @@
      "params": {
        "lr": 0.0006,
        "betas": [0.9, 0.999],
-       "eps": 1.0e-8,
+       "eps": 1.0e_8,
      }
    },
 
    # batch / data settings
    "train_micro_batch_size_per_gpu": 4,
-   "data-impl": "mmap",
+   "data_impl": "mmap",
    "split": "949,50,1",
 
    # activation checkpointing
-   "checkpoint-activations": true,
-   "checkpoint-num-layers": 1,
-   "partition-activations": false,
-   "synchronize-each-layer": true,
+   "checkpoint_activations": true,
+   "checkpoint_num_layers": 1,
+   "partition_activations": false,
+   "synchronize_each_layer": true,
 
    # regularization
    "gradient_clipping": 1.0,
-   "weight-decay": 0.1,
-   "hidden-dropout": 0.0,
-   "attention-dropout": 0.0,
+   "weight_decay": 0.1,
+   "hidden_dropout": 0.0,
+   "attention_dropout": 0.0,
 
    # precision settings
    "fp16": {
@@ -55,18 +55,18 @@
    },
 
    # misc. training settings
-   "train-iters": 320000,
-   "lr-decay-iters": 320000,
-   "distributed-backend": "nccl",
-   "lr-decay-style": "cosine",
+   "train_iters": 320000,
+   "lr_decay_iters": 320000,
+   "distributed_backend": "nccl",
+   "lr_decay_style": "cosine",
    "warmup": 0.01,
-   "checkpoint-factor": 10000,
-   "eval-interval": 1000,
-   "eval-iters": 10,
+   "checkpoint_factor": 10000,
+   "eval_interval": 1000,
+   "eval_iters": 10,
 
    # logging
-   "log-interval": 100,
+   "log_interval": 100,
    "steps_per_print": 10,
-   "keep-last-n-checkpoints": 4,
+   "keep_last_n_checkpoints": 4,
    "wall_clock_breakdown": true,
 }
