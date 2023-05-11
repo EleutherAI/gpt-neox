@@ -784,7 +784,7 @@ class NeoXArgs(*BASE_CLASSES):
         else:
             assert (
                 False
-            ), "Either train_batch_size or micro_batch_per_gpu needs to be provided"
+            ), "Either train_batch_size or train_micro_batch_size_per_gpu needs to be provided"
         return int(train_batch), int(micro_batch), int(grad_acc)
 
     @staticmethod
@@ -907,11 +907,11 @@ class NeoXArgs(*BASE_CLASSES):
             save_iters = list(save_iters)
             save_iters.sort()
 
-        self.update_values(
-            {
-                "save_iters": save_iters,
-            }
-        )
+            self.update_values(
+                {
+                    "save_iters": save_iters,
+                }
+            )
 
         # derive precision
         if (self.fp16 or {}).get("type", self.precision) == "bfloat16":
@@ -989,7 +989,7 @@ class NeoXArgs(*BASE_CLASSES):
         # Update 'is pipe parallel' flag
         # if we set pipe_parallel_size to 0 or 1, GPT2ModelPipe.to_sequential() is called, and we run training with
         # the sequential model without the PipelineModule wrapper to avoid the overhead it incurs
-        self.update_value("is_pipe_parallel", self.pipe_parallel_size >= 2)
+        self.update_value("is_pipe_parallel", self.pipe_parallel_size >= 1)
 
         # Attention config
         if self.attention_config is None:

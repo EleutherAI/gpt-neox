@@ -8,26 +8,28 @@ Parameters originate from either the [DeepSpeed runner CLI (DSL)](https://github
 Below is an example configuration `.yaml` to train a ~160M parameter GPT model. This readme will go through each section in the configuration and the options available.
 
 For a detailed list of all the arguments available for neox, see [neox_arguments.md](neox_arguments.md)
+
+Note: yaml arguments may be formatted with either '-' or '_'. The standard separator used is a '_' as shown in the example configurations below. However, the use of '-' as a separator may be deprecated in the future.
 ```yaml
 # GPT-3 pretraining setup
 {
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
-   "pipe-parallel-size": 1,
-   "model-parallel-size": 1,
+   "pipe_parallel_size": 1,
+   "model_parallel_size": 1,
 
    # model settings
-   "num-layers": 12,
-   "hidden-size": 768,
-   "num-attention-heads": 12,
-   "seq-length": 2048,
-   "max-position-embeddings": 2048,
+   "num_layers": 12,
+   "hidden_size": 768,
+   "num_attention_heads": 12,
+   "seq_length": 2048,
+   "max_position_embeddings": 2048,
    "norm": "rmsnorm",
-   "pos-emb": "none",
-   "no-weight-tying": true,
+   "pos_emb": "none",
+   "no_weight_tying": true,
     # this should provide some speedup but takes a while to build, set to true if desired
-   "scaled-upper-triang-masked-softmax-fusion": false,
-   "train-iters": 320000,
+   "scaled_upper_triang_masked_softmax_fusion": false,
+   "train_iters": 320000,
 
    # optimizer settings
    "optimizer": {
@@ -52,20 +54,20 @@ For a detailed list of all the arguments available for neox, see [neox_arguments
    # batch / data settings
    "train_micro_batch_size_per_gpu": 4,
    "gradient_accumulation_steps": 1,
-   "data-impl": "mmap",
+   "data_impl": "mmap",
    "split": "949,50,1",
 
    # activation checkpointing
-   "checkpoint-activations": true,
-   "checkpoint-num-layers": 1,
-   "partition-activations": true,
-   "synchronize-each-layer": true,
+   "checkpoint_activations": true,
+   "checkpoint_num_layers": 1,
+   "partition_activations": true,
+   "synchronize_each_layer": true,
 
    # regularization
    "gradient_clipping": 1.0,
-   "weight-decay": 0,
-   "hidden-dropout": 0,
-   "attention-dropout": 0,
+   "weight_decay": 0,
+   "hidden_dropout": 0,
+   "attention_dropout": 0,
 
    # precision settings
    "fp16": {
@@ -77,20 +79,20 @@ For a detailed list of all the arguments available for neox, see [neox_arguments
    },
 
    # lr decay settings
-   "lr-decay-iters": 320000,
-   "lr-decay-style": "cosine",
+   "lr_decay_iters": 320000,
+   "lr_decay_style": "cosine",
    "warmup": 0.01,
 
    # misc. training settings
-   "distributed-backend": "nccl",
-   "save-interval": 10000,
-   "eval-interval": 1000,
-   "eval-iters": 10,
+   "distributed_backend": "nccl",
+   "save_interval": 10000,
+   "eval_interval": 1000,
+   "eval_iters": 10,
 
    # logging
-   "log-interval": 100,
+   "log_interval": 100,
    "steps_per_print": 10,
-   "keep-last-n-checkpoints": 4,
+   "keep_last_n_checkpoints": 4,
    "wall_clock_breakdown": true,
 }
 ```
@@ -101,8 +103,8 @@ The parallelism settings are left at 1 in all configs, as the settings you want 
 We have found it best to do model parallelism within a node, and schedule pipeline stages across node boundaries.
 
 ```yaml
-   "pipe-parallel-size": 1,
-   "model-parallel-size": 1,
+   "pipe_parallel_size": 1,
+   "model_parallel_size": 1,
 ```
 
 These can be set to any integer between `0` and `num_gpus`, and `num_gpus` must be divisible by `pipe_parallel_size` * `model_parallel_size`.
@@ -111,17 +113,17 @@ These can be set to any integer between `0` and `num_gpus`, and `num_gpus` must 
 ### Model Settings:
 ```yaml
    # model settings
-   "num-layers": 12,
-   "hidden-size": 768,
-   "num-attention-heads": 12,
-   "seq-length": 2048,
-   "max-position-embeddings": 2048,
+   "num_layers": 12,
+   "hidden_size": 768,
+   "num_attention_heads": 12,
+   "seq_length": 2048,
+   "max_position_embeddings": 2048,
    "norm": "rmsnorm",
-   "pos-emb": "none",
-   "no-weight-tying": true,
+   "pos_emb": "none",
+   "no_weight_tying": true,
     # this should provide some speedup but takes a while to build, set to true if desired
-   "scaled-upper-triang-masked-softmax-fusion": false,
-   "train-iters": 320000,
+   "scaled_upper_triang_masked_softmax_fusion": false,
+   "train_iters": 320000,
 ```
 An example of some basic settings used to configure your model's architecture and number of training steps.
 
@@ -215,29 +217,29 @@ Additional DeepSpeed settings besides those mentioned above should be wrapped in
 ### Dataset / Tokenizer / Checkpoint / Logging Settings:
 
 ```yaml
-   "data-impl": "mmap",
+   "data_impl": "mmap",
    "split": "949,50,1",
    # Suggested data paths when using GPT-NeoX locally
-   "data-path": "data/enwik8/enwik8_text_document",
-   #"train-data-path": "data/enwik8/enwik8_text_document",
-   #"test-data-path": "data/enwik8/enwik8_text_document",
-   #"valid-data-path": "data/enwik8/enwik8_text_document",
-   "vocab-file": "data/gpt2-vocab.json",
-   "merge-file": "data/gpt2-merges.txt",
+   "data_path": "data/enwik8/enwik8_text_document",
+   #"train_data_path": "data/enwik8/enwik8_text_document",
+   #"test_data_path": "data/enwik8/enwik8_text_document",
+   #"valid_data_path": "data/enwik8/enwik8_text_document",
+   "vocab_file": "data/gpt2-vocab.json",
+   "merge_file": "data/gpt2-merges.txt",
    "save": "checkpoints",
    "load": "checkpoints",
-   "tensorboard-dir": "tensorboard",
-   "log-dir": "logs",
-   "save-interval": 10000,
-   "eval-interval": 1000,
-   "eval-iters": 10,
+   "tensorboard_dir": "tensorboard",
+   "log_dir": "logs",
+   "save_interval": 10000,
+   "eval_interval": 1000,
+   "eval_iters": 10,
 ```
 
 ### LR Scheduler settings
 
 ```yaml
-   "lr-decay-iters": 320000,
-   "lr-decay-style": "cosine",
+   "lr_decay_iters": 320000,
+   "lr_decay_style": "cosine",
    "warmup": 0.01,
 ```
 
@@ -248,10 +250,10 @@ N.B - `OneBitAdam` requires you to use deepspeed's internal lr scheduler because
 ### Activation Checkpointing Settings:
 
 ```yaml
-   "checkpoint-activations": true,
-   "checkpoint-num-layers": 1,
-   "partition-activations": true,
-   "synchronize-each-layer": true,
+   "checkpoint_activations": true,
+   "checkpoint_num_layers": 1,
+   "partition_activations": true,
+   "synchronize_each_layer": true,
 ```
 
 Checkpointing works by trading compute for memory. Rather than storing all intermediate activations of the entire computation graph for computing backward, the checkpointed part does not save intermediate activations, and instead recomputes them in backward pass.
