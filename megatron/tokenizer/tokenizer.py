@@ -232,7 +232,6 @@ class HFTokenizer(AbstractTokenizer):
     def __init__(self, vocab_file):
         name = "HFTokenizer"
         super().__init__(name)
-
         self.tokenizer = Tokenizer.from_file(vocab_file)
         self.eod_id = self.tokenizer.token_to_id("<|endoftext|>")
         self.pad_id = self.tokenizer.token_to_id("<|padding|>")

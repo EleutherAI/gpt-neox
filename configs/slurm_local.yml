@@ -1,11 +1,11 @@
 {
-  "data-path": "data/enwik8/enwik8_text_document",
-  "vocab-file": "data/gpt2-vocab.json",
-  "merge-file": "data/gpt2-merges.txt",
+  "data_path": "data/enwik8/enwik8_text_document",
+  "vocab_file": "data/gpt2-vocab.json",
+  "merge_file": "data/gpt2-merges.txt",
   "save": "checkpoints",
   "checkpoint_validation_with_forward_pass": false,
-  "tensorboard-dir": "tensorboard",
-  "log-dir": "logs",
+  "tensorboard_dir": "tensorboard",
+  "log_dir": "logs",
   "use_wandb": true,
   "wandb_host": "https://api.wandb.ai",
   "wandb_project": "neox"
