@@ -146,7 +146,11 @@ class LLaMAParallelMLP(nn.Module):
     """
 
     def __init__(
-        self, neox_args, init_method, output_layer_init_method, parallel_output=False,
+        self,
+        neox_args,
+        init_method,
+        output_layer_init_method,
+        parallel_output=False,
         multiple_of=256,
     ):
         super().__init__()
@@ -219,7 +223,9 @@ class ParallelLinear(nn.Module):
                 mup_rescale_parameters=is_last_layer,  # rescale params only called if neox_args.use_mup = True, despite it not being included here
             )
         else:
-            print('ERROR: Output layer parallelism over the hidden dim is currently broken (https://github.com/EleutherAI/gpt-neox/issues/905). Please run with output_layer_parallelism = "column" until this issue is fixed.')
+            print(
+                'ERROR: Output layer parallelism over the hidden dim is currently broken (https://github.com/EleutherAI/gpt-neox/issues/905). Please run with output_layer_parallelism = "column" until this issue is fixed.'
+            )
             exit()
             self.final_linear = mpu.RowParallelLinear(
                 neox_args=neox_args,
@@ -542,7 +548,7 @@ class ParallelSelfAttention(nn.Module):
             else:
 
                 # [sq, b, np, hn] -> [b * sq, 1, np, hn]
-                query_layer.transpose(0, 1).reshape(
+                query_layer = query_layer.transpose(0, 1).reshape(
                     output_size[0] * output_size[2], 1, output_size[1], -1
                 )
 
@@ -864,9 +870,14 @@ class ParallelTransformerLayer(nn.Module):
                     )
                 else:
                     # Otherwise just apply dropout + residual
-                    attention_output = torch.nn.functional.dropout(
-                        attention_output, p=self.hidden_dropout, training=self.training
-                    ) + residual
+                    attention_output = (
+                        torch.nn.functional.dropout(
+                            attention_output,
+                            p=self.hidden_dropout,
+                            training=self.training,
+                        )
+                        + residual
+                    )
 
             # output = x + mlp(ln2(x))
             mlp_output, mlp_bias = self.mlp(
