@@ -37,12 +37,7 @@ RUN apt-get update -y && \
     pip install gpustat
 
 ### SSH
-# Set password
-ENV PASSWORD=password
 RUN mkdir /var/run/sshd && \
-    echo "root:${PASSWORD}" | chpasswd && \
-    # Allow root login with password
-    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     # Prevent user being kicked off after login
     sed -i 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' /etc/pam.d/sshd && \
     echo 'AuthorizedKeysFile     .ssh/authorized_keys' >> /etc/ssh/sshd_config && \
