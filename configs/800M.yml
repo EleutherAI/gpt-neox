@@ -22,7 +22,7 @@
 
   ## image_prefix
   "encoder_name": "openclip-H",
-  "pretrained_img_encoder": false,
+  "pretrained_img_encoder": true,
   "use_image_embed_layernorm": true,
   "image_embed_dropout_prob": 0.1,
 

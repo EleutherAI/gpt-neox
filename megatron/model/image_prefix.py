@@ -30,14 +30,20 @@ class Lambda(torch.nn.Module):
 
 
 def nfresnet50(
-    device: Union[torch.device, str] = None, pretrained: bool = True
+    device: Union[torch.device, str] = None, 
+    pretrained: bool = True,
+    cache_path: str = None
 ) -> nn.Module:
     """
     Loads nfresnet50 model, removing the pooling layer and replacing it with
     an adaptive pooling layer.
     """
     encoder = torch.nn.Sequential(
-        *list(timm.create_model("nf_resnet50", pretrained=pretrained).children())[:-1]
+        *list(timm.create_model(
+            "nf_resnet50", 
+            pretrained=pretrained,
+            checkpoint_path=cache_path
+            ).children())[:-1]
     )
     pooling = torch.nn.AdaptiveAvgPool2d((1, 1))
     encoder = torch.nn.Sequential(encoder, pooling)
@@ -47,7 +53,10 @@ def nfresnet50(
 
 
 def clip_encoder(
-    device: Union[torch.device, str] = None, name: str = "clip",
+    device: Union[torch.device, str] = None,
+    name: str = "clip",
+    pretrain: bool = False,
+    cache_path: str = None
 ) -> nn.Module:
     """
     Loads clip's image encoder module, discarding the lm component.
@@ -71,8 +80,23 @@ def clip_encoder(
         raise NotImplementedError(f"Encoder {name} not recognized")
 
     # TODO better internet connection
-    encoder = open_clip.create_model(name, device=device, precision="fp16" if "cuda" in str(device) else "fp32").visual  # , pretrained=pretrained).visual
-
+    if pretrain:    
+        encoder = open_clip.create_model(
+            name, 
+            device=device, 
+            precision="fp16" if "cuda" in str(device) else "fp32", 
+            pretrained=pretrained,
+            cache_dir=cache_path
+        ).visual
+    else:
+        encoder = open_clip.create_model(
+            name, 
+            device=device, 
+            precision="fp16" if "cuda" in str(device) else "fp32", 
+            # pretrained=pretrained,
+            cache_dir=cache_path
+        ).visual
+         
     if "RN" in name:
         # remove attention pooling
         encoder.attnpool = Lambda(
@@ -108,15 +132,18 @@ def clip_encoder(
 
 
 def get_image_encoder(
-    name: str, device: Union[torch.device, str] = None, pretrained: bool = False
+    name: str, 
+    device: Union[torch.device, str] = None, 
+    pretrained: bool = False,
+    cache_path: str = None
 ) -> torch.nn.Module:
     """
     Loads image encoder module
     """
     if name == "nfresnet50":
-        encoder = nfresnet50(device=device, pretrained=pretrained)
+        encoder = nfresnet50(device=device, pretrained=pretrained, cache_path=cache_path)
     elif "clip" in name:
-        encoder = clip_encoder(device=device, name=name)
+        encoder = clip_encoder(device=device, name=name, pretrain=pretrained, cache_path=cache_path)
     else:
         raise ValueError(f"image encoder {name} not recognized")
     return encoder
@@ -169,6 +196,7 @@ class ImagePrefix(nn.Module):
             config.encoder_name,
             # device=self.device,
             pretrained=config.pretrained_img_encoder,
+            cache_path = config.load
         )
         self.encoder_out_dim = ENCODER_OUT_DIMS[
             self.encoder_type
