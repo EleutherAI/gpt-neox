@@ -30,7 +30,6 @@ import os
 import sys
 import dataclasses
 from functools import partial
-from pathlib import Path
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
