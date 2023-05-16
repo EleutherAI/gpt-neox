@@ -354,7 +354,6 @@ class EvalHarnessAdapter(GPT2LM):
         # restore to original shape
         if padded and logits is not None:
             logits = logits[:batch_size, ...]
-
         return logits
 
     def _model_generate(self, context, max_length, eos_token_id):
