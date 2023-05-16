@@ -351,6 +351,11 @@ class NeoXArgsDeepspeedRunner(NeoXArgsTemplate):
     If true, overrides the default check where DeepSpeed confirms that the headnode is accessible via ssh.
     """
 
+    force_multi: bool = False
+    """
+    If true, Force multi-node launcher mode, helps in cases where user wants to launch on single remote node.
+    """
+
     comment: str = None
     """
     Adds a `--comment` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometime necessary for cluster rules, or so I've heard.
