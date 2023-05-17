@@ -98,6 +98,11 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     Dictionary options as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#fp16-training-options
     """
 
+    bf16: dict = None
+    """
+    Configuration for using bfloat16 floating-point format as an alternative to FP16. BFLOAT16 requires hardware support (e.g., NVIDIA A100). Dictionary options as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#bfloat16-training-options
+    """
+
     # ---Automatic Mixed Precision (AMP) Training Options---
 
     amp: dict = None
@@ -160,15 +165,6 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     communication_data_type: bool = None
     """
     During gradient averaging, perform communication with selected data type. By default it will be determined by selected regime
-    """
-
-    # ---BFLOAT16 Training Options---
-
-    bf16: dict = None
-    """
-    Configuration for using bfloat16 floating-point format as an alternative to FP16. BFLOAT16 requires hardware support (e.g., NVIDIA A100).
-
-    Dictionary options as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#bfloat16-training-options
     """
 
     # ---Autotuning Options---
