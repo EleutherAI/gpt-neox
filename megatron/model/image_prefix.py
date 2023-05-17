@@ -196,7 +196,7 @@ class ImagePrefix(nn.Module):
             config.encoder_name,
             # device=self.device,
             pretrained=config.pretrained_img_encoder,
-            cache_path = config.load
+            cache_path = config.load_clip
         )
         self.encoder_out_dim = ENCODER_OUT_DIMS[
             self.encoder_type
