@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM nvidia/cuda:11.1.1-devel-ubuntu20.04
+FROM nvidia/cuda:11.7.0-runtime-ubuntu20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -26,7 +26,7 @@ LABEL org.opencontainers.image.base.name="docker.io/nvidia/cuda:11.1.1-devel-ubu
 #### System package (uses default Python 3 version in Ubuntu 20.04)
 RUN apt-get update -y && \
     apt-get install -y \
-        git python3 python3-dev libpython3-dev python3-pip sudo pdsh \
+        git python3.9 python3-dev libpython3-dev python3-pip sudo pdsh \
         htop llvm-9-dev tmux zstd software-properties-common build-essential autotools-dev \
         nfs-common pdsh cmake g++ gcc curl wget vim less unzip htop iftop iotop ca-certificates ssh \
         rsync iputils-ping net-tools libcupti-dev libmlx4-1 infiniband-diags ibutils ibverbs-utils \
@@ -88,7 +88,7 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
     echo 'export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:$LD_LIBRARY_PATH' >> /home/mchorse/.bashrc
 
 #### Python packages
-RUN pip install torch==1.8.1+cu111 -f https://download.pytorch.org/whl/torch_stable.html && pip cache purge
+RUN pip install torch==1.13.0+cu117 torchvision==0.14.0+cu117 torchaudio==0.13.0 --extra-index-url https://download.pytorch.org/whl/cu117 && pip cache purge
 COPY requirements/requirements.txt .
 COPY requirements/requirements-wandb.txt .
 COPY requirements/requirements-onebitadam.txt .
