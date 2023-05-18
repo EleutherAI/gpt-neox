@@ -1,0 +1,61 @@
+# YAML 1.2
+---
+authors:
+  - affiliation: EleutherAI
+    family-names: Andonian
+    given-names: Alex
+  - affiliation: EleutherAI
+    family-names: Biderman
+    given-names: Stella
+  - affiliation: EleutherAI
+    family-names: Black
+    given-names: Sid
+  - affiliation: EleutherAI
+    family-names: Gali
+    given-names: Preetham
+  - affiliation: EleutherAI
+    family-names: Gao
+    given-names: Leo
+  - affiliation: EleutherAI
+    family-names: Hallahan
+    given-names: Eric
+  - affiliation: EleutherAI
+    family-names: Levy-Kramer
+    given-names: Josh
+  - affiliation: EleutherAI
+    family-names: Leahy
+    given-names: Connor
+  - affiliation: EleutherAI
+    family-names: Nestler
+    given-names: Lucas
+  - affiliation: EleutherAI
+    family-names: Parker
+    given-names: Kip
+  - affiliation: EleutherAI
+    family-names: Pieler
+    given-names: Michael
+  - affiliation: EleutherAI
+    family-names: Purohit
+    given-names: Shivanshu
+  - affiliation: EleutherAI
+    family-names: Songz
+    given-names: Tri
+  - affiliation: EleutherAI
+    family-names: Phil
+    given-names: Wang
+  - affiliation: EleutherAI
+    family-names: Weinbach
+    given-names: Samuel
+cff-version: "1.1.0"
+keywords:
+  - "Transformers"
+  - "Massive language model"
+  - "Autoregressive language model"
+license: "Apache-2.0"
+message: "If you use this software, please cite it using these metadata."
+repository-code: "https://www.github.com/eleutherai/gpt-neox"
+title: "GPT-NeoX: Large Scale Autoregressive Language Modeling in PyTorch"
+version: "0.0.1"
+doi: "10.5281/zenodo.5879544"
+date-released: 2021-08-23
+...
