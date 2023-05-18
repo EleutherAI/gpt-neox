@@ -420,8 +420,9 @@ class NeoXArgs(*BASE_CLASSES):
             help="Only need this (at this stage) for autotuning",
         )
         args_parsed, _ = parser.parse_known_args()
-        with open(args_parsed.megatron_config) as jsonfile:
-            megatron_config = json.load(jsonfile)
+        megatron_config = json.loads(
+            base64.urlsafe_b64decode(args_parsed.megatron_config).decode("utf-8")
+        )
         if args_parsed.deepspeed_config is not None:
             overwrite_values = cls.set_up_autotuning(
                 args_parsed.deepspeed_config, overwrite_values
