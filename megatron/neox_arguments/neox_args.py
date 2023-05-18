@@ -228,7 +228,9 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Pad the vocab size to be divisible by this value. This is added for computational efficiency reasons.
     """
 
-    activation: Literal["gelu", "geglu", "relu", "softsign", "swish", "mish", "silu"] = "gelu"
+    activation: Literal[
+        "gelu", "geglu", "relu", "softsign", "swish", "mish", "silu"
+    ] = "gelu"
     """
     Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish", "silu"]
     """

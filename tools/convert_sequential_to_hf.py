@@ -157,7 +157,27 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
 
     hf_model = GPTNeoXForCausalLM(
         hf_config
-    ).half()  # nice-to-have: lazy init weights somehow?
+    )
+
+    # save model in FP16 if Deepspeed fp16 was used in config, else 32 bit
+    fp16 = get_key(loaded_config, "fp16")
+    # save model in fp16/bf16 if Deepspeed fp16 or bf16 mixed precision was used in config, else 32 bit weights
+    fp16 = get_key(loaded_config, "fp16")
+    if fp16:
+        try:
+            # current behavior is to pass "fp16": {"enabled": true}, when using upstream Deepspeed
+            if fp16["enabled"]:
+                hf_model.half()
+                print("Saving weights in fp16 precision...")
+        except:
+            try:
+                # attempt to access bf16 dict in yaml file, if fp16 not enabled
+                bf16 = get_key(loaded_config, "bf16")
+                if bf16:
+                    hf_model.to(dtype=torch.bfloat16)
+                    print("Saving weights in bf16 precision...")
+            except:
+                print("Model not trained in fp16 / bf16 mixed precision, saving weights in fp32...")  
 
     mp_partitions = get_key(loaded_config, "model-parallel-size")
 

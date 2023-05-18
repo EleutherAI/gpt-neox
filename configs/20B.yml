@@ -4,32 +4,32 @@
 
 {
   # Tokenizer /  checkpoint settings - you will need to change these to the location you have them saved in
-  "vocab-file": "./20B_checkpoints/20B_tokenizer.json",
+  "vocab_file": "./20B_checkpoints/20B_tokenizer.json",
   "save": "./20B_checkpoints",
   "load": "./20B_checkpoints",
 
   # If finetuning, edit the following to the location of your finetuning dataset:
-  "data-path": "./data/pile_20B_tokenizer/pile_20B_tokenizer_text_document",
+  "data_path": "./data/pile_20B_tokenizer/pile_20B_tokenizer_text_document",
 
   # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
   # across the node boundaries )
-  "pipe-parallel-size": 4,
-  "model-parallel-size": 2,
+  "pipe_parallel_size": 4,
+  "model_parallel_size": 2,
 
   # model settings
-  "num-layers": 44,
-  "hidden-size": 6144,
-  "num-attention-heads": 64,
-  "seq-length": 2048,
-  "max-position-embeddings": 2048,
+  "num_layers": 44,
+  "hidden_size": 6144,
+  "num_attention_heads": 64,
+  "seq_length": 2048,
+  "max_position_embeddings": 2048,
   "norm": "layernorm",
-  "pos-emb": "rotary",
+  "pos_emb": "rotary",
   "rotary_pct": 0.25,
-  "no-weight-tying": true,
+  "no_weight_tying": true,
   "gpt_j_residual": true,
   "output_layer_parallelism": "column",
-  "scaled-upper-triang-masked-softmax-fusion": true,
-  "bias-gelu-fusion": true,
+  "scaled_upper_triang_masked_softmax_fusion": true,
+  "bias_gelu_fusion": true,
 
   # init methods
   "init_method": "small_init",
@@ -61,20 +61,20 @@
   # batch / data settings (assuming 96 GPUs)
   "train_micro_batch_size_per_gpu": 4,
   "gradient_accumulation_steps": 32,
-  "data-impl": "mmap",
+  "data_impl": "mmap",
   "split": "995,4,1",
 
   # activation checkpointing
-  "checkpoint-activations": true,
-  "checkpoint-num-layers": 1,
-  "partition-activations": false,
-  "synchronize-each-layer": true,
+  "checkpoint_activations": true,
+  "checkpoint_num_layers": 1,
+  "partition_activations": false,
+  "synchronize_each_layer": true,
 
   # regularization
   "gradient_clipping": 1.0,
-  "weight-decay": 0.01,
-  "hidden-dropout": 0,
-  "attention-dropout": 0,
+  "weight_decay": 0.01,
+  "hidden_dropout": 0,
+  "attention_dropout": 0,
 
   # precision settings
   "fp16": {
@@ -88,24 +88,24 @@
     },
 
   # misc. training settings
-  "train-iters": 150000,
-  "lr-decay-iters": 150000,
+  "train_iters": 150000,
+  "lr_decay_iters": 150000,
 
-  "distributed-backend": "nccl",
-  "lr-decay-style": "cosine",
+  "distributed_backend": "nccl",
+  "lr_decay_style": "cosine",
   "warmup": 0.01,
-  "checkpoint-factor": 500, # this variable previously called `save-interval`
-  "eval-interval": 1000,
-  "eval-iters": 10,
+  "checkpoint_factor": 500, # this variable previously called `save-interval`
+  "eval_interval": 1000,
+  "eval_iters": 10,
 
   # logging
-  "log-interval": 2,
+  "log_interval": 2,
   "steps_per_print": 2,
   "wall_clock_breakdown": false,
 
   ### NEW DATA: ####
   "tokenizer_type": "HFTokenizer",
   "tensorboard-dir": "./tensorboard",
-  "log-dir": "./logs",
+  "log_dir": "./logs",
 
 }
