@@ -1,0 +1,117 @@
+# Copyright (c) 2021, EleutherAI
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# GPT_2 pretraining setup
+{
+   # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
+   # across the node boundaries )
+   "pipe_parallel_size": 0,
+   "model_parallel_size": 1,
+
+   # model settings
+   "num_layers": 2,
+   "hidden_size": 192,
+   "num_attention_heads": 6,
+   "seq_length": 1024,
+   "max_position_embeddings": 1024,
+   "norm": "layernorm",
+   "pos_emb": "rotary",
+   "no_weight_tying": true,
+
+   # these should provide some speedup but takes a while to build, set to true if desired
+   "scaled_upper_triang_masked_softmax_fusion": false,
+   "bias_gelu_fusion": false,
+
+   # optimizer settings
+   "optimizer": {
+     "type": "Adam",
+     "params": {
+       "lr": 0.0006,
+       "betas": [0.9, 0.999],
+       "eps": 1.0e-8,
+     }
+   },
+
+   # for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
+   "zero_optimization": {
+    "stage": 0,
+    "allgather_partitions": True,
+    "allgather_bucket_size": 500000000,
+    "overlap_comm": True,
+    "reduce_scatter": True,
+    "reduce_bucket_size": 500000000,
+    "contiguous_gradients": True,
+  },
+
+   # batch / data settings
+   "train_micro_batch_size_per_gpu": 4,
+   "data_impl": "mmap",
+   "split": "949,50,1",
+
+   # activation checkpointing
+   "checkpoint_activations": true,
+   "checkpoint_num_layers": 1,
+   "partition_activations": true,
+   "synchronize_each_layer": true,
+
+   # regularization
+   "gradient_clipping": 1.0,
+   "weight_decay": 0.0,
+   "hidden_dropout": 0.0,
+   "attention_dropout": 0.0,
+
+   # precision settings
+   "fp16": {
+     "enabled": true,
+     "loss_scale": 0,
+     "loss_scale_window": 1000,
+     "hysteresis": 2,
+     "min_loss_scale": 1
+   },
+
+   # misc. training settings
+   "train_iters": 320000,
+   "lr_decay_iters": 320000,
+   "distributed_backend": "nccl",
+   "lr_decay_style": "cosine",
+   "warmup": 0.01,
+   "save_interval": 10000,
+   "eval_interval": 1000,
+   "eval_iters": 10,
+
+   # logging
+   "log_interval": 100,
+   "steps_per_print": 10,
+   "keep_last_n_checkpoints": 4,
+   "wall_clock_breakdown": true,
+
+  # Suggested data paths when using GPT_NeoX locally
+  "data_path": "data/enwik8/enwik8_text_document",
+
+  # or for weighted datasets:
+  # "train-data-paths": ["data/enwik8/enwik8_text_document", "data/enwik8/enwik8_text_document"],
+  # "test-data-paths": ["data/enwik8/enwik8_text_document", "data/enwik8/enwik8_text_document"],
+  # "valid-data-paths": ["data/enwik8/enwik8_text_document", "data/enwik8/enwik8_text_document"],
+  # "train-data-weights": [1., 2.],
+  # "test-data-weights": [2., 1.],
+  # "valid-data-weights": [0.5, 0.4],
+
+  "vocab_file": "data/gpt2-vocab.json",
+  "merge_file": "data/gpt2-merges.txt",
+  "save": "test_checkpoint",
+  "load": "test_checkpoint",
+  "tensorboard_dir": "test_tensorboard",
+  "log_dir": "test_logs",
+
+}
