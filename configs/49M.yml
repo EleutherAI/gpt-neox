@@ -1,23 +1,23 @@
 {
   # parallelism settings
-  "pipe-parallel-size": 1,
-  "model-parallel-size": 1,
+  "pipe_parallel_size": 1,
+  "model_parallel_size": 1,
 
   # model settings
-  "num-layers": 10,
-  "hidden-size": 640,
-  "num-attention-heads": 10,
-  "seq-length": 2048,
-  "max-position-embeddings": 2048,
-  "pos-emb": "rotary",
-  "rotary-pct": 0.25,
-  "no-weight-tying": true,
-  "gpt-j-residual": true,
-  "output-layer-parallelism": "column",
+  "num_layers": 10,
+  "hidden_size": 640,
+  "num_attention_heads": 10,
+  "seq_length": 2048,
+  "max_position_embeddings": 2048,
+  "pos_emb": "rotary",
+  "rotary_pct": 0.25,
+  "no_weight_tying": true,
+  "gpt_j_residual": true,
+  "output_layer_parallelism": "column",
 
   # these should provide some speedup but takes a while to build, set to true if desired
-  "scaled-upper-triang-masked-softmax-fusion": false,
-  "bias-gelu-fusion": false,
+  "scaled_upper_triang_masked_softmax_fusion": false,
+  "bias_gelu_fusion": false,
 
   # init methods
   "init_method": "small_init",
@@ -48,20 +48,20 @@
   # batch / data settings
   "train_micro_batch_size_per_gpu": 32,
   "gas": 1,
-  "data-impl": "mmap",
+  "data_impl": "mmap",
   "num_workers": 1,
 
   # activation checkpointing
-  "checkpoint-activations": true,
-  "checkpoint-num-layers": 1,
-  "partition-activations": true,
-  "synchronize-each-layer": true,
+  "checkpoint_activations": true,
+  "checkpoint_num_layers": 1,
+  "partition_activations": true,
+  "synchronize_each_layer": true,
 
   # regularization
   "gradient_clipping": 1.0,
-  "weight-decay": 0.1,
-  "hidden-dropout": 0,
-  "attention-dropout": 0,
+  "weight_decay": 0.1,
+  "hidden_dropout": 0,
+  "attention_dropout": 0,
 
   # precision settings
   "fp16": {
@@ -75,17 +75,17 @@
   },
 
   # misc. training settings
-  "train-iters": 143000,
-  "lr-decay-iters": 143000,
-  "distributed-backend": "nccl",
-  "lr-decay-style": "cosine",
+  "train_iters": 143000,
+  "lr_decay_iters": 143000,
+  "distributed_backend": "nccl",
+  "lr_decay_style": "cosine",
   "warmup": 0.01,
-  "checkpoint-factor": 1000,
-  "eval-interval": 100000,
-  "eval-iters": 10,
+  "checkpoint_factor": 1000,
+  "eval_interval": 100000,
+  "eval_iters": 10,
 
   # logging
-  "log-interval": 10,
+  "log_interval": 10,
   "steps_per_print": 10,
   "wall_clock_breakdown": true,
 }

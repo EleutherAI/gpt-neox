@@ -447,6 +447,12 @@ def get_optimizer(model, neox_args):
     """Set up the optimizer."""
     if neox_args.no_load_optim:
         return None, None
+
+    if neox_args.optimizer is None:
+        print_rank_0(
+            f"ERROR: Optimizer is None. Either set the optimizer dict in your config (if training) or set no_load_optim in your config (if inference)"
+        )
+        exit()
     # Build parameter groups (weight decay and non-decay).
     param_groups = get_params_for_weight_decay_optimization(model, neox_args)
     print_rank_0(
@@ -618,7 +624,8 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
             lr_scheduler=_lr_scheduler,
             dist_init_required=False,
             model_parameters=_model_params,
-            config_params=neox_args.deepspeed_config,
+            # Need to remove the below so that it doesn't conflict with --deepspeed_config required by autotuning
+            # config_params=neox_args.deepspeed_config,
             mpu=mpu if not neox_args.is_pipe_parallel else None,
         )
         model.total_params = get_total_params(model.module)
@@ -785,8 +792,8 @@ def train(
         )
         iteration += 1
         neox_args.iteration = iteration
-
-        overflow_monitor.check(skipped_iter)  # check for repeated overflow
+        if neox_args.precision == "fp16":
+            overflow_monitor.check(skipped_iter)  # check for repeated overflow
         if neox_args.log_gradient_noise_scale:  # log noise scale if applicable
             noise_scale_logger.update()
 
