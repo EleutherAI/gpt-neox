@@ -1,0 +1,65 @@
+# Suggested data paths when using GPT-NeoX locally
+{
+  # "data-path": "./data/pile_00_text_document",
+
+  # or for weighted datasets:
+  "train-data-paths": [
+    "/fs/fast/u2020000280/data/zhihu_llama_tokenized/train_text_document", 
+    "/fs/fast/u2020000280/data/wudao_llama_tokenized/train_text_document", 
+    "/fs/fast/u2020000280/data/csl_llama_tokenized/train_text_document", 
+    "/fs/fast/u2020000280/data/news2016zh_llama_tokenized/train_text_document", 
+    "/fs/fast/u2020000280/data/wiki_zh_llama_tokenized/train_text_document", 
+    "/fs/fast/u2020000280/data/pubmed_central_llama_tokenized/train_text_document", 
+    "/fs/fast/u2020000280/data/freelaw_llama_tokenized/train_text_document", 
+    "/fs/fast/u2020000280/data/uspto_llama_tokenized/train_text_document", 
+    "/fs/fast/u2020000280/data/pubmed_abstract_llama_tokenized/train_text_document", 
+    "/fs/fast/u2020000280/data/europarl_llama_tokenized/train_text_document", 
+    "/fs/fast/u2020000280/data/github_llama_tokenized/train_text_document", 
+    ],
+  "test-data-paths": [
+    "/fs/fast/u2020000280/data/zhihu_llama_tokenized/val_text_document", 
+    "/fs/fast/u2020000280/data/wudao_llama_tokenized/val_text_document", 
+    "/fs/fast/u2020000280/data/csl_llama_tokenized/val_text_document", 
+    "/fs/fast/u2020000280/data/news2016zh_llama_tokenized/val_text_document", 
+    "/fs/fast/u2020000280/data/wiki_zh_llama_tokenized/val_text_document", 
+    "/fs/fast/u2020000280/data/github_llama_tokenized/val_text_document", 
+    "/fs/fast/u2020000280/data/llama_tokenized/test_text_document",
+    ],
+  "valid-data-paths": [
+    "/fs/fast/u2020000280/data/zhihu_llama_tokenized/val_text_document", 
+    "/fs/fast/u2020000280/data/wudao_llama_tokenized/val_text_document", 
+    "/fs/fast/u2020000280/data/csl_llama_tokenized/val_text_document", 
+    "/fs/fast/u2020000280/data/news2016zh_llama_tokenized/val_text_document", 
+    "/fs/fast/u2020000280/data/wiki_zh_llama_tokenized/val_text_document", 
+    "/fs/fast/u2020000280/data/github_llama_tokenized/val_text_document", 
+    "/fs/fast/u2020000280/data/llama_tokenized/val_text_document"
+    ],
+  "train-data-weights": [1.0, 1.0, 3.0, 1.0, 1.0, 0.2, 0.5, 1.0, 0.5, 2.0, 0.4],
+  "test-data-weights": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+  "valid-data-weights": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+  
+  #   "train-data-paths": ["/fs/fast/u2021000178/data/CC100_zhs_tokenized/test_text_document", "/fs/fast/u2021000178/data/wiki-multilingual_tokenized/test_text_document", "/fs/fast/u2021000178/data/wudao_tokenized/test_text_document"],
+  # "test-data-paths": ["/fs/fast/u2021000178/data/CC100_zhs_tokenized/test_text_document", "/fs/fast/u2021000178/data/wiki-multilingual_tokenized/test_text_document", "/fs/fast/u2021000178/data/wudao_tokenized/test_text_document"],
+  # "valid-data-paths": ["/fs/fast/u2021000178/data/CC100_zhs_tokenized/val_text_document", "/fs/fast/u2021000178/data/wiki-multilingual_tokenized/val_text_document", "/fs/fast/u2021000178/data/wudao_tokenized/val_text_document"],
+  # "train-data-weights": [1., 1., 1.],
+  # "test-data-weights": [1., 1., 1.],
+  # "valid-data-weights": [1., 1., 1.],
+
+  # If weight_by_num_documents is True, Builds dataset weights from a multinomial distribution over groups of data according to the number of documents in each group.
+  # WARNING: setting this to True will override any user provided weights
+  # "weight_by_num_documents": false,
+  # "weighted_sampler_alpha": 0.3,
+
+  "vocab-file": "/home/share/gsai_joint_project/llama_train/gpt-neox-main/run_scripts/tokenize/tokenizer.model",
+  "tokenizer_type": "LlamaTokenizer",
+
+  "save": "checkpoints_7B_v4-llama+en+zh+code",
+  "load": "/home/share/gsai_joint_project/gpt-neox-2.0/llama_model",
+  "finetune": True,
+  "checkpoint_validation_with_forward_pass": False,
+
+  "use_wandb": True,
+  "wandb_host": "https://api.wandb.ai",
+  "wandb_project": "7B_v4-llama+en+zh+code",
+  "wandb_team": "jarvis_llm"
+}

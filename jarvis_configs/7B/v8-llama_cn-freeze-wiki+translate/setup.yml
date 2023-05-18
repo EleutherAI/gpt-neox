@@ -1,0 +1,43 @@
+# Suggested data paths when using GPT-NeoX locally
+{
+  # "data-path": "./data/pile_00_text_document",
+
+  # or for weighted datasets:
+  "train-data-paths": [
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/translate/train_text_document",
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/wiki-wentong/train_text_document",
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/zhihu/train_text_document",
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/csl/train_text_document",
+  ],
+  "valid-data-paths": [
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/translate/val_text_document",
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/wiki-wentong/val_text_document",
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/zhihu/val_text_document",
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/csl/val_text_document",
+    ],
+  "test-data-paths": [
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/pile-val-test/test_text_document",
+    ],
+  "train-data-weights": [1.0, 1.0, 1.0, 1.0],
+  "valid-data-weights": [1.0, 1.0, 1.0, 1.0],
+  "test-data-weights": [1.0],
+  
+
+  "vocab-file": "/home/share/jarvis/tokenizer/llama_chinese_tokenizer.model",
+  "tokenizer_type": "LlamaTokenizer",
+
+  "save": "checkpoints_7B_v8-llama_cn-freeze-wiki+translate",
+  "load": "/home/share/gsai_joint_project/gpt-neox-2.0/llama_model",
+  "finetune": True,
+  "checkpoint_validation_with_forward_pass": False,
+
+  # new added parameters for training llama-cn
+  "initialize_llama_cn_with_llama_word_embeddings": True,
+  "only_train_new_chinese": True,
+  
+
+  "use_wandb": True,
+  "wandb_host": "https://api.wandb.ai",
+  "wandb_project": "7B_v8-llama_cn-freeze-wiki+translate",
+  "wandb_team": "jarvis_llm"
+}

@@ -1,0 +1,37 @@
+# Suggested data paths when using GPT-NeoX locally
+{
+  # "data-path": "./data/pile_00_text_document",
+
+  # or for weighted datasets:
+  "train-data-paths": [
+    "/fs/fast/u2020000280/data/comments2019_llama_tokenized/train_text_document", 
+    "/fs/fast/u2020000280/data/csl_llama_tokenized/train_text_document", 
+    "/fs/fast/u2020000280/data/news2016zh_llama_tokenized/train_text_document", 
+    ],
+  "test-data-paths": [
+    "/fs/fast/u2020000280/data/comments2019_llama_tokenized/val_text_document", 
+    "/fs/fast/u2020000280/data/csl_llama_tokenized/val_text_document", 
+    "/fs/fast/u2020000280/data/news2016zh_llama_tokenized/val_text_document", 
+    ],
+  "valid-data-paths": [
+    "/fs/fast/u2020000280/data/comments2019_llama_tokenized/val_text_document", 
+    "/fs/fast/u2020000280/data/csl_llama_tokenized/val_text_document", 
+    "/fs/fast/u2020000280/data/news2016zh_llama_tokenized/val_text_document", 
+    ],
+  "train-data-weights": [1., 1., 1.],
+  "test-data-weights": [1., 1., 1.],
+  "valid-data-weights": [1., 1., 1.],
+
+  "vocab-file": "/home/share/jarvis/llama-7b-hf/tokenizer.model",
+  "tokenizer_type": "LlamaTokenizer",
+
+  "save": "checkpoints_65B_tmp",
+  "load": "checkpints_65B_tmp",
+  "finetune": True,
+  "checkpoint_validation_with_forward_pass": False,
+
+  "use_wandb": True,
+  "wandb_host": "https://api.wandb.ai",
+  "wandb_project": "65B_tmp",
+  "wandb_team": "jarvis_llm"
+}

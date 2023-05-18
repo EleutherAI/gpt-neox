@@ -1,0 +1,54 @@
+# Suggested data paths when using GPT-NeoX locally
+{
+  # "data-path": "./data/pile_00_text_document",
+
+  # or for weighted datasets:
+  # [13840892946, 60845691, 7735638216, 1701970956, 20404606663, 25933608113, 5165108131, 14379002495, 5559517192, 1606091476, 35009941682]
+  "train-data-paths": [
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/zhihu/train_text_document",
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/csl/train_text_document",
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/wudao/train_text_document",
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/news2016zh/train_text_document",
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/wiki-wentong/train_text_document",
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/pubmed_central/train_text_document",
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/pubmed_abstract/train_text_document",
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/freelaw/train_text_document",
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/uspto/train_text_document",
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/europarl/train_text_document",
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/github/train_text_document",
+  ],
+  # [13942805, 59112, 7738333, 1674883, 419468, 379260051]
+  "valid-data-paths": [
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/zhihu/val_text_document",
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/csl/val_text_document",
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/wudao/val_text_document",
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/news2016zh/val_text_document",
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/wiki-wentong/val_text_document",
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/pile-val-test/val_text_document", 
+    ],
+  "test-data-paths": [
+    "/fs/fast/u2021000178/data/llama-cn_tokenized/pile-val-test/test_text_document",
+    ],
+  "train-data-weights": [1.0, 1.0, 1.0, 1.0, 1.0, 0.831, 0.831, 0.831, 0.831, 0.831, 0.12],
+  "valid-data-weights": [1.0, 1.0, 1.0, 1.0, 1.0, 0.06],
+  "test-data-weights": [1.0],
+
+
+  "vocab-file": "/home/share/jarvis/tokenizer/llama_chinese_tokenizer.model",
+  "tokenizer_type": "LlamaTokenizer",
+
+  "save": "checkpoints_7B_v10-llama_cn-bf16-en+zh+code",
+  "load": "/home/share/gsai_joint_project/gpt-neox-2.0/llama_model",
+  "finetune": True,
+  "checkpoint_validation_with_forward_pass": False,
+
+  # new added parameters for training llama-cn
+  "initialize_llama_cn_with_llama_word_embeddings": True,
+  # "only_train_new_chinese": True,
+  
+
+  "use_wandb": True,
+  "wandb_host": "https://api.wandb.ai",
+  "wandb_project": "7B_v10-llama_cn-bf16-en+zh+code",
+  "wandb_team": "jarvis_llm"
+}
