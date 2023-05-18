@@ -784,7 +784,7 @@ class NeoXArgs(*BASE_CLASSES):
         else:
             assert (
                 False
-            ), "Either train_batch_size or micro_batch_per_gpu needs to be provided"
+            ), "Either train_batch_size or train_micro_batch_size_per_gpu needs to be provided"
         return int(train_batch), int(micro_batch), int(grad_acc)
 
     @staticmethod
@@ -907,17 +907,35 @@ class NeoXArgs(*BASE_CLASSES):
             save_iters = list(save_iters)
             save_iters.sort()
 
-        self.update_values(
-            {
-                "save_iters": save_iters,
-            }
-        )
+            self.update_values(
+                {
+                    "save_iters": save_iters,
+                }
+            )
 
         # derive precision
-        if (self.fp16 or {}).get("type", self.precision) == "bfloat16":
-            self.update_value("precision", "bfloat16")
-        elif (self.fp16 or {}).get("enabled", False):
-            self.update_value("precision", "fp16")
+        fp16_conflict = "DeepSpeed fp16 field was set but precision conflicts"
+        if self.fp16 and self.fp16.get("enabled", False):
+            if self.precision is None:
+                self.update_value("precision", "fp16")
+            else:
+                assert self.precision == "fp16", fp16_conflict
+
+        if self.precision == "fp16":
+            if isinstance(self.fp16, dict) and len(self.fp16) > 0:
+                fp16_args = copy.deepcopy(self.fp16)
+                fp16_args["enabled"] = True
+            else:
+                fp16_args = {"type": "fp16", "enabled": True}
+            self.update_value("fp16", fp16_args)
+        elif self.precision == "bfloat16":
+            bf_config = {"bf16": {"enabled": True}}
+            if self.deepspeed_extra_args is None:
+                self.update_value("deepspeed_extra_args", bf_config)
+            else:
+                extra_args = copy.deepcopy(self.deepspeed_extra_args)
+                extra_args.update(bf_config)
+                self.update_value("deepspeed_extra_args", extra_args)
         else:
             self.update_value("precision", "fp32")
 

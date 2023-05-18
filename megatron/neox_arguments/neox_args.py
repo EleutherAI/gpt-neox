@@ -228,9 +228,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Pad the vocab size to be divisible by this value. This is added for computational efficiency reasons.
     """
 
-    activation: Literal["gelu", "geglu", "relu", "softsign", "swish", "mish"] = "gelu"
+    activation: Literal[
+        "gelu", "geglu", "relu", "softsign", "swish", "mish", "silu"
+    ] = "gelu"
     """
-    Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish"]
+    Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish", "silu"]
     """
 
     scaled_upper_triang_masked_softmax_fusion: bool = False
@@ -343,6 +345,22 @@ class NeoXArgsModel(NeoXArgsTemplate):
       x = x + attn(y) + mlp(y)
     """
 
+    use_bias_in_norms: bool = True
+    """
+    If false, norms (e.g. LayerNorm) will not have bias terms
+    """
+    use_bias_in_attn_linear: bool = True
+    """
+    If false, attn_linear (e.g. QKVO) will not have bias terms
+    """
+
+    mlp_type: str = "regular"
+    """
+    Types:
+        regular: Megatron implementation
+        llama: LLaMA MLP (SiLU-gated MLP)
+    """
+
     soft_prompt_tuning: dict = None
     """
     Dictionary configuring the soft prompt tuning parameters.
@@ -354,7 +372,8 @@ class NeoXArgsModel(NeoXArgsTemplate):
         'init_range': float = 0.5 # if no init string is provided, initialize the soft prompt with a uniform distribution between -init_range and init_rang
     """
 
-    output_layer_parallelism: Literal["row", "column"] = "row"
+    # Output layer parallelism over the hidden dim is currently broken (https://github.com/EleutherAI/gpt-neox/issues/905)
+    output_layer_parallelism: Literal["row", "column"] = "column"
 
     """
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
@@ -490,7 +509,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Write TensorBoard logs to this directory.
     """
 
-    log_interval: int = None
+    log_interval: int = 100
     """
     Interval between logging.
     """
