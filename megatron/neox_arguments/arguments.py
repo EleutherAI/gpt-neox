@@ -557,16 +557,15 @@ class NeoXArgs(*BASE_CLASSES):
             ).decode("utf-8")
             args_list.append(encoded_ds_config)
 
-        megatron_fp = cwd / Path("megatron_config.json")
         # get all config values
         args_list.append("--megatron_config")
-        args_list.append(str(megatron_fp))
         neox_args = self.get_parent_class_value_dict(
             *self.__class__.__bases__, only_non_defaults=True
         )
-        if self.rank == 0:
-            with open(megatron_fp, mode="w") as megafile:
-                json.dump(neox_args, megafile)
+        encoded_mega_config = base64.urlsafe_b64encode(
+            json.dumps(neox_args).encode("utf-8")
+        ).decode("utf-8")
+        args_list.append(str(encoded_mega_config))
         return args_list
 
     ############################################################################################################################
