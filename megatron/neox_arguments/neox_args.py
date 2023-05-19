@@ -373,7 +373,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     """
 
     # Output layer parallelism over the hidden dim is currently broken (https://github.com/EleutherAI/gpt-neox/issues/905)
-    output_layer_parallelism: Literal["row", "column"] = "column"
+    output_layer_parallelism: Literal["column"] = "column"
 
     """
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)

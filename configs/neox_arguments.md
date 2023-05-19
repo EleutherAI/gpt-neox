@@ -592,6 +592,7 @@ Model Arguments
     Default = column
 
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
+    NOTE: Output layer parallelism over the hidden dim is currently disabled (https://github.com/EleutherAI/gpt-neox/issues/905).
 
 
 
