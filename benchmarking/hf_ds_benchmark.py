@@ -46,7 +46,7 @@ def benchmark_model(
     else:
         dtype = torch.float32
 
-    pipe = pipeline("text-generation", model=model, framework="pt", device=local_rank)
+    pipe = pipeline("text-generation", model=model, framework="pt")
 
     if dtype == torch.float16:
         pipe.model.half()
