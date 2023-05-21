@@ -112,9 +112,6 @@ def main(models, output_dir, dtype, graphs, kernel_inject, max_tokens, local_ran
     print("Models to benchmark: {}".format(models))
     for model in models:
         print("Benchmarking model: {}".format(model))
-        # run native gpt-neox
-        print("Running native gpt-neox")
-        print(benchmark_gpt_neox(model))
         # run using deepspeed
         print("Running with deepspeed")
         deepspeed_dfs.append(benchmark_model(
