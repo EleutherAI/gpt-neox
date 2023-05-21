@@ -106,31 +106,6 @@ def benchmark_model(
     return df
 
 
-def benchmark_gpt_neox(model):
-    # get old model yaml file
-    old_suffix = PYTHIA_TO_OLD_SUFFIXES[model.split('-')[-1].split('-')[0]]
-    gpt_neox_config = 'configs/{}.yml'.format(old_suffix)
-
-    # pass to deepy.py using subprocess
-    cmd = [
-        'python', '-m', 'deepy', 'benchmarking/neox_benchmark.py',
-        gpt_neox_config, 'configs/benchmark_setup.yml',]
-    current_directory = os.path.abspath(os.getcwd())
-    parent_directory = os.path.dirname(current_directory)
-    result = subprocess.run(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=parent_directory)
-    # Continuously read the standard output and standard error streams
-    output = result.stdout.decode().strip().split('\n')
-    for i, line in enumerate(output):
-        if 'Starting data generation...' in line:
-            start_index = i
-        elif 'Data generation complete!' in line:
-            end_index = i
-    data_output = '\n'.join(output[start_index+1:end_index])
-    df = pd.read_csv(io.StringIO(data_output))
-    print("Got dataframe: {}".format(df))
-
-
 def main(models, output_dir, dtype, graphs, kernel_inject, max_tokens, local_rank, world_size, trials):
     deepspeed_dfs = []
     hf_dfs = []
