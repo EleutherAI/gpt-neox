@@ -624,7 +624,8 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
             lr_scheduler=_lr_scheduler,
             dist_init_required=False,
             model_parameters=_model_params,
-            config_params=neox_args.deepspeed_config,
+            # Need to remove the below so that it doesn't conflict with --deepspeed_config required by autotuning
+            # config_params=neox_args.deepspeed_config,
             mpu=mpu if not neox_args.is_pipe_parallel else None,
         )
         model.total_params = get_total_params(model.module)
@@ -791,8 +792,8 @@ def train(
         )
         iteration += 1
         neox_args.iteration = iteration
-
-        overflow_monitor.check(skipped_iter)  # check for repeated overflow
+        if neox_args.precision == "fp16":
+            overflow_monitor.check(skipped_iter)  # check for repeated overflow
         if neox_args.log_gradient_noise_scale:  # log noise scale if applicable
             noise_scale_logger.update()
 

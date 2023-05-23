@@ -57,15 +57,7 @@
    "hidden_dropout": 0.0,
    "attention_dropout": 0.0,
 
-   # precision settings
-   "fp16": {
-     "enabled": true,
-     "type": "bfloat16", # set bf16 as precision
-     "loss_scale": 0,
-     "loss_scale_window": 1000,
-     "hysteresis": 2,
-     "min_loss_scale": 1
-   },
+   "precision": "bfloat16",
 
    "fp32_allreduce": True, # without a patch to torch, bf16 models have to do the allreduce in fp32
    # misc. training settings

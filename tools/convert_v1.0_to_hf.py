@@ -18,6 +18,7 @@ import sys
 import yaml
 import argparse
 from tqdm import tqdm
+from typing import List
 
 import torch
 from transformers import GPTNeoXConfig, GPTNeoXForCausalLM
@@ -41,7 +42,7 @@ Please investigate carefully whether your model is compatible with all architect
 
 def load_partitions(
     input_checkpoint_path, mp_partitions, layer_idx
-) -> list[torch.Tensor]:
+) -> List[torch.Tensor]:
     """Returns a list containing all weights in a given layer from a model (across MP partitions)"""
 
     loaded_tp_ranks = [
@@ -146,12 +147,21 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
 
     hf_model = GPTNeoXForCausalLM(hf_config)
 
-    # save model in FP16 if Deepspeed fp16 was used in config, else 32 bit
+    # save model in fp16/bf16 if Deepspeed fp16 or bf16 mixed precision was used in config, else 32 bit weights
     fp16 = get_key(loaded_config, "fp16")
     if fp16:
-        if fp16["fp16"]:
-            hf_model.half()
-
+        try:
+            # this conditional is quite messy because there were a number of ways to specify bf16 or fp16 training
+            # in DeeperSpeed v1.0 .
+            if (fp16.get("fp16", None) or fp16["enabled"]) and not (fp16.get("type", None) == "bfloat16"):
+                hf_model.half()
+                print("Saving weights in fp16 precision...")
+            elif fp16.get("type", None) == "bfloat16":
+                hf_model.to(dtype=torch.bfloat16)
+                print("Saving weights in bf16 precision...")
+        except:
+            print("Model not trained in fp16 / bf16 mixed precision, saving weights in fp32...")
+    
     mp_partitions = get_key(loaded_config, "model-parallel-size")
 
     ### Embedding layer ###

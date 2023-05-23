@@ -81,6 +81,5 @@
   "log_interval": 10,
   "steps_per_print": 10,
   "wall_clock_breakdown": true,
-
   "tokenizer_type": "HFTokenizer"
   }

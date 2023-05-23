@@ -259,7 +259,7 @@ N.B - `OneBitAdam` requires you to use deepspeed's internal lr scheduler because
 Checkpointing works by trading compute for memory. Rather than storing all intermediate activations of the entire computation graph for computing backward, the checkpointed part does not save intermediate activations, and instead recomputes them in backward pass.
 
 ### Mixed Precision Training Settings:
-gpt-neox's mixed precision training is configured identically to DeepSpeed's, please see [their documentation](https://www.deepspeed.ai/docs/config-json/#fp16-training-options) for more information.
+gpt-neox's fp16 training is configured identically to DeepSpeed's, please see [their documentation](https://www.deepspeed.ai/docs/config-json/#fp16-training-options) for more information.
 An example config for fp16 training:
 
 ```yaml
@@ -272,7 +272,7 @@ An example config for fp16 training:
    },
 ```
 
-To train in fp32, simply set `fp16["enabled"]` to `false`.
+Alternatively you can use the `precision` config which can be set to `fp16`, `bfloat16`, or `fp32`. If you set `"precision": "fp16"` without adding a `"fp16": {...}` dict, then it will simply use DeepSpeed's defaults for fp16 training.
 
 
 ### SLURM Settings
@@ -312,6 +312,3 @@ To make this JSON just remove the comment and use all lowercase for the boolean:
        "comm_backend_name": "nccl"
      }
 ```
-
-
-** TODO: bf16 docs **

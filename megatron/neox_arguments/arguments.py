@@ -914,10 +914,28 @@ class NeoXArgs(*BASE_CLASSES):
             )
 
         # derive precision
-        if (self.fp16 or {}).get("type", self.precision) == "bfloat16":
-            self.update_value("precision", "bfloat16")
-        elif (self.fp16 or {}).get("enabled", False):
-            self.update_value("precision", "fp16")
+        fp16_conflict = "DeepSpeed fp16 field was set but precision conflicts"
+        if self.fp16 and self.fp16.get("enabled", False):
+            if self.precision is None:
+                self.update_value("precision", "fp16")
+            else:
+                assert self.precision == "fp16", fp16_conflict
+
+        if self.precision == "fp16":
+            if isinstance(self.fp16, dict) and len(self.fp16) > 0:
+                fp16_args = copy.deepcopy(self.fp16)
+                fp16_args["enabled"] = True
+            else:
+                fp16_args = {"type": "fp16", "enabled": True}
+            self.update_value("fp16", fp16_args)
+        elif self.precision == "bfloat16":
+            bf_config = {"bf16": {"enabled": True}}
+            if self.deepspeed_extra_args is None:
+                self.update_value("deepspeed_extra_args", bf_config)
+            else:
+                extra_args = copy.deepcopy(self.deepspeed_extra_args)
+                extra_args.update(bf_config)
+                self.update_value("deepspeed_extra_args", extra_args)
         else:
             self.update_value("precision", "fp32")
 
