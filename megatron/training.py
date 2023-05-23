@@ -278,7 +278,14 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
 
     # Unpack.
     tokens_ = data_b["text"].long()
-    labels = tokens_[:, 1:].contiguous()
+    if "label" in data_b:
+        labels = torch.where(
+            data_b["label"].long() >= 0,
+            data_b["label"].long(),
+            torch.zeros_like(data_b["label"].long()),
+        )[:, 1:].contiguous()
+    else:
+        labels = tokens_[:, 1:].contiguous()
     tokens = tokens_[:, :-1].contiguous()
 
     # Get the masks and position ids.
@@ -289,7 +296,7 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
     )
     # If `label` is present, any token < 0 (e.g., -100, the default for torch) skips the loss computation
     if "label" in data_b:
-        loss_mask = (data_b["label"][:, 1:] >= 0).to(tokens.dtype)
+        loss_mask = (data_b["label"][:, 1:] >= 0).to(loss_mask.dtype)
     return tokens, labels, loss_mask, attention_mask, position_ids
 
 

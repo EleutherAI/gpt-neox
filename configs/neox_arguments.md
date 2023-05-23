@@ -1061,6 +1061,13 @@ Training Arguments
     List of paths to train datasets.
 
 
+- **label_data_paths**: list
+
+    Default = None
+
+    List of paths to label datasets (should be fully in sync with train data, not shifted by 1!).
+
+
 
 - **test_data_paths**: list
 
