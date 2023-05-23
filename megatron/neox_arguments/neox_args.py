@@ -719,6 +719,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     List of paths to train datasets.
     """
 
+    label_data_paths: list = None
+    """
+    List of paths to label datasets (not shifted by 1 yet!).
+    """
+
     test_data_paths: list = None
     """
     List of paths to test datasets.

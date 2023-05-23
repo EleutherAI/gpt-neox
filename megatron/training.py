@@ -273,7 +273,8 @@ def pretrain(neox_args):
 
 def _get_batch(neox_args, tokenizer, keys, data, datatype):
     """Support function for get_batch / get_batch pipe (to avoid code repetition)"""
-    data_b = mpu.broadcast_data(keys, data, datatype)
+    _keys = [k for k in keys if k in data]
+    data_b = mpu.broadcast_data(_keys, data, datatype)
 
     # Unpack.
     tokens_ = data_b["text"].long()
@@ -286,7 +287,9 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
         eod_token=neox_args.tokenizer.eod,
         eod_mask_loss=neox_args.eod_mask_loss,
     )
-
+    # If `label` is present, any token < 0 (e.g., -100, the default for torch) skips the loss computation
+    if "label" in data_b:
+        loss_mask = (data_b["label"][:, 1:] >= 0).to(tokens.dtype)
     return tokens, labels, loss_mask, attention_mask, position_ids
 
 
@@ -294,7 +297,7 @@ def get_batch(neox_args, data_iterator):
     """Generate a batch"""
 
     # Items and their type.
-    keys = ["text"]
+    keys = ["text", "label"]
     datatype = torch.int64
 
     # Broadcast data.
@@ -314,7 +317,7 @@ def get_batch(neox_args, data_iterator):
 def get_batch_pipe(data, neox_args, curr_scheduler=None):
     """A modification of get_batch() to work with the latest batch instead of an iterator."""
     # Items and their type.
-    keys = ["text"]
+    keys = ["text", "label"]
     datatype = torch.int64
 
     tokens, labels, loss_mask, attention_mask, position_ids = _get_batch(
