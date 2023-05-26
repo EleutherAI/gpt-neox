@@ -28,6 +28,7 @@ import sys
 import torch
 import deepspeed
 from deepspeed.runtime.data_pipeline.curriculum_scheduler import CurriculumScheduler
+from deepspeed.runtime.data_pipeline.batch_scheduler import BatchScheduler
 import numpy as np
 
 from megatron.utils import (
@@ -311,15 +312,19 @@ def get_batch(neox_args, data_iterator):
     )
 
 
-def get_batch_pipe(data, neox_args, curr_scheduler=None):
+def get_batch_pipe(data, neox_args, curr_scheduler=None, batch_scheduler=None):
     """A modification of get_batch() to work with the latest batch instead of an iterator."""
     # Items and their type.
     keys = ["text"]
     datatype = torch.int64
 
+    if batch_scheduler is not None:
+        neox_args.train_batch_size = batch_scheduler.update(neox_args.iteration + 1)
+
     tokens, labels, loss_mask, attention_mask, position_ids = _get_batch(
         neox_args, neox_args.tokenizer, keys, data, datatype
     )
+    
     if curr_scheduler is not None:
         # iteration + 1 to align with how/when DeepSpeed updates the buffers
         curriculum_seqlen = curr_scheduler.update_difficulty(neox_args.iteration + 1)
@@ -338,6 +343,8 @@ def get_batch_pipe(data, neox_args, curr_scheduler=None):
                 :, :, :curriculum_seqlen, :curriculum_seqlen
             ].contiguous()
 
+        
+        
     # unpack data
     return (tokens, position_ids, attention_mask), (labels, loss_mask)
 
@@ -639,9 +646,15 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
                     curr_scheduler.update_difficulty(iteration)
             else:
                 curr_scheduler = None
+            if neox_args.batch_scheduling:
+                batch_scheduler = BatchScheduler(neox_args.batch_scheduling)
+                if iteration is not None and iteration > 0:
+                    batch_scheduler.update(iteration)
+            else:
+                batch_scheduler = None
             model.set_batch_fn(
                 partial(
-                    get_batch_pipe, neox_args=neox_args, curr_scheduler=curr_scheduler
+                    get_batch_pipe, neox_args=neox_args, curr_scheduler=curr_scheduler, batch_scheduler=batch_scheduler
                 )
             )
     else:
