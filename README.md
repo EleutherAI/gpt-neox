@@ -30,7 +30,6 @@ Prior to 3/9/2023, GPT-NeoX relied on [DeeperSpeed](https://github.com/EleutherA
     * [GPT-NeoX-20B](#gpt-neox-20b)
     * [Pythia](#pythia)
     * [Polyglot](#polyglot)
-    * [Fill-in-the-Middle](#fill-in-the-middle)
 * [Inference](#inference)
 * [Evaluation](#evaluation)
 * [Exporting to Hugging Face](#exporting-to-hugging-face)
@@ -307,15 +306,16 @@ where `--eval_tasks` is a list of evaluation tasks followed by spaces, e.g `--ev
 
 GPT-NeoX is optimized heavily for training only, and GPT-NeoX model checkpoints are not compatible out of the box with other deep learning libraries. To make models easily loadable and shareable with end users, and for further exporting to various other frameworks, GPT-NeoX supports checkpoint conversion to the [Hugging Face Transformers](https://arxiv.org/abs/1910.03771) GPTNeoXModel format.
 
-To convert a NeoX v2.0 checkpoint (with pipeline-parallel-size=1) to Hugging Face-loadable format, run:
+To convert a NeoX checkpoint (with pipeline-parallel-size>=1) to Hugging Face-loadable format, run:
 ```bash
-python ./tools/convert_sequential_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location
+python ./tools/convert_module_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location
 ```
 
-To convert a NeoX v1.0 checkpoint to Hugging Face format, run:
+To convert a sequential model to Hugging Face format, run:
 ```bash
-python  ./tools/convert_v1.0_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location
+python  ./tools/convert_sequential_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location
 ```
+(Note: this script should be used for v2.0 checkpoints saved on a v2.0 commit prior to https://github.com/EleutherAI/gpt-neox/pull/866 and which used `pipe-parallel-size=1`. Using `pipe-parallel-size=0` will also save models in this format.)
 
 Then to upload a model to [the Hugging Face Hub](https://huggingface.co/), run:
 ```bash
