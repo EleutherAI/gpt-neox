@@ -122,23 +122,18 @@ class DataDownloader(ABC):
         return os.path.isdir(f"{self.base_dir}/{self.name}")
 
     def download(self):
-        """downloads dataset"""
-        os.makedirs(os.path.join(self.base_dir, self.name), exist_ok=True)
-        for url in self.urls:
-            try:
-                os_cmd = f"wget {url} -O {os.path.join(self.base_dir, self.name, os.path.basename(url))}"
-                if os.system(os_cmd) != 0:
-                    raise Exception(
-                        f"Cannot download file at URL {url}: server may be down"
-                    )
-            except Exception as e:
-                raise Exception(f"Download error: {e}")
+        """downloads dataset. In math-lm branch, this is replaced with a stub"""
+        pass
 
     def tokenize(self):
         """tokenizes dataset"""
         parent_folder = os.path.join(self.base_dir, self.name)
         jsonl_filepath = ",".join(
-            [os.path.join(parent_folder, os.path.basename(url)) for url in self.urls]
+            [
+                os.path.join(parent_folder, f)
+                for f in os.listdir(parent_folder)
+                if f.endswith(".jsonl")
+            ]
         )
 
         cmd = f"python tools/preprocess_data.py \
@@ -160,12 +155,6 @@ class DataDownloader(ABC):
         os.system(cmd)
 
     def prepare(self):
-        if self._force_redownload:
-            self.download()
-        else:
-            if not self.exists():
-                self.download()
-
         self.tokenize()
 
 
@@ -292,6 +281,10 @@ class Enwik8(DataDownloader):
     name = "enwik8"
     urls = ["https://data.deepai.org/enwik8.zip"]
 
+class ProofPile(DataDownloader): 
+    name="proof-pile-1.2"
+    urls=[]
+
 
 def maybe_download_gpt2_tokenizer_data(tokenizer_type, data_dir):
     if tokenizer_type is None or tokenizer_type == "GPT2BPETokenizer":
@@ -324,6 +317,7 @@ DATA_DOWNLOADERS = {
     "c4": C4,
     "c4_openwebtext": C4OpenWebText,
     "enwik8": Enwik8,
+    "proof-pile-1.2": ProofPile
 }
 
 
