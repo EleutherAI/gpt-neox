@@ -139,7 +139,7 @@ data/**/*.txt
 data/**/*.gz
 data/**/*.np*
 data/**/*.npy
-checkpoints/
+./checkpoints/
 .vscode/
 *.pt
 *.ckpt

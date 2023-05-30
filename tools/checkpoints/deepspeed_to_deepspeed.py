@@ -8,7 +8,7 @@ import yaml
 
 
 # insert megatron's root dir into sys.path
-root_repo_path = str(Path(__file__).resolve().parents[1])
+root_repo_path = str(Path(__file__).resolve().parents[2])
 if root_repo_path not in sys.path:
     sys.path.insert(0, root_repo_path)
 
@@ -153,7 +153,6 @@ def _create_zero_checkpoint(ds_checkpoint, base_folder, dp_index, pp_index, tp_i
     sd = ds_checkpoint.get_zero_checkpoint_state(
         pp_index=pp_index, tp_index=tp_index, dp_index=dp_index
     )
-
     ckpt_path = get_zero_ckpt_name_for_rank(
         base_folder=base_folder, dp_rank=dp_index, mp_rank=_2d_rank
     )
