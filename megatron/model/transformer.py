@@ -222,22 +222,22 @@ class ParallelLinear(nn.Module):
                 skip_bias_add=False,
                 mup_rescale_parameters=is_last_layer,  # rescale params only called if neox_args.use_mup = True, despite it not being included here
             )
-        else:
-            print(
-                'ERROR: Output layer parallelism over the hidden dim is currently broken (https://github.com/EleutherAI/gpt-neox/issues/905). Please run with output_layer_parallelism = "column" until this issue is fixed.'
-            )
-            exit()
-            self.final_linear = mpu.RowParallelLinear(
-                neox_args=neox_args,
-                input_size=neox_args.hidden_size,
-                output_size=neox_args.padded_vocab_size,
-                bias=False,
-                input_is_parallel=False,
-                init_method=init_method,
-                parallel_output=parallel_output,
-                skip_bias_add=False,
-                mup_rescale_parameters=is_last_layer,  # only called if neox_args.use_mup = True, despite it not being included here
-            )
+#        else:
+#            print(
+#                'ERROR: Output layer parallelism over the hidden dim is currently broken (https://github.com/EleutherAI/gpt-neox/issues/905). Please run with output_layer_parallelism = "column" until this issue is fixed.'
+#            )
+#            exit()
+#            self.final_linear = mpu.RowParallelLinear(
+#                neox_args=neox_args,
+#                input_size=neox_args.hidden_size,
+#                output_size=neox_args.padded_vocab_size,
+#                bias=False,
+#                input_is_parallel=False,
+#                init_method=init_method,
+#                parallel_output=parallel_output,
+#                skip_bias_add=False,
+#                mup_rescale_parameters=is_last_layer,  # only called if neox_args.use_mup = True, despite it not being included here
+#            )
 
     def forward(self, hidden_states):
         return self.final_linear(hidden_states)
