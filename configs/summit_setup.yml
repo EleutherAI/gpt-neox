@@ -5,10 +5,8 @@
   "test-data-paths": "/gpfs/alpine/csc499/proj-shared/LAION-400m-webdataset/data/{41000..41455}.tar", 
 
   # we use tokenzier from huggingface, don't need vocal or merge file
-  #"vocab-file": "/home/lfsm/code/gpt-neox/data/gpt2-vocab.json",
-  #"merge-file": "/home/lfsm/code/gpt-neox/data/gpt2-merges.txt",
 
-  "tokenizer_type": "HFGPT2Tokenizer",
+  "vocab-file": "./data/20B_tokenizer.json",
   
   "save": "/gpfs/alpine/scratch/lfsm/csc499/checkpoints",
   "load": "/gpfs/alpine/scratch/lfsm/csc499/checkpoints",

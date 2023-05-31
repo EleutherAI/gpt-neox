@@ -330,17 +330,16 @@ def get_wds_data(args, is_train, epoch=0, floor=False):
     preprocess_img = get_clip_transforms(image_size=args.image_size)
     
     assert (
-        args.tokenizer.name in ['HFGPT2Tokenizer','HFGPT2TokenizerFast']
-        ), f"Webdataset only support HFGPT2Tokenizer or HFGPT2TokenizerFast"
+        args.tokenizer.name in ['HFGPT2Tokenizer','HFGPT2TokenizerFast','HFTokenizer']
+        ), f"Webdataset only support HFTokenizer, HFGPT2Tokenizer or HFGPT2TokenizerFast"
     
     tokenize = args.tokenizer.tokenize
-    seq_length = args.seq_length
     
     pipeline.extend([
         wds.select(filter_no_caption_or_no_image),
         wds.decode("pilrgb", handler=log_and_continue),
         wds.rename(image="jpg;png;jpeg;webp", text="txt"),
-        wds.map_dict(image=preprocess_img,  text=lambda text: tokenize(text,seq_length)[0]),
+        wds.map_dict(image=preprocess_img,  text=lambda text: tokenize(text)[0]),
         wds.to_tuple("image", "text"),
         wds.batched(args.batch_size, collation_fn=image_text_dict_collation_fn, partial=not is_train)
     ])
