@@ -42,7 +42,7 @@ def nfresnet50(
         *list(timm.create_model(
             "nf_resnet50", 
             pretrained=pretrained,
-            checkpoint_path=cache_path
+            # checkpoint_path=cache_path
             ).children())[:-1]
     )
     pooling = torch.nn.AdaptiveAvgPool2d((1, 1))

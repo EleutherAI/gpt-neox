@@ -369,7 +369,7 @@ def get_wds_data(args, is_train, epoch=0, floor=False):
         batch_size=None,
         shuffle=False,
         num_workers=args.num_workers,
-        persistent_workers=True,
+        persistent_workers=not (args.num_workers == 0),  # set persistent_workers to false if num_workers is 0
     )
 
     # FIXME not clear which approach is better, with_epoch before vs after dataloader?
