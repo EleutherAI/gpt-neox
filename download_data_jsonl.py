@@ -3,7 +3,7 @@ from pathlib import Path
 
 shard_size=500_000
 
-def main(args): 
+def main(): 
     """
     Downloads proof-pile-v2 from huggingface, without needing git lfs installed.
     """
