@@ -22,4 +22,5 @@ def main(args):
     ds["validation"].to_json(f"data/validation/proof-pile/validation.jsonl", lines=True)
     ds["test"].to_json(f"data/test/proof-pile/test.jsonl", lines=True)
 
-
+if __name__=="__main__": 
+    main()
