@@ -14,9 +14,12 @@ def main(args):
     ds = ds["train"]
 
     for shard, left in enumerate(range(0, len(ds), shard_size)):
-        ds.to_json(f"data/train/proof-pile/{shard}.jsonl")
+        ds.select(left, min(left+shard_size, len(ds))).to_json(
+                f"data/train/proof-pile/{str(shard).zfill(5)}.jsonl", 
+                lines=True,
+        )
 
-    ds["validation"].to_json(f"data/validation/proof-pile/validation.jsonl")
-    ds["test"].to_json(f"data/test/proof-pile/test.jsonl")
+    ds["validation"].to_json(f"data/validation/proof-pile/validation.jsonl", lines=True)
+    ds["test"].to_json(f"data/test/proof-pile/test.jsonl", lines=True)
 
 
