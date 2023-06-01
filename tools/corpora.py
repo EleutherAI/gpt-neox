@@ -282,7 +282,7 @@ class Enwik8(DataDownloader):
     urls = ["https://data.deepai.org/enwik8.zip"]
 
 class ProofPile(DataDownloader): 
-    name="proof-pile-1.2"
+    name="proof-pile"
     urls=[]
 
 
@@ -317,7 +317,7 @@ DATA_DOWNLOADERS = {
     "c4": C4,
     "c4_openwebtext": C4OpenWebText,
     "enwik8": Enwik8,
-    "proof-pile-1.2": ProofPile
+    "proof-pile": ProofPile
 }
 
 
