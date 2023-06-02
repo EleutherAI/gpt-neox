@@ -52,7 +52,7 @@ def show_simple_state(ds_checkpoint):
 
 
 def show_mappings(ds_checkpoint):
-    ds_checkpoint.show_pp_tranformer_map()
+    ds_checkpoint.show_pp_transformer_map()
     ds_checkpoint.show_transformer_file_map()
     ds_checkpoint.show_tp_embedding_map()
     ds_checkpoint.show_tp_final_norm_map()
