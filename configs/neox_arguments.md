@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 83e820c
+    Default = e67f027
 
     current git hash of repository
 
@@ -587,7 +587,7 @@ Model Arguments
 
 
 
-- **output_layer_parallelism**: typing.Literal['row', 'column']
+- **output_layer_parallelism**: typing.Literal['column']
 
     Default = column
 
