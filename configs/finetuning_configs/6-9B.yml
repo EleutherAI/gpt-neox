@@ -1,6 +1,6 @@
 {
   # finetuning option
-  "load": "/path/to/checkpoint"
+  "load": "/path/to/checkpoint",
   "finetune": true,
 
   "pipe-parallel-size": 1,
