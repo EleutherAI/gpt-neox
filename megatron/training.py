@@ -610,7 +610,7 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
         else:
             _model_params = param_groups if optimizer is None else None
             _lr_scheduler = lr_scheduler
-
+        print(neox_args)
         model, optimizer, _, lr_scheduler = deepspeed.initialize(
             model=model,
             optimizer=optimizer,
@@ -618,7 +618,6 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
             lr_scheduler=_lr_scheduler,
             dist_init_required=False,
             model_parameters=_model_params,
-            config_params=neox_args.deepspeed_config,
             mpu=mpu if not neox_args.is_pipe_parallel else None,
         )
         model.total_params = get_total_params(model.module)

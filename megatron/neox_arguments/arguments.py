@@ -661,6 +661,9 @@ class NeoXArgs(*BASE_CLASSES):
             from deepspeed.comm import mpi_discovery
 
             mpi_discovery()
+            #os.environ["LOCAL_RANK"] = os.environ["OMPI_COMM_WORLD_LOCAL_RANK"]
+            #os.environ["RANK"] = os.environ["OMPI_COMM_WORLD_RANK"]
+            #os.environ["WORLD_SIZE"] = os.environ["OMPI_COMM_WORLD_SIZE"]
 
         if self.deepspeed_slurm:
             os.environ["LOCAL_RANK"] = os.environ["SLURM_LOCALID"]

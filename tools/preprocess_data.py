@@ -148,7 +148,7 @@ def get_args():
     return args
 
 
-def yield_from_files(fnames: list, semaphore):
+def yield_from_files(fnames, semaphore):
     """
     Iterator over input documents using lm_dataformat. Should be able to handle jsons / texts /
     other compressed formats. Also filters out empty documents.
@@ -164,7 +164,8 @@ def yield_from_files(fnames: list, semaphore):
     for fname in fnames:
         semaphore.acquire()
 
-        yield from yielder(fname, semaphore)
+        for i in yielder(fname, semaphore):
+            yield i  # from yielder(fname, semaphore)
 
 
 def main():

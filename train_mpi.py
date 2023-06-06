@@ -22,7 +22,14 @@ from megatron.neox_arguments.deepspeed_args import NeoXArgsDeepspeedRunner
 
 import argparse
 import os
-os.environ["SMDATAPARALLEL_LMC_ENABLE"] = "1"
+os.environ['NCCL_DEBUG'] = 'VERSION'
+#os.environ['SMDATAPARALLEL_LMC_ENABLE'] = '1'
+#os.environ['SMDDP_AG_SCRATCH_BUFFER_SIZE_BYTES'] = '8192'
+#os.environ['SMDDP_AG_SORT_BUFFER_SIZE_BYTES'] = '8192'
+if os.environ["OMPI_COMM_WORLD_RANK"] == "0":
+    pass
+    #os.environ["NCCL_DEBUG"] = "INFO"
+    #os.environ["NCCL_DEBUG_SUBSYS"] = "COLL"
 import smdistributed.dataparallel.torch.torch_smddp
 
 
@@ -49,6 +56,7 @@ def parse_config():
 
 if __name__ == "__main__":
     neox_args = parse_config()
+    print(neox_args)
     neox_args.configure_distributed_args()
     neox_args.build_tokenizer()  # tokenizer needs to be build in training in order to set the padding vocab
     neox_args.initialize_tensorboard_writer()  # is initialized if tensorboard directory is defined
