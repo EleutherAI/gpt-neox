@@ -2,7 +2,7 @@ import sys
 import os
 import copy
 import deepspeed
-import time
+# import time
 
 import argparse
 import torch
@@ -20,10 +20,10 @@ from megatron.training import get_model, get_optimizer, get_learning_rate_schedu
 from megatron.initialize import initialize_megatron
 from megatron import mpu
 from megatron.checkpointing import load_checkpoint, save_checkpoint
-from megatron.utils import (
-    Timers,
-    init_wandb,
-)
+# from megatron.utils import (
+#     Timers,
+#     init_wandb,
+# )
 
 """
 A script for converting publicly available Huggingface (HF) checkpoints NeoX format.
@@ -454,10 +454,10 @@ if __name__ == "__main__":
 
 
     # setup logging and timers
-    init_wandb(neox_args=neox_args)
-    timers = Timers(
-        use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer
-    )
+    # init_wandb(neox_args=neox_args)
+    # timers = Timers(
+    #     use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer
+    # )
     initialize_megatron(neox_args=neox_args)
 
     torch.distributed.barrier()
