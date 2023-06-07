@@ -15,7 +15,42 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Processing data for pretraining."""
+"""
+A script for processing a dataset such that corresponding labels are also produced. These are then used to perform masked finetuning 
+(for example, finetuning a model to only output the text following some delimiter in the finetuning dataset such as "Answer: " 
+rather than generating the entire "Question: ... Answer: " turns of conversation.
+
+To run this script, first edit `tools/corpora.py` such that the command to call `tools/preprocess_data.py` is as follows:
+
+```
+cmd = f"python tools/preprocess_data_with_mask.py \
+    --input {jsonl_filepath} \
+    --output-prefix {parent_folder}/{self.name} \
+    --vocab {self.vocab_file} \
+    --dataset-impl mmap \
+    --tokenizer-type {self.tokenizer_type} \
+    --merge-file {self.merge_file} \
+    --append-eod \
+    --mask-before-token X,Y,Z \
+    --workers {self.num_workers} "
+    
+if self.num_docs is not None:
+    cmd += f"--num-docs {self.num_docs} "
+
+if self.ftfy:
+    cmd += f"--ftfy "
+```
+where --mask-before-token must be the (comma-separated) list of tokens produced by encoding your delimiter string. 
+Up to and including the first occurrence of this token sequence in a document, all tokens will have their loss mask zeroed out when the label dataset is provided to NeoX.
+
+Then, specify 
+```
+"train_data_paths": ["/path/to/dataset/name_text_document"],
+"label_data_paths": ["/path/to/dataset/name_label_document"]
+```
+in your YML config. This will then allow for finetuning on the data with loss masks set appropriately. 
+(However, be warned that NeoX packs documents to fill context windows, which may degrade performance in some finetuning situations where instead padding out to the context length may be preferred.)
+"""
 
 import argparse
 import multiprocessing
