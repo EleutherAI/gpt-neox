@@ -134,7 +134,7 @@ def get_args():
     group.add_argument(
         "--mask-before-token",
         default=None,
-        help="apply loss masks before certain token(s). If multiple tokens, separate by comma without space",
+        help="apply loss masks before certain token(s). If multi-token pattern, separate by commas without space, e.g. --mask-before-token 0,1,1270 to use the token pattern [0,1,1270].",
         type=str,
     )
     group.add_argument(
@@ -315,13 +315,8 @@ def main():
         for key, sentences in doc.items():
             for sentence in sentences:
                 builders[key].add_item(np.array(sentence, dtype=builders[key].dtype))
-                #print(len(sentence))
-                #print(sentence)
                 if token_mask: 
                     masked_sentence = mask(sentence, token_mask)
-                    #print(sentence)
-                    #print(masked_sentence)
-                    #exit()
                     builders["label"].add_item(np.array(masked_sentence, dtype=builders["text"].dtype))
             # separate with eos token
             builders[key].end_document()
