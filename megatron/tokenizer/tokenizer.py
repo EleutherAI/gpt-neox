@@ -297,7 +297,7 @@ class HFGPT2Tokenizer(AbstractTokenizer):
         else:
             self.tokenizer = GPT2Tokenizer.from_pretrained(vocab_name)
 
-        self.tokenizer.add_special_tokens({"pad_token": "<|padding|>","eos_token":"<|endoftext|>"})
+        self.tokenizer.add_special_tokens({"pad_token": "<|padding|>"})
         self.eod_id = self.tokenizer.eos_token_id
         self.pad_id = self.tokenizer.pad_token_id
         self.seq_length = seq_length
