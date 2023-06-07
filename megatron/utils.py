@@ -78,6 +78,7 @@ def get_attn_mask(seq_length, device):
 
 def get_ltor_masks_and_position_ids(
     data,
+    pad_token,
     eod_token,
     eod_mask_loss=False,
 ):
@@ -94,6 +95,7 @@ def get_ltor_masks_and_position_ids(
 
     # Loss mask.
     loss_mask = torch.ones(data.size(), dtype=torch.float, device=data.device)
+    loss_mask[data == pad_token] = 0.0
     if eod_mask_loss:
         loss_mask[data == eod_token] = 0.0
 
