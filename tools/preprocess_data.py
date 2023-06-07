@@ -215,7 +215,7 @@ def main():
     pbar = tqdm.tqdm()
     for i, (doc, bytes_processed, token_length) in enumerate(encoded_docs, start=1):
         total_bytes_processed += bytes_processed
-        total_num_tokens += num_tokens
+        total_num_tokens += token_length
 
         # release semaphore so `yield_from_files` can add another file to the buffer
         semaphore.release()
