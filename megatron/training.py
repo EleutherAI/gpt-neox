@@ -284,6 +284,7 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
     # Get the masks and position ids.
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
         data=tokens,
+        pad_token=neox_args.tokenizer.pad_id,
         eod_token=neox_args.tokenizer.eod,
         eod_mask_loss=neox_args.eod_mask_loss,
     )
