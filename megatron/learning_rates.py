@@ -78,6 +78,16 @@ class AnnealingLR(object):
                 / 2.0
                 * (math.cos(math.pi * num_iters_ / self.end_iter) + 1)
             )
+        elif self.decay_style == "invsqrt":
+            lr = (
+                self.start_lr  
+                / math.sqrt(max(self.num_iters, self.warmup_iter))
+            )
+            # following t5x and Raffel et al. 2019 https://arxiv.org/pdf/1910.10683.pdf
+            # lr = max lr * 1 / sqrt(max(n,k)) for n = curr. step, k = num. warmup steps
+            # note that then max lr = max_lr / sqrt(num. warmup iters). 
+            # Should we multiply by sqrt(k) to compensate for this?
+                
         elif self.decay_style == "exponential":
             # exp(-0.693) = 1/2
             lr = self.start_lr * math.exp(-0.693 * num_iters_ / self.end_iter)

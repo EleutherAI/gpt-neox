@@ -7,11 +7,11 @@ LR Scheduler Arguments
 
 
 
-- **lr_decay_style**: typing.Literal['constant', 'linear', 'cosine', 'exponential']
+- **lr_decay_style**: typing.Literal['constant', 'linear', 'cosine', 'invsqrt', 'exponential']
 
     Default = linear
 
-    Learning rate decay function. Choose from 'constant', 'linear', 'cosine', 'exponential'.
+    Learning rate decay function. Choose from 'constant', 'linear', 'cosine', 'invsqrt', 'exponential'.
 
 
 
@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = e67f027
+    Default = 677802d
 
     current git hash of repository
 
