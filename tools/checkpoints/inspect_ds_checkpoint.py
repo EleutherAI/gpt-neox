@@ -94,11 +94,11 @@ def show_transformer_states(ds_checkpoint):
 
 def get_folder(args):
     folder = Path(args.folder)
-    if args.tag is None:
+    if args.iteration is None:
         with open(folder / "latest") as latest_file:
             tag = latest_file.read()
     else:
-        tag = args.tag
+        tag = args.iteration
     return folder / f"global_step{tag}"
 
 
