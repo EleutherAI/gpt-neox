@@ -98,8 +98,8 @@ def get_folder(args):
         with open(folder / "latest") as latest_file:
             tag = latest_file.read()
     else:
-        tag = args.iteration
-    return folder / f"global_step{tag}"
+        tag = f"global_step{args.iteration}"
+    return folder / tag
 
 
 def main():
