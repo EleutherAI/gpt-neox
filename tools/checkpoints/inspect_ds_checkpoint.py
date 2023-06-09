@@ -25,6 +25,9 @@ def parse_arguments():
     parser.add_argument("--target_tp", default=None, type=int, help="Target TP degree")
     parser.add_argument("--target_pp", default=None, type=int, help="Target PP degree")
     parser.add_argument("--target_dp", default=None, type=int, help="Target DP degree")
+    parser.add_argument(
+        "--iteration", default=None, type=int, help="Which iteration to load"
+    )
     args = parser.parse_args()
     print(f"args = {args}")
     return args
@@ -89,12 +92,24 @@ def show_transformer_states(ds_checkpoint):
                 print("")
 
 
+def get_folder(args):
+    folder = Path(args.folder)
+    if args.tag is None:
+        with open(folder / "latest") as latest_file:
+            tag = latest_file.read()
+    else:
+        tag = args.tag
+    return folder / f"global_step{tag}"
+
+
 def main():
     print(f"Inspecting DeepSpeed Checkpoint")
     args = parse_arguments()
 
+    ckpt_folder = get_folder(args)
+
     ds_checkpoint = NeoxCheckpoint(
-        args.folder, args.target_tp, args.target_pp, args.target_dp
+        ckpt_folder, args.target_tp, args.target_pp, args.target_dp
     )
     ds_checkpoint.validate_files()
 
