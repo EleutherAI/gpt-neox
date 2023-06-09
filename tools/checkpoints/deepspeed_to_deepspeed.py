@@ -50,6 +50,13 @@ def parse_arguments():
     parser.add_argument("--target_tp", default=None, type=int, help="Target TP degree")
     parser.add_argument("--target_pp", default=None, type=int, help="Target PP degree")
     parser.add_argument("--target_dp", default=None, type=int, help="Target DP degree")
+    parser.add_argument(
+        "--iteration",
+        default=None,
+        type=int,
+        help="Which checkpoint to load, defaults to what is in latest if None",
+    )
+
     args = parser.parse_args()
     print(f"args = {args}")
     return args
