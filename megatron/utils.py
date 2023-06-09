@@ -422,6 +422,7 @@ def setup_for_inference_or_eval(
         "checkpoint_activations": False,
         "partition_activations": False,
         "no_load_optim": True,
+        "optimizer": None,  # prevent loading optimizer (no_load_optim alone won't work)
         "zero_optimization": None,  # disable zero optimization (won't be used in inference, and loading zero optimizer can cause errors)
     }
     if overwrite_values:

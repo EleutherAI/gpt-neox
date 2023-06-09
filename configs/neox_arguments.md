@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = a6a7a84
+    Default = 8c1e8fb
 
     current git hash of repository
 
@@ -1059,6 +1059,14 @@ Training Arguments
     Default = None
 
     List of paths to train datasets.
+
+
+
+- **label_data_paths**: list
+
+    Default = None
+
+    List of paths to label datasets (not shifted by 1 yet!).
 
 
 
