@@ -166,6 +166,16 @@ def _create_latest_file(base_folder, file_name, latest_tag):
         f.write(str(latest_tag))
 
 
+def get_folder(args):
+    folder = Path(args.folder)
+    if args.iteration is None:
+        with open(folder / "latest") as latest_file:
+            tag = latest_file.read()
+    else:
+        tag = f"global_step{args.iteration}"
+    return folder / tag
+
+
 def main():
     print(f"Convert DeepSpeed Checkpoint to DeepSpeed Checkpoint")
 
@@ -177,8 +187,10 @@ def main():
     neox_args = NeoXArgs.from_ymls([args.config])
     neox_args.build_tokenizer()
 
+    ckpt_folder = get_folder(args)
+
     ds_checkpoint = NeoxCheckpoint(
-        args.input_folder, args.target_tp, args.target_pp, args.target_dp
+        ckpt_folder, args.target_tp, args.target_pp, args.target_dp
     )
     iteration = ds_checkpoint.get_iteration()
     latest_tag = f"global_step{iteration}"
