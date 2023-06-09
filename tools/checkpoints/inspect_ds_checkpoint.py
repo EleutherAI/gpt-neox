@@ -24,6 +24,7 @@ def parse_arguments():
     )
     parser.add_argument("--target_tp", default=None, type=int, help="Target TP degree")
     parser.add_argument("--target_pp", default=None, type=int, help="Target PP degree")
+    parser.add_argument("--target_dp", default=None, type=int, help="Target DP degree")
     args = parser.parse_args()
     print(f"args = {args}")
     return args
@@ -46,7 +47,9 @@ def show_simple_state(ds_checkpoint):
     print(
         f"pp_degree_count = {ds_checkpoint.original_pp_degree} ------> {ds_checkpoint.pp_degree}"
     )
-    print(f"dp_degree_count = {ds_checkpoint.dp_degree}")
+    print(
+        f"dp_degree_count = {ds_checkpoint.original_dp_degree} ------> {ds_checkpoint.dp_degree}"
+    )
     ds_checkpoint.old_2d_map.print_data("old 2d map ==>")
     ds_checkpoint.new_2d_map.print_data("new 2d map ==>")
 
@@ -90,7 +93,9 @@ def main():
     print(f"Inspecting DeepSpeed Checkpoint")
     args = parse_arguments()
 
-    ds_checkpoint = NeoxCheckpoint(args.folder, args.target_tp, args.target_pp)
+    ds_checkpoint = NeoxCheckpoint(
+        args.folder, args.target_tp, args.target_pp, args.target_dp
+    )
     ds_checkpoint.validate_files()
 
     show_simple_state(ds_checkpoint)
