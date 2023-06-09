@@ -60,10 +60,15 @@ def build_the_dataset(
     seed,
     skip_warmup,
     build_index_mappings=True,
+    label_prefix=None,
 ):
     """Build train/valid/test datasets."""
 
     indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup)
+    if label_prefix is None:
+        label_dataset = None
+    else:
+        label_dataset = make_indexed_dataset(label_prefix, data_impl, skip_warmup)
 
     total_num_of_documents = indexed_dataset.sizes.shape[0]
     print_rank_0("    {}:".format(name))
@@ -79,6 +84,7 @@ def build_the_dataset(
         seq_length,
         seed,
         build_index_mappings=build_index_mappings,
+        label_dataset=label_dataset,
     )
     return dataset
 
@@ -198,9 +204,10 @@ def build_weighted_datasets(
 ):
     # build individual datasets
     train_datasets, valid_datasets, test_datasets = [], [], []
-    for i, (train_path, valid_path, test_path) in enumerate(
+    for i, (train_path, label_path, valid_path, test_path) in enumerate(
         zip_longest(
             neox_args.train_data_paths,
+            neox_args.label_data_paths if neox_args.label_data_paths else [],
             neox_args.valid_data_paths,
             neox_args.test_data_paths,
         )
@@ -216,6 +223,7 @@ def build_weighted_datasets(
                     seed=neox_args.seed,
                     skip_warmup=(not neox_args.mmap_warmup),
                     build_index_mappings=build_index_mappings,
+                    label_prefix=label_path,
                 )
             )
 
