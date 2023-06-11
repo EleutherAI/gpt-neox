@@ -2,7 +2,7 @@ import sys
 import os
 import copy
 import deepspeed
-
+# import time
 
 import argparse
 import torch
@@ -10,7 +10,7 @@ import torch
 import numpy as np
 
 from functools import reduce
-from transformers import GPTNeoXForCausalLM
+from transformers import GPTNeoXForCausalLM, GPTNeoXConfig
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
@@ -20,7 +20,10 @@ from megatron.training import get_model, get_optimizer, get_learning_rate_schedu
 from megatron.initialize import initialize_megatron
 from megatron import mpu
 from megatron.checkpointing import load_checkpoint, save_checkpoint
-
+# from megatron.utils import (
+#     Timers,
+#     init_wandb,
+# )
 
 """
 A script for converting publicly available Huggingface (HF) checkpoints NeoX format.
@@ -29,14 +32,13 @@ Note that this script requires access to correspoinding config files for equival
 
 Example usage: (Converts the 70M Pythia model to NeoX format)
 ================================================================
-CUDA_VISIBLE_DEVICES=0 python tools/convert_hf_to_sequential.py \
-    --size 70m \
+OMPI_COMM_WORLD_RANK=0 CUDA_VISIBLE_DEVICES=0 python tools/convert_hf_to_sequential.py \
+    --hf-model-name pythia-70m-v0 \
     --revision 143000 \
     --output-dir checkpoints/neox_converted/pythia/70m \
     --cache-dir checkpoints/HF \
     --config configs/pythia/70M.yml configs/local_setup.yml \
-    --test \
-    --deduped
+    --test
 
 
 For multi-gpu support we must initiliaze deepspeed:
@@ -48,15 +50,15 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python ./deepy.py tools/convert_hf_to_sequential.py
 
 MULTI_GPU_ARGS = " ".join(
         [
-            "--size 70m",
+            "--hf-model-name pythia-70m-v0",
             "--revision 143000",
             "--output-dir checkpoints/neox_converted/pythia/70m",
             "--cache-dir checkpoints/HF",
             "--config configs/pythia/70M.yml configs/local_setup.yml",
             "--test",
-            "--deduped",
         ]
     )
+
 
 
 def convert_hf_to_sequential(hf_model,seq_state_dict):
@@ -239,7 +241,6 @@ def shard_pp(sequential,mp_rank,num_layers):
         "final_linear.weight" : sequential[f"sequential.{num_layers+4}.final_linear.weight"]
     }
     
-    
     for layer in range(2,num_layers+2):
         layer_keys = [x for x in sequential if ".{}.".format(layer) in x]
         layers_seq[f"layer_{layer:02}" + suffix] = \
@@ -328,8 +329,8 @@ def convert(hf_model, ckpt_dir, output_dir):
         torch.save(v,os.path.join(ckpt_dir,k))
 
     # copy the checkpoint to the output_dir
-    print("rm -r {}".format(output_dir))
-    os.system("rm -r {}".format(output_dir))
+    print("rm {}/*".format(output_dir))
+    os.system("rm {}/*".format(output_dir))
     os.makedirs(output_dir,exist_ok=True)
     print("cp {} {}".format(os.path.join(ckpt_dir,'*'),output_dir))
     os.system("cp {} {}".format(os.path.join(ckpt_dir,'*'),output_dir))
@@ -343,19 +344,35 @@ def convert(hf_model, ckpt_dir, output_dir):
 
 
 
+def consume_neox_args2(args_parsed, overwrite_values=None):
+    """
+    Deepspeed launcher needs to pass the arguments for `pretrain_gpt2.py` across to all machines.
 
+    In order not to have any problems with different configs being mismatched across machines, we instead read the .yaml configuration file from the main rank,
+    then serialize the arguments to a dictionary, which the deepspeed launcher broadcasts to all machines (`--megatron_config`).
 
+    We then instantiate a new NeoXArgs from the dictionary (`.from_dict`). This should ensure args are never inconsistent across machines.
+    """
+
+    with open(args_parsed.megatron_config) as jsonfile:
+        megatron_config = json.load(jsonfile)
+    if args_parsed.deepspeed_config is not None:
+        overwrite_values = NeoXArgs.set_up_autotuning(
+            args_parsed.deepspeed_config, overwrite_values
+        )
+    if overwrite_values is not None:
+        megatron_config.update(overwrite_values)
+    return NeoXArgs.from_dict(args_dict=megatron_config)
+
+def get_non_existing_dir(tmp_dir):
+    while os.path.exists(tmp_dir):
+        tmp_dir = os.path.join(tmp_dir, "tmp_dir")
+    return tmp_dir
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Convert a Hugging Face GPT-NeoX model back to a sequential model compatible with GPT-NeoX training."
-    )
-    parser.add_argument(
-        "--size",
-        type=str,
-        default='70m',
-        help="Size of the pythia model to convert.",
     )
     parser.add_argument(
         "--revision",
@@ -380,14 +397,20 @@ if __name__ == "__main__":
         help="If set, will run a test to ensure the conversion was successful."
     )
     parser.add_argument(
-        "--deduped",
-        action="store_true",
-        help="If set, will load the deduped version of the model."
-    )
-    parser.add_argument(
         "--download-only",
         action="store_true",
         help="If set, script will only download the model and not convert it."
+    )
+
+    parser.add_argument(
+        "--ckpt-tmp-dir",
+        default="/tmp/ckpt_tmp_dir",
+        help="Directory to store cached hugging face checkpoints. [WARNING: MUST BE VISIBLE TO ALL RANKS]"
+    )
+    parser.add_argument(
+        "--hf-model-name",
+        type=str,
+        help="Name of the hugging face model to download from EleutherAI/{hf-model-name}.}"
     )
 
     parser.add_argument(
@@ -396,7 +419,7 @@ if __name__ == "__main__":
         help="Directory to store cached hugging face checkpoints."
     )
     try:
-        if os.environ['WORLD_SIZE'] > 1:
+        if int(os.environ['WORLD_SIZE']) > 1:
             args = parser.parse_args(MULTI_GPU_ARGS.split(" "))
         else:
             args = parser.parse_args()
@@ -404,19 +427,40 @@ if __name__ == "__main__":
         args = parser.parse_args()
 
 
-    hf_model = GPTNeoXForCausalLM.from_pretrained(
-        f"EleutherAI/pythia-{args.size}-deduped" if args.deduped else f"EleutherAI/pythia-{args.size}" ,
-        revision=f"step{args.revision}",
-        cache_dir=os.path.join(args.cache_dir,f"pythia-{args.size}-deduped/step{args.revision}")
-    ).half()
+    tmp_cache_dir = get_non_existing_dir(args.ckpt_tmp_dir)
 
     if args.download_only:
+        hf_model = GPTNeoXForCausalLM.from_pretrained(
+            f"EleutherAI/{args.hf_model_name}",
+            revision=f"step{args.revision}",
+            cache_dir=os.path.join(args.cache_dir,f"{args.hf_model_name}/step{args.revision}")
+        ).half()
         exit(0)
+    else:
+        print("======================================================================")
+        print("Warning the following script will delete files withing {}".format(args.output_dir))
+        print("Warning the following script will delete this directory {}".format(tmp_cache_dir))
+        print("======================================================================")
+        # time.sleep(5)
 
-    neox_args = NeoXArgs.from_ymls(args.config)
+    
+    if int(os.environ.get('OMPI_COMM_WORLD_SIZE',1)) > 1:
+        neox_args = consume_neox_args2(args2)
+    else:
+        neox_args = NeoXArgs.from_ymls(args.config)
     neox_args.configure_distributed_args()
-    neox_args.build_tokenizer() 
+    neox_args.build_tokenizer()
+    neox_args.initialize_tensorboard_writer()
+
+
+    # setup logging and timers
+    # init_wandb(neox_args=neox_args)
+    # timers = Timers(
+    #     use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer
+    # )
     initialize_megatron(neox_args=neox_args)
+
+    torch.distributed.barrier()
 
     model = get_model(neox_args=neox_args, use_cache=True)
     optimizer, param_groups = get_optimizer(model=model, neox_args=neox_args)
@@ -433,10 +477,11 @@ if __name__ == "__main__":
         mpu=mpu if not neox_args.is_pipe_parallel else None,
     )
 
-    tmp_cache_dir = 'cache-convert-hf-to-neox'
-    os.system(f"rm -r /tmp/{tmp_cache_dir}")
-    os.makedirs(f'/tmp/{tmp_cache_dir}',exist_ok=True)
-    neox_args.save = f'/tmp/{tmp_cache_dir}'
+    if os.environ['OMPI_COMM_WORLD_RANK'] == '0':
+        os.makedirs(f'{tmp_cache_dir}',exist_ok=True)
+
+    torch.distributed.barrier()
+    neox_args.save = tmp_cache_dir
 
     save_checkpoint(
         neox_args=neox_args,
@@ -445,19 +490,38 @@ if __name__ == "__main__":
         optimizer=optimizer,
         lr_scheduler=lr_scheduler,
     )
-    print(os.listdir(f'/tmp/{tmp_cache_dir}'))
-    ckpt_dir = f'/tmp/{tmp_cache_dir}/global_step0'
+    print(os.listdir(f'{tmp_cache_dir}'))
+    ckpt_dir = os.path.join(tmp_cache_dir,'global_step0')
 
 
     if torch.distributed.get_rank() == 0:
+        config = GPTNeoXConfig.from_pretrained(
+            f"EleutherAI/{args.hf_model_name}",
+            revision=f"step{args.revision}",
+            cache_dir=os.path.join(args.cache_dir,f"{args.hf_model_name}/step{args.revision}"))
+        # does not change the weights, but is needed to align logits
+        config.update({'hidden_act':'gelu_fast'})
+        hf_model = GPTNeoXForCausalLM.from_pretrained(
+            f"EleutherAI/{args.hf_model_name}",
+            revision=f"step{args.revision}",
+            config=config,
+            cache_dir=os.path.join(args.cache_dir,f"{args.hf_model_name}/step{args.revision}")
+        ).half()
+        print("==========================================")
+        print("Loaded Hugging Face model successfully!")
+        print("==========================================")
         convert(hf_model, ckpt_dir=ckpt_dir, output_dir=args.output_dir)
-        os.system(f"rm -r /tmp/{tmp_cache_dir}")
+
+        if os.environ['OMPI_COMM_WORLD_RANK'] == '0':
+            # cleanup temp dir
+            os.system(f"rm -r {tmp_cache_dir}")
 
     torch.distributed.barrier()
 
     #verify the conversion can be loaded
     neox_args.load = "/".join(args.output_dir.split("/")[:-1])
     print(neox_args.load)
+    neox_args.finetune=True
     load_checkpoint(
         neox_args=neox_args,
         model=model,
@@ -477,7 +541,9 @@ if __name__ == "__main__":
         with torch.no_grad():
             # torch.backends.cudnn.benchmark = False
             # torch.use_deterministic_algorithms(True) #setting the CUBLAS_WORKSPACE_CONFIG=:4096:8 environment variable is required for this to work (tested for A6000)
-            
+            model.eval()
+            hf_model.eval()
+
             b = 10
             seq_len = 32
             inputs = torch.randint(0, 50304, (b, seq_len), dtype=torch.long).cuda()
@@ -489,6 +555,7 @@ if __name__ == "__main__":
 
             torch.manual_seed(0)
             outputs = hf_model.cuda()(input_ids=inputs)
+
             print("HF logits   .sum(): ", outputs.logits.to(torch.float32).sum())
             print("NeoX logits .sum(): ", outputs_neox.to(torch.float32).sum())
             
@@ -501,7 +568,6 @@ if __name__ == "__main__":
 
     elif args.test:
         print("[INFO] Checkpoint conversion logit test not implemented for distributed world_size > 1. Current world_size: {}".format(torch.distributed.get_world_size()))
-
 
 
 
