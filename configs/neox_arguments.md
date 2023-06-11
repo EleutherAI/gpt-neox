@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 07da9fc
+    Default = 985d9c8
 
     current git hash of repository
 
@@ -1061,11 +1061,12 @@ Training Arguments
     List of paths to train datasets.
 
 
+
 - **label_data_paths**: list
 
     Default = None
 
-    List of paths to label datasets (should be fully in sync with train data, not shifted by 1!).
+    List of paths to label datasets (not shifted by 1 yet!).
 
 
 
@@ -1902,6 +1903,14 @@ Args for deepspeed config
     Default = None
 
     Dictionary of extra arguments to be included in the yaml config file. This can be used for any argument not included in the above list.
+
+
+
+- **load_universal**: bool
+
+    Default = False
+
+    Flag for whether the checkpoint to be loaded is a universal checkpoint.
 
 
 
