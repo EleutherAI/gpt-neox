@@ -35,4 +35,4 @@ export TRAIN_DIR=/home/za2514/math-lm/gpt-neox/
 cd $TRAIN_DIR
 pwd
 
-python ./deepy.py train.py --conf_dir /home/za2514/math-lm/gpt-neox/configs/v0.5/ 6-9B_flash.yml
+python ./deepy.py train.py --conf_dir /home/za2514/math-lm/gpt-neox/configs/v0.5/ 6-9B_universal_flash.yml
