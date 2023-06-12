@@ -95,5 +95,6 @@
   "steps_per_print": 10,
   "wall_clock_breakdown": true,
 
-  # "tokenizer-type": "HFTokenizer"
+  "tokenizer-type": "HFTokenizer"
+
 }
