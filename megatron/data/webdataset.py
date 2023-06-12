@@ -17,7 +17,23 @@ from PIL import Image
 from torch.utils.data import  DataLoader,  IterableDataset, get_worker_info
 from webdataset.filters import _shuffle
 from webdataset.tariterators import base_plus_ext, url_opener, tar_file_expander, valid_sample
+# from data_utils import get_normalized_weights_and_num_samples
+from typing import List, Tuple
 
+def get_normalized_weights_and_num_samples(
+    weights: List[float], num_samples: int
+) -> Tuple[List[float], List[int]]:
+    # Normalize weights
+    weight_sum = sum(weights)
+    assert weight_sum > 0.0
+    weights = [weight / weight_sum for weight in weights]
+    # Add 0.5% (the 1.005 factor) so in case the blending dataset does
+    # not uniformly distribute the number of samples, we still have
+    # samples left to feed to the network.
+    weighted_num_samples = []
+    for weight in weights:
+        weighted_num_samples.append(int(math.ceil(num_samples * weight * 1.005)))
+    return weights, weighted_num_samples
 
 class SharedEpoch:
     def __init__(self, epoch: int = 0):
@@ -266,6 +282,8 @@ def image_text_dict_collation_fn(samples):
 
 def get_wds_data(args, is_train, epoch=0, floor=False):
     input_shards = args.train_data_paths if is_train else args.valid_data_paths
+    input_weights = args.train_data_weights if is_train else args.valid_data_weights
+    
     assert input_shards is not None
 
     resampled = getattr(args, 'dataset_resampled', False) and is_train
@@ -283,13 +301,20 @@ def get_wds_data(args, is_train, epoch=0, floor=False):
     else:
         # Eval will just exhaust the iterator if the size is not specified.
         num_samples = args.val_num_samples or 0 
-
+    weights, weighted_num_samples = get_normalized_weights_and_num_samples(input_weights, num_samples)
     shared_epoch = SharedEpoch(epoch=epoch)  # create a shared epoch store to sync epoch to dataloader worker proc
     
     if resampled:
+        complete_url_list = []
+        complete_weights = []
+        for i, (urls, weights) in enumerate(zip(input_shards, weights)):
+            current_url_list = expand_urls(urls)[0]
+            complete_url_list.extend(current_url_list)
+            per_url_weight = weights / len(current_url_list)
+            complete_weights.extend([per_url_weight] * len(current_url_list))
         pipeline = [ResampledShards2(
-            input_shards,
-            weights=args.train_data_upsampling_factors,
+            complete_url_list,
+            weights=complete_weights,
             deterministic=True,
             epoch=shared_epoch,
         )]
