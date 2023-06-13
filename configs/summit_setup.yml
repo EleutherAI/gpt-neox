@@ -17,11 +17,9 @@
     1.0,
   ],
 
-  # we use tokenzier from huggingface, don't need vocal or merge file
-  #"vocab-file": "/home/lfsm/code/gpt-neox/data/gpt2-vocab.json",
-  #"merge-file": "/home/lfsm/code/gpt-neox/data/gpt2-merges.txt",
 
-  "tokenizer_type": "HFGPT2Tokenizer",
+  "vocab-file": "./data/20B_tokenizer.json",
+
   
   "tokenizer-type": "HFTokenizer",
   "vocab-file": "/gpfs/alpine/csc499/scratch/kshitijkg/gpt-neox/data/20B_tokenizer.json",

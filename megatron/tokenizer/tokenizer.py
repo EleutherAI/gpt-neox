@@ -19,6 +19,7 @@
 
 from abc import ABC
 from abc import abstractmethod
+import torch
 
 from tokenizers import Tokenizer
 from transformers import GPT2Tokenizer, GPT2TokenizerFast
@@ -43,9 +44,9 @@ def build_tokenizer(args):
         tokenizer = SentencePieceTokenizer(args.vocab_file)
     elif args.tokenizer_type.lower() == "HFTokenizer".lower():
         assert args.vocab_file is not None
-        tokenizer = HFTokenizer(args.vocab_file)
+        tokenizer = HFTokenizer(args.vocab_file,seq_length=args.seq_length)
     elif args.tokenizer_type.lower() == "HFGPT2Tokenizer".lower():
-        tokenizer = HFGPT2Tokenizer()
+        tokenizer = HFGPT2Tokenizer(seq_length=args.seq_length)
     elif args.tokenizer_type.lower() == "CharLevelTokenizer".lower():
         tokenizer = CharLevelTokenizer(vocab_size=512)
     elif args.tokenizer_type.lower() == "TiktokenTokenizer".lower():
@@ -220,13 +221,15 @@ class SentencePieceTokenizer(AbstractTokenizer):
 class HFTokenizer(AbstractTokenizer):
     """Designed to Integrate HF's Tokenizer library."""
 
-    def __init__(self, vocab_file):
+    def __init__(self, vocab_file,seq_length):
         name = "HFTokenizer"
         super().__init__(name)
 
         self.tokenizer = Tokenizer.from_file(vocab_file)
         self.eod_id = self.tokenizer.token_to_id("<|endoftext|>")
         self.pad_id = self.tokenizer.token_to_id("<|padding|>")
+        self.seq_length = seq_length
+        self.tokenizer.enable_truncation(max_length=seq_length)
 
     @property
     def vocab_size(self):
@@ -240,8 +243,20 @@ class HFTokenizer(AbstractTokenizer):
     def inv_vocab(self):
         return self.tokenizer.decoder
 
-    def tokenize(self, text: str):
-        return self.tokenizer.encode(text).ids
+    def tokenize(self, texts: Union[str, List[str]], context_length=2048):
+        if isinstance(texts, str):
+            texts = [texts]
+        texts = [whitespace_clean(basic_clean(text)) for text in texts]
+        input_ids = [encoding.ids for encoding in self.tokenizer.encode_batch(texts)]
+        # add eod_id and pad with pad_id
+        for idx,ids in enumerate(input_ids):
+            if len(ids) < self.seq_length:
+                ids = ids+[self.eod_id]+[self.pad_id]*(self.seq_length-len(ids)-1)
+            else: # truncated
+                ids = ids[:-1]+[self.eod_id]
+            input_ids[idx]=ids
+        input_ids = torch.tensor(input_ids,dtype=torch.int64) 
+        return input_ids
 
     def tokenize_batch(self, text_batch: Union[List[str], str]):
         return self.tokenizer.encode_batch(text_batch)
@@ -271,7 +286,7 @@ def whitespace_clean(text):
 class HFGPT2Tokenizer(AbstractTokenizer):
     """Designed to Integrate the pretrained OpenAI GPT2 Tokenizers from HF"""
 
-    def __init__(self, vocab_file=None, fast=True):
+    def __init__(self, seq_length, fast=True):
         name = "HFGPT2Tokenizer"
         if fast:
             name += "Fast"
@@ -285,6 +300,7 @@ class HFGPT2Tokenizer(AbstractTokenizer):
         self.tokenizer.add_special_tokens({"pad_token": "<|padding|>"})
         self.eod_id = self.tokenizer.eos_token_id
         self.pad_id = self.tokenizer.pad_token_id
+        self.seq_length = seq_length
 
     @property
     def vocab_size(self):
@@ -298,17 +314,23 @@ class HFGPT2Tokenizer(AbstractTokenizer):
     def inv_vocab(self):
         return self.tokenizer._tokenizer.decoder
 
-    def tokenize(self, texts: Union[str, List[str]], context_length=2048):
+    def tokenize(self, texts: Union[str, List[str]]):
         if isinstance(texts, str):
             texts = [texts]
         texts = [whitespace_clean(basic_clean(text)) for text in texts]
         input_ids = self.tokenizer(
             texts,
-            return_tensors='pt',
-            max_length=context_length,
-            padding='max_length',
+            max_length=self.seq_length,
             truncation=True,
         ).input_ids
+        # add eod_id and pad with pad_id
+        for idx,ids in enumerate(input_ids):
+            if len(ids) < self.seq_length:
+                ids = ids+[self.eod_id]+[self.pad_id]*(self.seq_length-len(ids)-1)
+            else: # truncated
+                ids = ids[:-1]+[self.eod_id]
+            input_ids[idx]=ids
+        input_ids = torch.tensor(input_ids,dtype=torch.int64) 
         return input_ids
 
     # def tokenize_batch(self, text_batch: Union[List[str], str]):
