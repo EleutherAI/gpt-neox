@@ -73,7 +73,6 @@ def build_the_dataset(
     total_num_of_documents = indexed_dataset.sizes.shape[0]
     print_rank_0("    {}:".format(name))
     print_rank_0("     no. of documents:{}".format(total_num_of_documents))
-    dataset = None
     documents = np.arange(start=0, stop=total_num_of_documents, step=1, dtype=np.int32)
     dataset = GPT2Dataset(
         name,
