@@ -28,6 +28,7 @@ from deepspeed.checkpoint import (
 CHECKPOINT_FILE_SUFFIX = "_model_states.pt"
 MP_WORLD_SIZE = "mp_world_size"
 WORD_EMBEDDINGS_KEY = "word_embeddings.weight"
+FINAL_LINEAR_KEY = "final_linear.weight"
 ORIGINAL_VOCAB_SIZE = "original_vocab_size"
 PADDED_VOCAB_SIZE = "padded_vocab_size"
 
@@ -116,12 +117,12 @@ def _strip_vocab_padding(ds_checkpoint, padded_vocab_tensor, neox_args):
     return unpadded_vocab_tensor.clone()
 
 
-def _create_embedding_layer_checkpoint(ds_checkpoint, base_folder, tp_index, tokenizer):
+def _create_embedding_layer_checkpoint(ds_checkpoint, base_folder, tp_index, args):
     sd = ds_checkpoint.get_embedding_state(tp_index)
     if ds_checkpoint.is_change_tp_degree():
         print(f"TP index: {tp_index}, embeddings shape {sd[WORD_EMBEDDINGS_KEY].shape}")
         sd[WORD_EMBEDDINGS_KEY] = _strip_vocab_padding(
-            ds_checkpoint, sd[WORD_EMBEDDINGS_KEY], tokenizer
+            ds_checkpoint, sd[WORD_EMBEDDINGS_KEY], args
         )
     layer_id = ds_checkpoint.get_embedding_layer_id()
     ckpt_path = get_layer_ckpt_name_for_rank(
@@ -130,9 +131,13 @@ def _create_embedding_layer_checkpoint(ds_checkpoint, base_folder, tp_index, tok
     _save_checkpoint(ckpt_path, sd)
 
 
-def _create_final_norm_layer_checkpoint(ds_checkpoint, base_folder, tp_index):
+def _create_final_norm_layer_checkpoint(ds_checkpoint, base_folder, tp_index, args):
     sd = ds_checkpoint.get_final_norm_state(tp_index)
     layer_id = ds_checkpoint.get_final_norm_layer_id()
+    if ds_checkpoint.is_change_tp_degree():
+        sd[FINAL_LINEAR_KEY] = _strip_vocab_padding(
+            ds_checkpoint, sd[FINAL_LINEAR_KEY], args
+        )
     ckpt_path = get_layer_ckpt_name_for_rank(
         base_folder=base_folder, tp_rank=tp_index, layer_id=layer_id
     )
@@ -209,7 +214,7 @@ def main():
 
     for i in range(ds_checkpoint.tp_degree):
         _create_embedding_layer_checkpoint(ds_checkpoint, base_folder, i, neox_args)
-        _create_final_norm_layer_checkpoint(ds_checkpoint, base_folder, i)
+        _create_final_norm_layer_checkpoint(ds_checkpoint, base_folder, i, neox_args)
 
         for j in range(ds_checkpoint.pp_degree):
             _create_transformer_layer_checkpoint(ds_checkpoint, base_folder, i, j)
