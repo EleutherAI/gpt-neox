@@ -548,7 +548,7 @@ class Helper:
             )
 
     def save(self, obj, layer_i, rank):
-        torch.save(obj, self.save_path(layer_i=layer_i + 2, rank=rank))
+        torch.save(obj, self.save_path(layer_i=layer_i, rank=rank))
 
     def shard(self, x, dim):
         x_shape = list(x.shape)

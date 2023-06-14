@@ -22,7 +22,11 @@ from typing import List
 
 import torch
 from transformers import GPTNeoXConfig, GPTNeoXForCausalLM
-
+try:
+    from transformers import LlamaConfig, LlamaForCausalLM
+except ImportError:
+    print("LLamaForCausalLM could not be imported. Please update your `transformers` installation and try again.")
+    raise Exception
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
@@ -76,8 +80,15 @@ def get_key(loaded_config, key, default=None):
 
 def create_config(neox_config):
     """take in a loaded yaml from NeoX and assign relevant values to HF config.
-    Returns: GPTNeoXConfig() object
+    Returns: transformers.AutoConfig() object
     """
+
+    def gated_size(hidden_dim):
+        # takes in a hidden dim and calculates intermediate dim of a LLaMAParallelMLP.
+        # hidden-size * 8 / 3 , rounded up to nearest multiple of 256
+        ff_dim = int(2 * hidden_dim * 4 / 3)
+        ff_dim = 256 * ((ff_dim + 256 - 1) // 256)
+        return ff_dim
 
     class TokenizerArgs:
         # kinda hacky.
@@ -91,17 +102,17 @@ def create_config(neox_config):
             self.vocab_file = get_key(neox_config, "vocab-file")
             self.merge_file = get_key(neox_config, "merge-file")
             self.tokenizer_type = get_key(neox_config, "tokenizer-type")
-
             self.rank = 0
 
     args = TokenizerArgs(neox_config)
+    
     tokenizer = build_tokenizer(args)
     try:  # GPT2TokenizerFast raises NotImplementedError
         pad_token = tokenizer.pad
     except:
         pad_token = (
             1  # pad defaulting to 1. follows convention from GPT-NeoX-20b tokenizer
-        )
+        ) 
 
     # TODO: change the default value here based on discussion regarding `gpt_j_tied` config parameter's default
     use_tied_lns = get_key(neox_config, "gpt-j-tied", False)
@@ -114,24 +125,40 @@ def create_config(neox_config):
         )
 
     # set all config values.
-    hf_config = GPTNeoXConfig(
-        vocab_size=args.padded_vocab_size,
-        hidden_size=get_key(neox_config, "hidden-size"),
-        num_hidden_layers=get_key(neox_config, "num-layers"),
-        num_attention_heads=get_key(neox_config, "num-attention-heads"),
-        intermediate_size=(get_key(neox_config, "hidden-size") * 4),
-        hidden_act=get_key(neox_config, "activation", default="gelu"),
-        rotary_pct=get_key(neox_config, "rotary-pct", default=1.0),
-        rotary_emb_base=get_key(neox_config, "rotary-emb-base", default=10000),
-        max_position_embeddings=get_key(neox_config, "max-position-embeddings"),
-        initializer_range=get_key(neox_config, "init-method-std", 0.02),
-        layer_norm_eps=get_key(neox_config, "layernorm-epsilon", 1e-5),
-        use_cache=True,
-        bos_token_id=tokenizer.eod,
-        eos_token_id=tokenizer.eod,
-        tie_word_embeddings=(not get_key(neox_config, "no-weight-tying", False)),
-        use_parallel_residual=get_key(neox_config, "gpt-j-residual", False),
-    )
+    if not get_key(neox_config, "mlp-type") == "llama":
+        hf_config = GPTNeoXConfig(
+            vocab_size=args.padded_vocab_size,
+            hidden_size=get_key(neox_config, "hidden-size"),
+            num_hidden_layers=get_key(neox_config, "num-layers"),
+            num_attention_heads=get_key(neox_config, "num-attention-heads"),
+            intermediate_size=(get_key(neox_config, "hidden-size") * 4),
+            hidden_act=get_key(neox_config, "activation", default="gelu"),
+            rotary_pct=get_key(neox_config, "rotary-pct", default=1.0),
+            rotary_emb_base=get_key(neox_config, "rotary-emb-base", default=10000),
+            max_position_embeddings=get_key(neox_config, "max-position-embeddings"),
+            initializer_range=get_key(neox_config, "init-method-std", 0.02),
+            layer_norm_eps=get_key(neox_config, "layernorm-epsilon", 1e-5),
+            use_cache=True,
+            bos_token_id=tokenizer.eod,
+            eos_token_id=tokenizer.eod,
+            tie_word_embeddings=(not get_key(neox_config, "no-weight-tying", False)),
+            use_parallel_residual=get_key(neox_config, "gpt-j-residual", False),
+        )
+    else:
+        hf_config = LlamaConfig(
+            vocab_size=args.padded_vocab_size,
+            hidden_size=get_key(neox_config, "hidden-size"),
+            num_hidden_layers=get_key(neox_config, "num-layers"),
+            num_attention_heads=get_key(neox_config, "num-attention-heads"),
+            intermediate_size=gated_size(get_key(neox_config, "hidden-size")) ,
+            hidden_act=get_key(neox_config, "activation", default="silu"),
+            max_position_embeddings=get_key(neox_config, "max-position-embeddings"),
+            initializer_range=get_key(neox_config, "init-method-std", 0.02),
+            rms_norm_eps=get_key(neox_config, "rms-norm-epsilon", 1.0e-6),
+            use_cache=True,
+            tie_word_embeddings=(not get_key(neox_config, "no-weight-tying", False)),
+        )
+
     return hf_config
 
 
@@ -141,11 +168,11 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
     but only supports features allowed by HF GPT-NeoX implementation (e.g. rotary embeddings)
     """
 
-    hf_config = GPTNeoXConfig()
+    hf_config = LlamaConfig() #GPTNeoXConfig()
 
     hf_config = create_config(loaded_config)
 
-    hf_model = GPTNeoXForCausalLM(hf_config)
+    hf_model = LlamaForCausalLM(hf_config) #GPTNeoXForCausalLM(hf_config)
 
     # save model in fp16/bf16 if Deepspeed fp16 or bf16 mixed precision was used in config, else 32 bit weights
     fp16 = get_key(loaded_config, "fp16")
@@ -166,23 +193,25 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
 
     ### Embedding layer ###
     loaded_tp_ranks = load_partitions(input_checkpoint_path, mp_partitions, 0)
-    hf_model.gpt_neox.embed_in.load_state_dict(
+    
+    hf_model.model.embed_tokens.load_state_dict(
         {
             "weight": torch.cat(
                 [t["word_embeddings.weight"] for t in loaded_tp_ranks], dim=0
             )
-        }
+        },
+        strict=True
     )
 
     assert (
-        hf_config.vocab_size == hf_model.gpt_neox.embed_in.weight.shape[0]
+        hf_config.vocab_size == hf_model.model.embed_tokens.weight.shape[0]
     ), f"ERROR: calculated vocab size {hf_config.vocab_size} != embed param size {hf_model.gpt_neox.embed_in.shape[0]}"
     ### End Embedding Layer ###
 
     for layer_i in tqdm(range(get_key(loaded_config, "num-layers"))):
 
         # get layer from hf model
-        hf_layer = hf_model.gpt_neox.layers[layer_i]
+        hf_layer = hf_model.model.layers[layer_i]
 
         # + 2 bc of embed layer and a dummy _pre_transformer_block
         loaded_tp_ranks = load_partitions(
@@ -190,64 +219,134 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
         )
 
         state_dict = {}
-        for key in [
-            "attention.dense.weight",
-            "mlp.dense_4h_to_h.weight",
-        ]:
-            state_dict[key] = torch.cat([t[key] for t in loaded_tp_ranks], dim=1)
-
+        # RowParallelLinear
+        for key, hf_key in {
+            "attention.dense.weight": "self_attn.o_proj.weight",
+            # "attention.dense.weight": "attention.dense.weight",
+            "mlp.dense_4h_to_h.weight": "mlp.dense_4h_to_h.weight",
+            "mlp.w2.weight": "mlp.down_proj.weight",
+        }.items():
+            if key in loaded_tp_ranks[0].keys():
+                state_dict[hf_key] = torch.cat([t[key] for t in loaded_tp_ranks], dim=1)
+        
         # average layernorm stats over mp ranks
-        for key in [
-            "input_layernorm.weight",
-            "input_layernorm.bias",
-            "post_attention_layernorm.weight",
-            "post_attention_layernorm.bias",
-        ]:
-            state_dict[key] = (sum([t[key] for t in loaded_tp_ranks])) / len(
-                loaded_tp_ranks
-            )
+        for key, hf_key in {
+            "input_layernorm.weight": "input_layernorm.weight",
+            "input_layernorm.bias": "input_layernorm.bias",
+            "post_attention_layernorm.weight": "post_attention_layernorm.weight",
+            "post_attention_layernorm.bias": "post_attention_layernorm.bias",
+            "input_layernorm.scale": "input_layernorm.weight",
+            "post_attention_layernorm.scale": "post_attention_layernorm.weight",
+        }.items():
+            if key in loaded_tp_ranks[0].keys():
+                state_dict[hf_key] = (sum([t[key] for t in loaded_tp_ranks])) / len(
+                    loaded_tp_ranks
+                )
 
         # LinearWithTPMerge
-        for key in [
-            "mlp.dense_h_to_4h.weight",
-            "mlp.dense_h_to_4h.bias",
-            "attention.query_key_value.weight",
-            "attention.query_key_value.bias",
-        ]:
-            state_dict[key] = torch.cat([t[key] for t in loaded_tp_ranks], dim=0)
+        # (ColumnParallelLinear)
+        for key, hf_key in {
+            "mlp.dense_h_to_4h.weight": "mlp.dense_h_to_4h.weight",
+            "mlp.dense_h_to_4h.bias": "mlp.dense_h_to_4h.bias",
+            "mlp.w1.weight": "mlp.gate_proj.weight",
+            # "mlp.w1.bias": "mlp.gate_proj.bias",
+            "mlp.w3.weight": "mlp.up_proj.weight",
+            # "mlp.w3.bias": mlp.w3.bias",
+
+            # "attention.query_key_value.weight",
+            # "attention.query_key_value.bias",
+        }.items():
+            if key in loaded_tp_ranks[0].keys():
+                state_dict[hf_key] = torch.cat([t[key] for t in loaded_tp_ranks], dim=0)
 
         # LinearWithTPSplitBias
+        # (RowParallelLinear)
         for key in [
+            # "mlp.w2.bias", -> no bias
             "mlp.dense_4h_to_h.bias",
-            "attention.dense.bias",
+            # "attention.dense.bias": "self_attn.o_proj.bias", no bias
         ]:
-            state_dict[key] = sum([t[key] for t in loaded_tp_ranks])
+            if key in loaded_tp_ranks[0].keys():
+                state_dict[key] = sum([t[key] for t in loaded_tp_ranks])
 
         # Just take one
-        state_dict["attention.rotary_emb.inv_freq"] = loaded_tp_ranks[0][
+        state_dict["self_attn.rotary_emb.inv_freq"] = loaded_tp_ranks[0][
             "attention.rotary_emb.inv_freq"
         ]
-        state_dict["attention.bias"] = hf_layer.state_dict()["attention.bias"]
-        state_dict["attention.masked_bias"] = hf_layer.state_dict()[
-            "attention.masked_bias"
-        ]
+        # state_dict["attention.bias"] = hf_layer.state_dict()["attention.bias"]
+        # state_dict["attention.masked_bias"] = hf_layer.state_dict()[
+        #     "attention.masked_bias"
+        # ]
+
+        # for LLaMA: need to shard QKV proj.
+        for key in [
+            "attention.query_key_value.weight"
+        ]:
+            # merge across TP ranks
+            
+            sharded_qkv = torch.stack([t[key] for t in loaded_tp_ranks], dim=0)
+            print(sharded_qkv.shape)
+            
+            sharded_qkv = sharded_qkv.view(
+                len(loaded_tp_ranks), 
+                hf_config.num_attention_heads // len(loaded_tp_ranks), 
+                3,
+                hf_config.hidden_size // hf_config.num_attention_heads, # dims_per_head
+                hf_config.hidden_size
+            )
+            print(sharded_qkv.shape)
+            q, k, v = torch.chunk(sharded_qkv, 3, dim=2)
+            q, k, v = q.squeeze(dim=2), k.squeeze(dim=2), v.squeeze(dim=2)
+            q = q.view(
+                    hf_config.num_attention_heads, 
+                    hf_config.hidden_size // hf_config.num_attention_heads, 
+                    hf_config.hidden_size
+                ).reshape(
+                    hf_config.hidden_size, hf_config.hidden_size
+                )
+            k = k.view(
+		    hf_config.num_attention_heads,
+                    hf_config.hidden_size // hf_config.num_attention_heads,
+                    hf_config.hidden_size
+                ).reshape(
+                    hf_config.hidden_size, hf_config.hidden_size
+                )
+            v = v.view(
+                    hf_config.num_attention_heads, 
+                    hf_config.hidden_size // hf_config.num_attention_heads, 
+                    hf_config.hidden_size
+                ).reshape(
+                    hf_config.hidden_size, hf_config.hidden_size
+                )
+            print(q.shape)
+
+            # raise ValueError
+            # merged_qkv = torch.cat([t[key] for t in loaded_tp_ranks], dim=0)
+            # chunk into separate Q, K, V projections and load
+            # q, k, v = torch.chunk(merged_qkv,  3, dim=0)
+            for hf_key, proj in zip(["self_attn.q_proj.weight", "self_attn.k_proj.weight", "self_attn.v_proj.weight"], [q, k, v]):
+                state_dict[hf_key] = proj.clone()
 
         # load state_dict into layer
-        hf_layer.load_state_dict(state_dict)
+        hf_layer.load_state_dict(state_dict, strict=True)
 
     # Load final layer norm
     loaded_tp_ranks = load_partitions(
         input_checkpoint_path, mp_partitions, get_key(loaded_config, "num-layers") + 3
     )
 
-    hf_model.gpt_neox.final_layer_norm.load_state_dict(
-        {
-            "weight": (sum([t["norm.weight"] for t in loaded_tp_ranks]))
-            / len(loaded_tp_ranks),
-            "bias": (sum([t["norm.bias"] for t in loaded_tp_ranks]))
-            / len(loaded_tp_ranks),
-        }
-    )
+    norm_state_dict = {}
+    for key, hf_key in {
+        "weight": "weight",
+        "scale": "weight",
+        "bias": "bias",
+    }.items():
+        key = "norm." + key
+        if key in loaded_tp_ranks[0].keys():
+            norm_state_dict[hf_key] = (sum([t[key] for t in loaded_tp_ranks])) / len(loaded_tp_ranks)
+    
+    hf_model.model.norm.load_state_dict(norm_state_dict, strict=True)
+
     del loaded_tp_ranks
 
     # Load output embedding
@@ -255,12 +354,13 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
         input_checkpoint_path, mp_partitions, get_key(loaded_config, "num-layers") + 4
     )
 
-    hf_model.embed_out.load_state_dict(
+    hf_model.lm_head.load_state_dict(
         {
             "weight": torch.cat(
                 [t["final_linear.weight"] for t in loaded_tp_ranks], dim=0
             ),
-        }
+        },
+        strict=True
     )
 
     del loaded_tp_ranks
