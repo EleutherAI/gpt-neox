@@ -1,6 +1,6 @@
-# Don't save weights
-weights/
-data/
+# slurm out files
+*.out
+*.err
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
