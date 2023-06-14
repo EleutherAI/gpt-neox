@@ -64,7 +64,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
             self.shuffle_idx_len = self.shuffle_idx.shape[0] - 1
             self.sample_idx_len = self.sample_idx.shape[0] - 1
 
-            if self.shuffle_idx_len != self.sample_idx_len:
+            if self.shuffle_idx_len != self.sample_idx_len - 1:
                 print(
                     f"WARNING: shuffle index length ({self.shuffle_idx_len}) is not equal to sample index length ({self.sample_idx_len})"
                 )
