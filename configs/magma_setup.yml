@@ -19,7 +19,7 @@
   "vocab-file": "/gpfs/alpine/csc499/scratch/kshitijkg/gpt-neox/data/20B_tokenizer.json",
 
   "save": "/gpfs/alpine/csc499/scratch/kshitijkg/magma/gpt-neox/checkpoints/magma_410M_testrun5",
-  "load": "/gpfs/alpine/csc499/proj-shared/pythia_magma_checkpoints/mp1_pp1",
+  "load": "/gpfs/alpine/csc499/proj-shared/pythia_magma_checkpoints/mp1_pp1/pythia",
   # "load": "/gpfs/alpine/csc499/scratch/kshitijkg/magma/gpt-neox/checkpoints/magma_410M_testrun5",
   "load_clip": "/gpfs/alpine/csc499/proj-shared/magma/models/clip",
   "checkpoint_validation_with_forward_pass": False,
