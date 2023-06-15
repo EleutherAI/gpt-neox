@@ -1,0 +1,43 @@
+# Suggested data paths when using GPT-NeoX locally
+{
+  "train-data-paths": [
+    "/gpfs/alpine/csc499/proj-shared/LAION-400m-webdataset/data/{00000..40000}.tar",
+    ],
+  "train-data-weights": [
+    1.0,
+  ],
+  "valid-data-paths": ["/gpfs/alpine/csc499/proj-shared/LAION-400m-webdataset/data/{40001..41000}.tar",],
+  "valid-data-weights": [
+    1.0,
+  ], 
+  "test-data-paths": ["/gpfs/alpine/csc499/proj-shared/LAION-400m-webdataset/data/{41000..41455}.tar",], 
+  "test-data-weights": [
+    1.0,
+  ],
+
+  # we use tokenzier from huggingface, don't need vocal or merge file
+  #"vocab-file": "/home/lfsm/code/gpt-neox/data/gpt2-vocab.json",
+  #"merge-file": "/home/lfsm/code/gpt-neox/data/gpt2-merges.txt",
+
+  "tokenizer_type": "HFGPT2Tokenizer",
+  
+  "tokenizer-type": "HFTokenizer",
+  "vocab-file": "/gpfs/alpine/csc499/scratch/kshitijkg/gpt-neox/data/20B_tokenizer.json",
+
+  "save": "/gpfs/alpine/csc499/scratch/kshitijkg/magma/gpt-neox/checkpoints/magma_410M_testrun4",
+  "load": "/gpfs/alpine/csc499/scratch/kshitijkg/neox_converted_magma/mp1_pp1/pythia",
+  # "load": "/gpfs/alpine/csc499/scratch/kshitijkg/magma/gpt-neox/checkpoints/magma_410M_testrun4",
+  "load_clip": "/gpfs/alpine/csc499/proj-shared/magma/models/clip",
+  "checkpoint_validation_with_forward_pass": False,
+
+  "tensorboard-dir": "/gpfs/alpine/csc499/scratch/kshitijkg/magma/gpt-neox/tensorboard/magma_410M_testrun4",
+  "log-dir": "/gpfs/alpine/csc499/scratch/kshitijkg/magma/gpt-neox/logs/magma_410M_testrun4",
+  "use_wandb": False,
+  "wandb_host": "https://api.wandb.ai",
+  "wandb_project": "magma_410M_testrun4",
+
+  "launcher": "jsrun",
+  "deepspeed_jsrun": true,
+  "finetune": true,
+  "num_workers": 0,
+}

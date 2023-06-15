@@ -1117,7 +1117,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Number of samples to run for evaluation validation/test.
     """    
     
-    dataset_resampled: bool = False
+    dataset_resampled: bool = True
     """
     Resample dataset to iter infinitely.
     """ 

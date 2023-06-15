@@ -10,4 +10,4 @@ bash /gpfs/alpine/csc499/scratch/kshitijkg/write_hostfile.sh
 export DLTS_HOSTFILE=/gpfs/alpine/csc499/scratch/kshitijkg/hostfiles/$LSB_JOBID-hosts
 
 python $TRAIN_PATH/deepy.py $TRAIN_PATH/train.py \
-	--conf_dir $TRAIN_PATH/configs pythia_410M.yml summit_setup.yml 
+	--conf_dir $TRAIN_PATH/configs magma_pythia_410M.yml magma_setup.yml 
