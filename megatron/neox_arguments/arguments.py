@@ -559,7 +559,7 @@ class NeoXArgs(*BASE_CLASSES):
             ).decode("utf-8")
             args_list.append(encoded_ds_config)
 
-        megatron_fp = cwd / Path("megatron_config.json")
+        megatron_fp = cwd / Path(f"megatron_config_{os.environ['LSB_JOBID']}.json")
         # get all config values
         args_list.append("--megatron_config")
         args_list.append(str(megatron_fp))

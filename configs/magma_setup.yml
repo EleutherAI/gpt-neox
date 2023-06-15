@@ -1,0 +1,54 @@
+# Suggested data paths when using GPT-NeoX locally
+{
+  "train-data-paths": [
+    "/gpfs/alpine/csc499/proj-shared/LAION-400m-webdataset/data/{00000..40000}.tar",
+    ],
+  "train-data-weights": [
+    1.0,
+  ],
+  "valid-data-paths": ["/gpfs/alpine/csc499/proj-shared/LAION-400m-webdataset/data/{40001..41000}.tar",],
+  "valid-data-weights": [
+    1.0,
+  ], 
+  "test-data-paths": ["/gpfs/alpine/csc499/proj-shared/LAION-400m-webdataset/data/{41000..41455}.tar",], 
+  "test-data-weights": [
+    1.0,
+  ],
+  
+  "tokenizer-type": "HFTokenizer",
+  "vocab-file": "/gpfs/alpine/csc499/scratch/kshitijkg/gpt-neox/data/20B_tokenizer.json",
+
+  "save": "/gpfs/alpine/csc499/scratch/kshitijkg/magma/gpt-neox/checkpoints/magma_410M_testrun5",
+  "load": "/gpfs/alpine/csc499/proj-shared/pythia_magma_checkpoints/mp1_pp1/pythia",
+  # "load": "/gpfs/alpine/csc499/scratch/kshitijkg/magma/gpt-neox/checkpoints/magma_410M_testrun5",
+  "load_clip": "/gpfs/alpine/csc499/proj-shared/magma/models/clip",
+  "checkpoint_validation_with_forward_pass": False,
+
+  "tensorboard-dir": "/gpfs/alpine/csc499/scratch/kshitijkg/magma/gpt-neox/tensorboard/magma_410M_testrun5",
+  "log-dir": "/gpfs/alpine/csc499/scratch/kshitijkg/magma/gpt-neox/logs/magma_410M_testrun5",
+  "use_wandb": False,
+  "wandb_host": "https://api.wandb.ai",
+  "wandb_project": "magma_410M_testrun5",
+
+  "launcher": "jsrun",
+  "deepspeed_jsrun": true,
+  "finetune": true,
+  "num_workers": 0,
+
+  "optimizer": {
+    "type": "Adam",
+    "params": {
+      "lr": 0.0008,
+      "betas": [0.9, 0.95],
+      "eps": 1.0e-8,
+    }
+  },
+  "min_lr": 0.00008,
+  
+  # LLAMA Config
+  # batch / data settings
+  "train_batch_size": 264,
+  "train_micro_batch_size_per_gpu": 4,
+  "data-impl": "mmap",
+  "split": "949,50,1",
+}

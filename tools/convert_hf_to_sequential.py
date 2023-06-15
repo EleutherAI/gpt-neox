@@ -65,12 +65,13 @@ CUDA_VISIBLE_DEVICES=0 python tools/convert_hf_to_sequential.py \
 Example usage[SUMMIT]: (Converts the 70M Pythia model to NeoX format)
 ================================================================
 CUDA_VISIBLE_DEVICES=0 python tools/convert_hf_to_sequential.py \
-    --hf-model-name pythia-410m-v0 \
-    --revision 143000 \
     --output-dir /gpfs/alpine/csc499/scratch/kshitijkg/neox_converted/mp1_pp1/pythia/410m \
     --cache-dir /gpfs/alpine/csc499/proj-shared/hf_checkpoints \
-    --config configs/pythia/410M.yml configs/local_setup.yml \
-    --test 
+    --config configs/llama/410M.yml configs/local_setup.yml \
+    --test \
+    --download \
+    --hf-model-name pythia-410m-v0 \
+    --revision 143000 \
 
 
 Example usage[SUMMIT]: (Converts the 70M Pythia model to NeoX format)
@@ -89,6 +90,10 @@ NOTE: This requires manually changing the arguments below.
 ================================================================
 CUDA_VISIBLE_DEVICES=0,1,2,3 python ./deepy.py tools/convert_hf_to_sequential.py \
     -d configs pythia/70M.yml local_setup.yml
+
+
+simple download script:
+python tools/convert_hf_to_sequential.py --download-only --cache-dir /gpfs/alpine/csc499/proj-shared/hf_checkpoints --hf-model-name pythia-410m-v0 --revision 143000
 """
 
 MULTI_GPU_ARGS = " ".join(
@@ -505,9 +510,20 @@ if __name__ == "__main__":
             cache_dir=os.path.join(args.cache_dir,f"{args.hf_model_name}/step{args.revision}")
         ).half()
         exit(0)
+    else:
+        print("======================================================================")
+        print("Warning the following script will delete files withing {}".format(args.output_dir))
+        print("Warning the following script will delete this directory {}".format(tmp_cache_dir))
+        print("======================================================================")
+        time.sleep(5)
 
-    neox_args = consume_neox_args2(args2)
-    # neox_args = NeoXArgs.from_ymls(args.config)
+    args.output_dir = args.output_dir + f"_step{args.revision}"
+    # print(args.output_dir)
+    # exit(0)
+    if int(os.environ['OMPI_COMM_WORLD_SIZE']) > 1:
+        neox_args = consume_neox_args2(args2)
+    else:
+        neox_args = NeoXArgs.from_ymls(args.config) 
     neox_args.configure_distributed_args()
     neox_args.build_tokenizer()
     neox_args.initialize_tensorboard_writer()

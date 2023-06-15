@@ -1069,19 +1069,37 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Freeze language model, make params require no grads
     """
     
-    train_data_paths: str = None
+    train_data_paths: list = None
     """
-    Train datasets of shard paths, eg: {00001.tar::30000.tart} 
-    """
-
-    test_data_paths: str = None
-    """
-    Test datasets.
+    List of paths to train datasets.
     """
 
-    valid_data_paths: str = None
+    test_data_paths: list = None
     """
-    Validation datasets.
+    List of paths to test datasets.
+    """
+
+    valid_data_paths: list = None
+    """
+    List of paths to validation datasets.
+    """
+
+    train_data_weights: list = None
+    """
+    List of 'weights' that decide how often to sample from each training dataset when blending datasets. If None, defaults to equal weighting.
+    Should be a list the same length as `train_data_paths`
+    """
+
+    valid_data_weights: list = None
+    """
+    List of 'weights' that decide how often to sample from each validation dataset when blending datasets. If None, defaults to equal weighting.
+    Should be a list the same length as `valid_data_paths`
+    """
+
+    test_data_weights: list = None
+    """
+    List of 'weights' that decide how often to sample from each test dataset when blending datasets. If None, defaults to equal weighting.
+    Should be a list the same length as `test_data_paths`
     """
 
     image_size: int = 224
@@ -1099,7 +1117,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Number of samples to run for evaluation validation/test.
     """    
     
-    dataset_resampled: bool = False
+    dataset_resampled: bool = True
     """
     Resample dataset to iter infinitely.
     """ 
