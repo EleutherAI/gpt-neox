@@ -286,7 +286,7 @@ def get_wds_data(args, is_train, epoch=0, floor=False):
     
     assert input_shards is not None
 
-    resampled = getattr(args, 'dataset_resampled', False) and is_train
+    resampled = getattr(args, 'dataset_resampled', False)
 
     num_shards = None
     if is_train:

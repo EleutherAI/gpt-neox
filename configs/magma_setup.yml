@@ -14,30 +14,41 @@
   "test-data-weights": [
     1.0,
   ],
-
-  # we use tokenzier from huggingface, don't need vocal or merge file
-  #"vocab-file": "/home/lfsm/code/gpt-neox/data/gpt2-vocab.json",
-  #"merge-file": "/home/lfsm/code/gpt-neox/data/gpt2-merges.txt",
-
-  "tokenizer_type": "HFGPT2Tokenizer",
   
   "tokenizer-type": "HFTokenizer",
   "vocab-file": "/gpfs/alpine/csc499/scratch/kshitijkg/gpt-neox/data/20B_tokenizer.json",
 
-  "save": "/gpfs/alpine/csc499/scratch/kshitijkg/magma/gpt-neox/checkpoints/magma_410M_testrun4",
-  "load": "/gpfs/alpine/csc499/scratch/kshitijkg/neox_converted_magma/mp1_pp1/pythia",
-  # "load": "/gpfs/alpine/csc499/scratch/kshitijkg/magma/gpt-neox/checkpoints/magma_410M_testrun4",
+  "save": "/gpfs/alpine/csc499/scratch/kshitijkg/magma/gpt-neox/checkpoints/magma_410M_testrun5",
+  "load": "/gpfs/alpine/csc499/proj-shared/pythia_magma_checkpoints/mp1_pp1",
+  # "load": "/gpfs/alpine/csc499/scratch/kshitijkg/magma/gpt-neox/checkpoints/magma_410M_testrun5",
   "load_clip": "/gpfs/alpine/csc499/proj-shared/magma/models/clip",
   "checkpoint_validation_with_forward_pass": False,
 
-  "tensorboard-dir": "/gpfs/alpine/csc499/scratch/kshitijkg/magma/gpt-neox/tensorboard/magma_410M_testrun4",
-  "log-dir": "/gpfs/alpine/csc499/scratch/kshitijkg/magma/gpt-neox/logs/magma_410M_testrun4",
+  "tensorboard-dir": "/gpfs/alpine/csc499/scratch/kshitijkg/magma/gpt-neox/tensorboard/magma_410M_testrun5",
+  "log-dir": "/gpfs/alpine/csc499/scratch/kshitijkg/magma/gpt-neox/logs/magma_410M_testrun5",
   "use_wandb": False,
   "wandb_host": "https://api.wandb.ai",
-  "wandb_project": "magma_410M_testrun4",
+  "wandb_project": "magma_410M_testrun5",
 
   "launcher": "jsrun",
   "deepspeed_jsrun": true,
   "finetune": true,
   "num_workers": 0,
+
+  "optimizer": {
+    "type": "Adam",
+    "params": {
+      "lr": 0.0008,
+      "betas": [0.9, 0.95],
+      "eps": 1.0e-8,
+    }
+  },
+  "min_lr": 0.00008,
+  
+  # LLAMA Config
+  # batch / data settings
+  "train_batch_size": 264,
+  "train_micro_batch_size_per_gpu": 4,
+  "data-impl": "mmap",
+  "split": "949,50,1",
 }
