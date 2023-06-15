@@ -55,7 +55,7 @@
 
   # regularization
   "gradient_clipping": 1.0,
-  "weight-decay": 0.1,
+  "weight-decay": 0.0,
   "hidden-dropout": 0.0,
   "attention-dropout": 0.0,
 
