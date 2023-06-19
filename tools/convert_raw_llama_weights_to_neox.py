@@ -275,7 +275,7 @@ def convert_model_pipeline(
     model_state = {
         "dp_world_size": 1,
         "mp_world_size": num_output_shards,
-        "module": {},
+        "module": None,
         "optimizer": {},
         "global_steps": 1,
         "skipped_steps": 1,
