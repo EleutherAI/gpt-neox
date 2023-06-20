@@ -22,6 +22,8 @@ import torch
 
 from .utils import ensure_divisibility
 
+from axonn import axonn as ax
+
 # Model parallel group that the current rank belongs to.
 _MODEL_PARALLEL_GROUP = None
 # Data parallel group that the current rank belongs to.
@@ -50,7 +52,7 @@ def is_unitialized():
     return _DATA_PARALLEL_GROUP is None
 
 
-def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce=False):
+def initialize_model_parallel(model_parallel_size, inner_model_parallel_size, outer_model_parallel_size, topology=None, fp32_allreduce=False):
     """
     Initialize model data parallel groups.
 
@@ -74,6 +76,7 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
     # Get world size and rank. Ensure some consistencies.
     assert torch.distributed.is_initialized()
     world_size = torch.distributed.get_world_size()
+    assert model_parallel_size == inner_model_parallel_size * outer_model_parallel_size
     if world_size < model_parallel_size:
         raise ValueError("world size cannot be smaller than model parallel size")
     ensure_divisibility(world_size, model_parallel_size)
@@ -82,6 +85,17 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
     global _MPU_TOPOLOGY
     if topology:
         _MPU_TOPOLOGY = topology
+
+    # Initialize AxoNN
+    ax.init(
+        G_data = world_size // model_parallel_size,
+        G_inter = 1,
+        G_intra_r = outer_model_parallel_size,
+        G_intra_c = inner_model_parallel_size,
+
+    )
+    if torch.distributed.get_rank() == 0:
+        print(f"> initialized AxoNN Tensor Parallel in a {outer_model_parallel_size} x {inner_model_parallel_size} config")
 
     # Build the data parallel groups.
     global _DATA_PARALLEL_GROUP

@@ -1,6 +1,8 @@
 {
   "pipe-parallel-size": 1,
-  "model-parallel-size": 1,
+  "model-parallel-size": 2,
+  "inner-model-parallel-size": 2,
+  "outer-model-parallel-size": 1,
 
   "num-layers": 12,
   "hidden-size": 768,
@@ -8,7 +10,7 @@
   "seq-length": 2048,
   "max-position-embeddings": 2048,
   "norm": "layernorm",
-  "pos-emb": "rotary",
+  "pos-emb": "learned",
   "no-weight-tying": true,
   "gpt_j_residual": false,
   "output_layer_parallelism": "column",
@@ -74,5 +76,9 @@
   "keep-last-n-checkpoints": 4,
   "wall_clock_breakdown": true,
 
-  "hostfile": "/mock_path"
+  "hostfile": "/mock_path",
+
+  "data-path": "./data/enwik8/enwik8_text_document",
+  "vocab_file": "./data/gpt2-vocab.json",
+  "merge_file": "./data/gpt2-merges.txt"
 }

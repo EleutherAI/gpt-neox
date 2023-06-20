@@ -61,6 +61,9 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     """
 
     model_parallel_size: int = 1
+    inner_model_parallel_size: int = 1
+    outer_model_parallel_size: int = 1
+    
     """
     Size of the model parallelism.
     """

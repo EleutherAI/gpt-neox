@@ -186,6 +186,8 @@ def _initialize_distributed(neox_args):
         else:
             mpu.initialize_model_parallel(
                 neox_args.model_parallel_size,
+                neox_args.inner_model_parallel_size,
+                neox_args.outer_model_parallel_size,
                 topology=topo,
                 fp32_allreduce=neox_args.fp32_allreduce,
             )
