@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 6dd0344
+    Default = 2fbdd43
 
     current git hash of repository
 
@@ -758,6 +758,14 @@ Misc. Arguments
 
 
 
+- **deepspeed_jsrun**: bool
+
+    Default = False
+
+    Run via JSRUN, this will attempt to discover the necessary variables to initialize torch distributed from the IBM LSF environment
+
+
+
 - **user_script**: str
 
     Default = None
@@ -829,6 +837,22 @@ Parallelism Arguments
 
 
 - **model_parallel_size**: int
+
+    Default = 1
+
+    
+
+
+
+- **inner_model_parallel_size**: int
+
+    Default = 1
+
+    
+
+
+
+- **outer_model_parallel_size**: int
 
     Default = 1
 
