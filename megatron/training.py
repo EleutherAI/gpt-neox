@@ -273,8 +273,7 @@ def pretrain(neox_args):
 
 def _get_batch(neox_args, tokenizer, keys, data, datatype):
     """Support function for get_batch / get_batch pipe (to avoid code repetition)"""
-    _keys = [k for k in keys if k in data.keys()] if data else keys
-    data_b = mpu.broadcast_data(_keys, data, datatype)
+    data_b = mpu.broadcast_data(keys, data, datatype)
 
     # Unpack.
     tokens_ = data_b["text"].long()
