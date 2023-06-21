@@ -134,13 +134,13 @@ RUN mkdir -p /opt/spotlight/models && \
    mkdir -p src/main/resources/templates/
 
 RUN \
-    wget https://raw.githubusercontent.com/dbpedia-spotlight/spotlight-docker/master/nif-21.vm \
-    wget https://raw.githubusercontent.com/dbpedia-spotlight/spotlight-docker/master/spotlight.sh \
-    wget https://raw.githubusercontent.com/dbpedia-spotlight/spotlight-docker/master/spotlight-compose.yml
+    wget https://raw.githubusercontent.com/dbpedia-spotlight/spotlight-docker/master/nif-21.vm -P /tmp/ \
+    wget https://raw.githubusercontent.com/dbpedia-spotlight/spotlight-docker/master/spotlight.sh -P /tmp/ \
+    wget https://raw.githubusercontent.com/dbpedia-spotlight/spotlight-docker/master/spotlight-compose.yml -P /tmp/
 
 # adding the script to the container
-ADD spotlight.sh /bin/spotlight.sh
-COPY nif-21.vm /opt/spotlight/src/main/resources/templates/nif-21.vm
+ADD  /tmp/spotlight.sh /bin/spotlight.sh
+COPY  /tmp/nif-21.vm /opt/spotlight/src/main/resources/templates/nif-21.vm
 RUN chmod +x /bin/spotlight.sh 
 
 EXPOSE 80
