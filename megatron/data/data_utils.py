@@ -67,6 +67,7 @@ def build_the_dataset(
     indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup)
     if label_prefix is None:
         label_dataset = None
+
     else:
         label_dataset = make_indexed_dataset(label_prefix, data_impl, skip_warmup)
 
@@ -207,7 +208,7 @@ def build_weighted_datasets(
     for i, (train_path, label_path, valid_path, test_path) in enumerate(
         zip_longest(
             neox_args.train_data_paths,
-            neox_args.label_data_paths if neox_args.label_data_paths else [],
+            neox_args.label_data_paths if neox_args.label_data_paths else None,
             neox_args.valid_data_paths,
             neox_args.test_data_paths,
         )

@@ -273,7 +273,7 @@ def pretrain(neox_args):
 
 def _get_batch(neox_args, tokenizer, keys, data, datatype):
     """Support function for get_batch / get_batch pipe (to avoid code repetition)"""
-    _keys = [k for k in keys if k in data] if data else keys
+    _keys = [k for k in keys if k in data.keys()] if data else keys
     data_b = mpu.broadcast_data(_keys, data, datatype)
 
     # Unpack.
@@ -304,7 +304,7 @@ def get_batch(neox_args, data_iterator):
     """Generate a batch"""
 
     # Items and their type.
-    keys = ["text", "label"]
+    keys = ["text", "label"] if neox_args.label_data_paths else ["text"]
     datatype = torch.int64
 
     # Broadcast data.
@@ -324,7 +324,7 @@ def get_batch(neox_args, data_iterator):
 def get_batch_pipe(data, neox_args, curr_scheduler=None):
     """A modification of get_batch() to work with the latest batch instead of an iterator."""
     # Items and their type.
-    keys = ["text", "label"]
+    keys = ["text", "label"] if neox_args.label_data_paths else ["text"]
     datatype = torch.int64
 
     tokens, labels, loss_mask, attention_mask, position_ids = _get_batch(
