@@ -114,7 +114,7 @@ RUN mkdir -p /tmp && chmod 0777 /tmp
 USER mchorse
 WORKDIR /home/mchorse
 
-## Multi Step Build
+
 FROM openjdk:8-jre-alpine
 
 MAINTAINER  DBpedia Spotlight Team <dbp-spotlight-developers@lists.sourceforge.net>
@@ -132,6 +132,11 @@ RUN mkdir -p /opt/spotlight/models && \
    cd /opt/spotlight && \
    wget -O dbpedia-spotlight.jar $SPOTLIGHT && \
    mkdir -p src/main/resources/templates/
+
+RUN \
+    wget https://raw.githubusercontent.com/dbpedia-spotlight/spotlight-docker/master/nif-21.vm \
+    wget https://raw.githubusercontent.com/dbpedia-spotlight/spotlight-docker/master/spotlight.sh \
+    wget https://raw.githubusercontent.com/dbpedia-spotlight/spotlight-docker/master/spotlight-compose.yml
 
 # adding the script to the container
 ADD spotlight.sh /bin/spotlight.sh
