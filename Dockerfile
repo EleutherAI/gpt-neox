@@ -13,8 +13,11 @@
 # limitations under the License.
 
 FROM nvidia/cuda:11.7.0-runtime-ubuntu20.04
+FROM openjdk:8-jre-alpine
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV SPOTLIGHT  https://sourceforge.net/projects/spotlight-multilingual-docker/files/dbpedia-spotlight-1.1.jar
+
 
 # metainformation
 LABEL org.opencontainers.image.version = "2.0"
@@ -22,6 +25,27 @@ LABEL org.opencontainers.image.authors = "contact@eleuther.ai"
 LABEL org.opencontainers.image.source = "https://www.github.com/eleutherai/gpt-neox"
 LABEL org.opencontainers.image.licenses = " Apache-2.0"
 LABEL org.opencontainers.image.base.name="docker.io/nvidia/cuda:11.1.1-devel-ubuntu20.04"
+
+# adding required packages
+RUN apk update && \
+    apk add bash && \
+    apk add tshark && \
+    apk add --no-cache curl
+
+# downloading spolight model and dbpedia spotlight
+RUN mkdir -p /opt/spotlight/models && \ 
+   cd /opt/spotlight && \
+   wget -O dbpedia-spotlight.jar $SPOTLIGHT && \
+   mkdir -p src/main/resources/templates/
+
+RUN wget https://raw.githubusercontent.com/dbpedia-spotlight/spotlight-docker/master/nif-21.vm -P /opt/spotlight/src/main/resources/templates/ && \
+    wget https://raw.githubusercontent.com/dbpedia-spotlight/spotlight-docker/master/spotlight.sh -P /bin/ && \
+    wget https://raw.githubusercontent.com/dbpedia-spotlight/spotlight-docker/master/spotlight-compose.yml -P /opt/spotlight
+
+# adding the script to the container
+ADD  /opt/spotlight/spotlight.sh /bin/spotlight.sh
+COPY  /opt/spotlight/nif-21.vm /opt/spotlight/src/main/resources/templates/nif-21.vm
+RUN chmod +x /bin/spotlight.sh 
 
 #### System package (uses default Python 3 version in Ubuntu 20.04)
 RUN apt-get update -y && \
@@ -46,7 +70,7 @@ RUN mkdir /var/run/sshd && \
     echo "Set disable_coredump false" >> /etc/sudo.conf
 
 # Expose SSH port
-EXPOSE 22
+EXPOSE 22 80
 
 #### OPENMPI
 ENV OPENMPI_BASEVERSION=4.1
@@ -113,33 +137,3 @@ RUN mkdir -p /tmp && chmod 0777 /tmp
 #### SWITCH TO mchorse USER
 USER mchorse
 WORKDIR /home/mchorse
-
-
-FROM openjdk:8-jre-alpine
-
-MAINTAINER  DBpedia Spotlight Team <dbp-spotlight-developers@lists.sourceforge.net>
-
-ENV SPOTLIGHT  https://sourceforge.net/projects/spotlight-multilingual-docker/files/dbpedia-spotlight-1.1.jar
-
-# adding required packages
-RUN apk update && \
-    apk add bash && \
-    apk add tshark && \
-    apk add --no-cache curl
-
-# downloading spolight model and dbpedia spotlight
-RUN mkdir -p /opt/spotlight/models && \ 
-   cd /opt/spotlight && \
-   wget -O dbpedia-spotlight.jar $SPOTLIGHT && \
-   mkdir -p src/main/resources/templates/
-
-RUN wget https://raw.githubusercontent.com/dbpedia-spotlight/spotlight-docker/master/nif-21.vm -P /opt/spotlight/src/main/resources/templates/ && \
-    wget https://raw.githubusercontent.com/dbpedia-spotlight/spotlight-docker/master/spotlight.sh -P /bin/ && \
-    wget https://raw.githubusercontent.com/dbpedia-spotlight/spotlight-docker/master/spotlight-compose.yml -P /opt/spotlight
-
-# adding the script to the container
-# ADD  /opt/spotlight/spotlight.sh /bin/spotlight.sh
-# COPY  /opt/spotlight/nif-21.vm /opt/spotlight/src/main/resources/templates/nif-21.vm
-RUN chmod +x /bin/spotlight.sh 
-
-EXPOSE 80
