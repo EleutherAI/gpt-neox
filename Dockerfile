@@ -133,9 +133,9 @@ RUN mkdir -p /opt/spotlight/models && \
    wget -O dbpedia-spotlight.jar $SPOTLIGHT && \
    mkdir -p src/main/resources/templates/
 
-RUN wget https://raw.githubusercontent.com/dbpedia-spotlight/spotlight-docker/master/nif-21.vm -P /opt/spotlight/src/main/resources/templates/ \
-    wget https://raw.githubusercontent.com/dbpedia-spotlight/spotlight-docker/master/spotlight.sh -P /bin/ \
-    wget https://raw.githubusercontent.com/dbpedia-spotlight/spotlight-docker/master/spotlight-compose.yml -P /opt/spotlight
+RUN wget -O https://raw.githubusercontent.com/dbpedia-spotlight/spotlight-docker/master/nif-21.vm -P /opt/spotlight/src/main/resources/templates/ \
+    wget -O https://raw.githubusercontent.com/dbpedia-spotlight/spotlight-docker/master/spotlight.sh -P /bin/ \
+    wget -O https://raw.githubusercontent.com/dbpedia-spotlight/spotlight-docker/master/spotlight-compose.yml -P /opt/spotlight
 
 # adding the script to the container
 # ADD  /opt/spotlight/spotlight.sh /bin/spotlight.sh
