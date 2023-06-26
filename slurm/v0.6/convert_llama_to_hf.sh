@@ -11,11 +11,14 @@
 #SBATCH --gres=gpu:8
 #SBATCH --exclusive
 #SBATCH --open-mode=append
-#SBATCH --output=convert_llama_7b_step6000_%j.out
-#SBATCH --error=convert_llama_7b_step6000_%j.out
+#SBATCH --output=convert_llama_7b_step18000_%j.out
+#SBATCH --error=convert_llama_7b_step18000_%j.out
 #SBATCH --time=2:00:00
 
 # BYU cluster
+
+OUT_NAME=proofgpt_v0.6_llama_7b_step18000_hf
+OUT_DIR=/home/za2514/compute/saved-weights/proofgpt_v0.6/${OUT_NAME}
 
 source /home/hailey81/miniconda3/bin/activate llmath
 
@@ -27,8 +30,6 @@ export PATH=/home/hailey81/cuda_install/bin:$PATH
 ln -s /home/hailey81/miniconda3/envs/llmath/bin/gcc/ ~/.local/bin/gcc
 export PATH=$HOME/.local/bin:$PATH
 
-# export WANDB_API_KEY=07cebf97416da7fa921b74774ef771f52d4e49e9
-# wandb login
 export WANDB_MODE=offline
 
 export TRAIN_DIR=/home/za2514/math-lm/gpt-neox/
@@ -38,5 +39,7 @@ pwd
 
 export PYTHONPATH=$TRAIN_DIR
 
-python tools/convert_llama_sequential_to_hf.py --input_dir /home/za2514/compute/saved-weights/proofgpt_v0.6/proofgpt_v0.6_llama_7b/global_step6000 --config_file /home/za2514/compute/math-lm/gpt-neox/configs/v0.6/llama_7b.yml --output_dir /home/za2514/compute/saved-weights/proofgpt_v0.6/proofgpt_v0.5_llama_7b_step10000_hf/
+python tools/convert_llama_sequential_to_hf.py --input_dir /home/za2514/compute/saved-weights/proofgpt_v0.6/proofgpt_v0.6_llama_7b/global_step18000 --config_file /home/za2514/compute/math-lm/gpt-neox/configs/v0.6/llama_7b.yml --output_dir ${OUT_DIR}
 
+cp /home/za2514/downloaded-weights/llama_hf/7B/{tokenizer_config.json,tokenizer.json,tokenizer.model} ${OUT_DIR}
+echo "exited successfully"
