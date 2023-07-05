@@ -67,7 +67,6 @@ def build_the_dataset(
     indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup)
     if label_prefix is None:
         label_dataset = None
-
     else:
         label_dataset = make_indexed_dataset(label_prefix, data_impl, skip_warmup)
 
