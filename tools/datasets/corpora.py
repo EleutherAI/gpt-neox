@@ -136,7 +136,7 @@ class DataDownloader(ABC):
             ]
         )
 
-        cmd = f"python tools/preprocess_data.py \
+        cmd = f"python tools/datasets/preprocess_data.py \
             --input {jsonl_filepath} \
             --output-prefix {parent_folder}/{self.name} \
             --vocab {self.vocab_file} \
@@ -263,10 +263,7 @@ class YoutubeSubtitles(DataDownloader):
 
 class C4(DataDownloader):
     name = "c4"
-    urls = [
-        f"https://the-eye.eu/eleuther_staging/c4/en/c4-train.{i:05}-of-01024.json.gz"
-        for i in range(1024)
-    ]
+    urls = []
 
 
 class C4OpenWebText(DataDownloader):
@@ -285,6 +282,21 @@ class ProofPile(DataDownloader):
     name="proof-pile"
     urls=[]
 
+class ArxivPilev2(DataDownloader):
+    name="arxiv-pilev2"
+    urls=[]
+
+class ArxivRp(DataDownloader):
+    name="arxiv-rp"
+    urls=[]
+
+class OpenWebMath(DataDownloader):
+    name="open-web-math"
+    urls=[]
+
+class ProofPilev1(DataDownloader):
+    name="proof-pile-v1"
+    urls=[]
 
 def maybe_download_gpt2_tokenizer_data(tokenizer_type, data_dir):
     if tokenizer_type is None or tokenizer_type == "GPT2BPETokenizer":
@@ -317,7 +329,11 @@ DATA_DOWNLOADERS = {
     "c4": C4,
     "c4_openwebtext": C4OpenWebText,
     "enwik8": Enwik8,
-    "proof-pile": ProofPile
+    "proof-pile": ProofPile,
+    "arxiv-pilev2": ArxivPilev2,
+    "arxiv-rp": ArxivRp,
+    "open-web-math": OpenWebMath,
+    "proof-pile-v1": ProofPilev1,
 }
 
 
