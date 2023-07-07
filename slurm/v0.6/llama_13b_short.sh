@@ -11,9 +11,9 @@
 #SBATCH --gres=gpu:8
 #SBATCH --exclusive
 #SBATCH --open-mode=append
-#SBATCH --output=llama_7b_resume_step28000_%j.out
-#SBATCH --error=llama_7b_resume_step28000_%j.out
-#SBATCH --time=3-00:00:00
+#SBATCH --output=llama_13b_short_%j.out
+#SBATCH --error=llama_13b_short_%j.out
+#SBATCH --time=2:00:00
 
 # BYU cluster
 
@@ -27,6 +27,8 @@ export PATH=/home/hailey81/cuda_install/bin:$PATH
 ln -s /home/hailey81/miniconda3/envs/llmath/bin/gcc/ ~/.local/bin/gcc
 export PATH=$HOME/.local/bin:$PATH
 
+export NCCL_DEBUG=INFO
+
 # export WANDB_API_KEY=07cebf97416da7fa921b74774ef771f52d4e49e9
 # wandb login
 export WANDB_MODE=offline
@@ -36,4 +38,4 @@ export TRAIN_DIR=/home/za2514/compute/math-lm/gpt-neox/
 cd $TRAIN_DIR
 pwd
 
-python ./deepy.py train.py --conf_dir /home/za2514/compute/math-lm/gpt-neox/configs/v0.6/ llama_7b_resume.yml
+python ./deepy.py train.py --conf_dir /home/za2514/compute/math-lm/gpt-neox/configs/v0.6/ llama_13b_short.yml

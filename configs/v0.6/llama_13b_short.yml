@@ -1,12 +1,12 @@
 {
-  "pipe_parallel_size": 0,
+  "pipe_parallel_size": 1,
   "model_parallel_size": 1,
   "make_vocab_size_divisible_by": 1,
 
   # model settings
-  "num_layers": 32,
-  "hidden_size": 4096,
-  "num_attention_heads": 32,
+  "num_layers": 40,
+  "hidden_size": 5120,
+  "num_attention_heads": 40,
   "seq_length": 2048,
   "max_position_embeddings": 2048,
   "pos_emb": "rotary",
@@ -46,7 +46,7 @@
     "cpu_offload": false
   },
 
-   "train_micro_batch_size_per_gpu": 4,
+   "train_micro_batch_size_per_gpu": 1,
    "gradient_accumulation_steps": 4,
    "data_impl": "mmap",
 
@@ -70,8 +70,8 @@
      "min_loss_scale": 1
    },
 
-   "train_iters": 120000,
-   "lr_decay_iters": 120000,
+   "train_iters": 10000,
+   "lr_decay_iters": 10000,
    "distributed_backend": "nccl",
    "lr_decay_style": "cosine",
    "warmup": 0.04,
@@ -86,27 +86,21 @@
    "tokenizer_type": "SPMTokenizer",
    "vocab-file": "/home/za2514/downloaded-weights/llama/tokenizer.model",
 
-   "save": "/home/za2514/compute/saved-weights/proofgpt_v0.6/proofgpt_v0.6_llama_7b",
-   "load": "/home/za2514/compute/saved-weights/proofgpt_v0.6/proofgpt_v0.6_llama_7b",
-   "finetune": false,
-   "no_load_optim": false,
-   "use_checkpoint_lr_scheduler": true, #false
-   "override_lr_scheduler": false,
-   "iteration": 28000,
+   "save": "/home/za2514/compute/saved-weights/proofgpt_v0.6/proofgpt_v0.6_llama_13b_short",
+   "load": "/home/za2514/compute/downloaded-weights/llama_neox/13B_no-mp",
+   "finetune": true,
+   "override_lr_scheduler": true,
+   "checkpoint_validation_with_forward_pass": true,
    
    "train-data-paths": ["/home/za2514/proof-pile_llama/train/proof-pile/proof-pile_text_document", "/home/za2514/proof-pile_llama/train/pile-sample/pile-sample_text_document"],
    "valid-data-paths": ["/home/za2514/proof-pile_llama/validation/proof-pile/proof-pile_text_document"],
    "test-data-paths": ["/home/za2514/proof-pile_llama/test/proof-pile/proof-pile_text_document"],
 
    "tensorboard-dir": "/home/za2514/tensorboard",
-   "log-dir": "/home/za2514/logs/",
-
-   "log-interval": 10,
-   "steps_per_print": 10,
-   "wall_clock_breakdown": true,
+   "log-dir": "/home/za2514/logs/v0.6/llama_13b_short",
 
    "use_wandb": true,
-   "wandb_group": "llama_7b_resume",
+   "wandb_group": "llama_13b_short",
    "wandb_project": "math-lm-v0.6",
    "wandb_host": "https://api.wandb.ai",
 }

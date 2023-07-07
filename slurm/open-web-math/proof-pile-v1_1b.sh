@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="llmath7B"
+#SBATCH --job-name="llmath"
 # #SBATCH --account=dw87
 #SBATCH --comment="eleutherai"
 #SBATCH --qos=dw87
@@ -11,8 +11,8 @@
 #SBATCH --gres=gpu:8
 #SBATCH --exclusive
 #SBATCH --open-mode=append
-#SBATCH --output=llama_7b_resume_step28000_%j.out
-#SBATCH --error=llama_7b_resume_step28000_%j.out
+#SBATCH --output=proof-pile-v1_1b_%j.out
+#SBATCH --error=proof-pile-v1_1b_%j.out
 #SBATCH --time=3-00:00:00
 
 # BYU cluster
@@ -30,10 +30,10 @@ export PATH=$HOME/.local/bin:$PATH
 # export WANDB_API_KEY=07cebf97416da7fa921b74774ef771f52d4e49e9
 # wandb login
 export WANDB_MODE=offline
-
-export TRAIN_DIR=/home/za2514/compute/math-lm/gpt-neox/
+ 
+export TRAIN_DIR=/home/za2514/compute/math-lm/gpt-neox
 
 cd $TRAIN_DIR
 pwd
 
-python ./deepy.py train.py --conf_dir /home/za2514/compute/math-lm/gpt-neox/configs/v0.6/ llama_7b_resume.yml
+python ./deepy.py train.py --conf_dir /home/za2514/compute/math-lm/gpt-neox/configs/open-web-math/ proof-pile-v1_1b.yml
