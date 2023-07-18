@@ -22,6 +22,8 @@
 from datetime import datetime
 from functools import partial
 
+import time
+
 import math
 import sys
 
@@ -42,7 +44,8 @@ from megatron.model import (
     GPT2ModelPipe,
     SoftEmbedding,
     get_params_for_weight_decay_optimization,
-    add_adapters
+    add_adapters,
+    add_lora
 )
 from megatron.checkpointing import load_checkpoint, save_checkpoint
 from megatron.data.data_utils import build_web_train_valid_test_data_iterators, build_train_valid_test_data_iterators
@@ -187,6 +190,9 @@ def pretrain(neox_args):
 
     # Initialize and get arguments, timers, and Tensorboard writer.
     initialize_megatron(neox_args=neox_args)
+    
+    
+    time_since_epoch = time.time()
 
     # Model, optimizer, and learning rate.
     timers("model and optimizer").start()
@@ -421,15 +427,26 @@ def get_model(neox_args, use_cache=False):
     ### add adapter
     if neox_args.add_adapters:
         # add on mlp
-        add_adapters(neox_args,
-                    model,
-                    downsample_factor=neox_args.adaper_downsample_factor,
-                    location='mlp') 
-        ## add on attention
-        add_adapters(neox_args,
-                    model,
-                    downsample_factor=neox_args.adaper_downsample_factor,
-                    location='attention') 
+        if neox_args.adapter_type == "lora":
+            add_lora(neox_args,
+                        model,
+                        downsample_factor=neox_args.adapter_downsample_factor,
+                        location='mlp') 
+            ## add on attention
+            add_lora(neox_args,
+                        model,
+                        downsample_factor=neox_args.adapter_downsample_factor,
+                        location='attention')
+        else:
+            add_adapters(neox_args,
+                        model,
+                        downsample_factor=neox_args.adapter_downsample_factor,
+                        location='mlp') 
+            ## add on attention
+            add_adapters(neox_args,
+                        model,
+                        downsample_factor=neox_args.adapter_downsample_factor,
+                        location='attention') 
     
     ### soft prompt tuning stuff ###
     if neox_args.soft_prompt_tuning is not None and neox_args.soft_prompt_tuning.get(
@@ -455,7 +472,7 @@ def get_model(neox_args, use_cache=False):
     if neox_args.freeze_lm:
         for name,param in model.named_parameters():
             param.requires_grad = False
-            if "adapter" in name or "image_prefix" in name:
+            if "adapter" in name or "image_prefix" in name or "lora" in name:
                 param.requires_grad = True 
     
     if not neox_args.is_pipe_parallel:
@@ -1026,3 +1043,4 @@ def evaluate_and_print_results(
     print_rank_0("-" * length)
     print_rank_0(string)
     print_rank_0("-" * length)
+

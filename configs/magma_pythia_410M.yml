@@ -13,7 +13,8 @@
 
   # adapter settings
   "add_adapters": true,
-  "adaper_downsample_factor": 8,
+  "adapter_downsample_factor": 8,
+  "adapter_type": "lora",
 
 # model settings
   "freeze-lm": true,

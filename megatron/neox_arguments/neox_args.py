@@ -95,7 +95,12 @@ class NeoXArgsModel(NeoXArgsTemplate):
     add adapters on model transformer mlp and attention.
     """
     
-    adaper_downsample_factor: int = 4
+    adapter_type: Literal["adapter","lora"] = "adapter"
+    """
+    Specify whether to add basic adapters or lora layers, if any
+    """
+    
+    adapter_downsample_factor: int = 4
     """
     Downsample factor for adapter's linear layers
     """
@@ -1199,3 +1204,4 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     """
     Tasks to evaluate on using lm_eval_harness
     """
+

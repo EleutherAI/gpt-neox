@@ -16,16 +16,16 @@
   ],
   
   "tokenizer-type": "HFTokenizer",
-  "vocab-file": "/gpfs/alpine/csc499/scratch/kshitijkg/gpt-neox/data/20B_tokenizer.json",
+  "vocab-file": "/gpfs/alpine/csc499/scratch/kublaikhan1/20B_tokenizer.json",
 
-  "save": "/gpfs/alpine/csc499/scratch/kshitijkg/magma/gpt-neox/checkpoints/magma_410M_testrun5",
+  "save": "/gpfs/alpine/csc499/scratch/kublaikhan1/magma/gpt-neox/checkpoints/magma_410M_testrun5",
   "load": "/gpfs/alpine/csc499/proj-shared/pythia_magma_checkpoints/mp1_pp1/pythia",
-  # "load": "/gpfs/alpine/csc499/scratch/kshitijkg/magma/gpt-neox/checkpoints/magma_410M_testrun5",
+  # "load": "/gpfs/alpine/csc499/scratch/kublaikhan1/magma/gpt-neox/checkpoints/magma_410M_testrun5",
   "load_clip": "/gpfs/alpine/csc499/proj-shared/magma/models/clip",
   "checkpoint_validation_with_forward_pass": False,
 
-  "tensorboard-dir": "/gpfs/alpine/csc499/scratch/kshitijkg/magma/gpt-neox/tensorboard/magma_410M_testrun5",
-  "log-dir": "/gpfs/alpine/csc499/scratch/kshitijkg/magma/gpt-neox/logs/magma_410M_testrun5",
+  "tensorboard-dir": "/gpfs/alpine/csc499/scratch/kublaikhan1/magma/gpt-neox/tensorboard/magma_410M_testrun5",
+  "log-dir": "/gpfs/alpine/csc499/scratch/kublaikhan1/magma/gpt-neox/logs/magma_410M_testrun5",
   "use_wandb": False,
   "wandb_host": "https://api.wandb.ai",
   "wandb_project": "magma_410M_testrun5",
@@ -47,7 +47,7 @@
   
   # LLAMA Config
   # batch / data settings
-  "train_batch_size": 264,
+  "train_batch_size": 2208,
   "train_micro_batch_size_per_gpu": 4,
   "data-impl": "mmap",
   "split": "949,50,1",
