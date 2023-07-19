@@ -11,15 +11,15 @@
 #SBATCH --gres=gpu:8
 #SBATCH --exclusive
 #SBATCH --open-mode=append
-#SBATCH --output=convert_llama_7b_short_%j.out
-#SBATCH --error=convert_llama_7b_short_%j.out
+#SBATCH --output=convert_llama_7b_arxiv-rp_short_%j.out
+#SBATCH --error=convert_llama_7b_arxiv-rp_short_%j.out
 #SBATCH --time=2:00:00
 
 # BYU cluster
 
 STEP=10000
 
-OUT_NAME=proofgpt_v0.6_llama_7b_short
+OUT_NAME=proofgpt_v0.7_arxiv-rp_short
 INPUT_DIR=/home/za2514/compute/saved-weights/proofgpt_v0.6/proofgpt_v0.6_llama_7b_tune-lr_3e-5/global_step${STEP}
 OUT_DIR=/home/za2514/compute/saved-weights/proofgpt_v0.6/${OUT_NAME}
 CONFIG_FILE=/home/za2514/compute/math-lm/gpt-neox/configs/v0.6/llama_7b.yml
