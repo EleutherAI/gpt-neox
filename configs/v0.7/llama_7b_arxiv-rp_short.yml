@@ -17,6 +17,8 @@
   "norm": "rmsnorm",
   "rms_norm_epsilon": 1.0e-6,
 
+  "attention_config": [[["flash"], 32]],
+
   "scaled_upper_triang_masked_softmax_fusion": true,
   "bias_gelu_fusion": false,
   "use_bias_in_norms": false,
@@ -98,7 +100,7 @@
    "test-data-paths": ["/home/za2514/compute/proof-pile_llama/validation/arxiv-rp/arxiv-rp_text_document"], # avoid touching the test set!
 
    "tensorboard-dir": "/home/za2514/tensorboard",
-   "log-dir": "/home/za2514/logs/v0.6/llama_7b_arxiv-rp_short",
+   "log-dir": "/home/za2514/logs/v0.6/llama_7b_arxiv-rp_short_2",
 
    "use_wandb": true,
    "wandb_group": "llama_7b_arxiv-rp_short",

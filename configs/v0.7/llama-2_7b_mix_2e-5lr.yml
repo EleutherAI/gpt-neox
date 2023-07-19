@@ -29,13 +29,13 @@
    "optimizer": {
      "type": "Adam",
      "params": {
-       "lr": 0.00003,
+       "lr": 0.00002,
        "betas": [0.9, 0.95],
        "eps": 1.0e-8
      }
    },
 
-   "min_lr": 0.000003,
+   "min_lr": 0.000002,
 
    "zero_optimization": {
     "stage": 1,
@@ -62,18 +62,14 @@
    "hidden_dropout": 0,
    "attention_dropout": 0,
 
-   "fp16": {
-     "fp16": true,
+   "precision": "bfloat16",
+   "fp32_allreduce": true,
+   "bf16": {
      "enabled": true,
-     "loss_scale": 0,
-     "loss_scale_window": 1000,
-     "initial_scale_power": 12,
-     "hysteresis": 2,
-     "min_loss_scale": 1
    },
 
    "train_iters": 10000,
-   "lr_decay_iters": 10000,
+   "lr_decay_iters": 12079,
    "distributed_backend": "nccl",
    "lr_decay_style": "cosine",
    "warmup": 0.04,
@@ -88,22 +84,22 @@
    "tokenizer_type": "SPMTokenizer",
    "vocab-file": "/home/za2514/downloaded-weights/llama/tokenizer.model",
 
-   "save": "/home/za2514/compute/saved-weights/proofgpt_v0.7/llama_7b_arxiv-pilev2_short",
-   "load": "/home/za2514/downloaded-weights/llama_neox/7B",
+   "save": "/home/za2514/compute/saved-weights/proofgpt_v0.7/llama-2_7b_mix_2e-5lr",
+   "load": "/home/za2514/compute/downloaded-weights/llama-2_neox/7B",
    "finetune": true,
    "override_lr_scheduler": true,
    "checkpoint_validation_with_forward_pass": true,
    
-   "train-data-paths": ["/home/za2514/compute/proof-pile_llama/train/arxiv-pilev2/arxiv-pilev2_text_document", "/home/za2514/proof-pile_llama/train/pile-sample/pile-sample_text_document"],
-   "train_data_weights": [0.95, 0.05],
-   "valid-data-paths": ["/home/za2514/compute/proof-pile_llama/validation/arxiv-pilev2/arxiv-pilev2_text_document"],
-   "test-data-paths": ["/home/za2514/compute/proof-pile_llama/validation/arxiv-pilev2/arxiv-pilev2_text_document"], # don't want to touch the test set yet
+   "train-data-paths": ["/home/za2514/compute/open-web-math_llama/train/open-web-math/open-web-math_text_document", "/home/za2514/compute/proof-pile_llama/train/arxiv-rp/arxiv-rp_text_document", "/home/za2514/compute/proof-pile_llama/train/code-no-matlab/code-no-matlab_text_document", "/home/za2514/proof-pile_llama/train/pile-sample/pile-sample_text_document"],
+   "train_data_weights": [0.316, 0.316, 0.316, 0.052],
+   "valid-data-paths": ["/home/za2514/compute/open-web-math_llama/validation/open-web-math/open-web-math_text_document", "/home/za2514/compute/proof-pile_llama/validation/arxiv-rp/arxiv-rp_text_document", "/home/za2514/compute/proof-pile_llama/validation/code-no-matlab/code-no-matlab_text_document"],
+   "test-data-paths": ["/home/za2514/compute/open-web-math_llama/validation/open-web-math/open-web-math_text_document", "/home/za2514/compute/proof-pile_llama/validation/arxiv-rp/arxiv-rp_text_document", "/home/za2514/compute/proof-pile_llama/validation/code-no-matlab/code-no-matlab_text_document"], # avoid touching test set!
 
    "tensorboard-dir": "/home/za2514/tensorboard",
-   "log-dir": "/home/za2514/logs/v0.6/llama_7b_arxiv-pilev2_short_2",
+   "log-dir": "/home/za2514/logs/v0.6/llama-2_7b_mix_2e-5lr",
 
    "use_wandb": true,
-   "wandb_group": "llama_7b_arxiv-pilev2_short",
+   "wandb_group": "llama-2_7b_mix_2e-5lr",
    "wandb_project": "math-lm-v0.7",
    "wandb_host": "https://api.wandb.ai",
 }
