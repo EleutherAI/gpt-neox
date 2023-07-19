@@ -294,8 +294,28 @@ class OpenWebMath(DataDownloader):
     name="open-web-math"
     urls=[]
 
+class OpenWebMathHq(DataDownloader):
+    name="open-web-math-hq"
+    urls=[]
+
 class ProofPilev1(DataDownloader):
     name="proof-pile-v1"
+    urls=[]
+
+class PileSample(DataDownloader):
+    name="pile-sample"
+    urls=[]
+
+class PileSample1(DataDownloader):
+    name="pile-sample-1"
+    urls=[]
+
+class PileSample2(DataDownloader):
+    name="pile-sample-2"
+    urls=[]
+
+class CodeNoMatlab(DataDownloader):
+    name="code-no-matlab"
     urls=[]
 
 def maybe_download_gpt2_tokenizer_data(tokenizer_type, data_dir):
@@ -333,7 +353,12 @@ DATA_DOWNLOADERS = {
     "arxiv-pilev2": ArxivPilev2,
     "arxiv-rp": ArxivRp,
     "open-web-math": OpenWebMath,
+    "open-web-math-hq": OpenWebMathHq,
     "proof-pile-v1": ProofPilev1,
+    "pile-sample": PileSample,
+    "pile-sample-1": PileSample1,
+    "pile-sample-2": PileSample2,
+    "code-no-matlab": CodeNoMatlab,
 }
 
 
