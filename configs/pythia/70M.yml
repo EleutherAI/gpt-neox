@@ -73,7 +73,7 @@
   "lr_decay_style": "cosine",
   "warmup": 0.01,
   "checkpoint_factor": 1000,
-  "extra_save_iters": [0,1,2,4,8,16,32,64,128,256,512],
+  #"extra_save_iters": [0,1,2,4,8,16,32,64,128,256,512],
   "eval_interval": 100000,
   "eval_iters": 10,
 
@@ -81,5 +81,14 @@
   "steps_per_print": 10,
   "wall_clock_breakdown": true,
 
-  "tokenizer_type": "HFTokenizer"
+  "data_path": "/fsx/hailey/math-lm/gpt-neox/enwik8/enwik8/enwik8_text_document",
+
+  "tokenizer_type": "HFTokenizer",
+  "vocab-file": "/fsx/hailey/pythia/utils/20B_tokenizer.json",
+
+  "save": "/fsx/hailey/ckpts/",
+  "load": "/fsx/hailey/ckpts/",
+  
+  "launcher": "slurm",
+  "deepspeed_slurm": true
 }
