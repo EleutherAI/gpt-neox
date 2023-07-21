@@ -288,14 +288,14 @@ class ParallelSelfAttention(nn.Module):
         if self.attention_type != "multihead":
             self.num_kv_heads_per_partition = mpu.divide(neox_args.num_kv_heads, world_size) # TODO: we want to clone single-kv heads across ranks...
             self.kv_hidden_size = neox_args.num_kv_heads * self.hidden_size_per_attention_head
-		else:
-			self.num_kv_heads_per_partition = None
-			self.kv_hidden_size = None
+	else:
+	    self.num_kv_heads_per_partition = None
+	    self.kv_hidden_size = None
 
-		if self.attention_type == "multihead":
-			# Strided linear layer.
-			self.query_key_value = mpu.ColumnParallelLinear(
-				neox_args=neox_args,
+	if self.attention_type == "multihead":
+	    # Strided linear layer.
+	    self.query_key_value = mpu.ColumnParallelLinear(
+		neox_args=neox_args,
                 input_size=neox_args.hidden_size,
                 output_size=3 * neox_args.hidden_size,
                 gather_output=False,
