@@ -1113,7 +1113,7 @@ class NeoXArgs(*BASE_CLASSES):
 			return False
 
 		if self.num_kv_heads:
-			if self.hidden_size % self.num_kv_heads != 0
+			if self.hidden_size % self.num_kv_heads != 0:
 				error_message = (
 					self.__class__.__name__
 					+ ".validate_values() hidden_size must be divisible by num_attention_heads"
@@ -1121,7 +1121,7 @@ class NeoXArgs(*BASE_CLASSES):
 				logging.error(error_message)
 				raise ValueError(error_message)
 				return False
-			if not (self.num_attention_heads <= self.num_kv_heads) or (self.num_attention_heads % self.num_kv_heads != 0):
+			if not (self.num_attention_heads >= self.num_kv_heads) or (self.num_attention_heads % self.num_kv_heads != 0):
 				error_message = (
 					self.__class__.__name__
 					+ ".validate_values() num_attention_heads must be divisible by and greater than num_kv_heads if set"
@@ -1129,23 +1129,23 @@ class NeoXArgs(*BASE_CLASSES):
 				logging.error(error_message)
 				raise ValueError(error_message)
 				return False
-			if self.num_kv_heads < self.num_attention_heads:
+			if False: #self.num_kv_heads < self.num_attention_heads:
 				if self.attention_type == "multiquery" and not self.num_kv_heads == 1:
 					error_message = (
-                    	self.__class__.__name__
-                    	+ ".validate_values() must set attention_type == 'multiquery' if num_kv_heads == 1"
-                	)
-                	logging.error(error_message)
-                	raise ValueError(error_message)
-                	return False
+						self.__class__.__name__
+						+ ".validate_values() must set attention_type == 'multiquery' if num_kv_heads == 1"
+					)
+					logging.error(error_message)
+					raise ValueError(error_message)
+					return False
 				if self.attention_type == "multihead":
 					error_message = (
-                        self.__class__.__name__
-                        + ".validate_values() attention_type cannot be 'multihead' if num_kv_heads != num_attention_heads"
-                    )
-                    logging.error(error_message)
-                    raise ValueError(error_message)
-                    return False
+						self.__class__.__name__
+						+ ".validate_values() attention_type cannot be 'multihead' if num_kv_heads != num_attention_heads"
+					)
+					logging.error(error_message)
+					raise ValueError(error_message)
+					return False
 				
 				 
 
