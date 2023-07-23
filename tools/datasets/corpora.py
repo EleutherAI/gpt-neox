@@ -318,6 +318,10 @@ class CodeNoMatlab(DataDownloader):
     name="code-no-matlab"
     urls=[]
 
+class RedPajama(DataDownloader):
+    name="red-pajama"
+    urls=[]
+
 def maybe_download_gpt2_tokenizer_data(tokenizer_type, data_dir):
     if tokenizer_type is None or tokenizer_type == "GPT2BPETokenizer":
         GPT2_VOCAB_FP = f"{data_dir}//gpt2-vocab.json"
@@ -359,6 +363,7 @@ DATA_DOWNLOADERS = {
     "pile-sample-1": PileSample1,
     "pile-sample-2": PileSample2,
     "code-no-matlab": CodeNoMatlab,
+    "red-pajama": RedPajama,
 }
 
 
