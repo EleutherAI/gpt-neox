@@ -140,12 +140,9 @@ def convert_model_pipeline(
     pbar.update(1)
 
     # Layers
-    if model_size == "7B":
-        rope_freqs = loaded[0]["layers.0.attention.inner_attention.rope.freqs"]
-        helper.del_loaded("layers.0.attention.inner_attention.rope.freqs")
-    else:
-        rope_freqs = loaded[0]["rope.freqs"]
-        helper.del_loaded("rope.freqs")
+    rope_freqs = loaded[0]["rope.freqs"]
+    helper.del_loaded("rope.freqs")
+
     for layer_i in range(num_layers):
 
         # Linear
