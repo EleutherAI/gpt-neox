@@ -162,7 +162,7 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
 
     # ---Communication Options---
 
-    communication_data_type: bool = None
+    communication_data_type: str = None
     """
     During gradient averaging, perform communication with selected data type. By default it will be determined by selected regime
     """
