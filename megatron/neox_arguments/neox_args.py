@@ -290,6 +290,17 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Base for rotary positional embedding
     """
 
+    rope_scaling: dict = None
+    """
+    Rotary positional embedding scaling options.
+    Dictionary containing the scaling configuration for the RoPE embeddings. Currently supports three scaling
+            strategies: linear and dynamic. Their scaling factor must be an float greater than 1. The expected format
+            is `{"type": strategy name, "factor": scaling factor}`. When using this flag, don't update
+            `max_position_embeddings` to the expected new maximum. See the following thread for more information on how
+            these scaling strategies behave:
+            https://www.reddit.com/r/LocalLLaMA/comments/14mrgpr/dynamically_scaled_rope_further_increases/.
+    """
+
     init_method: Literal[
         "normal",
         "scaled_normal",

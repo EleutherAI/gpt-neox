@@ -29,6 +29,8 @@ from megatron.model.activations import get_activation
 from megatron.model.utils import exists, get_fusion_type
 from megatron.model.positional_embeddings import (
     RotaryEmbedding,
+    LinearScalingRotaryEmbedding,
+    DynamicNTKScalingRotaryEmbedding,
     apply_rotary_pos_emb_torch,
     apply_rotary_pos_emb,
     AliBi,
@@ -326,9 +328,32 @@ class ParallelSelfAttention(nn.Module):
                 if self.rotary_ndims is not None
                 else self.hidden_size_per_attention_head
             )
-            self.rotary_emb = RotaryEmbedding(
-                dim, base=neox_args.rotary_emb_base, precision=neox_args.params_dtype
-            )
+            if neox_args.rope_scaling is None:
+                self.rotary_emb = RotaryEmbedding(
+                    dim,
+                    neox_args.max_position_embeddings,
+                    base=neox_args.rotary_emb_base,
+                    precision=neox_args.params_dtype
+                )
+            else:
+                scaling_type = neox_args.rope_scaling["type"]
+                scaling_factor = neox_args.rope_scaling["factor"]
+                if scaling_type == "linear":
+                    self.rotary_emb = LinearScalingRotaryEmbedding(
+                        dim,
+                        neox_args.max_position_embeddings,
+                        base=neox_args.rotary_emb_base,
+                        scaling_factor=scaling_factor,
+                    )
+                elif scaling_type == "dynamic":
+                    self.rotary_emb = DynamicNTKScalingRotaryEmbedding(
+                        dim,
+                        neox_args.max_position_embeddings,
+                        base=neox_args.rotary_emb_base,
+                        scaling_factor=scaling_factor,
+                    )
+                else:
+                    raise ValueError(f"Unknown RoPE scaling type {scaling_type}")
         else:
             self.rotary_emb = None
 

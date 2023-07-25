@@ -1113,10 +1113,14 @@ class NeoXArgs(*BASE_CLASSES):
             return False
 
         if self.seq_length is not None:
-            if not (self.max_position_embeddings >= self.seq_length):
+            if self.rope_scaling is not None:
+                scaled_max_position_embeddings = self.max_position_embeddings * self.rope_scaling["factor"]
+            else:
+                scaled_max_position_embeddings = self.max_position_embeddings
+            if not (scaled_max_position_embeddings >= self.seq_length):
                 error_message = (
                     self.__class__.__name__
-                    + ".validate_values() max_position_embeddings must be bigger or equal seq_length"
+                    + ".validate_values() scaled max_position_embeddings must be bigger or equal seq_length"
                 )
                 logging.error(error_message)
                 raise ValueError(error_message)
