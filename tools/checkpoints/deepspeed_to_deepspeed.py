@@ -101,10 +101,8 @@ def _create_transformer_layer_checkpoint(
 
 def _strip_vocab_padding(ds_checkpoint, padded_vocab_tensor, neox_args):
     target_args = ds_checkpoint.get_args()
-    checkpoint_info = ds_checkpoint.get_checkpoint_info()
+    target_args["tensor_model_parallel_size"] = ds_checkpoint.tp_degree
 
-    # target_args["tensor_model_parallel_size"] = ds_checkpoint.tp_degree
-    # target_args[PADDED_VOCAB_SIZE] = neox_args.padded_vocab_size
     padded_vocab_size = _vocab_size_with_padding(
         neox_args.tokenizer.vocab_size,
         target_args["make_vocab_size_divisible_by"],
@@ -112,7 +110,7 @@ def _strip_vocab_padding(ds_checkpoint, padded_vocab_tensor, neox_args):
     )
     padded_layer_size = padded_vocab_size // ds_checkpoint.tp_degree
     assert padded_vocab_size <= padded_vocab_tensor.numel()
-    checkpoint_info[PADDED_VOCAB_SIZE] = padded_vocab_size
+    target_args[PADDED_VOCAB_SIZE] = padded_vocab_size
     unpadded_vocab_tensor = torch.narrow(padded_vocab_tensor, 0, 0, padded_layer_size)
     return unpadded_vocab_tensor.clone()
 
@@ -153,7 +151,7 @@ def _create_2d_parallel_checkpoint(ds_checkpoint, base_folder, tp_index, pp_inde
 
     # Adjust specific fields
     sd[ARGS_KEY] = ds_checkpoint.get_args()
-    sd[ARGS_KEY][PADDED_VOCAB_SIZE] = ckpt_info[PADDED_VOCAB_SIZE]
+    # sd[ARGS_KEY][PADDED_VOCAB_SIZE] = ckpt_info[PADDED_VOCAB_SIZE]
     sd[ARGS_KEY]["model_parallel_size"] = ds_checkpoint.tp_degree
     sd[ARGS_KEY]["pipe_parallel_size"] = ds_checkpoint.pp_degree
     if CHECKPOINT_INFO_KEY not in sd:
