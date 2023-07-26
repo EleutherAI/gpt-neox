@@ -146,12 +146,14 @@ def _create_final_norm_layer_checkpoint(ds_checkpoint, base_folder, tp_index, ar
 
 def _create_2d_parallel_checkpoint(ds_checkpoint, base_folder, tp_index, pp_index):
     sd = ds_checkpoint.get_2d_parallel_state(tp_index=tp_index, pp_index=pp_index)
+    embed_sd = ds_checkpoint.get_embedding_state(tp_index)
     sd[MP_WORLD_SIZE] = ds_checkpoint.tp_degree
     file_id = pp_index * ds_checkpoint.tp_degree + tp_index
     ckpt_path = get_model_ckpt_name_for_rank(base_folder, f"{file_id:02d}")
 
     # Adjust specific fields
     sd[ARGS_KEY] = ds_checkpoint.get_args()
+    sd[ARGS_KEY][PADDED_VOCAB_SIZE] = embed_sd[WORD_EMBEDDINGS_KEY].shape[0]
     sd[ARGS_KEY]["model_parallel_size"] = ds_checkpoint.tp_degree
     sd[ARGS_KEY]["pipe_parallel_size"] = ds_checkpoint.pp_degree
     if CHECKPOINT_INFO_KEY not in sd:
