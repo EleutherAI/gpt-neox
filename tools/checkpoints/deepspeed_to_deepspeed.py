@@ -153,7 +153,9 @@ def _create_2d_parallel_checkpoint(ds_checkpoint, base_folder, tp_index, pp_inde
 
     # Adjust specific fields
     sd[ARGS_KEY] = ds_checkpoint.get_args()
-    sd[ARGS_KEY][PADDED_VOCAB_SIZE] = embed_sd[WORD_EMBEDDINGS_KEY].shape[0]
+    sd[ARGS_KEY][PADDED_VOCAB_SIZE] = (
+        embed_sd[WORD_EMBEDDINGS_KEY].shape[0] * ds_checkpoint.tp_degree
+    )
     sd[ARGS_KEY]["model_parallel_size"] = ds_checkpoint.tp_degree
     sd[ARGS_KEY]["pipe_parallel_size"] = ds_checkpoint.pp_degree
     if CHECKPOINT_INFO_KEY not in sd:
