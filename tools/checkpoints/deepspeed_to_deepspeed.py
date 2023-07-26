@@ -101,7 +101,7 @@ def _create_transformer_layer_checkpoint(
 
 def _strip_vocab_padding(ds_checkpoint, padded_vocab_tensor, neox_args):
     target_args = ds_checkpoint.get_args()
-    target_args["tensor_model_parallel_size"] = ds_checkpoint.tp_degree
+    target_args["model_parallel_size"] = ds_checkpoint.tp_degree
 
     padded_vocab_size = _vocab_size_with_padding(
         neox_args.tokenizer.vocab_size,
