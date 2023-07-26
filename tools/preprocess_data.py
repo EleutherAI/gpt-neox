@@ -230,7 +230,7 @@ def main():
             elapsed = current - proc_start
             mbs = total_bytes_processed / elapsed / 1024 / 1024
             pbar.set_description(
-                f"Processed {i}{'' if args.num_docs is None else '/' + str(args.num_docs)} documents ({i / elapsed} docs/s, {mbs} MB/s)."
+                f"Processed {i}{'' if args.num_docs is None else '/' + str(args.num_docs)} documents ({i / elapsed :.2f} docs/s, {mbs:.2f} MB/s)."
             )
             if i != 0:
                 pbar.update(args.log_interval)
