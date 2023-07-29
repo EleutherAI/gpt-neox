@@ -118,7 +118,7 @@ def extract_zero_shards(dir, slice_shapes, ds_checkpoint, indices_3D):
         pp_index=pp_index, tp_index=tp_index, dp_index=dp_index
     )
 
-    # pprint(f"Processing {dp_index=} {pp_index=}, {tp_index=}")
+    pprint(f"Processing {dp_index=} {pp_index=}, {tp_index=}")
 
     optim_sd = sd["optimizer_state_dict"]
     param_slice_mappings = optim_sd["param_slice_mappings"]
@@ -283,9 +283,9 @@ def _extract_zero_shard_files(args, ds_checkpoint, slice_shapes, temp_dir):
             range(ds_checkpoint.dp_degree),
         )
     )
-    # pprint(_3d_range_list)
+    pprint(_3d_range_list)
     work_chunks = list(_get_chunks(_3d_range_list, args.num_extract_workers))
-    # pprint(work_chunks)
+    pprint(work_chunks)
 
     do_work = partial(extract_zero_shards, temp_dir, slice_shapes, ds_checkpoint)
     _do_parallel_work(do_work, work_chunks, args.num_extract_workers)
