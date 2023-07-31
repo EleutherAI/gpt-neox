@@ -322,9 +322,15 @@ def main():
 
     iteration = ds_checkpoint.get_iteration()
     # _create_latest_file(args.output_folder, iteration)
-    print(f"DP degree: {ds_checkpoint.dp_degree}")
-    print(f"TP degree: {ds_checkpoint.tp_degree}")
-    print(f"PP degree: {ds_checkpoint.pp_degree}")
+    print(
+        f"DP degree: {ds_checkpoint.original_dp_degree} ---> {ds_checkpoint.dp_degree}"
+    )
+    print(
+        f"TP degree: {ds_checkpoint.original_tp_degree} ---> {ds_checkpoint.tp_degree}"
+    )
+    print(
+        f"PP degree: {ds_checkpoint.original_pp_degree} ---> {ds_checkpoint.pp_degree}"
+    )
     checkpoint_paths = _create_checkpoint_paths(
         args.output_folder, iteration, ds_checkpoint.tp_degree, ds_checkpoint.pp_degree
     )
