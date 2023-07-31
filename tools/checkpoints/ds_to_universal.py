@@ -48,8 +48,9 @@ def parse_arguments():
         "--output_folder", type=str, help="Output Megatron checkpoint folder"
     )
     parser.add_argument("--config", type=str)
-    parser.add_argument("--target_tp", default=1, type=int, help="Target TP degree")
-    parser.add_argument("--target_pp", default=1, type=int, help="Target PP degree")
+    parser.add_argument("--target_tp", default=None, type=int, help="Target TP degree")
+    parser.add_argument("--target_pp", default=None, type=int, help="Target PP degree")
+    parser.add_argument("--target_dp", default=None, type=int, help="Target PP degree")
     parser.add_argument(
         "--num_extract_workers",
         default=4,
@@ -315,7 +316,7 @@ def main():
     )
 
     ds_checkpoint = NeoxCheckpoint(
-        args.input_folder
+        args.input_folder, args.target_tp, args.target_pp, args.target_dp
     )  # , 1, 2) # args.target_tp, args.target_pp)
     neox_args = NeoXArgs.from_ymls([args.config])
     neox_args.build_tokenizer()
