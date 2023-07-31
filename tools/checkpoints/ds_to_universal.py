@@ -143,7 +143,9 @@ def extract_zero_shards(dir, slice_shapes, ds_checkpoint, indices_3D):
                 # Skip tied weights that are replicated in first and last pp stages
                 continue
 
-            # print(f"{param_group_id} {name} => {fragment_mapping.start}:{fragment_mapping.numel}")
+            print(
+                f"{param_group_id} {name} => {fragment_mapping.start}:{fragment_mapping.numel}"
+            )
             for state_key in flat_state.keys():
                 dump_param_fragment(
                     dir,
@@ -174,7 +176,7 @@ def dump_param_fragment(
 
     path = os.path.join(param_base_path, f"{state_name}.{counter}")
 
-    # print(f"{param_name}: {offset}: {numel} => {path}")
+    print(f"{param_name}: {offset}: {numel} => {path}")
 
     t = state_flat_tensor.narrow(0, offset, numel)
     _save_checkpoint(path, t)
@@ -284,12 +286,14 @@ def _extract_zero_shard_files(args, ds_checkpoint, slice_shapes, temp_dir):
             range(ds_checkpoint.dp_degree),
         )
     )
-    pprint(_3d_range_list)
+    # pprint(_3d_range_list)
     work_chunks = list(_get_chunks(_3d_range_list, args.num_extract_workers))
-    pprint(work_chunks)
+    # pprint(work_chunks)
 
-    do_work = partial(extract_zero_shards, temp_dir, slice_shapes, ds_checkpoint)
-    _do_parallel_work(do_work, work_chunks, args.num_extract_workers)
+    # do_work = partial(extract_zero_shards, temp_dir, slice_shapes, ds_checkpoint)
+    for batch in work_chunks:
+        extract_zero_shards(temp_dir, slice_shapes, ds_checkpoint, batch)
+    # _do_parallel_work(do_work, work_chunks, args.num_extract_workers)
 
 
 def _merge_tp_slice_files(args, ds_checkpoint, neox_args, slice_shapes, temp_dir):
@@ -344,6 +348,8 @@ def main():
     # fix back to normal flat dict, merge duplicates for tp>1
     slice_shapes = dict((k, v) for d in slice_shapes for k, v in d.items())
     temp_dir = os.path.join(args.output_folder, "tmp")
+
+    print(slice_shapes)
 
     print("*** 1. Extracting ZeRO fragments")
     _extract_zero_shard_files(args, ds_checkpoint, slice_shapes, temp_dir)
