@@ -52,6 +52,9 @@ def parse_arguments():
     parser.add_argument("--target_pp", default=None, type=int, help="Target PP degree")
     parser.add_argument("--target_dp", default=None, type=int, help="Target PP degree")
     parser.add_argument(
+        "--iteration", default=None, type=int, help="Checkpoint iteration"
+    )
+    parser.add_argument(
         "--num_extract_workers",
         default=4,
         type=int,
