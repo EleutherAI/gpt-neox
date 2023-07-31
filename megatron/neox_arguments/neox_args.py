@@ -446,14 +446,25 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
     Number of iterations to decay learning rate over, If None defaults to --train-iters
     """
 
+    decay_lr_to: float = None
+    """
+    If lr_decay_style="cosine", adjusts the period of the scheduler so that at the last step the scheduler is lr*decay_lr_to.
+    Cannot declare both `lr_decay_to` and `lr_decay_iters`.
+    """
+
     min_lr: float = 0.0
     """
     Minimum value for learning rate. The scheduler clips values below this threshold.
     """
 
-    warmup: float = 0.01
+    warmup: float = None
     """
     Percentage of total iterations to warmup on (.01 = 1 percent of all training iters).
+    """
+
+    warmup_iter: int = None
+    """
+    Number of steps to warmup for. Cannot declare both `warmup` and `warmup_iter`.
     """
 
     override_lr_scheduler: bool = False

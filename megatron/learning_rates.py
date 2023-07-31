@@ -34,12 +34,14 @@ class AnnealingLR(object):
         decay_style,
         last_iter,
         min_lr=0.0,
+        decay_lr_to=None,
         use_checkpoint_lr_scheduler=True,
         override_lr_scheduler=False,
         use_mup=False,
     ):
 
         # Class values.
+        assert decay_style=="cosine" or (not decay_lr_to)
         self.optimizer = optimizer
         self.start_lr = start_lr
         self.min_lr = min_lr
@@ -55,6 +57,14 @@ class AnnealingLR(object):
             assert not self.use_checkpoint_lr_scheduler, (
                 "both override and " "use-checkpoint are set."
             )
+
+        if decay_lr_to:
+            self.cos_half_period = (
+                    (total_iters - warmup_iter)
+                    * math.pi/math.acos(2*decay_lr_to-1)
+            )
+        else: 
+            self.cos_half_period = total_iters
         # Set the learning rate
         self.step(self.num_iters)
 
@@ -64,7 +74,7 @@ class AnnealingLR(object):
         """Learning rate decay functions from:
         https://openreview.net/pdf?id=BJYwwY9ll pg. 4"""
 
-        num_iters_ = min(self.num_iters, self.end_iter - self.warmup_iter)
+        num_iters_ = self.num_iters
         # Warmup.
         if self.warmup_iter > 0 and self.num_iters <= self.warmup_iter:
             return float(self.start_lr) * num_iters_ / self.warmup_iter
@@ -76,7 +86,7 @@ class AnnealingLR(object):
             lr = (
                 self.start_lr
                 / 2.0
-                * (math.cos(math.pi * num_iters_ / self.end_iter) + 1)
+                * (math.cos(math.pi * num_iters_ / self.cos_half_period) + 1)
             )
         elif self.decay_style == "invsqrt":
             lr = (
