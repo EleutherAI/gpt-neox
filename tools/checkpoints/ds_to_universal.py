@@ -73,6 +73,16 @@ def parse_arguments():
     return args
 
 
+def get_folder(args):
+    folder = Path(args.folder)
+    if args.iteration is None:
+        with open(folder / "latest") as latest_file:
+            tag = latest_file.read()
+    else:
+        tag = f"global_step{args.iteration}"
+    return folder / tag
+
+
 def _convert_ds_transformer_state(sd_list):
     new_sd = OrderedDict()
     for i, sd in enumerate(sd_list):
@@ -286,14 +296,12 @@ def _extract_zero_shard_files(args, ds_checkpoint, slice_shapes, temp_dir):
             range(ds_checkpoint.dp_degree),
         )
     )
-    # pprint(_3d_range_list)
+    pprint(_3d_range_list)
     work_chunks = list(_get_chunks(_3d_range_list, args.num_extract_workers))
-    # pprint(work_chunks)
+    pprint(work_chunks)
 
-    # do_work = partial(extract_zero_shards, temp_dir, slice_shapes, ds_checkpoint)
-    for batch in work_chunks:
-        extract_zero_shards(temp_dir, slice_shapes, ds_checkpoint, batch)
-    # _do_parallel_work(do_work, work_chunks, args.num_extract_workers)
+    do_work = partial(extract_zero_shards, temp_dir, slice_shapes, ds_checkpoint)
+    _do_parallel_work(do_work, work_chunks, args.num_extract_workers)
 
 
 def _merge_tp_slice_files(args, ds_checkpoint, neox_args, slice_shapes, temp_dir):
@@ -319,8 +327,10 @@ def main():
         f"Converting DeepSpeed checkpoint in {args.input_folder} to Universal checkpoint in {args.output_folder}"
     )
 
+    input_folder = get_folder(args)
+
     ds_checkpoint = NeoxCheckpoint(
-        args.input_folder, args.target_tp, args.target_pp, args.target_dp
+        input_folder, args.target_tp, args.target_pp, args.target_dp
     )  # , 1, 2) # args.target_tp, args.target_pp)
     neox_args = NeoXArgs.from_ymls([args.config])
     neox_args.build_tokenizer()
