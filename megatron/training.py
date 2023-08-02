@@ -778,6 +778,17 @@ def train(
     valid_data_iterator,
 ):
     """Train the model function."""
+    prefix = "iteration 0"
+    evaluate_and_print_results(
+        neox_args=neox_args,
+        prefix=prefix,
+        forward_step_func=forward_step,
+        data_iterator=valid_data_iterator,
+        model=model,
+        iteration=0,
+        verbose=False,
+        timers=timers,
+    )
 
     # Turn on training mode which enables dropout.
     model.train()
