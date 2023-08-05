@@ -54,9 +54,9 @@ To install the remaining basic dependencies, run:
 
 ```bash
 pip install -r requirements/requirements.txt
-pip install -r requirements/requirements-wandb.txt
-pip install -r requirements/requirements-tensorboard.txt
-python ./megatron/fused_kernels/setup.py install # optional if not using fused kernels
+pip install -r requirements/requirements-wandb.txt # optional, if logging using WandB
+pip install -r requirements/requirements-tensorboard.txt # optional, if logging via tensorboard
+python ./megatron/fused_kernels/setup.py install # optional, if using fused kernels
 ```
 
 from the repository root.
@@ -67,8 +67,6 @@ from the repository root.
 
 </aside>
 
-### TensorBoard
-=======
 ### Flash Attention
 
 To use [Flash-Attention](https://github.com/HazyResearch/flash-attention), install the additional dependencies in  `./requirements/requirements-flashattention.txt` and set the attention type in your configuration accordingly (see [configs](./configs/)). This can provide significant speed-ups over regular attention on certain GPU architectures, including Ampere GPUs (such as A100s); see the repository for more details.
@@ -85,7 +83,7 @@ nvidia-docker run --rm -it -e NVIDIA_VISIBLE_DEVICES=0,1,2,3 --shm-size=1g --uli
 
 ## Usage
 
-All functionality (inference included), should be launched using `deepy.py`, a wrapper around the `deepspeed` launcher.
+All functionality should be launched using `deepy.py`, a wrapper around the `deepspeed` launcher.
 
 We currently offer three main functions:
 1. `train.py` is used for training and finetuning models.
@@ -117,14 +115,15 @@ To reproduce our evaluation numbers on, for example, TriviaQA and PIQA use:
 
 You can add an arbitrary list of evaluation tasks here, for details of all tasks available, see [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness).
 
-For more details on each entry point, see the [Training and Finetuning](#training-and-finetuning), [Inference](#inference) and [Evaluation](#evaluation)
+For more details on each entry point, see the [Training and Finetuning](#training-and-finetuning), [Inference](#inference) and [Evaluation](#evaluation) respectively.
+
 # Configuration
 
-GPT-NeoX parameters are defined in a YAML configuration file which is passed to the deepy.py launcher. We have provided some example .yaml files in [configs](./configs/), including one for GPT-NeoX-20B, and example configuration files for other model sizes.
+GPT-NeoX parameters are defined in a YAML configuration file which is passed to the deepy.py launcher. We have provided some example .yaml files in [configs](./configs/), showing a diverse array of features and model sizes.
 
 These files are generally complete, but non-optimal. For example, depending on your specific GPU configuration, you may need to change some settings such as `pipe-parallel-size`, `model-parallel-size` to increase or decrease the degree of parallelisation, `train_micro_batch_size_per_gpu` or `gradient-accumulation-steps` to modify batch size related settings, or the `zero_optimization` dict to modify how optimizer states are parallelised across workers.
 
-For a more detailed guide to all the features available and how to configure them, see [the configuration README](configs/README.md), and for documentation of every possible argument, see [configs/neox_arguments.md](configs/neox_arguments.md).
+For a more detailed guide to the features available and how to configure them, see [the configuration README](configs/README.md), and for documentation of every possible argument, see [configs/neox_arguments.md](configs/neox_arguments.md).
 
 # Datasets
 
@@ -400,16 +399,19 @@ For full terms, see the `LICENSE` file. If you have any questions, comments, or 
 
 ## Publications
 
-The following publications have come out of this project:
+We have used this library in support of the following publications:
 
- - Black, Biderman, Hallahan, Anthony, Gao, Golding, He, Leahy, McDonell, Phang, Pieler, Prashanth, Purohit, Reynolds, Tow, Wang, and Weinbach. "[GPT-NeoX-20B: An Open-Source Autoregressive Language Model](https://arxiv.org/abs/2204.06745)." In *Proceedings of the ACL Workshop on Challenges \& Perspectives in Creating Large Language Models*. 2022.
- - Biderman, Schoelkopf, Anthony, Bradley, O'Brien, Hallahan, Khan, Purohit, Prashanth, Raff, Skowron, Sutawika, and van der Wal. "[Pythia: A Suite for Analyzing Large Language Models Across Training and Scaling](https://arxiv.org/abs/2304.01373)." *arXiv preprint arXiv:2304.01373*. 2023.
+ - Sid Black, Stella Biderman, Eric Hallahan, Quentin Anthony, Leo Gao, Laurence Golding, Horace He, Connor Leahy, McDonell, Jason Phang, Michael Pieler, Prashanth, Shivanshu Purohit, Laria Reynolds, Jon Tow, Ben Wang, and Samuel Weinbach. "[GPT-NeoX-20B: An Open-Source Autoregressive Language Model](https://arxiv.org/abs/2204.06745)." In *Proceedings of the ACL Workshop on Challenges \& Perspectives in Creating Large Language Models*, 2022.
+ - Stella Biderman, Hailey Schoelkopf, Quentin Gregory Anthony, Herbie Bradley, Kyle O’Brien, Eric Hallahan, Mohammad Aflah Khan et al. "[Pythia: A suite for analyzing large language models across training and scaling](https://arxiv.org/abs/2304.01373)." In International Conference on Machine Learning, pp. 2397-2430. PMLR, 2023.
+ - Zhangir Azerbayev, Bartosz Piotrowski, Hailey Schoelkopf, Edward W. Ayers, Dragomir Radev, and Jeremy Avigad. "[Proofnet: Autoformalizing and formally proving undergraduate-level mathematics](https://arxiv.org/abs/2302.12433). *arXiv preprint arXiv:2302.12433* (2023).
+ - Biderman, Prashanth, Sutawika, Schoelkopf, Anthony, Purohit, and Raff. "[Emergent and predictable memorization in large language models.](https://arxiv.org/abs/2304.11158)" *arXiv preprint arXiv:2304.11158*, 2023.
+ - Hyunwoong Ko, Kichang Yang, Minho Ryu, Taekyoon Choi, Seungmu Yang, and Sungho Park. "[A Technical Report for Polyglot-Ko: Open-Source Large-Scale Korean Language Models](https://arxiv.org/abs/2306.02254)." *arXiv preprint arXiv:2306.02254*, 2023.
 
 The following publications by other research groups use this library:
 - Chi, Fan, Ramadge, and Rudnicky. "[KERPLE: Kernelized Relative Positional Embedding for Length Extrapolation](https://arxiv.org/abs/2205.09921)". _arXiv preprint arXiv:2205.09921_. 2022.
 - Horawalavithana, Ayton, Sharma, Howland, Subramanian, Vasquez, Cosbey, Glenski, and Volkova. "[Foundation Models of Scientific Knowledge for Chemistry: Opportunities, Challenges and Lessons Learned](https://openreview.net/pdf?id=SLX-I2MHUZ9)." In *Proceedings of the ACL Workshop on Challenges \& Perspectives in Creating Large Language Models*. 2022.
 - Kolak, Martins, Le Goues, and Hellendoorn. "[Patch Generation with Language Models: Feasibility and Scaling Behavior](https://openreview.net/forum?id=rHlzJh_b1-5)"." In *Proceedings of the Deep Learning for Code Workshop at ICLR*. 2022.
-- Xu, Alon, Neubig, and Hellendoorn. "[A Systematic Evaluation of Large Language Models of Code](https://arxiv.org/abs/2202.13169)." In *Proceedings of the ICLR Workshop on Deep Learning For Code*. 2022.
+- Xu, Neubig, and Hellendoorn. "[A Systematic Evaluation of Large Language Models of Code](https://arxiv.org/abs/2202.13169)." In *Proceedings of the ICLR Workshop on Deep Learning For Code*. 2022.
 
 ## Acknowledgements
 
