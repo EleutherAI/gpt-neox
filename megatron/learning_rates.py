@@ -64,7 +64,7 @@ class AnnealingLR(object):
         """Learning rate decay functions from:
         https://openreview.net/pdf?id=BJYwwY9ll pg. 4"""
 
-        num_iters_ = min(self.num_iters, self.end_iter - self.warmup_iter)
+        num_iters_ = self.num_iters
         # Warmup.
         if self.warmup_iter > 0 and self.num_iters <= self.warmup_iter:
             return float(self.start_lr) * num_iters_ / self.warmup_iter
@@ -73,8 +73,8 @@ class AnnealingLR(object):
         if self.decay_style == "linear":
             lr = self.start_lr * (self.end_iter - num_iters_) / self.end_iter
         elif self.decay_style == "cosine":
-            lr = (
-                self.start_lr
+            lr = self.min_lr + (
+                (self.start_lr-self.min_lr)
                 / 2.0
                 * (math.cos(math.pi * num_iters_ / self.end_iter) + 1)
             )
