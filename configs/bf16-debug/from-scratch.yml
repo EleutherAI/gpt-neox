@@ -1,0 +1,111 @@
+{
+  "pipe_parallel_size": 0,
+  "model_parallel_size": 1,
+  "make_vocab_size_divisible_by": 1,
+
+  # model settings
+  "num_layers": 24,
+  "hidden_size": 2048,
+  "num_attention_heads": 16,
+  "seq_length": 4096,
+  "max_position_embeddings": 4096,
+  "pos_emb": "rotary",
+  "rotary_pct": 1,
+  "no_weight_tying": true,
+  "gpt_j_residual": false,
+  "output_layer_parallelism": "column",
+  "norm": "rmsnorm",
+  "rms_norm_epsilon": 1.0e-6,
+
+  "attention_config": [[["global"], 24]],
+
+  "scaled_upper_triang_masked_softmax_fusion": true,
+  "bias_gelu_fusion": false,
+  "use_bias_in_norms": false,
+  "use_bias_in_attn_linear": false,
+  "mlp_type": "llama",
+  "activation": "silu",
+
+   "optimizer": {
+     "type": "Adam",
+     "params": {
+       "lr": 0.0003,
+       "betas": [0.9, 0.95],
+       "eps": 1.0e-8
+     }
+   },
+
+   "min_lr": 0.0,
+
+   "zero_optimization": {
+    "stage": 1,
+    "allgather_partitions": true,
+    "allgather_bucket_size": 1260000000,
+    "overlap_comm": true,
+    "reduce_scatter": true,
+    "reduce_bucket_size": 1260000000,
+    "contiguous_gradients": true,
+    "cpu_offload": false
+  },
+
+   "train_micro_batch_size_per_gpu": 8,
+   "data_impl": "mmap",
+
+   "checkpoint_activations": true,
+   "checkpoint_num_layers": 1,
+   "partition_activations": true,
+   "synchronize_each_layer": true,
+
+   "gradient_clipping": 1,
+   "weight_decay": 0.1,
+   "hidden_dropout": 0,
+   "attention_dropout": 0,
+    
+   "precision": "bfloat16",
+   "bf16": {
+       "enabled": true,
+   }, 
+   "fp16": {
+       "enabled": false,
+   },
+   "data_types": {
+       "grad_accum_dtype": "fp32",
+   }, 
+   "communication_data_type": "fp32",
+   "fp32_allreduce": true,
+   "attention_softmax_in_fp32": true,
+
+   "train_iters": 2000,
+   "decay_lr_to": 0.1,
+   "distributed_backend": "nccl",
+   "lr_decay_style": "cosine",
+   "warmup_iter": 400,
+   "checkpoint_factor": 500,
+   "eval_interval": 100,
+   "eval_iters": 50,
+
+   "log_interval": 1,
+   "steps_per_print": 1,
+   "wall_clock_breakdown": true,
+
+   "tokenizer_type": "SPMTokenizer",
+   "vocab-file": "/home/za2514/downloaded-weights/llama/tokenizer.model",
+
+   "save": "/home/za2514/compute/saved-weights/bf16-debug/from-scratch",
+   
+   "train-data-paths": ["/home/za2514/compute/open-web-math_llama/train/open-web-math/open-web-math_text_document", "/home/za2514/compute/proof-pile_llama/train/arxiv-rp/arxiv-rp_text_document", "/home/za2514/compute/proof-pile_llama/train/code-no-matlab/code-no-matlab_text_document", "/home/za2514/proof-pile_llama/train/pile-sample/pile-sample_text_document"],
+   "train_data_weights": [0.316, 0.316, 0.316, 0.052],
+   "valid-data-paths": ["/home/za2514/compute/open-web-math_llama/validation/open-web-math/open-web-math_text_document", "/home/za2514/compute/proof-pile_llama/validation/arxiv-rp/arxiv-rp_text_document", "/home/za2514/compute/proof-pile_llama/validation/code-no-matlab/code-no-matlab_text_document"],
+   "test-data-paths": ["/home/za2514/compute/open-web-math_llama/validation/open-web-math/open-web-math_text_document", "/home/za2514/compute/proof-pile_llama/validation/arxiv-rp/arxiv-rp_text_document", "/home/za2514/compute/proof-pile_llama/validation/code-no-matlab/code-no-matlab_text_document"], # avoid touching test set!
+
+   "tensorboard-dir": "/home/za2514/tensorboard",
+   "log-dir": "/home/za2514/logs/bf16-debug/from-scratch",
+
+   "use_wandb": true,
+   "wandb_group": "from-scratch",
+   "wandb_project": "bf16-debug",
+   "wandb_host": "https://api.wandb.ai",
+   "log_grad_norm": true,
+   "log_param_norm": true,
+   "log_grad_pct_zeros": true,
+}

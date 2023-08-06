@@ -11,14 +11,14 @@
 #SBATCH --gres=gpu:8
 #SBATCH --exclusive
 #SBATCH --open-mode=append
-#SBATCH --output=convert_llama_7b_code-no-matlab_%j.out
-#SBATCH --error=convert_llama_7b_code-no-matlab_%j.out
+#SBATCH --output=convert_llama_7b_code-v1-full-matlab_%j.out
+#SBATCH --error=convert_llama_7b_code-v1-full-matlab_%j.out
 #SBATCH --time=2:00:00
 
 # BYU cluster
 
 STEP=10000
-MODEL=llama_7b_code-no-matlab
+MODEL=llama_7b_code-v1-full-matlab
 
 OUT_NAME=${MODEL}_hf
 

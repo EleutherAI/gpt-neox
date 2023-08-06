@@ -8,15 +8,15 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem-per-cpu=8GB
 #SBATCH --open-mode=append
-#SBATCH --output=tokenize_code-v1-full-matlab_train_%j.out
-#SBATCH --error=tokenize_code-v1-full-matlab_train_%j.out
+#SBATCH --output=tokenize_open-web-math-decontaminated_train_%j.out
+#SBATCH --error=tokenize_open-web-math-decontaminated_train_%j.out
 #SBATCH --time=1-00:00:00
 
 # BYU cluster
-SUBSET="code-v1-with-tex"
-SPLIT="train"
+SUBSET=open-web-math
+SPLIT=train
 
-DATA_DIR="/home/za2514/compute/proof-pile_llama/${SPLIT}"
+DATA_DIR="/home/za2514/compute/open-web-math-decontaminated_llama/${SPLIT}"
 TOKENIZER_TYPE=SPMTokenizer
 VOCAB_FILE=/home/za2514/downloaded-weights/llama/tokenizer.model
 LOG_FILE=${DATA_DIR}/${SUBSET}/tokenization.log

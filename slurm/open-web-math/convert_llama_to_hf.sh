@@ -11,19 +11,20 @@
 #SBATCH --gres=gpu:8
 #SBATCH --exclusive
 #SBATCH --open-mode=append
-#SBATCH --output=convert_open-web-math-decontaminated_1b_%j.out
-#SBATCH --error=convert_open-web-math-decontaminated_1b_%j.out
-#SBATCH --time=00:15:00
+#SBATCH --output=convert_llama_7b_mix_2_%j.out
+#SBATCH --error=convert_llama_7b_mix_2_%j.out
+#SBATCH --time=2:00:00
 
 # BYU cluster
 
-NAME=open-web-math-decontaminated_1b
-STEP=11632
+STEP=10000
+MODEL=llama_7b_mix_2
 
-OUT_NAME=${NAME}_step${STEP}
-INPUT_DIR=/home/za2514/compute/saved-weights/open-web-math/${NAME}/global_step${STEP}
+OUT_NAME=${MODEL}_hf
+
+INPUT_DIR=/home/za2514/compute/saved-weights/open-web-math/${MODEL}/global_step${STEP}
 OUT_DIR=/home/za2514/compute/saved-weights/open-web-math/${OUT_NAME}
-CONFIG_FILE=/home/za2514/compute/math-lm/gpt-neox/configs/open-web-math/${NAME}.yml
+CONFIG_FILE=/home/za2514/compute/math-lm/gpt-neox/configs/open-web-math/${MODEL}.yml
 
 source /home/hailey81/miniconda3/bin/activate llmath
 
@@ -37,14 +38,14 @@ export PATH=$HOME/.local/bin:$PATH
 
 export WANDB_MODE=offline
 
-export TRAIN_DIR=/home/za2514/compute/math-lm/gpt-neox/
+export TRAIN_DIR=/home/za2514/math-lm/gpt-neox/
 
 cd ${TRAIN_DIR}
 pwd
 
 export PYTHONPATH=$TRAIN_DIR
 
-python tools/convert_module_to_hf.py --input_dir ${INPUT_DIR} --config_file ${CONFIG_FILE} --output_dir ${OUT_DIR}
+python tools/convert_llama_sequential_to_hf.py --input_dir ${INPUT_DIR} --config_file ${CONFIG_FILE} --output_dir ${OUT_DIR}
 
 cp /home/za2514/downloaded-weights/llama_hf/7B/{tokenizer_config.json,tokenizer.json,tokenizer.model} ${OUT_DIR}
 echo "exited successfully"
