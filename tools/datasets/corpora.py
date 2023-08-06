@@ -318,6 +318,34 @@ class CodeNoMatlab(DataDownloader):
     name="code-no-matlab"
     urls=[]
 
+class CodeV1(DataDownloader):
+    name="code-v1"
+    urls=[]
+
+class CodeV1WithTex(DataDownloader):
+    name="code-v1-with-tex"
+    urls=[]
+
+class CodeV1FullMatlab(DataDownloader):
+    name="code-v1-full-matlab"
+    urls=[]
+
+class CodeV2(DataDownloader):
+    name="code-v2"
+    urls=[]
+
+class CodeV2WithTex(DataDownloader):
+    name="code-v2-with-tex"
+    urls=[]
+
+class CodeV2FullMatlab(DataDownloader):
+    name="code-v2-full-matlab"
+    urls=[]
+
+class CodeV3(DataDownloader):
+    name="code-v3"
+    urls=[]
+
 class RedPajama(DataDownloader):
     name="red-pajama"
     urls=[]
@@ -363,6 +391,13 @@ DATA_DOWNLOADERS = {
     "pile-sample-1": PileSample1,
     "pile-sample-2": PileSample2,
     "code-no-matlab": CodeNoMatlab,
+    "code-v1": CodeV1,
+    "code-v2": CodeV2,
+    "code-v3": CodeV3,
+    "code-v1-with-tex": CodeV1WithTex,
+    "code-v2-with-tex": CodeV2WithTex,
+    "code-v1-full-matlab": CodeV1FullMatlab,
+    "code-v2-full-matlab": CodeV2FullMatlab,
     "red-pajama": RedPajama,
 }
 
