@@ -38,6 +38,7 @@ class AnnealingLR(object):
         use_checkpoint_lr_scheduler=True,
         override_lr_scheduler=False,
         use_mup=False,
+        cooldown_interval=(float('inf'), float('inf')),
     ):
 
         # Class values.
@@ -60,6 +61,11 @@ class AnnealingLR(object):
                 "both override and " "use-checkpoint are set."
             )
 
+        # configure cooldown state
+        self.cooldown_interval = cooldown_interval
+        self.cooldown_star_lr = None
+        self.in_cooldown = False
+
         # Set the learning rate
         self.step(self.num_iters)
 
@@ -73,6 +79,11 @@ class AnnealingLR(object):
         # Warmup.
         if self.warmup_iter > 0 and self.num_iters <= self.warmup_iter:
             return float(self.start_lr) * num_iters_ / self.warmup_iter
+            
+        if self.in_cooldown:
+            cooldown_length = self.cooldown_interval[1] - self.cooldown_interval[0]
+            cooldown_progress = self.cooldown_interval[1] - num_iters_
+            return self.cooldown_start_lr * cooldown_progress/cooldown_length
 
         num_iters_ = num_iters_ - self.warmup_iter
         if self.decay_style == "linear":
@@ -101,6 +112,11 @@ class AnnealingLR(object):
             lr = self.start_lr * math.exp(-0.693 * num_iters_ / self.end_iter)
         else:
             lr = self.start_lr
+        
+        if self.num_iters == self.cooldown_interval[0]:
+            self.in_cooldown = True
+            self.cooldown_start_lr = lr
+
         return max(lr, self.min_lr)
 
     def step(self, step_num=None):

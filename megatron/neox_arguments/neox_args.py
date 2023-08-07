@@ -462,6 +462,9 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
     Percentage of total iterations to warmup on (.01 = 1 percent of all training iters).
     """
 
+    cooldown_start: int = None
+    cooldown_end: int = None
+
     warmup_iter: int = None
     """
     Number of steps to warmup for. Cannot declare both `warmup` and `warmup_iter`.

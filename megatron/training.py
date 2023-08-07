@@ -587,7 +587,6 @@ def get_learning_rate_scheduler(optimizer, neox_args):
         return None
 
     # Add linear learning rate scheduler.
-    assert not (neox_args.lr_decay_iters and neox_args.decay_lr_to)
     if neox_args.lr_decay_iters is not None:
         num_iters = neox_args.lr_decay_iters
     else:
@@ -599,6 +598,18 @@ def get_learning_rate_scheduler(optimizer, neox_args):
         warmup_iter = neox_args.warmup_iter
     else:
         warmup_iter = neox_args.warmup * num_iters
+
+    assert (
+            (neox_args.cooldown_start and neox_args.cooldown_end)
+            or
+            not (neox_args.cooldown_start or neox_args.cooldown_end)
+    )
+    if neox_args.cooldown_start:
+        cooldown_interval = (neox_args.cooldown_start, neox_args.cooldown_end)
+    else:
+        cooldown_interval = (float('inf'), float('inf'))
+
+    assert cooldown_interval[1] >= neox_args.train_iters
     lr_scheduler = AnnealingLR(
         optimizer,
         start_lr=neox_args.lr,
@@ -611,6 +622,7 @@ def get_learning_rate_scheduler(optimizer, neox_args):
         use_checkpoint_lr_scheduler=neox_args.use_checkpoint_lr_scheduler,
         override_lr_scheduler=neox_args.override_lr_scheduler,
         use_mup=neox_args.use_mup,
+        cooldown_interval=cooldown_interval
     )
 
     return lr_scheduler
