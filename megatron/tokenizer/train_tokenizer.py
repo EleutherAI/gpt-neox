@@ -102,7 +102,7 @@ def parse_args():
         type=str,
         help="type of tokenizer to train, currently only BPE is supported",
         choices=["BPE"],
-        default=["BPE"],
+        default="BPE",
     )
     parser.add_argument(
         "-v",
