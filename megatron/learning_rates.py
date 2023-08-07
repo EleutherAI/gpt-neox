@@ -41,7 +41,9 @@ class AnnealingLR(object):
     ):
 
         # Class values.
-        assert decay_style=="cosine" or (not decay_lr_to)
+        if decay_style == "cosine":
+            assert decay_lr_to
+            self.decay_or_to = decay_lr_to
         self.optimizer = optimizer
         self.start_lr = start_lr
         self.min_lr = min_lr
@@ -58,13 +60,6 @@ class AnnealingLR(object):
                 "both override and " "use-checkpoint are set."
             )
 
-        if decay_lr_to:
-            self.cos_half_period = (
-                    (total_iters - warmup_iter)
-                    * math.pi/math.acos(2*decay_lr_to-1)
-            )
-        else: 
-            self.cos_half_period = total_iters
         # Set the learning rate
         self.step(self.num_iters)
 
@@ -83,11 +78,14 @@ class AnnealingLR(object):
         if self.decay_style == "linear":
             lr = self.start_lr * (self.end_iter - num_iters_) / self.end_iter
         elif self.decay_style == "cosine":
+            half_period = self.end_iter - self.warmup_iter
             lr = (
-                self.start_lr
-                / 2.0
-                * (math.cos(math.pi * num_iters_ / self.cos_half_period) + 1)
-            )
+                self.decay_lr_to +
+                (1 - self.decay_lr_to) *
+                0.5 * (
+                    math.cos(math.pi * num_iters_/half_period) + 1
+                )
+            )   
         elif self.decay_style == "invsqrt":
             lr = (
                 self.start_lr  
