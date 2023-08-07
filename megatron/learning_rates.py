@@ -44,7 +44,7 @@ class AnnealingLR(object):
         # Class values.
         if decay_style == "cosine":
             assert decay_lr_to
-            self.decay_or_to = decay_lr_to
+            self.decay_lr_to = decay_lr_to
         self.optimizer = optimizer
         self.start_lr = start_lr
         self.min_lr = min_lr
