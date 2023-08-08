@@ -401,7 +401,10 @@ For full terms, see the `LICENSE` file. If you have any questions, comments, or 
 
 **If you have found this library useful in your research, please reach out and let us know! We would love to add you to our lists.**
 
-GPT-NeoX has been used by academic and industry researchers for a variety of high performance computing projects. EleutherAI and our colaborators have used it in the following publications:
+GPT-NeoX has been used by academic and industry researchers for a variety of high performance computing projects.
+
+### Our Research
+EleutherAI and our colaborators have used it in the following publications:
  - Sid Black, Stella Biderman, Eric Hallahan, Quentin Anthony, Leo Gao, Laurence Golding, Horace He, Connor Leahy, McDonell, Jason Phang, Michael Pieler, Prashanth, Shivanshu Purohit, Laria Reynolds, Jon Tow, Ben Wang, and Samuel Weinbach. "[GPT-NeoX-20B: An Open-Source Autoregressive Language Model](https://arxiv.org/abs/2204.06745)." In *Proceedings of the ACL Workshop on Challenges \& Perspectives in Creating Large Language Models* (2022).
  - Stella Biderman, Hailey Schoelkopf, Quentin Gregory Anthony, Herbie Bradley, Kyle O’Brien, Eric Hallahan, Mohammad Aflah Khan et al. "[Pythia: A suite for analyzing large language models across training and scaling](https://arxiv.org/abs/2304.01373)." In _International Conference on Machine Learning_, pp. 2397-2430. PMLR (2023).
  - Zhangir Azerbayev, Bartosz Piotrowski, Hailey Schoelkopf, Edward W. Ayers, Dragomir Radev, and Jeremy Avigad. "[Proofnet: Autoformalizing and formally proving undergraduate-level mathematics](https://arxiv.org/abs/2302.12433). *arXiv preprint arXiv:2302.12433* (2023).
@@ -409,6 +412,7 @@ GPT-NeoX has been used by academic and industry researchers for a variety of hig
  - Hyunwoong Ko, Kichang Yang, Minho Ryu, Taekyoon Choi, Seungmu Yang, and Sungho Park. "[A Technical Report for Polyglot-Ko: Open-Source Large-Scale Korean Language Models](https://arxiv.org/abs/2306.02254)." *arXiv preprint arXiv:2306.02254* (2023).
  - Kshitij Gupta, Benjamin Thérien, Adam Ibrahim, Mats Leon Richter, Quentin Gregory Anthony, Eugene Belilovsky, Irina Rish, and Timothée Lesort. "Continual Pre-Training of Large Language Models: How to re-warm your model?." In _Workshop on Efficient Systems for Foundation Models @ ICML_ (2023).
 
+### External Publications
 The following publications by other research groups use this library:
 - Ta-Chung Chi, Ting-Han Fan, Peter J. Ramadge, and Alexander Rudnicky. "[KERPLE: Kernelized Relative Positional Embedding for Length Extrapolation](https://arxiv.org/abs/2205.09921)." In *Advances in Neural Information Processing Systems* 35 (2022).
 - Sameera Horawalavithana, Ellyn Ayton, Shivam Sharma, Scott Howland, Megha Subramanian, Scott Vasquez, Robin Cosbey, Maria Glenski, and Svitlana Volkova. "[Foundation Models of Scientific Knowledge for Chemistry: Opportunities, Challenges and Lessons Learned](https://aclanthology.org/2022.bigscience-1.12/)." In *Proceedings of the ACL Workshop on Challenges \& Perspectives in Creating Large Language Models* (2022).
@@ -416,16 +420,32 @@ The following publications by other research groups use this library:
 - Frank F. Xu, Uri Alon, Graham Neubig, and Vincent J. Hellendoorn. "[A Systematic Evaluation of Large Language Models of Code](https://arxiv.org/abs/2202.13169)." In *Proceedings of the ICLR Workshop on Deep Learning For Code* (2022).
 - Byung-Doh Oh and William Schuler. "[Transformer-Based LM Surprisal Predicts Human Reading Times Best with About Two Billion Training Tokens](https://arxiv.org/abs/2304.11389)." *arXiv preprint arXiv:2304.11389* (2023).
 - Chi, Ta-Chung, Ting-Han Fan, Alexander Rudnicky, and Peter Ramadge. "[Dissecting Transformer Length Extrapolation via the Lens of Receptive Field Analysis](https://aclanthology.org/2023.acl-long.756/)." In _Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)_, pp. 13522-13537 (2023).
+- Xidong Feng, Yicheng Luo, Ziyan Wang, Hongrui Tang, Mengyue Yang, Kun Shao, David Mguni, Yali Du, and Jun Wang. "ChessGPT: Bridging Policy Learning and Language Modeling." _arXiv preprint arXiv:2306.09200_ (2023).
 
+### Models
 The following models were trained using this library:
-- EleutherAI's [GPT-NeoX-20B](https://huggingface.co/EleutherAI/gpt-neox-20b)
+**English LLMs**
+- [EleutherAI](https://eleuther.ai/)'s [GPT-NeoX-20B](https://huggingface.co/EleutherAI/gpt-neox-20b)
 - EleutherAI's [Pythia (70M through 13B)](https://github.com/EleutherAI/pythia)
-- EleutherAI's [Polyglot-Ko (1.3B through 12.8B)](https://github.com/EleutherAI/polyglot)
-- CarperAI's [FIM-NeoX-1.3B](https://huggingface.co/CarperAI/FIM-NeoX-1.3B)
-- Together.ai's [RedPajama-INCITE (3B and 7B)](https://together.ai/blog/redpajama-models-v1)
-- Carnegie Mellon University's [PolyCoder (160M through 2.7B)](https://github.com/VHellendoorn/Code-LMs)
-- LearnItAnyway's [LLaVA-Polyglot-Ko (1.3B)](https://huggingface.co/LearnItAnyway/llava-polyglot-ko-1.3b-hf)
+- [CarperAI](https://carper.ai/)'s [FIM-NeoX-1.3B](https://huggingface.co/CarperAI/FIM-NeoX-1.3B)
+- [StabilityAI](https://stability.ai/)'s [StableLM (3B and 7B)](https://github.com/Stability-AI/StableLM)
+- [Together.ai](https://together.ai/)'s [RedPajama-INCITE (3B and 7B)](https://together.ai/blog/redpajama-models-v1)
 
+**Non-English LLMs**
+- EleutherAI's [Polyglot-Ko (1.3B through 12.8B)](https://github.com/EleutherAI/polyglot) (Korean)
+- [LearnItAnyway](https://huggingface.co/LearnItAnyway)'s [LLaVA-Polyglot-Ko (1.3B)](https://huggingface.co/LearnItAnyway/llava-polyglot-ko-1.3b-hf) (Korean)
+- [Rinna Co.](https://rinna.co.jp/)'s [bilingual-gpt-neox-4b](https://huggingface.co/rinna/bilingual-gpt-neox-4b) (English / Japanese)
+- [CyberAgent](https://www.cyberagent.co.jp/en/)'s [Open-CLM (125M through 7B)](https://huggingface.co/cyberagent/open-calm-7b) (Japanese)
+- [The Hungarian Research Centre for Linguistics](https://nytud.hu/en)'s (Hungarian / English / Chinese)
+- WebLab's [weblab-10b](https://huggingface.co/Kojima777/weblab-10b) (Japanese)
+
+**Code Models**
+- [Carnegie Mellon University](https://www.cmu.edu/)'s [PolyCoder (160M through 2.7B)](https://github.com/VHellendoorn/Code-LMs)
+- StabilityAI's Code [StableCode (1.3B](https://stability.ai/blog/stablecode-llm-generative-ai-coding)
+
+**Other Modalities**
+-  University College London's [ChessGPT-3B](https://huggingface.co/Waterhorse/chessgpt-base-v1)
+-  [Gretel](https://gretel.ai/)'s [Text-to-Table](https://huggingface.co/gretelai/text2table)
 ## Acknowledgements
 
 We run our experiments on a Kubernetes cluster provided by [CoreWeave](https://coreweave.com/) and a SLURM cluster provided by [Stability AI](https://stability.ai). We are thankful to the DeepSpeed team for their advice and consultation.
