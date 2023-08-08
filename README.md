@@ -424,6 +424,7 @@ The following publications by other research groups use this library:
 
 ### Models
 The following models were trained using this library:
+
 **English LLMs**
 - [EleutherAI](https://eleuther.ai/)'s [GPT-NeoX-20B](https://huggingface.co/EleutherAI/gpt-neox-20b)
 - EleutherAI's [Pythia (70M through 13B)](https://github.com/EleutherAI/pythia)
