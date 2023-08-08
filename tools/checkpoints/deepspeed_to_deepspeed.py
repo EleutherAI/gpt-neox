@@ -182,7 +182,7 @@ def get_folder(args):
     folder = Path(args.input_folder)
     if args.iteration is None:
         with open(folder / "latest") as latest_file:
-            tag = latest_file.read()
+            tag = latest_file.read().strip()
     else:
         tag = f"global_step{args.iteration}"
     return folder / tag
