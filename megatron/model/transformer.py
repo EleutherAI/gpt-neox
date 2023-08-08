@@ -348,11 +348,13 @@ class ParallelSelfAttention(nn.Module):
                     flash_attn_unpadded_qkvpacked_func_cuda,
                     flash_attn_unpadded_kvpacked_func_cuda,
                     flash_attn_unpadded_unpacked_func_triton,
+                    flash_attn_varlen_kvpacked_func,
                 )
 
                 self.flash_triton_fn = flash_attn_unpadded_unpacked_func_triton
                 self.flash_qkv_fn = flash_attn_unpadded_qkvpacked_func_cuda
                 self.flash_kv_fn = flash_attn_unpadded_kvpacked_func_cuda
+                self.flash_kv_func = flash_attn_varlen_kvpacked_func
             else:
                 self.scale_mask_softmax = FusedScaleMaskSoftmax(
                     input_in_fp16=self.fp16,
@@ -497,10 +499,10 @@ class ParallelSelfAttention(nn.Module):
 
             # [sk, b, np, hn] -> [b, sk, np, hn] -> [b * sk, 1, np, hn]
             key_layer = key_layer.transpose(0, 1).reshape(
-                output_size[0] * output_size[3], 1, output_size[1], -1
+                output_size[0], output_size[3], output_size[1], -1 
             )
             value_layer = value_layer.transpose(0, 1).reshape(
-                output_size[0] * output_size[3], 1, output_size[1], -1
+                output_size[0], output_size[3], output_size[1], -1 
             )
 
             batch_size = output_size[0]
@@ -547,27 +549,22 @@ class ParallelSelfAttention(nn.Module):
 
             else:
 
-                # [sq, b, np, hn] -> [b * sq, 1, np, hn]
+                # [sq, b, np, hn] -> [b * sq, np, hn]
                 query_layer = query_layer.transpose(0, 1).reshape(
-                    output_size[0] * output_size[2], 1, output_size[1], -1
+                    output_size[0], output_size[2], output_size[1], -1
                 )
 
                 # Combined q/k/v into [b * s, 3, np, hn].
-                qkv = torch.cat([query_layer, key_layer, value_layer], dim=1)
+                # qkv = torch.cat([query_layer, key_layer, value_layer], dim=1)
 
                 output = self.flash_qkv_fn(
-                    qkv,
-                    cu_seqlens_q,
-                    max_seqlen_q,
+                    query_layer, key_layer, value_layer,
                     self.dropout_p if self.training else 0.0,
                     softmax_scale=None,
                     causal=True,
                 )
 
-            # [b * sq, np, hn] -> [b, sq, np, hn]
-            matmul_result = output.view(
-                output_size[0], output_size[2], output.shape[1], output.shape[2]
-            )
+            matmul_result = output
             # [b, sq, np, hn] -> [b, np, sq, hn]
             matmul_result = matmul_result.transpose(1, 2)
 
