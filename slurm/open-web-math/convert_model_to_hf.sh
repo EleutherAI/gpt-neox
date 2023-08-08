@@ -11,13 +11,13 @@
 #SBATCH --gres=gpu:8
 #SBATCH --exclusive
 #SBATCH --open-mode=append
-#SBATCH --output=convert_open-web-math-decontaminated_1b_%j.out
-#SBATCH --error=convert_open-web-math-decontaminated_1b_%j.out
+#SBATCH --output=convert_mix_3_1b_%j.out
+#SBATCH --error=convert_mix_3_1b_%j.out
 #SBATCH --time=00:15:00
 
 # BYU cluster
 
-NAME=open-web-math-decontaminated_1b
+NAME=mix_3_1b
 STEP=11632
 
 OUT_NAME=${NAME}_step${STEP}

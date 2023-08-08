@@ -8,13 +8,13 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem-per-cpu=8GB
 #SBATCH --open-mode=append
-#SBATCH --output=tokenize_code-v1-full-matlab_train_%j.out
-#SBATCH --error=tokenize_code-v1-full-matlab_train_%j.out
+#SBATCH --output=tokenize_code-v1-with-tex_test_%j.out
+#SBATCH --error=tokenize_code-v1-with-tex_test_%j.out
 #SBATCH --time=1-00:00:00
 
 # BYU cluster
 SUBSET="code-v1-with-tex"
-SPLIT="train"
+SPLIT="test"
 
 DATA_DIR="/home/za2514/compute/proof-pile_llama/${SPLIT}"
 TOKENIZER_TYPE=SPMTokenizer
