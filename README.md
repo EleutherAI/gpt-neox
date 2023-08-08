@@ -39,7 +39,7 @@ Prior to 3/9/2023, GPT-NeoX relied on [DeeperSpeed](https://github.com/EleutherA
 * [Administrative Notes](#administrative-notes)
   * [Citing GPT-NeoX](#citing-gpt-neox)
   * [Licensing](#licensing)
-  * [Publications](#publications)
+  * [Adoption and Publications](#adoption-and-publications)
   * [Acknowledgements](#acknowledgements)
 
 # Quick Start
@@ -399,6 +399,8 @@ For full terms, see the `LICENSE` file. If you have any questions, comments, or 
 
 ## Adoption and Publications
 
+**If you have found this library useful in your research, please reach out and let us know! We would love to add you to our lists.**
+
 GPT-NeoX has been used by academic and industry researchers for a variety of high performance computing projects. EleutherAI and our colaborators have used it in the following publications:
  - Sid Black, Stella Biderman, Eric Hallahan, Quentin Anthony, Leo Gao, Laurence Golding, Horace He, Connor Leahy, McDonell, Jason Phang, Michael Pieler, Prashanth, Shivanshu Purohit, Laria Reynolds, Jon Tow, Ben Wang, and Samuel Weinbach. "[GPT-NeoX-20B: An Open-Source Autoregressive Language Model](https://arxiv.org/abs/2204.06745)." In *Proceedings of the ACL Workshop on Challenges \& Perspectives in Creating Large Language Models* (2022).
  - Stella Biderman, Hailey Schoelkopf, Quentin Gregory Anthony, Herbie Bradley, Kyle O’Brien, Eric Hallahan, Mohammad Aflah Khan et al. "[Pythia: A suite for analyzing large language models across training and scaling](https://arxiv.org/abs/2304.01373)." In _International Conference on Machine Learning_, pp. 2397-2430. PMLR (2023).
@@ -423,8 +425,6 @@ The following models were trained using this library:
 - Together.ai's [RedPajama-INCITE (3B and 7B)](https://together.ai/blog/redpajama-models-v1)
 - Carnegie Mellon University's [PolyCoder (160M through 2.7B)](https://github.com/VHellendoorn/Code-LMs)
 - LearnItAnyway's [LLaVA-Polyglot-Ko (1.3B)](https://huggingface.co/LearnItAnyway/llava-polyglot-ko-1.3b-hf)
-
-**If you have found this library useful in your research, please reach out and let us know! We would love to add you to our lists.**
 
 ## Acknowledgements
 
