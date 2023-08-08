@@ -63,7 +63,7 @@ class AnnealingLR(object):
 
         # configure cooldown state
         self.cooldown_interval = cooldown_interval
-        self.cooldown_star_lr = None
+        self.cooldown_start_lr = None
         self.in_cooldown = False
 
         # Set the learning rate
@@ -90,12 +90,14 @@ class AnnealingLR(object):
             lr = self.start_lr * (self.end_iter - num_iters_) / self.end_iter
         elif self.decay_style == "cosine":
             half_period = self.end_iter - self.warmup_iter
-            lr = (
-                self.decay_lr_to +
-                (1 - self.decay_lr_to) *
-                0.5 * (
-                    math.cos(math.pi * num_iters_/half_period) + 1
-                )
+            lr = ( 
+                    self.start_lr * (
+                        self.decay_lr_to +
+                        (1 - self.decay_lr_to) *
+                        0.5 * (
+                            math.cos(math.pi * num_iters_/half_period) + 1
+                        )
+                    )
             )   
         elif self.decay_style == "invsqrt":
             lr = (
