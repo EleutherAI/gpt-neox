@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = d3e481c
+    Default = 70284f1
 
     current git hash of repository
 
@@ -1903,6 +1903,14 @@ Args for deepspeed config
     Default = None
 
     Dictionary of extra arguments to be included in the yaml config file. This can be used for any argument not included in the above list.
+
+
+
+- **load_universal**: bool
+
+    Default = False
+
+    Flag for whether the checkpoint to be loaded is a universal checkpoint.
 
 
 
