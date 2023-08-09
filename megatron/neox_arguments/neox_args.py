@@ -456,7 +456,7 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
     If using cosine decay, the learning rate at the final step, prior to any clipping based on the value of `min_lr`.
     """
 
-    warmup: float = 0.01
+    warmup: float = None
     """
     Percentage of total iterations to warmup on (.01 = 1 percent of all training iters).
     """
