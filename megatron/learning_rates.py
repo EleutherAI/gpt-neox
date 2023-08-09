@@ -79,7 +79,7 @@ class AnnealingLR(object):
             half_period = self.end_iter - self.warmup_iter
             lr = ( 
                     self.start_lr * (
-                        self.decay_lr_to +
+                        self.final_lr +
                         (1 - self.final_lr) *
                         0.5 * (
                             math.cos(math.pi * num_iters_/half_period) + 1
