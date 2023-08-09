@@ -156,9 +156,9 @@ def extract_zero_shards(dir, slice_shapes, ds_checkpoint, indices_3D):
                 # Skip tied weights that are replicated in first and last pp stages
                 continue
 
-            # print(
-            #    f"{param_group_id} {name} => {fragment_mapping.start}:{fragment_mapping.numel}"
-            # )
+            print(
+                f"{param_group_id} {name} => {fragment_mapping.start}:{fragment_mapping.numel}"
+            )
             for state_key in flat_state.keys():
                 dump_param_fragment(
                     dir,
