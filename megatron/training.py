@@ -593,7 +593,12 @@ def get_learning_rate_scheduler(optimizer, neox_args):
         num_iters = neox_args.train_iters
     num_iters = max(1, num_iters)
     init_step = 0
-    warmup_iter = neox_args.warmup * num_iters
+
+    assert not (neox_args.warmup_iters and neox_args.warmup)
+    if neox_args.warmup:
+        warmup_iter = neox_args.warmup * num_iters
+    elif neox_args.warmup_iters:
+        warmup_iter = neox_args.warmup_iters
     lr_scheduler = AnnealingLR(
         optimizer,
         start_lr=neox_args.lr,
@@ -602,6 +607,7 @@ def get_learning_rate_scheduler(optimizer, neox_args):
         decay_style=neox_args.lr_decay_style,
         last_iter=init_step,
         min_lr=neox_args.min_lr,
+        final_lr=neox_args.final_lr,
         use_checkpoint_lr_scheduler=neox_args.use_checkpoint_lr_scheduler,
         override_lr_scheduler=neox_args.override_lr_scheduler,
         use_mup=neox_args.use_mup,
