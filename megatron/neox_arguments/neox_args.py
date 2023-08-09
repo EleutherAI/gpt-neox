@@ -793,6 +793,16 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Output directory to save checkpoints to.
     """
 
+    s3_path: str = None
+    """
+    Path to s3 bucket for saving checkpoints.
+    """
+
+    s3_chunk_size: int = 104_857_600
+    """
+    The number of bytes in each file chunk when uploading to s3. Defaults to 100MiB.
+    """ 
+
     config_files: dict = None
     """
     Store of original config files mapping config filename to file contents
