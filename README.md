@@ -426,19 +426,21 @@ The following publications by other research groups use this library:
 The following models were trained using this library:
 
 **English LLMs**
-- [EleutherAI](https://eleuther.ai/)'s [GPT-NeoX-20B](https://huggingface.co/EleutherAI/gpt-neox-20b)
-- EleutherAI's [Pythia (70M through 13B)](https://github.com/EleutherAI/pythia)
+- [EleutherAI](https://eleuther.ai/)'s [GPT-NeoX-20B](https://huggingface.co/EleutherAI/gpt-neox-20b) and [Pythia (70M through 13B)](https://github.com/EleutherAI/pythia)
 - [CarperAI](https://carper.ai/)'s [FIM-NeoX-1.3B](https://huggingface.co/CarperAI/FIM-NeoX-1.3B)
 - [StabilityAI](https://stability.ai/)'s [StableLM (3B and 7B)](https://github.com/Stability-AI/StableLM)
 - [Together.ai](https://together.ai/)'s [RedPajama-INCITE (3B and 7B)](https://together.ai/blog/redpajama-models-v1)
+- [Carnegie Mellon University](https://www.cmu.edu/hoskinson/)'s [proofGPT (1.3B and 6.7B](https://huggingface.co/hoskinson-center/proofGPT-v0.1-6.7B)
+- [Dampish](https://huggingface.co/Dampish)'s [StellarX (2.8B and 4B)](https://huggingface.co/Dampish/StellarX-4B-V0.2)
 
 **Non-English LLMs**
 - EleutherAI's [Polyglot-Ko (1.3B through 12.8B)](https://github.com/EleutherAI/polyglot) (Korean)
+- Korea University's [KULLM-Polyglot (5.8B and 12.8B)](https://github.com/nlpai-lab/KULLM) (Korean)
 - [LearnItAnyway](https://huggingface.co/LearnItAnyway)'s [LLaVA-Polyglot-Ko (1.3B)](https://huggingface.co/LearnItAnyway/llava-polyglot-ko-1.3b-hf) (Korean)
 - [Rinna Co.](https://rinna.co.jp/)'s [bilingual-gpt-neox-4b](https://huggingface.co/rinna/bilingual-gpt-neox-4b) (English / Japanese)
 - [CyberAgent](https://www.cyberagent.co.jp/en/)'s [Open-CLM (125M through 7B)](https://huggingface.co/cyberagent/open-calm-7b) (Japanese)
-- [The Hungarian Research Centre for Linguistics](https://nytud.hu/en)'s (Hungarian / English / Chinese)
-- WebLab's [weblab-10b](https://huggingface.co/Kojima777/weblab-10b) (Japanese)
+- [The Hungarian Research Centre for Linguistics](https://nytud.hu/en)'s [PULI GPTrio (6.7B)](https://huggingface.co/NYTK/PULI-GPTrio) (Hungarian / English / Chinese)
+- [The University of Tokyo](https://weblab.t.u-tokyo.ac.jp/en/hpc/)'s [weblab-10b](https://huggingface.co/Kojima777/weblab-10b) and [weblab-10b-instruct](https://huggingface.co/Kojima777/weblab-10b-instruction-sft) (Japanese)
 
 **Code Models**
 - [Carnegie Mellon University](https://www.cmu.edu/)'s [PolyCoder (160M through 2.7B)](https://github.com/VHellendoorn/Code-LMs)
@@ -447,6 +449,7 @@ The following models were trained using this library:
 **Other Modalities**
 -  University College London's [ChessGPT-3B](https://huggingface.co/Waterhorse/chessgpt-base-v1)
 -  [Gretel](https://gretel.ai/)'s [Text-to-Table](https://huggingface.co/gretelai/text2table)
+  
 ## Acknowledgements
 
 We run our experiments on a Kubernetes cluster provided by [CoreWeave](https://coreweave.com/) and a SLURM cluster provided by [Stability AI](https://stability.ai). We are thankful to the DeepSpeed team for their advice and consultation.
