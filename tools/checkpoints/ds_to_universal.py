@@ -200,7 +200,8 @@ def _merge_zero_shards(param_base_path, state, tp_degree, slice_shape):
     for tp_index in range(tp_degree):
         prefix_path = os.path.join(param_base_path, str(tp_index), f"{state}")
         paths = sorted(list(glob.glob(f"{prefix_path}.0*")))
-        print(paths)
+        print(f"Prefix path: {prefix_path}")
+        print(f"{paths=}")
         shards = [torch.load(p) for p in paths]
         slice = torch.cat(shards, dim=0).reshape(slice_shape)
         slices.append(slice)
