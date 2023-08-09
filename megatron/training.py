@@ -607,7 +607,7 @@ def get_learning_rate_scheduler(optimizer, neox_args):
         decay_style=neox_args.lr_decay_style,
         last_iter=init_step,
         min_lr=neox_args.min_lr,
-        final_lr=neox_args.final_lr,
+        decay_lr_to=neox_args.decay_lr_to,
         use_checkpoint_lr_scheduler=neox_args.use_checkpoint_lr_scheduler,
         override_lr_scheduler=neox_args.override_lr_scheduler,
         use_mup=neox_args.use_mup,

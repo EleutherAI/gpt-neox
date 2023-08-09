@@ -451,9 +451,9 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
     Minimum value for learning rate. The scheduler clips values below this threshold.
     """
 
-    final_lr: float = 0.1
+    decay_lr_to: float = None
     """
-    If using cosine decay, the learning rate at the final step, prior to any clipping based on the value of `min_lr`.
+    If using cosine decay, the ratio of max lr that the lr is decayed to, prior to any clipping based on the value of `min_lr`.
     """
 
     warmup: float = None
