@@ -9,6 +9,12 @@ For those looking for a TPU-centric codebase, we recommend [Mesh Transformer JAX
 
 **If you are not looking to train models with billions of parameters from scratch, this is likely the wrong library to use. For generic inference needs, we recommend you use the Hugging Face `transformers` library instead which supports GPT-NeoX models.**
 
+## News
+[8/10/2023] We have experimental support for LLaMA 2 and Flash Attention v2 supported by our [math-lm](https://github.com/EleutherAI/math-lm) library that will be upstreamed later this month.
+[5/17/2023] After fixing some miscellenous bugs we now fully support bf16.
+[4/11/2023] We have upgraded our Flash Attention implementation to now support Alibi positional embeddings.
+[3/9/2023] We have released GPT-NeoX 2.0.0, an upgraded version built on the latest DeepSpeed which will be regularly synced with going forward.
+
 ## Versions
 
 Prior to 3/9/2023, GPT-NeoX relied on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), which was based on an old version of DeepSpeed (0.3.15). In order to migrate to the latest upstream DeepSpeed version while allowing users to access the old versions of GPT-NeoX and DeeperSpeed, we have introduced two versioned releases for both libraries:
@@ -397,7 +403,7 @@ The following models were trained using this library:
 - [CarperAI](https://carper.ai/)'s [FIM-NeoX-1.3B](https://huggingface.co/CarperAI/FIM-NeoX-1.3B)
 - [StabilityAI](https://stability.ai/)'s [StableLM (3B and 7B)](https://github.com/Stability-AI/StableLM)
 - [Together.ai](https://together.ai/)'s [RedPajama-INCITE (3B and 7B)](https://together.ai/blog/redpajama-models-v1)
-- [Carnegie Mellon University](https://www.cmu.edu/hoskinson/)'s [proofGPT (1.3B and 6.7B](https://huggingface.co/hoskinson-center/proofGPT-v0.1-6.7B)
+- [Carnegie Mellon University](https://www.cmu.edu/hoskinson/)'s [proofGPT (1.3B and 6.7B)](https://huggingface.co/hoskinson-center/proofGPT-v0.1-6.7B)
 - [Dampish](https://huggingface.co/Dampish)'s [StellarX (2.8B and 4B)](https://huggingface.co/Dampish/StellarX-4B-V0.2)
 
 **Non-English LLMs**
