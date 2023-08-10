@@ -40,31 +40,36 @@ class RotaryEmbedding(torch.nn.Module):
         super().__init__()
         self.precision = precision
         self.max_seq_len = max_seq_len
+        self.base = base
         
         # precompute cos_cached, sin_cached in fp32
-        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2).float() / dim))
-        self.register_buffer("inv_freq", inv_freq)
+        cos_cached, sin_cached, inv_freq = self._prepare_cache(max_seq_len, precision, base)
 
-        t = torch.arange(max_seq_len).type_as(self.inv_freq)
-        freqs = torch.einsum("i,j->ij", t, self.inv_freq)
+        self.register_buffer("inv_freq", inv_freq)
+        self.cos_cached = torch.nn.Parameter(cos_cached, requires_grad=False)
+        self.sin_cached = torch.nn.Parameter(sin_cached, requires_grad=False)
+    
+    def _prepare_cache(seq_len, precision, base):
+        # precompute cos_cached, sin_cached in fp32
+        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2).float() / dim))
+
+        t = torch.arange(seq_len).type_as(inv_freq)
+        freqs = torch.einsum("i,j->ij", t, inv_freq)
         emb = torch.cat((freqs, freqs), dim=-1)
 
-        self.cos_cached = torch.nn.parameter(
-                emb.cos()[:, None, None, :].to(precision), 
-                requires_grad=False,
-        )
-        self.sin_cached = torch.nn.parameter(
-                emb.sin()[:, None, None, :].to(precision), 
-                requires_grad=False,
-        )
+        cos_cached = emb.cos()[:, None, None, :]
+        sin_cached = emb.sin()[:, None, None, :]
+        
+        return cos_cached.to(precision), sin_cached.to(precision), inv_freq.to(precision)
 
     def forward(self, x, seq_dim=1, seq_len=None):
         seq_len = x.shape[seq_dim]
         assert seq_len <= self.max_seq_len
-
-        cos_trunced = self.cos_cached[:seq_len].to(x.device)
-        sin_trunced = self.sin_cached[:seq_len].to(x.device)
-        return cos_trunced, sin_trunced
+        if seq_len != self.max_seq_len:
+            cos, sin, _ = self._prepare_cache(seq_len, self.precision, self.base)
+            return cos.to(x.device), sin.to(x.device)
+        else:
+            return self.cos_cached.to(x.device), self.sin_cached(x.device)
 
 
 # rotary pos emb helpers:
