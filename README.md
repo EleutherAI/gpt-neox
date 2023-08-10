@@ -10,7 +10,7 @@ For those looking for a TPU-centric codebase, we recommend [Mesh Transformer JAX
 **If you are not looking to train models with billions of parameters from scratch, this is likely the wrong library to use. For generic inference needs, we recommend you use the Hugging Face `transformers` library instead which supports GPT-NeoX models.**
 
 ## News
-**[8/10/2023]** We have experimental support for LLaMA 2 and Flash Attention v2 supported by our [math-lm](https://github.com/EleutherAI/math-lm) library that will be upstreamed later this month.
+**[8/10/2023]** We have experimental support for LLaMA 2 and Flash Attention v2 supported in our [math-lm](https://github.com/EleutherAI/math-lm) project that will be upstreamed later this month.
 
 **[5/17/2023]** After fixing some miscellenous bugs we now fully support bf16.
 
