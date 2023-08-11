@@ -41,17 +41,18 @@ class RotaryEmbedding(torch.nn.Module):
         self.precision = precision
         self.max_seq_len = max_seq_len
         self.base = base
+        self.dim = dim
         
         # precompute cos_cached, sin_cached in fp32
         cos_cached, sin_cached, inv_freq = self._prepare_cache(max_seq_len, precision, base)
 
         self.register_buffer("inv_freq", inv_freq)
-        self.cos_cached = torch.nn.Parameter(cos_cached, requires_grad=False)
-        self.sin_cached = torch.nn.Parameter(sin_cached, requires_grad=False)
-    
-    def _prepare_cache(seq_len, precision, base):
+        self.cos_cached = cos_cached
+        self.sin_cached = sin_cached    
+
+    def _prepare_cache(self, seq_len, precision, base):
         # precompute cos_cached, sin_cached in fp32
-        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2).float() / dim))
+        inv_freq = 1.0 / (base ** (torch.arange(0, self.dim, 2).float() / self.dim))
 
         t = torch.arange(seq_len).type_as(inv_freq)
         freqs = torch.einsum("i,j->ij", t, inv_freq)
@@ -69,7 +70,7 @@ class RotaryEmbedding(torch.nn.Module):
             cos, sin, _ = self._prepare_cache(seq_len, self.precision, self.base)
             return cos.to(x.device), sin.to(x.device)
         else:
-            return self.cos_cached.to(x.device), self.sin_cached(x.device)
+            return self.cos_cached.to(x.device), self.sin_cached.to(x.device)
 
 
 # rotary pos emb helpers:

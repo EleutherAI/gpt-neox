@@ -329,7 +329,7 @@ class ParallelSelfAttention(nn.Module):
             self.rotary_emb = RotaryEmbedding(
                 dim, 
                 base=neox_args.rotary_emb_base, 
-                max_seq_len=neox_args.seq_len,
+                max_seq_len=neox_args.seq_length,
                 precision=neox_args.params_dtype
             )
         else:
