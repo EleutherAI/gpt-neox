@@ -67,8 +67,8 @@ class RotaryEmbedding(torch.nn.Module):
         seq_len = x.shape[seq_dim]
         assert seq_len <= self.max_seq_len
         if seq_len != self.max_seq_len:
-            cos, sin, _ = self._prepare_cache(seq_len, self.precision, self.base)
-            return cos.to(x.device), sin.to(x.device)
+            y, z, _ = self._prepare_cache(seq_len, self.precision, self.base)
+            return y.to(x.device), z.to(x.device)
         else:
             return self.cos_cached.to(x.device), self.sin_cached.to(x.device)
 
