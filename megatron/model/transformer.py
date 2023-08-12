@@ -327,7 +327,10 @@ class ParallelSelfAttention(nn.Module):
                 else self.hidden_size_per_attention_head
             )
             self.rotary_emb = RotaryEmbedding(
-                dim, base=neox_args.rotary_emb_base, precision=neox_args.params_dtype
+                dim, 
+                base=neox_args.rotary_emb_base, 
+                max_seq_len=neox_args.seq_length,
+                precision=neox_args.params_dtype
             )
         else:
             self.rotary_emb = None
