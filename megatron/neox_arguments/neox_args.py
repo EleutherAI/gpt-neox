@@ -456,6 +456,21 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
     Percentage of total iterations to warmup on (.01 = 1 percent of all training iters).
     """
 
+    cooldown_start: int = None
+    """
+    Iteration at which cooldown period should begin.
+    """
+    
+    cooldown_length
+    """
+    Number of iterations over which to cool down.
+    """
+
+    cooldown_to: float = 0.0
+    """
+    Percentage of max lr to achieve at end of cooldown period.
+    """
+
     override_lr_scheduler: bool = False
     """
     Reset the values of the scheduler (learning rate,warmup iterations, minimum learning rate, maximum number of iterations, and decay style from input arguments and ignore values from checkpoints. Note that all the above values will be reset.
