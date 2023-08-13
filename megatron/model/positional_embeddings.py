@@ -60,16 +60,19 @@ class RotaryEmbedding(torch.nn.Module):
 
         cos_cached = emb.cos()[:, None, None, :]
         sin_cached = emb.sin()[:, None, None, :]
-        
+         
         return cos_cached.to(precision), sin_cached.to(precision), inv_freq.to(precision)
 
     def forward(self, x, seq_dim=1, seq_len=None):
-        seq_len = x.shape[seq_dim]
+        if seq_len is None:
+            seq_len = x.shape[seq_dim]
         assert seq_len <= self.max_seq_len
         if seq_len != self.max_seq_len:
-            y, z, _ = self._prepare_cache(seq_len, self.precision, self.base)
-            return y.to(x.device), z.to(x.device)
+            cos_new, sin_new, _ = self._prepare_cache(seq_len, self.precision, self.base)
+            # print(f"##############\nseq_len!=max_seq_len\ninput: {x.shape}\ncos_new: {cos_new.shape}\nsin_new: {sin_new.shape}\nseq_dim:{seq_dim}")
+            return cos_new.to(x.device), sin_new.to(x.device)
         else:
+            # print(f"##############\nseq_len==max_seq_len\ninput: {x.shape}\ncos_cached: {self.cos_cached.shape}\nsin_cached: {self.cos_cached.shape}")
             return self.cos_cached.to(x.device), self.sin_cached.to(x.device)
 
 
