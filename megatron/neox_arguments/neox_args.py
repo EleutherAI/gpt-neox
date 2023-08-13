@@ -461,9 +461,9 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
     Iteration at which cooldown period should begin.
     """
     
-    cooldown_length
+    cooldown_end: int = None
     """
-    Number of iterations over which to cool down.
+    Iteration at which cooldown period ends.
     """
 
     cooldown_to: float = 0.0
