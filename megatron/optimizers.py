@@ -227,7 +227,7 @@ def _max_reduce_except_dim(tensor, dim):
 # closure is checked if callable or not since some code passes loss directly, rather than in closure param
 
 import math
-from typing import Collection, TYPE_CHECKING, Any, Callable, Optional
+from typing import Collection, TYPE_CHECKING, Any, Callable, Optional, Tuple
 
 import torch
 import torch.optim
@@ -271,12 +271,12 @@ class madgrad_wd(torch.optim.Optimizer):
     """
 
     def __init__(
-        self,
-        params: _params_t,
-        lr: float = 1e-2,
-        momentum: float = 0.9,
-        weight_decay: float = 0,
-        eps: float = 1e-6,
+            self,
+            params: _params_t,
+            lr: float = 1e-2,
+            momentum: float = 0.9,
+            weight_decay: float = 0,
+            eps: float = 1e-6,
     ):
         if momentum < 0 or momentum >= 1:
             raise ValueError(f"Momentum {momentum} must be in the range [0,1]")
@@ -413,3 +413,80 @@ class madgrad_wd(torch.optim.Optimizer):
 
         self.state["k"] += 1
         return loss
+
+
+class Lion(Optimizer):
+    """
+
+    """
+    def exists(val):
+        return val is not None
+
+    def update_fn(self, p, grad, exp_avg, lr, wd, beta1, beta2):
+        # stepweight decay
+
+        p.data.mul_(1 - lr * wd)
+
+        # weight update
+
+        update = exp_avg.clone().mul_(beta1).add(grad, alpha=1 - beta1).sign_()
+        p.add_(update, alpha=-lr)
+
+        # decay the momentum running average coefficient
+
+        exp_avg.mul_(beta2).add_(grad, alpha=1 - beta2)
+
+    def __init__(
+            self,
+            params,
+            lr: float = 1e-4,
+            betas: Tuple[float, float] = (0.9, 0.99),
+            weight_decay: float = 0.0,
+            use_triton: bool = False
+    ):
+        assert lr > 0.
+        assert all([0. <= beta <= 1. for beta in betas])
+
+        defaults = dict(
+            lr=lr,
+            betas=betas,
+            weight_decay=weight_decay
+        )
+
+        super().__init__(params, defaults)
+
+        @torch.no_grad()
+        def step(
+                self,
+                closure: Optional[Callable] = None
+        ):
+
+            loss = None
+            if self.exists(closure):
+                with torch.enable_grad():
+                    loss = closure()
+
+            for group in self.param_groups:
+                for p in filter(lambda p: self.exists(p.grad), group['params']):
+
+                    grad, lr, wd, beta1, beta2, state = p.grad, group['lr'], group['weight_decay'], *group['betas'], \
+                    self.state[p]
+
+                    # init state - exponential moving average of gradient values
+
+                    if len(state) == 0:
+                        state['exp_avg'] = torch.zeros_like(p)
+
+                    exp_avg = state['exp_avg']
+
+                    self.update_fn(
+                        p,
+                        grad,
+                        exp_avg,
+                        lr,
+                        wd,
+                        beta1,
+                        beta2
+                    )
+
+            return loss
