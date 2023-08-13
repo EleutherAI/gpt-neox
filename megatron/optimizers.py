@@ -417,6 +417,23 @@ class madgrad_wd(torch.optim.Optimizer):
 
 class Lion(Optimizer):
     """
+    Implementes the Lion Algorithm
+
+    .. / _Lion: https://arxiv.org/abs/2302.06675
+
+    Compared to AdamW and various adaptive optimizers that need to save both first and second moments,
+    Lion only needs the momentum, halving the additional memory footprint. This is beneficial when training large models
+    and / or with a large batch size.
+
+    Arguments:
+        params (iterable):
+            Iterable of parameters to optimize or dicts defining parameter groups.
+        lr (float):
+            Learning rate (default: 1e-2).
+        beta (float):
+            coefficients used for computing running averages of gradient and its square (default: (0.9, 0.99))
+        weight_decay (float):
+            Weight decay, i.e. a L2 penalty (default: 0).
 
     """
     def exists(val):
@@ -441,8 +458,7 @@ class Lion(Optimizer):
             params,
             lr: float = 1e-4,
             betas: Tuple[float, float] = (0.9, 0.99),
-            weight_decay: float = 0.0,
-            use_triton: bool = False
+            weight_decay: float = 0.0
     ):
         assert lr > 0.
         assert all([0. <= beta <= 1. for beta in betas])

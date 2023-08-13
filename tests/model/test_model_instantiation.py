@@ -85,6 +85,7 @@ OPTIMIZER_PARAMS = {
         {"type": "cpu_adam", "params": {"lr": 0.0006}},
         {"type": "cpu_torch_adam", "params": {"lr": 0.0006}},
         {"type": "sm3", "params": {"lr": 0.0006}},
+        {"type": "lion", "params": {"lr": 0.0006}},
         {"type": "madgrad_wd", "params": {"lr": 0.0006}},
     ]
 }
