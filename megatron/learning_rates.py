@@ -34,6 +34,9 @@ class AnnealingLR(object):
         decay_style,
         last_iter,
         min_lr=0.0,
+        cooldown_start=None,
+        cooldown_end=None,
+        cooldown_to=None,
         use_checkpoint_lr_scheduler=True,
         override_lr_scheduler=False,
         use_mup=False,
@@ -58,6 +61,13 @@ class AnnealingLR(object):
         # Set the learning rate
         self.step(self.num_iters)
 
+        self.cooldown_start = cooldown_start
+        self.cooldown_end = cooldown_end
+        self.cooldown_to = cooldown_to
+
+        if (self.cooldown_start or self.cooldown_end) or self.cooldown_to:
+            assert self.decay_style == "cosine", "only support LR cooldown with cosine schedule"
+
         print_rank_0("> learning rate decay style: {}".format(self.decay_style))
 
     def get_lr(self):
@@ -69,6 +79,21 @@ class AnnealingLR(object):
         if self.warmup_iter > 0 and self.num_iters <= self.warmup_iter:
             return float(self.start_lr) * num_iters_ / self.warmup_iter
 
+        # If cosine cooldown period is enabled, we linearly cooldown 
+        # between the LR at `iteration = self.cooldown_start` and the desired end LR set by `self.cooldown_to * self.start_lr`
+        if num_iters_ > self.cooldown_start and num_iters_ <= self.cooldown_end:
+            # calc LR at cooldown_start iter
+            end_iter_ = self.end_iter - self.warmup_iter
+            lr = self.min_lr + (
+                (self.start_lr-self.min_lr)
+                / 2.0
+                * (math.cos(math.pi * self.cooldown_start / end_iter_) + 1) # note using `cooldown_start` not `num_iters_` here
+            )
+            # linearly interpolate between lr and `cooldown_to * self.start_lr`
+            fraction = (num_iters_ - self.cooldown_start) / (self.cooldown_end - self.cooldown_start)
+
+            lr = lr - fraction * (lr - self.cooldown_to * self.start_lr)
+        
         num_iters_ = num_iters_ - self.warmup_iter
         if self.decay_style == "linear":
             lr = self.start_lr * (self.end_iter - num_iters_) / self.end_iter
