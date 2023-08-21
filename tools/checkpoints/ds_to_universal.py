@@ -156,9 +156,9 @@ def extract_zero_shards(dir, slice_shapes, ds_checkpoint, indices_3D):
                 # Skip tied weights that are replicated in first and last pp stages
                 continue
 
-            print(
-                f"{param_group_id} {name} => {fragment_mapping.start}:{fragment_mapping.numel}"
-            )
+            # print(
+            #    f"{param_group_id} {name} => {fragment_mapping.start}:{fragment_mapping.numel}"
+            # )
             for state_key in flat_state.keys():
                 dump_param_fragment(
                     dir,
@@ -197,11 +197,14 @@ def dump_param_fragment(
 
 def _merge_zero_shards(param_base_path, state, tp_degree, slice_shape):
     slices = []
+    print("###############", "\nf{state}", "\n################")
     for tp_index in range(tp_degree):
         prefix_path = os.path.join(param_base_path, str(tp_index), f"{state}")
         paths = sorted(list(glob.glob(f"{prefix_path}.0*")))
         print(f"{paths=}")
         shards = [torch.load(p) for p in paths]
+        print([p.shape for p in shards])
+        print(f"{slice_shape=}")
         slice = torch.cat(shards, dim=0).reshape(slice_shape)
         slices.append(slice)
 
@@ -299,9 +302,9 @@ def _extract_zero_shard_files(args, ds_checkpoint, slice_shapes, temp_dir):
             range(ds_checkpoint.dp_degree),
         )
     )
-    pprint(_3d_range_list)
+    # pprint(_3d_range_list)
     work_chunks = list(_get_chunks(_3d_range_list, args.num_extract_workers))
-    pprint(work_chunks)
+    # pprint(work_chunks)
 
     do_work = partial(extract_zero_shards, temp_dir, slice_shapes, ds_checkpoint)
     _do_parallel_work(do_work, work_chunks, args.num_extract_workers)
