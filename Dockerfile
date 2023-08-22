@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM nvidia/cuda:11.7.0-runtime-ubuntu20.04
+FROM nvidia/cuda:11.7.1-runtime-ubuntu20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -21,7 +21,7 @@ LABEL org.opencontainers.image.version = "2.0"
 LABEL org.opencontainers.image.authors = "contact@eleuther.ai"
 LABEL org.opencontainers.image.source = "https://www.github.com/eleutherai/gpt-neox"
 LABEL org.opencontainers.image.licenses = " Apache-2.0"
-LABEL org.opencontainers.image.base.name="docker.io/nvidia/cuda:11.1.1-devel-ubuntu20.04"
+LABEL org.opencontainers.image.base.name="docker.io/nvidia/cuda:11.7.1-runtime-ubuntu20.04"
 
 #### System package (uses default Python 3 version in Ubuntu 20.04)
 RUN apt-get update -y && \
