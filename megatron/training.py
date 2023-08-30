@@ -470,7 +470,7 @@ def get_optimizer(model, neox_args):
         for param in pg["params"]:
             pinfo = {"shape": param.shape}
             pinfo.update(param.__dict__)
-            pg_info[param.name] = pinfo
+            pg_info[param.module_name] = pinfo
         param_info[i] = pg_info
     print_rank_0(
         f'Configuring Optimizer type: {neox_args.optimizer_type} with params: {neox_args.optimizer["params"]}'

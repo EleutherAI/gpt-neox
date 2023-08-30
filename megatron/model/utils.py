@@ -46,7 +46,7 @@ def get_params_for_weight_decay_optimization(module, neox_args):
             params = []
             for n, p in module_.parameters.items():
                 if p is not None:
-                    p.name = n
+                    p.module_name = n
                     params.append(p)
             no_weight_decay_params["params"].extend(params)
         else:
@@ -54,7 +54,7 @@ def get_params_for_weight_decay_optimization(module, neox_args):
             nwd_params = []
             for n, p in module_._parameters.items():
                 if p is not None:
-                    p.name = n
+                    p.module_name = n
                     if n != "bias":
                         wd_params.append(p)
                     else:
