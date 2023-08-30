@@ -464,6 +464,14 @@ def get_optimizer(model, neox_args):
         exit()
     # Build parameter groups (weight decay and non-decay).
     param_groups = get_params_for_weight_decay_optimization(model, neox_args)
+    param_info = {}
+    for i, pg in enumerate(param_groups):
+        pg_info = {}
+        for param in pg["params"]:
+            pinfo = {"shape": param.shape}
+            pinfo.update(param.__dict__)
+            pg_info[param.name] = pinfo
+        param_info[i] = pg_info
     print_rank_0(
         f'Configuring Optimizer type: {neox_args.optimizer_type} with params: {neox_args.optimizer["params"]}'
     )

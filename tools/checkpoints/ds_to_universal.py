@@ -197,7 +197,7 @@ def dump_param_fragment(
 
 def _merge_zero_shards(param_base_path, state, tp_degree, slice_shape):
     slices = []
-    print("###############", "\nf{state}", "\n################")
+    print("###############", f"\n{state}", "\n################")
     for tp_index in range(tp_degree):
         prefix_path = os.path.join(param_base_path, str(tp_index), f"{state}")
         paths = sorted(list(glob.glob(f"{prefix_path}.0*")))
@@ -365,7 +365,7 @@ def main():
     slice_shapes = dict((k, v) for d in slice_shapes for k, v in d.items())
     temp_dir = os.path.join(args.output_folder, "tmp")
 
-    print(slice_shapes)
+    # print(slice_shapes)
 
     print("*** 1. Extracting ZeRO fragments")
     _extract_zero_shard_files(args, ds_checkpoint, slice_shapes, temp_dir)

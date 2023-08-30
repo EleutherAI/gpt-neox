@@ -40,10 +40,28 @@ def get_params_for_weight_decay_optimization(module, neox_args):
         ) or (
             neox_args.weight_decay == 0.0
         ):  # also include all parameters here if no weight decay is being done
-            no_weight_decay_params["params"].extend(
-                [p for p in list(module_._parameters.values()) if p is not None]
-            )
+            # no_weight_decay_params["params"].extend(
+            #    [p for p in list(module_._parameters.values()) if p is not None]
+            # )
+            params = []
+            for n, p in module_.parameters.items():
+                if p is not None:
+                    p.name = n
+                    params.append(p)
+            no_weight_decay_params["params"].extend(params)
         else:
+            wd_params = []
+            nwd_params = []
+            for n, p in module_._parameters.items():
+                if p is not None:
+                    p.name = n
+                    if n != "bias":
+                        wd_params.append(p)
+                    else:
+                        nwd_params.append(p)
+            weight_decay_params["params"].extend(wd_params)
+            no_weight_decay_params["params"].extend(nwd_params)
+            """
             weight_decay_params["params"].extend(
                 [
                     p
@@ -58,6 +76,8 @@ def get_params_for_weight_decay_optimization(module, neox_args):
                     if p is not None and n == "bias"
                 ]
             )
+            """
+
     if neox_args.weight_decay == 0.0:
         # only return a single param group
         # with onebitadam, we want to minimize the calls to compressed_allreduce. Every param group calls it once.
