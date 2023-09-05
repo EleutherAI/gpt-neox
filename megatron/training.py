@@ -464,14 +464,6 @@ def get_optimizer(model, neox_args):
         exit()
     # Build parameter groups (weight decay and non-decay).
     param_groups = get_params_for_weight_decay_optimization(model, neox_args)
-    param_info = {}
-    for i, pg in enumerate(param_groups):
-        pg_info = {}
-        for param in pg["params"]:
-            pinfo = {"shape": param.shape}
-            pinfo.update(param.__dict__)
-            pg_info[param.module_name] = pinfo
-        param_info[i] = pg_info
     print_rank_0(
         f'Configuring Optimizer type: {neox_args.optimizer_type} with params: {neox_args.optimizer["params"]}'
     )
@@ -618,6 +610,53 @@ def get_learning_rate_scheduler(optimizer, neox_args):
     return lr_scheduler
 
 
+from collections import OrderedDict
+import json
+
+
+def log_bit16_groups(optimizer, param_names, zero_stage):
+
+    """Returns a dict of name to shape mapping, only for the flattened fp32 weights saved by the
+    optimizer. the names are exactly as in state_dict. The order is absolutely important, since
+    the saved data is just flattened data with no identifiers and requires reconstruction in the
+    same order it was saved.
+    We can't rely on self.module.named_parameters() to get the saved tensors, as some params
+    will be missing and others unsaved and then it'd be impossible to reconstruct state_dict
+    from the flattened weights.
+    optimizer.bit16_groups seems to be the easiest to use as it's in all zeroX versions.
+    """
+    param_group_shapes = []
+    cnt = 0
+    numel = 0
+
+    # zero2 started using a round_robin_bit16_groups which is a shuffled version of bit16_groups -
+    # if we don't use it, we get parameters ordered incorrectly
+    if hasattr(optimizer, "round_robin_bit16_groups"):
+        bit16_groups = optimizer.round_robin_bit16_groups
+    else:
+        bit16_groups = (
+            optimizer.bit16_groups if zero_stage == 2 else optimizer.fp16_groups
+        )
+
+    for bit16_group in bit16_groups:
+        param_shapes = OrderedDict()
+        for param in bit16_group:
+            cnt += 1
+            numel += param.ds_numel if hasattr(param, "ds_numel") else param.numel()
+            shape = param.ds_shape if hasattr(param, "ds_shape") else param.shape
+            if param not in param_names:
+                raise ValueError(f"failed to find optimizer param in named params")
+            name = param_names[param]
+            param_shapes[name] = shape
+
+            # uncomment to debug zero_to_fp32.py problems
+            # if self.global_rank == 0: print(f"saving param {name} {shape} (numel={shape.numel()})")
+        param_group_shapes.append(param_shapes)
+    # if self.global_rank == 0: print(f"Total saved {numel} numels in {cnt} params")
+
+    return param_group_shapes
+
+
 def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
     """Setup model and optimizer."""
     model = get_model(neox_args=neox_args, use_cache=use_cache)
@@ -645,6 +684,10 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
             # config_params=neox_args.deepspeed_config,
             mpu=mpu if not neox_args.is_pipe_parallel else None,
         )
+        zero_stage = neox_args.zero_optimization["stage"]
+        bit16_groups = log_bit16_groups(optimizer, model.param_names, zero_stage)
+        with open(f"zero{zero_stage}.json", mode="w") as jfile:
+            json.dump(bit16_groups, jfile)
         model.total_params = get_total_params(model.module)
         print_rank_0(f' > total params: {"{:,}".format(model.total_params)}')
 
