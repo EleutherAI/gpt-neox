@@ -685,7 +685,8 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
             mpu=mpu if not neox_args.is_pipe_parallel else None,
         )
         zero_stage = neox_args.zero_optimization["stage"]
-        bit16_groups = log_bit16_groups(optimizer, model.param_names, zero_stage)
+        # bit16_groups = log_bit16_groups(optimizer, model.param_names, zero_stage)
+        bit16_groups = model._get_zero_param_shapes()
         with open(f"zero{zero_stage}.json", mode="w") as jfile:
             json.dump(bit16_groups, jfile)
         model.total_params = get_total_params(model.module)
