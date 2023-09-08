@@ -488,7 +488,7 @@ class ParallelSelfAttention(nn.Module):
         Argument:
             qkv: [sq, b, np, 3, hn]
         Return:
-            out: [b, np, sq, hn]
+            out: [sq, b, np, hn]
         """
         max_seqlen = qkv.size(0)
         bsz = qkv.size(1)
@@ -526,8 +526,8 @@ class ParallelSelfAttention(nn.Module):
                 ) # [b, sq, 3, np, hn] -> [b, sq, np, hn]
 
             matmul_result = output
-            # [b, sq, np, hn] -> [b, np, sq, hn]
-            matmul_result = matmul_result.transpose(1, 2)
+            # [b, sq, np, hn] -> [sq, b, np, hn]
+            matmul_result = matmul_result.transpose(0, 1).contiguous()
 
         else:
             # [sq, b, np, hn] -> [b, sq, np, hn]
@@ -649,7 +649,7 @@ class ParallelSelfAttention(nn.Module):
         if self.use_flash_attention:
             # print(f"###FLASH INPUT ACTIVATION: {qkv.shape} [sq, b, np, 3, hn]")
             context_layer = self.flash_attention(qkv)
-            # print(f"###FLASH OUTPUT ACTIVATION: {context_layer.shape} [b, np, sq, hn]")
+            # print(f"###FLASH OUTPUT ACTIVATION: {context_layer.shape} [sq, b, np, hn]")
         elif not self.sparse:
             # context_layer = self.attention(
             #     query_layer, key_layer, value_layer, layer_past, attention_mask
@@ -660,9 +660,6 @@ class ParallelSelfAttention(nn.Module):
             #     query_layer, key_layer, value_layer, attention_mask
             # )
             raise NotImplementedError("sparse attention not implemented")
-
-        # [b, np, sq, hn] --> [sq, b, np, hn]
-        context_layer = context_layer.permute(2, 0, 1, 3).contiguous()
 
         # [sq, b, np, hn] --> [sq, b, hp]
         new_context_layer_shape = context_layer.size()[:-2] + (
