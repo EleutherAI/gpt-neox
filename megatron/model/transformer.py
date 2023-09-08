@@ -347,10 +347,10 @@ class ParallelSelfAttention(nn.Module):
             )
         else:
             if self.use_flash_attention:
-                from flash_attn.flash_attn_interface import flash_attn_func, flash_attn_varlen_func
+                from flash_attn.flash_attn_interface import flash_attn_qkvpacked_func, flash_attn_varlen_qkvpacked_func
                 self.flash_triton_fn = None
-                self.flash_qkv_fn = flash_attn_func
-                self.flash_varlen_qkv_fn = flash_attn_varlen_func
+                self.flash_qkv_fn = flash_attn_qkvpacked_func
+                self.flash_varlen_qkv_fn = flash_attn_varlen_qkvpacked_func
             else:
                 self.scale_mask_softmax = FusedScaleMaskSoftmax(
                     input_in_fp16=self.fp16,
@@ -385,6 +385,7 @@ class ParallelSelfAttention(nn.Module):
         # ===================================
         # Raw attention scores. [b, np, s, s]
         # ===================================
+        raise NotImplementedError
 
         # [b, np, sq, sk]
         output_size = (
@@ -482,72 +483,48 @@ class ParallelSelfAttention(nn.Module):
         context_layer = context_layer.view(*output_size)
         return context_layer
 
-    def flash_attention(self, query_layer, key_layer, value_layer):
+    def flash_attention(self, qkv):
+        """
+        Argument:
+            qkv: [sq, b, np, 3, hn]
+        Return:
+            out: [b, np, sq, hn]
+        """
         # [b, np, sq, sk]
-        output_size = (
-            query_layer.size(1),
-            query_layer.size(2),
-            query_layer.size(0),
-            key_layer.size(0),
-        )
+        max_seqlen = qkv.size(0)
+        bsz = qkv.size(1)
 
         if self.pos_emb != "alibi":
-
-            # [sk, b, np, hn] -> [b, sk, np, hn] -> [b * sk, 1, np, hn]
-            key_layer = key_layer.transpose(0, 1).reshape(
-                output_size[0], output_size[3], output_size[1], -1 
-            )
-            value_layer = value_layer.transpose(0, 1).reshape(
-                output_size[0], output_size[3], output_size[1], -1 
-            )
-
-            batch_size = output_size[0]
-            max_seqlen_q = output_size[2]
-            max_seqlen_k = output_size[3]
-
-            cu_seqlens_q = torch.arange(
-                0,
-                (batch_size + 1) * max_seqlen_q,
-                step=max_seqlen_q,
-                dtype=torch.int32,
-                device=query_layer.device,
-            )
-
-            cu_seqlens_k = torch.arange(
-                0,
-                (batch_size + 1) * max_seqlen_k,
-                step=max_seqlen_k,
-                dtype=torch.int32,
-                device=key_layer.device,
-            )
-
-            # [sq, b, np, hn] -> [b, sq, np, hn]
-            query_layer = query_layer.transpose(0, 1).reshape(
-                output_size[0], output_size[2], output_size[1], -1
-            )
-
+            # [sq, b, np, 3, hn] -> [b, sq, 3, np, hn]
+            qkv = qkv.transpose(1, 0).contiguous()
 
             if not self.training:
-                q_shape = query_layer.shape
-                k_shape = key_layer.shape
-                v_shape = value_layer.shape
+                # need to fix all this
+                cu_seqlens = torch.arange(
+                    0,
+                    (batch_size + 1) * max_seqlen,
+                    step=max_seqlen,
+                    dtype=torch.int32,
+                    device=query_layer.device,
+                )
+
                 output = self.flash_varlen_qkv_fn(
-                    query_layer.reshape((q_shape[0]*q_shape[1], q_shape[2], q_shape[3])),
-                    key_layer.reshape((k_shape[0]*k_shape[1], k_shape[2], k_shape[3])), 
-                    value_layer.reshape((v_shape[0]*v_shape[1], v_shape[2], v_shape[3])),
-                    cu_seqlens_q, cu_seqlens_k,
-                    max_seqlen_q, max_seqlen_k,
+                    qkv.view(-1, *qkv.shape[2:]), 
+                    cu_seqlens,
+                    max_seqlen,
                     softmax_scale=None,
                     causal=True,
-                )
-                output = output.reshape(q_shape)
+                ) # _ -> [b*sq, np, hn]
+
+                # [b*sq, np, hn] -> [b, sq, np, hn]
+                output = output.view(bsz, -1, *output.shape[1:])
             else:
-                output = self.flash_qkv_fn(
-                    query_layer, key_layer, value_layer,
+                output = self.flash_qkvpacked_func(
+                    qkv,
                     self.dropout_p if self.training else 0.0,
                     softmax_scale=None,
                     causal=True,
-                )
+                ) # [b, sq, 3, np, hn] -> [b, sq, np, hn]
 
             matmul_result = output
             # [b, sq, np, hn] -> [b, np, sq, hn]
@@ -555,21 +532,22 @@ class ParallelSelfAttention(nn.Module):
 
         else:
             # [sq, b, np, hn] -> [b, sq, np, hn]
-            sq = query_layer.size(0)
-            b = query_layer.size(1)
-            sk = key_layer.size(0)
+            # sq = query_layer.size(0)
+            # b = query_layer.size(1)
+            # sk = key_layer.size(0)
 
-            query_layer = query_layer.transpose(0, 1)
-            key_layer = key_layer.transpose(0, 1)
-            value_layer = value_layer.transpose(0, 1)
+            # query_layer = query_layer.transpose(0, 1)
+            # key_layer = key_layer.transpose(0, 1)
+            # value_layer = value_layer.transpose(0, 1)
 
-            bias = self.alibi_embed.bias(sq, sk, query_layer.device, query_layer.dtype)
-            bias = bias.unsqueeze(0).tile((b, 1, 1, 1))
+            # bias = self.alibi_embed.bias(sq, sk, query_layer.device, query_layer.dtype)
+            # bias = bias.unsqueeze(0).tile((b, 1, 1, 1))
 
-            matmul_result = self.flash_triton_fn(
-                query_layer, key_layer, value_layer, bias=bias, causal=True
-            )
-            matmul_result = matmul_result.transpose(1, 2)
+            # matmul_result = self.flash_triton_fn(
+            #     query_layer, key_layer, value_layer, bias=bias, causal=True
+            # )
+            # matmul_result = matmul_result.transpose(1, 2)
+            raise NotImplementedError
 
         return matmul_result
 
@@ -599,78 +577,87 @@ class ParallelSelfAttention(nn.Module):
         # Query, Key, and Value
         # =====================
 
+        if layer_past:
+            raise NotImplementedError("KV cache not yet implemented")
+        if exists(self.rotary_ndim):
+            raise NotImplementedError("rotary_ndim attribute not implemented")
+
         # Attention heads [sq, b, h] --> [sq, b, (np * 3 * hn)]
-        mixed_x_layer, _ = self.query_key_value(hidden_states)
+        qkv, _ = self.query_key_value(hidden_states)
 
-        # [sq, b, (np * 3 * hn)] --> [sq, b, np, 3 * hn]
-        new_tensor_shape = mixed_x_layer.size()[:-1] + (
+        # [sq, b, (np * 3 * hn)] --> [sq, b, np, 3, hn]
+        new_qkv_shape = qkv.size()[:-1] + (
             self.num_attention_heads_per_partition,
-            3 * self.hidden_size_per_attention_head,
+            3, self.hidden_size_per_attention_head,
         )
-        mixed_x_layer = mixed_x_layer.view(*new_tensor_shape)
-
-        # [sq, b, np, 3 * hn] --> 3 [sq, b, np, hn]
-        (query_layer, key_layer, value_layer) = mpu.split_tensor_along_last_dim(
-            mixed_x_layer, 3
-        )
+        qkv = qkv.view(*new_qkv_shape)
 
         if exists(self.rotary_emb):
             if exists(self.rotary_ndims):
                 # partial rotary
-                query_rot, query_pass = (
-                    query_layer[..., : self.rotary_ndims],
-                    query_layer[..., self.rotary_ndims :],
-                )
-                key_rot, key_pass = (
-                    key_layer[..., : self.rotary_ndims],
-                    key_layer[..., self.rotary_ndims :],
-                )
+                # query_rot, query_pass = (
+                #     query_layer[..., : self.rotary_ndims],
+                #     query_layer[..., self.rotary_ndims :],
+                # )
+                # key_rot, key_pass = (
+                #     key_layer[..., : self.rotary_ndims],
+                #     key_layer[..., self.rotary_ndims :],
+                # )
+                raise NotImplementedError
             else:
                 # full rotary
-                query_rot, key_rot = query_layer, key_layer
+                # query_rot, key_rot = query_layer, key_layer
 
             apply_rotary_fn = (
                 apply_rotary_pos_emb_torch if self.bf16 else apply_rotary_pos_emb
             )
 
-            seq_len = key_layer.shape[0]
+            seq_len = qkv.shape[0]
             offset = 0
-            if exists(layer_past) and layer_past.numel() > 0:
-                offset = layer_past[0].shape[0]
-                seq_len += offset
-            cos, sin = self.rotary_emb(value_layer, seq_len=seq_len)
-            query_layer, key_layer = apply_rotary_fn(
-                query_rot, key_rot, cos, sin, offset=offset
+
+            # if exists(layer_past) and layer_past.numel() > 0:
+            #     offset = layer_past[0].shape[0]
+            #     seq_len += offset
+
+            cos, sin = self.rotary_emb(qkv[..., 2, :], seq_len=seq_len)
+
+            qkv[..., 0, :], qkv[..., 1, :] = apply_rotary_fn(
+                qkv[..., 0, :], qkv[..., 1, :], cos, sin, offset=offset
             )
 
             if exists(self.rotary_ndims):
-                query_layer = torch.cat((query_layer, query_pass), dim=-1)
-                key_layer = torch.cat((key_layer, key_pass), dim=-1)
+                # query_layer = torch.cat((query_layer, query_pass), dim=-1)
+                # key_layer = torch.cat((key_layer, key_pass), dim=-1)
+                raise NotImplementedError
 
         # ==================================
         # Cache key and value for inference
         # ==================================
 
         if exists(layer_past) and layer_past.numel() > 0:
-            past_key, past_value = layer_past
-            key_layer = torch.cat((past_key.type_as(key_layer), key_layer), dim=0)
-            value_layer = torch.cat(
-                (past_value.type_as(value_layer), value_layer), dim=0
-            )
+            # past_key, past_value = layer_past
+            # key_layer = torch.cat((past_key.type_as(key_layer), key_layer), dim=0)
+            # value_layer = torch.cat(
+            #     (past_value.type_as(value_layer), value_layer), dim=0
+            # )
+            raise NotImplementedError
 
         if self.use_cache:
-            present = torch.stack((key_layer, value_layer))
+            # present = torch.stack((key_layer, value_layer))
+            raise NotImplementedError
 
         if self.use_flash_attention:
-            context_layer = self.flash_attention(query_layer, key_layer, value_layer)
+            context_layer = self.flash_attention(qkv)
         elif not self.sparse:
-            context_layer = self.attention(
-                query_layer, key_layer, value_layer, layer_past, attention_mask
-            )
+            # context_layer = self.attention(
+            #     query_layer, key_layer, value_layer, layer_past, attention_mask
+            # )
+            raise NotImplementedError("non-flash attention not implemented")
         else:
-            context_layer = self.sparse_attention(
-                query_layer, key_layer, value_layer, attention_mask
-            )
+            # context_layer = self.sparse_attention(
+            #     query_layer, key_layer, value_layer, attention_mask
+            # )
+            raise NotImplementedError("sparse attention not implemented")
 
         # [b, np, sq, hn] --> [sq, b, np, hn]
         context_layer = context_layer.permute(2, 0, 1, 3).contiguous()
@@ -688,6 +675,7 @@ class ParallelSelfAttention(nn.Module):
         output, bias = self.dense(context_layer)
 
         if self.use_cache:
+            raise NotImplementedError
             output = [output, present]
 
         return output, bias
