@@ -490,22 +490,21 @@ class ParallelSelfAttention(nn.Module):
         Return:
             out: [b, np, sq, hn]
         """
-        # [b, np, sq, sk]
         max_seqlen = qkv.size(0)
         bsz = qkv.size(1)
 
         if self.pos_emb != "alibi":
             # [sq, b, np, 3, hn] -> [b, sq, 3, np, hn]
-            qkv = qkv.transpose(1, 0).contiguous()
+            qkv = qkv.permute(1, 0, 3, 2, 4).contiguous()
 
             if not self.training:
                 # need to fix all this
                 cu_seqlens = torch.arange(
                     0,
-                    (batch_size + 1) * max_seqlen,
+                    (bsz + 1) * max_seqlen,
                     step=max_seqlen,
                     dtype=torch.int32,
-                    device=query_layer.device,
+                    device=qkv.device,
                 )
 
                 output = self.flash_varlen_qkv_fn(
@@ -517,9 +516,9 @@ class ParallelSelfAttention(nn.Module):
                 ) # _ -> [b*sq, np, hn]
 
                 # [b*sq, np, hn] -> [b, sq, np, hn]
-                output = output.view(bsz, -1, *output.shape[1:])
+                output = output.view(qkv.size(0), qkv.size(1), qkv.size(3), qkv.size(4))
             else:
-                output = self.flash_qkvpacked_func(
+                output = self.flash_qkv_fn(
                     qkv,
                     self.dropout_p if self.training else 0.0,
                     softmax_scale=None,
@@ -579,7 +578,7 @@ class ParallelSelfAttention(nn.Module):
 
         if layer_past:
             raise NotImplementedError("KV cache not yet implemented")
-        if exists(self.rotary_ndim):
+        if exists(self.rotary_ndims):
             raise NotImplementedError("rotary_ndim attribute not implemented")
 
         # Attention heads [sq, b, h] --> [sq, b, (np * 3 * hn)]
@@ -607,6 +606,7 @@ class ParallelSelfAttention(nn.Module):
             else:
                 # full rotary
                 # query_rot, key_rot = query_layer, key_layer
+                pass
 
             apply_rotary_fn = (
                 apply_rotary_pos_emb_torch if self.bf16 else apply_rotary_pos_emb
@@ -647,7 +647,9 @@ class ParallelSelfAttention(nn.Module):
             raise NotImplementedError
 
         if self.use_flash_attention:
+            # print(f"###FLASH INPUT ACTIVATION: {qkv.shape} [sq, b, np, 3, hn]")
             context_layer = self.flash_attention(qkv)
+            # print(f"###FLASH OUTPUT ACTIVATION: {context_layer.shape} [b, np, sq, hn]")
         elif not self.sparse:
             # context_layer = self.attention(
             #     query_layer, key_layer, value_layer, layer_past, attention_mask
