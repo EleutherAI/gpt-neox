@@ -930,7 +930,7 @@ class NeoXArgs(*BASE_CLASSES):
             self.update_value("fp16", fp16_args)
         elif self.precision == "bfloat16":
             bf_config = {"bf16": {"enabled": True}}
-            dt_config = {"grad_accum_dtype": "fp32"}
+            # dt_config = {"grad_accum_dtype": "fp32"}
             if self.deepspeed_extra_args is None:
                 self.update_value("deepspeed_extra_args", bf_config)
             else:
@@ -938,12 +938,12 @@ class NeoXArgs(*BASE_CLASSES):
                 extra_args.update(bf_config)
                 self.update_value("deepspeed_extra_args", extra_args)
 
-            if self.data_types is None:
-                self.update_value("data_types", dt_config)
-            else:
-                data_types = copy.deepcopy(self.deepspeed_extra_args)
-                data_types.update(dt_config)
-                self.update_value("data_types", data_types)
+            # if self.data_types is None:
+            #    self.update_value("data_types", dt_config)
+            # else:
+            #    data_types = copy.deepcopy(self.deepspeed_extra_args)
+            #    data_types.update(dt_config)
+            #    self.update_value("data_types", data_types)
         else:
             self.update_value("precision", "fp32")
 
