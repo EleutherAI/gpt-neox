@@ -939,7 +939,7 @@ class NeoXArgs(*BASE_CLASSES):
                 self.update_value("deepspeed_extra_args", extra_args)
 
             if self.data_types is None:
-                self.update_value("data_types".dt_config)
+                self.update_value("data_types", dt_config)
             else:
                 data_types = copy.deepcopy(self.deepspeed_extra_args)
                 data_types.update(dt_config)
