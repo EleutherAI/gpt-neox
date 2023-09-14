@@ -943,7 +943,7 @@ class NeoXArgs(*BASE_CLASSES):
             else:
                 data_types = copy.deepcopy(self.deepspeed_extra_args)
                 data_types.update(dt_config)
-                self.update_value(data_types)
+                self.update_value("data_types", data_types)
         else:
             self.update_value("precision", "fp32")
 
