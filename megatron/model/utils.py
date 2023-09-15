@@ -190,6 +190,12 @@ class SequentialWrapper(torch.nn.Module):
                     x = exec_range_func(start_idx, end_idx)(*x)
         return x
 
+    def clear_cache(self):
+        """
+        Recursively clears the kv cache on all layers
+        """
+        recursive_setattr(self.sequential, "layer_past", None)
+
 
 def recursive_setattr(m, attr, value, assert_type=None, type_filter=None):
     """
