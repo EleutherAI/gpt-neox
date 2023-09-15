@@ -514,10 +514,10 @@ class ParallelSelfAttention(nn.Module):
 
             # [sk, b, np, hn] -> [b, sk, np, hn] -> [b * sk, 1, np, hn]
             key_layer = key_layer.transpose(0, 1).reshape(
-                output_size[0], output_size[3], output_size[1], -1 
+                output_size[0], output_size[3], self.num_kv_heads_per_partition, -1 
             )
             value_layer = value_layer.transpose(0, 1).reshape(
-                output_size[0], output_size[3], output_size[1], -1 
+                output_size[0], output_size[3], self.num_kv_heads_per_partition, -1 
             )
 
             batch_size = output_size[0]
@@ -544,7 +544,9 @@ class ParallelSelfAttention(nn.Module):
             query_layer = query_layer.transpose(0, 1).reshape(
                 output_size[0], output_size[2], output_size[1], -1
             )
-
+            
+            #print(key_layer.shape)
+            #print(value_layer.shape)
 
             if not self.training:
                 q_shape = query_layer.shape
@@ -640,13 +642,13 @@ class ParallelSelfAttention(nn.Module):
             # TODO: instead split here into [sq, b, np * hn], 2 [sq, b, np/kv_ratio * hn] and then reshape?
             # TODO: check equivalence (in the multihead case(?))
             # TODO: refactor this out into an mpu.utils fn like split_tensor_along_last_dim
-            mixed_x_layer = mixed_x_layer.reshape((mixed_x_layer.shape[0], mixed_x_layer.shape[1], self.num_attention_heads_per_partition, self.hidden_size_per_attention_head * (1 + 2 * (self.num_kv_heads_per_partition // self.num_attention_heads_per_partition))))
+            mixed_x_layer = mixed_x_layer.reshape((mixed_x_layer.shape[0], mixed_x_layer.shape[1], self.num_attention_heads_per_partition, int(self.hidden_size_per_attention_head * (1 + 2 * (self.num_kv_heads_per_partition / self.num_attention_heads_per_partition)))))
             (query_layer, key_layer, value_layer) = [
                     x.contiguous() for x in torch.split(
                         mixed_x_layer, [
                             self.hidden_size_per_attention_head, 
-                            (self.num_kv_heads_per_partition // self.num_attention_heads_per_partition) * self.hidden_size_per_attention_head, 
-                            (self.num_kv_heads_per_partition // self.num_attention_heads_per_partition) * self.hidden_size_per_attention_head
+                            int((self.num_kv_heads_per_partition / self.num_attention_heads_per_partition) * self.hidden_size_per_attention_head), 
+                            int((self.num_kv_heads_per_partition / self.num_attention_heads_per_partition) * self.hidden_size_per_attention_head)
                         ], 
                         dim=mixed_x_layer.dim() - 1
                     )
@@ -662,7 +664,7 @@ class ParallelSelfAttention(nn.Module):
 
             query_layer = query_layer.view(*new_query_shape)
 
-            new_kv_shape = new_query_shape[:2] + (self.num_kv_heads_per_partition, self.hidden_size_per_attention_head,)
+            new_kv_shape = (key_layer.size(0), key_layer.size(1), self.num_kv_heads_per_partition, self.hidden_size_per_attention_head,)
 
             key_layer = key_layer.view(*new_kv_shape)
 
