@@ -290,7 +290,7 @@ class C4OpenWebText(DataDownloader):
 
 class Enwik8(DataDownloader):
     name = "enwik8"
-    urls = ["https://data.deepai.org/enwik8.zip"]
+    urls = ["http://mattmahoney.net/dc/enwik8.zip"]
 
 
 def maybe_download_gpt2_tokenizer_data(tokenizer_type, data_dir):
