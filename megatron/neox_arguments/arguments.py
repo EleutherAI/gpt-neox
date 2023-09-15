@@ -938,12 +938,17 @@ class NeoXArgs(*BASE_CLASSES):
                 extra_args.update(bf_config)
                 self.update_value("deepspeed_extra_args", extra_args)
 
-            # if self.data_types is None:
-            #    self.update_value("data_types", dt_config)
-            # else:
-            #    data_types = copy.deepcopy(self.deepspeed_extra_args)
-            #    data_types.update(dt_config)
-            #    self.update_value("data_types", data_types)
+            zero_stage = self.zero_optimization["stage"]
+            if self.data_types is None:
+                fp32_grad_accum = False
+            else:
+                fp32_grad_accum = self.data_types.get("grad_accum_dtype") == "fp32"
+            if (zero_stage > 0) and (pp_size > 0) and not fp32_grad_accum:
+                # Remove this code when this issue is resolved
+                # https://github.com/microsoft/DeepSpeed/issues/1835
+                logging.warn(
+                    "Outstanding DeepSpeed issue means that pp>0, zero1, and bf16 will break without fp32 grads"
+                )
         else:
             self.update_value("precision", "fp32")
 
