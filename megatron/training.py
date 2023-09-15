@@ -351,6 +351,16 @@ def get_batch_pipe(data, neox_args, curr_scheduler=None):
     return (tokens, position_ids, attention_mask), (labels, loss_mask)
 
 
+def get_batch_sequential(forward_input, neox_args):
+    """A modification of get_batch() to work with the latest batch instead of an iterator."""
+    attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
+        data=forward_input[0],
+        eod_token=neox_args.tokenizer.eod,
+        eod_mask_loss=neox_args.eod_mask_loss,
+    )
+    return (forward_input[0], forward_input[1], attention_mask)
+
+
 def forward_step(
     data_iterator, model, neox_args, timers, return_logits=False, is_train=False
 ):
@@ -653,6 +663,13 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
                     get_batch_pipe, neox_args=neox_args, curr_scheduler=curr_scheduler
                 )
             )
+        else:
+            model.module.set_batch_fn(
+                partial(
+                    get_batch_sequential, neox_args=neox_args
+                )
+            )
+
     else:
         raise ValueError("Must be using deepspeed to run neox")
 
