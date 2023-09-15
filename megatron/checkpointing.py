@@ -327,19 +327,19 @@ def save_checkpoint(neox_args, iteration, model, optimizer, lr_scheduler):
         raise ValueError("Must be using deepspeed to use neox")
 
     torch.distributed.barrier()
+
+    if neox_args.keep_last_n_checkpoints is not None:
+        delete_old_checkpoints(neox_args.save, neox_args.keep_last_n_checkpoints)
+
+    # Wait so everyone is done (not necessary)
+    torch.distributed.barrier()
     upload_to_s3 = torch.distributed.get_rank() == 0 and neox_args.s3_path is not None
     if upload_to_s3:
         upload_checkpoint(iteration, neox_args)
 
     # Wait so everyone is done (necessary)
     torch.distributed.barrier()
-    if neox_args.keep_last_n_checkpoints is not None:
-        delete_old_checkpoints(neox_args.save, neox_args.keep_last_n_checkpoints)
-
-    # Wait so everyone is done (not necessary)
-    torch.distributed.barrier()
-
-
+   
 def load_checkpoint(
     neox_args, model, optimizer, lr_scheduler, inference=False, iteration=None
 ):
