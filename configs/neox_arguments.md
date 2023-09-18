@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 2c15e12
+    Default = b09d590
 
     current git hash of repository
 
@@ -1145,11 +1145,11 @@ Training Arguments
 
 
 
-- **data_impl**: str
+- **data_impl**: typing.Literal['infer', 'mmap', 'cached']
 
     Default = infer
 
-    Implementation of indexed datasets.
+    Implementation of indexed datasets, can be one of "infer", "cached", or "mmap"
 
 
 

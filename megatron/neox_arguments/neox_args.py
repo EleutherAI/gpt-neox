@@ -778,9 +778,9 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     as alpha -> inf, the probability of sampling from the groups with *the most samples* -> 1
     """
 
-    data_impl: str = "infer"
+    data_impl: Literal["infer", "mmap", "cached"] = "infer"
     """
-    Implementation of indexed datasets.
+    Implementation of indexed datasets, can be one of "infer", "cached", or "mmap"
     """
 
     mmap_warmup: bool = False
