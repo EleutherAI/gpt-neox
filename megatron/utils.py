@@ -33,6 +33,7 @@ except ModuleNotFoundError:
 import torch
 
 from deepspeed.launcher.runner import fetch_hostfile, parse_inclusion_exclusion
+from deepspeed.runtime.bf16_optimizer import BF16_Optimizer
 
 from megatron import print_rank_0
 from megatron import mpu
@@ -349,8 +350,11 @@ class OverflowMonitor:
         self.optimizer = optimizer
         self.n = n
         self.history = deque(maxlen=n)
+        self.bf16 = isinstance(optimizer, BF16_Optimizer)
 
     def check(self, skipped):
+        if self.bf16:
+            return
         self.history.append(skipped)
         if (
             self.optimizer.overflow
