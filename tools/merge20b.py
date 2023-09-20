@@ -36,16 +36,16 @@ def modify_config(input_config_path, output_config_path, output_dir):
         loaded_config = yaml.full_load(f)
 
     # replace model/pipeline parallel
-    loaded_config["model-parallel-size"] = 1
-    loaded_config["pipe-parallel-size"] = 1
+    loaded_config["model_parallel_size"] = 1
+    loaded_config["pipe_parallel_size"] = 1
 
     # replace load / save directories:
     loaded_config["load"] = output_dir
     loaded_config["save"] = output_dir
 
     # replace some other paths
-    loaded_config["vocab-file"] = os.path.join(output_dir, "20B_tokenizer.json")
-    loaded_config["log-dir"] = "./logs"
+    loaded_config["vocab_file"] = os.path.join(output_dir, "20B_tokenizer.json")
+    loaded_config["log_dir"] = "./logs"
 
     # we need to make sure the resulting vocab size is correct
     # do this by modifying the 'make_vocab_size_divisible_by' argument to be
