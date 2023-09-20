@@ -227,10 +227,12 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
         state_dict["attention.rotary_emb.inv_freq"] = loaded_tp_ranks[0][
             "attention.rotary_emb.inv_freq"
         ]
-        state_dict["attention.bias"] = hf_layer.state_dict()["attention.bias"]
-        state_dict["attention.masked_bias"] = hf_layer.state_dict()[
-            "attention.masked_bias"
-        ]
+        if "attention.bias" in hf_layer.state_dict():
+            state_dict["attention.bias"] = hf_layer.state_dict()["attention.bias"]
+        if "attention.masked_bias" in hf_layer.state_dict():
+            state_dict["attention.masked_bias"] = hf_layer.state_dict()[
+                "attention.masked_bias"
+            ]
 
         # load state_dict into layer
         hf_layer.load_state_dict(state_dict)
