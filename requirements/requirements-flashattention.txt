@@ -1,1 +1,1 @@
-flash-attn==0.2.2
+flash-attn==2.2.1
