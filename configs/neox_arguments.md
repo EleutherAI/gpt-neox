@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 1d20559
+    Default = aa6c176
 
     current git hash of repository
 
@@ -1166,6 +1166,22 @@ Training Arguments
     Default = None
 
     Output directory to save checkpoints to.
+
+
+
+- **s3_path**: str
+
+    Default = None
+
+    Path to s3 bucket for saving checkpoints.
+
+
+
+- **s3_chunk_size**: int
+
+    Default = 104857600
+
+    The number of bytes in each file chunk when uploading to s3. Defaults to 100MiB.
 
 
 
