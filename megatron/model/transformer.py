@@ -345,14 +345,17 @@ class ParallelSelfAttention(nn.Module):
         else:
             if self.use_flash_attention:
                 from megatron.model.flash_attention import (
-                    flash_attn_unpadded_qkvpacked_func_cuda,
-                    flash_attn_unpadded_kvpacked_func_cuda,
-                    flash_attn_unpadded_unpacked_func_triton,
+                    # flash_attn_unpadded_qkvpacked_func_cuda,
+                    # flash_attn_unpadded_kvpacked_func_cuda,
+                    # Change of function names going from flash attention 1 -> flash attention 2
+                    flash_attn_varlen_qkvpacked_func,
+                    flash_attn_varlen_kvpacked_func,
+                    flash_attn_unpadded_unpacked_func_triton
                 )
 
                 self.flash_triton_fn = flash_attn_unpadded_unpacked_func_triton
-                self.flash_qkv_fn = flash_attn_unpadded_qkvpacked_func_cuda
-                self.flash_kv_fn = flash_attn_unpadded_kvpacked_func_cuda
+                self.flash_qkv_fn = flash_attn_varlen_qkvpacked_func
+                self.flash_kv_fn = flash_attn_varlen_kvpacked_func
             else:
                 self.scale_mask_softmax = FusedScaleMaskSoftmax(
                     input_in_fp16=self.fp16,
