@@ -27,8 +27,14 @@ import random
 import sys
 import numpy as np
 
-import boto3
-import hf_transfer
+try:
+    import boto3
+except ModuleNotFoundError:
+    print("For s3 checkpointing, please install boto3 either using requirements/requirements-s3.txt or https://github.com/boto/boto3")
+try:
+    import hf_transfer
+except ModuleNotFoundError:
+    print("For s3 checkpointing, please install hf_transfer either using requirements/requirements-s3.txt or https://github.com/huggingface/hf_transfer")
 import torch
 from glob import glob
 
