@@ -74,9 +74,12 @@ class RotaryEmbedding(torch.nn.Module):
             inv_freq.to(precision),
         )
 
-    def forward(self, x, seq_dim=1, seq_len=None):
-        seq_len = x.shape[seq_dim]
+    def forward(self, x, seq_dim=0, seq_len=None):
+        if seq_len is None:
+            seq_len = x.shape[seq_dim]
+
         assert seq_len <= self.max_seq_len
+
         if seq_len != self.max_seq_len:
             # y, z, _ = self._prepare_cache(seq_len, self.precision, self.base)
             return (
