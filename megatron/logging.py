@@ -81,15 +81,24 @@ def human_readable_flops(num) -> str:
 
 def get_flops(neox_args, model, iter_time_s) -> float:
     world_size = torch.distributed.get_world_size()
-    ff = model.total_params * 6
-    attn = neox_args.seq_length * neox_args.hidden_size * neox_args.num_layers * 60
-    flops = (
-        neox_args.train_batch_size
-        * neox_args.seq_length
-        * (ff + attn)
-        / (iter_time_s * world_size)
+    vocab_size = neox_args.padded_vocab_size
+    batch_size = neox_args.train_batch_size
+    seq_len = neox_args.seq_length
+    hidden_size = neox_args.hidden_size
+    num_layers = neox_args.num_layers
+    ckpt_activations_factor = 4 if neox_args.checkpoint_activations else 3
+    flops_calc1 = (
+        24
+        * ckpt_activations_factor
+        * batch_size
+        * seq_len
+        * num_layers
+        * (hidden_size**2)
+        * (1.0 + (seq_len / (6.0 * hidden_size)))
     )
-    return flops
+    flops_calc2 = vocab_size / (16.0 * num_layers * hidden_size)
+    flops_per_iteration = flops_calc1 + flops_calc2
+    return flops_per_iteration / (iter_time_s * world_size)
 
 
 def training_log(
