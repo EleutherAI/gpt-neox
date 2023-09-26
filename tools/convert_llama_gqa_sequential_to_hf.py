@@ -159,13 +159,14 @@ def create_config(neox_config):
             hidden_size=get_key(neox_config, "hidden-size"),
             num_hidden_layers=get_key(neox_config, "num-layers"),
             num_attention_heads=get_key(neox_config, "num-attention-heads"),
+            num_key_value_heads=get_key(neox_config, "num-kv-heads"),
             intermediate_size=gated_size(get_key(neox_config, "hidden-size")) ,
             hidden_act=get_key(neox_config, "activation", default="silu"),
             max_position_embeddings=get_key(neox_config, "max-position-embeddings"),
             initializer_range=get_key(neox_config, "init-method-std", 0.02),
             rms_norm_eps=get_key(neox_config, "rms-norm-epsilon", 1.0e-6),
-            rope_theta=get_key(neox_config, "rotary_emb_base", 10000.0),
             use_cache=True,
+            rope_theta=get_key(neox_config, "rotary_emb_base", 10000.0),
             tie_word_embeddings=(not get_key(neox_config, "no-weight-tying", False)),
         )
 
@@ -291,42 +292,49 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
             "attention.query_key_value.weight"
         ]:
             # merge across TP ranks
-            
             sharded_qkv = torch.stack(get_state(loaded_tp_ranks, key, layer_i + 2), dim=0)
-            print(sharded_qkv.shape)
-            
+            print(sharded_qkv.shape) # -> should have shape [TP_SIZE, (hidden_size + 2 * kv_hidden_size) / TP_SIZE, hidden_size]
+
             sharded_qkv = sharded_qkv.view(
-                len(loaded_tp_ranks), 
-                hf_config.num_attention_heads // len(loaded_tp_ranks), 
-                3,
-                hf_config.hidden_size // hf_config.num_attention_heads, # dims_per_head
-                hf_config.hidden_size
-            )
+                    len(loaded_tp_ranks),
+                    hf_config.num_attention_heads // len(loaded_tp_ranks),
+                    int(hf_config.hidden_size // hf_config.num_attention_heads * (1+ 2 * hf_config.num_key_value_heads / hf_config.num_attention_heads)), 
+                    hf_config.hidden_size
+                    ) # is meant to convert to shape [TP_SIZE, NUM_Q_HEADS_PER_SHARD, dims_per_head * (1 + 2 * kv-to-q head ratio[=0.125]), hidden_size]
             print(sharded_qkv.shape)
-            q, k, v = torch.chunk(sharded_qkv, 3, dim=2)
+            q, k, v = torch.split(
+                    sharded_qkv, [
+                        hf_config.hidden_size // hf_config.num_attention_heads,
+                        int((hf_config.num_key_value_heads / hf_config.num_attention_heads) * hf_config.hidden_size // hf_config.num_attention_heads),
+                        int((hf_config.num_key_value_heads / hf_config.num_attention_heads) * hf_config.hidden_size // hf_config.num_attention_heads),
+                        ],
+                    dim=2 #sharded_qkv.dim() - 2
+                    ) # splits along the dims_per_head * (1 + 2 * kv-to-q head ratio[=0.125]) dim to get 3 tensors of sizes [TP_SIZE, NUM_Q_HEADS_PER_SHARD, dims_per_head, hidden_size] and 2 x [TP_SIZE, NUM_Q_HEADS_PER_SHARD, (dims_per_head / kv-to-q head ratio), hidden_size]
+            print(q.shape, k.shape, v.shape)
+
             q, k, v = q.squeeze(dim=2), k.squeeze(dim=2), v.squeeze(dim=2)
             q = q.view(
-                    hf_config.num_attention_heads, 
-                    hf_config.hidden_size // hf_config.num_attention_heads, 
-                    hf_config.hidden_size
-                ).reshape(
-                    hf_config.hidden_size, hf_config.hidden_size
-                )
-            k = k.view(
-		    hf_config.num_attention_heads,
+                    hf_config.num_attention_heads,
                     hf_config.hidden_size // hf_config.num_attention_heads,
                     hf_config.hidden_size
                 ).reshape(
                     hf_config.hidden_size, hf_config.hidden_size
                 )
-            v = v.view(
-                    hf_config.num_attention_heads, 
-                    hf_config.hidden_size // hf_config.num_attention_heads, 
+            k = k.reshape(
+            hf_config.num_key_value_heads,
+                    hf_config.hidden_size // hf_config.num_attention_heads,
                     hf_config.hidden_size
                 ).reshape(
-                    hf_config.hidden_size, hf_config.hidden_size
+                    hf_config.hidden_size // hf_config.num_attention_heads * hf_config.num_key_value_heads, hf_config.hidden_size
                 )
-            print(q.shape)
+            v = v.reshape(
+                    hf_config.num_key_value_heads,
+                    hf_config.hidden_size // hf_config.num_attention_heads,
+                    hf_config.hidden_size
+                ).reshape(
+                    hf_config.hidden_size // hf_config.num_attention_heads * hf_config.num_key_value_heads, hf_config.hidden_size
+                )
+            print(q.shape, k.shape, v.shape) 
 
             # raise ValueError
             # merged_qkv = torch.cat([t[key] for t in loaded_tp_ranks], dim=0)

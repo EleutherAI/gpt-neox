@@ -24,12 +24,14 @@ INTERMEDIATE_SIZE_MAP = {
     "7B": 11008,
     "13B": 13824,
     "30B": 17920,
+    "34B": 22016,
     "65B": 22016,
 }
 NUM_SHARDS = {
     "7B": 1,
     "13B": 2,
     "30B": 4,
+    "34B": 4, 
     "65B": 8,
 }
 
@@ -112,6 +114,7 @@ def convert_model_pipeline(
         ],
         dim=1,
     )
+    print(embeddings_in.shape)
     helper.save_shards(
         {"word_embeddings.weight": helper.shard(embeddings_in, dim=0)}, layer_i=0
     )
@@ -210,7 +213,7 @@ def convert_model_pipeline(
             torch.cat(
                 [
                     loaded[rank][f"layers.{layer_i}.attention.wk.weight"].view(
-                        num_heads_per_input_shard, dims_per_head, hidden_size
+                        num_kv_heads_per_input_shard, dims_per_head, hidden_size
                     )
                     for rank in range(num_input_shards)
                 ],
@@ -220,13 +223,13 @@ def convert_model_pipeline(
         w_v = torch.cat(
             [
                 loaded[rank][f"layers.{layer_i}.attention.wv.weight"].view(
-                    num_heads_per_input_shard, dims_per_head, hidden_size
+                    num_kv_heads_per_input_shard, dims_per_head, hidden_size
                 )
                 for rank in range(num_input_shards)
             ],
             dim=0,
         )
-        sharded_qkv = torch.stack(
+        sharded_qkv = torch.cat(
             [
                 helper.shard(
                     w_q, dim=0
@@ -238,7 +241,7 @@ def convert_model_pipeline(
         )  # num_output_shards, num_heads_per_output_shard, QKV=3, dims_per_head, hidden_size
         sharded_qkv = sharded_qkv.view(
             num_output_shards,
-            num_heads_per_output_shard * 3 * dims_per_head,
+            num_heads_per_output_shard * dims_per_head + 2 * num_kv_heads_per_output_shard * dims_per_head,
             hidden_size,
         )
         helper.del_loaded(f"layers.{layer_i}.attention.wq.weight")
@@ -301,19 +304,28 @@ def convert_model_sequential(
     num_input_shards = NUM_SHARDS[model_size]
     num_layers = params["n_layers"]
     num_heads = params["n_heads"]
+    print(params.keys())
+    num_kv_heads = params["n_kv_heads"]
+    num_kv_heads_per_input_shard = num_kv_heads // num_input_shards
     num_heads_per_input_shard = num_heads // num_input_shards
     num_heads_per_output_shard = num_heads // num_output_shards
+    num_kv_heads_per_output_shard = num_kv_heads // num_output_shards
     hidden_size = params["dim"]
     dims_per_head = hidden_size // num_heads
     # base = 10000.0
     # inv_freq = 1.0 / (base ** (torch.arange(0, dims_per_head, 2).float() / dims_per_head))
 
     def permute_rotary(w):
-        assert w.shape == (num_heads, dims_per_head, hidden_size)
+        if w.shape == (num_heads, dims_per_head, hidden_size):
+            N_HEADS = num_heads
+        elif w.shape == (num_kv_heads, dims_per_head, hidden_size):
+            N_HEADS = num_kv_heads
+        else:
+            assert False
         return (
-            w.view(num_heads, dims_per_head // 2, 2, hidden_size)
+            w.view(N_HEADS, dims_per_head // 2, 2, hidden_size)
             .transpose(1, 2)
-            .reshape(num_heads, dims_per_head, hidden_size)
+            .reshape(N_HEADS, dims_per_head, hidden_size)
         )
 
     pbar = tqdm.tqdm(total=num_input_shards + num_output_shards)
@@ -345,6 +357,7 @@ def convert_model_sequential(
         ],
         dim=1,
     )
+    print(embeddings_in.shape)
     helper.add_sequential_shard(
         {"word_embeddings.weight": helper.shard(embeddings_in, dim=0)}, layer_i=0
     )
@@ -437,23 +450,23 @@ def convert_model_sequential(
             torch.cat(
                 [
                     loaded[rank][f"layers.{layer_i}.attention.wk.weight"].view(
-                        num_heads_per_input_shard, dims_per_head, hidden_size
+                        num_kv_heads_per_input_shard, dims_per_head, hidden_size
                     )
                     for rank in range(num_input_shards)
                 ],
                 dim=0,
             )
-        )
+        ).view(num_heads, int(dims_per_head * (num_kv_heads / num_heads)), hidden_size)
         w_v = torch.cat(
             [
                 loaded[rank][f"layers.{layer_i}.attention.wv.weight"].view(
-                    num_heads_per_input_shard, dims_per_head, hidden_size
+                    num_kv_heads_per_input_shard, dims_per_head, hidden_size
                 )
                 for rank in range(num_input_shards)
             ],
             dim=0,
-        )
-        sharded_qkv = torch.stack(
+        ).view(num_heads, int(dims_per_head * (num_kv_heads / num_heads)), hidden_size)
+        sharded_qkv = torch.cat(
             [
                 helper.shard(
                     w_q, dim=0
@@ -463,11 +476,13 @@ def convert_model_sequential(
             ],
             dim=2,
         )  # num_output_shards, num_heads_per_output_shard, QKV=3, dims_per_head, hidden_size
+        print(sharded_qkv.shape)
         sharded_qkv = sharded_qkv.view(
             num_output_shards,
-            num_heads_per_output_shard * 3 * dims_per_head,
+            num_heads_per_output_shard * dims_per_head + 2 * num_kv_heads_per_output_shard * dims_per_head,
             hidden_size,
         )
+        print(sharded_qkv.shape)
         helper.del_loaded(f"layers.{layer_i}.attention.wq.weight")
         helper.del_loaded(f"layers.{layer_i}.attention.wk.weight")
         helper.del_loaded(f"layers.{layer_i}.attention.wv.weight")
@@ -596,7 +611,7 @@ def main():
     )
     parser.add_argument(
         "--model_size",
-        choices=["7B", "13B", "30B", "65B", "tokenizer_only"],
+        choices=["7B", "13B", "30B", "34B", "65B", "tokenizer_only"],
     )
     parser.add_argument(
         "--output_dir",
