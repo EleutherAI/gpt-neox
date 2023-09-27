@@ -79,19 +79,6 @@ def human_readable_flops(num) -> str:
     return "%.1f%s" % (num, "Yi")
 
 
-def old_flops(neox_args, model, iter_time_s) -> float:
-    world_size = torch.distributed.get_world_size()
-    ff = model.total_params * 6
-    attn = neox_args.seq_length * neox_args.hidden_size * neox_args.num_layers * 60
-    flops = (
-        neox_args.train_batch_size
-        * neox_args.seq_length
-        * (ff + attn)
-        / (iter_time_s * world_size)
-    )
-    return flops
-
-
 def get_flops(neox_args, iter_time_s) -> float:
     """
     Use FLOPS calculation from Megatron-DeepSpeed:
@@ -117,9 +104,6 @@ def get_flops(neox_args, iter_time_s) -> float:
     flops_calc2 = vocab_size / (16.0 * num_layers * hidden_size)
     flops_per_iteration = flops_calc1 + flops_calc2
     return flops_per_iteration / (iter_time_s * world_size)
-
-
-import json
 
 
 def training_log(
@@ -345,13 +329,7 @@ def training_log(
 
         # log tflop / gpu
         flops_per_s_per_gpu = get_flops(neox_args, iteration_time)
-        flops_old_calc = old_flops(neox_args, model, iteration_time)
-        with open("flops_calc_comparison.json", mode="a") as jfile:
-            data = {
-                "new": human_readable_flops(flops_per_s_per_gpu),
-                "old": human_readable_flops(flops_old_calc),
-            }
-            json.dump(data, jfile)
+
         log_string += (
             f" approx flops per GPU: {human_readable_flops(flops_per_s_per_gpu)} |"
         )
