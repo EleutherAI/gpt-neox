@@ -36,7 +36,7 @@ class SinusoidalPositionalEmbedding(torch.nn.Module):
 
 
 class RotaryEmbedding(torch.nn.Module):
-    def __init__(self, dim, base=10000, precision=torch.half):
+    def __init__(self, dim, max_seq_len, base=10000, precision=torch.half):
         super().__init__()
         inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2).float() / dim))
         self.register_buffer("inv_freq", inv_freq)
@@ -44,23 +44,50 @@ class RotaryEmbedding(torch.nn.Module):
         self.cos_cached = None
         self.sin_cached = None
         self.precision = precision
+        self.max_seq_len = max_seq_len
+        self.base = base
+        self.dim = dim
 
-    def forward(self, x, seq_dim=1, seq_len=None):
+        # precompute cos_cached, sin_cached in fp32
+        cos_cached, sin_cached, inv_freq = self._prepare_cache(
+            max_seq_len, precision, base
+        )
+
+        self.register_buffer("inv_freq", inv_freq)
+        self.cos_cached = cos_cached
+        self.sin_cached = sin_cached
+
+    def _prepare_cache(self, seq_len, precision, base):
+        # precompute cos_cached, sin_cached in fp32
+        inv_freq = 1.0 / (base ** (torch.arange(0, self.dim, 2).float() / self.dim))
+
+        t = torch.arange(seq_len).type_as(inv_freq)
+        freqs = torch.einsum("i,j->ij", t, inv_freq)
+        emb = torch.cat((freqs, freqs), dim=-1)
+
+        cos_cached = emb.cos()[:, None, None, :]
+        sin_cached = emb.sin()[:, None, None, :]
+
+        return (
+            cos_cached.to(precision),
+            sin_cached.to(precision),
+            inv_freq.to(precision),
+        )
+
+    def forward(self, x, seq_dim=0, seq_len=None):
         if seq_len is None:
             seq_len = x.shape[seq_dim]
-        if seq_len != self.seq_len_cached:
-            self.seq_len_cached = seq_len
-            t = torch.arange(seq_len, device=x.device).type_as(self.inv_freq)
-            freqs = torch.einsum("i,j->ij", t, self.inv_freq)
-            emb = torch.cat((freqs, freqs), dim=-1).to(x.device)
-            if self.precision == torch.bfloat16:
-                emb = emb.float()
-            self.cos_cached = emb.cos()[:, None, None, :]
-            self.sin_cached = emb.sin()[:, None, None, :]
-            if self.precision == torch.bfloat16:
-                self.cos_cached = self.cos_cached.bfloat16()
-                self.sin_cached = self.sin_cached.bfloat16()
-        return self.cos_cached, self.sin_cached
+
+        assert seq_len <= self.max_seq_len
+
+        if seq_len != self.max_seq_len:
+            # y, z, _ = self._prepare_cache(seq_len, self.precision, self.base)
+            return (
+                self.cos_cached[:seq_len, ...].to(x.device),
+                self.sin_cached[:seq_len, ...].to(x.device),
+            )
+        else:
+            return self.cos_cached.to(x.device), self.sin_cached.to(x.device)
 
 
 # rotary pos emb helpers:

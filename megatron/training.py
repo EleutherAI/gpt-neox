@@ -665,9 +665,7 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
             )
         else:
             model.module.set_batch_fn(
-                partial(
-                    get_batch_sequential, neox_args=neox_args
-                )
+                partial(get_batch_sequential, neox_args=neox_args)
             )
 
     else:
@@ -686,6 +684,9 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
         )
     else:
         neox_args.iteration = 0
+
+    # need this for correct lr scheduling resume from ckpt
+    lr_scheduler.optimizer = model.optimizer
 
     return model, optimizer, lr_scheduler
 
