@@ -687,8 +687,8 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
 
     # need this for correct lr scheduling resume from ckpt
     lr_scheduler.optimizer = model.optimizer
-    lr_scheduler.param_groups = model.optimizer.param_groups
-    lr_scheduler.model = model
+    # lr_scheduler.param_groups = model.optimizer.param_groups
+    # lr_scheduler.model = model
 
     return model, optimizer, lr_scheduler
 
