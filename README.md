@@ -119,6 +119,10 @@ If using MPI then you must have:
 }
 ```
 
+With your environment properly set up and the correct configuration files you can use `deepy.py` like a normal python script and start (for example) a training job with:
+
+`python3 deepy.py train.py /path/to/configs/my_model.yml`
+
 #### SLURM
 
 Using SLURM can be slightly more involved. There are similar aspects. You must add the following to your config:
@@ -167,7 +171,7 @@ export COUNT_NODE=`scontrol show hostnames "$SLURM_JOB_NODELIST" | wc -l`
 ./write_hostfile.sh
 export DLTS_HOSTFILE=/sample/path/to/hostfiles/hosts_$SLURM_JOBID
 
-python3 deepy.py train.py /sample/path/to/your/configs/cfg.yml
+python3 deepy.py train.py /sample/path/to/your/configs/my_model.yml
 
 ```
 
