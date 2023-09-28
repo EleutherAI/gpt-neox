@@ -1,0 +1,51 @@
+name: Coverity
+on:
+  workflow_dispatch:
+    inputs:
+      build_version:
+        description: "Version of GPT-NeoX being submitted for scan"
+        required: false
+        default: "GPT-NeoX build version"
+      build_description:
+        description: "Description of the current build"
+        required: false
+        default: "Current build of GPT-NeoX"
+
+jobs:
+  coverity:
+
+    runs-on: ubuntu-latest
+
+    env:
+      COV_USER: ${{ secrets.COV_USER }}
+      COVERITY_PROJECT: ${{ secrets.COVERITY_PROJECT }}
+      COVERITY_TOKEN: ${{ secrets.COVERITY_TOKEN }}
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install utils
+      run: |
+        apt update -y && apt upgrade -y
+        apt install curl jq wget -y
+
+    - name: Coverity Download
+      run: |
+        wget https://scan.coverity.com/download/linux64 --post-data "token=$COVERITY_TOKEN&project=EleutherAI%2Fgpt-neox" -O coverity_tool.tgz
+        $GITHUB_WORKSPACE/bin/cov-configure --python
+        $GITHUB_WORKSPACE/bin/cov-configure --gcc
+
+    - name: Coverity Scan
+      run: |
+        set -x
+        $GITHUB_WORKSPACE/bin/cov-build --dir cov-int --no-command --fs-capture-search $GITHUB_WORKSPACE
+
+    - name: Coverity Upload
+      run: |
+        tar caf build-results.bz2 cov-int
+        curl --form token=$COV_PASSPHRASE \
+          --form email=$COV_USER \
+          --form file=@GITHUB_WORKSPACE/build-results.bz2 \
+          --form version="Version" \
+          --form description="Build" \
+          https://scan.coverity.com/builds?project=EleutherAI%2Fgpt-neox
