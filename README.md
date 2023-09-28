@@ -104,11 +104,11 @@ node1_ip slots=8
 node2_ip slots=8
 ```
 
-where the first column contains the IP address for each node in your setup and the number of slots is the number of GPUs that node has access to. In your config you must pass in the path to the hostfile with `"hostifle": "/path/to/hostfile"`.
+where the first column contains the IP address for each node in your setup and the number of slots is the number of GPUs that node has access to. In your config you must pass in the path to the hostfile with `"hostifle": "/path/to/hostfile"`. Alternatively the path to the hostfile can be in the environment variable `DLTS_HOSTFILE`.
 
 #### pdsh and MPI
 
-`pdsh` is the default launcher, and if you're using `pdsh` then in all you must do (besides ensuring that pdsh is installed in your environment) is set `{"launcher": "pdsh"}` in your config files.
+`pdsh` is the default launcher, and if you're using `pdsh` then all you must do (besides ensuring that pdsh is installed in your environment) is set `{"launcher": "pdsh"}` in your config files.
 
 If using MPI then you must have:
 
@@ -125,7 +125,7 @@ With your environment properly set up and the correct configuration files you ca
 
 #### SLURM
 
-Using SLURM can be slightly more involved. There are similar aspects. You must add the following to your config:
+Using SLURM can be slightly more involved. Like with MPI, you must add the following to your config:
 
 ```json
 {
