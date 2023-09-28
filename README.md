@@ -93,6 +93,87 @@ from the repository root.
 To use [Flash-Attention](https://github.com/HazyResearch/flash-attention), install the additional dependencies in  `./requirements/requirements-flashattention.txt` and set the attention type in your configuration accordingly (see [configs](./configs/)). This can provide significant speed-ups over regular attention on certain GPU architectures, including Ampere GPUs (such as A100s); see the repository for more details.
 
 
+### Multi-Node Set Up
+
+NeoX and Deep(er)Speed support training on multiple different nodes and you have the option of using a variety of different launchers to orchestrate multi-node jobs.
+
+In general there needs to be a "hostfile" somewhere accessible with the format:
+
+```bash
+node1_ip slots=8
+node2_ip slots=8
+```
+
+where the first column contains the IP address for each node in your setup and the number of slots is the number of GPUs that node has access to. In your config you must pass in the path to the hostfile with `"hostifle": "/path/to/hostfile"`.
+
+#### pdsh and MPI
+
+`pdsh` is the default launcher, and if you're using `pdsh` then in all you must do (besides ensuring that pdsh is installed in your environment) is set `{"launcher": "pdsh"}` in your config files.
+
+If using MPI then you must have:
+
+```json
+{
+    "launcher": "openmpi",
+    "deepspeed_mpi": true
+}
+```
+
+#### SLURM
+
+Using SLURM can be slightly more involved. There are similar aspects. You must add the following to your config:
+
+```json
+{
+    "launcher": "slurm",
+    "deepspeed_slurm": true
+}
+```
+And if you do not have ssh access to the compute nodes in your SLURM cluster you need to add `{"no_ssh_check": true}`
+
+In general you will not be able to have a single fixed hostfile, so you need to have a script to generate one when your job starts. Here is an example:
+
+```bash
+#!/bin/bash
+mkdir -p /sample/path/to/hostfiles
+hostfile=/sample/path/to/hostfiles/hosts_$SLURM_JOBID
+
+rm $hostfile &> /dev/null
+
+for i in `scontrol show hostnames $SLURM_NODELIST`
+do
+    echo $i slots=8 >>$hostfile
+done
+```
+
+`$SLURM_JOBID` and `$SLURM_NODELIST` being environment variables SLURM will create for you.
+
+Then you can create an [SBATCH](https://slurm.schedmd.com/sbatch.html) script from which to kick off your NeoX job. A bare-bones SBATCH script would look like this:
+
+```bash
+#!/bin/bash
+#SBATCH --job-name="neox"
+#SBATCH --partition=your-partition
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=8
+#SBATCH --gres=gpu:8
+
+export HOSTNAMES=`scontrol show hostnames "$SLURM_JOB_NODELIST"`
+export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
+export MASTER_PORT=12802
+export COUNT_NODE=`scontrol show hostnames "$SLURM_JOB_NODELIST" | wc -l`
+
+# Your hostfile creation script from above
+./write_hostfile.sh
+export DLTS_HOSTFILE=/sample/path/to/hostfiles/hosts_$SLURM_JOBID
+
+python3 deepy.py train.py /sample/path/to/your/configs/cfg.yml
+
+```
+
+You can then kick off the whole process with `sbatch my_sbatch_script.sh`
+
+
 ### Containerized Setup
 
 We also provide a Dockerfile if you prefer to run NeoX in a container. To use this option, first build an image named `gpt-neox` from the repository root directory with `docker build -t gpt-neox -f Dockerfile .`. We also host pre-built images on [Docker Hub at `leogao2/gpt-neox`](https://hub.docker.com/r/leogao2/gpt-neox/tags).
@@ -437,7 +518,7 @@ The following models were trained using this library:
 **Other Modalities**
 -  [University College London](https://www.ucl.ac.uk/computer-science/)'s [ChessGPT-3B](https://huggingface.co/Waterhorse/chessgpt-base-v1)
 -  [Gretel](https://gretel.ai/)'s [Text-to-Table](https://huggingface.co/gretelai/text2table)
-  
+
 
 ## Licensing
 
