@@ -24,7 +24,7 @@ GPT-NeoX leverages many of the same features and technologies as the popular Meg
 
 **[8/10/2023]** We have experimental support for LLaMA 2 and Flash Attention v2 supported in our [math-lm](https://github.com/EleutherAI/math-lm) project that will be upstreamed later this month.
 
-**[5/17/2023]** After fixing some miscellenous bugs we now fully support bf16.
+**[5/17/2023]** After fixing some miscellaneous bugs we now fully support bf16.
 
 **[4/11/2023]** We have upgraded our Flash Attention implementation to now support Alibi positional embeddings.
 
@@ -125,9 +125,9 @@ With your environment properly set up and the correct configuration files you ca
 
 `python3 deepy.py train.py /path/to/configs/my_model.yml`
 
-#### SLURM
+#### Slurm
 
-Using SLURM can be slightly more involved. Like with MPI, you must add the following to your config:
+Using Slurm can be slightly more involved. Like with MPI, you must add the following to your config:
 
 ```json
 {
@@ -135,7 +135,7 @@ Using SLURM can be slightly more involved. Like with MPI, you must add the follo
     "deepspeed_slurm": true
 }
 ```
-If you do not have ssh access to the compute nodes in your SLURM cluster you need to add `{"no_ssh_check": true}`
+If you do not have ssh access to the compute nodes in your Slurm cluster you need to add `{"no_ssh_check": true}`
 
 #### (Advanced) Custom Launching
 
@@ -175,7 +175,7 @@ do
 done
 ```
 
-`$SLURM_JOBID` and `$SLURM_NODELIST` being environment variables SLURM will create for you. See the [sbatch documentation](https://slurm.schedmd.com/sbatch.html#SECTION_OUTPUT-ENVIRONMENT-VARIABLES) for a full list of available Slurm environment variables set at job creation time.
+`$SLURM_JOBID` and `$SLURM_NODELIST` being environment variables Slurm will create for you. See the [sbatch documentation](https://slurm.schedmd.com/sbatch.html#SECTION_OUTPUT-ENVIRONMENT-VARIABLES) for a full list of available Slurm environment variables set at job creation time.
 
 #### Job Launching
 
@@ -505,7 +505,7 @@ Citation instructions for other pretrained models can be found [in the appropria
 GPT-NeoX has been used by academic and industry researchers for a variety of high performance computing projects.
 
 ### Our Research
-EleutherAI and our colaborators have used it in the following publications:
+EleutherAI and our collaborators have used it in the following publications:
  - Sid Black, Stella Biderman, Eric Hallahan, Quentin Anthony, Leo Gao, Laurence Golding, Horace He, Connor Leahy, McDonell, Jason Phang, Michael Pieler, Prashanth, Shivanshu Purohit, Laria Reynolds, Jon Tow, Ben Wang, and Samuel Weinbach. "[GPT-NeoX-20B: An Open-Source Autoregressive Language Model](https://arxiv.org/abs/2204.06745)." In *Proceedings of the ACL Workshop on Challenges \& Perspectives in Creating Large Language Models* (2022).
  - Stella Biderman, Hailey Schoelkopf, Quentin Gregory Anthony, Herbie Bradley, Kyle O’Brien, Eric Hallahan, Mohammad Aflah Khan et al. "[Pythia: A suite for analyzing large language models across training and scaling](https://arxiv.org/abs/2304.01373)." In _International Conference on Machine Learning_, pp. 2397-2430. PMLR (2023).
  - Zhangir Azerbayev, Bartosz Piotrowski, Hailey Schoelkopf, Edward W. Ayers, Dragomir Radev, and Jeremy Avigad. "[Proofnet: Autoformalizing and formally proving undergraduate-level mathematics](https://arxiv.org/abs/2302.12433). *arXiv preprint arXiv:2302.12433* (2023).
@@ -578,4 +578,4 @@ For full terms, see the `LICENSE` file. If you have any questions, comments, or 
 
 ## Acknowledgements
 
-We run our experiments on a Kubernetes cluster provided by [CoreWeave](https://coreweave.com/) and a SLURM cluster provided by [Stability AI](https://stability.ai). We are thankful to the DeepSpeed team for their advice and consultation.
+We run our experiments on a Kubernetes cluster provided by [CoreWeave](https://coreweave.com/) and a Slurm cluster provided by [Stability AI](https://stability.ai). We are thankful to the DeepSpeed team for their advice and consultation.
