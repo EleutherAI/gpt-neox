@@ -73,7 +73,7 @@ license: "Apache-2.0"
 message: "If you use this software, please cite it using these metadata."
 repository-code: "https://www.github.com/eleutherai/gpt-neox"
 title: "GPT-NeoX: Large Scale Autoregressive Language Modeling in PyTorch"
-version: "0.0.1"
+version: "2.0.0"
 doi: "10.5281/zenodo.5879544"
 date-released: 2021-08-23
 ...
