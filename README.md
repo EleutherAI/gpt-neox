@@ -24,7 +24,7 @@ GPT-NeoX leverages many of the same features and technologies as the popular Meg
 
 **[8/10/2023]** We have experimental support for LLaMA 2 and Flash Attention v2 supported in our [math-lm](https://github.com/EleutherAI/math-lm) project that will be upstreamed later this month.
 
-**[5/17/2023]** After fixing some miscellenous bugs we now fully support bf16.
+**[5/17/2023]** After fixing some miscellaneous bugs we now fully support bf16.
 
 **[4/11/2023]** We have upgraded our Flash Attention implementation to now support Alibi positional embeddings.
 
@@ -125,9 +125,9 @@ With your environment properly set up and the correct configuration files you ca
 
 `python3 deepy.py train.py /path/to/configs/my_model.yml`
 
-#### SLURM
+#### Slurm
 
-Using SLURM can be slightly more involved. Like with MPI, you must add the following to your config:
+Using Slurm can be slightly more involved. Like with MPI, you must add the following to your config:
 
 ```json
 {
@@ -135,7 +135,7 @@ Using SLURM can be slightly more involved. Like with MPI, you must add the follo
     "deepspeed_slurm": true
 }
 ```
-If you do not have ssh access to the compute nodes in your SLURM cluster you need to add `{"no_ssh_check": true}`
+If you do not have ssh access to the compute nodes in your Slurm cluster you need to add `{"no_ssh_check": true}`
 
 #### (Advanced) Custom Launching
 
@@ -175,7 +175,7 @@ do
 done
 ```
 
-`$SLURM_JOBID` and `$SLURM_NODELIST` being environment variables SLURM will create for you. See the [sbatch documentation](https://slurm.schedmd.com/sbatch.html#SECTION_OUTPUT-ENVIRONMENT-VARIABLES) for a full list of available Slurm environment variables set at job creation time.
+`$SLURM_JOBID` and `$SLURM_NODELIST` being environment variables Slurm will create for you. See the [sbatch documentation](https://slurm.schedmd.com/sbatch.html#SECTION_OUTPUT-ENVIRONMENT-VARIABLES) for a full list of available Slurm environment variables set at job creation time.
 
 #### Job Launching
 
@@ -578,4 +578,4 @@ For full terms, see the `LICENSE` file. If you have any questions, comments, or 
 
 ## Acknowledgements
 
-We run our experiments on a Kubernetes cluster provided by [CoreWeave](https://coreweave.com/) and a SLURM cluster provided by [Stability AI](https://stability.ai). We are thankful to the DeepSpeed team for their advice and consultation.
+We run our experiments on a Kubernetes cluster provided by [CoreWeave](https://coreweave.com/) and a Slurm cluster provided by [Stability AI](https://stability.ai). We are thankful to the DeepSpeed team for their advice and consultation.
