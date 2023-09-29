@@ -93,6 +93,121 @@ from the repository root.
 To use [Flash-Attention](https://github.com/HazyResearch/flash-attention), install the additional dependencies in  `./requirements/requirements-flashattention.txt` and set the attention type in your configuration accordingly (see [configs](./configs/)). This can provide significant speed-ups over regular attention on certain GPU architectures, including Ampere GPUs (such as A100s); see the repository for more details.
 
 
+### Multi-Node Launching
+
+NeoX and Deep(er)Speed support training on multiple different nodes and you have the option of using a variety of different launchers to orchestrate multi-node jobs.
+
+In general there needs to be a "hostfile" somewhere accessible with the format:
+
+```bash
+node1_ip slots=8
+node2_ip slots=8
+```
+
+where the first column contains the IP address for each node in your setup and the number of slots is the number of GPUs that node has access to. In your config you must pass in the path to the hostfile with `"hostfile": "/path/to/hostfile"`. Alternatively the path to the hostfile can be in the environment variable `DLTS_HOSTFILE`.
+
+#### pdsh
+
+`pdsh` is the default launcher, and if you're using `pdsh` then all you must do (besides ensuring that pdsh is installed in your environment) is set `{"launcher": "pdsh"}` in your config files.
+
+#### MPI
+
+If using MPI then you must specify the MPI library (DeepSpeed/GPT-NeoX currently supports `mvapich`, `openmpi`, `mpich`, and `impi`, though `openmpi` is the most commonly used and tested) as well as pass the `deepspeed_mpi` flag in your config file:
+
+```json
+{
+    "launcher": "openmpi",
+    "deepspeed_mpi": true
+}
+```
+
+With your environment properly set up and the correct configuration files you can use `deepy.py` like a normal python script and start (for example) a training job with:
+
+`python3 deepy.py train.py /path/to/configs/my_model.yml`
+
+#### SLURM
+
+Using SLURM can be slightly more involved. Like with MPI, you must add the following to your config:
+
+```json
+{
+    "launcher": "slurm",
+    "deepspeed_slurm": true
+}
+```
+If you do not have ssh access to the compute nodes in your SLURM cluster you need to add `{"no_ssh_check": true}`
+
+#### (Advanced) Custom Launching
+
+There are many cases where the above default launching options are not sufficient
+
+- Many clusters have their own unique job scheduler or specific MPI/Slurm arguments necessary for launching jobs such as [Summit JSRun](https://docs.olcf.ornl.gov/systems/summit_user_guide.html#job-launcher-jsrun) or [LLNL Flux](https://computing.llnl.gov/projects/flux-building-framework-resource-management)
+- While the above Slurm/MPI/pdsh default options are enough for most job runs, advanced users may want to add arguments for optimization or debugging purposes
+
+In these cases, you will need to modify the DeepSpeed [multinode runner](https://github.com/microsoft/DeepSpeed/blob/17957728c0362bf8ae70feca308e491e55ef9feb/deepspeed/launcher/multinode_runner.py) utility to support your usecase. Broadly, these enhancements fall under two categories:
+
+##### 1. Adding a Launcher (e.g. [JSRun](https://docs.olcf.ornl.gov/systems/summit_user_guide.html#job-launcher-jsrun), [Flux](https://computing.llnl.gov/projects/flux-building-framework-resource-management), etc)
+
+In this case, you must add a new multinode runner class to `deepspeed/launcher/multinode_runner.py` and expose it as a configuration option in GPT-NeoX. Examples on how we did this for [Summit JSRun](https://docs.olcf.ornl.gov/systems/summit_user_guide.html#job-launcher-jsrun) are in [this DeeperSpeed commit](https://github.com/EleutherAI/DeeperSpeed/commit/9aed6c8500d7c492d85c5c88687322dbda70e370) and [this GPT-NeoX commit](https://github.com/EleutherAI/gpt-neox/commit/3782c7ae60f8624e566e3879b89bb09e8b59b869), respectively.
+
+##### 2. Modifying Run Command or Environment Variables
+
+We have encountered many cases where we wish to modify the MPI/Slurm run command for an optimization or to debug (e.g. to modify the [Slurm srun CPU binding](https://slurm.schedmd.com/srun.html#OPT_cpu-bind) or to tag MPI logs with the rank). In this case, you must modify the multinode runner class' run command under its `get_cmd` method (e.g. [mpirun_cmd](https://github.com/microsoft/DeepSpeed/blob/17957728c0362bf8ae70feca308e491e55ef9feb/deepspeed/launcher/multinode_runner.py#L135-L147) for OpenMPI). Examples on how we did this to provide optimized and rank-tagged run commands using Slurm and OpenMPI for the Stability cluster are in [this DeeperSpeed branch](https://github.com/microsoft/DeepSpeed/compare/master...EleutherAI:DeeperSpeed:v2.0-stability)
+
+
+#### Hostfile Generation
+
+In general you will not be able to have a single fixed hostfile, so you need to have a script to generate one dynamically when your job starts. An example script to dynamically generate a hostfile using [Slurm](https://slurm.schedmd.com/documentation.html) and 8 GPUs per node is:
+
+```bash
+#!/bin/bash
+GPUS_PER_NODE=8
+mkdir -p /sample/path/to/hostfiles
+# need to add the current slurm jobid to hostfile name so that we don't add to previous hostfile
+hostfile=/sample/path/to/hostfiles/hosts_$SLURM_JOBID
+# be extra sure we aren't appending to a previous hostfile
+rm $hostfile &> /dev/null
+# loop over the node names
+for i in `scontrol show hostnames $SLURM_NODELIST`
+do
+    # add a line to the hostfile
+    echo $i slots=$GPUS_PER_NODE >>$hostfile
+done
+```
+
+`$SLURM_JOBID` and `$SLURM_NODELIST` being environment variables SLURM will create for you. See the [sbatch documentation](https://slurm.schedmd.com/sbatch.html#SECTION_OUTPUT-ENVIRONMENT-VARIABLES) for a full list of available Slurm environment variables set at job creation time.
+
+#### Job Launching
+
+Then you can create an [sbatch](https://slurm.schedmd.com/sbatch.html) script from which to kick off your GPT-NeoX job. A bare-bones sbatch script on a Slurm-based cluster with 8 GPUs per node would look like this:
+
+```bash
+#!/bin/bash
+#SBATCH --job-name="neox"
+#SBATCH --partition=your-partition
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=8
+#SBATCH --gres=gpu:8
+
+# Some potentially useful distributed environment variables
+export HOSTNAMES=`scontrol show hostnames "$SLURM_JOB_NODELIST"`
+export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
+export MASTER_PORT=12802
+export COUNT_NODE=`scontrol show hostnames "$SLURM_JOB_NODELIST" | wc -l`
+
+# Your hostfile creation script from above
+./write_hostfile.sh
+# Tell DeepSpeed where to find our generated hostfile via DLTS_HOSTFILE
+export DLTS_HOSTFILE=/sample/path/to/hostfiles/hosts_$SLURM_JOBID
+
+# Launch training
+python3 deepy.py train.py /sample/path/to/your/configs/my_model.yml
+
+```
+
+You can then kick off a training run with `sbatch my_sbatch_script.sh`
+
+
 ### Containerized Setup
 
 We also provide a Dockerfile if you prefer to run NeoX in a container. To use this option, first build an image named `gpt-neox` from the repository root directory with `docker build -t gpt-neox -f Dockerfile .`. We also host pre-built images on [Docker Hub at `leogao2/gpt-neox`](https://hub.docker.com/r/leogao2/gpt-neox/tags).
@@ -437,7 +552,7 @@ The following models were trained using this library:
 **Other Modalities**
 -  [University College London](https://www.ucl.ac.uk/computer-science/)'s [ChessGPT-3B](https://huggingface.co/Waterhorse/chessgpt-base-v1)
 -  [Gretel](https://gretel.ai/)'s [Text-to-Table](https://huggingface.co/gretelai/text2table)
-  
+
 
 ## Licensing
 
