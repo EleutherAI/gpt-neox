@@ -151,8 +151,6 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
     but only supports features allowed by HF GPT-NeoX implementation (e.g. rotary embeddings)
     """
 
-    hf_config = GPTNeoXConfig()
-
     hf_config = create_config(loaded_config)
 
     hf_model = GPTNeoXForCausalLM(
