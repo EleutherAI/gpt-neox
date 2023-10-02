@@ -26,8 +26,8 @@ jobs:
 
     - name: Install utils
       run: |
-        apt update -y && apt upgrade -y
-        apt install curl jq wget -y
+        sudo apt update -y && sudo apt upgrade -y
+        sudo apt install curl jq wget -y
 
     - name: Coverity Download
       run: |
