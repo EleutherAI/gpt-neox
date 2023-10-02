@@ -34,7 +34,7 @@ Note that this script requires access to corresponding config files for equivale
 
 Example usage: (Converts the 70M Pythia model to NeoX format)
 ================================================================
-OMPI_COMM_WORLD_RANK=0 CUDA_VISIBLE_DEVICES=0 python tools/convert_hf_to_sequential.py \
+OMPI_COMM_WORLD_RANK=0 CUDA_VISIBLE_DEVICES=0 python tools/ckpts/convert_hf_to_sequential.py \
     --hf-model-name pythia-70m-v0 \
     --revision 143000 \
     --output-dir checkpoints/neox_converted/pythia/70m \
@@ -46,7 +46,7 @@ OMPI_COMM_WORLD_RANK=0 CUDA_VISIBLE_DEVICES=0 python tools/convert_hf_to_sequent
 For multi-gpu support we must initialize deepspeed:
 NOTE: This requires manually changing the arguments below.
 ================================================================
-CUDA_VISIBLE_DEVICES=0,1,2,3 python ./deepy.py tools/convert_hf_to_sequential.py \
+CUDA_VISIBLE_DEVICES=0,1,2,3 python ./deepy.py tools/ckpts/convert_hf_to_sequential.py \
     -d configs pythia/70M.yml local_setup.yml
 """
 

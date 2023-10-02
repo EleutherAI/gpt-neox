@@ -20,10 +20,10 @@ A script for processing a dataset such that corresponding labels are also produc
 (for example, finetuning a model to only output the text following some delimiter in the finetuning dataset such as "Answer: "
 rather than generating the entire "Question: ... Answer: " turns of conversation.
 
-To run this script, first edit `tools/corpora.py` such that the command to call `tools/preprocess_data.py` is as follows:
+To run this script, first edit `tools/datasets/corpora.py` such that the command to call `tools/datasets/preprocess_data.py` is as follows:
 
 ```
-cmd = f"python tools/preprocess_data_with_mask.py \
+cmd = f"python tools/datasets/preprocess_data_with_mask.py \
     --input {jsonl_filepath} \
     --output-prefix {parent_folder}/{self.name} \
     --vocab {self.vocab_file} \
