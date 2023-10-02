@@ -31,7 +31,7 @@ jobs:
 
     - name: Coverity Download
       run: |
-        wget https://scan.coverity.com/download/linux64 --post-data "token=$COVERITY_TOKEN&project=EleutherAI%2Fgpt-neox" -O coverity_tool.tgz
+        wget https://scan.coverity.com/download/linux64 --post-data "token=$COVERITY_TOKEN&project=EleutherAI%2Fgpt-neox" -O coverity_tool.tgz --no-verbose
         mkdir $GITHUB_WORKSPACE/coverity && tar xvf coverity_tool.tgz -C $GITHUB_WORKSPACE/coverity --strip-components=1
         $GITHUB_WORKSPACE/coverity/bin/cov-configure --python
         $GITHUB_WORKSPACE/coverity/bin/cov-configure --gcc
