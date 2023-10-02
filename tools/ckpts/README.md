@@ -24,11 +24,11 @@ options:
 ## HuggingFace Scripts
 
 ### `convert_hf_to_sequential.py` 
-```
 A script for converting publicly available Huggingface (HF) checkpoints NeoX format.
 
 Note that this script requires access to corresponding config files for equivalent NeoX models to those found in Hugging face.
 
+```
 Example usage: (Converts the 70M Pythia model to NeoX format)
 ================================================================
 OMPI_COMM_WORLD_RANK=0 CUDA_VISIBLE_DEVICES=0 python tools/ckpts/convert_hf_to_sequential.py \
