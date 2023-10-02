@@ -16,7 +16,7 @@
 
 # Push files to all nodes
 # Usage
-# sync.sh file [file2..]
+# syncdir.sh file [file2..]
 
 echo Number of files to upload: $#
 
