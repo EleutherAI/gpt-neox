@@ -26,7 +26,7 @@ import lm_dataformat as lmd
 import numpy as np
 
 sys.path.append(
-    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
+    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir))
 )
 import time
 import tqdm
