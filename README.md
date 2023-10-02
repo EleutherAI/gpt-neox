@@ -431,19 +431,19 @@ GPT-NeoX is optimized heavily for training only, and GPT-NeoX model checkpoints 
 
 To convert a NeoX checkpoint (with pipeline-parallel-size>=1) to Hugging Face-loadable format, run:
 ```bash
-python ./tools/convert_module_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yaml --output_dir hf_model/save/location
+python ./tools/ckpts/convert_module_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yaml --output_dir hf_model/save/location
 ```
 
 To convert a sequential model to Hugging Face format, run:
 ```bash
-python  ./tools/convert_sequential_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yaml --output_dir hf_model/save/location
+python  ./tools/ckpts/convert_sequential_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yaml --output_dir hf_model/save/location
 ```
 (Note: this script should be used for v2.0 checkpoints saved on a v2.0 commit prior to https://github.com/EleutherAI/gpt-neox/pull/866 and which used `pipe-parallel-size=1`. Using `pipe-parallel-size=0` will also save models in this format.)
 
 Then to upload a model to [the Hugging Face Hub](https://huggingface.co/), run:
 ```bash
 huggingface-cli login
-python ./tools/upload.py
+python ./tools/ckpts/upload.py
 ```
 and input the requested information, including HF hub user token.
 
