@@ -10,8 +10,8 @@
 ## HuggingFace Scripts
 
 * `convert_hf_to_sequential.py` converts a HuggingFace model to a NeoX compatible format
-* `convert_module_to_hf.py` converts a NeoX model to a HuggingFace transformers `GPTNeoXForCausalLM` model
-* `convert_sequential_to_hf.py` converts a NeoX model to a HuggingFace transformers `GPTNeoXForCausalLM` model.
+* `convert_module_to_hf.py` converts a NeoX model with pipeline parallelism greater than 1 to a HuggingFace transformers `GPTNeoXForCausalLM` model
+* `convert_sequential_to_hf.py` converts a NeoX model without pipeline parallelism to a HuggingFace transformers `GPTNeoXForCausalLM` model.
 * `upload.py` uploads a _converted_ checkpoint to the HuggingFace hub.
 
 
