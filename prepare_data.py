@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from tools.corpora import prepare_dataset, DATA_DOWNLOADERS
+from tools.datasets.corpora import prepare_dataset, DATA_DOWNLOADERS
 import argparse
 
 TOKENIZER_CHOICES = [

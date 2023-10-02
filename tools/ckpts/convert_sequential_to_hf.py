@@ -153,9 +153,7 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
 
     hf_config = create_config(loaded_config)
 
-    hf_model = GPTNeoXForCausalLM(
-        hf_config
-    )
+    hf_model = GPTNeoXForCausalLM(hf_config)
 
     # save model in FP16 if Deepspeed fp16 was used in config, else 32 bit
     fp16 = get_key(loaded_config, "fp16")
@@ -175,7 +173,9 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
                     hf_model.to(dtype=torch.bfloat16)
                     print("Saving weights in bf16 precision...")
             except:
-                print("Model not trained in fp16 / bf16 mixed precision, saving weights in fp32...")  
+                print(
+                    "Model not trained in fp16 / bf16 mixed precision, saving weights in fp32..."
+                )
 
     mp_partitions = get_key(loaded_config, "model-parallel-size")
 
