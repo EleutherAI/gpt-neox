@@ -23,6 +23,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+      with:
+        path: gpt-neox
 
     - name: Install utils
       run: |
@@ -39,7 +41,7 @@ jobs:
     - name: Coverity Scan
       run: |
         set -x
-        $GITHUB_WORKSPACE/coverity/bin/cov-build --dir $GITHUB_WORKSPACE/cov-int --no-command --fs-capture-search $GITHUB_WORKSPACE
+        $GITHUB_WORKSPACE/coverity/bin/cov-build --dir $GITHUB_WORKSPACE/cov-int --no-command --fs-capture-search $GITHUB_WORKSPACE/gpt-neox
 
     - name: Coverity Upload
       run: |
