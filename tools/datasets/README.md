@@ -1,6 +1,6 @@
 # Data Scripts
 
-## `preprocess_data.py` 
+## `preprocess_data.py`
 Takes a raw dataset, splits it up, tokenizes it, and saves it as numpy files that can be memmapped and used efficiently by the training code.
 
 ```
@@ -42,8 +42,19 @@ runtime:
   --log-interval LOG_INTERVAL
                         Interval between progress updates
 ```
-## `preprocess_data_with_mask.py` 
+## `preprocess_data_with_mask.py`
 Does the same but also creates `label` tensors if the dataset has labels.
+
+N.B. If using this, you  **must** specify your data when training/finetuning with the following configs
+```json
+"train_data_paths": ["train_documents"],
+"test_data_paths": ["test_documents"],
+"valid_data_paths": ["test_documents"],
+"label_data_paths": ["label_documents"]
+```
+
+the `"data_path"` option will not work with `"label_data_paths"`.
+
 
 ```
 usage: preprocess_data_with_mask.py [-h] --input INPUT [--jsonl-keys JSONL_KEYS [JSONL_KEYS ...]]
@@ -87,7 +98,7 @@ runtime:
   --log-interval LOG_INTERVAL
                         Interval between progress updates
 ```
-## `multinode_prepare_data.sh` 
+## `multinode_prepare_data.sh`
 Does the same but distributed over multiple nodes.
 
 ```
@@ -103,5 +114,5 @@ Does the same but distributed over multiple nodes.
 ```
 
 
-## `corpora.py` 
+## `corpora.py`
 Has information for common datasets. Primarily meant for use in top-level `prepare_data.py` script.
