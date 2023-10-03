@@ -238,7 +238,7 @@ def _set_use_cache(modules, value: bool):
     recursive_setattr(modules, "use_cache", value, assert_type=bool)
 
 
-def configure_sparse_attention(neox_args, attention_type, num_attention_heads, mpu):
+def configure_sparse_attention(neox_args, attention_type, num_attention_heads):
     from deepspeed.ops.sparse_attention import (
         SparseSelfAttention,
         VariableSparsityConfig,
@@ -337,7 +337,6 @@ def configure_sparse_attention(neox_args, attention_type, num_attention_heads, m
         sparsity_config=sparsity_config,
         max_seq_length=neox_args.seq_length,
         attn_mask_mode="add",
-        mpu=mpu,
     )
 
 

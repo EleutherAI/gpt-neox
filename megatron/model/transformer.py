@@ -344,7 +344,6 @@ class ParallelSelfAttention(nn.Module):
                 neox_args,
                 self.attention_type,
                 self.num_attention_heads_per_partition,
-                mpu=mpu,
             )
         else:
             if self.use_flash_attention:
