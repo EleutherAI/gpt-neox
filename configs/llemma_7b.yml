@@ -95,8 +95,8 @@
    "checkpoint_validation_with_forward_pass": true,
 
    "use_wandb": true,
-   "wandb_group": "codellama_200btok_mp2_32node_2gas_deeperspeed",
-   "wandb_project": "math-lm",
+   "wandb_group": "llemma_7b_replication",
+   "wandb_project": "your-project-name",
    "wandb_team": "your-teamname-here",
    "wandb_host": "https://api.wandb.ai",
 

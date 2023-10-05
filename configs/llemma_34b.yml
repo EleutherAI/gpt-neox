@@ -98,8 +98,8 @@
 
 
    "use_wandb": true,
-   "wandb_group": "34b-codellama-5e-5lr",
-   "wandb_project": "math-lm",
+   "wandb_group": "llemma_34b_replication",
+   "wandb_project": "your-project-name",
    "wandb_team": "your-teamname-here",
    "wandb_host": "https://api.wandb.ai",
 

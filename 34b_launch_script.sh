@@ -10,9 +10,8 @@
 #SBATCH --open-mode=append
 #SBATCH --requeue
 
-# setup the environment using the script we created before
-source /fsx/proj-mathlm/conda_setup_deeperspeed.sh
-#source /fsx/quentin/setup.sh
+# setup the conda environment and paths to NCCL install.
+source /path/to/conda_setup_script.sh
 
 ds_report
 
