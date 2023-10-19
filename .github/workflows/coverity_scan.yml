@@ -44,6 +44,7 @@ jobs:
         pushd $GITHUB_WORKSPACE
         cd $GITHUB_WORKSPACE/gpt-neox
         $GITHUB_WORKSPACE/coverity/bin/cov-build --dir $GITHUB_WORKSPACE/cov-int --no-command --fs-capture-search ./
+        popd
         tar caf build-results.bz2 cov-int
         curl --form token=$COVERITY_TOKEN \
           --form email=$COV_USER \
