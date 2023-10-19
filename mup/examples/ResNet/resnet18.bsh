@@ -1,0 +1,188 @@
+# This is a base shape file encoded in yaml
+# - `null` indicates a dimension is "finite", i.e. a non-"width" dimension
+# - a number indicates the base dimension of an "infinite" dimension, i.e. some notion of "width"
+bn1.bias:
+- 64
+bn1.weight:
+- 64
+conv1.weight:
+- 64
+- null
+- null
+- null
+layer1.0.bn1.bias:
+- 64
+layer1.0.bn1.weight:
+- 64
+layer1.0.bn2.bias:
+- 64
+layer1.0.bn2.weight:
+- 64
+layer1.0.conv1.weight:
+- 64
+- 64
+- null
+- null
+layer1.0.conv2.weight:
+- 64
+- 64
+- null
+- null
+layer1.1.bn1.bias:
+- 64
+layer1.1.bn1.weight:
+- 64
+layer1.1.bn2.bias:
+- 64
+layer1.1.bn2.weight:
+- 64
+layer1.1.conv1.weight:
+- 64
+- 64
+- null
+- null
+layer1.1.conv2.weight:
+- 64
+- 64
+- null
+- null
+layer2.0.bn1.bias:
+- 128
+layer2.0.bn1.weight:
+- 128
+layer2.0.bn2.bias:
+- 128
+layer2.0.bn2.weight:
+- 128
+layer2.0.conv1.weight:
+- 128
+- 64
+- null
+- null
+layer2.0.conv2.weight:
+- 128
+- 128
+- null
+- null
+layer2.0.shortcut.0.weight:
+- 128
+- 64
+- null
+- null
+layer2.0.shortcut.1.bias:
+- 128
+layer2.0.shortcut.1.weight:
+- 128
+layer2.1.bn1.bias:
+- 128
+layer2.1.bn1.weight:
+- 128
+layer2.1.bn2.bias:
+- 128
+layer2.1.bn2.weight:
+- 128
+layer2.1.conv1.weight:
+- 128
+- 128
+- null
+- null
+layer2.1.conv2.weight:
+- 128
+- 128
+- null
+- null
+layer3.0.bn1.bias:
+- 256
+layer3.0.bn1.weight:
+- 256
+layer3.0.bn2.bias:
+- 256
+layer3.0.bn2.weight:
+- 256
+layer3.0.conv1.weight:
+- 256
+- 128
+- null
+- null
+layer3.0.conv2.weight:
+- 256
+- 256
+- null
+- null
+layer3.0.shortcut.0.weight:
+- 256
+- 128
+- null
+- null
+layer3.0.shortcut.1.bias:
+- 256
+layer3.0.shortcut.1.weight:
+- 256
+layer3.1.bn1.bias:
+- 256
+layer3.1.bn1.weight:
+- 256
+layer3.1.bn2.bias:
+- 256
+layer3.1.bn2.weight:
+- 256
+layer3.1.conv1.weight:
+- 256
+- 256
+- null
+- null
+layer3.1.conv2.weight:
+- 256
+- 256
+- null
+- null
+layer4.0.bn1.bias:
+- 512
+layer4.0.bn1.weight:
+- 512
+layer4.0.bn2.bias:
+- 512
+layer4.0.bn2.weight:
+- 512
+layer4.0.conv1.weight:
+- 512
+- 256
+- null
+- null
+layer4.0.conv2.weight:
+- 512
+- 512
+- null
+- null
+layer4.0.shortcut.0.weight:
+- 512
+- 256
+- null
+- null
+layer4.0.shortcut.1.bias:
+- 512
+layer4.0.shortcut.1.weight:
+- 512
+layer4.1.bn1.bias:
+- 512
+layer4.1.bn1.weight:
+- 512
+layer4.1.bn2.bias:
+- 512
+layer4.1.bn2.weight:
+- 512
+layer4.1.conv1.weight:
+- 512
+- 512
+- null
+- null
+layer4.1.conv2.weight:
+- 512
+- 512
+- null
+- null
+linear.bias:
+- null
+linear.weight:
+- null
+- 512

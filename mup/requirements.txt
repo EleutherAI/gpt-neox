@@ -1,0 +1,5 @@
+numpy>=1.18.5
+pandas>=1.1.2
+seaborn>=0.11.2
+tqdm
+pyyaml
