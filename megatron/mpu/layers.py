@@ -428,7 +428,7 @@ class ColumnParallelLinear(torch.nn.Module):
         self.init_method = init_method
         self.stride = stride
         self.mup_rescale_parameters = mup_rescale_parameters
-        self.use_mup = neox_args.use_mup
+        self.use_mup = False
 
         # Parameters.
         # Note: torch.nn.functional.linear performs XA^T + b and as a result
@@ -539,6 +539,7 @@ class ColumnParallelLinear(torch.nn.Module):
                 partition_dim=0,
                 stride=self.stride,
             )
+        self.use_mup = True
 
     def set_parallel_output(self, value: bool):
         assert isinstance(value, bool)
@@ -547,8 +548,9 @@ class ColumnParallelLinear(torch.nn.Module):
         )  # if gather_output is True, parallel output is False, so we set the opposite
 
     def forward(self, input_):
-        if self.use_mup and self.mup_rescale_parameters:
-            input_ /= self.width_mult()
+        if self.mup_rescale_parameters:
+            if hasattr(self.weight, "infshape"):
+                input_ /= self.weight.infshape.width_mult()
         # Set up backprop all-reduce.
         input_parallel = copy_to_model_parallel_region(input_)
         # Matrix multiply.
@@ -623,7 +625,7 @@ class RowParallelLinear(torch.nn.Module):
         self.stride = stride
         self.keep_master_weight_for_test = keep_master_weight_for_test
         self.mup_rescale_parameters = mup_rescale_parameters
-        self.use_mup = neox_args.use_mup
+        self.use_mup = False
 
         # Parameters.
         # Note: torch.nn.functional.linear performs XA^T + b and as a result
@@ -728,13 +730,14 @@ class RowParallelLinear(torch.nn.Module):
                 partition_dim=1,
                 stride=self.stride,
             )
+        self.use_mup = True
 
     def set_parallel_output(self, parallel_output: bool):
         assert isinstance(parallel_output, bool)
         self.parallel_output = parallel_output
 
     def forward(self, input_):
-        if self.use_mup and self.mup_rescale_parameters:
+        if self.mup_rescale_parameters:
             input_ /= self.width_mult()
         # Set up backprop all-reduce.
         if self.input_is_parallel:
