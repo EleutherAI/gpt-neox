@@ -50,7 +50,7 @@ class Embedding(torch.nn.Module):
         self.hidden_size = hidden_size
         self.init_method = init_method
         self.num_tokentypes = num_tokentypes
-        self.use_mup = neox_args.use_mup
+        self.use_mup = neox_args.use_mup # TODO: as of now this will always be false
         self.mup_embedding_mult = neox_args.mup_embedding_mult
         self.mup_rp_embedding_mult = neox_args.mup_rp_embedding_mult
 
@@ -155,9 +155,11 @@ class Embedding(torch.nn.Module):
         # Dropout.
         embeddings = self.embedding_dropout(embeddings)
 
-        if self.use_mup:
-            with torch.no_grad():
-                embeddings.mul_(self.mup_embedding_mult)
+        # TODO:
+        # not only this always false because of the way the model is initialized, but this also throws an error
+        # if self.use_mup:
+        #     with torch.no_grad():
+        #         embeddings.mul_(self.mup_embedding_mult)
 
         return embeddings
 
