@@ -51,4 +51,4 @@ jobs:
           --form file=@$GITHUB_WORKSPACE/build-results.bz2 \
           --form version="Version" \
           --form description="Build" \
-          https://scan.coverity.com/builds?project=EleutherAI%2Fgpt-neox
+          https://scan.coverity.com/builds?project=EleutherAI%2Fgpt-neox -v
