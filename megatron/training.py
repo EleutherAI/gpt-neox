@@ -526,6 +526,14 @@ def get_optimizer(model, neox_args):
             weight_decay=neox_args.weight_decay,
             **neox_args.optimizer["params"],
         )
+    elif neox_args.optimizer_type.lower() == "lion":
+        from .optimizers import Lion
+
+        optimizer = Lion(
+            param_groups,
+            weight_decay=neox_args.weight_decay,
+            **neox_args.optimizer["params"]
+        )
     elif neox_args.optimizer_type.lower() == "adam":
         # Use Adam
         if neox_args.use_mup:
