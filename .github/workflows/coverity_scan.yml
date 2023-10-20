@@ -45,11 +45,10 @@ jobs:
         cd $GITHUB_WORKSPACE/gpt-neox
         $GITHUB_WORKSPACE/coverity/bin/cov-build --dir $GITHUB_WORKSPACE/cov-int --no-command --fs-capture-search ./
         popd
-        cat cov-int/BUILD.metrics.xml
-        #tar caf build-results.bz2 cov-int
-        #curl --form token=$COVERITY_TOKEN \
-       #   --form email=$COV_USER \
-       #   --form file=@$GITHUB_WORKSPACE/build-results.bz2 \
-       #   --form version="Version" \
-       #   --form description="Build" \
-       #   https://scan.coverity.com/builds?project=EleutherAI%2Fgpt-neox -v
+        tar caf build-results.bz2 cov-int
+        curl --form token=$COVERITY_TOKEN \
+          --form email=$COV_USER \
+          --form file=@$GITHUB_WORKSPACE/build-results.bz2 \
+          --form version="Version" \
+          --form description="Build" \
+          https://scan.coverity.com/builds?project=EleutherAI%2Fgpt-neox -v
