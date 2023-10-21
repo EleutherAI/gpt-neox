@@ -1,0 +1,1222 @@
+/home/hailey81/miniconda3/envs/llmath_flashv2_fixed-ds/bin/python
+ln: failed to access ‘/home/za2514/.local/bin/gcc’: Not a directory
+/home/za2514/compute/scaling/gpt-neox
+Setting ds_accelerator to cuda (auto detect)
+NeoXArgs.from_ymls() ['/home/za2514/compute/scaling/gpt-neox/configs/scaling-0.2/70M.yml', '/home/za2514/compute/scaling/gpt-neox/configs/scaling-0.2/6144step.yml']
+INFO:root:NeoXArgs.calculate_derived() Total number of GPUs determined to be: 8
+-------------------- arguments --------------------
+  attention_config ................ ['flash', 'flash', 'flash', 'flash', 'flash', 'flash']updated
+  attention_dropout ............... 0...........................updated
+  batch_size ...................... 64..........................updated
+  bias_gelu_fusion ................ True........................updated
+  checkpoint_activations .......... True........................updated
+  checkpoint_factor ............... 6144........................updated
+  clip_grad ....................... 1.0.........................updated
+  config_files .................... {'70M.yml': '{\n  "pipe_parallel_size": 1,\n  "model_parallel_size": 1,\n\n  "num_layers": 6,\n  "hidden_size": 512,\n  "num_attention_heads": 8,\n  "seq_length": 2048,\n  "max_position_embeddings": 2048,\n  "pos_emb": "rotary",\n  "rotary_pct": 0.25,\n  "no_weight_tying": true,\n  "gpt_j_residual": true,\n  "output_layer_parallelism": "column",\n\n  "attention_config": [[["flash"], 6]],\n\n  "scaled_upper_triang_masked_softmax_fusion": true,\n  "bias_gelu_fusion": true,\n\n  "init_method": "small_init",\n  "output_layer_init_method": "wang_init",\n\n  "optimizer": {\n    "type": "Adam",\n    "params": {\n      "lr": 0.001,\n      "betas": [0.9, 0.95],\n      "eps": 1.0e-8\n    }\n  },\n  "min_lr": 0.0001,\n\n  "zero_optimization": {\n    "stage": 1,\n    "allgather_partitions": true,\n    "allgather_bucket_size": 500000000,\n    "overlap_comm": true,\n    "reduce_scatter": true,\n    "reduce_bucket_size": 500000000,\n    "contiguous_gradients": true,\n    "cpu_offload": false\n  },\n\n  "train_micro_batch_size_per_gpu": 64,\n  "gas": 2,\n  "data_impl": "mmap",\n  "num_workers": 1,\n\n  "checkpoint_activations": true,\n  "checkpoint_num_layers": 1,\n  "partition_activations": true,\n  "synchronize_each_layer": true,\n\n  "gradient_clipping": 1.0,\n  "weight_decay": 0.1,\n  "hidden_dropout": 0,\n  "attention_dropout": 0,\n\n  "fp16": {\n    "fp16": true,\n    "enabled": true,\n    "loss_scale": 0,\n    "loss_scale_window": 1000,\n    "initial_scale_power": 12,\n    "hysteresis": 2,\n    "min_loss_scale": 1\n  },\n\n   "distributed_backend": "nccl",\n\n   "lr_decay_style": "cosine",\n   "extra_save_iters": [1],\n   "eval_interval": 128,\n   "eval_iters": 75,\n\n   "log_interval": 1,\n   "steps_per_print": 1,\n   "wall_clock_breakdown": true,\n\n   "tokenizer_type": "HFTokenizer",\n   "vocab-file": "/home/za2514/compute/pythia_tokenizer/tokenizer.json",\n\n   "save": "/home/za2514/compute/saved-weights/scaling-0.1/",\n\n   "log-dir": "/home/za2514/compute/scaling/gpt-neox/logs/scaling-0.1",\n\n   "use_wandb": true,\n   "wandb_project": "scaling-0.2",\n   "wandb_team": "math-lm",\n   "wandb_host": "https://api.wandb.ai",\n   \n   "train-data-paths": ["/home/za2514/compute/data/proof-pile_llama/train/arxiv-rp/arxiv-rp_text_document"],\n   "valid-data-paths": ["/home/za2514/compute/data/proof-pile_llama/validation/arxiv-rp/arxiv-rp_text_document"],\n   "test-data-paths": ["/home/za2514/compute/data/proof-pile_llama/test/arxiv-rp/arxiv-rp_text_document"]\n}\n', '6144step.yml': '{\n   "train_iters": 6144,\n   "warmup_iter": 600,\n   "lr_decay_iters": 6144,\n   "checkpoint_factor": 6144,\n   "wandb_group": "70M-6144step-test",\n   "load": "/home/za2514/compute/saved-weights/scaling-0.1/",\n}\n'}updated
+  data_impl ....................... mmap........................updated
+  dynamic_loss_scale .............. True........................updated
+  eval_interval ................... 128.........................updated
+  eval_iters ...................... 75..........................updated
+  extra_save_iters ................ [1].........................updated
+  fp16 ............................ {'fp16': True, 'enabled': True, 'loss_scale': 0, 'loss_scale_window': 1000, 'initial_scale_power': 12, 'hysteresis': 2, 'min_loss_scale': 1}updated
+  gas ............................. 1...........................updated
+  global_num_gpus ................. 8...........................updated
+  gpt_j_residual .................. True........................updated
+  hidden_dropout .................. 0...........................updated
+  hidden_size ..................... 512.........................updated
+  init_method ..................... small_init..................updated
+  is_pipe_parallel ................ True........................updated
+  load ............................ /home/za2514/compute/saved-weights/scaling-0.1/updated
+  log_dir ......................... /home/za2514/compute/scaling/gpt-neox/logs/scaling-0.1updated
+  log_interval .................... 1...........................updated
+  lr .............................. 0.001.......................updated
+  lr_decay_iters .................. 6144........................updated
+  lr_decay_style .................. cosine......................updated
+  max_position_embeddings ......... 2048........................updated
+  min_lr .......................... 0.0001......................updated
+  no_weight_tying ................. True........................updated
+  num_attention_heads ............. 8...........................updated
+  num_layers ...................... 6...........................updated
+  num_workers ..................... 1...........................updated
+  optimizer ....................... {'type': 'Adam', 'params': {'lr': 0.001, 'betas': [0.9, 0.95], 'eps': 1e-08}}updated
+  optimizer_type .................. Adam........................updated
+  output_layer_init_method ........ wang_init...................updated
+  partition_activations ........... True........................updated
+  pipe_parallel_size .............. 1...........................updated
+  pos_emb ......................... rotary......................updated
+  precision ....................... fp16........................updated
+  rotary_pct ...................... 0.25........................updated
+  save ............................ /home/za2514/compute/saved-weights/scaling-0.1/updated
+  save_iters ...................... [1].........................updated
+  scaled_upper_triang_masked_softmax_fusion  True...............updated
+  seq_length ...................... 2048........................updated
+  sparsity_config ................. {}..........................updated
+  steps_per_print ................. 1...........................updated
+  synchronize_each_layer .......... True........................updated
+  test_data_paths ................. ['/home/za2514/compute/data/proof-pile_llama/test/arxiv-rp/arxiv-rp_text_document']updated
+  test_data_weights ............... [1.0].......................updated
+  text_gen_type ................... unconditional...............updated
+  tokenizer_type .................. HFTokenizer.................updated
+  train_batch_size ................ 512.........................updated
+  train_data_paths ................ ['/home/za2514/compute/data/proof-pile_llama/train/arxiv-rp/arxiv-rp_text_document']updated
+  train_data_weights .............. [1.0].......................updated
+  train_iters ..................... 6144........................updated
+  train_micro_batch_size_per_gpu .. 64..........................updated
+  use_wandb ....................... True........................updated
+  user_script ..................... train.py....................updated
+  valid_data_paths ................ ['/home/za2514/compute/data/proof-pile_llama/validation/arxiv-rp/arxiv-rp_text_document']updated
+  valid_data_weights .............. [1.0].......................updated
+  vocab_file ...................... /home/za2514/compute/pythia_tokenizer/tokenizer.jsonupdated
+  wall_clock_breakdown ............ True........................updated
+  wandb_group ..................... 70M-6144step-test_t6pcrgzk_zw6gvka6updated
+  wandb_project ................... scaling-0.2.................updated
+  wandb_team ...................... math-lm.....................updated
+  warmup_iter ..................... 600.........................updated
+  weight_decay .................... 0.1.........................updated
+  zero_allgather_bucket_size ...... 500000000...................updated
+  zero_contiguous_gradients ....... True........................updated
+  zero_optimization ............... {'stage': 1, 'allgather_partitions': True, 'allgather_bucket_size': 500000000, 'overlap_comm': True, 'reduce_scatter': True, 'reduce_bucket_size': 500000000, 'contiguous_gradients': True, 'cpu_offload': False}updated
+  zero_reduce_bucket_size ......... 500000000...................updated
+  zero_reduce_scatter ............. True........................updated
+  zero_stage ...................... 1...........................updated
+  activation ...................... gelu........................default
+  activation_checkpointing ........ None........................default
+  adlr_autoresume ................. False.......................default
+  adlr_autoresume_interval ........ 1000........................default
+  amp ............................. None........................default
+  apply_query_key_layer_scaling ... False.......................default
+  attention_softmax_in_fp32 ....... False.......................default
+  autotuning ...................... None........................default
+  autotuning_run .................. None........................default
+  base_shapes_file ................ None........................default
+  bf16 ............................ None........................default
+  bias_dropout_fusion ............. False.......................default
+  char_level_ppl .................. False.......................default
+  checkpoint ...................... None........................default
+  checkpoint_in_cpu ............... False.......................default
+  checkpoint_num_layers ........... 1...........................default
+  checkpoint_scale ................ linear......................default
+  checkpoint_validation_with_forward_pass  False................default
+  comment ......................... None........................default
+  comms_logger .................... None........................default
+  communication_data_type ......... None........................default
+  compression_training ............ None........................default
+  contiguous_checkpointing ........ False.......................default
+  coord_check ..................... False.......................default
+  csv_monitor ..................... None........................default
+  curriculum_learning ............. None........................default
+  curriculum_seqlen ............... 0...........................default
+  data_efficiency ................. None........................default
+  data_path ....................... None........................default
+  data_types ...................... None........................default
+  deepscale ....................... False.......................default
+  deepscale_config ................ None........................default
+  deepspeed ....................... True........................default
+  deepspeed_activation_checkpointing  True......................default
+  deepspeed_extra_args ............ None........................default
+  deepspeed_mpi ................... False.......................default
+  deepspeed_slurm ................. False.......................default
+  detect_nvlink_pairs ............. False.......................default
+  distributed_backend ............. nccl........................default
+  do_test ......................... None........................default
+  do_train ........................ None........................default
+  do_valid ........................ None........................default
+  dump_state ...................... False.......................default
+  elasticity ...................... None........................default
+  eod_mask_loss ................... False.......................default
+  eval_results_prefix ............. ............................default
+  eval_tasks ...................... None........................default
+  exclude ......................... None........................default
+  exit_interval ................... None........................default
+  finetune ........................ False.......................default
+  flops_profiler .................. None........................default
+  force_multi ..................... False.......................default
+  fp16_lm_cross_entropy ........... False.......................default
+  fp32_allreduce .................. False.......................default
+  git_hash ........................ e001a04.....................default
+  gmlp_attn_dim ................... 64..........................default
+  gpt_j_tied ...................... False.......................default
+  gradient_accumulation_steps ..... 1...........................default
+  gradient_clipping ............... 1.0.........................default
+  gradient_noise_scale_cpu_offload  False.......................default
+  gradient_noise_scale_n_batches .. 5...........................default
+  gradient_predivide_factor ....... 1.0.........................default
+  hostfile ........................ None........................default
+  hysteresis ...................... 2...........................default
+  include ......................... None........................default
+  init_method_std ................. 0.02........................default
+  iteration ....................... None........................default
+  keep_last_n_checkpoints ......... None........................default
+  label_data_paths ................ None........................default
+  launcher ........................ pdsh........................default
+  layernorm_epsilon ............... 1e-05.......................default
+  lazy_mpu_init ................... False.......................default
+  local_rank ...................... None........................default
+  log_grad_norm ................... False.......................default
+  log_grad_pct_zeros .............. False.......................default
+  log_gradient_noise_scale ........ False.......................default
+  log_optimizer_states ............ False.......................default
+  log_param_norm .................. False.......................default
+  loss_scale ...................... None........................default
+  loss_scale_window ............... 1000.0......................default
+  make_vocab_size_divisible_by .... 128.........................default
+  master_addr ..................... None........................default
+  master_port ..................... 29500.......................default
+  maximum_tokens .................. 64..........................default
+  merge_file ...................... None........................default
+  min_scale ....................... 1.0.........................default
+  mlp_type ........................ regular.....................default
+  mmap_warmup ..................... False.......................default
+  model_parallel_size ............. 1...........................default
+  mup_attn_temp ................... 1.0.........................default
+  mup_embedding_mult .............. 1.0.........................default
+  mup_init_scale .................. 1.0.........................default
+  mup_output_temp ................. 1.0.........................default
+  mup_rp_embedding_mult ........... 1.0.........................default
+  mup_width_scale ................. 2...........................default
+  no_load_optim ................... False.......................default
+  no_load_rng ..................... False.......................default
+  no_save_optim ................... False.......................default
+  no_save_rng ..................... False.......................default
+  no_ssh_check .................... False.......................default
+  norm ............................ layernorm...................default
+  num_gpus ........................ None........................default
+  num_nodes ....................... -1..........................default
+  num_samples ..................... 1...........................default
+  num_unique_layers ............... None........................default
+  onnx_safe ....................... False.......................default
+  opt_pos_emb_offset .............. 0...........................default
+  output_layer_parallelism ........ column......................default
+  override_lr_scheduler ........... False.......................default
+  padded_vocab_size ............... None........................default
+  param_sharing_style ............. grouped.....................default
+  pipe_partition_method ........... type:transformer|mlp........default
+  prescale_gradients .............. False.......................default
+  profile_backward ................ False.......................default
+  prompt_end ...................... 
+...........................default
+  rank ............................ None........................default
+  recompute ....................... False.......................default
+  return_logits ................... False.......................default
+  rms_norm_epsilon ................ 1e-08.......................default
+  rotary_emb_base ................. 10000.......................default
+  rpe_max_distance ................ 128.........................default
+  rpe_num_buckets ................. 32..........................default
+  s3_chunk_size ................... 104857600...................default
+  s3_path ......................... None........................default
+  sample_input_file ............... None........................default
+  sample_output_file .............. samples.txt.................default
+  save_base_shapes ................ False.......................default
+  scaled_masked_softmax_fusion .... False.......................default
+  scalenorm_epsilon ............... 1e-08.......................default
+  scheduler ....................... None........................default
+  seed ............................ 1234........................default
+  short_seq_prob .................. 0.1.........................default
+  soft_prompt_tuning .............. None........................default
+  sparse_attention ................ None........................default
+  sparse_gradients ................ False.......................default
+  split ........................... 969, 30, 1..................default
+  temperature ..................... 0.0.........................default
+  tensorboard ..................... None........................default
+  tensorboard_dir ................. None........................default
+  top_k ........................... 0...........................default
+  top_p ........................... 0.0.........................default
+  use_bias_in_attn_linear ......... True........................default
+  use_bias_in_norms ............... True........................default
+  use_bnb_optimizer ............... False.......................default
+  use_checkpoint_lr_scheduler ..... False.......................default
+  use_cpu_initialization .......... False.......................default
+  use_mup ......................... False.......................default
+  use_shared_fs ................... True........................default
+  wandb ........................... None........................default
+  wandb_host ...................... https://api.wandb.ai........default
+  wandb_init_all_ranks ............ False.......................default
+  warmup .......................... None........................default
+  weight_by_num_documents ......... False.......................default
+  weighted_sampler_alpha .......... 0.3.........................default
+  world_size ...................... None........................default
+---------------- end of arguments ----------------
+NeoXArgs.configure_distributed_args() using world size: 1 and model-parallel size: 1 
+[2023-10-20 18:54:02,406] [WARNING] [runner.py:199:fetch_hostfile] Unable to find hostfile, will proceed with training with local resources only.
+Detected CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7: setting --include=localhost:0,1,2,3,4,5,6,7
+[2023-10-20 18:54:02,406] [INFO] [runner.py:553:main] cmd = /home/hailey81/miniconda3/envs/llmath_flashv2_fixed-ds/bin/python -u -m deepspeed.launcher.launch --world_info=eyJsb2NhbGhvc3QiOiBbMCwgMSwgMiwgMywgNCwgNSwgNiwgN119 --master_addr=127.0.0.1 --master_port=29500 --enable_each_rank_log=None train.py --deepspeed_config eyJ0cmFpbl9iYXRjaF9zaXplIjogNTEyLCAidHJhaW5fbWljcm9fYmF0Y2hfc2l6ZV9wZXJfZ3B1IjogNjQsICJvcHRpbWl6ZXIiOiB7InR5cGUiOiAiQWRhbSIsICJwYXJhbXMiOiB7ImxyIjogMC4wMDEsICJiZXRhcyI6IFswLjksIDAuOTVdLCAiZXBzIjogMWUtMDh9fSwgImZwMTYiOiB7ImZwMTYiOiB0cnVlLCAiZW5hYmxlZCI6IHRydWUsICJsb3NzX3NjYWxlIjogMCwgImxvc3Nfc2NhbGVfd2luZG93IjogMTAwMCwgImluaXRpYWxfc2NhbGVfcG93ZXIiOiAxMiwgImh5c3RlcmVzaXMiOiAyLCAibWluX2xvc3Nfc2NhbGUiOiAxfSwgInplcm9fb3B0aW1pemF0aW9uIjogeyJzdGFnZSI6IDEsICJhbGxnYXRoZXJfcGFydGl0aW9ucyI6IHRydWUsICJhbGxnYXRoZXJfYnVja2V0X3NpemUiOiA1MDAwMDAwMDAsICJvdmVybGFwX2NvbW0iOiB0cnVlLCAicmVkdWNlX3NjYXR0ZXIiOiB0cnVlLCAicmVkdWNlX2J1Y2tldF9zaXplIjogNTAwMDAwMDAwLCAiY29udGlndW91c19ncmFkaWVudHMiOiB0cnVlLCAiY3B1X29mZmxvYWQiOiBmYWxzZX0sICJzdGVwc19wZXJfcHJpbnQiOiAxLCAid2FsbF9jbG9ja19icmVha2Rvd24iOiB0cnVlfQ== --megatron_config eyJ0cmFpbl9iYXRjaF9zaXplIjogNTEyLCAidHJhaW5fbWljcm9fYmF0Y2hfc2l6ZV9wZXJfZ3B1IjogNjQsICJvcHRpbWl6ZXIiOiB7InR5cGUiOiAiQWRhbSIsICJwYXJhbXMiOiB7ImxyIjogMC4wMDEsICJiZXRhcyI6IFswLjksIDAuOTVdLCAiZXBzIjogMWUtMDh9fSwgImZwMTYiOiB7ImZwMTYiOiB0cnVlLCAiZW5hYmxlZCI6IHRydWUsICJsb3NzX3NjYWxlIjogMCwgImxvc3Nfc2NhbGVfd2luZG93IjogMTAwMCwgImluaXRpYWxfc2NhbGVfcG93ZXIiOiAxMiwgImh5c3RlcmVzaXMiOiAyLCAibWluX2xvc3Nfc2NhbGUiOiAxfSwgInplcm9fb3B0aW1pemF0aW9uIjogeyJzdGFnZSI6IDEsICJhbGxnYXRoZXJfcGFydGl0aW9ucyI6IHRydWUsICJhbGxnYXRoZXJfYnVja2V0X3NpemUiOiA1MDAwMDAwMDAsICJvdmVybGFwX2NvbW0iOiB0cnVlLCAicmVkdWNlX3NjYXR0ZXIiOiB0cnVlLCAicmVkdWNlX2J1Y2tldF9zaXplIjogNTAwMDAwMDAwLCAiY29udGlndW91c19ncmFkaWVudHMiOiB0cnVlLCAiY3B1X29mZmxvYWQiOiBmYWxzZX0sICJzdGVwc19wZXJfcHJpbnQiOiAxLCAid2FsbF9jbG9ja19icmVha2Rvd24iOiB0cnVlLCAicHJlY2lzaW9uIjogImZwMTYiLCAibnVtX2xheWVycyI6IDYsICJoaWRkZW5fc2l6ZSI6IDUxMiwgIm51bV9hdHRlbnRpb25faGVhZHMiOiA4LCAic2VxX2xlbmd0aCI6IDIwNDgsICJtYXhfcG9zaXRpb25fZW1iZWRkaW5ncyI6IDIwNDgsICJwb3NfZW1iIjogInJvdGFyeSIsICJub193ZWlnaHRfdHlpbmciOiB0cnVlLCAiYXR0ZW50aW9uX2NvbmZpZyI6IFsiZmxhc2giLCAiZmxhc2giLCAiZmxhc2giLCAiZmxhc2giLCAiZmxhc2giLCAiZmxhc2giXSwgInNwYXJzaXR5X2NvbmZpZyI6IHt9LCAic2NhbGVkX3VwcGVyX3RyaWFuZ19tYXNrZWRfc29mdG1heF9mdXNpb24iOiB0cnVlLCAiYmlhc19nZWx1X2Z1c2lvbiI6IHRydWUsICJyb3RhcnlfcGN0IjogMC4yNSwgImluaXRfbWV0aG9kIjogInNtYWxsX2luaXQiLCAib3V0cHV0X2xheWVyX2luaXRfbWV0aG9kIjogIndhbmdfaW5pdCIsICJncHRfal9yZXNpZHVhbCI6IHRydWUsICJscl9kZWNheV9zdHlsZSI6ICJjb3NpbmUiLCAibHJfZGVjYXlfaXRlcnMiOiA2MTQ0LCAibWluX2xyIjogMC4wMDAxLCAid2FybXVwX2l0ZXIiOiA2MDAsICJvcHRpbWl6ZXJfdHlwZSI6ICJBZGFtIiwgInplcm9fc3RhZ2UiOiAxLCAiemVyb19yZWR1Y2Vfc2NhdHRlciI6IHRydWUsICJ6ZXJvX2NvbnRpZ3VvdXNfZ3JhZGllbnRzIjogdHJ1ZSwgInplcm9fcmVkdWNlX2J1Y2tldF9zaXplIjogNTAwMDAwMDAwLCAiemVyb19hbGxnYXRoZXJfYnVja2V0X3NpemUiOiA1MDAwMDAwMDAsICJsciI6IDAuMDAxLCAidG9rZW5pemVyX3R5cGUiOiAiSEZUb2tlbml6ZXIiLCAidHJhaW5fZGF0YV9wYXRocyI6IFsiL2hvbWUvemEyNTE0L2NvbXB1dGUvZGF0YS9wcm9vZi1waWxlX2xsYW1hL3RyYWluL2FyeGl2LXJwL2FyeGl2LXJwX3RleHRfZG9jdW1lbnQiXSwgInRlc3RfZGF0YV9wYXRocyI6IFsiL2hvbWUvemEyNTE0L2NvbXB1dGUvZGF0YS9wcm9vZi1waWxlX2xsYW1hL3Rlc3QvYXJ4aXYtcnAvYXJ4aXYtcnBfdGV4dF9kb2N1bWVudCJdLCAidmFsaWRfZGF0YV9wYXRocyI6IFsiL2hvbWUvemEyNTE0L2NvbXB1dGUvZGF0YS9wcm9vZi1waWxlX2xsYW1hL3ZhbGlkYXRpb24vYXJ4aXYtcnAvYXJ4aXYtcnBfdGV4dF9kb2N1bWVudCJdLCAidHJhaW5fZGF0YV93ZWlnaHRzIjogWzEuMF0sICJ2YWxpZF9kYXRhX3dlaWdodHMiOiBbMS4wXSwgInRlc3RfZGF0YV93ZWlnaHRzIjogWzEuMF0sICJkYXRhX2ltcGwiOiAibW1hcCIsICJzYXZlIjogIi9ob21lL3phMjUxNC9jb21wdXRlL3NhdmVkLXdlaWdodHMvc2NhbGluZy0wLjEvIiwgImNvbmZpZ19maWxlcyI6IHsiNzBNLnltbCI6ICJ7XG4gIFwicGlwZV9wYXJhbGxlbF9zaXplXCI6IDEsXG4gIFwibW9kZWxfcGFyYWxsZWxfc2l6ZVwiOiAxLFxuXG4gIFwibnVtX2xheWVyc1wiOiA2LFxuICBcImhpZGRlbl9zaXplXCI6IDUxMixcbiAgXCJudW1fYXR0ZW50aW9uX2hlYWRzXCI6IDgsXG4gIFwic2VxX2xlbmd0aFwiOiAyMDQ4LFxuICBcIm1heF9wb3NpdGlvbl9lbWJlZGRpbmdzXCI6IDIwNDgsXG4gIFwicG9zX2VtYlwiOiBcInJvdGFyeVwiLFxuICBcInJvdGFyeV9wY3RcIjogMC4yNSxcbiAgXCJub193ZWlnaHRfdHlpbmdcIjogdHJ1ZSxcbiAgXCJncHRfal9yZXNpZHVhbFwiOiB0cnVlLFxuICBcIm91dHB1dF9sYXllcl9wYXJhbGxlbGlzbVwiOiBcImNvbHVtblwiLFxuXG4gIFwiYXR0ZW50aW9uX2NvbmZpZ1wiOiBbW1tcImZsYXNoXCJdLCA2XV0sXG5cbiAgXCJzY2FsZWRfdXBwZXJfdHJpYW5nX21hc2tlZF9zb2Z0bWF4X2Z1c2lvblwiOiB0cnVlLFxuICBcImJpYXNfZ2VsdV9mdXNpb25cIjogdHJ1ZSxcblxuICBcImluaXRfbWV0aG9kXCI6IFwic21hbGxfaW5pdFwiLFxuICBcIm91dHB1dF9sYXllcl9pbml0X21ldGhvZFwiOiBcIndhbmdfaW5pdFwiLFxuXG4gIFwib3B0aW1pemVyXCI6IHtcbiAgICBcInR5cGVcIjogXCJBZGFtXCIsXG4gICAgXCJwYXJhbXNcIjoge1xuICAgICAgXCJsclwiOiAwLjAwMSxcbiAgICAgIFwiYmV0YXNcIjogWzAuOSwgMC45NV0sXG4gICAgICBcImVwc1wiOiAxLjBlLThcbiAgICB9XG4gIH0sXG4gIFwibWluX2xyXCI6IDAuMDAwMSxcblxuICBcInplcm9fb3B0aW1pemF0aW9uXCI6IHtcbiAgICBcInN0YWdlXCI6IDEsXG4gICAgXCJhbGxnYXRoZXJfcGFydGl0aW9uc1wiOiB0cnVlLFxuICAgIFwiYWxsZ2F0aGVyX2J1Y2tldF9zaXplXCI6IDUwMDAwMDAwMCxcbiAgICBcIm92ZXJsYXBfY29tbVwiOiB0cnVlLFxuICAgIFwicmVkdWNlX3NjYXR0ZXJcIjogdHJ1ZSxcbiAgICBcInJlZHVjZV9idWNrZXRfc2l6ZVwiOiA1MDAwMDAwMDAsXG4gICAgXCJjb250aWd1b3VzX2dyYWRpZW50c1wiOiB0cnVlLFxuICAgIFwiY3B1X29mZmxvYWRcIjogZmFsc2VcbiAgfSxcblxuICBcInRyYWluX21pY3JvX2JhdGNoX3NpemVfcGVyX2dwdVwiOiA2NCxcbiAgXCJnYXNcIjogMixcbiAgXCJkYXRhX2ltcGxcIjogXCJtbWFwXCIsXG4gIFwibnVtX3dvcmtlcnNcIjogMSxcblxuICBcImNoZWNrcG9pbnRfYWN0aXZhdGlvbnNcIjogdHJ1ZSxcbiAgXCJjaGVja3BvaW50X251bV9sYXllcnNcIjogMSxcbiAgXCJwYXJ0aXRpb25fYWN0aXZhdGlvbnNcIjogdHJ1ZSxcbiAgXCJzeW5jaHJvbml6ZV9lYWNoX2xheWVyXCI6IHRydWUsXG5cbiAgXCJncmFkaWVudF9jbGlwcGluZ1wiOiAxLjAsXG4gIFwid2VpZ2h0X2RlY2F5XCI6IDAuMSxcbiAgXCJoaWRkZW5fZHJvcG91dFwiOiAwLFxuICBcImF0dGVudGlvbl9kcm9wb3V0XCI6IDAsXG5cbiAgXCJmcDE2XCI6IHtcbiAgICBcImZwMTZcIjogdHJ1ZSxcbiAgICBcImVuYWJsZWRcIjogdHJ1ZSxcbiAgICBcImxvc3Nfc2NhbGVcIjogMCxcbiAgICBcImxvc3Nfc2NhbGVfd2luZG93XCI6IDEwMDAsXG4gICAgXCJpbml0aWFsX3NjYWxlX3Bvd2VyXCI6IDEyLFxuICAgIFwiaHlzdGVyZXNpc1wiOiAyLFxuICAgIFwibWluX2xvc3Nfc2NhbGVcIjogMVxuICB9LFxuXG4gICBcImRpc3RyaWJ1dGVkX2JhY2tlbmRcIjogXCJuY2NsXCIsXG5cbiAgIFwibHJfZGVjYXlfc3R5bGVcIjogXCJjb3NpbmVcIixcbiAgIFwiZXh0cmFfc2F2ZV9pdGVyc1wiOiBbMV0sXG4gICBcImV2YWxfaW50ZXJ2YWxcIjogMTI4LFxuICAgXCJldmFsX2l0ZXJzXCI6IDc1LFxuXG4gICBcImxvZ19pbnRlcnZhbFwiOiAxLFxuICAgXCJzdGVwc19wZXJfcHJpbnRcIjogMSxcbiAgIFwid2FsbF9jbG9ja19icmVha2Rvd25cIjogdHJ1ZSxcblxuICAgXCJ0b2tlbml6ZXJfdHlwZVwiOiBcIkhGVG9rZW5pemVyXCIsXG4gICBcInZvY2FiLWZpbGVcIjogXCIvaG9tZS96YTI1MTQvY29tcHV0ZS9weXRoaWFfdG9rZW5pemVyL3Rva2VuaXplci5qc29uXCIsXG5cbiAgIFwic2F2ZVwiOiBcIi9ob21lL3phMjUxNC9jb21wdXRlL3NhdmVkLXdlaWdodHMvc2NhbGluZy0wLjEvXCIsXG5cbiAgIFwibG9nLWRpclwiOiBcIi9ob21lL3phMjUxNC9jb21wdXRlL3NjYWxpbmcvZ3B0LW5lb3gvbG9ncy9zY2FsaW5nLTAuMVwiLFxuXG4gICBcInVzZV93YW5kYlwiOiB0cnVlLFxuICAgXCJ3YW5kYl9wcm9qZWN0XCI6IFwic2NhbGluZy0wLjJcIixcbiAgIFwid2FuZGJfdGVhbVwiOiBcIm1hdGgtbG1cIixcbiAgIFwid2FuZGJfaG9zdFwiOiBcImh0dHBzOi8vYXBpLndhbmRiLmFpXCIsXG4gICBcbiAgIFwidHJhaW4tZGF0YS1wYXRoc1wiOiBbXCIvaG9tZS96YTI1MTQvY29tcHV0ZS9kYXRhL3Byb29mLXBpbGVfbGxhbWEvdHJhaW4vYXJ4aXYtcnAvYXJ4aXYtcnBfdGV4dF9kb2N1bWVudFwiXSxcbiAgIFwidmFsaWQtZGF0YS1wYXRoc1wiOiBbXCIvaG9tZS96YTI1MTQvY29tcHV0ZS9kYXRhL3Byb29mLXBpbGVfbGxhbWEvdmFsaWRhdGlvbi9hcnhpdi1ycC9hcnhpdi1ycF90ZXh0X2RvY3VtZW50XCJdLFxuICAgXCJ0ZXN0LWRhdGEtcGF0aHNcIjogW1wiL2hvbWUvemEyNTE0L2NvbXB1dGUvZGF0YS9wcm9vZi1waWxlX2xsYW1hL3Rlc3QvYXJ4aXYtcnAvYXJ4aXYtcnBfdGV4dF9kb2N1bWVudFwiXVxufVxuIiwgIjYxNDRzdGVwLnltbCI6ICJ7XG4gICBcInRyYWluX2l0ZXJzXCI6IDYxNDQsXG4gICBcIndhcm11cF9pdGVyXCI6IDYwMCxcbiAgIFwibHJfZGVjYXlfaXRlcnNcIjogNjE0NCxcbiAgIFwiY2hlY2twb2ludF9mYWN0b3JcIjogNjE0NCxcbiAgIFwid2FuZGJfZ3JvdXBcIjogXCI3ME0tNjE0NHN0ZXAtdGVzdFwiLFxuICAgXCJsb2FkXCI6IFwiL2hvbWUvemEyNTE0L2NvbXB1dGUvc2F2ZWQtd2VpZ2h0cy9zY2FsaW5nLTAuMS9cIixcbn1cbiJ9LCAibG9hZCI6ICIvaG9tZS96YTI1MTQvY29tcHV0ZS9zYXZlZC13ZWlnaHRzL3NjYWxpbmctMC4xLyIsICJjaGVja3BvaW50X2ZhY3RvciI6IDYxNDQsICJleHRyYV9zYXZlX2l0ZXJzIjogWzFdLCAiYmF0Y2hfc2l6ZSI6IDY0LCAidHJhaW5faXRlcnMiOiA2MTQ0LCAiZXZhbF9pdGVycyI6IDc1LCAiZXZhbF9pbnRlcnZhbCI6IDEyOCwgInZvY2FiX2ZpbGUiOiAiL2hvbWUvemEyNTE0L2NvbXB1dGUvcHl0aGlhX3Rva2VuaXplci90b2tlbml6ZXIuanNvbiIsICJudW1fd29ya2VycyI6IDEsICJhdHRlbnRpb25fZHJvcG91dCI6IDAsICJoaWRkZW5fZHJvcG91dCI6IDAsICJ3ZWlnaHRfZGVjYXkiOiAwLjEsICJjaGVja3BvaW50X2FjdGl2YXRpb25zIjogdHJ1ZSwgInN5bmNocm9uaXplX2VhY2hfbGF5ZXIiOiB0cnVlLCAicGFydGl0aW9uX2FjdGl2YXRpb25zIjogdHJ1ZSwgImdhcyI6IDEsICJjbGlwX2dyYWQiOiAxLjAsICJkeW5hbWljX2xvc3Nfc2NhbGUiOiB0cnVlLCAicGlwZV9wYXJhbGxlbF9zaXplIjogMSwgIndvcmxkX3NpemUiOiAxLCAiaXNfcGlwZV9wYXJhbGxlbCI6IHRydWUsICJ1c2Vfd2FuZGIiOiB0cnVlLCAid2FuZGJfZ3JvdXAiOiAiNzBNLTYxNDRzdGVwLXRlc3RfdDZwY3Jnemtfenc2Z3ZrYTYiLCAid2FuZGJfdGVhbSI6ICJtYXRoLWxtIiwgIndhbmRiX3Byb2plY3QiOiAic2NhbGluZy0wLjIiLCAibG9nX2RpciI6ICIvaG9tZS96YTI1MTQvY29tcHV0ZS9zY2FsaW5nL2dwdC1uZW94L2xvZ3Mvc2NhbGluZy0wLjEiLCAibG9nX2ludGVydmFsIjogMSwgInRleHRfZ2VuX3R5cGUiOiAidW5jb25kaXRpb25hbCIsICJsb2NhbF9yYW5rIjogMCwgInJhbmsiOiAwLCAidXNlcl9zY3JpcHQiOiAidHJhaW4ucHkiLCAic2F2ZV9pdGVycyI6IFsxXSwgImdsb2JhbF9udW1fZ3B1cyI6IDh9
+Setting ds_accelerator to cuda (auto detect)
+[2023-10-20 18:54:05,898] [INFO] [launch.py:145:main] WORLD INFO DICT: {'localhost': [0, 1, 2, 3, 4, 5, 6, 7]}
+[2023-10-20 18:54:05,899] [INFO] [launch.py:151:main] nnodes=1, num_local_procs=8, node_rank=0
+[2023-10-20 18:54:05,899] [INFO] [launch.py:162:main] global_rank_mapping=defaultdict(<class 'list'>, {'localhost': [0, 1, 2, 3, 4, 5, 6, 7]})
+[2023-10-20 18:54:05,899] [INFO] [launch.py:163:main] dist_world_size=8
+[2023-10-20 18:54:05,899] [INFO] [launch.py:165:main] Setting CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+Setting ds_accelerator to cuda (auto detect)
+Setting ds_accelerator to cuda (auto detect)
+Setting ds_accelerator to cuda (auto detect)
+Setting ds_accelerator to cuda (auto detect)
+Setting ds_accelerator to cuda (auto detect)
+Setting ds_accelerator to cuda (auto detect)
+Setting ds_accelerator to cuda (auto detect)
+Setting ds_accelerator to cuda (auto detect)
+NeoXArgs.configure_distributed_args() using world size: 8 and model-parallel size: 1 
+> building HFTokenizer tokenizer ...
+ > padded vocab (size: 50277) with 27 dummy tokens (new size: 50304)
+[2023-10-20 18:54:46,360] [WARNING] [comm.py:152:init_deepspeed_backend] NCCL backend in DeepSpeed not yet implemented
+[2023-10-20 18:54:46,360] [INFO] [comm.py:594:init_distributed] cdb=None
+[2023-10-20 18:54:46,361] [WARNING] [comm.py:152:init_deepspeed_backend] NCCL backend in DeepSpeed not yet implemented
+[2023-10-20 18:54:46,361] [INFO] [comm.py:594:init_distributed] cdb=None
+[2023-10-20 18:54:46,367] [WARNING] [comm.py:152:init_deepspeed_backend] NCCL backend in DeepSpeed not yet implemented
+[2023-10-20 18:54:46,367] [INFO] [comm.py:594:init_distributed] cdb=None
+[2023-10-20 18:54:46,378] [WARNING] [comm.py:152:init_deepspeed_backend] NCCL backend in DeepSpeed not yet implemented
+[2023-10-20 18:54:46,378] [INFO] [comm.py:594:init_distributed] cdb=None
+[2023-10-20 18:54:46,381] [WARNING] [comm.py:152:init_deepspeed_backend] NCCL backend in DeepSpeed not yet implemented
+[2023-10-20 18:54:46,382] [INFO] [comm.py:594:init_distributed] cdb=None
+[2023-10-20 18:54:46,386] [WARNING] [comm.py:152:init_deepspeed_backend] NCCL backend in DeepSpeed not yet implemented
+[2023-10-20 18:54:46,386] [INFO] [comm.py:594:init_distributed] cdb=None
+[2023-10-20 18:54:46,390] [WARNING] [comm.py:152:init_deepspeed_backend] NCCL backend in DeepSpeed not yet implemented
+[2023-10-20 18:54:46,390] [INFO] [comm.py:594:init_distributed] cdb=None
+wandb: Tracking run with wandb version 0.15.4
+wandb: W&B syncing is set to `offline` in this directory.  
+wandb: Run `wandb online` or set WANDB_MODE=online to enable cloud syncing.
+> initializing torch distributed ...
+[2023-10-20 18:54:59,121] [WARNING] [comm.py:152:init_deepspeed_backend] NCCL backend in DeepSpeed not yet implemented
+[2023-10-20 18:54:59,121] [INFO] [comm.py:594:init_distributed] cdb=None
+[2023-10-20 18:54:59,121] [INFO] [comm.py:625:init_distributed] Initializing TorchBackend in DeepSpeed with backend nccl
+> initializing model parallel with size 1
+MPU DP: [0, 1, 2, 3, 4, 5, 6, 7]
+MPU PP: [0]
+MPU PP: [1]
+MPU PP: [2]
+MPU PP: [3]
+MPU PP: [4]
+MPU PP: [5]
+MPU PP: [6]
+MPU PP: [7]
+MPU MP: [0]
+MPU MP: [1]
+MPU MP: [2]
+MPU MP: [3]
+MPU MP: [4]
+MPU MP: [5]
+MPU MP: [6]
+MPU MP: [7]
+> setting random seeds to 1234 ...
+[2023-10-20 18:54:59,560] [INFO] [checkpointing.py:226:model_parallel_cuda_manual_seed] > initializing model parallel cuda seeds on global rank 0, model parallel rank 0, and data parallel rank 0 with model parallel seed: 3952 and data parallel seed: 1234
+make: Entering directory `/nobackup/scratch/usr/za2514/scaling/gpt-neox/megatron/data'
+make: Nothing to be done for `default'.
+make: Leaving directory `/nobackup/scratch/usr/za2514/scaling/gpt-neox/megatron/data'
+building GPT2 model ...
+SEED_LAYERS=False BASE_SEED=1234 SEED_FN=None
+Using topology: {ProcessCoord(pipe=0, data=0, model=0): 0, ProcessCoord(pipe=0, data=1, model=0): 1, ProcessCoord(pipe=0, data=2, model=0): 2, ProcessCoord(pipe=0, data=3, model=0): 3, ProcessCoord(pipe=0, data=4, model=0): 4, ProcessCoord(pipe=0, data=5, model=0): 5, ProcessCoord(pipe=0, data=6, model=0): 6, ProcessCoord(pipe=0, data=7, model=0): 7}
+[2023-10-20 18:55:00,198] [INFO] [module.py:358:_partition_layers] Partitioning pipeline stages with method type:transformer|mlp
+stage=0 layers=11
+     0: EmbeddingPipe
+     1: _pre_transformer_block
+     2: ParallelTransformerLayerPipe
+     3: ParallelTransformerLayerPipe
+     4: ParallelTransformerLayerPipe
+     5: ParallelTransformerLayerPipe
+     6: ParallelTransformerLayerPipe
+     7: ParallelTransformerLayerPipe
+     8: _post_transformer_block
+     9: NormPipe
+    10: ParallelLinearPipe
+  loss: partial
+WARNING: APEX not installed - defaulting to deepspeed's fused adam
+WARNING: APEX not installed - defaulting to deepspeed's fused adam
+WARNING: APEX not installed - defaulting to deepspeed's fused adam
+WARNING: APEX not installed - defaulting to deepspeed's fused adam
+WARNING: APEX not installed - defaulting to deepspeed's fused adam
+WARNING: APEX not installed - defaulting to deepspeed's fused adam
+Configuring Optimizer type: Adam with params: {'lr': 0.001, 'betas': [0.9, 0.95], 'eps': 1e-08}
+WARNING: APEX not installed - defaulting to deepspeed's fused adam
+WARNING: APEX not installed - defaulting to deepspeed's fused adam
+Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+
+
+
+
+
+
+Detected CUDA files, patching ldflags
+Emitting ninja build file /home/za2514/.cache/torch_extensions/py39_cu117/fused_adam/build.ninja...
+Building extension module fused_adam...
+Allowing ninja to set a default number of workers... (overridable by setting the environment variable MAX_JOBS=N)
+ninja: no work to do.
+Loading extension module fused_adam...
+Time to load fused_adam op: 0.6150574684143066 seconds
+> learning rate decay style: cosine
+DeepSpeed is enabled.
+[2023-10-20 18:55:05,367] [INFO] [logging.py:96:log_dist] [Rank 0] DeepSpeed info: version=0.9.3+cb26dda, git-hash=cb26dda, git-branch=new-fix
+[2023-10-20 18:55:05,368] [WARNING] [config_utils.py:69:_process_deprecated_field] Config parameter cpu_offload is deprecated use offload_optimizer instead
+Loading extension module fused_adam...Loading extension module fused_adam...
+
+Loading extension module fused_adam...
+Loading extension module fused_adam...
+Loading extension module fused_adam...
+Loading extension module fused_adam...Loading extension module fused_adam...
+
+Time to load fused_adam op: 0.6563587188720703 seconds
+Time to load fused_adam op: 0.6560380458831787 seconds
+Time to load fused_adam op: 0.6568303108215332 seconds
+Time to load fused_adam op: 0.6565308570861816 seconds
+Time to load fused_adam op: 0.6568911075592041 seconds
+Time to load fused_adam op: 0.6577897071838379 seconds[2023-10-20 18:55:05,409] [WARNING] [config_utils.py:69:_process_deprecated_field] Config parameter cpu_offload is deprecated use offload_optimizer instead
+
+Time to load fused_adam op: 0.6592254638671875 seconds
+[2023-10-20 18:55:05,409] [WARNING] [config_utils.py:69:_process_deprecated_field] Config parameter cpu_offload is deprecated use offload_optimizer instead
+[2023-10-20 18:55:05,410] [WARNING] [config_utils.py:69:_process_deprecated_field] Config parameter cpu_offload is deprecated use offload_optimizer instead
+[2023-10-20 18:55:05,410] [WARNING] [config_utils.py:69:_process_deprecated_field] Config parameter cpu_offload is deprecated use offload_optimizer instead
+[2023-10-20 18:55:05,410] [WARNING] [config_utils.py:69:_process_deprecated_field] Config parameter cpu_offload is deprecated use offload_optimizer instead
+[2023-10-20 18:55:05,412] [WARNING] [config_utils.py:69:_process_deprecated_field] Config parameter cpu_offload is deprecated use offload_optimizer instead
+[2023-10-20 18:55:05,412] [WARNING] [config_utils.py:69:_process_deprecated_field] Config parameter cpu_offload is deprecated use offload_optimizer instead
+[2023-10-20 18:55:07,195] [INFO] [logging.py:96:log_dist] [Rank 0] DeepSpeed Flops Profiler Enabled: False
+[2023-10-20 18:55:07,196] [INFO] [logging.py:96:log_dist] [Rank 0] Removing param_group that has no 'params' in the client Optimizer
+[2023-10-20 18:55:07,196] [INFO] [logging.py:96:log_dist] [Rank 0] Using client Optimizer as basic optimizer
+Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+
+[2023-10-20 18:55:07,197] [INFO] [logging.py:96:log_dist] [Rank 0] DeepSpeed Basic Optimizer = FusedAdam
+[2023-10-20 18:55:07,197] [INFO] [utils.py:54:is_zero_supported_optimizer] Checking ZeRO support for optimizer=FusedAdam type=<class 'deepspeed.ops.adam.fused_adam.FusedAdam'>
+[2023-10-20 18:55:07,197] [INFO] [logging.py:96:log_dist] [Rank 0] Creating torch.float16 ZeRO stage 1 optimizer
+[2023-10-20 18:55:07,197] [INFO] [stage_1_and_2.py:133:__init__] Reduce bucket size 500000000
+[2023-10-20 18:55:07,197] [INFO] [stage_1_and_2.py:134:__init__] Allgather bucket size 500000000
+[2023-10-20 18:55:07,197] [INFO] [stage_1_and_2.py:135:__init__] CPU Offload: False
+[2023-10-20 18:55:07,197] [INFO] [stage_1_and_2.py:136:__init__] Round robin gradient partitioning: False
+Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+Emitting ninja build file /home/za2514/.cache/torch_extensions/py39_cu117/utils/build.ninja...
+Building extension module utils...
+Allowing ninja to set a default number of workers... (overridable by setting the environment variable MAX_JOBS=N)
+ninja: no work to do.
+Loading extension module utils...
+Time to load utils op: 0.4014620780944824 seconds
+Loading extension module utils...Loading extension module utils...
+
+Loading extension module utils...
+Loading extension module utils...Loading extension module utils...
+
+Loading extension module utils...
+Loading extension module utils...
+Time to load utils op: 0.4185357093811035 seconds
+Time to load utils op: 0.4185488224029541 seconds
+Time to load utils op: 0.41750264167785645 seconds
+Time to load utils op: 0.4185006618499756 seconds
+Time to load utils op: 0.41907167434692383 seconds
+Time to load utils op: 0.41800427436828613 seconds
+Time to load utils op: 0.41769981384277344 seconds
+Rank: 4 partition count [8, 8] and sizes[(8798208, False), (5120, False)] 
+Rank: 2 partition count [8, 8] and sizes[(8798208, False), (5120, False)] 
+Rank: 5 partition count [8, 8] and sizes[(8798208, False), (5120, False)] 
+Rank: 6 partition count [8, 8] and sizes[(8798208, False), (5120, False)] 
+Rank: 7 partition count [8, 8] and sizes[(8798208, False), (5120, False)] 
+Rank: 3 partition count [8, 8] and sizes[(8798208, False), (5120, False)] 
+Rank: 0 partition count [8, 8] and sizes[(8798208, False), (5120, False)] 
+Rank: 1 partition count [8, 8] and sizes[(8798208, False), (5120, False)] 
+Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+No modifications detected for re-loaded extension module utils, skipping build step...Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+No modifications detected for re-loaded extension module utils, skipping build step...
+Loading extension module utils...
+
+No modifications detected for re-loaded extension module utils, skipping build step...Loading extension module utils...
+
+Loading extension module utils...
+Time to load utils op: 0.0022351741790771484 seconds
+No modifications detected for re-loaded extension module utils, skipping build step...Time to load utils op: 0.001130819320678711 secondsNo modifications detected for re-loaded extension module utils, skipping build step...
+
+Time to load utils op: 0.001982450485229492 secondsLoading extension module utils...
+
+
+Loading extension module utils...
+No modifications detected for re-loaded extension module utils, skipping build step...
+Time to load utils op: 0.001680135726928711 secondsLoading extension module utils...
+
+Time to load utils op: 0.0019347667694091797 seconds
+No modifications detected for re-loaded extension module utils, skipping build step...
+Loading extension module utils...
+Time to load utils op: 0.0013508796691894531 seconds
+Time to load utils op: 0.001337289810180664 seconds
+[2023-10-20 18:55:09,586] [INFO] [utils.py:785:see_memory_usage] Before initializing optimizer states
+[2023-10-20 18:55:09,587] [INFO] [utils.py:786:see_memory_usage] MA 0.16 GB         Max_MA 0.16 GB         CA 0.17 GB         Max_CA 0 GB 
+[2023-10-20 18:55:09,587] [INFO] [utils.py:793:see_memory_usage] CPU Virtual Memory:  used = 50.18 GB, percent = 2.5%
+[2023-10-20 18:55:09,699] [INFO] [utils.py:785:see_memory_usage] After initializing optimizer states
+[2023-10-20 18:55:09,699] [INFO] [utils.py:786:see_memory_usage] MA 0.23 GB         Max_MA 0.26 GB         CA 0.27 GB         Max_CA 0 GB 
+[2023-10-20 18:55:09,700] [INFO] [utils.py:793:see_memory_usage] CPU Virtual Memory:  used = 50.33 GB, percent = 2.5%
+[2023-10-20 18:55:09,700] [INFO] [stage_1_and_2.py:489:__init__] optimizer state initialized
+[2023-10-20 18:55:09,803] [INFO] [utils.py:785:see_memory_usage] After initializing ZeRO optimizer
+[2023-10-20 18:55:09,804] [INFO] [utils.py:786:see_memory_usage] MA 0.23 GB         Max_MA 0.23 GB         CA 0.27 GB         Max_CA 0 GB 
+[2023-10-20 18:55:09,804] [INFO] [utils.py:793:see_memory_usage] CPU Virtual Memory:  used = 50.32 GB, percent = 2.5%
+[2023-10-20 18:55:09,805] [INFO] [logging.py:96:log_dist] [Rank 0] DeepSpeed Final Optimizer = FusedAdam
+[2023-10-20 18:55:09,805] [INFO] [logging.py:96:log_dist] [Rank 0] DeepSpeed using client LR scheduler
+[2023-10-20 18:55:09,805] [INFO] [logging.py:96:log_dist] [Rank 0] DeepSpeed LR Scheduler = <megatron.learning_rates.AnnealingLR object at 0x7f9cbca95100>
+[2023-10-20 18:55:09,805] [INFO] [logging.py:96:log_dist] [Rank 0] step=0, skipped=0, lr=[0.0, 0.0], mom=[[0.9, 0.95], [0.9, 0.95]]
+[2023-10-20 18:55:09,806] [INFO] [config.py:958:print] DeepSpeedEngine configuration:
+[2023-10-20 18:55:09,806] [INFO] [config.py:962:print]   activation_checkpointing_config  {
+    "partition_activations": false, 
+    "contiguous_memory_optimization": false, 
+    "cpu_checkpointing": false, 
+    "number_checkpoints": null, 
+    "synchronize_checkpoint_boundary": false, 
+    "profile": false
+}
+[2023-10-20 18:55:09,806] [INFO] [config.py:962:print]   aio_config ................... {'block_size': 1048576, 'queue_depth': 8, 'thread_count': 1, 'single_submit': False, 'overlap_events': True}
+[2023-10-20 18:55:09,806] [INFO] [config.py:962:print]   amp_enabled .................. False
+[2023-10-20 18:55:09,806] [INFO] [config.py:962:print]   amp_params ................... False
+[2023-10-20 18:55:09,806] [INFO] [config.py:962:print]   autotuning_config ............ {
+    "enabled": false, 
+    "start_step": null, 
+    "end_step": null, 
+    "metric_path": null, 
+    "arg_mappings": null, 
+    "metric": "throughput", 
+    "model_info": null, 
+    "results_dir": "autotuning_results", 
+    "exps_dir": "autotuning_exps", 
+    "overwrite": true, 
+    "fast": true, 
+    "start_profile_step": 3, 
+    "end_profile_step": 5, 
+    "tuner_type": "gridsearch", 
+    "tuner_early_stopping": 5, 
+    "tuner_num_trials": 50, 
+    "model_info_path": null, 
+    "mp_size": 1, 
+    "max_train_batch_size": null, 
+    "min_train_batch_size": 1, 
+    "max_train_micro_batch_size_per_gpu": 1.024000e+03, 
+    "min_train_micro_batch_size_per_gpu": 1, 
+    "num_tuning_micro_batch_sizes": 3
+}
+[2023-10-20 18:55:09,806] [INFO] [config.py:962:print]   bfloat16_enabled ............. False
+[2023-10-20 18:55:09,806] [INFO] [config.py:962:print]   checkpoint_parallel_write_pipeline  False
+[2023-10-20 18:55:09,806] [INFO] [config.py:962:print]   checkpoint_tag_validation_enabled  True
+[2023-10-20 18:55:09,806] [INFO] [config.py:962:print]   checkpoint_tag_validation_fail  False
+[2023-10-20 18:55:09,806] [INFO] [config.py:962:print]   comms_config ................. <deepspeed.comm.config.DeepSpeedCommsConfig object at 0x7f9cbca958b0>
+[2023-10-20 18:55:09,806] [INFO] [config.py:962:print]   communication_data_type ...... None
+[2023-10-20 18:55:09,806] [INFO] [config.py:962:print]   compression_config ........... {'weight_quantization': {'shared_parameters': {'enabled': False, 'quantizer_kernel': False, 'schedule_offset': 0, 'quantize_groups': 1, 'quantize_verbose': False, 'quantization_type': 'symmetric', 'quantize_weight_in_forward': False, 'rounding': 'nearest', 'fp16_mixed_quantize': False, 'quantize_change_ratio': 0.001}, 'different_groups': {}}, 'activation_quantization': {'shared_parameters': {'enabled': False, 'quantization_type': 'symmetric', 'range_calibration': 'dynamic', 'schedule_offset': 1000}, 'different_groups': {}}, 'sparse_pruning': {'shared_parameters': {'enabled': False, 'method': 'l1', 'schedule_offset': 1000}, 'different_groups': {}}, 'row_pruning': {'shared_parameters': {'enabled': False, 'method': 'l1', 'schedule_offset': 1000}, 'different_groups': {}}, 'head_pruning': {'shared_parameters': {'enabled': False, 'method': 'topk', 'schedule_offset': 1000}, 'different_groups': {}}, 'channel_pruning': {'shared_parameters': {'enabled': False, 'method': 'l1', 'schedule_offset': 1000}, 'different_groups': {}}, 'layer_reduction': {'enabled': False}}
+[2023-10-20 18:55:09,806] [INFO] [config.py:962:print]   curriculum_enabled_legacy .... False
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   curriculum_params_legacy ..... False
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   data_efficiency_config ....... {'enabled': False, 'seed': 1234, 'data_sampling': {'enabled': False, 'num_epochs': 1000, 'num_workers': 0, 'curriculum_learning': {'enabled': False}}, 'data_routing': {'enabled': False, 'random_ltd': {'enabled': False, 'layer_token_lr_schedule': {'enabled': False}}}}
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   data_efficiency_enabled ...... False
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   dataloader_drop_last ......... False
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   disable_allgather ............ False
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   dump_state ................... False
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   dynamic_loss_scale_args ...... {'init_scale': 4096, 'scale_window': 1000, 'delayed_shift': 2, 'min_scale': 1}
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   eigenvalue_enabled ........... False
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   eigenvalue_gas_boundary_resolution  1
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   eigenvalue_layer_name ........ bert.encoder.layer
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   eigenvalue_layer_num ......... 0
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   eigenvalue_max_iter .......... 100
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   eigenvalue_stability ......... 1e-06
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   eigenvalue_tol ............... 0.01
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   eigenvalue_verbose ........... False
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   elasticity_enabled ........... False
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   flops_profiler_config ........ {
+    "enabled": false, 
+    "profile_step": 1, 
+    "module_depth": -1, 
+    "top_modules": 1, 
+    "detailed": true, 
+    "output_file": null
+}
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   fp16_auto_cast ............... False
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   fp16_enabled ................. True
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   fp16_master_weights_and_gradients  False
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   global_rank .................. 0
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   grad_accum_dtype ............. None
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   gradient_accumulation_steps .. 1
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   gradient_clipping ............ 0.0
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   gradient_predivide_factor .... 1.0
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   hybrid_engine ................ enabled=False max_out_tokens=512 inference_tp_size=1 release_inference_cache=False pin_parameters=True tp_gather_partition_size=8
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   initial_dynamic_scale ........ 4096
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   load_universal_checkpoint .... False
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   loss_scale ................... 0
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   memory_breakdown ............. False
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   mics_hierarchial_params_gather  False
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   mics_shard_size .............. -1
+[2023-10-20 18:55:09,807] [INFO] [config.py:962:print]   monitor_config ............... tensorboard=TensorBoardConfig(enabled=False, output_path='', job_name='DeepSpeedJobName') wandb=WandbConfig(enabled=False, group=None, team=None, project='deepspeed') csv_monitor=CSVConfig(enabled=False, output_path='', job_name='DeepSpeedJobName') enabled=False
+[2023-10-20 18:55:09,808] [INFO] [config.py:962:print]   nebula_config ................ {
+    "enabled": false, 
+    "persistent_storage_path": null, 
+    "persistent_time_interval": 100, 
+    "num_of_version_in_retention": 2, 
+    "enable_nebula_load": true, 
+    "load_path": null
+}
+[2023-10-20 18:55:09,808] [INFO] [config.py:962:print]   optimizer_legacy_fusion ...... False
+[2023-10-20 18:55:09,808] [INFO] [config.py:962:print]   optimizer_name ............... adam
+[2023-10-20 18:55:09,808] [INFO] [config.py:962:print]   optimizer_params ............. {'lr': 0.001, 'betas': [0.9, 0.95], 'eps': 1e-08}
+[2023-10-20 18:55:09,808] [INFO] [config.py:962:print]   pipeline ..................... {'stages': 'auto', 'partition': 'best', 'seed_layers': False, 'activation_checkpoint_interval': 0}
+[2023-10-20 18:55:09,808] [INFO] [config.py:962:print]   pld_enabled .................. False
+[2023-10-20 18:55:09,808] [INFO] [config.py:962:print]   pld_params ................... False
+[2023-10-20 18:55:09,808] [INFO] [config.py:962:print]   prescale_gradients ........... False
+[2023-10-20 18:55:09,808] [INFO] [config.py:962:print]   scheduler_name ............... None
+[2023-10-20 18:55:09,808] [INFO] [config.py:962:print]   scheduler_params ............. None
+[2023-10-20 18:55:09,808] [INFO] [config.py:962:print]   sparse_attention ............. None
+[2023-10-20 18:55:09,808] [INFO] [config.py:962:print]   sparse_gradients_enabled ..... False
+[2023-10-20 18:55:09,808] [INFO] [config.py:962:print]   steps_per_print .............. 1
+[2023-10-20 18:55:09,808] [INFO] [config.py:962:print]   train_batch_size ............. 512
+[2023-10-20 18:55:09,808] [INFO] [config.py:962:print]   train_micro_batch_size_per_gpu  64
+[2023-10-20 18:55:09,808] [INFO] [config.py:962:print]   use_node_local_storage ....... False
+[2023-10-20 18:55:09,808] [INFO] [config.py:962:print]   wall_clock_breakdown ......... True
+[2023-10-20 18:55:09,808] [INFO] [config.py:962:print]   world_size ................... 8
+[2023-10-20 18:55:09,808] [INFO] [config.py:962:print]   zero_allow_untested_optimizer  False
+[2023-10-20 18:55:09,808] [INFO] [config.py:962:print]   zero_config .................. stage=1 contiguous_gradients=True reduce_scatter=True reduce_bucket_size=500000000 allgather_partitions=True allgather_bucket_size=500000000 overlap_comm=True load_from_fp32_weights=True elastic_checkpoint=False offload_param=None offload_optimizer=None sub_group_size=1,000,000,000 cpu_offload_param=None cpu_offload_use_pin_memory=None prefetch_bucket_size=50,000,000 param_persistence_threshold=100,000 model_persistence_threshold=sys.maxsize max_live_parameters=1,000,000,000 max_reuse_distance=1,000,000,000 gather_16bit_weights_on_model_save=False stage3_gather_fp16_weights_on_model_save=False ignore_unused_parameters=True legacy_stage1=False round_robin_gradients=False mics_shard_size=-1 mics_hierarchical_params_gather=False memory_efficient_linear=True
+[2023-10-20 18:55:09,808] [INFO] [config.py:962:print]   zero_enabled ................. True
+[2023-10-20 18:55:09,808] [INFO] [config.py:962:print]   zero_force_ds_cpu_optimizer .. True
+[2023-10-20 18:55:09,808] [INFO] [config.py:962:print]   zero_optimization_stage ...... 1
+[2023-10-20 18:55:09,808] [INFO] [config.py:948:print_user_config]   json = {
+    "train_batch_size": 512, 
+    "train_micro_batch_size_per_gpu": 64, 
+    "optimizer": {
+        "type": "Adam", 
+        "params": {
+            "lr": 0.001, 
+            "betas": [0.9, 0.95], 
+            "eps": 1e-08
+        }
+    }, 
+    "fp16": {
+        "fp16": true, 
+        "enabled": true, 
+        "loss_scale": 0, 
+        "loss_scale_window": 1000, 
+        "initial_scale_power": 12, 
+        "hysteresis": 2, 
+        "min_loss_scale": 1
+    }, 
+    "zero_optimization": {
+        "stage": 1, 
+        "allgather_partitions": true, 
+        "allgather_bucket_size": 5.000000e+08, 
+        "overlap_comm": true, 
+        "reduce_scatter": true, 
+        "reduce_bucket_size": 5.000000e+08, 
+        "contiguous_gradients": true, 
+        "cpu_offload": false
+    }, 
+    "steps_per_print": 1, 
+    "wall_clock_breakdown": true
+}
+Using /home/za2514/.cache/torch_extensions/py39_cu117 as PyTorch extensions root...
+No modifications detected for re-loaded extension module utils, skipping build step...
+Loading extension module utils...
+Time to load utils op: 0.001230478286743164 seconds
+[2023-10-20 18:55:09,810] [INFO] [engine.py:83:__init__] CONFIG: micro_batches=1 micro_batch_size=64
+[2023-10-20 18:55:09,858] [INFO] [engine.py:138:__init__] RANK=0 STAGE=0 LAYERS=11 [0, 11) STAGE_PARAMS=70426624 (70.427M) TOTAL_PARAMS=70426624 (70.427M) UNIQUE_PARAMS=70426624 (70.427M)
+ > number of parameters on model parallel rank 0: 70426624
+ > total params: 70,426,624
+[2023-10-20 18:55:09,902] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt...
+[2023-10-20 18:55:09,902] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt...
+[2023-10-20 18:55:09,902] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt...
+[2023-10-20 18:55:09,904] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt...
+[2023-10-20 18:55:09,904] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt...
+[2023-10-20 18:55:09,904] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt...
+[2023-10-20 18:55:09,905] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt...
+[2023-10-20 18:55:09,905] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt...
+[2023-10-20 18:55:09,935] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt.
+[2023-10-20 18:55:09,935] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt...
+[2023-10-20 18:55:09,936] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt.
+[2023-10-20 18:55:09,936] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt...
+[2023-10-20 18:55:09,936] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt.
+[2023-10-20 18:55:09,936] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt.
+[2023-10-20 18:55:09,936] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt...
+[2023-10-20 18:55:09,936] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt.
+[2023-10-20 18:55:09,937] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt.
+[2023-10-20 18:55:09,937] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt...
+[2023-10-20 18:55:09,937] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt.
+[2023-10-20 18:55:09,937] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt...
+[2023-10-20 18:55:09,937] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt.
+[2023-10-20 18:55:09,937] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt.
+[2023-10-20 18:55:09,937] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt...
+[2023-10-20 18:55:09,937] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt...
+[2023-10-20 18:55:09,937] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt...
+[2023-10-20 18:55:09,937] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt.
+[2023-10-20 18:55:09,937] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt...
+[2023-10-20 18:55:09,937] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt.
+[2023-10-20 18:55:09,938] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt...
+[2023-10-20 18:55:09,938] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt.
+[2023-10-20 18:55:09,938] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt.
+[2023-10-20 18:55:09,938] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt.
+[2023-10-20 18:55:09,938] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt.
+[2023-10-20 18:55:09,938] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt...
+[2023-10-20 18:55:09,939] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt.
+[2023-10-20 18:55:09,939] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt...
+[2023-10-20 18:55:09,939] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt...
+[2023-10-20 18:55:09,939] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt...
+[2023-10-20 18:55:09,939] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt...
+[2023-10-20 18:55:09,940] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt...
+[2023-10-20 18:55:10,374] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt.
+[2023-10-20 18:55:10,374] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt.
+[2023-10-20 18:55:10,374] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt.
+[2023-10-20 18:55:10,374] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt.
+[2023-10-20 18:55:10,374] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt.
+[2023-10-20 18:55:10,374] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt.
+[2023-10-20 18:55:10,374] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt.
+[2023-10-20 18:55:10,374] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt.
+[2023-10-20 18:55:10,379] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt...
+[2023-10-20 18:55:10,379] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt...
+[2023-10-20 18:55:10,379] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt...
+[2023-10-20 18:55:10,379] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt...
+[2023-10-20 18:55:10,379] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt...
+[2023-10-20 18:55:10,379] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt...
+[2023-10-20 18:55:10,380] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt...
+[2023-10-20 18:55:10,380] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt...
+[2023-10-20 18:55:10,403] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt.
+[2023-10-20 18:55:10,403] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt.
+[2023-10-20 18:55:10,404] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt.
+[2023-10-20 18:55:10,409] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt...
+[2023-10-20 18:55:10,410] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt...
+[2023-10-20 18:55:10,410] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt.
+[2023-10-20 18:55:10,410] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt.
+[2023-10-20 18:55:10,410] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt.
+[2023-10-20 18:55:10,410] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt.
+[2023-10-20 18:55:10,410] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt.
+[2023-10-20 18:55:10,411] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt...
+[2023-10-20 18:55:10,416] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt...
+[2023-10-20 18:55:10,422] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt...
+[2023-10-20 18:55:10,423] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt...
+[2023-10-20 18:55:10,423] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt...
+[2023-10-20 18:55:10,423] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt...
+[2023-10-20 18:55:10,498] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt.
+[2023-10-20 18:55:10,498] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt.
+[2023-10-20 18:55:10,499] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt...
+[2023-10-20 18:55:10,498] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt.
+[2023-10-20 18:55:10,499] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt.
+[2023-10-20 18:55:10,499] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt.
+[2023-10-20 18:55:10,499] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt...
+[2023-10-20 18:55:10,499] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt...
+[2023-10-20 18:55:10,499] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt...
+[2023-10-20 18:55:10,499] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt...
+[2023-10-20 18:55:10,499] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt.
+[2023-10-20 18:55:10,499] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt...
+[2023-10-20 18:55:10,499] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt.
+[2023-10-20 18:55:10,499] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt...
+[2023-10-20 18:55:10,499] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt.
+[2023-10-20 18:55:10,500] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt...
+[2023-10-20 18:55:10,500] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt.
+[2023-10-20 18:55:10,501] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt.
+[2023-10-20 18:55:10,501] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt.
+[2023-10-20 18:55:10,502] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt.
+[2023-10-20 18:55:10,502] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt.
+[2023-10-20 18:55:10,502] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt.
+[2023-10-20 18:55:10,502] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt.
+[2023-10-20 18:55:10,503] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt.
+[2023-10-20 18:55:10,505] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt...
+[2023-10-20 18:55:10,506] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt...
+[2023-10-20 18:55:10,508] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt...
+[2023-10-20 18:55:10,508] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt...
+[2023-10-20 18:55:10,511] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt...
+[2023-10-20 18:55:10,512] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt...
+[2023-10-20 18:55:10,513] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt...
+[2023-10-20 18:55:10,514] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt...
+[2023-10-20 18:55:10,578] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt.
+[2023-10-20 18:55:10,578] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt...
+[2023-10-20 18:55:10,579] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt.
+[2023-10-20 18:55:10,579] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt.
+[2023-10-20 18:55:10,579] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt...
+[2023-10-20 18:55:10,579] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt...
+[2023-10-20 18:55:10,579] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt.
+[2023-10-20 18:55:10,579] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt...
+[2023-10-20 18:55:10,579] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt.
+[2023-10-20 18:55:10,579] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt...
+[2023-10-20 18:55:10,579] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt.
+[2023-10-20 18:55:10,580] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt.
+[2023-10-20 18:55:10,580] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt...
+[2023-10-20 18:55:10,580] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt...
+[2023-10-20 18:55:10,580] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt.
+[2023-10-20 18:55:10,581] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt.
+[2023-10-20 18:55:10,581] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt.
+[2023-10-20 18:55:10,582] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt...
+[2023-10-20 18:55:10,582] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt.
+[2023-10-20 18:55:10,582] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt.
+[2023-10-20 18:55:10,582] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt.
+[2023-10-20 18:55:10,583] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt...
+[2023-10-20 18:55:10,583] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt.
+[2023-10-20 18:55:10,583] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt.
+[2023-10-20 18:55:10,584] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt...
+[2023-10-20 18:55:10,584] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt...
+[2023-10-20 18:55:10,584] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt...
+[2023-10-20 18:55:10,586] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt...
+[2023-10-20 18:55:10,587] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt...
+[2023-10-20 18:55:10,587] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt...
+[2023-10-20 18:55:10,587] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt.
+[2023-10-20 18:55:10,590] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt...
+[2023-10-20 18:55:10,635] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt.
+[2023-10-20 18:55:10,635] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt.
+[2023-10-20 18:55:10,635] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt...
+[2023-10-20 18:55:10,635] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt...
+[2023-10-20 18:55:10,635] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt.
+[2023-10-20 18:55:10,635] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt.
+[2023-10-20 18:55:10,635] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt...
+[2023-10-20 18:55:10,635] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt...
+[2023-10-20 18:55:10,636] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt.
+[2023-10-20 18:55:10,636] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt.
+[2023-10-20 18:55:10,636] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt...
+[2023-10-20 18:55:10,636] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt...
+[2023-10-20 18:55:10,636] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt.
+[2023-10-20 18:55:10,636] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt...
+[2023-10-20 18:55:10,636] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt.
+[2023-10-20 18:55:10,637] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt...
+[2023-10-20 18:55:10,637] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt.
+[2023-10-20 18:55:10,637] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt.
+[2023-10-20 18:55:10,637] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt.
+[2023-10-20 18:55:10,638] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt.
+[2023-10-20 18:55:10,639] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt...
+[2023-10-20 18:55:10,640] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt.
+[2023-10-20 18:55:10,640] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt.
+[2023-10-20 18:55:10,640] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt...
+[2023-10-20 18:55:10,641] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt.
+[2023-10-20 18:55:10,641] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt...
+[2023-10-20 18:55:10,642] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt.
+[2023-10-20 18:55:10,643] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt...
+[2023-10-20 18:55:10,644] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt...
+[2023-10-20 18:55:10,644] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt...
+[2023-10-20 18:55:10,645] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt...
+[2023-10-20 18:55:10,646] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt...
+[2023-10-20 18:55:10,695] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt.
+[2023-10-20 18:55:10,695] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt.
+[2023-10-20 18:55:10,695] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt...
+[2023-10-20 18:55:10,695] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt...
+[2023-10-20 18:55:10,696] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt.
+[2023-10-20 18:55:10,696] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt...
+[2023-10-20 18:55:10,696] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt.
+[2023-10-20 18:55:10,696] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt.
+[2023-10-20 18:55:10,696] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt.
+[2023-10-20 18:55:10,696] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt.
+[2023-10-20 18:55:10,696] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt...
+[2023-10-20 18:55:10,696] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt...
+[2023-10-20 18:55:10,696] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt...
+[2023-10-20 18:55:10,696] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt...
+[2023-10-20 18:55:10,697] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt.
+[2023-10-20 18:55:10,697] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt...
+[2023-10-20 18:55:10,697] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt.
+[2023-10-20 18:55:10,697] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt.
+[2023-10-20 18:55:10,698] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt.
+[2023-10-20 18:55:10,699] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt.
+[2023-10-20 18:55:10,699] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt...
+[2023-10-20 18:55:10,700] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt...
+[2023-10-20 18:55:10,700] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt.
+[2023-10-20 18:55:10,700] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt.
+[2023-10-20 18:55:10,700] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt.
+[2023-10-20 18:55:10,701] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt...
+[2023-10-20 18:55:10,702] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt...
+[2023-10-20 18:55:10,702] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt.
+[2023-10-20 18:55:10,704] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt...
+[2023-10-20 18:55:10,705] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt...
+[2023-10-20 18:55:10,705] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt...
+[2023-10-20 18:55:10,706] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt...
+[2023-10-20 18:55:10,720] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt.
+[2023-10-20 18:55:10,720] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt...
+[2023-10-20 18:55:10,720] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt.
+[2023-10-20 18:55:10,720] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt...
+[2023-10-20 18:55:10,721] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt.
+[2023-10-20 18:55:10,721] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt.
+[2023-10-20 18:55:10,721] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt...
+[2023-10-20 18:55:10,721] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt...
+[2023-10-20 18:55:10,721] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt.
+[2023-10-20 18:55:10,721] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt.
+[2023-10-20 18:55:10,721] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt.
+[2023-10-20 18:55:10,721] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt...
+[2023-10-20 18:55:10,722] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt...
+[2023-10-20 18:55:10,722] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt...
+[2023-10-20 18:55:10,722] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt.
+[2023-10-20 18:55:10,722] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt...
+[2023-10-20 18:55:10,722] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt.
+[2023-10-20 18:55:10,722] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt.
+[2023-10-20 18:55:10,723] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt.
+[2023-10-20 18:55:10,723] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt.
+[2023-10-20 18:55:10,724] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt...
+[2023-10-20 18:55:10,725] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt.
+[2023-10-20 18:55:10,725] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt...
+[2023-10-20 18:55:10,725] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt...
+[2023-10-20 18:55:10,726] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt.
+[2023-10-20 18:55:10,727] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt...
+[2023-10-20 18:55:10,727] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt.
+[2023-10-20 18:55:10,727] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt.
+[2023-10-20 18:55:10,729] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt...
+[2023-10-20 18:55:10,729] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt...
+[2023-10-20 18:55:10,730] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt...
+[2023-10-20 18:55:10,731] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt...
+[2023-10-20 18:55:10,798] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt.
+[2023-10-20 18:55:10,798] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt...
+[2023-10-20 18:55:10,798] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt.
+[2023-10-20 18:55:10,799] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt.
+[2023-10-20 18:55:10,799] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt...
+[2023-10-20 18:55:10,799] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt...
+[2023-10-20 18:55:10,799] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt.
+[2023-10-20 18:55:10,799] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt...
+[2023-10-20 18:55:10,799] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt.
+[2023-10-20 18:55:10,799] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt.
+[2023-10-20 18:55:10,800] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt.
+[2023-10-20 18:55:10,800] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt.
+[2023-10-20 18:55:10,800] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt...
+[2023-10-20 18:55:10,800] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt...
+[2023-10-20 18:55:10,800] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt...
+[2023-10-20 18:55:10,800] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt...
+[2023-10-20 18:55:10,801] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt.
+[2023-10-20 18:55:10,801] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt.
+[2023-10-20 18:55:10,801] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt.
+[2023-10-20 18:55:10,801] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt.
+[2023-10-20 18:55:10,803] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt...
+[2023-10-20 18:55:10,803] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt.
+[2023-10-20 18:55:10,803] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt.
+[2023-10-20 18:55:10,804] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt...
+[2023-10-20 18:55:10,804] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt...
+[2023-10-20 18:55:10,804] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt.
+[2023-10-20 18:55:10,805] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt...
+[2023-10-20 18:55:10,805] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt.
+[2023-10-20 18:55:10,807] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt...
+[2023-10-20 18:55:10,807] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt...
+[2023-10-20 18:55:10,808] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt...
+[2023-10-20 18:55:10,808] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt...
+[2023-10-20 18:55:10,828] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt.
+[2023-10-20 18:55:10,828] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt.
+[2023-10-20 18:55:10,828] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt.
+[2023-10-20 18:55:10,828] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt.
+[2023-10-20 18:55:10,829] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt.
+[2023-10-20 18:55:10,829] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt.
+[2023-10-20 18:55:10,829] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt.
+[2023-10-20 18:55:10,829] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt...
+[2023-10-20 18:55:10,829] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt...
+[2023-10-20 18:55:10,829] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt...
+[2023-10-20 18:55:10,829] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt...
+[2023-10-20 18:55:10,829] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt...
+[2023-10-20 18:55:10,829] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt...
+[2023-10-20 18:55:10,829] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt...
+[2023-10-20 18:55:10,829] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt.
+[2023-10-20 18:55:10,829] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt...
+[2023-10-20 18:55:10,831] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt.
+[2023-10-20 18:55:10,831] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt.
+[2023-10-20 18:55:10,832] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt...
+[2023-10-20 18:55:10,832] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt.
+[2023-10-20 18:55:10,832] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt.
+[2023-10-20 18:55:10,832] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt.
+[2023-10-20 18:55:10,832] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt.
+[2023-10-20 18:55:10,832] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt.
+[2023-10-20 18:55:10,832] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt...
+[2023-10-20 18:55:10,833] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt.
+[2023-10-20 18:55:10,833] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt...
+[2023-10-20 18:55:10,834] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt...
+[2023-10-20 18:55:10,834] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt...
+[2023-10-20 18:55:10,834] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt...
+[2023-10-20 18:55:10,834] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt...
+[2023-10-20 18:55:10,834] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt...
+[2023-10-20 18:55:10,946] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt.
+[2023-10-20 18:55:10,946] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt.
+[2023-10-20 18:55:10,946] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt.
+[2023-10-20 18:55:10,946] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt.
+[2023-10-20 18:55:10,946] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt.
+[2023-10-20 18:55:10,946] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt.
+[2023-10-20 18:55:10,946] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt.
+[2023-10-20 18:55:10,947] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt.
+[2023-10-20 18:55:10,950] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt...
+[2023-10-20 18:55:10,950] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt...
+[2023-10-20 18:55:10,951] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt...
+[2023-10-20 18:55:10,952] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt...
+[2023-10-20 18:55:10,952] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt...
+[2023-10-20 18:55:10,952] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt...
+[2023-10-20 18:55:10,952] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt...
+[2023-10-20 18:55:10,953] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt...
+[2023-10-20 18:55:10,975] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt.
+[2023-10-20 18:55:10,975] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt.
+[2023-10-20 18:55:10,975] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt.
+[2023-10-20 18:55:10,978] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt.
+[2023-10-20 18:55:10,978] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt.
+[2023-10-20 18:55:10,978] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt.
+[2023-10-20 18:55:10,978] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt.
+[2023-10-20 18:55:10,979] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt.
+ > using checkpoint value 0.001 for learning rate
+ > using checkpoint value 0.0001 for minimum learning rate
+ > using checkpoint value 600 for warmup iterations
+ > using checkpoint value 6144 for total number of iterations
+ > using checkpoint value cosine for decay style
+[2023-10-20 18:55:10,990] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_4_mp_rank_00_optim_states.pt...
+[2023-10-20 18:55:10,990] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_1_mp_rank_00_optim_states.pt...
+[2023-10-20 18:55:10,990] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_0_mp_rank_00_optim_states.pt...
+[2023-10-20 18:55:10,990] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_3_mp_rank_00_optim_states.pt...
+[2023-10-20 18:55:10,995] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_2_mp_rank_00_optim_states.pt...
+[2023-10-20 18:55:10,995] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_6_mp_rank_00_optim_states.pt...
+[2023-10-20 18:55:10,995] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_7_mp_rank_00_optim_states.pt...
+[2023-10-20 18:55:10,995] [INFO] [torch_checkpoint_engine.py:27:load] [Torch] Loading checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_5_mp_rank_00_optim_states.pt...
+[2023-10-20 18:55:11,495] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_0_mp_rank_00_optim_states.pt.
+[2023-10-20 18:55:11,495] [INFO] [engine.py:2822:_get_all_zero_checkpoint_state_dicts] successfully read 8 ZeRO state_dicts for rank 0
+[2023-10-20 18:55:11,532] [INFO] [engine.py:2772:_load_zero_checkpoint] loading 8 zero partition checkpoints for rank 0
+ > validated currently set args with arguments in the checkpoint ...
+[2023-10-20 18:55:11,696] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_3_mp_rank_00_optim_states.pt.
+[2023-10-20 18:55:11,697] [INFO] [engine.py:2822:_get_all_zero_checkpoint_state_dicts] successfully read 8 ZeRO state_dicts for rank 3
+[2023-10-20 18:55:11,726] [INFO] [engine.py:2772:_load_zero_checkpoint] loading 8 zero partition checkpoints for rank 3
+[2023-10-20 18:55:11,850] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_2_mp_rank_00_optim_states.pt.
+[2023-10-20 18:55:11,850] [INFO] [engine.py:2822:_get_all_zero_checkpoint_state_dicts] successfully read 8 ZeRO state_dicts for rank 2
+[2023-10-20 18:55:11,850] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_4_mp_rank_00_optim_states.pt.
+[2023-10-20 18:55:11,850] [INFO] [engine.py:2822:_get_all_zero_checkpoint_state_dicts] successfully read 8 ZeRO state_dicts for rank 4
+[2023-10-20 18:55:11,856] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_6_mp_rank_00_optim_states.pt.
+[2023-10-20 18:55:11,856] [INFO] [engine.py:2822:_get_all_zero_checkpoint_state_dicts] successfully read 8 ZeRO state_dicts for rank 6
+[2023-10-20 18:55:11,862] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_1_mp_rank_00_optim_states.pt.
+[2023-10-20 18:55:11,862] [INFO] [engine.py:2822:_get_all_zero_checkpoint_state_dicts] successfully read 8 ZeRO state_dicts for rank 1
+[2023-10-20 18:55:11,865] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_7_mp_rank_00_optim_states.pt.
+[2023-10-20 18:55:11,865] [INFO] [engine.py:2822:_get_all_zero_checkpoint_state_dicts] successfully read 8 ZeRO state_dicts for rank 7
+[2023-10-20 18:55:11,874] [INFO] [torch_checkpoint_engine.py:29:load] [Torch] Loaded checkpoint from /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_5_mp_rank_00_optim_states.pt.
+[2023-10-20 18:55:11,875] [INFO] [engine.py:2822:_get_all_zero_checkpoint_state_dicts] successfully read 8 ZeRO state_dicts for rank 5
+[2023-10-20 18:55:11,889] [INFO] [engine.py:2772:_load_zero_checkpoint] loading 8 zero partition checkpoints for rank 4
+[2023-10-20 18:55:11,902] [INFO] [engine.py:2772:_load_zero_checkpoint] loading 8 zero partition checkpoints for rank 2
+[2023-10-20 18:55:11,909] [INFO] [engine.py:2772:_load_zero_checkpoint] loading 8 zero partition checkpoints for rank 1
+[2023-10-20 18:55:11,910] [INFO] [engine.py:2772:_load_zero_checkpoint] loading 8 zero partition checkpoints for rank 6
+[2023-10-20 18:55:11,914] [INFO] [engine.py:2772:_load_zero_checkpoint] loading 8 zero partition checkpoints for rank 7
+[2023-10-20 18:55:11,930] [INFO] [engine.py:2772:_load_zero_checkpoint] loading 8 zero partition checkpoints for rank 5
+  successfully loaded /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt
+Loading checkpoint and starting from iteration 6144
+> building train, validation, and test datasets ...
+    reading sizes...
+    reading pointers...
+    reading document index...
+    creating numpy buffer of mmap...
+    creating memory view of numpy buffer...
+    train_0:
+     no. of documents:1542673
+ > loading doc-idx mapping from /home/za2514/compute/data/proof-pile_llama/train/arxiv-rp/arxiv-rp_text_document_train_0_indexmap_3161457ns_2048sl_1234s_doc_idx.npy
+ > loading sample-idx mapping from /home/za2514/compute/data/proof-pile_llama/train/arxiv-rp/arxiv-rp_text_document_train_0_indexmap_3161457ns_2048sl_1234s_sample_idx.npy
+ > loading shuffle-idx mapping from /home/za2514/compute/data/proof-pile_llama/train/arxiv-rp/arxiv-rp_text_document_train_0_indexmap_3161457ns_2048sl_1234s_shuffle_idx.npy
+    loaded indexed file in 0.123 seconds
+    total number of samples: 14599642
+    total number of epochs: 1
+    reading sizes...
+    reading pointers...
+    reading document index...
+    creating numpy buffer of mmap...
+    creating memory view of numpy buffer...
+    valid_0:
+     no. of documents:7793
+ > loading doc-idx mapping from /home/za2514/compute/data/proof-pile_llama/validation/arxiv-rp/arxiv-rp_text_document_valid_0_indexmap_1891008ns_2048sl_1234s_doc_idx.npy
+ > loading sample-idx mapping from /home/za2514/compute/data/proof-pile_llama/validation/arxiv-rp/arxiv-rp_text_document_valid_0_indexmap_1891008ns_2048sl_1234s_sample_idx.npy
+ > loading shuffle-idx mapping from /home/za2514/compute/data/proof-pile_llama/validation/arxiv-rp/arxiv-rp_text_document_valid_0_indexmap_1891008ns_2048sl_1234s_shuffle_idx.npy
+    loaded indexed file in 0.093 seconds
+    total number of samples: 1898023
+    total number of epochs: 25
+    reading sizes...
+    reading pointers...
+    reading document index...
+    creating numpy buffer of mmap...
+    creating memory view of numpy buffer...
+    test_0:
+     no. of documents:7840
+ > loading doc-idx mapping from /home/za2514/compute/data/proof-pile_llama/test/arxiv-rp/arxiv-rp_text_document_test_0_indexmap_38592ns_2048sl_1234s_doc_idx.npy
+ > loading sample-idx mapping from /home/za2514/compute/data/proof-pile_llama/test/arxiv-rp/arxiv-rp_text_document_test_0_indexmap_38592ns_2048sl_1234s_sample_idx.npy
+ > loading shuffle-idx mapping from /home/za2514/compute/data/proof-pile_llama/test/arxiv-rp/arxiv-rp_text_document_test_0_indexmap_38592ns_2048sl_1234s_shuffle_idx.npy
+    loaded indexed file in 0.088 seconds
+    total number of samples: 77578
+    total number of epochs: 1
+> building indices for blendable datasets ...
+> RANK 6 elapsed time for building blendable dataset indices: 0.15 (sec)
+> RANK 2 elapsed time for building blendable dataset indices: 0.15 (sec)
+> RANK 4 elapsed time for building blendable dataset indices: 0.16 (sec)
+> RANK 7 elapsed time for building blendable dataset indices: 0.16 (sec)
+> RANK 5 elapsed time for building blendable dataset indices: 0.16 (sec)
+ > sample ratios:> RANK 3 elapsed time for building blendable dataset indices: 0.16 (sec)
+
+   dataset 0, input: 1, achieved: 1
+> RANK 0 elapsed time for building blendable dataset indices: 0.16 (sec)
+> RANK 1 elapsed time for building blendable dataset indices: 0.16 (sec)> building indices for blendable datasets ...
+
+> RANK 2 elapsed time for building blendable dataset indices: 0.01 (sec)
+> RANK 2 elapsed time for building blendable dataset indices: 0.00 (sec)
+> RANK 6 elapsed time for building blendable dataset indices: 0.01 (sec)
+> RANK 6 elapsed time for building blendable dataset indices: 0.00 (sec)
+> RANK 3 elapsed time for building blendable dataset indices: 0.00 (sec)
+> RANK 3 elapsed time for building blendable dataset indices: 0.00 (sec)
+> RANK 4 elapsed time for building blendable dataset indices: 0.01 (sec)> RANK 5 elapsed time for building blendable dataset indices: 0.01 (sec)
+
+> RANK 4 elapsed time for building blendable dataset indices: 0.00 (sec)
+> RANK 5 elapsed time for building blendable dataset indices: 0.00 (sec)
+> RANK 7 elapsed time for building blendable dataset indices: 0.01 (sec)
+> RANK 7 elapsed time for building blendable dataset indices: 0.00 (sec)
+ > sample ratios:
+   dataset 0, input: 1, achieved: 1
+> RANK 0 elapsed time for building blendable dataset indices: 0.01 (sec)
+> building indices for blendable datasets ...
+> RANK 1 elapsed time for building blendable dataset indices: 0.01 (sec)
+ > sample ratios:
+   dataset 0, input: 1, achieved: 1
+> RANK 0 elapsed time for building blendable dataset indices: 0.00 (sec)
+> RANK 1 elapsed time for building blendable dataset indices: 0.00 (sec)
+setting training data start iteration to 6144
+setting validation data start iteration to 3600
+done with setups ...
+time (ms) | model and optimizer: 11967.67 | train/valid/test data iterators: 3572.03
+training ...
+[2023-10-20 18:55:15,856] [INFO] [checkpointing.py:529:forward] Activation Checkpointing Information
+[2023-10-20 18:55:15,857] [INFO] [checkpointing.py:530:forward] ----Partition Activations True, CPU CHECKPOINTING False
+[2023-10-20 18:55:15,857] [INFO] [checkpointing.py:531:forward] ----contiguous Memory Checkpointing False with 6 total layers
+[2023-10-20 18:55:15,857] [INFO] [checkpointing.py:533:forward] ----Synchronization True
+[2023-10-20 18:55:15,857] [INFO] [checkpointing.py:534:forward] ----Profiling time in checkpointing False
+---------------------------------------------------------------------------------------------------------------------------
+ validation results at the end of training for val data | lm_loss value: 1.808552E+00 | lm_loss_ppl value: 6.101607E+00 | 
+---------------------------------------------------------------------------------------------------------------------------
+[2023-10-20 18:55:38,524] [INFO] [logging.py:96:log_dist] [Rank 0] [Torch] Checkpoint global_step6144 is about to be saved!
+[2023-10-20 18:55:38,526] [INFO] [torch_checkpoint_engine.py:21:save] [Torch] Saving /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt...
+[2023-10-20 18:55:38,676] [INFO] [torch_checkpoint_engine.py:23:save] [Torch] Saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_00-model_00-model_states.pt.
+[2023-10-20 18:55:38,677] [INFO] [torch_checkpoint_engine.py:21:save] [Torch] Saving /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt...
+[2023-10-20 18:55:38,763] [INFO] [torch_checkpoint_engine.py:23:save] [Torch] Saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_02-model_00-model_states.pt.
+[2023-10-20 18:55:38,763] [INFO] [torch_checkpoint_engine.py:21:save] [Torch] Saving /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt...
+[2023-10-20 18:55:38,783] [INFO] [torch_checkpoint_engine.py:23:save] [Torch] Saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_03-model_00-model_states.pt.
+[2023-10-20 18:55:38,783] [INFO] [torch_checkpoint_engine.py:21:save] [Torch] Saving /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt...
+[2023-10-20 18:55:38,831] [INFO] [torch_checkpoint_engine.py:23:save] [Torch] Saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_04-model_00-model_states.pt.
+[2023-10-20 18:55:38,831] [INFO] [torch_checkpoint_engine.py:21:save] [Torch] Saving /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt...
+[2023-10-20 18:55:38,857] [INFO] [torch_checkpoint_engine.py:23:save] [Torch] Saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_05-model_00-model_states.pt.
+[2023-10-20 18:55:38,857] [INFO] [torch_checkpoint_engine.py:21:save] [Torch] Saving /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt...
+[2023-10-20 18:55:38,877] [INFO] [torch_checkpoint_engine.py:23:save] [Torch] Saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_06-model_00-model_states.pt.
+[2023-10-20 18:55:38,877] [INFO] [torch_checkpoint_engine.py:21:save] [Torch] Saving /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt...
+[2023-10-20 18:55:38,931] [INFO] [torch_checkpoint_engine.py:23:save] [Torch] Saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_07-model_00-model_states.pt.
+[2023-10-20 18:55:38,931] [INFO] [torch_checkpoint_engine.py:21:save] [Torch] Saving /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt...
+[2023-10-20 18:55:38,938] [INFO] [torch_checkpoint_engine.py:23:save] [Torch] Saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_09-model_00-model_states.pt.
+[2023-10-20 18:55:38,938] [INFO] [torch_checkpoint_engine.py:21:save] [Torch] Saving /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt...
+[2023-10-20 18:55:39,063] [INFO] [torch_checkpoint_engine.py:23:save] [Torch] Saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/layer_10-model_00-model_states.pt.
+[2023-10-20 18:55:39,064] [INFO] [logging.py:96:log_dist] [Rank 0] Saving model checkpoint: /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt
+[2023-10-20 18:55:39,065] [INFO] [torch_checkpoint_engine.py:21:save] [Torch] Saving /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt...
+[2023-10-20 18:55:39,105] [INFO] [torch_checkpoint_engine.py:23:save] [Torch] Saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/mp_rank_00_model_states.pt.
+[2023-10-20 18:55:39,108] [INFO] [torch_checkpoint_engine.py:21:save] [Torch] Saving /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_0_mp_rank_00_optim_states.pt...
+[2023-10-20 18:55:39,108] [INFO] [torch_checkpoint_engine.py:21:save] [Torch] Saving /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_2_mp_rank_00_optim_states.pt...
+[2023-10-20 18:55:39,108] [INFO] [torch_checkpoint_engine.py:21:save] [Torch] Saving /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_7_mp_rank_00_optim_states.pt...
+[2023-10-20 18:55:39,108] [INFO] [torch_checkpoint_engine.py:21:save] [Torch] Saving /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_1_mp_rank_00_optim_states.pt...
+[2023-10-20 18:55:39,108] [INFO] [torch_checkpoint_engine.py:21:save] [Torch] Saving /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_3_mp_rank_00_optim_states.pt...
+[2023-10-20 18:55:39,108] [INFO] [torch_checkpoint_engine.py:21:save] [Torch] Saving /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_5_mp_rank_00_optim_states.pt...
+[2023-10-20 18:55:39,108] [INFO] [torch_checkpoint_engine.py:21:save] [Torch] Saving /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_4_mp_rank_00_optim_states.pt...
+[2023-10-20 18:55:39,108] [INFO] [torch_checkpoint_engine.py:21:save] [Torch] Saving /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_6_mp_rank_00_optim_states.pt...
+[2023-10-20 18:55:39,660] [INFO] [torch_checkpoint_engine.py:23:save] [Torch] Saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_7_mp_rank_00_optim_states.pt.
+[2023-10-20 18:55:39,661] [INFO] [engine.py:3242:_save_zero_checkpoint] zero checkpoint saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_7_mp_rank_00_optim_states.pt
+[2023-10-20 18:55:39,661] [INFO] [torch_checkpoint_engine.py:33:commit] [Torch] Checkpoint global_step6144 is ready now!
+[2023-10-20 18:55:39,666] [INFO] [torch_checkpoint_engine.py:23:save] [Torch] Saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_4_mp_rank_00_optim_states.pt.
+[2023-10-20 18:55:39,667] [INFO] [torch_checkpoint_engine.py:23:save] [Torch] Saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_5_mp_rank_00_optim_states.pt.
+[2023-10-20 18:55:39,667] [INFO] [engine.py:3242:_save_zero_checkpoint] zero checkpoint saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_4_mp_rank_00_optim_states.pt
+[2023-10-20 18:55:39,667] [INFO] [engine.py:3242:_save_zero_checkpoint] zero checkpoint saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_5_mp_rank_00_optim_states.pt
+[2023-10-20 18:55:39,667] [INFO] [torch_checkpoint_engine.py:33:commit] [Torch] Checkpoint global_step6144 is ready now!
+[2023-10-20 18:55:39,667] [INFO] [torch_checkpoint_engine.py:33:commit] [Torch] Checkpoint global_step6144 is ready now!
+[2023-10-20 18:55:39,667] [INFO] [torch_checkpoint_engine.py:23:save] [Torch] Saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_3_mp_rank_00_optim_states.pt.
+[2023-10-20 18:55:39,668] [INFO] [engine.py:3242:_save_zero_checkpoint] zero checkpoint saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_3_mp_rank_00_optim_states.pt
+[2023-10-20 18:55:39,668] [INFO] [torch_checkpoint_engine.py:33:commit] [Torch] Checkpoint global_step6144 is ready now!
+[2023-10-20 18:55:40,080] [INFO] [torch_checkpoint_engine.py:23:save] [Torch] Saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_0_mp_rank_00_optim_states.pt.
+[2023-10-20 18:55:40,096] [INFO] [torch_checkpoint_engine.py:23:save] [Torch] Saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_1_mp_rank_00_optim_states.pt.
+[2023-10-20 18:55:40,096] [INFO] [torch_checkpoint_engine.py:23:save] [Torch] Saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_2_mp_rank_00_optim_states.pt.
+[2023-10-20 18:55:40,096] [INFO] [engine.py:3242:_save_zero_checkpoint] zero checkpoint saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_1_mp_rank_00_optim_states.pt
+[2023-10-20 18:55:40,096] [INFO] [engine.py:3242:_save_zero_checkpoint] zero checkpoint saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_2_mp_rank_00_optim_states.pt
+[2023-10-20 18:55:40,096] [INFO] [torch_checkpoint_engine.py:33:commit] [Torch] Checkpoint global_step6144 is ready now!
+[2023-10-20 18:55:40,096] [INFO] [torch_checkpoint_engine.py:33:commit] [Torch] Checkpoint global_step6144 is ready now!
+[2023-10-20 18:55:40,224] [INFO] [torch_checkpoint_engine.py:23:save] [Torch] Saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_6_mp_rank_00_optim_states.pt.
+[2023-10-20 18:55:40,225] [INFO] [engine.py:3242:_save_zero_checkpoint] zero checkpoint saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_6_mp_rank_00_optim_states.pt
+[2023-10-20 18:55:40,225] [INFO] [torch_checkpoint_engine.py:33:commit] [Torch] Checkpoint global_step6144 is ready now!
+[2023-10-20 18:55:40,304] [INFO] [engine.py:3242:_save_zero_checkpoint] zero checkpoint saved /home/za2514/compute/saved-weights/scaling-0.1/global_step6144/zero_pp_rank_0_mp_rank_00_optim_states.pt
+[2023-10-20 18:55:40,304] [INFO] [torch_checkpoint_engine.py:33:commit] [Torch] Checkpoint global_step6144 is ready now!
+Evaluating iter 1/75
+Evaluating iter 2/75
+Evaluating iter 3/75
+Evaluating iter 4/75
+Evaluating iter 5/75
+Evaluating iter 6/75
+Evaluating iter 7/75
+Evaluating iter 8/75
+Evaluating iter 9/75
+Evaluating iter 10/75
+Evaluating iter 11/75
+Evaluating iter 12/75
+Evaluating iter 13/75
+Evaluating iter 14/75
+Evaluating iter 15/75
+Evaluating iter 16/75
+Evaluating iter 17/75
+Evaluating iter 18/75
+Evaluating iter 19/75
+Evaluating iter 20/75
+Evaluating iter 21/75
+Evaluating iter 22/75
+Evaluating iter 23/75
+Evaluating iter 24/75
+Evaluating iter 25/75
+Evaluating iter 26/75
+Evaluating iter 27/75
+Evaluating iter 28/75
+Evaluating iter 29/75
+Evaluating iter 30/75
+Evaluating iter 31/75
+Evaluating iter 32/75
+Evaluating iter 33/75
+Evaluating iter 34/75
+Evaluating iter 35/75
+Evaluating iter 36/75
+Evaluating iter 37/75
+Evaluating iter 38/75
+Evaluating iter 39/75
+Evaluating iter 40/75
+Evaluating iter 41/75
+Evaluating iter 42/75
+Evaluating iter 43/75
+Evaluating iter 44/75
+Evaluating iter 45/75
+Evaluating iter 46/75
+Evaluating iter 47/75
+Evaluating iter 48/75
+Evaluating iter 49/75
+Evaluating iter 50/75
+Evaluating iter 51/75
+Evaluating iter 52/75
+Evaluating iter 53/75
+Evaluating iter 54/75
+Evaluating iter 55/75
+Evaluating iter 56/75
+Evaluating iter 57/75
+Evaluating iter 58/75
+Evaluating iter 59/75
+Evaluating iter 60/75
+Evaluating iter 61/75
+Evaluating iter 62/75
+Evaluating iter 63/75
+Evaluating iter 64/75
+Evaluating iter 65/75
+Evaluating iter 66/75
+Evaluating iter 67/75
+Evaluating iter 68/75
+Evaluating iter 69/75
+Evaluating iter 70/75
+Evaluating iter 71/75
+Evaluating iter 72/75
+Evaluating iter 73/75
+Evaluating iter 74/75
+Evaluating iter 75/75
+----------------------------------------------------------------------------------------------------------------------
+ test results at the end of training for test data | lm_loss value: 1.801162E+00 | lm_loss_ppl value: 6.056680E+00 | 
+----------------------------------------------------------------------------------------------------------------------
+wandb: Waiting for W&B process to finish... (success).
+wandb: - 0.000 MB of 0.000 MB uploaded (0.000 MB deduped)wandb: 
+wandb: Run history:
+wandb:           test/lm_loss ▁
+wandb:       test/lm_loss_ppl ▁
+wandb:     validation/lm_loss ▁
+wandb: validation/lm_loss_ppl ▁
+wandb: 
+wandb: Run summary:
+wandb:           test/lm_loss 1.80116
+wandb:       test/lm_loss_ppl 6.05668
+wandb:     validation/lm_loss 1.80855
+wandb: validation/lm_loss_ppl 6.10161
+wandb: 
+wandb: You can sync this run to the cloud by running:
+wandb: wandb sync /nobackup/scratch/usr/za2514/scaling/gpt-neox/wandb/offline-run-20231020_185448-pvnrgobk
+wandb: Find logs at: ./wandb/offline-run-20231020_185448-pvnrgobk/logs
+[2023-10-20 18:56:03,102] [INFO] [launch.py:346:main] Process 86490 exits successfully.
+[2023-10-20 18:56:03,102] [INFO] [launch.py:346:main] Process 86485 exits successfully.
+[2023-10-20 18:56:03,102] [INFO] [launch.py:346:main] Process 86486 exits successfully.
+[2023-10-20 18:56:03,102] [INFO] [launch.py:346:main] Process 86488 exits successfully.
+[2023-10-20 18:56:03,103] [INFO] [launch.py:346:main] Process 86484 exits successfully.
+[2023-10-20 18:56:03,103] [INFO] [launch.py:346:main] Process 86489 exits successfully.
+WARNING:urllib3.connectionpool:Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7f9cbca86d30>: Failed to establish a new connection: [Errno 101] Network is unreachable')': /api/4504800232407040/envelope/
+WARNING:urllib3.connectionpool:Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7f9cbca86430>: Failed to establish a new connection: [Errno 101] Network is unreachable')': /api/4504800232407040/envelope/
+WARNING:urllib3.connectionpool:Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7f9cbca86490>: Failed to establish a new connection: [Errno 101] Network is unreachable')': /api/4504800232407040/envelope/
+WARNING:urllib3.connectionpool:Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7f9cbca86670>: Failed to establish a new connection: [Errno 101] Network is unreachable')': /api/4504800232407040/envelope/
+WARNING:urllib3.connectionpool:Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7f9cbca86190>: Failed to establish a new connection: [Errno 101] Network is unreachable')': /api/4504800232407040/envelope/
+[2023-10-20 18:56:04,104] [INFO] [launch.py:346:main] Process 86487 exits successfully.
+WARNING:urllib3.connectionpool:Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7f9cbca9c5e0>: Failed to establish a new connection: [Errno 101] Network is unreachable')': /api/4504800232407040/envelope/
+[2023-10-20 18:56:07,107] [INFO] [launch.py:346:main] Process 86483 exits successfully.
