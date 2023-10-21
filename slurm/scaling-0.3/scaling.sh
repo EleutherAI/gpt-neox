@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name="eleutherscaling"
-#SBATCH --array=1
+#SBATCH --array=0-15
 # #SBATCH --account=dw87
 #SBATCH --comment="eleutherai"
 #SBATCH --qos=dw87
@@ -20,8 +20,10 @@
 
 # parameters, steps, warmup steps, eval interval
 declare -a args=(
-    "70M,1024,100,256"
-    "160M,2048,200,512"
+    "1-4B,4096,400,1024" "1-4B,8192,800,1024" "1-4B,12288,1000,1024" "1-4B,16384,1000,1024"
+    "410M,2048,200,512" "410M,3072,300,512" "410M,4096,400,512" "410M,6144,600,512"
+    "160M,1536,150,512" "160M,2048,200,512" "160M,3072,300,512" "160M,4096,400,512"
+    "70M,1024,100,512" "70M,1536,150,512" "70M,2048,200,512" "70M,3072,300,512"
 )
 export SAVE_BASE_DIR="/home/za2514/compute/scaling/saved-weights/scaling-0.3"
 
