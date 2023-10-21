@@ -251,6 +251,35 @@ class NeoXArgs(*BASE_CLASSES):
         group = parser.add_argument_group(title="Training Configuration")
 
         group.add_argument(
+            "--train_iters",
+            type=int,
+        )
+        group.add_argument(
+            "--warmup_iter",
+            type=int,
+        )
+        group.add_argument(
+            "--lr_decay_iters",
+            type=int,
+        )
+        group.add_argument(
+            "--checkpoint_factor",
+            type=int,
+        )
+        group.add_argument(
+            "--save",
+            type=str,
+        )
+        group.add_argument(
+            "--log_dir",
+            type=str,
+        )
+        group.add_argument(
+            "--eval_interval",
+            type=int,
+        )
+
+        group.add_argument(
             "user_script",
             type=str,
             help="User script to launch, followed by any required " "arguments.",
