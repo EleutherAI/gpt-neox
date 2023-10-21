@@ -1,0 +1,9 @@
+{
+   "train_iters": 1536,
+   "warmup_iter": 150,
+   "lr_decay_iters": 1536,
+   "checkpoint_factor": 1536,
+   "wandb_group": "70M-1536step",
+   "save": "/home/za2514/compute/saved-weights/scaling-0.2/70M-1536step",
+   "log-dir": "/home/za2514/compute/scaling/gpt-neox/logs/scaling-0.2/70M-1536step"
+}
