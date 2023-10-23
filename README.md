@@ -10,6 +10,7 @@ The remaining portion of this `README` contains instructions to replicate pretra
 
 Training was performed across 256 A100 GPUs. We include configuration files and sample SLURM job script for the library to replicate training on a SLURM-managed cluster.
 
+We additionally provide public training logs via Weights and Biases, which can be found in a report [here](https://api.wandb.ai/links/eleutherai/7db5ehxl).
 
 ## Replicating Training
 
