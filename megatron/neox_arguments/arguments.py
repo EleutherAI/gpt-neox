@@ -255,7 +255,7 @@ class NeoXArgs(*BASE_CLASSES):
             type=int,
         )
         group.add_argument(
-            "--warmup_iter",
+            "--warmup_iters",
             type=int,
         )
         group.add_argument(
@@ -269,6 +269,10 @@ class NeoXArgs(*BASE_CLASSES):
         group.add_argument(
             "--save",
             type=str,
+        )
+        group.add_argument(
+            "--load",
+            type=str   
         )
         group.add_argument(
             "--log_dir",

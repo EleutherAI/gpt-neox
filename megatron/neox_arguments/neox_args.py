@@ -451,12 +451,7 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
     Minimum value for learning rate. The scheduler clips values below this threshold.
     """
 
-    warmup: float = None
-    """
-    Percentage of total iterations to warmup on (.01 = 1 percent of all training iters).
-    """
-
-    warmup_iter: int = None
+    warmup_iters: int = None
     """
     Number of warmup iterations
     """
