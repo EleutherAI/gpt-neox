@@ -141,7 +141,7 @@ class DataDownloader(ABC):
             [os.path.join(parent_folder, os.path.basename(url)) for url in self.urls]
         )
 
-        cmd = f"python tools/preprocess_data.py \
+        cmd = f"python tools/datasets/preprocess_data.py \
             --input {jsonl_filepath} \
             --output-prefix {parent_folder}/{self.name} \
             --vocab {self.vocab_file} \
