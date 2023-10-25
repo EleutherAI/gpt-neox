@@ -1,3 +1,8 @@
+# Work in Progress: adding support for Mistral
+
+This branch is work in progress to add Mistral 7B support. This branch is currently undergoing development, and is not meant to be stable.
+
+
 # LLeMA Pretraining
 
 This is a modified version of the `EleutherAI/GPT-NeoX` repository used for the Llemma project. This branch diverged from `main` at commit `009018e`. This branch implements the following features that are not present in `009018e` (some of these features may have subsequently been merged into `main`):
