@@ -105,6 +105,10 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Transformer hidden size.
     """
 
+    intermediate_size: int = None
+    """
+    Transformer intermediate size.
+    """
     num_attention_heads: int = None
     """
     Number of transformer attention heads. Used for number of query heads only, if num_kv_heads is set.
@@ -123,6 +127,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     seq_length: int = None
     """
     Maximum sequence length to process.
+    """
+
+    sliding_window_width: int = None
+    """
+    Width of the attention sliding window. Only supported with Flash Attention 2.
     """
 
     max_position_embeddings: int = None
