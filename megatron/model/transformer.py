@@ -160,8 +160,13 @@ class LLaMAParallelMLP(nn.Module):
 
         self.multiple_of = multiple_of
 
-        ff_dim = int(2 * neox_args.hidden_size * 4 / 3)
-        ff_dim = self.multiple_of * ((ff_dim + multiple_of - 1) // multiple_of)
+        # Allow custom intermediate size, e.g. for Mistral
+        if neox_args.intermediate_size is not None:
+            ff_dim = neox_args.intermediate_size
+        else:
+            ff_dim = int(2 * neox_args.hidden_size * 4 / 3)
+            ff_dim = self.multiple_of * ((ff_dim + multiple_of - 1) // multiple_of)
+            
         self.w1 = mpu.ColumnParallelLinear(
             neox_args=neox_args,
             input_size=neox_args.hidden_size,
@@ -283,6 +288,7 @@ class ParallelSelfAttention(nn.Module):
             neox_args.num_attention_heads, world_size
         )
         self.pos_emb = neox_args.pos_emb
+        self.sliding_window_width = neox_args.sliding_window_width
 
         self.attention_type = neox_args.attention_type
         if self.attention_type != "multihead":
@@ -560,6 +566,7 @@ class ParallelSelfAttention(nn.Module):
                     max_seqlen_q, max_seqlen_k,
                     softmax_scale=None,
                     causal=True,
+                    window_size=(self.sliding_window_width, -1) if self.sliding_window_width is not None else (-1, -1),
                 )
                 output = output.reshape(q_shape)
             else:
@@ -568,6 +575,7 @@ class ParallelSelfAttention(nn.Module):
                     self.dropout_p if self.training else 0.0,
                     softmax_scale=None,
                     causal=True,
+                    window_size=(self.sliding_window_width, -1) if self.sliding_window_width is not None else (-1, -1),
                 )
 
             matmul_result = output
