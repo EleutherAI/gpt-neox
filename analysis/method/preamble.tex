@@ -1,0 +1,165 @@
+% a greatly modified version of https://www.cs.cmu.edu/~15131/f17/topics/latex/
+\usepackage[utf8]{inputenc}
+
+\usepackage{amsmath, amsfonts, amsthm, amssymb}  % Some math symbols
+\usepackage{mathtools} % defines \coloneqq
+\usepackage{enumerate}
+\usepackage{fullpage}
+
+\usepackage[x11names, rgb]{xcolor}
+\usepackage{tikz}
+\usepackage{graphicx}
+
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\usepackage{physics}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt plus 1pt}
+\pagestyle{empty}
+
+\def\indented#1{\list{}{}\item[]}
+\let\indented=\endlist
+
+\newcounter{questionCounter}
+\newcounter{partCounter}[questionCounter]
+
+\newenvironment{question}[2][\arabic{questionCounter}]{%
+    \addtocounter{questionCounter}{1}%
+    \setcounter{partCounter}{0}%
+    \vspace{.25in} \hrule \vspace{0.5em}%
+        \noindent{\bf #2}%
+    \vspace{0.8em} \hrule \vspace{.10in}%
+}{}
+
+\renewenvironment{part}[1][\alph{partCounter}]{%
+    \addtocounter{partCounter}{1}%
+    \vspace{.10in}%
+    \begin{indented}%
+       {\bf (#1)} %
+}{\end{indented}}
+
+
+\providecommand{\abs}[1]{\left\vert#1\right\vert}
+\providecommand{\norm}[1]{\left\Vert#1\right\Vert}
+\providecommand{\pnorm}[2]{\left\Vert#1\right\Vert_{L^{#2}}}
+\providecommand{\pnormspace}[3]{\left\Vert#1\right\Vert_{L^{#2}(#3)}}
+\providecommand{\pqnorm}[3]{\left\Vert#1\right\Vert_{L^{#2,#3}}}
+\providecommand{\pqnormspace}[4]{\left\Vert#1\right\VeFrt_{L^{#2,#3}(#4)}}
+\providecommand{\lz}[4]{\left\Vert#1\right\Vert_{L^{#2,#3}\log^{#4}{L}}}
+\providecommand{\lzspace}[5]{\left\Vert#1\rig\ht\Vert_{L^{#2,#3}\log^{#4}{L}(#5)}}
+\providecommand{\wlt}[1]{\pqnorm{#1}{2}{\infty}}
+\providecommand{\Rn}[1]{\mathbb{R}^{#1}}
+\providecommand{\intrn}[1]{\int_{\Rn{n}}#1 \,dx}
+\providecommand{\csubset}{\subset\subset}
+\providecommand{\wnorm}[1]{\lvert \mspace{-1.8mu} \lvert
+\mspace{-1.8mu} \lvert #1 \rvert \mspace{-1.8mu} \rvert
+\mspace{-1.8mu} \rvert_{L^{2,\infty}}}
+
+\providecommand{\br}[1]{\langle #1 \rangle}
+\providecommand{\snorm}[2]{\left\Vert#1\right\Vert_{H^{#2}}}
+\providecommand{\snormspace}[3]{\left\Vert#1\right\Vert_{H^{#2}({#3})}}
+\providecommand{\sd}[1]{\mathcal{D}_{#1}}
+\providecommand{\se}[1]{\mathcal{E}_{#1}}
+\providecommand{\sdb}[1]{\bar{\mathcal{D}}_{#1}}
+\providecommand{\seb}[1]{\bar{\mathcal{E}}_{#1}}
+\providecommand{\snorm}[2]{\left\Vert#1\right\Vert_{H^{#2}}}
+\providecommand{\snormspace}[3]{\left\Vert#1\right\Vert_{H^{#2}({#3})}}
+\providecommand{\ns}[1]{\norm{#1}^2}
+\providecommand{\pns}[2]{\norm{#1}^2_{L^{#2}}}
+\providecommand{\dbm}[1]{\bar{D}_m^{#1}}
+\providecommand{\ip}[2]{\left(#1,#2\right)}
+\providecommand{\iph}[3]{\left(#1,#2\right)_{\mathcal{H}^{#3}}}
+\providecommand{\hn}[2]{\norm{#1}_{\mathcal{H}^{#2}}}
+\providecommand{\carrow}[1]{\overset{#1}\to}
+
+\def\wstar{\overset{*}{\rightharpoonup}}
+\def\nab{\nabla}
+\def\dt{\partial_t}
+\def\hal{\frac{1}{2}}
+\def\ep{\varepsilon}
+\def\vchi{\text{\large{$\chi$}}}
+\def\ls{\lesssim}
+\def\p{\partial}
+\def\pa{\partial^\alpha}
+\def\sg{\mathbb{D}}
+\def\db{\bar{D}}
+\def\da{\Delta_{\mathcal{A}}}
+\def\naba{\nab_{\mathcal{A}}}
+\def\diva{\diverge_{\mathcal{A}}}
+\def\Sa{S_{\mathcal{A}}}
+\def\Hsig{{_0}H^1_\sigma(\Omega)}
+\def\H1{{_0}H^1(\Omega)}
+
+\def\F{\mathcal{F}}
+
+\def\a{\mathcal{A}}
+\def\f{\mathcal{F}_{2N}}
+\def\F{\mathbb{F}}
+\def\g{\mathcal{G}_{2N}}
+\def\h{\mathcal{H}}
+\def\i{\mathcal{I}}
+\def\il{\i_{\lambda}}
+\def\k{\mathcal{K}}
+\def\n{\mathcal{N}}
+\def\N{\mathbb{N}}
+\def\P{\mathbb{P}}
+\def\Q{\mathbb{Q}}
+\def\R{\mathbb{R}}
+\def\C{\mathbb{C}}
+\def\w{\mathcal{W}}
+\def\x{\mathcal{X}}
+\def\y{\mathcal{Y}}
+\def\z{\mathcal{Z}}
+\def\Z{\mathbb{Z}}
+\def\cf{\mathbb{C}(\F)}
+
+\def\st{\;\vert\;}
+
+%avg integral
+\def\Xint#1{\mathchoice
+{\XXint\displaystyle\textstyle{#1}}%
+{\XXint\textstyle\scriptstyle{#1}}%
+{\XXint\scriptstyle\scriptscriptstyle{#1}}%
+{\XXint\scriptscriptstyle\scriptscriptstyle{#1}}%
+\!\int}
+\def\XXint#1#2#3{{\setbox0=\hbox{$#1{#2#3}{\int}$ }
+\vcenter{\hbox{$#2#3$ }}\kern-.6\wd0}}
+\def\intbar{\Xint-}
+
+%upper and lower ints
+\def\uint{\mathchoice%
+    {\mkern13mu\overline{\vphantom{\intop}\mkern7mu}\mkern-20mu}%
+    {\mkern7mu\overline{\vphantom{\intop}\mkern7mu}\mkern-14mu}%
+    {\mkern7mu\overline{\vphantom{\intop}\mkern7mu}\mkern-14mu}%
+    {\mkern7mu\overline{\vphantom{\intop}\mkern7mu}\mkern-14mu}%
+  \int}
+\def\lint{\mkern3mu\underline{\vphantom{\intop}\mkern7mu}\mkern-10mu\int}
+\def\gchar{\ensuremath{\mathrel{\mathrm{char}}}}
+
+\def\L{\mathcal{L}}
+
+\DeclareMathOperator{\adj}{adj}
+\DeclareMathOperator{\supp}{supp}
+\DeclareMathOperator{\dist}{dist}
+\DeclareMathOperator{\card}{card}
+\DeclareMathOperator{\vol}{vol}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+
+\newenvironment{soln}{\paragraph{Solution:}}{\hfill$\square$}
+
+\theoremstyle{definition}
+\newtheorem{lem}{Lemma}[section]
+\newtheorem{cor}[lem]{Corollary}
+\newtheorem{prop}[lem]{Proposition}
+\newtheorem{thm}[lem]{Theorem}
+\newtheorem{remark}[lem]{Remark}
+\newtheorem{defn}[lem]{Definition}
+
+\newtheorem*{prop*}{Proposition}
+\newtheorem*{thm*}{Theorem}
+\newtheorem*{defn*}{Definition}
+\newtheorem*{lem*}{Lemma}

@@ -1,0 +1,45 @@
+\documentclass{article}
+\input{preamble}
+\usepackage{natbib}
+
+\title{Scaling Laws for Transfer}
+\author{Zhangir Azerbayev} \date{Fall 2023}
+
+\begin{document}
+    \maketitle
+    \section{Motivation}
+    The most compute-efficient way to train a language model is to train only on the target distribution and to never repeat data. But suppose we wish to train a language model on a target distribution $\mathcal{F}$ for which there is no more data available than some fixed number of tokens $d_{\mathcal{F}}$. We can try to compensate for our data constraint in three ways:
+    \begin{itemize}
+        \item Pretrain on some data distrubtion $\mathcal{P}$ for which an arbitrary amount of data is available. 
+        \item Train for $R$ epochs on the $d_{\mathcal{F}}$ target distribution tokens.
+        \item Set your number of model parameters $N$ larger than you would if you were allowed arbitrary $D_{\mathcal{F}}$.
+    \end{itemize}
+    How much accuracy and compute-efficiency do we lose by being constrained to $d_{\mathcal{F}}$ target tokens? The following definition helps us quanify this.
+    \begin{defn}
+        Suppose an $N$ parameter model pretrained for $D_{P} $ tokens and finetuned for $D_{F} $ unique tokens over $R$ epochs achieves a loss of $L$. The {\bf effective data} $D_{E}$ of this model is the amount of tokens required for an $N$ parameter model trained only on unrepeated data from the target distribution to achieve a loss of $L$.
+    \end{defn}
+    Our goal is to find a parametric form for $D_{E}$, i.e $D_{E} = f\left(N, D_{\mathcal{P}}, D_{\mathcal{F}}, R\right)$. More realistically, given our limited compute budget, we might try to fix a few values of $D_{F}$ and try to estimate $D_{E} = f\left(N, D_{P}, R\right)$ for each of these fixed values. One question we are particularly interested in is for some fixed $D_{\mathcal{F}}$, what is the maximum attainable $D_{E}$?
+    
+    Our scaling law for transfer is therefore $L(N, D_{E}) = S + \frac{A}{N^\alpha} + \frac{B}{D_E^\beta}$. Using our scaling law, we can answer questions about compute efficiency. For example, how much more compute is required to train a model to a given loss $L$ when you are restricted to $D_{\mathcal{F}}=d_{\mathcal{F}}$ than if you are allowed arbitrary $D_{\mathcal{F}}$?
+    \section{Estimation}
+    \label{estimation}
+    The following is a procedure for estimating $D_E(N, D_{\mathcal{P}}, R)$ for some fixed $D_{\mathcal{F}}=d_{\mathcal{F}}$.
+    \begin{enumerate}
+        \item First, obtain a Chinchilla-style scaling law $L(N, D_{\mathcal{F}})$.
+        \item For each $N$, do a grid sweep over $(D_{\mathcal{P}}, R)$. Each of these runs will yield a loss $L$, and use the  Chinchilla law $L(N, D_{\mathcal{F}}$ to map each loss to a $D_{E}$.
+        \item You now have a set of correspondences $(N, D_{\mathcal{P}}, R) \mapsto D_{E}$. From this, derive $D_{E}\left(N, D_{\mathcal{P}}, R\right)$.
+    \end{enumerate}
+    \section{Related Work}
+    \paragraph{Compute optimal scaling.} \cite{hoffmann2022training} introduce three approaches for finding the compute optimal frontier when scaling model parameters and training data. We use their approach three as one step of the estimation procedure in section \ref{estimation}. Approaches one and two are in principle applicable to our transfer learning setting. However, they depend on obtaining a fine grid of samples around the compute optimal frontier. This is simple when your isoFLOP contour is 1-dimensional, but extremely difficult when it is 3-dimensional.
+    \paragraph{Scaling laws for transfer.} \cite{hernandez2021scaling} derive a scaling law for transfer learning. However, they only investigate the small data limit, and do not vary the amount of pretraining steps nor do they train for multiple epochs.
+
+    
+    \bibliographystyle{alpha}
+    \bibliography{refs.bib}
+    
+
+    
+    
+
+    
+\end{document}
