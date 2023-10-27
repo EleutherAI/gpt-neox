@@ -1,6 +1,6 @@
 {
   "pipe_parallel_size": 0,
-  "model_parallel_size": 8,
+  "model_parallel_size": 2,
   "make_vocab_size_divisible_by": 1,
 
   # model settings
