@@ -57,7 +57,7 @@ MULTI_GPU_ARGS = " ".join(
         "--output-dir checkpoints/neox_converted/pythia/70m",
         "--cache-dir checkpoints/HF",
         "--config configs/pythia/70M.yml configs/local_setup.yml",
-        "--test", 
+        "--test",
     ]
 )
 
