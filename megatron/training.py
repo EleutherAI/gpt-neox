@@ -611,6 +611,8 @@ def get_learning_rate_scheduler(optimizer, neox_args):
         warmup_iters = neox_args.warmup_ratio * num_iters
     else:
         warmup_iters = neox_args.warmup_iters
+    if neox_args.warmup_max_iters:
+        warmup_iters = min(warmup_iters, neox_args.warmup_max_iters)
 
     lr_scheduler = AnnealingLR(
         optimizer,
