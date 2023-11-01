@@ -519,7 +519,7 @@ if __name__ == "__main__":
     model, optimizer, _, lr_scheduler = deepspeed.initialize(
         model=model,
         optimizer=optimizer,
-        args=neox_args,
+        # args=neox_args,
         lr_scheduler=lr_scheduler,
         dist_init_required=False,
         model_parameters=None,
@@ -527,7 +527,7 @@ if __name__ == "__main__":
         mpu=mpu if not neox_args.is_pipe_parallel else None,
     )
 
-    if os.environ["OMPI_COMM_WORLD_RANK"] == "0":
+    if os.environ.get("OMPI_COMM_WORLD_RANK", "1") == "0":
         os.makedirs(f"{tmp_cache_dir}", exist_ok=True)
 
     torch.distributed.barrier()
@@ -566,7 +566,7 @@ if __name__ == "__main__":
         print("==========================================")
         convert(hf_model, ckpt_dir=ckpt_dir, output_dir=args.output_dir)
 
-        if os.environ["OMPI_COMM_WORLD_RANK"] == "0":
+        if os.environ.get("OMPI_COMM_WORLD_RANK", "1") == "0":
             # cleanup temp dir
             os.system(f"rm -r {tmp_cache_dir}")
 
