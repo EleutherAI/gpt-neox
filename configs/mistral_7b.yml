@@ -1,6 +1,6 @@
 {
   "pipe_parallel_size": 0,
-  "model_parallel_size": 2,
+  "model_parallel_size": 4,
   "make_vocab_size_divisible_by": 1,
 
   # model settings
@@ -22,7 +22,7 @@
   "norm": "rmsnorm",
   "rms_norm_epsilon": 1.0e-6,
 
-  "attention_config": [[["flash"]]],
+  "attention_config": [[["flash"], 32]],
 
   "scaled_upper_triang_masked_softmax_fusion": true,
   "bias_gelu_fusion": false,
@@ -52,6 +52,7 @@
     "cpu_offload": false
   },
 
+  # "train_batch_size": 4,
   "train_micro_batch_size_per_gpu": 2,
   "gradient_accumulation_steps": 16,
   "data_impl": "mmap",
@@ -90,7 +91,7 @@
   "wall_clock_breakdown": true,
 
   "tokenizer_type": "SPMTokenizer",
-  "vocab-file": "codellama/tokenizer.model", # use tokenizer.model from Meta CodeLlama download
+  "vocab-file": "/fsx/adami/raw_mistral/mistral-v0.1/7B/tokenizer.model", # use tokenizer.model from Meta CodeLlama download
 
   "save": "/fsx/proj-mathlm/saved-weights/34b_1epoch",
   # "load": "" # set to same as "save" to resume from intermediate finetuning step
@@ -100,7 +101,7 @@
   "checkpoint_validation_with_forward_pass": true,
 
 
-  "use_wandb": true,
+  "use_wandb": false,
   "wandb_group": "llemma_34b_replication",
   "wandb_project": "your-project-name",
   "wandb_team": "your-teamname-here",
