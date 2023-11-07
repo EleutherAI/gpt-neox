@@ -360,15 +360,15 @@ class ParallelSelfAttention(nn.Module):
             if self.use_flash_attention:
                 from importlib.metadata import version
                 if neox_args.rank == 0:
-                    print(f"Installed Flash Attention version: {version('flash-attn')}\n Falling back to Flash Attention v1")
+                    print(f"Installed Flash Attention version: {version('flash-attn')}\n")
                 from megatron.model.flash_attention import (
-                    flash_attn_unpadded_qkvpacked_func,
-                    flash_attn_unpadded_kvpacked_func,
+                    flash_attn_varlen_qkvpacked_func,
+                    flash_attn_varlen_kvpacked_func,
                     flash_attn_unpadded_unpacked_func_triton,
                 )
                 self.flash_triton_fn = flash_attn_unpadded_unpacked_func_triton
-                self.flash_qkv_fn = flash_attn_unpadded_qkvpacked_func
-                self.flash_kv_fn = flash_attn_unpadded_kvpacked_func
+                self.flash_qkv_fn =  flash_attn_varlen_qkvpacked_func
+                self.flash_kv_fn = flash_attn_varlen_kvpacked_func
             else:
                 self.scale_mask_softmax = FusedScaleMaskSoftmax(
                     input_in_fp16=self.fp16,
