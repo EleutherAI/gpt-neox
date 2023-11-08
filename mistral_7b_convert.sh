@@ -12,7 +12,9 @@
 #SBATCH --account=neox
 #SBATCH --open-mode=append
 #SBATCH --requeue
-#SBATCH --time=0-00:20:00
+#SBATCH --time=0-00:12:00
+#SBATCH --exclude=ip-26-0-157-217
+
 
 # setup the environment using the script we created before
 source ~/setup.sh
