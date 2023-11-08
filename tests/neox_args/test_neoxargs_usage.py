@@ -51,6 +51,7 @@ def test_neoxargs_usage():
             "build_tokenizer",
             "attention_config[i]",
             "print",
+            "update"
         ]
     )
 
