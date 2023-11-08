@@ -53,7 +53,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python ./deepy.py tools/ckpts/convert_hf_to_sequent
 MULTI_GPU_ARGS = " ".join(
     [
         "--hf-model-name mistralai/Mistral-7B-v0.1",
-        "--output-dir ../neox-converted/",
+        "--output-dir checkpoints/neox-converted/",
         "--cache-dir checkpoints/HF",
         "--config configs/mistral_7b.yml",
         "--test",
@@ -70,39 +70,60 @@ def convert_hf_to_sequential(hf_model, seq_state_dict):
     returns the updated sequential state dict
     """
     num_layers = hf_model.config.num_hidden_layers
+
+
     # Embedding is layer idx 0
     seq_state_dict[
         "sequential.0.word_embeddings.weight"
-    ] = hf_model.gpt_neox.embed_in.state_dict()["weight"]
+    ] = hf_model.model.embed_tokens.state_dict()["weight"]
 
     for layer_hf in range(num_layers):
         # offset by 2
         layer_seq = layer_hf + 2
 
         # get layer from hf model
-        hf_layer = hf_model.gpt_neox.layers[layer_hf]
+        hf_layer = hf_model.model.layers[layer_hf]
         hf_layer_sd = hf_layer.state_dict()
 
-        for key in hf_model.gpt_neox.layers[0].state_dict().keys():
+        seq_state_dict[f"sequential.{layer_seq}.attention.query_key_value.weight"] = torch.cat((hf_layer_sd["self_attn.q_proj.weight"],
+                                                                                                        hf_layer_sd["self_attn.k_proj.weight"],
+                                                                                                        hf_layer_sd["self_attn.v_proj.weight"]),
+                                                                                                        dim=0)
+        seq_state_dict[f"sequential.{layer_seq}.attention.dense.weight"] = hf_layer_sd["self_attn.o_proj.weight"]
+        seq_state_dict[f"sequential.{layer_seq}.mlp.w1.weight"] = hf_layer_sd["mlp.gate_proj.weight"]
+        seq_state_dict[f"sequential.{layer_seq}.mlp.w3.weight"] = hf_layer_sd["mlp.up_proj.weight"]
+        seq_state_dict[f"sequential.{layer_seq}.mlp.w2.weight"] = hf_layer_sd["mlp.down_proj.weight"]
+        seq_state_dict[f"sequential.{layer_seq}.input_layernorm.scale"] = hf_layer_sd["input_layernorm.weight"]
+        seq_state_dict[f"sequential.{layer_seq}.post_attention_layernorm.scale"] = hf_layer_sd["post_attention_layernorm.weight"]
 
-            if key in ["attention.bias", "attention.masked_bias"]:
-                continue
-            seq_state_dict[f"sequential.{layer_seq}.{key}"] = hf_layer_sd[key]
+# Conversion table for Mistral 7b 0.1
+# FOR PARTS LOADED THROUGH hf_model.model
+# 'embed_tokens.weight'                           ->      '0.word_embeddings.weight'
+# 'layers.0.self_attn.q_proj.weight'              ->      '2.attention.query_key_value.weight'
+# 'layers.0.self_attn.k_proj.weight'              ->      <gpt_neox packs qkv in single tensor, see transformer.py>
+# 'layers.0.self_attn.v_proj.weight'              ->      <gpt_neox packs qkv in single tensor, see transformer.py>
+# 'layers.0.self_attn.o_proj.weight'              ->      '2.attention.dense.weight'
+# 'layers.0.mlp.gate_proj.weight'                 ->      '2.mlp.w1.weight'
+# 'layers.0.mlp.up_proj.weight'                   ->      '2.mlp.w3.weight'
+# 'layers.0.mlp.down_proj.weight'                 ->      '2.mlp.w2.weight'
+# 'layers.0.input_layernorm.weight'               ->      '2.input_layernorm.scale'
+# 'layers.0.post_attention_layernorm.weight'      ->      '2.post_attention_layernorm.scale'
+# 'norm.weight'                                   ->      '<num_layers+3>.norm.scale'
+# FOR PARTS LOADED THROUGH hf_model.lm_head
+# <weights>                                       ->      '<num_layers+4>.final_linear.weight'
+
 
     # Load final layer norm
     layer_seq = num_layers + 3
     seq_state_dict[
-        f"sequential.{layer_seq}.norm.weight"
-    ] = hf_model.gpt_neox.final_layer_norm.state_dict()["weight"]
-    seq_state_dict[
-        f"sequential.{layer_seq}.norm.bias"
-    ] = hf_model.gpt_neox.final_layer_norm.state_dict()["bias"]
+        f"sequential.{layer_seq}.norm.scale"
+    ] = hf_model.model.norm.state_dict()["weight"]
 
     # output embedding / LM head
     layer_seq += 1
     seq_state_dict[
         f"sequential.{layer_seq}.final_linear.weight"
-    ] = hf_model.embed_out.state_dict()["weight"]
+    ] = hf_model.lm_head.state_dict()["weight"]
 
 
 def shard_sequential_mp(num_mp_ranks, sequential):
@@ -122,9 +143,8 @@ def shard_sequential_mp(num_mp_ranks, sequential):
                 for x in [
                     "layernorm",
                     "rotary_emb",
-                    "dense_4h_to_h.bias",
-                    "norm.weight",
-                    "norm.bias",
+                    "mlp.w2.bias",
+                    "norm.scale",
                     "attention.dense.bias",
                 ]
             ],
@@ -164,7 +184,7 @@ def shard_sequential_mp(num_mp_ranks, sequential):
                         x in k
                         for x in [
                             "attention.dense.weight",
-                            "mlp.dense_4h_to_h.weight",
+                            "mlp.w2.weight",
                         ]
                     ],
                 ):  # column parallel
@@ -174,12 +194,12 @@ def shard_sequential_mp(num_mp_ranks, sequential):
                     [
                         x in k
                         for x in [
-                            "mlp.dense_h_to_4h.weight",
-                            "mlp.dense_h_to_4h.bias",
                             "attention.query_key_value.weight",
                             "attention.query_key_value.bias",
                             "word_embeddings.weight",
                             "final_linear.weight",
+                            "mlp.w1",
+                            "mlp.w3",
                         ]
                     ],
                 ):
@@ -267,8 +287,7 @@ def shard_pp(sequential, mp_rank, num_layers):
         "word_embeddings.weight": sequential[f"sequential.0.word_embeddings.weight"]
     }
     layers_seq[f"layer_{num_layers+3:02}" + suffix] = {
-        "norm.weight": sequential[f"sequential.{num_layers+3}.norm.weight"],
-        "norm.bias": sequential[f"sequential.{num_layers+3}.norm.bias"],
+        "norm.scale": sequential[f"sequential.{num_layers+3}.norm.scale"],
     }
 
     layers_seq[f"layer_{num_layers+4:02}" + suffix] = {
@@ -372,15 +391,15 @@ def convert(hf_model, ckpt_dir, output_dir):
         torch.save(v, os.path.join(ckpt_dir, k))
 
     # copy the checkpoint to the output_dir
-    print("rm {}/*".format(output_dir))
-    os.system("rm {}/*".format(output_dir))
+    print("rm -r {}/*".format(output_dir))
+    os.system("rm -r {}/*".format(output_dir))
     os.makedirs(output_dir, exist_ok=True)
-    print("cp {} {}".format(os.path.join(ckpt_dir, "*"), output_dir))
-    os.system("cp {} {}".format(os.path.join(ckpt_dir, "*"), output_dir))
+    print("cp -r {} {}".format(os.path.join(ckpt_dir, "*"), output_dir))
+    os.system("cp -r {} {}".format(os.path.join(ckpt_dir, "*"), output_dir))
 
     # set latest file within the output_dir
     latest_file = os.path.join("/".join(output_dir.split("/")[:-1]), "latest")
-    os.system("rm " + latest_file)
+    os.system("rm -r" + latest_file)
     with open(latest_file, "w") as f:
         f.write(output_dir.split("/")[-1])
 
@@ -446,7 +465,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--ckpt-tmp-dir",
-        default="/tmp/ckpt_tmp_dir",
+        default="/tmp/ckpt_tmp_dir/" + os.environ["USER"],
         help="Directory to store cached hugging face checkpoints. [WARNING: MUST BE VISIBLE TO ALL RANKS]"
     )
     parser.add_argument(
@@ -526,7 +545,8 @@ if __name__ == "__main__":
         mpu=mpu if not neox_args.is_pipe_parallel else None,
     )
 
-    if os.environ.get("OMPI_COMM_WORLD_RANK", "1") == "0":
+
+    if os.environ.get("RANK", "1") == "0":
         os.makedirs(f"{tmp_cache_dir}", exist_ok=True)
 
     torch.distributed.barrier()
@@ -562,9 +582,18 @@ if __name__ == "__main__":
         print("==========================================")
         print("Loaded Hugging Face model successfully!")
         print("==========================================")
+
+        # if os.environ.get("RANK", "1") == '0':
+        #     hf_param_names_and_sizes = [[param_name, param_weight.size()] for param_name, param_weight in hf_model.model.named_parameters()]
+        #     neox_param_names_and_sizes = [[param_name, param_weight.size()] for param_name, param_weight in model.sequential.named_parameters()]
+        #     print("\n\n\n\n\n\n HF param names ", hf_param_names_and_sizes)
+        #     print("Neox param names ", neox_param_names_and_sizes, "\n\n\n\n\n\n")
+        # torch.distributed.barrier()
+        # exit(0)
+
         convert(hf_model, ckpt_dir=ckpt_dir, output_dir=args.output_dir)
 
-        if os.environ['OMPI_COMM_WORLD_RANK'] == '0':
+        if os.environ.get("RANK", "1") == '0':
             # cleanup temp dir
             os.system(f"rm -r {tmp_cache_dir}")
 
@@ -572,7 +601,7 @@ if __name__ == "__main__":
 
     #verify the conversion can be loaded
     neox_args.load = "/".join(args.output_dir.split("/")[:-1])
-    print(neox_args.load)
+    print(os.environ["RANK"], neox_args.load)
     neox_args.finetune=True
     load_checkpoint(
         neox_args=neox_args,

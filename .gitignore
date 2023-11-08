@@ -161,3 +161,4 @@ extensions/utils/.ninja_deps
 extensions/utils/.ninja_log
 extensions/utils/build.ninja
 extensions/utils/flatten_unflatten.o
+testbed_gptneox.py
