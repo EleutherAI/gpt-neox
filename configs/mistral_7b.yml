@@ -1,7 +1,7 @@
 {
   "pipe_parallel_size": 0,
   "model_parallel_size": 4,
-  "make_vocab_size_divisible_by": 1,
+  # "make_vocab_size_divisible_by": 1,
 
   # model settings
   "num_layers": 32,
