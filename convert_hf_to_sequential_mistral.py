@@ -21,6 +21,7 @@ from megatron.training import get_model, get_optimizer, get_learning_rate_schedu
 from megatron.initialize import initialize_megatron
 from megatron import mpu
 from megatron.checkpointing import load_checkpoint, save_checkpoint
+from megatron.mpu.utils import split_reorder_and_stack_separate_qkv
 
 # from megatron.utils import (
 #     Timers,
@@ -61,7 +62,7 @@ MULTI_GPU_ARGS = " ".join(
 )
 
 
-def convert_hf_to_sequential(hf_model, seq_state_dict):
+def convert_hf_to_sequential(hf_model, seq_state_dict, num_mp_ranks):
     """Converts the weights of a HuggingFace model to neox 2.0 format.
 
     :param hf_model: the huggingface model
@@ -85,10 +86,13 @@ def convert_hf_to_sequential(hf_model, seq_state_dict):
         hf_layer = hf_model.model.layers[layer_hf]
         hf_layer_sd = hf_layer.state_dict()
 
-        seq_state_dict[f"sequential.{layer_seq}.attention.query_key_value.weight"] = torch.cat((hf_layer_sd["self_attn.q_proj.weight"],
-                                                                                                        hf_layer_sd["self_attn.k_proj.weight"],
-                                                                                                        hf_layer_sd["self_attn.v_proj.weight"]),
-                                                                                                        dim=0)
+
+        seq_state_dict[f"sequential.{layer_seq}.attention.query_key_value.weight"] \
+                        = split_reorder_and_stack_separate_qkv(hf_layer_sd["self_attn.q_proj.weight"], 
+                                                               hf_layer_sd["self_attn.k_proj.weight"],
+                                                               hf_layer_sd["self_attn.v_proj.weight"],
+                                                               num_mp_ranks=num_mp_ranks,
+                                                               dim=0)
         seq_state_dict[f"sequential.{layer_seq}.attention.dense.weight"] = hf_layer_sd["self_attn.o_proj.weight"]
         seq_state_dict[f"sequential.{layer_seq}.mlp.w1.weight"] = hf_layer_sd["mlp.gate_proj.weight"]
         seq_state_dict[f"sequential.{layer_seq}.mlp.w3.weight"] = hf_layer_sd["mlp.up_proj.weight"]
@@ -169,6 +173,8 @@ def shard_sequential_mp(num_mp_ranks, sequential):
                 padded_size = int(padded_size)
                 size_per_rank = int(size_per_rank)
 
+                print("size_per_rank 1", size_per_rank)
+                print("padded_size 1", padded_size)
                 for x in range(num_mp_ranks):
                     if size_per_rank != padded_size:
                         # need to pad
@@ -235,6 +241,8 @@ def shard_sequential_mp(num_mp_ranks, sequential):
                 padded_size = int(padded_size)
                 size_per_rank = int(size_per_rank)
 
+                print("size_per_rank 2", size_per_rank)
+                print("padded_size 2", padded_size)
                 for x in range(num_mp_ranks):
                     if size_per_rank != padded_size:
                         # need to pad
@@ -347,7 +355,7 @@ def convert(hf_model, ckpt_dir, output_dir):
 
     os.makedirs(output_dir, exist_ok=True)
     seq_state_dict = dict()
-    convert_hf_to_sequential(hf_model, seq_state_dict)
+    convert_hf_to_sequential(hf_model, seq_state_dict, num_mp_ranks=len(ckpts))
 
     if len(ckpts) == 1 and len(layers) == 0:
         # pp=0, mp=1
@@ -476,7 +484,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--cache-dir",
-        default="/gpfs/alpine/csc499/proj-shared/hf_checkpoints",
+        default="checkpoints/HF",
         help="Directory to store cached hugging face checkpoints."
     )
     try:
@@ -489,6 +497,7 @@ if __name__ == "__main__":
 
 
     tmp_cache_dir = get_non_existing_dir(args.ckpt_tmp_dir)
+
 
     if args.download_only:
         hf_model = AutoModelForCausalLM.from_pretrained(
