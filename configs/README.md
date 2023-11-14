@@ -85,7 +85,7 @@ Note: yaml arguments may be formatted with either '-' or '_'. The standard separ
 
    # misc. training settings
    "distributed_backend": "nccl",
-   "save_interval": 10000,
+   "checkpoint_factor": 10000,
    "eval_interval": 1000,
    "eval_iters": 10,
 
@@ -230,7 +230,7 @@ Additional DeepSpeed settings besides those mentioned above should be wrapped in
    "load": "checkpoints",
    "tensorboard_dir": "tensorboard",
    "log_dir": "logs",
-   "save_interval": 10000,
+   "checkpoint_factor": 10000,
    "eval_interval": 1000,
    "eval_iters": 10,
 ```
