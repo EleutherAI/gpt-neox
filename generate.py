@@ -83,7 +83,7 @@ def main():
 
     else:
         raise ValueError(
-            f"`text-gen-type` either not specified or not recognised: {neox_args.text_gen_type}"
+            f"`text_gen_type` either not specified or not recognised: {neox_args.text_gen_type}"
         )
 
 
