@@ -238,7 +238,9 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
             "mlp.dense_4h_to_h.bias",
             "attention.dense.bias",
         ]:
-            state_dict[key] = sum(get_state(loaded_tp_ranks, key, layer_i + 2))
+            state_dict[key] = sum(get_state(loaded_tp_ranks, key, layer_i + 2)) / len(
+                loaded_tp_ranks
+            )
 
         # Just take one
         state_dict["attention.rotary_emb.inv_freq"] = get_state(
