@@ -1,0 +1,25 @@
+# Parameters used for text generation
+# Make sure `load` is specified somewhere else
+{
+  # Text gen type: `input-file`, `unconditional` or `interactive`
+  "text_gen_type": "unconditional",
+  #"load": "/admin/home-ingyu/repos/gpt-neox/checkpoints",
+  "load": "/fsx/polyglot-korean/checkpoints/1-4B",
+  "vocab_file": "/fsx/polyglot-korean/tokenizer/en-code-kr-100k.json",
+
+  # Params for all
+  "maximum_tokens": 200,
+  "prompt_end": "\n",
+  "temperature": 0.2,
+  "top_p": 0.95,
+  "top_k": 50,
+  "recompute": false,
+  "use_wandb": false,
+
+  # `unconditional`: samples
+  "num_samples": 5,
+
+  # input/output file
+  "sample_input_file": "/admin/home-ingyu/repos/generate/sample_input.txt",
+  "sample_output_file": "/admin/home-ingyu/repos/generate/sample_output.txt",
+}
