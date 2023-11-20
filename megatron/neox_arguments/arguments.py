@@ -259,6 +259,14 @@ class NeoXArgs(*BASE_CLASSES):
             type=int,
         )
         group.add_argument(
+            "--lr",
+            type=float,
+        )
+        group.add_argument(
+            "--min_lr",
+            type=float,
+        )
+        group.add_argument(
             "--lr_decay_iters",
             type=int,
         )
@@ -1031,9 +1039,11 @@ class NeoXArgs(*BASE_CLASSES):
         self.update_values(
             {
                 "optimizer_type": opt_params.get("type", OPT_DEFAULT),
-                "lr": opt_params["params"].get("lr", OPT_PARAMS_DEFAULTS["lr"]),
             }
         )
+
+        if not self.lr:
+            self.update_values({"lr": opt_params["params"].get("lr", OPT_PARAMS_DEFAULTS["lr"])})
 
         if self.optimizer_type.lower() == "onebitadam":
             # onebitadam needs to instantiated by deepspeed, and so we need to pass deepspeed scheduler args
