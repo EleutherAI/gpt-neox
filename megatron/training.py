@@ -212,17 +212,17 @@ def pretrain(neox_args):
     print_rank_0("training ...")
 
     iteration = neox_args.iteration
-    if neox_args.do_train and neox_args.train_iters > 0:
-        # edge case: save step 0 checkpoint if requested and we're starting from step 0
-        if neox_args.save and 0 in neox_args.save_iters and iteration == 0:
-            save_checkpoint(
-                neox_args=neox_args,
-                iteration=iteration,
-                model=model,
-                optimizer=optimizer,
-                lr_scheduler=lr_scheduler,
-            )
+    # edge case: save step 0 checkpoint if requested and we're starting from step 0
+    if neox_args.save and 0 in neox_args.save_iters and iteration == 0:
+        save_checkpoint(
+            neox_args=neox_args,
+            iteration=iteration,
+            model=model,
+            optimizer=optimizer,
+            lr_scheduler=lr_scheduler,
+        )
 
+    if neox_args.do_train and neox_args.train_iters > 0:
         iteration = train(
             neox_args=neox_args,
             timers=timers,
