@@ -26,11 +26,11 @@ from megatron.text_generation_utils import (
 )
 
 
-def main():
+def main(input_args=None, overwrite_values=None):
     """
     Generate text/sample model
     """
-    model, neox_args = setup_for_inference_or_eval(use_cache=True)
+    model, neox_args = setup_for_inference_or_eval(use_cache=True,input_args=input_args, overwrite_values=overwrite_values)
     if neox_args.recompute:
         model.module.inference_mode(
             use_cache=False

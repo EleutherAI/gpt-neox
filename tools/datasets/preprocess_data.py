@@ -26,7 +26,9 @@ import lm_dataformat as lmd
 import numpy as np
 
 sys.path.append(
-    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir))
+    os.path.abspath(
+        os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir)
+    )
 )
 import time
 import tqdm
@@ -61,7 +63,7 @@ class Encoder(object):
         return ids, len(text)
 
 
-def get_args():
+def get_args(input_args=None):
     parser = argparse.ArgumentParser()
     group = parser.add_argument_group(title="input data")
     group.add_argument(
@@ -138,7 +140,7 @@ def get_args():
         default=100,
         help="Interval between progress updates",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(input_args)
     args.keep_empty = False
 
     # some default/dummy values for the tokenizer
@@ -168,8 +170,8 @@ def yield_from_files(fnames: list, semaphore):
         yield from yielder(fname, semaphore)
 
 
-def main():
-    args = get_args()
+def main(input_args=None):
+    args = get_args(input_args)
     encoder = Encoder(args)
     tokenizer = build_tokenizer(args)
     print(f"Vocab size: {tokenizer.vocab_size}")

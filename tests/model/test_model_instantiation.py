@@ -20,7 +20,7 @@ import pytest
 
 import torch
 import os
-from ..common import distributed_test, model_setup, clear_test_dirs, parametrize, binary
+from tests.common import distributed_test, model_setup, clear_test_dirs, parametrize, binary
 
 PARAMS_TO_TEST = {
     "pipe_parallel_size,model_parallel_size,world_size": [

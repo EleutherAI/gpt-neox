@@ -768,6 +768,7 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
     else:
         skipped_iter = 0
 
+    collect_loss_for_unit_test(reduced_loss["lm_loss"])
     return reduced_loss, skipped_iter
 
 
@@ -975,6 +976,11 @@ def evaluate(
     # Move model back to the train mode.
     model.train()
     return eval_results
+
+
+def collect_loss_for_unit_test(lm_ss):
+    # Logic moved to separate function to allow tracking in unit tests with unittest.mock.patch
+    pass
 
 
 def evaluate_and_print_results(
