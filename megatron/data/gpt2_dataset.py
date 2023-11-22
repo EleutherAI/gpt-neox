@@ -48,6 +48,13 @@ class GPT2Dataset(torch.utils.data.Dataset):
 
         self.neox_args = neox_args
 
+        # TODO: move spacy model def outside this fn, into __init__()
+        if neox_args.conditional_training:
+            import spacy
+            self.spacy_model = spacy.blank("en")
+            sentencizer = self.spacy_model.add_pipe("sentencizer")
+            self.spacy_model.max_length = 1e12
+
         # Checks
         assert np.min(documents) >= 0
         assert np.max(documents) < indexed_dataset.sizes.shape[0]
@@ -111,14 +118,8 @@ class GPT2Dataset(torch.utils.data.Dataset):
                     )
                     samples.append(np.concatenate(sample_list))
 
-            # TODO: move spacy model def outside this fn, into __init__()
-            import spacy
-            spacy_model = spacy.blank("en")
-            sentencizer = spacy_model.add_pipe("sentencizer")
-            spacy_model.max_length = 1e12
 
-            conditional_training = True
-            if conditional_training:
+            if self.neox_args.conditional_training:
                 sample_text = self.neox_args.tokenizer.detokenize(samples[0])
 
                 new_sample_text = ""

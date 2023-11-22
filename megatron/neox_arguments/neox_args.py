@@ -788,6 +788,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Warm up mmap files.
     """
 
+    conditional_training: bool = False
+    """
+    Whether to perform (decision-transformer style) conditional training.
+    """
+
     save: str = None
     """
     Output directory to save checkpoints to.
