@@ -108,6 +108,29 @@ class GPT2Dataset(torch.utils.data.Dataset):
                     )
                     samples.append(np.concatenate(sample_list))
 
+            # TODO: move spacy model def outside this fn, into __init__()
+            import spacy
+            spacy_model = spacy.blank("en")
+            sentencizer = spacy_model.add_pipe("sentencizer")
+            spacy_model.max_length = 1e12
+
+            conditional_training = True
+            if conditional_training:
+                sample_text = self.neox_args.tokenizer.decode(sample[0])
+
+                new_sample_text = ""
+                for i, (spacy_doc, meta) in enumerate(spacy_model.pipe((sample_text, "metadata"), n_process=8, as_tuples=True)):
+                    for sent in spacy_doc.sents:
+                        sent = sent.text_with_ws
+                        new_sample_text += "<|endoftext|>"
+                        new_sample_text += sent
+                encoded_new_text = self.neox_args.tokenizer.encode(new_sample_text)
+                print(len(encoded_new_text), len(samples[0])
+
+
+            for idx, (spacy_doc, meta) in enumerate(spacy_model.pipe(raw_texts, n_process=8, as_tuples=True)):
+                for sent in spacy_doc.sents:
+                    yield {'text': sent.text_with_ws, 'meta': meta, 'idx': idx}
             if len(datasets) == 1:
                 return {"text": np.array(samples[0], dtype=np.int64)}
             else:
