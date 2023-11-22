@@ -39,11 +39,14 @@ class GPT2Dataset(torch.utils.data.Dataset):
         build_index_mappings=True,
         use_shared_fs=True,
         label_dataset=None,
+        neox_args=None,
     ):
 
         self.name = name
         self.indexed_dataset = indexed_dataset
         self.label_dataset = label_dataset
+
+        self.neox_args = neox_args
 
         # Checks
         assert np.min(documents) >= 0
@@ -116,21 +119,19 @@ class GPT2Dataset(torch.utils.data.Dataset):
 
             conditional_training = True
             if conditional_training:
-                sample_text = self.neox_args.tokenizer.decode(sample[0])
+                sample_text = self.neox_args.tokenizer.detokenize(samples[0])
 
                 new_sample_text = ""
-                for i, (spacy_doc, meta) in enumerate(spacy_model.pipe((sample_text, "metadata"), n_process=8, as_tuples=True)):
+
+                for i, spacy_doc in enumerate(spacy_model.pipe([sample_text])):
                     for sent in spacy_doc.sents:
                         sent = sent.text_with_ws
                         new_sample_text += "<|endoftext|>"
                         new_sample_text += sent
-                encoded_new_text = self.neox_args.tokenizer.encode(new_sample_text)
-                print(len(encoded_new_text), len(samples[0])
+                encoded_new_text = self.neox_args.tokenizer.tokenize(new_sample_text)
+                # print(len(encoded_new_text), len(samples[0]))
 
 
-            for idx, (spacy_doc, meta) in enumerate(spacy_model.pipe(raw_texts, n_process=8, as_tuples=True)):
-                for sent in spacy_doc.sents:
-                    yield {'text': sent.text_with_ws, 'meta': meta, 'idx': idx}
             if len(datasets) == 1:
                 return {"text": np.array(samples[0], dtype=np.int64)}
             else:

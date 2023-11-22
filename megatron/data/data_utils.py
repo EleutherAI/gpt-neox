@@ -61,6 +61,7 @@ def build_the_dataset(
     skip_warmup,
     build_index_mappings=True,
     label_prefix=None,
+    neox_args=None,
 ):
     """Build train/valid/test datasets."""
 
@@ -85,6 +86,7 @@ def build_the_dataset(
         seed,
         build_index_mappings=build_index_mappings,
         label_dataset=label_dataset,
+        neox_args=neox_args
     )
     return dataset
 
@@ -98,6 +100,7 @@ def build_train_valid_test_datasets(
     seq_length,
     seed,
     skip_warmup,
+    neox_args=None
 ):
     """Build train, valid, and test datasets."""
 
@@ -139,6 +142,7 @@ def build_train_valid_test_datasets(
                 seq_length,
                 seed,
                 use_shared_fs=use_shared_fs,
+                neox_args=neox_args
             )
         return dataset
 
@@ -224,6 +228,7 @@ def build_weighted_datasets(
                     skip_warmup=(not neox_args.mmap_warmup),
                     build_index_mappings=build_index_mappings,
                     label_prefix=label_path,
+                    neox_args=neox_args
                 )
             )
 
@@ -238,6 +243,7 @@ def build_weighted_datasets(
                     seed=neox_args.seed,
                     skip_warmup=(not neox_args.mmap_warmup),
                     build_index_mappings=build_index_mappings,
+                    neox_args=neox_args
                 )
             )
 
@@ -252,6 +258,7 @@ def build_weighted_datasets(
                     seed=neox_args.seed,
                     skip_warmup=(not neox_args.mmap_warmup),
                     build_index_mappings=build_index_mappings,
+                    neox_args=neox_args
                 )
             )
     return train_datasets, valid_datasets, test_datasets
@@ -394,6 +401,7 @@ def build_train_valid_test_data_iterators(neox_args):
                     train_weights,
                     valid_weights,
                     test_weights,
+                    neox_args=neox_args
                 )
 
             if train_datasets:
@@ -414,6 +422,7 @@ def build_train_valid_test_data_iterators(neox_args):
                 seq_length=neox_args.seq_length,
                 seed=neox_args.seed,
                 skip_warmup=(not neox_args.mmap_warmup),
+                neox_args=neox_args
             )
 
         # Build dataloders.
