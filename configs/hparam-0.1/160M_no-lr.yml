@@ -1,0 +1,47 @@
+{
+  "pipe_parallel_size": 1,
+  "model_parallel_size": 1,
+
+  "num_layers": 12,
+  "hidden_size": 768,
+  "num_attention_heads": 12,
+  "seq_length": 2048,
+  "max_position_embeddings": 2048,
+  "pos_emb": "rotary",
+  "rotary_pct": 0.25,
+  "no_weight_tying": true,
+  "gpt_j_residual": true,
+  "output_layer_parallelism": "column",
+
+  "attention_config": [[["flash"], 12]],
+
+  "scaled_upper_triang_masked_softmax_fusion": true,
+  "bias_gelu_fusion": true,
+
+  "init_method": "small_init",
+  "output_layer_init_method": "wang_init",
+
+  "optimizer": {
+    "type": "Adam",
+    "params": {
+      "betas": [0.9, 0.95],
+      "eps": 1.0e-8
+    }
+  },
+
+  "zero_optimization": {
+    "stage": 1,
+    "allgather_partitions": true,
+    "allgather_bucket_size": 500000000,
+    "overlap_comm": true,
+    "reduce_scatter": true,
+    "reduce_bucket_size": 500000000,
+    "contiguous_gradients": true,
+    "cpu_offload": false
+  },
+
+  "train_micro_batch_size_per_gpu": 64,
+  "gas": 2,
+  "data_impl": "mmap",
+  "num_workers": 1
+}

@@ -1,6 +1,6 @@
 # Suggested data paths when using GPT-NeoX locally
 {
-  "data_path": "data/enwik8/enwik8_text_document",
+  # "data_path": "data/enwik8/enwik8_text_document",
 
   # or for weighted datasets:
   # "train-data-paths": ["data/enwik8/enwik8_text_document", "data/enwik8/enwik8_text_document"],
@@ -15,16 +15,19 @@
   # "weight_by_num_documents": false,
   # "weighted_sampler_alpha": 0.3,
 
-  "vocab_file": "data/gpt2-vocab.json",
-  "merge_file": "data/gpt2-merges.txt",
+  "vocab_file": "/nobackup/scratch/usr/za2514/pythia_tokenizer/tokenizer.json",
+  "launcher": "slurm",
+  "deepspeed_slurm": true,
+  "comment": "eleuther",
+  # "merge_file": "data/gpt2-merges.txt",
 
-  "save": "checkpoints",
-  "load": "checkpoints",
-  "checkpoint_validation_with_forward_pass": False,
+  # "save": "checkpoints",
+  # "load": "checkpoints",
+  # "checkpoint_validation_with_forward_pass": False,
 
-  "tensorboard_dir": "tensorboard",
-  "log_dir": "logs",
-  "use_wandb": True,
-  "wandb_host": "https://api.wandb.ai",
-  "wandb_project": "neox"
+  # "tensorboard_dir": "tensorboard",
+  # "log_dir": "logs",
+  # "use_wandb": True,
+  # "wandb_host": "https://api.wandb.ai",
+  # "wandb_project": "neox"
 }
