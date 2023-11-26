@@ -67,7 +67,7 @@ setup(
             name="fused_rotary_positional_embedding",
             sources=[
                 str(srcpath / "fused_rotary_positional_embedding.cpp"),
-                str(srcpath / "csrc/megatron/fused_rotary_positional_embedding_cuda.cu"),
+                str(srcpath / "fused_rotary_positional_embedding_cuda.cu"),
             ],
             extra_compile_args=cuda_ext_args,
         ),
