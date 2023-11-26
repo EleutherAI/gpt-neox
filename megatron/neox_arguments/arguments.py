@@ -742,8 +742,8 @@ class NeoXArgs(*BASE_CLASSES):
         if self.rank == 0:
             print(
                 self.__class__.__name__
-                + ".configure_distributed_args() using world size: {} and model-parallel size: {} ".format(
-                    self.world_size, self.model_parallel_size
+                + ".configure_distributed_args() using world size: {}, pipe-parallel size: {}, sequence-parallel size: {}, and model-parallel size: {} ".format(
+                    self.world_size, self.pipe_parallel_size, self.sequence_parallel_size, self.model_parallel_size
                 ),
                 flush=True,
             )
@@ -847,6 +847,9 @@ class NeoXArgs(*BASE_CLASSES):
         pp_size = pp_size if pp_size >= 1 else 1
         mp_size = self.model_parallel_size
         mp_size = mp_size if mp_size >= 1 else 1
+        sp_size = self.sequence_parallel_size
+        sp_size = sp_size if sp_size >= 1 else 1
+        self.update_value("sequence_parallel_size", sp_size)
         self.update_value("model_parallel_size", mp_size)
 
         # pp_size and mp_size are only used here to compute dp world size and nowhere else.
@@ -1022,6 +1025,9 @@ class NeoXArgs(*BASE_CLASSES):
         # if we set pipe_parallel_size to 0 or 1, GPT2ModelPipe.to_sequential() is called, and we run training with
         # the sequential model without the PipelineModule wrapper to avoid the overhead it incurs
         self.update_value("is_pipe_parallel", self.pipe_parallel_size >= 1)
+
+        # Update 'is sequence parallel' flag
+        self.update_value("is_sequence_parallel", self.sequence_parallel_size > 1)
 
         # Attention config
         if self.attention_config is None:

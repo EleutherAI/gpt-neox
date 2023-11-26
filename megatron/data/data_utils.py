@@ -312,7 +312,7 @@ def build_train_valid_test_data_iterators(neox_args):
         pipe_load = True
 
     # Data loader only on rank 0 of each model parallel group.
-    if mpu.get_model_parallel_rank() == 0 and pipe_load:
+    if ((not neox_args.is_sequence_parallel and mpu.get_model_parallel_rank() == 0) or (neox_args.is_sequence_parallel and mpu.get_sequence_parallel_rank() == 0)) and pipe_load:
         # Number of train/valid/test samples.
         train_iters = neox_args.train_iters
         eval_iters = (train_iters // neox_args.eval_interval + 1) * neox_args.eval_iters

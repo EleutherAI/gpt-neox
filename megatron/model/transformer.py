@@ -275,7 +275,7 @@ class ParallelSelfAttention(nn.Module):
             self.attention_softmax_in_fp32 = True
         self.layer_number = layer_number
         # Per attention head and per partition values.
-        world_size = mpu.get_model_parallel_world_size()
+        world_size = mpu.get_tensor_parallel_world_size()
         self.hidden_size_per_partition = mpu.divide(neox_args.hidden_size, world_size)
         self.hidden_size_per_attention_head = mpu.divide(
             neox_args.hidden_size, neox_args.num_attention_heads
@@ -310,7 +310,7 @@ class ParallelSelfAttention(nn.Module):
             self.alibi_embed = AliBi(
                 neox_args.num_attention_heads,
                 neox_args.model_parallel_size,
-                mpu.get_model_parallel_rank(),
+                mpu.get_tensor_parallel_rank(),
             )
 
         # TODO: this arg shouldn't need to be passed in - get from neox_args
@@ -338,6 +338,7 @@ class ParallelSelfAttention(nn.Module):
 
         self.attention_type = neox_args.attention_config[layer_number]
         self.use_flash_attention = self.attention_type == "flash"
+        self.use_ds_ulysses_attention = self.attention_type == "ulysses"
         self.sparse = self.attention_type not in ("global", "flash")
         if self.sparse:
             self.sparse_attn = configure_sparse_attention(
@@ -360,6 +361,13 @@ class ParallelSelfAttention(nn.Module):
                 self.flash_triton_fn = flash_attn_unpadded_unpacked_func_triton
                 self.flash_qkv_fn = flash_attn_varlen_qkvpacked_func
                 self.flash_kv_fn = flash_attn_varlen_kvpacked_func
+            elif self.use_ds_ulysses_attention:
+                 print('USING ULYSSES')
+                 try:
+                    from deepspeed.sequence.layer import DistributedAttention
+                    self.ds_ulysses_attention_fn = DistributedAttention(self.attention, mpu.get_sequence_parallel_group())
+                 except ImportError as e:
+                     print(f'Error. You passed a gpt-neox ulysses config but DeepSpeed ulysses could not be imported with the error: {e}')
             else:
                 self.scale_mask_softmax = FusedScaleMaskSoftmax(
                     input_in_fp16=self.fp16,
@@ -598,6 +606,7 @@ class ParallelSelfAttention(nn.Module):
 
         return matmul_result
 
+
     def sparse_attention(self, query_layer, key_layer, value_layer, attention_mask):
         # TODO: sparse attn dropout?
         # TODO: pad to block size
@@ -688,6 +697,8 @@ class ParallelSelfAttention(nn.Module):
 
         if self.use_flash_attention:
             context_layer = self.flash_attention(query_layer, key_layer, value_layer)
+        elif self.use_ds_ulysses_attention:
+            context_layer = self.ds_ulysses_attention_fn(query_layer, key_layer, value_layer, attention_mask)
         elif not self.sparse:
             context_layer = self.attention(
                 query_layer, key_layer, value_layer, layer_past, attention_mask

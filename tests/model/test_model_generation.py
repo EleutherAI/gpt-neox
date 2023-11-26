@@ -76,7 +76,7 @@ def test_train(param_dict):
 
 def run_generate_test(param_dict, prompt):
     from megatron.text_generation_utils import generate_samples_from_prompt
-    from megatron.utils import is_mp_rank_0
+    from megatron.utils import is_tp_rank_0
 
     fixed_params = {
         "num_samples": 3,
@@ -106,7 +106,7 @@ def run_generate_test(param_dict, prompt):
     )
 
     # outputs only get generated on mp rank 0
-    if is_mp_rank_0():
+    if is_tp_rank_0():
         assert len(output) == len(prompts)
         for prompt, out in zip(prompts, output):
             assert prompt == out["context"]

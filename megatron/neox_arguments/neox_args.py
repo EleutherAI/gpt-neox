@@ -65,6 +65,11 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     Size of the model parallelism.
     """
 
+    sequence_parallel_size: int = 1
+    """
+    Size of the model parallelism.
+    """
+
     pipe_partition_method: str = "type:transformer|mlp"
     """
     method used to distribute model layers across pipeline stages. Choose from "parameters", which balances the number
@@ -81,6 +86,12 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     """
     flag to determine whether pipeline parallelism is on - shouldn't be set by user, is automatically determined
     according to pipeline parallel size.
+    """
+
+    is_sequence_parallel: bool = False
+    """
+    flag to determine whether sequence parallelism is on - shouldn't be set by user, is automatically determined
+    according to sequence parallel size.
     """
 
 
@@ -801,7 +812,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     s3_chunk_size: int = 104_857_600
     """
     The number of bytes in each file chunk when uploading to s3. Defaults to 100MiB.
-    """ 
+    """
 
     config_files: dict = None
     """

@@ -131,9 +131,9 @@ def is_local_main():
     return local_rank() == 0
 
 
-def is_mp_rank_0():
-    """True if mp rank == 0"""
-    return mpu.get_model_parallel_rank() == 0
+def is_tp_rank_0():
+    """True if tp rank == 0"""
+    return mpu.get_tensor_parallel_rank() == 0
 
 
 def get_wandb_api_key(neox_args):
@@ -391,8 +391,8 @@ def get_total_params(model):
     if mpu.get_data_parallel_rank() == 0:
         params = sum([p.nelement() for p in model.parameters()])
         print(
-            " > number of parameters on model parallel rank {}: {}".format(
-                mpu.get_model_parallel_rank(), params
+            " > number of parameters on tensor parallel rank {}: {}".format(
+                mpu.get_tensor_parallel_rank(), params
             ),
             flush=True,
         )

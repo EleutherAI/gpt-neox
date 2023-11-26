@@ -18,7 +18,7 @@ from .cross_entropy import vocab_parallel_cross_entropy
 
 from .data import broadcast_data
 
-from .initialize import is_unitialized
+from .initialize import is_uninitialized
 from .initialize import destroy_model_parallel
 from .initialize import get_data_parallel_group
 from .initialize import get_data_parallel_rank

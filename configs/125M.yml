@@ -4,6 +4,7 @@
    # across the node boundaries )
    "pipe_parallel_size": 1,
    "model_parallel_size": 1,
+   "sequence_parallel_size": 1,
 
    # model settings
    "num_layers": 12,

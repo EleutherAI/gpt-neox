@@ -154,29 +154,39 @@ def _initialize_distributed(neox_args):
         )
 
     # Setup 3D topology.
-    pp = neox_args.pipe_parallel_size if neox_args.pipe_parallel_size >= 1 else 1
-    mp = neox_args.model_parallel_size if neox_args.model_parallel_size >= 1 else 1
-    assert (
-        neox_args.world_size % (pp * mp) == 0
-    ), f"world_size={neox_args.world_size}, pp={pp}, mp={mp}"
-    dp = neox_args.world_size // (pp * mp)
-
-    from deepspeed.runtime.pipe.topology import PipeModelDataParallelTopology
-
-    # this does pipe on the most outside, then data, then model.
-    # PipeModelDataParallelTopology is just a wrapper over ProcessTopology that predefines this order.
-    topo = PipeModelDataParallelTopology(num_pp=pp, num_mp=mp, num_dp=dp)
-
-    # Offset base seeds for the interior pipeline stages.
-    # TODO: adjust last stage too once IO is improved.
-    stage_id = topo.get_coord(rank=torch.distributed.get_rank()).pipe
-    if 0 < stage_id < topo.get_dim("pipe") - 1:
-        offset = neox_args.seed + 1138
-        neox_args.seed = offset + (stage_id * mp)
+    #pp = neox_args.pipe_parallel_size if neox_args.pipe_parallel_size >= 1 else 1
+    #mp = neox_args.model_parallel_size if neox_args.model_parallel_size >= 1 else 1
+    #assert (
+    #    neox_args.world_size % (pp * mp) == 0
+    #), f"world_size={neox_args.world_size}, pp={pp}, mp={mp}"
+    #sp = neox_args.sequence_parallel_size if neox_args.sequence_parallel_size >= 1 else 1
+    #assert (
+    #    (sp > 1 and (pp == 1 and mp == 1)) or (sp == 1)
+    #), f"sp={sp} cannot be used along with pp>1 or mp>1"
+    #if sp > 1:
+    #    dp = neox_args.world_size // (sp)
+    #else:
+    #    dp = neox_args.world_size // (pp * mp)
+#
+    #from deepspeed.runtime.pipe.topology import PipeModelDataParallelTopology, ProcessTopology
+#
+    #if sp > 1:
+    #    topo = ProcessTopology(axes=['data', 'sequence'], dims=[dp, sp])
+    #else:
+    #    # this does pipe on the most outside, then data, then model.
+    #    # PipeModelDataParallelTopology is just a wrapper over ProcessTopology that predefines this order.
+    #    topo = PipeModelDataParallelTopology(num_pp=pp, num_mp=mp, num_dp=dp)
+#
+    #    # Offset base seeds for the interior pipeline stages.
+    #    # TODO: adjust last stage too once IO is improved.
+    #    stage_id = topo.get_coord(rank=torch.distributed.get_rank()).pipe
+    #    if 0 < stage_id < topo.get_dim("pipe") - 1:
+    #        offset = neox_args.seed + 1138
+    #        neox_args.seed = offset + (stage_id * mp)
 
     # Set the model-parallel / data-parallel communicators.
     if device_count > 0:
-        if mpu.model_parallel_is_initialized():
+        if mpu.tensor_parallel_is_initialized() or mpu.sequence_parallel_is_initialized:
             print(
                 "_initialize_distributed() model parallel is already initialized",
                 flush=True,
@@ -184,7 +194,9 @@ def _initialize_distributed(neox_args):
         else:
             mpu.initialize_model_parallel(
                 neox_args.model_parallel_size,
-                topology=topo,
+                neox_args.sequence_parallel_size,
+                neox_args.pipeline_parallel_size,
+                #topology=topo,
                 fp32_allreduce=neox_args.fp32_allreduce,
             )
 

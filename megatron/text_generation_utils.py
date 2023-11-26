@@ -28,7 +28,7 @@ import torch.nn.functional as F
 
 from megatron import print_rank_0
 from megatron import mpu
-from megatron.utils import get_ltor_masks_and_position_ids, is_mp_rank_0
+from megatron.utils import get_ltor_masks_and_position_ids, is_tp_rank_0
 
 
 def get_batch(neox_args, context_tokens: torch.Tensor):
@@ -158,13 +158,15 @@ def forward_model(model, model_inputs, is_pipe_parallel=False) -> torch.Tensor:
         return logits
 
 
-def broadcast_terminate_signal(terminate_runs: int):
+def broadcast_terminate_signal(terminate_runs: int, neox_args):
     """Send signal to all workers to terminate if we've finished the process"""
     terminate_runs_tensor = torch.cuda.LongTensor([terminate_runs])
+    tp_sp_src_rank = mpu.get_sequence_parallel_src_rank() if neox_args.is_sequence_parallel else mpu.get_tensor_parallel_src_rank()
+    tp_sp_group = mpu.get_sequence_parallel_group() if neox_args.is_sequence_parallel else mpu.get_tensor_parallel_group()
     torch.distributed.broadcast(
         terminate_runs_tensor,
-        mpu.get_model_parallel_src_rank(),
-        group=mpu.get_model_parallel_group(),
+        tp_sp_src_rank,
+        group=tp_sp_group,
     )
     return terminate_runs_tensor[0].item()
 
@@ -242,17 +244,19 @@ def stream_tokens(
         for i in range(0, len(stop_tokens)):
             stop_tokens[i] = torch.cuda.LongTensor(stop_tokens[i])
 
+    tp_sp_src_rank = mpu.get_sequence_parallel_src_rank() if neox_args.is_sequence_parallel else mpu.get_tensor_parallel_src_rank()
+    tp_sp_group = mpu.get_sequence_parallel_group() if neox_args.is_sequence_parallel else mpu.get_tensor_parallel_group()
     # Make sure context tokens + start tokens are the same across all ranks
     token_generation_start_index = torch.cuda.LongTensor(context_lengths)
     torch.distributed.broadcast(
         context_tokens,
-        mpu.get_model_parallel_src_rank(),
-        group=mpu.get_model_parallel_group(),
+        tp_sp_src_rank,
+        group=tp_sp_group,
     )
     torch.distributed.broadcast(
         token_generation_start_index,
-        mpu.get_model_parallel_src_rank(),
-        group=mpu.get_model_parallel_group(),
+        tp_sp_src_rank,
+        tp_sp_group,
     )
 
     # get attention mask / position ids
@@ -468,12 +472,12 @@ def generate_samples_from_prompt(
                     "\nPlease give smaller context (e.g. half of the "
                     "max sequence length)!",
                 )
-        if not is_mp_rank_0():
+        if not is_tp_rank_0():
             context_tokens = neox_args.tokenizer.tokenize("EMPTY TEXT")
             context_length = len(context_tokens)
             terminate_runs = 0
 
-        terminate_runs = broadcast_terminate_signal(terminate_runs)
+        terminate_runs = broadcast_terminate_signal(terminate_runs, neox_args)
         if terminate_runs == 1:
             return generated_texts
 
@@ -526,7 +530,7 @@ def generate_samples_from_prompt(
                 generated_tokens = []
                 # this will happen if the first generated token is a stop token or eos token
                 message = "WARNING: text generation did not start; try different batching or adjust parameters"
-            if is_mp_rank_0():
+            if is_tp_rank_0():
                 data = {
                     "context": raw_text,
                     "text": generated_text,
@@ -602,7 +606,7 @@ def generate_samples_input_from_file(
         "generate_samples_input_from_file() prompts loaded: {}".format(len(prompts))
     )
 
-    if is_mp_rank_0():
+    if is_tp_rank_0():
         if output_file is None:
             output_file = str(input_file) + ".output.jsonl"
             print_rank_0(
@@ -624,7 +628,7 @@ def generate_samples_input_from_file(
         top_p=top_p,
     )
 
-    if is_mp_rank_0():
+    if is_tp_rank_0():
         with open(output_file, "w") as f_out:
             for item in generated_texts:
                 f_out.write(json.dumps(item) + "\n")
@@ -689,7 +693,7 @@ def generate_samples_unconditional(
         top_p=top_p,
     )
 
-    if is_mp_rank_0():
+    if is_tp_rank_0():
         if output_file is not None:
             with open(output_file, "w") as f_out:
                 for item in generated_texts:
@@ -737,7 +741,7 @@ def generate_samples_interactive(
 
     while True:
         model.module.clear_cache()  # clear kv cache between batches
-        torch.distributed.barrier(group=mpu.get_model_parallel_group())
+        torch.distributed.barrier(group=mpu.get_tensor_parallel_group())
         terminate_runs = 0
 
         if torch.distributed.is_initialized() and torch.distributed.get_rank() == 0:
@@ -771,7 +775,7 @@ def generate_samples_interactive(
             context_tokens = neox_args.tokenizer.tokenize("EMPTY TEXT")
             context_length = len(context_tokens)
 
-        terminate_runs = broadcast_terminate_signal(terminate_runs)
+        terminate_runs = broadcast_terminate_signal(terminate_runs, neox_args)
         if terminate_runs == 1:
             return
         for (
@@ -791,7 +795,7 @@ def generate_samples_interactive(
             top_k=top_k,
             top_p=top_p,
         ):
-            if mpu.get_model_parallel_rank() == 0:
+            if (not neox_args.is_sequence_parallel and mpu.get_tensor_parallel_rank() == 0) or (neox_args.is_sequence_parallel and mpu.get_sequence_parallel_rank() == 0):
                 generated_tokens = (
                     batch_context_tokens[0]
                     .cpu()
