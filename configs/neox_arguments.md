@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 2da1083
+    Default = c509f6a
 
     current git hash of repository
 
@@ -862,6 +862,14 @@ Parallelism Arguments
 
 
 
+- **sequence_parallel_size**: int
+
+    Default = 1
+
+    Size of the model parallelism.
+
+
+
 - **pipe_partition_method**: str
 
     Default = type:transformer|mlp
@@ -886,6 +894,15 @@ Parallelism Arguments
 
     flag to determine whether pipeline parallelism is on - shouldn't be set by user, is automatically determined
     according to pipeline parallel size.
+
+
+
+- **is_sequence_parallel**: bool
+
+    Default = False
+
+    flag to determine whether sequence parallelism is on - shouldn't be set by user, is automatically determined
+    according to sequence parallel size.
 
 
 
