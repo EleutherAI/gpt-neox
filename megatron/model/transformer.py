@@ -658,12 +658,13 @@ class ParallelSelfAttention(nn.Module):
                 # full rotary
                 query_rot, key_rot = query_layer, key_layer
 
-            if self.bf16:
-                apply_rotary_fn = apply_rotary_pos_emb_torch
-            elif self.rope_fusion:
+            if self.rope_fusion:
                 apply_rotary_fn = fused_apply_rotary_pos_emb
-            else:
-                apply_rotary_fn = apply_rotary_pos_emb
+            else:            
+                if self.bf16:
+                    apply_rotary_fn = apply_rotary_pos_emb_torch
+                else:
+                    apply_rotary_fn = apply_rotary_pos_emb
             
             seq_len = key_layer.shape[0]
             offset = 0
