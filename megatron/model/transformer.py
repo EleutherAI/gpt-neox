@@ -660,7 +660,7 @@ class ParallelSelfAttention(nn.Module):
 
             if self.bf16:
                 apply_rotary_fn = apply_rotary_pos_emb_torch
-            elif self.rope_fusion: # we do not currently support bf16 + fused rotary
+            elif self.rope_fusion:
                 apply_rotary_fn = fused_apply_rotary_pos_emb
             else:
                 apply_rotary_fn = apply_rotary_pos_emb
