@@ -33,6 +33,10 @@ from megatron.model.positional_embeddings import (
     apply_rotary_pos_emb,
     AliBi,
 )
+from megatron.model.fused_rope import (
+    FusedRoPEFunc,
+    fused_apply_rotary_pos_emb,
+)
 from megatron.model.fused_bias_dropout import (
     get_bias_dropout_add,
     bias_dropout_add_fused_train,
@@ -654,10 +658,13 @@ class ParallelSelfAttention(nn.Module):
                 # full rotary
                 query_rot, key_rot = query_layer, key_layer
 
-            apply_rotary_fn = (
-                apply_rotary_pos_emb_torch if self.bf16 else apply_rotary_pos_emb
-            )
-
+            if self.bf16:
+                apply_rotary_fn = apply_rotary_pos_emb_torch
+            elif self.rope_fusion: # we do not currently support bf16 + fused rotary
+                apply_rotary_fn = fused_apply_rotary_pos_emb
+            else:
+                apply_rotary_fn = apply_rotary_pos_emb
+            
             seq_len = key_layer.shape[0]
             offset = 0
             if exists(layer_past) and layer_past.numel() > 0:
