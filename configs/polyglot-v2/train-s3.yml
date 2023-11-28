@@ -1,9 +1,9 @@
 {
-  "data_path": "/fsx/home-geonil/small_exp/merge_data/small_exp_50B",
-  "data_impl": "mmap",
+  "data_path": "/admin/home-jinwooahn/repos/data/50B/small_exp_50B",
+  "data_impl": "s3",
   "vocab_file": "/fsx/polyglot-korean/tokenizer/polyglot_bpe_50k.json",
-  #"save": "/admin/home-jinwooahn/repos/checkpoints/small-scale-12B",
-  "s3_path": "s3://polyglot-korean-west/checkpoints/small-scale-12B",
+  "save": "/admin/home-jinwooahn/repos/checkpoints/small-scale-12B",  # if this is not set, checkpoint does not save at all
+  "s3_path": "s3://polyglot-korean-west/checkpoints",
   "checkpoint_validation_with_forward_pass": false,
   "tensorboard_dir": "tensorboard",
   "log_dir": "logs",
@@ -12,5 +12,5 @@
   "no_ssh_check": true,
   "use_wandb": true,
   "wandb_host": "https://api.wandb.ai",
-  "wandb_project": "polyglot-v2-12B-small-scale",
+  "wandb_project": "polyglot-v2-12B-small-scale"
 }

@@ -40,11 +40,11 @@
     "cpu_offload": false
   },
 
-   "train_micro_batch_size_per_gpu": 8,
-   "gradient_accumulation_steps": 64,
-   "data_impl": "mmap",
+   "train_batch_size": 1024,
+   "train_micro_batch_size_per_gpu": 2,
+   "gradient_accumulation_steps": 16,
 
-   "checkpoint_activations": true,
+   "checkpoint_activations": false,
    "checkpoint_num_layers": 1,
    "partition_activations": true,
    "synchronize_each_layer": true,
@@ -64,14 +64,15 @@
      "min_loss_scale": 1
    },
 
-   "train_iters": 100,
-   "lr_decay_iters": 100,
+   "train_iters": 24000,
+   "lr_decay_iters": 24000,
    "distributed_backend": "nccl",
    "lr_decay_style": "cosine",
    "warmup": 0.01,
-   "checkpoint_factor": 100,
-   "eval_interval": 10,
-   "eval_iters": 10,
+   "checkpoint_factor": 2,
+   "keep_last_n_checkpoints": 1,
+   "eval_interval": 1000,
+   "eval_iters": 20,
 
    "log_interval": 1,
    "steps_per_print": 1,

@@ -778,10 +778,12 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     as alpha -> inf, the probability of sampling from the groups with *the most samples* -> 1
     """
 
-    data_impl: Literal["infer", "mmap", "cached"] = "infer"
+    data_impl: Literal["infer", "mmap", "cached", "s3"] = "infer"
     """
     Implementation of indexed datasets, can be one of "infer", "cached", or "mmap"
+    Added for polyglot v2: s3
     """
+    # TODO: add s3_path as argument
 
     mmap_warmup: bool = False
     """

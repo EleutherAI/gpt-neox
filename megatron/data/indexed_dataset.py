@@ -14,6 +14,7 @@
 #    An empty sentence no longer separates documents.
 
 import os
+import boto3
 import shutil
 import struct
 from functools import lru_cache
@@ -60,6 +61,15 @@ def make_builder(out_file, impl, vocab_size=None):
 
 
 def make_dataset(path, impl, skip_warmup=False):
+    # Added for polyglot v2. Code is supoptimal but this should do for now..
+    if impl == 's3': # TODO: check if object key in specified bucket exists
+        print_rank_0("Using S3 Dataset")
+        # Ideally, these should be passed as NeoX arguments
+        s3_object = 'mmap/small_exp_50B.bin'
+        s3_bucket = 'polyglot-korean-west'
+        #local_path = '/admin/home-ingyu/repos/data/small_text_document'
+        return S3IndexedDataset(s3_bucket, s3_object, path, skip_warmup)
+
     if not IndexedDataset.exists(path):
         print(f"Dataset does not exist: {path}")
         print(
@@ -593,3 +603,235 @@ class MMapIndexedDatasetBuilder(object):
 
         with MMapIndexedDataset.Index.writer(index_file, self._dtype) as index:
             index.write(self._sizes, self._doc_idx)
+
+
+class S3IndexedDataset(torch.utils.data.Dataset):
+    class Index(object):
+        _HDR_MAGIC = b"MMIDIDX\x00\x00"
+
+        @classmethod
+        def writer(cls, path, dtype):
+            class _Writer(object):
+                def __enter__(self):
+                    self._file = open(path, "wb")
+
+                    # Write Magic string so we can check the file format then opening it again.
+                    self._file.write(cls._HDR_MAGIC)
+                    # Write version number
+                    # Little endian unsigned 64 Bit integer
+                    self._file.write(struct.pack("<Q", 1))
+                    # Little endian unsigned 8 Bit integer
+                    self._file.write(struct.pack("<B", code(dtype)))
+
+                    return self
+
+                @staticmethod
+                def _get_pointers(sizes):
+                    pointers = np.zeros(len(sizes), dtype=np.int64)
+                    sizes = np.array(sizes, dtype=np.int64)
+
+                    np.cumsum(sizes[:-1], out=pointers[1:])
+                    pointers = pointers * dtype().itemsize
+                    return pointers
+
+                def write(self, sizes, doc_idx):
+                    pointers = self._get_pointers(sizes)
+
+                    # Little endian unsigned 64 Bit integer
+                    self._file.write(struct.pack("<Q", len(sizes)))
+                    # Little endian unsigned 64 Bit integer
+                    self._file.write(struct.pack("<Q", len(doc_idx)))
+
+                    sizes = np.array(sizes, dtype=np.int32)
+                    self._file.write(sizes.tobytes(order="C"))
+                    del sizes
+
+                    pointers = np.array(pointers, dtype=np.int64)
+                    self._file.write(pointers.tobytes(order="C"))
+                    del pointers
+
+                    doc_idx = np.array(doc_idx, dtype=np.int64)
+                    self._file.write(doc_idx.tobytes(order="C"))
+
+                def __exit__(self, exc_type, exc_val, exc_tb):
+                    self._file.close()
+
+            return _Writer()
+
+        def __init__(self, path, skip_warmup=False):
+            with open(path, "rb") as stream:
+                magic_test = stream.read(9)
+                assert self._HDR_MAGIC == magic_test, (
+                    "Index file doesn't match expected format. "
+                    "Make sure that --dataset-impl is configured properly."
+                )
+                # Little endian unsigned 64 Bit integer
+                version = struct.unpack("<Q", stream.read(8))
+                assert (1,) == version
+
+                # Little endian unsigned 8 Bit integer
+                (dtype_code,) = struct.unpack("<B", stream.read(1))
+                self._dtype = dtypes[dtype_code]
+                self._dtype_size = self._dtype().itemsize
+
+                self._len = struct.unpack("<Q", stream.read(8))[0]
+                self._doc_count = struct.unpack("<Q", stream.read(8))[0]
+                offset = stream.tell()
+
+            if not skip_warmup:
+                print("    warming up index mmap file...")
+                _warmup_mmap_file(path)
+
+            self._bin_buffer_mmap = np.memmap(path, mode="r", order="C")
+            self._bin_buffer = memoryview(self._bin_buffer_mmap)
+            print("    reading sizes...")
+            self._sizes = np.frombuffer(
+                self._bin_buffer, dtype=np.int32, count=self._len, offset=offset
+            )
+            print("    reading pointers...")
+            self._pointers = np.frombuffer(
+                self._bin_buffer,
+                dtype=np.int64,
+                count=self._len,
+                offset=offset + self._sizes.nbytes,
+            )
+            print("    reading document index...")
+            self._doc_idx = np.frombuffer(
+                self._bin_buffer,
+                dtype=np.int64,
+                count=self._doc_count,
+                offset=offset + self._sizes.nbytes + self._pointers.nbytes,
+            )
+
+        def __del__(self):
+            self._bin_buffer_mmap._mmap.close()
+            del self._bin_buffer_mmap
+
+        @property
+        def dtype(self):
+            return self._dtype
+
+        @property
+        def sizes(self):
+            return self._sizes
+
+        @property
+        def doc_idx(self):
+            return self._doc_idx
+
+        @lru_cache(maxsize=8)
+        def __getitem__(self, i):
+            return self._pointers[i], self._sizes[i]
+
+        def __len__(self):
+            return self._len
+
+    def __init__(self, s3_bucket, s3_object, local_path, skip_warmup=False):
+        super().__init__()
+
+        self._local_path = None  #local text_document stuff
+        self._s3_bucket = s3_bucket  #s3 bucket name
+        self._s3_object = s3_object # object key (path to .bin in s3)
+        self._index = None
+        self.cnt = 0  # temporary
+
+        self._do_init(local_path, skip_warmup)
+
+    def __getstate__(self):
+        return self._path
+
+    def __setstate__(self, state):
+        self._do_init(state)
+
+    def _do_init(self, local_path, skip_warmup):
+        self.client = boto3.client('s3', region_name='us-west-2')  #TODO: parametrize region_name?
+        self._local_path = local_path
+        self._index = self.Index(index_file_path(self._local_path), skip_warmup)
+
+    def __del__(self):
+        del self._index
+
+    def __len__(self):
+        return len(self._index)
+
+    # @lru_cache(maxsize=8)
+    def __getitem__(self, idx):
+        if isinstance(idx, int):
+            # Compute byte range based on index
+            ptr, size = self._index[idx]
+            end = ptr + size * 2 - 1
+
+            # send request
+            range_header = f"bytes={ptr}-{end}"  # specify byte range
+            response = self.client.get_object(Bucket=self._s3_bucket, Key=self._s3_object, Range=range_header)
+            ret = response['Body'].read()
+
+            # convert to numpy array
+            np_array = np.frombuffer(
+                ret, dtype=self._index.dtype
+            )
+            return np_array
+        elif isinstance(idx, slice):
+            start, stop, step = idx.indices(len(self))
+            if step != 1:
+                raise ValueError("Slices into indexed_dataset must be contiguous")
+            ptr = self._index._pointers[start]
+            sizes = self._index._sizes[idx]
+            offsets = list(accumulate(sizes))
+            total_size = sum(sizes)
+            end = ptr + total_size * 2 - 1
+
+            # send request
+            range_header = f"bytes={ptr}-{end}"  # specify byte range
+            response = self.client.get_object(Bucket=self._s3_bucket, Key=self._s3_object, Range=range_header)
+            ret = response['Body'].read()
+
+            # convert to numpy array
+            np_array = np.frombuffer(
+                ret, dtype=self._index.dtype
+            )
+            sents = np.split(np_array, offsets[:-1])
+            return sents
+
+    def get(self, idx, offset=0, length=None):
+        """Retrieves a single item from the dataset with the option to only
+        return a portion of the item.
+
+        get(idx) is the same as [idx] but get() does not support slicing.
+        """
+        ptr, size = self._index[idx]
+        if length is None:
+            length = size - offset
+        ptr += offset * np.dtype(self._index.dtype).itemsize
+        end = ptr + length * 2 - 1
+        range_header = f"bytes={ptr}-{end}"  # specify byte range
+        response = self.client.get_object(Bucket=self._s3_bucket, Key=self._s3_object, Range=range_header)
+        ret = response['Body'].read()
+        np_array = np.frombuffer(
+            ret, dtype=self._index.dtype
+        )
+        return np_array
+
+    @property
+    def sizes(self):
+        return self._index.sizes
+
+    @property
+    def doc_idx(self):
+        return self._index.doc_idx
+
+    def get_doc_idx(self):
+        return self._index._doc_idx
+
+    def set_doc_idx(self, doc_idx_):
+        self._index._doc_idx = doc_idx_
+
+    @property
+    def supports_prefetch(self):
+        return False
+
+    @staticmethod
+    def exists(path):
+        return os.path.exists(index_file_path(path)) and os.path.exists(
+            data_file_path(path)
+        )

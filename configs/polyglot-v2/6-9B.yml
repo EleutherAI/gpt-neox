@@ -46,7 +46,7 @@
    "gradient_accumulation_steps": 16,
    "data_impl": "mmap",
 
-   "checkpoint_activations": true,
+   "checkpoint_activations": false,
    "checkpoint_num_layers": 1,
    "partition_activations": true,
    "synchronize_each_layer": true,
@@ -66,14 +66,14 @@
      "min_loss_scale": 1
    },
 
-   "train_iters": 100,
+   "train_iters": 5,
    "lr_decay_iters": 100,
    "distributed_backend": "nccl",
    "lr_decay_style": "cosine",
    "warmup": 0.01,
-   "checkpoint_factor": 100,
-   "eval_interval": 10,
-   "eval_iters": 10,
+   "checkpoint_factor": 5,
+   "eval_interval": 5,
+   "eval_iters": 2,
 
    "log_interval": 1,
    "steps_per_print": 1,
