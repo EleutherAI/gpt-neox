@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 2da1083
+    Default = 20d4228
 
     current git hash of repository
 
@@ -855,6 +855,38 @@ Parallelism Arguments
 
 
 - **model_parallel_size**: int
+
+    Default = 1
+
+    
+
+
+
+- **use_axonn_model_parallelism**: bool
+
+    Default = False
+
+    
+
+
+
+- **row_model_parallel_size**: int
+
+    Default = 1
+
+    
+
+
+
+- **column_model_parallel_size**: int
+
+    Default = 1
+
+    
+
+
+
+- **depth_model_parallel_size**: int
 
     Default = 1
 
