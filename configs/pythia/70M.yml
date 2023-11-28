@@ -13,7 +13,7 @@
   "gpt_j_residual": true,
   "output_layer_parallelism": "column",
 
-  "attention_config": [[["flash"], 6]],
+  # "attention_config": [[["flash"], 6]],
 
   "scaled_upper_triang_masked_softmax_fusion": true,
   "bias_gelu_fusion": true,
@@ -42,7 +42,7 @@
     "cpu_offload": false
   },
 
-  "train_micro_batch_size_per_gpu": 32,
+  "train_micro_batch_size_per_gpu": 4,
   "gas": 1,
   "data_impl": "mmap",
   "num_workers": 1,
@@ -73,7 +73,7 @@
   "lr_decay_style": "cosine",
   "warmup": 0.01,
   "checkpoint_factor": 1000,
-  "extra_save_iters": [0,1,2,4,8,16,32,64,128,256,512],
+  # "extra_save_iters": [0,1,2,4,8,16,32,64,128,256,512],
   "eval_interval": 100000,
   "eval_iters": 10,
 
@@ -81,5 +81,15 @@
   "steps_per_print": 10,
   "wall_clock_breakdown": true,
 
-  "tokenizer_type": "HFTokenizer"
+  "tokenizer_type": "HFTokenizer",
+  "vocab_file": "/mnt/ssd-1/hailey/pythia/utils/20B_tokenizer.json",
+
+  "train_data_paths": ["/mnt/ssd-1/hailey/conditional-training/gpt-neox/enwik8/enwik8/enwik8_text_document"],
+  "valid_data_paths": ["/mnt/ssd-1/hailey/conditional-training/gpt-neox/enwik8/enwik8/enwik8_text_document"],
+  "test_data_paths": ["/mnt/ssd-1/hailey/conditional-training/gpt-neox/enwik8/enwik8/enwik8_text_document"],
+
+  "force_multi": false,
+
+
+  "conditional_training": false
 }
