@@ -537,18 +537,19 @@ def build_train_valid_test_data_iterators_streaming(neox_args):
         #         neox_args.test_data_weights, train_val_test_num_samples[2]
         #     )
 
+            ds = []
             for split, data_path in zip(
                 ["train", "valid", "test"], 
                 [neox_args.train_data_paths, neox_args.valid_data_paths, neox_args.test_data_paths]
             ): # TODO: assumes only one data source per split
-            # Remote directory (S3 or local filesystem) where dataset is stored
-            remote_dir = 's3://{data_path[0]}'
-            # Local directory where dataset is cached during operation
-            local_dir = '/tmp/cache-{data_path[0]}/{split}'
-            dataset = StreamingDataset(local=local_dir, remote=remote_dir, split=None, shuffle=True) # TODO: sampler from megatron handles shuffle, right? check this
+                # Remote directory (S3 or local filesystem) where dataset is stored
+                remote_dir = 's3://{data_path[0]}'
+                # Local directory where dataset is cached during operation
+                local_dir = '/tmp/cache-{data_path[0]}/{split}'
+                ds.append(StreamingDataset(local=local_dir, remote=remote_dir, split=None, shuffle=True)) # TODO: sampler from megatron handles shuffle, right? check this
    
-        #Load mosaic streaming datasets from train_data_paths, valid_data_paths, test_data_paths
-
+            #Load mosaic streaming datasets from train_data_paths, valid_data_paths, test_data_paths
+            train_ds, valid_ds, test_ds = ds
 
             #  next, make a blended dataset out of the ones we built (estimate how many docs we need from each?)
             # TODO: pull up how you do the sampling-proportional-to-weights from Mosaic dataset
