@@ -1,5 +1,7 @@
-from streaming import Stream, StreamingDataset
-
+try:
+    from streaming import Stream, StreamingDataset
+except ModuleNotFoundError:
+    raise Exception("Must install `streaming` package to use StreamingDatasets!")
 
 # TAKEN FROM MOSAICML LLM-FOUNDRY
 # https://github.com/mosaicml/llm-foundry/blob/main/llmfoundry/data/text_data.py#L23C1-L192C28

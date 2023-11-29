@@ -23,6 +23,7 @@ from megatron import mpu, print_rank_0
 from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
 from megatron.data.blendable_dataset import BlendableDataset
 from megatron.data.gpt2_dataset import GPT2Dataset
+from megatron.data.streaming_dataset import build_streaming_dataset
 from megatron.data.samplers import DistributedBatchSampler
 
 
@@ -488,18 +489,8 @@ def build_train_valid_test_data_iterators(neox_args):
     return train_data_iterator, valid_data_iterator, test_data_iterator
 
 
-def build_streaming_dataset(neox_args):
-    """build a StreamingTextDataset"""
-
-
 def build_train_valid_test_data_iterators_streaming(neox_args):
     """as above, but builds Mosaic StreamingDatasets instead"""
-    
-    try:
-        from streaming import StreamingDataset
-    except ModuleNotFoundError:
-        raise Exception("Must install `streaming` package to use StreamingDatasets!")
-
 
     (train_dataloader, valid_dataloader, test_dataloader) = (None, None, None)
 
