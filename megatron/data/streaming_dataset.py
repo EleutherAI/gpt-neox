@@ -3,6 +3,11 @@ try:
 except ModuleNotFoundError:
     raise Exception("Must install `streaming` package to use StreamingDatasets!")
 
+from typing import Optional, Sequence, Union, Any, Dict, List
+
+import torch
+import numpy as np
+
 # TAKEN FROM MOSAICML LLM-FOUNDRY
 # https://github.com/mosaicml/llm-foundry/blob/main/llmfoundry/data/text_data.py#L23C1-L192C28
 class StreamingTextDataset(StreamingDataset):
@@ -189,7 +194,7 @@ def build_streaming_dataset(split, neox_args=None):
 
     if data_weights:
         # normalize proportions
-        data_weights = [weight / data_weights.sum() for weight in data_weights]
+        data_weights = [weight / sum(data_weights) for weight in data_weights]
 
     streams = []
     for i, path in enumerate(data_paths): 
@@ -202,7 +207,6 @@ def build_streaming_dataset(split, neox_args=None):
         )
     
     return StreamingTextDataset(
-        tokenizer=neox_args.tokenizer.tokenizer, # TODO: drop this arg from the copied-over StreamingTextDataset
         max_seq_len=neox_args.seq_length + 1,
         streams=streams,
         split=None,

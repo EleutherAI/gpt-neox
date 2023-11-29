@@ -44,7 +44,7 @@ from megatron.model import (
     get_params_for_weight_decay_optimization,
 )
 from megatron.checkpointing import load_checkpoint, save_checkpoint
-from megatron.data.data_utils import build_train_valid_test_data_iterators
+from megatron.data.data_utils import build_train_valid_test_data_iterators, build_train_valid_test_data_iterators_streaming
 from megatron.initialize import initialize_megatron
 from megatron.learning_rates import AnnealingLR
 from megatron.logging import tb_wandb_log, training_log
@@ -196,11 +196,18 @@ def pretrain(neox_args):
 
     # Data stuff.
     timers("train/valid/test data iterators").start()
-    (
-        train_data_iterator,
-        valid_data_iterator,
-        test_data_iterator,
-    ) = build_train_valid_test_data_iterators(neox_args=neox_args)
+    if neox_args.use_streaming:
+        (
+            train_data_iterator,
+            valid_data_iterator,
+            test_data_iterator,
+        ) = build_train_valid_test_data_iterators_streaming(neox_args=neox_args)
+    else: 
+        (
+            train_data_iterator,
+            valid_data_iterator,
+            test_data_iterator,
+        ) = build_train_valid_test_data_iterators(neox_args=neox_args)
     timers("train/valid/test data iterators").stop()
 
     if neox_args.use_mup and neox_args.coord_check:

@@ -46,7 +46,7 @@
   },
 
   # batch / data settings
-  "train_micro_batch_size_per_gpu": 32,
+  "train_micro_batch_size_per_gpu": 4,
   "gas": 1,
   "data_impl": "mmap",
   "num_workers": 1,
@@ -88,4 +88,13 @@
   "log_interval": 10,
   "steps_per_print": 10,
   "wall_clock_breakdown": true,
+
+  "train_data_paths": ["/mnt/ssd-1/hailey/conditional-training/llm-foundry/scripts/data_prep/my-copy-c4/train_small"],
+  "valid_data_paths": ["/mnt/ssd-1/hailey/conditional-training/llm-foundry/scripts/data_prep/my-copy-c4/val_small"],
+  "test_data_paths": ["/mnt/ssd-1/hailey/conditional-training/llm-foundry/scripts/data_prep/my-copy-c4/val_small"],
+
+  "use_streaming": true,
+
+  "tokenizer_type": "HFTokenizer",
+  "vocab-file": "/mnt/ssd-1/hailey/pythia/utils/20B_tokenizer.json"
 }
