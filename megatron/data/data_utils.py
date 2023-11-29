@@ -488,6 +488,10 @@ def build_train_valid_test_data_iterators(neox_args):
     return train_data_iterator, valid_data_iterator, test_data_iterator
 
 
+def build_streaming_dataset(neox_args):
+    """build a StreamingTextDataset"""
+
+
 def build_train_valid_test_data_iterators_streaming(neox_args):
     """as above, but builds Mosaic StreamingDatasets instead"""
     
@@ -546,7 +550,10 @@ def build_train_valid_test_data_iterators_streaming(neox_args):
                 remote_dir = 's3://{data_path[0]}'
                 # Local directory where dataset is cached during operation
                 local_dir = '/tmp/cache-{data_path[0]}/{split}'
-                ds.append(StreamingDataset(local=local_dir, remote=remote_dir, split=None, shuffle=True)) # TODO: sampler from megatron handles shuffle, right? check this
+
+                # TODO: switch to StreamingTextDataset from llm-foundry
+                new_ds = build_streaming_dataset(split=split, neox_args=neox_args)
+                ds.append(new_ds)
    
             #Load mosaic streaming datasets from train_data_paths, valid_data_paths, test_data_paths
             train_ds, valid_ds, test_ds = ds
@@ -588,7 +595,7 @@ def build_train_valid_test_data_iterators_streaming(neox_args):
     neox_args.do_valid = flags[1].item()
     neox_args.do_test = flags[2].item()
 
-    # Shift the start iterations. TODO: how to do this with streamingdatasets?
+    # Shift the start iterations. TODO: how to do this with streamingdatasets? might be same if we still use our megatron sampler
     if train_dataloader is not None:
         train_dataloader.batch_sampler.start_iter = (
             neox_args.iteration * neox_args.gradient_accumulation_steps

@@ -788,6 +788,14 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Warm up mmap files.
     """
 
+    use_streaming: bool = False
+    """
+    Whether to circumvent Megatron's builtin dataset implementations and use 
+    StreamingDatasets.
+
+    Must be used with train_data_paths splits as opposed to data_path.
+    """
+
     save: str = None
     """
     Output directory to save checkpoints to.
