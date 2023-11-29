@@ -1,6 +1,6 @@
 {
   # parallelism settings
-  "pipe_parallel_size": 1,
+  "pipe_parallel_size": 0,
   "model_parallel_size": 1,
 
   # model settings
@@ -49,7 +49,7 @@
   "train_micro_batch_size_per_gpu": 4,
   "gas": 1,
   "data_impl": "mmap",
-  "num_workers": 1,
+  "num_workers": 8,
 
   # activation checkpointing
   "checkpoint_activations": true,

@@ -315,9 +315,11 @@ def get_batch(neox_args, data_iterator):
 
     # Broadcast data.
     if data_iterator is not None:
-        data = next(data_iterator)
+        data = {}
+        data["text"] = next(data_iterator)
     else:
         data = None
+    print(data)
     return _get_batch(
         neox_args=neox_args,
         tokenizer=neox_args.tokenizer,

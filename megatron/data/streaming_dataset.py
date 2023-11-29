@@ -164,6 +164,12 @@ class StreamingTextDataset(StreamingDataset):
             )
         return token_sample
 
+    def __iter__(self):
+        idx = 0
+        while True:
+            yield self.__getitem__(idx)
+            idx += 1
+
 
 def build_streaming_dataset(split, neox_args=None):
     """build a StreamingTextDataset"""
@@ -210,6 +216,7 @@ def build_streaming_dataset(split, neox_args=None):
         max_seq_len=neox_args.seq_length + 1,
         streams=streams,
         split=None,
-        epoch_size=train_val_test_num_samples[split]
+        epoch_size=train_val_test_num_samples[split],
+
     )
 

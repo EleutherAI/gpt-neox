@@ -489,6 +489,31 @@ def build_train_valid_test_data_iterators(neox_args):
     return train_data_iterator, valid_data_iterator, test_data_iterator
 
 
+def make_streaming_data_loader(dataset, neox_args):
+    """Build dataloader given an input StreamingDataset. (IterableDataset)"""
+    if dataset is None:
+        return None
+    # Data parallel arguments.
+    world_size = mpu.get_data_parallel_world_size()
+    rank = mpu.get_data_parallel_rank()
+    global_batch_size = neox_args.batch_size * world_size
+    num_workers = neox_args.num_workers
+
+    # Use a simple sampler with distributed batch sampler.
+    sampler = torch.utils.data.SequentialSampler(dataset)
+    # batch_sampler = DistributedBatchSampler(
+    #     sampler=sampler,
+    #     batch_size=global_batch_size,
+    #     drop_last=True,
+    #     rank=rank,
+    #     world_size=world_size,
+    # )
+    # Torch dataloader.
+    return torch.utils.data.DataLoader(
+        dataset, num_workers=num_workers, pin_memory=True, #
+    )
+
+
 def build_train_valid_test_data_iterators_streaming(neox_args):
     """as above, but builds Mosaic StreamingDatasets instead"""
 
@@ -558,9 +583,9 @@ def build_train_valid_test_data_iterators_streaming(neox_args):
 
         # Build dataloders.
         # TODO: confirm this gives right non-duplicated contents at each batch item
-        train_dataloader = make_data_loader(train_ds, neox_args=neox_args)
-        valid_dataloader = make_data_loader(valid_ds, neox_args=neox_args)
-        test_dataloader = make_data_loader(test_ds, neox_args=neox_args)
+        train_dataloader = make_streaming_data_loader(train_ds, neox_args=neox_args)
+        valid_dataloader = make_streaming_data_loader(valid_ds, neox_args=neox_args)
+        test_dataloader = make_streaming_data_loader(test_ds, neox_args=neox_args)
 
         # Flags to know if we need to do training/validation/testing.
         do_train = train_dataloader is not None and neox_args.train_iters > 0
@@ -586,29 +611,30 @@ def build_train_valid_test_data_iterators_streaming(neox_args):
     neox_args.do_valid = flags[1].item()
     neox_args.do_test = flags[2].item()
 
-    # Shift the start iterations. TODO: how to do this with streamingdatasets? might be same if we still use our megatron sampler
-    if train_dataloader is not None:
-        train_dataloader.batch_sampler.start_iter = (
-            neox_args.iteration * neox_args.gradient_accumulation_steps
-        ) % len(train_dataloader)
-        print_rank_0(
-            "setting training data start iteration to {}".format(
-                train_dataloader.batch_sampler.start_iter
-            )
-        )
-    if valid_dataloader is not None:
-        start_iter_val = (
-            (neox_args.iteration * neox_args.gradient_accumulation_steps)
-            // neox_args.eval_interval
-        ) * neox_args.eval_iters
-        valid_dataloader.batch_sampler.start_iter = start_iter_val % len(
-            valid_dataloader
-        )
-        print_rank_0(
-            "setting validation data start iteration to {}".format(
-                valid_dataloader.batch_sampler.start_iter
-            )
-        )
+    # Shift the start iterations. 
+    # TODO: how to do this with streamingdatasets? 
+    # if train_dataloader is not None:
+    #     train_dataloader.batch_sampler.start_iter = (
+    #         neox_args.iteration * neox_args.gradient_accumulation_steps
+    #     ) % len(train_dataloader)
+    #     print_rank_0(
+    #         "setting training data start iteration to {}".format(
+    #             train_dataloader.batch_sampler.start_iter
+    #         )
+    #     )
+    # if valid_dataloader is not None:
+    #     start_iter_val = (
+    #         (neox_args.iteration * neox_args.gradient_accumulation_steps)
+    #         // neox_args.eval_interval
+    #     ) * neox_args.eval_iters
+    #     valid_dataloader.batch_sampler.start_iter = start_iter_val % len(
+    #         valid_dataloader
+    #     )
+    #     print_rank_0(
+    #         "setting validation data start iteration to {}".format(
+    #             valid_dataloader.batch_sampler.start_iter
+    #         )
+    #     )
 
     # Build iterators.
     if train_dataloader is not None:
