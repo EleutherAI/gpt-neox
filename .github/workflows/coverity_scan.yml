@@ -48,7 +48,7 @@ jobs:
         tar caf build-results.bz2 cov-int
         curl --form token=$COVERITY_TOKEN \
           --form email=$COV_USER \
-          --form file=@$GITHUB_WORKSPACE/build-results.bz2 \
+          --form file=@build-results.bz2 \
           --form version="Version" \
           --form description="Build" \
           https://scan.coverity.com/builds?project=EleutherAI%2Fgpt-neox -v
