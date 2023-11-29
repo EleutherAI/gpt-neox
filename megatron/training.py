@@ -319,7 +319,8 @@ def get_batch(neox_args, data_iterator):
         data["text"] = next(data_iterator)
     else:
         data = None
-    print(data)
+    # print(data)
+    # print(data["text"].shape)
     return _get_batch(
         neox_args=neox_args,
         tokenizer=neox_args.tokenizer,

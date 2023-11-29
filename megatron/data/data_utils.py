@@ -509,8 +509,9 @@ def make_streaming_data_loader(dataset, neox_args):
     #     world_size=world_size,
     # )
     # Torch dataloader.
-    return torch.utils.data.DataLoader(
-        dataset, num_workers=num_workers, pin_memory=True, #
+    from streaming import StreamingDataLoader
+    return StreamingDataLoader(
+        dataset, batch_size=neox_args.train_micro_batch_size_per_gpu, num_workers=num_workers, pin_memory=True
     )
 
 
