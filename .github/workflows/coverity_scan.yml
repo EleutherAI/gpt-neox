@@ -51,4 +51,10 @@ jobs:
           --form file=@build-results.bz2 \
           --form version="Version" \
           --form description="Build" \
-          https://scan.coverity.com/builds?project=EleutherAI%2Fgpt-neox -v
+          https://scan.coverity.com/builds?project=EleutherAI%2Fgpt-neox
+
+    - name: Upload Scan Build as Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverity-build-${{ GITHUB_SHA }}
+        path: build-results.bz2
