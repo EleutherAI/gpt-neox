@@ -945,7 +945,7 @@ class NormPipe(nn.Module):
         return self.norm(args)
 
 
-def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=None):
+def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=None, args=None):
     """LM logits using word embedding weights."""
     # Parallel logits.
     input_parallel = mpu.copy_to_model_parallel_region(input_)
@@ -956,11 +956,8 @@ def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=Non
     else:
         logits_parallel = F.linear(input_parallel, word_embeddings_weight, bias)
 
-
-    # if self.neox_args.use_mup:
-    #     # Since we're using pipeline parallelism, we can't directly use MuReadout. Instead, use this workaround that does the same thing as MuReadout.
-    #     # https://github.com/microsoft/mup/issues/6#issuecomment-1082156274
-    #     logits_parallel /= self.tied_modules.embed.word_embeddings.weight.infshape.width_mult()
+    if args is not None and args.use_mup:
+        logits_parallel *= args.mup_output_logit_multiplier
 
     # Gather if needed.
     if parallel_output:

@@ -263,6 +263,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     init_method_std: float = 0.02
     """
     Standard deviation of the zero mean normal distribution used for weight initialization.
+    When using muP this is the base std
     """
 
     apply_query_key_layer_scaling: bool = False
@@ -427,6 +428,7 @@ class NeoXArgsOptimizer(NeoXArgsTemplate):
     lr: float = None
     """
     Max Learning rate during training
+    When using muP, this is the base learning rate
     """
 
 
@@ -1015,7 +1017,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
 
     use_mup: bool = False
     """
-    Whether to use Microsoft's Mup https://github.com/microsoft/mup
+    Whether to use muP
     """
 
     coord_check: bool = False
@@ -1033,35 +1035,20 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Path to the base shapes to save to/load from
     """
 
-    mup_init_scale: float = 1.0
+    mup_emb: int = 1
     """
-    Initialization scale: All the parameters are multiplied by this value
-    """
-
-    mup_attn_temp: float = 1.0
-    """
-    Attention temperature: Reciprocal of the multiplier applied to the input to attention softmax
+    Embedding output multiplier
     """
 
-    mup_output_temp: float = 1.0
+    mup_m_width: int = 1
     """
-    Output temperature: Reciprocal of the multiplier applied to the input to softmax that
-    produces the distribution over output tokens.
-    """
-
-    mup_embedding_mult: float = 1.0
-    """
-    Scalar by which we multiply the output of the embedding layer
+    Manually set the layer width multiplier (d_model/d_model,base)
     """
 
-    mup_rp_embedding_mult: float = 1.0
+    mup_d_model_base: int = 64
     """
-    Scalar by which we multiply vectors representing relative position
-    """
-
-    mup_width_scale: int = 2
-    """
-    What to scale width by when creating the delta model for mup
+    d_model,base
+    Proxy (base) model's layer width
     """
 
 

@@ -16,41 +16,22 @@ import math
 
 import torch
 
-try:
-    import mup
-except ImportError:
-    pass
 
-
-def init_method_normal(sigma, use_mup_outer=False, mup_init_scale=1.0):
+def init_method_normal(sigma):
     """Init method based on N(0, sigma)."""
 
-    def init_(tensor, use_mup=use_mup_outer):
-        if use_mup:
-            mup.init.normal_(tensor, mean=0.0, std=sigma)
-            with torch.no_grad():
-                tensor.mul_(mup_init_scale)
-            return tensor
-        else:
-            return torch.nn.init.normal_(tensor, mean=0.0, std=sigma)
+    def init_(tensor):
+        return torch.nn.init.normal_(tensor, mean=0.0, std=sigma)
 
     return init_
 
 
-def scaled_init_method_normal(
-    sigma, num_layers, use_mup_outer=False, mup_init_scale=1.0
-):
+def scaled_init_method_normal(sigma, num_layers):
     """Init method based on N(0, sigma/sqrt(2*num_layers)."""
     std = sigma / math.sqrt(2.0 * num_layers)
 
-    def init_(tensor, use_mup=use_mup_outer):
-        if use_mup:
-            mup.init.normal_(tensor, mean=0.0, std=std)
-            with torch.no_grad():
-                tensor.mul_(mup_init_scale)
-            return tensor
-        else:
-            return torch.nn.init.normal_(tensor, mean=0.0, std=std)
+    def init_(tensor):
+        return torch.nn.init.normal_(tensor, mean=0.0, std=std)
 
     return init_
 
@@ -169,21 +150,15 @@ def wang_init_method(n_layers, dim, use_mup_outer=False, mup_init_scale=1.0):
 
 def get_init_methods(args):
 
-    if args.use_mup:
-        try:
-            import mup
-        except ModuleNotFoundError:
-            print("Please install mup https://github.com/microsoft/mup")
-            raise Exception
-
     def _get(name):
         if name == "normal":
             return init_method_normal(
-                args.init_method_std, args.use_mup, args.mup_init_scale
+                sigma=args.init_method_std*args.mup_init_scale
             )
         elif name == "scaled_normal":
             return scaled_init_method_normal(
-                args.init_method_std, args.num_layers, args.use_mup, args.mup_init_scale
+                sigma=args.init_method_std*args.mup_init_scale,
+                num_layers=args.num_layers
             )
         elif name == "orthogonal":
             return orthogonal_init_method(args.use_mup, args.mup_init_scale)
