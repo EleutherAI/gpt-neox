@@ -295,14 +295,14 @@ class ParallelSelfAttention(nn.Module):
             bias=neox_args.use_bias_in_attn_linear,
         )
 
-        coeff = None
-        self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
-        if self.apply_query_key_layer_scaling:
-            coeff = max(1, self.layer_number)
-            self.norm_factor *= coeff
-
         if neox_args.use_mup:
             self.norm_factor = self.hidden_size_per_attention_head
+        else:
+            coeff = None
+            self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
+            if self.apply_query_key_layer_scaling:
+                coeff = max(1, self.layer_number)
+                self.norm_factor *= coeff
 
         self.rpe = rpe
 
@@ -955,6 +955,12 @@ def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=Non
         logits_parallel = F.linear(input_parallel, word_embeddings_weight)
     else:
         logits_parallel = F.linear(input_parallel, word_embeddings_weight, bias)
+
+
+    # if self.neox_args.use_mup:
+    #     # Since we're using pipeline parallelism, we can't directly use MuReadout. Instead, use this workaround that does the same thing as MuReadout.
+    #     # https://github.com/microsoft/mup/issues/6#issuecomment-1082156274
+    #     logits_parallel /= self.tied_modules.embed.word_embeddings.weight.infshape.width_mult()
 
     # Gather if needed.
     if parallel_output:
