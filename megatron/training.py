@@ -402,8 +402,23 @@ def get_model(neox_args, use_cache=False):
 
     # Temporarily disable mup so that the base model does not use the mup init functions before set_base_shapes is called below.
     # If mup isn't being used anyways, this has no effect.
-    old_use_mup = neox_args.use_mup
-    neox_args.use_mup = False
+    # old_use_mup = neox_args.use_mup
+    # neox_args.use_mup = False
+    if neox_args.use_mup:
+
+        if neox_args.mup_m_width == 1:
+            neox_args.mup_m_width = neox_args.hidden_size / neox_args.mup_d_model_base
+
+        base_shapes = f"{neox_args.base_shapes_file}.{torch.distributed.get_rank()}"
+
+        if neox_args.save_base_shapes:
+            save_base_shapes(neox_args, base_shapes, use_cache)
+
+        # mup.set_base_shapes(model, base_shapes)
+
+        # Call the mup replacement init functions on the model now that set_base_shapes has given each weight a .infshape attribute
+        # mup_weights_reinit(neox_args, model)
+
     model = GPT2ModelPipe(
         neox_args=neox_args,
         num_tokentypes=0,
@@ -436,22 +451,7 @@ def get_model(neox_args, use_cache=False):
         # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
         model = model.to_sequential()
 
-    neox_args.use_mup = old_use_mup
-
-    if neox_args.use_mup:
-
-        if neox_args.mup_m_width == 1:
-            neox_args.mup_m_width = neox_args.hidden_size / neox_args.mup_d_model_base
-
-        base_shapes = f"{neox_args.base_shapes_file}.{torch.distributed.get_rank()}"
-
-        if neox_args.save_base_shapes:
-            save_base_shapes(neox_args, base_shapes, use_cache)
-
-        mup.set_base_shapes(model, base_shapes)
-
-        # Call the mup replacement init functions on the model now that set_base_shapes has given each weight a .infshape attribute
-        mup_weights_reinit(neox_args, model)
+    # neox_args.use_mup = old_use_mup
 
     if neox_args.deepspeed:
         # DeepSpeed handles CUDA, FP16, and DDP components.
