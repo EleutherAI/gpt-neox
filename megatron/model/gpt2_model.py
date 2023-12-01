@@ -175,6 +175,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         # Embedding layer
         # input will be (input_ids, position_ids, attention_mask)
 
+        # TODO Initilized weights here should not be divided by m_width
         if weight_tying:
             self.specs.append(
                 TiedLayerSpec(
