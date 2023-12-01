@@ -119,9 +119,6 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         self.init_method, self.output_layer_init_method = get_init_methods(
             self.neox_args
         )
-        self.init_method, self.output_layer_init_method = get_init_methods(
-            self.neox_args
-        )
         self.__topology__ = topology
 
         self.specs = []
