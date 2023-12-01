@@ -439,11 +439,9 @@ def get_model(neox_args, use_cache=False):
     neox_args.use_mup = old_use_mup
 
     if neox_args.use_mup:
-        try:
-            import mup
-        except ModuleNotFoundError:
-            print("Please install mup https://github.com/microsoft/mup")
-            raise Exception
+
+        if neox_args.mup_m_width == 1:
+            neox_args.mup_m_width = neox_args.hidden_size / neox_args.mup_d_model_base
 
         base_shapes = f"{neox_args.base_shapes_file}.{torch.distributed.get_rank()}"
 
