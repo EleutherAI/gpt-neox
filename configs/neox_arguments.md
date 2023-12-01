@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 0d921f7
+    Default = 2d127df
 
     current git hash of repository
 
@@ -452,6 +452,7 @@ Model Arguments
     Default = 0.02
 
     Standard deviation of the zero mean normal distribution used for weight initialization.
+    When using muP this is the base std
 
 
 
@@ -663,6 +664,7 @@ Optimizer Arguments
     Default = None
 
     Max Learning rate during training
+    When using muP, this is the base learning rate
 
 
 
@@ -1521,7 +1523,7 @@ Training Arguments
 
     Default = False
 
-    Whether to use Microsoft's Mup https://github.com/microsoft/mup
+    Whether to use muP
 
 
 
@@ -1549,52 +1551,28 @@ Training Arguments
 
 
 
-- **mup_init_scale**: float
+- **mup_emb**: int
 
-    Default = 1.0
+    Default = 1
 
-    Initialization scale: All the parameters are multiplied by this value
-
-
-
-- **mup_attn_temp**: float
-
-    Default = 1.0
-
-    Attention temperature: Reciprocal of the multiplier applied to the input to attention softmax
+    Embedding output multiplier
 
 
 
-- **mup_output_temp**: float
+- **mup_m_width**: int
 
-    Default = 1.0
+    Default = 1
 
-    Output temperature: Reciprocal of the multiplier applied to the input to softmax that
-    produces the distribution over output tokens.
-
-
-
-- **mup_embedding_mult**: float
-
-    Default = 1.0
-
-    Scalar by which we multiply the output of the embedding layer
+    Manually set the layer width multiplier (d_model/d_model,base)
 
 
 
-- **mup_rp_embedding_mult**: float
+- **mup_d_model_base**: int
 
-    Default = 1.0
+    Default = 64
 
-    Scalar by which we multiply vectors representing relative position
-
-
-
-- **mup_width_scale**: int
-
-    Default = 2
-
-    What to scale width by when creating the delta model for mup
+    d_model,base
+    Proxy (base) model's layer width
 
 
 
