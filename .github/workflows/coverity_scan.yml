@@ -56,5 +56,5 @@ jobs:
     - name: Upload Scan Build as Artifact
       uses: actions/upload-artifact@v3
       with:
-        name: coverity-build-${{ GITHUB_SHA }}
+        name: coverity-build-${{ github.sha }}
         path: build-results.bz2
