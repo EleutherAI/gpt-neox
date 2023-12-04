@@ -111,8 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 2da1083
-
+    Default = efaee8d
 
     current git hash of repository
 
@@ -801,7 +800,7 @@ Misc. Arguments
 
 
 
-- **do_train**: int
+- **do_train**: bool
 
     Default = None
 
@@ -809,7 +808,7 @@ Misc. Arguments
 
 
 
-- **do_valid**: int
+- **do_valid**: bool
 
     Default = None
 
@@ -817,7 +816,7 @@ Misc. Arguments
 
 
 
-- **do_test**: int
+- **do_test**: bool
 
     Default = None
 
