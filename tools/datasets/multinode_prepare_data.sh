@@ -53,7 +53,7 @@ fi
 echo "processing $chunk_file with rank $rank at world size $world_size"
 echo "using the following args: $py_args"
 # Call the Python script with the list of file paths in the chunk
-python tools/preprocess_data.py --input $(tr '\n' ',' < "$chunk_file" | sed 's/,$/\n/') $py_args
+python tools/datasets/preprocess_data.py --input $(tr '\n' ',' < "$chunk_file" | sed 's/,$/\n/') $py_args
 
 # Clean up
 rm "$chunk_file"

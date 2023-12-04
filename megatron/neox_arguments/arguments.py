@@ -237,7 +237,7 @@ class NeoXArgs(*BASE_CLASSES):
     # start of command line args interface
 
     @classmethod
-    def consume_deepy_args(cls):
+    def consume_deepy_args(cls, input_args=None):
         """
         entry point for deepy.py configuring and consuming command line arguments.
 
@@ -339,8 +339,7 @@ class NeoXArgs(*BASE_CLASSES):
             choices=("tune", "run"),
             help="Use DeepSpeed's autotuning feature to optimize certain hyperparameters. For more details refer to documentation here: https://www.deepspeed.ai/tutorials/autotuning/",
         )
-
-        args_parsed = parser.parse_args()
+        args_parsed = parser.parse_args(input_args)
 
         # Validate user_script exists
         assert os.path.exists(
@@ -394,7 +393,7 @@ class NeoXArgs(*BASE_CLASSES):
         return neox_args
 
     @classmethod
-    def consume_neox_args(cls, overwrite_values=None):
+    def consume_neox_args(cls, overwrite_values=None, input_args=None):
         """
         Deepspeed launcher needs to pass the arguments for `pretrain_gpt2.py` across to all machines.
 
@@ -419,7 +418,7 @@ class NeoXArgs(*BASE_CLASSES):
             default=None,
             help="Only need this (at this stage) for autotuning",
         )
-        args_parsed, _ = parser.parse_known_args()
+        args_parsed, _ = parser.parse_known_args(input_args)
         megatron_config = json.loads(
             base64.urlsafe_b64decode(args_parsed.megatron_config).decode("utf-8")
         )
@@ -732,7 +731,8 @@ class NeoXArgs(*BASE_CLASSES):
         if self.deepspeed_slurm:
             os.environ["LOCAL_RANK"] = os.environ["SLURM_LOCALID"]
             os.environ["RANK"] = os.environ["SLURM_PROCID"]
-            os.environ["WORLD_SIZE"] = os.environ["SLURM_NTASKS"]
+            os.environ["WORLD_SIZE"] = os.environ["SLURM_NTASKS"] if os.environ.get("SLURM_NTASKS") is not None \
+                                        else str(int(os.environ["SLURM_NNODES"]) * int(os.environ["SLURM_NTASKS_PER_NODE"]))
 
         self.update_value("local_rank", int(os.getenv("LOCAL_RANK", "0")))
         self.update_value("rank", int(os.getenv("RANK", "0")))
@@ -1053,6 +1053,12 @@ class NeoXArgs(*BASE_CLASSES):
             self.valid_data_weights = [1.0] * len(self.valid_data_paths)
         if self.test_data_paths and (self.test_data_weights is None):
             self.test_data_weights = [1.0] * len(self.test_data_paths)
+
+        if self.label_data_paths:
+            err_str = (
+                "Must use `label_data_paths` with `train_data_paths`, not `data_path`"
+            )
+            assert self.train_data_paths and not self.data_path, err_str
 
         # if a sample input file is provided, default text_gen_type type to input-file
         if self.text_gen_type is None:

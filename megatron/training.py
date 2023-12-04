@@ -212,17 +212,17 @@ def pretrain(neox_args):
     print_rank_0("training ...")
 
     iteration = neox_args.iteration
-    if neox_args.do_train and neox_args.train_iters > 0:
-        # edge case: save step 0 checkpoint if requested and we're starting from step 0
-        if neox_args.save and 0 in neox_args.save_iters and iteration == 0:
-            save_checkpoint(
-                neox_args=neox_args,
-                iteration=iteration,
-                model=model,
-                optimizer=optimizer,
-                lr_scheduler=lr_scheduler,
-            )
+    # edge case: save step 0 checkpoint if requested and we're starting from step 0
+    if neox_args.save and 0 in neox_args.save_iters and iteration == 0:
+        save_checkpoint(
+            neox_args=neox_args,
+            iteration=iteration,
+            model=model,
+            optimizer=optimizer,
+            lr_scheduler=lr_scheduler,
+        )
 
+    if neox_args.do_train and neox_args.train_iters > 0:
         iteration = train(
             neox_args=neox_args,
             timers=timers,
@@ -526,6 +526,14 @@ def get_optimizer(model, neox_args):
             weight_decay=neox_args.weight_decay,
             **neox_args.optimizer["params"],
         )
+    elif neox_args.optimizer_type.lower() == "lion":
+        from .optimizers import Lion
+
+        optimizer = Lion(
+            param_groups,
+            weight_decay=neox_args.weight_decay,
+            **neox_args.optimizer["params"]
+        )
     elif neox_args.optimizer_type.lower() == "adam":
         # Use Adam
         if neox_args.use_mup:
@@ -686,7 +694,9 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
         neox_args.iteration = 0
 
     # need this for correct lr scheduling resume from ckpt
-    lr_scheduler.optimizer = model.optimizer
+    # but it will not exist if this is being called for inference
+    if lr_scheduler is not None:
+        lr_scheduler.optimizer = model.optimizer
 
     return model, optimizer, lr_scheduler
 
@@ -758,6 +768,7 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
     else:
         skipped_iter = 0
 
+    collect_loss_for_unit_test(reduced_loss["lm_loss"])
     return reduced_loss, skipped_iter
 
 
@@ -965,6 +976,11 @@ def evaluate(
     # Move model back to the train mode.
     model.train()
     return eval_results
+
+
+def collect_loss_for_unit_test(lm_ss):
+    # Logic moved to separate function to allow tracking in unit tests with unittest.mock.patch
+    pass
 
 
 def evaluate_and_print_results(

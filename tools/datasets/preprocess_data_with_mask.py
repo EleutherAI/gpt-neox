@@ -16,14 +16,14 @@
 # limitations under the License.
 
 """
-A script for processing a dataset such that corresponding labels are also produced. These are then used to perform masked finetuning 
-(for example, finetuning a model to only output the text following some delimiter in the finetuning dataset such as "Answer: " 
+A script for processing a dataset such that corresponding labels are also produced. These are then used to perform masked finetuning
+(for example, finetuning a model to only output the text following some delimiter in the finetuning dataset such as "Answer: "
 rather than generating the entire "Question: ... Answer: " turns of conversation.
 
-To run this script, first edit `tools/corpora.py` such that the command to call `tools/preprocess_data.py` is as follows:
+To run this script, first edit `tools/datasets/corpora.py` such that the command to call `tools/datasets/preprocess_data.py` is as follows:
 
 ```
-cmd = f"python tools/preprocess_data_with_mask.py \
+cmd = f"python tools/datasets/preprocess_data_with_mask.py \
     --input {jsonl_filepath} \
     --output-prefix {parent_folder}/{self.name} \
     --vocab {self.vocab_file} \
@@ -33,22 +33,22 @@ cmd = f"python tools/preprocess_data_with_mask.py \
     --append-eod \
     --mask-before-token X,Y,Z \
     --workers {self.num_workers} "
-    
+
 if self.num_docs is not None:
     cmd += f"--num-docs {self.num_docs} "
 
 if self.ftfy:
     cmd += f"--ftfy "
 ```
-where --mask-before-token must be the (comma-separated) list of tokens produced by encoding your delimiter string. 
+where --mask-before-token must be the (comma-separated) list of tokens produced by encoding your delimiter string.
 Up to and including the first occurrence of this token sequence in a document, all tokens will have their loss mask zeroed out when the label dataset is provided to NeoX.
 
-Then, specify 
+Then, specify
 ```
 "train_data_paths": ["/path/to/dataset/name_text_document"],
 "label_data_paths": ["/path/to/dataset/name_label_document"]
 ```
-in your YML config. This will then allow for finetuning on the data with loss masks set appropriately. 
+in your YML config. This will then allow for finetuning on the data with loss masks set appropriately.
 (However, be warned that NeoX packs documents to fill context windows, which may degrade performance in some finetuning situations where instead padding out to the context length may be preferred.)
 """
 
@@ -62,7 +62,7 @@ import lm_dataformat as lmd
 import numpy as np
 
 sys.path.append(
-    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
+    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir))
 )
 import time
 import tqdm
@@ -141,7 +141,7 @@ class Encoder(object):
         ids = {}
         for key in self.args.jsonl_keys:
             doc_ids = []
-            text_ids = Encoder.tokenizer.tokenize(text['text'])
+            text_ids = Encoder.tokenizer.tokenize(text["text"])
             if len(text_ids) > 0:
                 doc_ids.append(text_ids)
             if self.args.append_eod:
@@ -293,12 +293,14 @@ def main():
         encoder.initializer()
         encoded_docs = (encoder.encode(doc) for doc in fin)
 
-    
     if args.mask_before_token is not None:
-        token_mask = [int(re.sub(r'[^0-9]', '', r)) for r in args.mask_before_token.split(",") if re.sub(r'[^0-9]', '', r)]
+        token_mask = [
+            int(re.sub(r"[^0-9]", "", r))
+            for r in args.mask_before_token.split(",")
+            if re.sub(r"[^0-9]", "", r)
+        ]
     else:
         token_mask = []
-
 
     # make a dataset builder for each key in args.jsonl_keys
     # each key will output to a different file beginning with args.output_prefix
@@ -318,7 +320,9 @@ def main():
             vocab_size=tokenizer.vocab_size,
         )
     if token_mask:
-        assert "label" not in args.jsonl_keys, "label should not be included as it will be generated according to the mask."
+        assert (
+            "label" not in args.jsonl_keys
+        ), "label should not be included as it will be generated according to the mask."
         key = "label"
         output_bin_files[key] = "{}_{}_{}.bin".format(
             args.output_prefix, key, "document"
@@ -335,7 +339,6 @@ def main():
     for l in int32_labels:
         builders[l]._dtype = np.int32
 
-
     # actually do tokenization
     proc_start = time.time()
     total_bytes_processed = 0
@@ -350,14 +353,15 @@ def main():
         for key, sentences in doc.items():
             for sentence in sentences:
                 builders[key].add_item(np.array(sentence, dtype=builders[key].dtype))
-                if token_mask: 
+                if token_mask:
                     masked_sentence = mask(sentence, token_mask)
-                    builders["label"].add_item(np.array(masked_sentence, dtype=builders["text"].dtype))
+                    builders["label"].add_item(
+                        np.array(masked_sentence, dtype=builders["text"].dtype)
+                    )
             # separate with eos token
             builders[key].end_document()
             if token_mask:
                 builders["label"].end_document()
-
 
         # log progress
         if i % args.log_interval == 0:
@@ -378,4 +382,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

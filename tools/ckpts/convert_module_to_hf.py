@@ -18,14 +18,14 @@ import sys
 import yaml
 import argparse
 from tqdm import tqdm
+from typing import List
 
 import torch
 from transformers import GPTNeoXConfig, GPTNeoXForCausalLM
 
-from typing import List
 
 sys.path.append(
-    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
+    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir))
 )
 from megatron.tokenizer import build_tokenizer
 
@@ -40,14 +40,16 @@ Please investigate carefully whether your model is compatible with all architect
 """
 
 
-def load_partitions(input_checkpoint_path, mp_partitions) -> List[torch.Tensor]:
-    """Returns a list containing all states from a model (across MP partitions)"""
+def load_partitions(
+    input_checkpoint_path, mp_partitions, layer_idx
+) -> List[torch.Tensor]:
+    """Returns a list containing all weights in a given layer from a model (across MP partitions)"""
 
     loaded_tp_ranks = [
         torch.load(
             os.path.join(
                 input_checkpoint_path,
-                f"mp_rank_{i:02}_model_states.pt",
+                f"layer_{layer_idx:02}-model_{i:02}-model_states.pt",
             ),
             map_location=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         )
@@ -55,18 +57,6 @@ def load_partitions(input_checkpoint_path, mp_partitions) -> List[torch.Tensor]:
     ]
 
     return loaded_tp_ranks
-
-
-def get_state(
-    state_dicts: List[torch.Tensor],
-    key: str,
-    layer_idx: int,
-) -> torch.Tensor:
-    """Accesses all MP partitions of a given layer/weight's state."""
-    # main DeepSpeed saves each MP partition
-    key = f"sequential.{layer_idx}.{key}"
-
-    return [state_dict["module"][key] for state_dict in state_dicts]
 
 
 def get_key(loaded_config, key, default=None):
@@ -151,46 +141,43 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
     but only supports features allowed by HF GPT-NeoX implementation (e.g. rotary embeddings)
     """
 
+    hf_config = GPTNeoXConfig()
+
     hf_config = create_config(loaded_config)
 
-    hf_model = GPTNeoXForCausalLM(
-        hf_config
-    )
+    hf_model = GPTNeoXForCausalLM(hf_config)
 
-    # save model in FP16 if Deepspeed fp16 was used in config, else 32 bit
-    fp16 = get_key(loaded_config, "fp16")
     # save model in fp16/bf16 if Deepspeed fp16 or bf16 mixed precision was used in config, else 32 bit weights
     fp16 = get_key(loaded_config, "fp16")
     if fp16:
         try:
-            # current behavior is to pass "fp16": {"enabled": true}, when using upstream Deepspeed
-            if fp16["enabled"]:
+            # this conditional is quite messy because there were a number of ways to specify bf16 or fp16 training
+            # in DeeperSpeed v1.0 .
+            if (fp16.get("fp16", None) or fp16["enabled"]) and not (
+                fp16.get("type", None) == "bfloat16"
+            ):
                 hf_model.half()
                 print("Saving weights in fp16 precision...")
+            elif fp16.get("type", None) == "bfloat16":
+                hf_model.to(dtype=torch.bfloat16)
+                print("Saving weights in bf16 precision...")
         except:
-            try:
-                # attempt to access bf16 dict in yaml file, if fp16 not enabled
-                bf16 = get_key(loaded_config, "bf16")
-                if bf16:
-                    hf_model.to(dtype=torch.bfloat16)
-                    print("Saving weights in bf16 precision...")
-            except:
-                print("Model not trained in fp16 / bf16 mixed precision, saving weights in fp32...")  
+            print(
+                "Model not trained in fp16 / bf16 mixed precision, saving weights in fp32..."
+            )
 
     mp_partitions = get_key(loaded_config, "model-parallel-size")
 
-    # DeepSpeed main saves all model states from an MP rank in one file. load the MP ranks only once and index into them with get_state()
-    loaded_tp_ranks = load_partitions(input_checkpoint_path, mp_partitions)
-
     ### Embedding layer ###
-    # Embedding is layer idx 0
+    loaded_tp_ranks = load_partitions(input_checkpoint_path, mp_partitions, 0)
     hf_model.gpt_neox.embed_in.load_state_dict(
         {
             "weight": torch.cat(
-                get_state(loaded_tp_ranks, "word_embeddings.weight", 0), dim=0
+                [t["word_embeddings.weight"] for t in loaded_tp_ranks], dim=0
             )
         }
     )
+
     assert (
         hf_config.vocab_size == hf_model.gpt_neox.embed_in.weight.shape[0]
     ), f"ERROR: calculated vocab size {hf_config.vocab_size} != embed param size {hf_model.gpt_neox.embed_in.shape[0]}"
@@ -202,14 +189,16 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
         hf_layer = hf_model.gpt_neox.layers[layer_i]
 
         # + 2 bc of embed layer and a dummy _pre_transformer_block
+        loaded_tp_ranks = load_partitions(
+            input_checkpoint_path, mp_partitions, layer_i + 2
+        )
+
         state_dict = {}
         for key in [
             "attention.dense.weight",
             "mlp.dense_4h_to_h.weight",
         ]:
-            state_dict[key] = torch.cat(
-                get_state(loaded_tp_ranks, key, layer_i + 2), dim=1
-            )
+            state_dict[key] = torch.cat([t[key] for t in loaded_tp_ranks], dim=1)
 
         # average layernorm stats over mp ranks
         for key in [
@@ -218,7 +207,7 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
             "post_attention_layernorm.weight",
             "post_attention_layernorm.bias",
         ]:
-            state_dict[key] = sum(get_state(loaded_tp_ranks, key, layer_i + 2)) / len(
+            state_dict[key] = (sum([t[key] for t in loaded_tp_ranks])) / len(
                 loaded_tp_ranks
             )
 
@@ -229,22 +218,21 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
             "attention.query_key_value.weight",
             "attention.query_key_value.bias",
         ]:
-            state_dict[key] = torch.cat(
-                get_state(loaded_tp_ranks, key, layer_i + 2), dim=0
-            )
+            state_dict[key] = torch.cat([t[key] for t in loaded_tp_ranks], dim=0)
 
         # LinearWithTPSplitBias
         for key in [
             "mlp.dense_4h_to_h.bias",
             "attention.dense.bias",
         ]:
-            state_dict[key] = sum(get_state(loaded_tp_ranks, key, layer_i + 2))
+            state_dict[key] = sum([t[key] for t in loaded_tp_ranks]) / len(
+                loaded_tp_ranks
+            )
 
         # Just take one
-        state_dict["attention.rotary_emb.inv_freq"] = get_state(
-            loaded_tp_ranks, "attention.rotary_emb.inv_freq", layer_i + 2
-        )[0]
-
+        state_dict["attention.rotary_emb.inv_freq"] = loaded_tp_ranks[0][
+            "attention.rotary_emb.inv_freq"
+        ]
         if "attention.bias" in hf_layer.state_dict():
             state_dict["attention.bias"] = hf_layer.state_dict()["attention.bias"]
         if "attention.masked_bias" in hf_layer.state_dict():
@@ -256,40 +244,29 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
         hf_layer.load_state_dict(state_dict)
 
     # Load final layer norm
+    loaded_tp_ranks = load_partitions(
+        input_checkpoint_path, mp_partitions, get_key(loaded_config, "num-layers") + 3
+    )
+
     hf_model.gpt_neox.final_layer_norm.load_state_dict(
         {
-            "weight": (
-                sum(
-                    get_state(
-                        loaded_tp_ranks,
-                        "norm.weight",
-                        get_key(loaded_config, "num-layers") + 3,
-                    )
-                )
-            )
+            "weight": (sum([t["norm.weight"] for t in loaded_tp_ranks]))
             / len(loaded_tp_ranks),
-            "bias": (
-                sum(
-                    get_state(
-                        loaded_tp_ranks,
-                        "norm.bias",
-                        get_key(loaded_config, "num-layers") + 3,
-                    )
-                )
-            )
+            "bias": (sum([t["norm.bias"] for t in loaded_tp_ranks]))
             / len(loaded_tp_ranks),
         }
     )
-    # output embedding / LM head
+    del loaded_tp_ranks
+
+    # Load output embedding
+    loaded_tp_ranks = load_partitions(
+        input_checkpoint_path, mp_partitions, get_key(loaded_config, "num-layers") + 4
+    )
+
     hf_model.embed_out.load_state_dict(
         {
             "weight": torch.cat(
-                get_state(
-                    loaded_tp_ranks,
-                    "final_linear.weight",
-                    get_key(loaded_config, "num-layers") + 4,
-                ),
-                dim=0,
+                [t["final_linear.weight"] for t in loaded_tp_ranks], dim=0
             ),
         }
     )
@@ -352,14 +329,6 @@ if __name__ == "__main__":
         print("loaded tokenizer: ", tokenizer)
         tokenizer.save_pretrained(args.output_dir)
         print("tokenizer saved!")
-
-        print(
-            tokenizer.decode(
-                hf_model.generate(
-                    tokenizer.encode("Hello, I am testing ", return_tensors="pt")
-                )[0]
-            )
-        )
 
     if args.upload:
         repo_name = input("Provide a repository name for the HF Hub: ")
