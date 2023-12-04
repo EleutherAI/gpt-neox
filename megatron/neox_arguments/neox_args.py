@@ -641,17 +641,17 @@ class NeoXArgsOther(NeoXArgsTemplate):
     Set during training
     """
 
-    do_train: int = None
+    do_train: bool = None
     """
     Set during training
     """
 
-    do_valid: int = None
+    do_valid: bool = None
     """
     Set during training
     """
 
-    do_test: int = None
+    do_test: bool = None
     """
     Set during training
     """

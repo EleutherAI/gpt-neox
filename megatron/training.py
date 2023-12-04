@@ -212,17 +212,17 @@ def pretrain(neox_args):
     print_rank_0("training ...")
 
     iteration = neox_args.iteration
-    if neox_args.do_train and neox_args.train_iters > 0:
-        # edge case: save step 0 checkpoint if requested and we're starting from step 0
-        if neox_args.save and 0 in neox_args.save_iters and iteration == 0:
-            save_checkpoint(
-                neox_args=neox_args,
-                iteration=iteration,
-                model=model,
-                optimizer=optimizer,
-                lr_scheduler=lr_scheduler,
-            )
+    # edge case: save step 0 checkpoint if requested and we're starting from step 0
+    if neox_args.save and 0 in neox_args.save_iters and iteration == 0:
+        save_checkpoint(
+            neox_args=neox_args,
+            iteration=iteration,
+            model=model,
+            optimizer=optimizer,
+            lr_scheduler=lr_scheduler,
+        )
 
+    if neox_args.do_train and neox_args.train_iters > 0:
         iteration = train(
             neox_args=neox_args,
             timers=timers,
@@ -768,6 +768,7 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
     else:
         skipped_iter = 0
 
+    collect_loss_for_unit_test(reduced_loss["lm_loss"])
     return reduced_loss, skipped_iter
 
 
@@ -975,6 +976,11 @@ def evaluate(
     # Move model back to the train mode.
     model.train()
     return eval_results
+
+
+def collect_loss_for_unit_test(lm_ss):
+    # Logic moved to separate function to allow tracking in unit tests with unittest.mock.patch
+    pass
 
 
 def evaluate_and_print_results(

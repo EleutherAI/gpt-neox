@@ -228,19 +228,19 @@ We currently offer three main functions:
 which can be launched with:
 
 ```bash
-./deepy.py [script.py] [./path/to/config_1.yaml] [./path/to/config_2.yaml] ... [./path/to/config_n.yaml]
+./deepy.py [script.py] [./path/to/config_1.yml] [./path/to/config_2.yml] ... [./path/to/config_n.yml]
 ```
 
 For example, to launch training you can run
 ```bash
-./deepy.py train.py ./configs/20B.yaml ./configs/local_cluster.yaml
+./deepy.py train.py ./configs/20B.yml ./configs/local_cluster.yml
 ```
 
 For more details on each entry point, see the [Training and Finetuning](#training-and-finetuning), [Inference](#inference) and [Evaluation](#evaluation) respectively.
 
 # Configuration
 
-GPT-NeoX parameters are defined in a YAML configuration file which is passed to the deepy.py launcher. We have provided some example .yaml files in [configs](./configs/), showing a diverse array of features and model sizes.
+GPT-NeoX parameters are defined in a YAML configuration file which is passed to the deepy.py launcher. We have provided some example .yml files in [configs](./configs/), showing a diverse array of features and model sizes.
 
 These files are generally complete, but non-optimal. For example, depending on your specific GPU configuration, you may need to change some settings such as `pipe-parallel-size`, `model-parallel-size` to increase or decrease the degree of parallelisation, `train_micro_batch_size_per_gpu` or `gradient-accumulation-steps` to modify batch size related settings, or the `zero_optimization` dict to modify how optimizer states are parallelised across workers.
 
@@ -349,7 +349,7 @@ Training is launched using `deepy.py`, a wrapper around DeepSpeed's launcher, wh
 The general usage pattern is:
 
 ```bash
-python ./deepy.py train.py [path/to/config1.yaml] [path/to/config2.yaml] ...
+python ./deepy.py train.py [path/to/config1.yml] [path/to/config2.yml] ...
 ```
 
 You can pass in an arbitrary number of configs which will all be merged at runtime.
@@ -359,19 +359,19 @@ You can also optionally pass in a config prefix, which will assume all your conf
 E.G:
 
 ```bash
-python ./deepy.py train.py -d configs 125M.yaml local_setup.yaml
+python ./deepy.py train.py -d configs 125M.yml local_setup.yml
 ```
 
 This will deploy the `train.py` script on all nodes with one process per GPU. The worker nodes and number of GPUs are specified in the `/job/hostfile` file (see [parameter documentation](configs/README.md)), or can simply be passed in as the `num_gpus` arg if running on a single node setup.
 
-Although this is not strictly necessary, we find it useful to define the model parameters in one config file (e.g `configs/125M.yaml`) and the data path parameters in another (e.g `configs/local_setup.yaml`).
+Although this is not strictly necessary, we find it useful to define the model parameters in one config file (e.g `configs/125M.yml`) and the data path parameters in another (e.g `configs/local_setup.yml`).
 
 
 ## Pretrained Models
 
 ### GPT-NeoX-20B
 
-GPT-NeoX-20B is a 20 billion parameter autoregressive language model trained on [the Pile](https://arxiv.org/abs/2101.00027). Technical details about GPT-NeoX-20B can be found in [the associated paper](https://arxiv.org/abs/2204.06745). The configuration file for this model is both available at [`./configs/20B.yaml`](./configs/20B.yaml) and included in the download links below.
+GPT-NeoX-20B is a 20 billion parameter autoregressive language model trained on [the Pile](https://arxiv.org/abs/2101.00027). Technical details about GPT-NeoX-20B can be found in [the associated paper](https://arxiv.org/abs/2204.06745). The configuration file for this model is both available at [`./configs/20B.yml`](./configs/20B.yml) and included in the download links below.
 
 [Slim weights](https://the-eye.eu/public/AI/models/GPT-NeoX-20B/slim_weights/) - (No optimizer states, for inference or finetuning, 39GB)
 
@@ -410,7 +410,7 @@ We support three types of generation from a pretrained model:
 2. Conditional generation based on an input read from a file
 3. Interactive generation, which allows for multiple rounds of back-and-forth between a user and the language model via a command line interface
 
-All three types of text generation can be launched via `python ./deepy.py generate.py -d configs 125M.yaml local_setup.yaml text_generation.yaml` with the appropriate values set in `configs/text_generation.yaml`.
+All three types of text generation can be launched via `python ./deepy.py generate.py -d configs 125M.yml local_setup.yml text_generation.yml` with the appropriate values set in `configs/text_generation.yml`.
 
 # Evaluation
 
@@ -419,7 +419,7 @@ GPT-NeoX supports evaluation on downstream tasks through the [language model eva
 To evaluate a trained model on the evaluation harness, simply run:
 
 ```bash
-python ./deepy.py evaluate.py -d configs your_configs.yaml --eval_tasks task1 task2 ... taskn
+python ./deepy.py evaluate.py -d configs your_configs.yml --eval_tasks task1 task2 ... taskn
 ```
 
 where `--eval_tasks` is a list of evaluation tasks followed by spaces, e.g `--eval_tasks lambada hellaswag piqa sciq`. For details of all tasks available, refer to the [lm-evaluation-harness repo](https://github.com/EleutherAI/lm-evaluation-harness).
@@ -430,12 +430,12 @@ GPT-NeoX is optimized heavily for training only, and GPT-NeoX model checkpoints 
 
 To convert a NeoX checkpoint (with pipeline-parallel-size>=1) to Hugging Face-loadable format, run:
 ```bash
-python ./tools/ckpts/convert_module_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yaml --output_dir hf_model/save/location
+python ./tools/ckpts/convert_module_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location
 ```
 
 To convert a sequential model to Hugging Face format, run:
 ```bash
-python  ./tools/ckpts/convert_sequential_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yaml --output_dir hf_model/save/location
+python  ./tools/ckpts/convert_sequential_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location
 ```
 (Note: this script should be used for v2.0 checkpoints saved on a v2.0 commit prior to https://github.com/EleutherAI/gpt-neox/pull/866 and which used `pipe-parallel-size=1`. Using `pipe-parallel-size=0` will also save models in this format.)
 
