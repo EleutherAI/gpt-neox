@@ -49,8 +49,8 @@ jobs:
         curl --form token=$COVERITY_TOKEN \
           --form email=$COV_USER \
           --form file=@build-results.bz2 \
-          --form version="Version" \
-          --form description="Build" \
+          --form version="${{ inputs.build_version }}" \
+          --form description="${{ inputs.build_description }}" \
           https://scan.coverity.com/builds?project=EleutherAI%2Fgpt-neox
 
     - name: Upload Scan Build as Artifact
