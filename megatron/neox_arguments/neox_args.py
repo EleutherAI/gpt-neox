@@ -175,7 +175,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     The first item in the list specifies the attention type(s), and should be a list of strings. The second item
     specifies the number of times to repeat those attention types in the full list.
 
-    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird]
+    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird, "gmlp", "amlp", "flash"]
 
     So a 12 layer network with only global attention could be specified like:
         [[[`global`], 12]]
@@ -646,17 +646,17 @@ class NeoXArgsOther(NeoXArgsTemplate):
     Set during training
     """
 
-    do_train: int = None
+    do_train: bool = None
     """
     Set during training
     """
 
-    do_valid: int = None
+    do_valid: bool = None
     """
     Set during training
     """
 
-    do_test: int = None
+    do_test: bool = None
     """
     Set during training
     """
