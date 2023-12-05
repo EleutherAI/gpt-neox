@@ -2,15 +2,15 @@
 # Make sure `load` is specified somewhere else
 {
   # Text gen type: `input-file`, `unconditional` or `interactive`
-  "text_gen_type": "unconditional",
+  "text_gen_type": "interactive",
   #"load": "/admin/home-ingyu/repos/gpt-neox/checkpoints",
-  "load": "/fsx/polyglot-korean/checkpoints/1-4B",
-  "vocab_file": "/fsx/polyglot-korean/tokenizer/en-code-kr-100k.json",
+  "load": "/fsx/home-jinwooahn/checkpoints/small-scale-12B/",
+  "vocab_file": "/fsx/polyglot-korean/tokenizer/bpe-50k.json",
 
   # Params for all
-  "maximum_tokens": 200,
+  "maximum_tokens": 400,
   "prompt_end": "\n",
-  "temperature": 0.2,
+  "temperature": 0.8,
   "top_p": 0.95,
   "top_k": 50,
   "recompute": false,
@@ -20,6 +20,6 @@
   "num_samples": 5,
 
   # input/output file
-  "sample_input_file": "/admin/home-ingyu/repos/generate/sample_input.txt",
-  "sample_output_file": "/admin/home-ingyu/repos/generate/sample_output.txt",
+  "sample_input_file":  "/admin/home-jinwooahn/repos/sample_input.txt",
+  "sample_output_file": "/admin/home-jinwooahn/repos/sample_output.txt",
 }

@@ -8,14 +8,12 @@
 #SBATCH --gres=gpu:8
 #SBATCH --ntasks-per-node=8         
 #SBATCH --cpus-per-task=12
-#SBATCH --output=/admin/home-jinwooahn/repos/exp/logs/train.out
-#SBATCH --error=/admin/home-jinwooahn/repos/exp/logs/train.err
+#SBATCH --output=/admin/home-jinwooahn/repos/exp/logs/train.out  # 본인 경로에 맞게 수정
+#SBATCH --error=/admin/home-jinwooahn/repos/exp/logs/train.err  # 본인 경로에 맞게 수정
 #SBATCH --account=oslo
 #SBATCH --exclusive
 #SBATCH --exclude=ip-26-0-157-217,ip-26-0-146-53,ip-26-0-146-53,ip-26-0-146-54,ip-26-0-149-136,ip-26-0-149-177,ip-26-0-156-68,ip-26-0-156-88,ip-26-0-157-101,ip-26-0-157-143,ip-26-0-151-33
 
-#TODO: activate conda environment
-#/admin/home-ingyu/conda activate train
 echo "##############################################################"
 lscpu
 grep 'cpu cores' /proc/cpuinfo | uniq
@@ -54,11 +52,11 @@ export COUNT_NODE=`scontrol show hostnames "$SLURM_JOB_NODELIST" | wc -l`
 
 # setup hostfile
 ./generate_hostfile.sh
-export DLTS_HOSTFILE=/admin/home-jinwooahn/repos/exp/hostfiles/hosts_$SLURM_JOBID
+export DLTS_HOSTFILE=/admin/home-jinwooahn/repos/exp/hostfiles/hosts_$SLURM_JOBID  # 본인 경로에 맞게 수정
 
 # cd to gpt-neox dir
 #TRAIN_DIR='/admin/home-ingyu/repos/gpt-neox/'
-TRAIN_DIR='/admin/home-jinwooahn/repos/gpt-neox/'
+TRAIN_DIR='/admin/home-jinwooahn/repos/gpt-neox/'  # 보닌 경로에 맞게 수정
 cd $TRAIN_DIR
 
 #TODO: set this up automatically

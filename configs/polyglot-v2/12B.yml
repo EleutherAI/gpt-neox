@@ -64,13 +64,13 @@
      "min_loss_scale": 1
    },
 
-   "train_iters": 24000,
-   "lr_decay_iters": 24000,
+   "train_iters": 25000,
+   "lr_decay_iters": 25000,
    "distributed_backend": "nccl",
    "lr_decay_style": "cosine",
    "warmup": 0.01,
-   "checkpoint_factor": 2,
-   "keep_last_n_checkpoints": 1,
+   "checkpoint_factor": 1000,
+   "keep_last_n_checkpoints": 2,
    "eval_interval": 1000,
    "eval_iters": 20,
 
