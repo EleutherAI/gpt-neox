@@ -664,7 +664,7 @@ Optimizer Arguments
     Default = None
 
     Max Learning rate during training
-    When using muP, this is the base learning rate
+    When using muP, this is the base lr
 
 
 
