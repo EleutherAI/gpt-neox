@@ -103,6 +103,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     hidden_size: int = None
     """
     Transformer hidden size.
+    When using muP, this is d_model
     """
 
     num_attention_heads: int = None
@@ -1035,17 +1036,17 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Path to the base shapes to save to/load from
     """
 
-    mup_emb: int = 1
+    mup_m_emb: float = 1.0
     """
     Embedding output multiplier
     """
 
-    mup_m_width: int = 1
+    mup_m_width: float = None
     """
     Manually set the layer width multiplier (d_model/d_model,base)
     """
 
-    mup_d_model_base: int = 64
+    mup_d_model_base: int = 256
     """
     d_model,base
     Proxy (base) model's layer width

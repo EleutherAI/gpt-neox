@@ -429,6 +429,7 @@ class ColumnParallelLinear(torch.nn.Module):
         self.stride = stride
         self.mup_rescale_parameters = mup_rescale_parameters
         self.use_mup = neox_args.use_mup
+        self.m_width = neox_args.mup_m_width
 
         # Parameters.
         # Note: torch.nn.functional.linear performs XA^T + b and as a result
@@ -547,8 +548,10 @@ class ColumnParallelLinear(torch.nn.Module):
         )  # if gather_output is True, parallel output is False, so we set the opposite
 
     def forward(self, input_):
+
+        # Y_logits = W_unembed * X / m_width
         if self.use_mup and self.mup_rescale_parameters:
-            input_ /= self.width_mult()
+            input_ /= self.m_width
         # Set up backprop all-reduce.
         input_parallel = copy_to_model_parallel_region(input_)
         # Matrix multiply.
@@ -624,6 +627,7 @@ class RowParallelLinear(torch.nn.Module):
         self.keep_master_weight_for_test = keep_master_weight_for_test
         self.mup_rescale_parameters = mup_rescale_parameters
         self.use_mup = neox_args.use_mup
+        self.m_width = neox_args.mup_m_width
 
         # Parameters.
         # Note: torch.nn.functional.linear performs XA^T + b and as a result
@@ -735,7 +739,7 @@ class RowParallelLinear(torch.nn.Module):
 
     def forward(self, input_):
         if self.use_mup and self.mup_rescale_parameters:
-            input_ /= self.width_mult()
+            input_ /= self.m_width
         # Set up backprop all-reduce.
         if self.input_is_parallel:
             input_parallel = input_
