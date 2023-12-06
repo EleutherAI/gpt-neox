@@ -535,13 +535,15 @@ def get_optimizer(model, neox_args):
     elif neox_args.optimizer_type.lower() == "adam":
         # Use Adam
         if neox_args.use_mup:
-            try:
-                from mup import MuAdam
+            # try:
+            #     from mup import MuAdam
 
-                adam_optimizer = MuAdam
-            except ModuleNotFoundError:
-                print("Please install mup https://github.com/microsoft/mup")
-                raise Exception
+            #     adam_optimizer = MuAdam
+            # except ModuleNotFoundError:
+            #     print("Please install mup https://github.com/microsoft/mup")
+            #     raise Exception
+            from deepspeed.ops.adam import FusedAdam as Adam
+            adam_optimizer = Adam
         else:
             if neox_args.use_bnb_optimizer:
                 try:
@@ -582,6 +584,12 @@ def get_optimizer(model, neox_args):
         )
     else:
         raise ValueError(f"Optimizer type {neox_args.optimizer_type} not recognized")
+
+    # This is where the LR scaling is applied
+    if neox_args.use_mup:
+        for pg in optimizer.param_groups:
+            if ("lr_adjust" in pg) and pg["lr_adjust"] is True:
+                pg["lr"] /= neox_args.mup_m_width
 
     if neox_args.deepspeed:
         # fp16 wrapper is not required for DeepSpeed.
