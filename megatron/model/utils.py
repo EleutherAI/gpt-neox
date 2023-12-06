@@ -18,6 +18,7 @@
 """Utilities for models."""
 
 import torch
+from megatron.mpu import VocabParallelEmbedding
 from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
 from megatron.model.fused_softmax import SoftmaxFusionTypes
 from types import GeneratorType
@@ -28,8 +29,11 @@ def get_params_for_weight_decay_optimization(module, neox_args):
     """Divide params into with-weight-decay and without-weight-decay groups.
     Layernorms and biases will have no weight decay but the rest will.
     """
-    weight_decay_params = {"params": []}
-    no_weight_decay_params = {"params": [], "weight_decay": 0.0}
+    weight_decay_params = {"params": [], "lr_adjust": True}
+    no_weight_decay_params = {"params": [], "lr_adjust": False, "weight_decay": 0.0}
+    embedding_weight_decay_params = {"params": [], "lr_adjust": False}
+    embedding_no_weight_decay_params = {"params": [], "lr_adjust": False, "weight_decay": 0.0}
+
     for module_ in module.modules():
         if any(
             [
@@ -44,26 +48,49 @@ def get_params_for_weight_decay_optimization(module, neox_args):
                 [p for p in list(module_._parameters.values()) if p is not None]
             )
         else:
-            weight_decay_params["params"].extend(
+            if any(
                 [
-                    p
-                    for n, p in list(module_._parameters.items())
-                    if p is not None and n != "bias"
+                    isinstance(module_, VocabParallelEmbedding),
                 ]
-            )
-            no_weight_decay_params["params"].extend(
-                [
-                    p
-                    for n, p in list(module_._parameters.items())
-                    if p is not None and n == "bias"
-                ]
-            )
+            ):
+
+                embedding_weight_decay_params["params"].extend(
+                    [
+                        p
+                        for n, p in list(module_._parameters.items())
+                        if p is not None and n != "bias"
+                    ]
+                )
+                embedding_no_weight_decay_params["params"].extend(
+                    [
+                        p
+                        for n, p in list(module_._parameters.items())
+                        if p is not None and n == "bias"
+                    ]
+                )
+            else:
+
+                weight_decay_params["params"].extend(
+                    [
+                        p
+                        for n, p in list(module_._parameters.items())
+                        if p is not None and n != "bias"
+                    ]
+                )
+                no_weight_decay_params["params"].extend(
+                    [
+                        p
+                        for n, p in list(module_._parameters.items())
+                        if p is not None and n == "bias"
+                    ]
+                )
+
     if neox_args.weight_decay == 0.0:
         # only return a single param group
         # with onebitadam, we want to minimize the calls to compressed_allreduce. Every param group calls it once.
         # to avoid this, only use a single param group when weight decay is off.
         return [no_weight_decay_params]
-    return weight_decay_params, no_weight_decay_params
+    return weight_decay_params, no_weight_decay_params, embedding_weight_decay_params, embedding_no_weight_decay_params
 
 
 def exists(x):
