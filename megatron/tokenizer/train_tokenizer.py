@@ -78,11 +78,12 @@ def train_tokenizer(
     tokenizer.train_from_iterator(json_iterator(input_dir), trainer)
 
     # And Save it
-    tokenizer.save(save_path, pretty=True)
-    print(f"Tokenizer saved at {save_path}")
+    if save_path:
+        tokenizer.save(save_path, pretty=True)
+        print(f"Tokenizer saved at {save_path}")
 
 
-def parse_args():
+def parse_args(input_args=None):
     parser = argparse.ArgumentParser(
         description="script for training a multilingual "
         "HF tokenizer on CC dumps with upweighting for low resource languages"
@@ -111,16 +112,18 @@ def parse_args():
         type=int,
         default=52000,
     )
-    return parser.parse_args()
+    args_parsed = parser.parse_args(input_args)
+    return args_parsed
 
+
+def main(args):
+    train_tokenizer(
+            args.json_input_dir,
+            save_path=args.tokenizer_output_path,
+            tokenizer_type=args.tokenizer_type,
+            vocab_size=args.vocab_size,
+        )
 
 if __name__ == "__main__":
-
     args = parse_args()
-
-    train_tokenizer(
-        args.json_input_dir,
-        save_path=args.tokenizer_output_path,
-        tokenizer_type=args.tokenizer_type,
-        vocab_size=args.vocab_size,
-    )
+    main(args)
