@@ -409,10 +409,10 @@ def get_model(neox_args, use_cache=False):
         if neox_args.mup_m_width == 1:
             neox_args.mup_m_width = neox_args.hidden_size / neox_args.mup_d_model_base
 
-        base_shapes = f"{neox_args.base_shapes_file}.{torch.distributed.get_rank()}"
+        # base_shapes = f"{neox_args.base_shapes_file}.{torch.distributed.get_rank()}"
 
-        if neox_args.save_base_shapes:
-            save_base_shapes(neox_args, base_shapes, use_cache)
+        # if neox_args.save_base_shapes:
+        #     save_base_shapes(neox_args, base_shapes, use_cache)
 
         # mup.set_base_shapes(model, base_shapes)
 
