@@ -585,12 +585,6 @@ def get_optimizer(model, neox_args):
     else:
         raise ValueError(f"Optimizer type {neox_args.optimizer_type} not recognized")
 
-    # This is where the LR scaling is applied
-    if neox_args.use_mup:
-        for pg in optimizer.param_groups:
-            if ("lr_adjust" in pg) and pg["lr_adjust"] is True:
-                pg["lr"] /= neox_args.mup_m_width
-
     if neox_args.deepspeed:
         # fp16 wrapper is not required for DeepSpeed.
         return optimizer, param_groups
@@ -728,6 +722,11 @@ def backward_step(neox_args, timers, optimizer, model, loss):
 
 def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler):
     """Single training step."""
+
+    if neox_args.use_mup:
+        for pg in optimizer.param_groups:
+            if ("lr_adjust" in pg) and pg["lr_adjust"] is True:
+                pg["lr"] /= neox_args.mup_m_width
 
     # Pipeline parallelism schedules forward/backward/step
     if neox_args.is_pipe_parallel:
