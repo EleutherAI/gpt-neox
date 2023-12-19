@@ -3,7 +3,13 @@
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
    "pipe_parallel_size": 1,
-   "model_parallel_size": 1,
+   "model_parallel_size": 2,
+
+   "use_axonn_model_parallelism": true,
+   ## these are the 3 dimensions of AxoNN's TP
+   "depth_model_parallel_size": 1,
+   "row_model_parallel_size": 1,
+   "column_model_parallel_size": 2,
 
    # model settings
    "num_layers": 12,
@@ -39,7 +45,7 @@
 
    # for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
    "zero_optimization": {
-    "stage": 1,
+    "stage": 0,
     "allgather_partitions": True,
     "allgather_bucket_size": 500000000,
     "overlap_comm": True,
@@ -84,11 +90,15 @@
    "eval_iters": 10,
 
    # logging
-   "log_interval": 100,
+   "log_interval": 1,
    "steps_per_print": 10,
    "keep_last_n_checkpoints": 4,
    "wall_clock_breakdown": true,
 
-  #  networking
-  "hostfile": "/mock_path"
+   
+   "data-path": "./data/enwik8/enwik8_text_document",
+   "vocab-file": "./data/gpt2-vocab.json", 
+   "merge-file": "./data/gpt2-merges.txt"
+   #  networking
+   #"hostfile": "/mock_path"
 }

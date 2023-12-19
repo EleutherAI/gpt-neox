@@ -40,6 +40,8 @@ from megatron.model.fused_bias_dropout import (
 )
 from megatron.model.utils import configure_sparse_attention
 
+from axonn.intra_layer import Linear, drop, gather
+
 # flags required to enable jit fusion kernels
 torch._C._jit_set_profiling_mode(False)
 torch._C._jit_set_profiling_executor(False)
@@ -93,30 +95,57 @@ class ParallelMLP(nn.Module):
             if self.activation_type == "geglu"
             else ff_mult * neox_args.hidden_size
         )
-        self.dense_h_to_4h = mpu.ColumnParallelLinear(
-            neox_args=neox_args,
-            input_size=neox_args.hidden_size,
-            output_size=ff_dim,
-            gather_output=False,
-            init_method=init_method,
-            skip_bias_add=True,
-        )
+        if neox_args.use_axonn_model_parallelism:
+            self.dense_h_to_4h = Linear(
+                in_features = neox_args.hidden_size, 
+                out_features = ff_dim,
+                init_method = init_method,
+                skip_bias_add = True
+            )
+        else:
+            self.dense_h_to_4h = mpu.ColumnParallelLinear(
+                neox_args=neox_args,
+                input_size=neox_args.hidden_size,
+                output_size=ff_dim,
+                gather_output=False,
+                init_method=init_method,
+                skip_bias_add=True,
+            )
         ff_dim_in = ff_dim // 2 if self.activation_type == "geglu" else ff_dim
         # Project back to h.
-        self.dense_4h_to_h = mpu.RowParallelLinear(
-            neox_args=neox_args,
-            input_size=ff_dim_in,
-            output_size=neox_args.hidden_size,
-            input_is_parallel=True,
-            init_method=output_layer_init_method,
-            skip_bias_add=True,
-            parallel_output=parallel_output,
-        )
+
+        if neox_args.use_axonn_model_parallelism:
+            self.dense_4h_to_h = Linear(
+                in_features = ff_dim_in,
+                out_features = neox_args.hidden_size,
+                init_method = output_layer_init_method,
+                skip_bias_add = True,
+                transpose=True
+            )
+            assert not parallel_output, "ToDO: Implement axonn support for parallel_output=True (gpt j residual)"
+
+        else:
+            self.dense_4h_to_h = mpu.RowParallelLinear(
+                neox_args=neox_args,
+                input_size=ff_dim_in,
+                output_size=neox_args.hidden_size,
+                input_is_parallel=True,
+                init_method=output_layer_init_method,
+                skip_bias_add=True,
+                parallel_output=parallel_output,
+            )
+            
+        
+        self.use_axonn_model_parallelism = neox_args.use_axonn_model_parallelism
 
     def forward(self, hidden_states):
 
         # [s, b, 4hp]
-        intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
+        if self.use_axonn_model_parallelism:
+            intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states, 
+                    scatter_input=False, gather_output=False)
+        else:
+            intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
 
         if (
             self.activation_type == "gelu" and self.bias_gelu_fusion
@@ -130,7 +159,11 @@ class ParallelMLP(nn.Module):
             )
 
         # [s, b, h]
-        output, output_bias = self.dense_4h_to_h(intermediate_parallel)
+        if self.use_axonn_model_parallelism:
+            output, output_bias = self.dense_4h_to_h(intermediate_parallel, 
+                    scatter_input=False, gather_output=False)
+        else:
+            output, output_bias = self.dense_4h_to_h(intermediate_parallel)
         return output, output_bias
 
 
@@ -162,6 +195,9 @@ class LLaMAParallelMLP(nn.Module):
 
         ff_dim = int(2 * neox_args.hidden_size * 4 / 3)
         ff_dim = self.multiple_of * ((ff_dim + multiple_of - 1) // multiple_of)
+
+        assert not neox_args.use_axonn_model_parallelism, "ToDo: Implement AxoNN TP for LLaMAParallelMLP"
+        
         self.w1 = mpu.ColumnParallelLinear(
             neox_args=neox_args,
             input_size=neox_args.hidden_size,
@@ -275,7 +311,10 @@ class ParallelSelfAttention(nn.Module):
             self.attention_softmax_in_fp32 = True
         self.layer_number = layer_number
         # Per attention head and per partition values.
-        world_size = mpu.get_model_parallel_world_size()
+        if neox_args.use_axonn_model_parallelism:
+            world_size = neox_args.row_model_parallel_size
+        else:
+            world_size = mpu.get_model_parallel_world_size()
         self.hidden_size_per_partition = mpu.divide(neox_args.hidden_size, world_size)
         self.hidden_size_per_attention_head = mpu.divide(
             neox_args.hidden_size, neox_args.num_attention_heads
@@ -286,14 +325,24 @@ class ParallelSelfAttention(nn.Module):
         self.pos_emb = neox_args.pos_emb
 
         # Strided linear layer.
-        self.query_key_value = mpu.ColumnParallelLinear(
-            neox_args=neox_args,
-            input_size=neox_args.hidden_size,
-            output_size=3 * neox_args.hidden_size,
-            gather_output=False,
-            init_method=init_method,
-            bias=neox_args.use_bias_in_attn_linear,
-        )
+        self.use_axonn_model_parallelism = neox_args.use_axonn_model_parallelism
+        if neox_args.use_axonn_model_parallelism:
+            self.query_key_value = Linear(
+                in_features=neox_args.hidden_size,
+                out_features=3 * neox_args.hidden_size,
+                init_method=init_method,
+                bias=neox_args.use_bias_in_attn_linear,
+                skip_bias_add=True
+            )
+        else:
+            self.query_key_value = mpu.ColumnParallelLinear(
+                neox_args=neox_args,
+                input_size=neox_args.hidden_size,
+                output_size=3 * neox_args.hidden_size,
+                gather_output=False,
+                init_method=init_method,
+                bias=neox_args.use_bias_in_attn_linear,
+            )
 
         coeff = None
         self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
@@ -377,16 +426,27 @@ class ParallelSelfAttention(nn.Module):
             self.attention_dropout = nn.Dropout(self.dropout_p)
 
         # Output.
-        self.dense = mpu.RowParallelLinear(
-            neox_args=neox_args,
-            input_size=neox_args.hidden_size,
-            output_size=neox_args.hidden_size,
-            input_is_parallel=True,
-            init_method=output_layer_init_method,
-            skip_bias_add=True,
-            parallel_output=parallel_output,
-            bias=neox_args.use_bias_in_attn_linear,
-        )
+        if neox_args.use_axonn_model_parallelism:
+            self.dense = Linear(
+                in_features=neox_args.hidden_size,
+                out_features=neox_args.hidden_size,
+                init_method=output_layer_init_method,
+                skip_bias_add=True,
+                bias=neox_args.use_bias_in_attn_linear,
+                transpose=True
+            )
+            assert not parallel_output, "ToDO: Implement axonn support for parallel_output=True (gpt j residual)"
+        else:
+            self.dense = mpu.RowParallelLinear(
+                neox_args=neox_args,
+                input_size=neox_args.hidden_size,
+                output_size=neox_args.hidden_size,
+                input_is_parallel=True,
+                init_method=output_layer_init_method,
+                skip_bias_add=True,
+                parallel_output=parallel_output,
+                bias=neox_args.use_bias_in_attn_linear,
+            )
 
     def attention(
         self, query_layer, key_layer, value_layer, layer_past, attention_mask
@@ -625,7 +685,10 @@ class ParallelSelfAttention(nn.Module):
         # =====================
 
         # Attention heads [sq, b, h] --> [sq, b, (np * 3 * hn)]
-        mixed_x_layer, _ = self.query_key_value(hidden_states)
+        if self.use_axonn_model_parallelism:
+            mixed_x_layer, _ = self.query_key_value(hidden_states, scatter_input=False, gather_output=False)
+        else:
+            mixed_x_layer, _ = self.query_key_value(hidden_states)
 
         # [sq, b, (np * 3 * hn)] --> [sq, b, np, 3 * hn]
         new_tensor_shape = mixed_x_layer.size()[:-1] + (
@@ -710,7 +773,10 @@ class ParallelSelfAttention(nn.Module):
         # Output. [sq, b, h]
         # =================
 
-        output, bias = self.dense(context_layer)
+        if self.use_axonn_model_parallelism:
+            output, bias = self.dense(context_layer, scatter_input=False, gather_output=False)
+        else:
+            output, bias = self.dense(context_layer)
 
         if self.use_cache:
             output = [output, present]
@@ -739,11 +805,17 @@ class ParallelTransformerLayer(nn.Module):
 
         super().__init__()
         self.layer_number = layer_number
+        self.is_first_layer = ( layer_number == 0 )
+        self.is_last_layer = ( layer_number == neox_args.num_layers - 1 )
 
         norm, eps = get_norm(neox_args)
 
         # Layernorm on the input data.
-        self.input_layernorm = norm(neox_args.hidden_size, eps=eps)
+        if neox_args.use_axonn_model_parallelism:
+            self.input_layernorm = norm(mpu.divide(neox_args.hidden_size, 
+                neox_args.column_model_parallel_size), eps=eps)
+        else:
+            self.input_layernorm = norm(neox_args.hidden_size, eps=eps)
         self.use_cache = use_cache
 
         self.hidden_dropout = neox_args.hidden_dropout
@@ -771,7 +843,11 @@ class ParallelTransformerLayer(nn.Module):
         # Layernorm on the output of the attention layer.
         # If GPT-J residuals are used, this is surpurfulous but leaving it in
         # leads to cleaner code
-        self.post_attention_layernorm = norm(neox_args.hidden_size, eps=eps)
+        if neox_args.use_axonn_model_parallelism:
+            self.post_attention_layernorm = norm(mpu.divide(neox_args.hidden_size, 
+                neox_args.column_model_parallel_size), eps=eps)
+        else:
+            self.post_attention_layernorm = norm(neox_args.hidden_size, eps=eps)
 
         # MLP
         if neox_args.mlp_type == "regular":
@@ -807,6 +883,9 @@ class ParallelTransformerLayer(nn.Module):
     def forward(self, x, attention_mask, layer_past=None):
         layer_past = layer_past if layer_past is not None else self.layer_past
         bias_dropout_fn = self._get_bias_dropout()
+
+        if self.is_first_layer:
+            x = drop(x, batch_dim=1)
         # x: [b, s, h]
         if self.gpt_j_residual:
             # pseudocode:
@@ -904,6 +983,8 @@ class ParallelTransformerLayer(nn.Module):
                         prob=self.hidden_dropout,
                     )
 
+        if self.is_last_layer:
+            output = gather(output, batch_dim=1)
         return output
 
 

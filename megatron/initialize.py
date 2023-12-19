@@ -29,7 +29,7 @@ from megatron.mpu import set_model_parallel_rank, set_model_parallel_world_size
 
 import deepspeed
 import inspect
-
+from axonn import axonn as ax
 
 def initialize_megatron(neox_args, allow_no_cuda=False):
     """Set initialize distributed and set autoresume and random seeds.
@@ -186,6 +186,26 @@ def _initialize_distributed(neox_args):
                 neox_args.model_parallel_size,
                 topology=topo,
                 fp32_allreduce=neox_args.fp32_allreduce,
+            )
+
+
+
+    if neox_args.use_axonn_model_parallelism:
+        row_mp = neox_args.row_model_parallel_size
+        column_mp = neox_args.column_model_parallel_size
+        depth_mp = neox_args.depth_model_parallel_size
+        assert row_mp * column_mp * depth_mp == neox_args.model_parallel_size, "product of row-model-parallel-size, column-model-parallel-sizem and depth-model-parallel-size should equal model-parallel-size"
+        ax.init(
+                G_inter= pp,
+                G_data = dp,
+                G_intra_r = neox_args.row_model_parallel_size,
+                G_intra_c = neox_args.column_model_parallel_size,
+                G_intra_d = neox_args.depth_model_parallel_size,
+            )
+        print(
+                f"> initialized AxoNN with G_intra_r={neox_args.row_model_parallel_size}," 
+                f"G_intra_c={neox_args.column_model_parallel_size}",
+                f"G_intra_d={neox_args.depth_model_parallel_size}",
             )
 
     # Init DeepSpeed Activation Checkpointing Features
