@@ -20,6 +20,7 @@ from pathlib import Path
 
 import pytest
 import random
+import train
 
 import torch
 import torch.distributed as dist
@@ -104,12 +105,6 @@ def get_config_directory():
 
 def get_configs_with_path(configs):
     return [str(get_config_directory() / cfg) for cfg in configs]
-
-
-def get_test_configs_with_path(configs: list):
-    test_config_dir = Path(__file__).parent / "test_configs"
-    return [str((test_config_dir / cfg).absolute()) for cfg in configs]
-
 
 def clear_test_dirs():
     log_dir = os.path.join(get_root_directory(), TEST_LOG_DIR)
@@ -280,6 +275,26 @@ def model_setup(yaml_list=None, param_dict=None, clear_data=True):
     return model, optimizer, lr_scheduler, args_loaded
 
 
+def simulate_deepy_env(monkeypatch, input_args):
+    from megatron.neox_arguments import NeoXArgs
+    monkeypatch.setenv("WORLD_SIZE", "1")
+    monkeypatch.setenv("RANK", "0")
+    neox_args = NeoXArgs.consume_deepy_args(input_args)
+    deepspeed_main_args = neox_args.get_deepspeed_main_args()
+    return deepspeed_main_args
+
+
+def save_random_model(input_args, model_dir, train_iters=0):
+    # Save randomly initialised model
+    train_args = {
+        "do_train": False,
+        "train_iters": train_iters,
+        "save": model_dir,
+        "extra_save_iters": [train_iters],
+    }
+    train.main(input_args=input_args, overwrite_values=train_args)
+
+
 def bounded_product(sequence, n=None, seed=None):
     """
     Returns a shuffled, bounded cartesian product of the input sequence.
@@ -296,6 +311,21 @@ def bounded_product(sequence, n=None, seed=None):
         random.seed(seed)
     random.shuffle(p)
     return p if n is None else p[:n]
+
+
+def model_setup_simple(deepspeed_main_args, overwrite_values, iteration=None):
+    from megatron.neox_arguments import NeoXArgs
+    from megatron import initialize_megatron
+    from megatron.training import setup_model_and_optimizer
+
+    neox_args = NeoXArgs.consume_neox_args(input_args=deepspeed_main_args, overwrite_values=overwrite_values)
+    neox_args.configure_distributed_args()
+    neox_args.build_tokenizer()
+    initialize_megatron(neox_args=neox_args)
+    model, optimizer, lr_scheduler = setup_model_and_optimizer(
+        neox_args=neox_args, use_cache=False
+    )
+    return model, optimizer, lr_scheduler, neox_args
 
 
 def parametrize(
@@ -352,5 +382,5 @@ def dict_repr(d):
 
 binary = [True, False]
 
-with open(get_test_configs_with_path(["test_train_base.yml"])[0], "r") as f:
+with open("tests/config/test_setup.yml", "r") as f:
     BASE_CONFIG = load(f, Loader=Loader)
