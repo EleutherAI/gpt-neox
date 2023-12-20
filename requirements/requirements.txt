@@ -12,4 +12,4 @@ sentencepiece
 six
 tiktoken>=0.1.2
 tokenizers>=0.12.1
-transformers==4.30.2
+transformers==4.36.0
