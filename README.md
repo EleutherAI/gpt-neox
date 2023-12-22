@@ -577,8 +577,6 @@ To cite the 20 billion parameter model named `GPT-NeoX-20B`, please use
 }
 ```
 
-Citation instructions for other pretrained models can be found [in the appropriate repository](#pretrained-models).
-
 ## Licensing
 
 This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright (c) 2021, EleutherAI. Licensed under the Apache License:
