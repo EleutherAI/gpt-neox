@@ -284,6 +284,16 @@ class ParallelSelfAttention(nn.Module):
             neox_args.num_attention_heads, world_size
         )
         self.pos_emb = neox_args.pos_emb
+        self.use_qk_layernorm = neox_args.use_qk_layernorm
+        if self.use_qk_layernorm:
+            norm, eps = get_norm(neox_args)
+            self.qk_layernorm = norm(
+                [
+                    self.num_attention_heads_per_partition,
+                    self.hidden_size_per_attention_head,
+                ],
+                eps=eps,
+            )
 
         # Strided linear layer.
         self.query_key_value = mpu.ColumnParallelLinear(
@@ -638,6 +648,11 @@ class ParallelSelfAttention(nn.Module):
         (query_layer, key_layer, value_layer) = mpu.split_tensor_along_last_dim(
             mixed_x_layer, 3
         )
+
+        # QK Normalization https://arxiv.org/abs/2302.05442
+        if self.use_qk_layernorm:
+            query_layer = self.qk_layernorm(query_layer)
+            key_layer = self.qk_layernorm(key_layer)
 
         if exists(self.rotary_emb):
             if exists(self.rotary_ndims):
