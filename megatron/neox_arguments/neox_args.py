@@ -125,6 +125,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm".
     """
 
+    use_qk_layernorm: bool = False
+    """
+    Use QK Normalization
+    """
+
     layernorm_epsilon: float = 1.0e-5
     """
     Layer norm epsilon.
