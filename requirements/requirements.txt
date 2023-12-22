@@ -1,5 +1,5 @@
 best_download
-git+https://github.com/EleutherAI/DeeperSpeed.git#egg=deepspeed
+git+https://github.com/EleutherAI/DeeperSpeed.git@b9260436e7da3e297fc6bedfd27d9e69fbba6f5c#egg=deepspeed
 ftfy>=6.0.1
 git+https://github.com/EleutherAI/lm_dataformat.git@4eec05349977071bf67fc072290b95e31c8dd836
 huggingface_hub>=0.11.0
@@ -12,4 +12,4 @@ sentencepiece
 six
 tiktoken>=0.1.2
 tokenizers>=0.12.1
-transformers==4.30.2
+transformers==4.36.0
