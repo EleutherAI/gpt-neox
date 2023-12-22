@@ -526,7 +526,7 @@ The following models were trained using this library:
 - Together.ai's [RedPajama-INCITE (3B and 7B)](https://together.ai/blog/redpajama-models-v1)
 - Carnegie Mellon University's [proofGPT (1.3B and 6.7B)](https://huggingface.co/hoskinson-center/proofGPT-v0.1-6.7B)
 - Dampish's [StellarX (2.8B and 4B)](https://huggingface.co/Dampish/StellarX-4B-V0.2)
-- Oak Ridge National Lab's [FORGE (26B)](https://dl.acm.org/doi/10.1145/3581784.3613215)
+- Oak Ridge National Lab's [FORGE (26B)](https://github.com/at-aaims/forge)
 
 ### Non-English LLMs
 - EleutherAI's [Polyglot-Ko (1.3B through 12.8B)](https://github.com/EleutherAI/polyglot) (Korean)
