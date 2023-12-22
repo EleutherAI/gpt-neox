@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = bb1b145
+    Default = a97a984
 
     current git hash of repository
 
@@ -258,6 +258,14 @@ Model Arguments
     Default = layernorm
 
     Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm".
+
+
+
+- **use_qk_layernorm**: bool
+
+    Default = False
+
+    Use QK Normalization
 
 
 
