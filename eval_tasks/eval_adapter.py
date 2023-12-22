@@ -406,7 +406,6 @@ class EvalHarnessAdapter(HFLM):
                 "winogrande",
                 "mathqa",
                 "pubmedqa",
-                "triviaqa",
             ]
 
         # register all the default tasks bundled with lm-evaluation-harness repository
@@ -426,6 +425,8 @@ class EvalHarnessAdapter(HFLM):
         eval_tasks = pattern_match(eval_tasks, tasks.ALL_TASKS)
         print(f"Found tasks: {eval_tasks}")
 
+        assert len(eval_tasks) > 0, "Must run at least one task"
+
         # **HACK INCOMING**:
         # first get task dict on local main rank
         # the tasks are downloaded *as they are initialized*, and the downloads don't like multithreading.
@@ -439,24 +440,66 @@ class EvalHarnessAdapter(HFLM):
 
         lm = self
 
-        results = evaluator.simple_evaluate(
-            model=lm,
-            tasks=eval_tasks,
-            num_fewshot=num_fewshot,
+        if use_cache:
+            use_cache = 'lm_cache/neox' + '_dp_rank' + str(self._dp_rank) + '_dp_group' + str(self._dp_group) + '.db'
+            print(f"Using cache at {use_cache}...")
+            lm = lm_eval.api.model.CachingLM(
+                lm,
+                use_cache
+                # each rank receives a different cache db.
+                # necessary to avoid multiple writes to cache at once
+                # TODO: Append a subset of `neox_args` to the cache database
+                # name arg to distinguish model runs that use different configurations.
+            )
+
+        # from simple_evaluate:
+        # override fewshot values for all tasks we can
+        for task_name in task_dict.keys():
+            task_obj = task_dict[task_name]
+            if type(task_obj) == tuple:
+                group, task_obj = task_obj
+                if task_obj is None:
+                    continue
+
+            config = task_obj._config
+
+            if num_fewshot is not None:
+                if config["num_fewshot"] == 0:
+                    utils.eval_logger.info(
+                        f"num_fewshot has been set to 0 for {task_name} in its config. Manual configuration will be ignored."
+                    )
+                else:
+                    default_num_fewshot = config["num_fewshot"]
+                    if not default_num_fewshot:
+                        utils.eval_logger.warning(
+                            f"Overwriting default num_fewshot of {task_name} from {default_num_fewshot} to {num_fewshot}"
+                        )
+
+                    task_obj._config["num_fewshot"] = num_fewshot
+
+        results = evaluator.evaluate(
+            lm=lm,
+            task_dict=task_dict,
             limit=10, #limit,
             bootstrap_iters=bootstrap_iters,
-            use_cache="lm_cache/" + name + ".db" if use_cache else None
-            # TODO: Append a subset of `neox_args` to the cache database
-            # name arg to distinguish model runs that use different configurations.
+            log_samples=False,
         )
 
-        results["config"].update({
+        results["config"] = {
             "model": name,
             "model_args": dataclasses.asdict(self.neox_args),
-            "num_fewshot": num_fewshot,
             "batch_size": self.batch_size,
             "device": str(self.device),
-        })
+            "use_cache": use_cache,
+            "limit": limit,
+            "bootstrap_iters": bootstrap_iters,
+        }
+        results["git_hash"] = utils.get_git_commit_hash()
+
+        print(results.keys())
+        for task_name in task_dict.keys():
+            if "alias" in results["results"][task_name]:
+                results["results"][task_name].pop("alias")
 
         if was_training:
             self.model.train()
