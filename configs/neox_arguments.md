@@ -261,6 +261,14 @@ Model Arguments
 
 
 
+- **use_qk_layernorm**: bool
+
+    Default = False
+
+    Use QK Normalization
+
+
+
 - **layernorm_epsilon**: float
 
     Default = 1e-05
