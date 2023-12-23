@@ -238,7 +238,7 @@ All functionality should be launched using `deepy.py`, a wrapper around the `dee
 
 We currently offer three main functions:
 1. `train.py` is used for training and finetuning models.
-2. `evaluate.py` is used to evaluate a trained model using the [language model evaluation harness](https://github.com/EleutherAI/lm-evaluation-harness).
+2. `eval.py` is used to evaluate a trained model using the [language model evaluation harness](https://github.com/EleutherAI/lm-evaluation-harness).
 3. `generate.py` is used to sample text from a trained model.
 
 which can be launched with:
@@ -435,7 +435,7 @@ GPT-NeoX supports evaluation on downstream tasks through the [language model eva
 To evaluate a trained model on the evaluation harness, simply run:
 
 ```bash
-python ./deepy.py evaluate.py -d configs your_configs.yml --eval_tasks task1 task2 ... taskn
+python ./deepy.py eval.py -d configs your_configs.yml --eval_tasks task1 task2 ... taskn
 ```
 
 where `--eval_tasks` is a list of evaluation tasks followed by spaces, e.g `--eval_tasks lambada hellaswag piqa sciq`. For details of all tasks available, refer to the [lm-evaluation-harness repo](https://github.com/EleutherAI/lm-evaluation-harness).
