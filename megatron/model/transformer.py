@@ -340,6 +340,7 @@ class ParallelSelfAttention(nn.Module):
         else:
             self.rotary_emb = None
 
+        self.rope_fusion = neox_args.rope_fusion
         self.attention_type = neox_args.attention_config[layer_number]
         self.use_flash_attention = self.attention_type == "flash"
         self.sparse = self.attention_type not in ("global", "flash")
