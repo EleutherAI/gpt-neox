@@ -8,6 +8,8 @@ from typing import Optional, Sequence, Union, Any, Dict, List
 import torch
 import numpy as np
 
+import base64
+
 # TAKEN FROM MOSAICML LLM-FOUNDRY
 # https://github.com/mosaicml/llm-foundry/blob/main/llmfoundry/data/text_data.py#L23C1-L192C28
 class StreamingTextDataset(StreamingDataset):
@@ -198,13 +200,17 @@ def build_streaming_dataset(split, neox_args=None):
 
     streams = []
     for i, path in enumerate(data_paths): 
+        remote = path if "s3://" in path else None
+        local=path if "s3://" not in path else f"/tmp/{path[5:]}"
+        print(remote, local)
         streams.append(
             Stream(
                 remote=path if "s3://" in path else None,
-                local=path, # TODO: right now, only support local datasets.
+                local=path if "s3://" not in path else f"/tmp/{path[5:]}",
                 proportion=data_weights[i] if data_weights else None, # support for upsampling
             )
         )
+        print()
     
     return StreamingTextDataset(
         max_seq_len=neox_args.seq_length + 1,
