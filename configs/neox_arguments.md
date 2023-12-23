@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 2da1083
+    Default = 589323d
 
     current git hash of repository
 
@@ -436,6 +436,14 @@ Model Arguments
     Default = False
 
     Enable bias and dropout fusion.
+
+
+
+- **rope_fusion**: bool
+
+    Default = False
+
+    Enable rotary embedding fusion.
 
 
 
@@ -800,7 +808,7 @@ Misc. Arguments
 
 
 
-- **do_train**: int
+- **do_train**: bool
 
     Default = None
 
@@ -808,7 +816,7 @@ Misc. Arguments
 
 
 
-- **do_valid**: int
+- **do_valid**: bool
 
     Default = None
 
@@ -816,7 +824,7 @@ Misc. Arguments
 
 
 
-- **do_test**: int
+- **do_test**: bool
 
     Default = None
 
