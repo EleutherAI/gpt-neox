@@ -867,7 +867,6 @@ def train(
                 optimizer=optimizer,
                 lr_scheduler=lr_scheduler,
             )
-
         # Evaluation
         if (
             neox_args.eval_interval
@@ -1006,6 +1005,9 @@ def evaluate_and_print_results(
     string = f" {chart_name} results at {prefix} | "
     for k, v in total_loss_dict.items():
         if isinstance(v, dict):
+            if neox_args.eval_tasks and "results" in v:
+                v = v["results"]
+                print(v)
             for k2, v2 in v.items():
                 k3 = "_".join([k, k2])
                 string += f"{k3} value: {v2:.6E} | "
