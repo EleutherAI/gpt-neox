@@ -484,3 +484,62 @@ class CharCounter:
         end = time.time()
         self.total_time += end - start
         return batch
+
+
+def _kernel_make_viewless_tensor(inp, requires_grad):
+    """Make a viewless tensor.
+
+    View tensors have the undesirable side-affect of retaining a reference
+    to the originally-viewed tensor, even after manually setting the '.data'
+    field. This method creates a new tensor that links to the old tensor's
+    data, without linking the viewed tensor, referenced via the '._base'
+    field.
+    """
+    out = torch.empty(
+        (1,),
+        dtype=inp.dtype,
+        device=inp.device,
+        requires_grad=requires_grad,
+    )
+    out.data = inp.data
+    return out
+
+
+class MakeViewlessTensor(torch.autograd.Function):
+    """
+    Autograd function to make a viewless tensor.
+
+    This function should be used in cases where the computation graph needs
+    to be propagated, but we only want a viewless tensor (e.g.,
+    ParallelTransformer's hidden_states). Call this function by passing
+    'keep_graph = True' to 'make_viewless_tensor()'.
+    """
+
+    @staticmethod
+    def forward(ctx, inp, requires_grad):
+        return _kernel_make_viewless_tensor(inp, requires_grad)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        return grad_output, None
+
+
+def make_viewless_tensor(inp, requires_grad, keep_graph):
+    """
+    Entry-point for creating viewless tensors.
+
+    This method should be used, rather than calling 'MakeViewlessTensor'
+    or '_kernel_make_viewless_tensor' directly. This method acts as a
+    switch for determining if an autograd function or a regular method
+    should be used to create the tensor.
+    """
+
+    # return tensor as-is, if not a 'view'
+    if inp._base is None:
+        return inp
+
+    # create viewless tensor
+    if keep_graph:
+        return MakeViewlessTensor.apply(inp, requires_grad)
+    else:
+        return _kernel_make_viewless_tensor(inp, requires_grad)

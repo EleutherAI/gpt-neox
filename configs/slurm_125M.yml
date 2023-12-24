@@ -12,6 +12,7 @@
    "scaled_upper_triang_masked_softmax_fusion": true,
    "bias_gelu_fusion": true,
    "rope_fusion": false,
+   "layernorm_fusion": true,
    "optimizer": {
      "type": "Adam",
      "params": {
