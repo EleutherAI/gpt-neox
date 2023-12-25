@@ -36,3 +36,4 @@ repos:
               --check-filenames,
               --check-hidden,
           ]
+        exclude: tests/data/hf_cache/tokenizer/gpt2.json

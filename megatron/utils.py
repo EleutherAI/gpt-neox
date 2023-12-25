@@ -405,11 +405,7 @@ def get_total_params(model):
     return total_n_parameters
 
 
-def setup_for_inference_or_eval(
-    use_cache=True,
-    overwrite_values=None,
-    input_args=None
-):
+def setup_for_inference_or_eval(use_cache=True, overwrite_values=None, input_args=None):
     """
     Initializes the model for evaluation or inference (doesn't load optimizer states, etc.) from command line args.
 
@@ -432,7 +428,9 @@ def setup_for_inference_or_eval(
     }
     if overwrite_values:
         _overwrite_values.update(overwrite_values)
-    neox_args = NeoXArgs.consume_neox_args(overwrite_values=_overwrite_values,input_args=input_args)
+    neox_args = NeoXArgs.consume_neox_args(
+        overwrite_values=_overwrite_values, input_args=input_args
+    )
     neox_args.configure_distributed_args()
     neox_args.build_tokenizer()
 

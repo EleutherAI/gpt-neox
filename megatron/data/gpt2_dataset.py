@@ -82,16 +82,22 @@ class GPT2Dataset(torch.utils.data.Dataset):
             offset_f = self.sample_idx[idx][1]
             offset_l = self.sample_idx[idx + 1][1]
             # Labels and texts are supposed to be fully in sync.
-            datasets = [self.indexed_dataset] if self.label_dataset is None else [self.indexed_dataset, self.label_dataset]
+            datasets = (
+                [self.indexed_dataset]
+                if self.label_dataset is None
+                else [self.indexed_dataset, self.label_dataset]
+            )
             samples = []
             # If we are within the same document, just extract the chunk.
             for n, dataset in enumerate(datasets):
                 if doc_index_f == doc_index_l:
-                    samples.append(dataset.get(
-                        self.doc_idx[doc_index_f],
-                        offset=offset_f,
-                        length=offset_l - offset_f + 1,
-                    ))
+                    samples.append(
+                        dataset.get(
+                            self.doc_idx[doc_index_f],
+                            offset=offset_f,
+                            length=offset_l - offset_f + 1,
+                        )
+                    )
                 else:
                     # Otherwise, get the rest of the initial document.
                     sample_list = [
@@ -102,16 +108,17 @@ class GPT2Dataset(torch.utils.data.Dataset):
                         sample_list.append(dataset.get(self.doc_idx[i]))
                     # And finally add the relevant portion of last document.
                     sample_list.append(
-                        dataset.get(
-                            self.doc_idx[doc_index_l], length=offset_l + 1
-                        )
+                        dataset.get(self.doc_idx[doc_index_l], length=offset_l + 1)
                     )
                     samples.append(np.concatenate(sample_list))
 
             if len(datasets) == 1:
                 return {"text": np.array(samples[0], dtype=np.int64)}
             else:
-                return {"text": np.array(samples[0], dtype=np.int64), "label": np.array(samples[1], dtype=np.int64)}
+                return {
+                    "text": np.array(samples[0], dtype=np.int64),
+                    "label": np.array(samples[1], dtype=np.int64),
+                }
         except IndexError:
             new_idx = idx % len(self)
             print(

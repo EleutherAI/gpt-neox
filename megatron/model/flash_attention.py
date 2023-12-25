@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from flash_attn import flash_attn_triton
-import flash_attn_2_cuda as flash_attn_cuda # For flash_attn version 2.1.1
+import flash_attn_2_cuda as flash_attn_cuda  # For flash_attn version 2.1.1
 
 
 def flash_attn_unpadded_unpacked_func_triton(
@@ -480,7 +480,16 @@ def _flash_attn_varlen_forward(
 ):
     maybe_contiguous = lambda x: x.contiguous() if x.stride(-1) != 1 else x
     q, k, v = [maybe_contiguous(x) for x in (q, k, v)]
-    out, q, k, v, out_padded, softmax_lse, S_dmask, rng_state = flash_attn_cuda.varlen_fwd(
+    (
+        out,
+        q,
+        k,
+        v,
+        out_padded,
+        softmax_lse,
+        S_dmask,
+        rng_state,
+    ) = flash_attn_cuda.varlen_fwd(
         q,
         k,
         v,
@@ -551,10 +560,28 @@ def _flash_attn_varlen_backward(
 
 class FlashAttnVarlenQKVPackedFunc(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, qkv, cu_seqlens, max_seqlen, dropout_p, softmax_scale, causal, return_softmax):
+    def forward(
+        ctx,
+        qkv,
+        cu_seqlens,
+        max_seqlen,
+        dropout_p,
+        softmax_scale,
+        causal,
+        return_softmax,
+    ):
         if softmax_scale is None:
             softmax_scale = qkv.shape[-1] ** (-0.5)
-        out, q, k, v, out_padded, softmax_lse, S_dmask, rng_state = _flash_attn_varlen_forward(
+        (
+            out,
+            q,
+            k,
+            v,
+            out_padded,
+            softmax_lse,
+            S_dmask,
+            rng_state,
+        ) = _flash_attn_varlen_forward(
             qkv[:, 0],
             qkv[:, 1],
             qkv[:, 2],
@@ -661,7 +688,16 @@ class FlashAttnVarlenKVPackedFunc(torch.autograd.Function):
     ):
         if softmax_scale is None:
             softmax_scale = q.shape[-1] ** (-0.5)
-        out, q, k, v, out_padded, softmax_lse, S_dmask, rng_state = _flash_attn_varlen_forward(
+        (
+            out,
+            q,
+            k,
+            v,
+            out_padded,
+            softmax_lse,
+            S_dmask,
+            rng_state,
+        ) = _flash_attn_varlen_forward(
             q,
             kv[:, 0],
             kv[:, 1],
@@ -686,7 +722,16 @@ class FlashAttnVarlenKVPackedFunc(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, dout, *args):
-        q, k, v, out, softmax_lse, cu_seqlens_q, cu_seqlens_k, rng_state = ctx.saved_tensors
+        (
+            q,
+            k,
+            v,
+            out,
+            softmax_lse,
+            cu_seqlens_q,
+            cu_seqlens_k,
+            rng_state,
+        ) = ctx.saved_tensors
         dq = torch.empty_like(q)
         kv_shape = k.shape[:-2] + (2, *k.shape[-2:])
         dkv = torch.empty(kv_shape, dtype=k.dtype, device=k.device)
