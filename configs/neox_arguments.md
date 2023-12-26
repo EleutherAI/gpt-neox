@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 79befef
+    Default = 31cb364
 
     current git hash of repository
 
@@ -1143,7 +1143,7 @@ Training Arguments
 
 - **weighted_sampler_alpha**: float
 
-    Default = 0.3
+    Default = 1.0
 
     Alpha value for `weight_by_num_documents`. Only has an effect if `weight_by_num_documents` = True.
 
@@ -1373,7 +1373,7 @@ Training Arguments
 
 - **attention_dropout**: float
 
-    Default = 0.1
+    Default = 0.0
 
     Post attention dropout probability.
 
@@ -1381,7 +1381,7 @@ Training Arguments
 
 - **hidden_dropout**: float
 
-    Default = 0.1
+    Default = 0.0
 
     Dropout probability for hidden state transformer.
 
@@ -1389,7 +1389,7 @@ Training Arguments
 
 - **weight_decay**: float
 
-    Default = 0.01
+    Default = 0.1
 
     Weight decay coefficient for L2 regularization.
 
@@ -1470,7 +1470,7 @@ Training Arguments
 
 - **clip_grad**: float
 
-    Default = None
+    Default = 1.0
 
     Gradient clipping based on global L2 norm.
 
