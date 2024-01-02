@@ -35,7 +35,7 @@ from megatron.model.positional_embeddings import (
 )
 from megatron.model.fused_rope import (
     FusedRoPEFunc,
-    fused_apply_rotary_pos_emb,
+    fused_apply_rotary_pos_emb_cached,
 )
 from megatron.model.fused_bias_dropout import (
     get_bias_dropout_add,
@@ -674,23 +674,25 @@ class ParallelSelfAttention(nn.Module):
                 # full rotary
                 query_rot, key_rot = query_layer, key_layer
 
-            if self.rope_fusion:
-                apply_rotary_fn = fused_apply_rotary_pos_emb
-            else:            
-                if self.bf16:
-                    apply_rotary_fn = apply_rotary_pos_emb_torch
-                else:
-                    apply_rotary_fn = apply_rotary_pos_emb
-            
             seq_len = key_layer.shape[0]
             offset = 0
             if exists(layer_past) and layer_past.numel() > 0:
                 offset = layer_past[0].shape[0]
                 seq_len += offset
             cos, sin = self.rotary_emb(value_layer, seq_len=seq_len)
-            query_layer, key_layer = apply_rotary_fn(
-                query_rot, key_rot, cos, sin, offset=offset
-            )
+            if self.rope_fusion:
+                query_layer, key_layer = (
+                    fused_apply_rotary_pos_emb_cached(rot, cos, sin)
+                    for rot in [query_rot, key_rot]
+                )
+            else:
+                if self.bf16:
+                    apply_rotary_fn = apply_rotary_pos_emb_torch
+                else:
+                    apply_rotary_fn = apply_rotary_pos_emb
+                query_layer, key_layer = apply_rotary_fn(
+                    query_rot, key_rot, cos, sin, offset=offset
+                )
 
             if exists(self.rotary_ndims):
                 query_layer = torch.cat((query_layer, query_pass), dim=-1)
