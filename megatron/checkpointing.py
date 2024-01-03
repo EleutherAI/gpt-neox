@@ -392,9 +392,10 @@ def load_checkpoint(
     if neox_args.finetune:
         iteration = 0
     else:
-        iteration = state_dict.get("iteration") or state_dict.get(
-            "total_iters"
-        )  # total_iters backward compatible with older checkpoints
+        if "iteration" in state_dict:
+            iteration = state_dict["iteration"]
+        else:
+            iteration = state_dict.get("total_iters") # total_iters backward compatible with older checkpoints
         if iteration is None:
             raise ValueError(
                 f"Unable to load iteration from checkpoint {checkpoint_name} with keys {state_dict.keys()}, exiting"

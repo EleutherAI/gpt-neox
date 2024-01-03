@@ -111,7 +111,11 @@ Logging Arguments
 
 - **git_hash**: str
 
+<<<<<<< HEAD
     Default = 02687a8
+=======
+    Default = 31cb364
+>>>>>>> e5a7ea71e96eeada636c9612036dc85e886d973d
 
     current git hash of repository
 
@@ -258,6 +262,14 @@ Model Arguments
     Default = layernorm
 
     Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm".
+
+
+
+- **use_qk_layernorm**: bool
+
+    Default = False
+
+    Use QK Normalization
 
 
 
@@ -802,7 +814,7 @@ Misc. Arguments
 
 
 
-- **do_train**: int
+- **do_train**: bool
 
     Default = None
 
@@ -810,7 +822,7 @@ Misc. Arguments
 
 
 
-- **do_valid**: int
+- **do_valid**: bool
 
     Default = None
 
@@ -818,7 +830,7 @@ Misc. Arguments
 
 
 
-- **do_test**: int
+- **do_test**: bool
 
     Default = None
 
@@ -1137,7 +1149,7 @@ Training Arguments
 
 - **weighted_sampler_alpha**: float
 
-    Default = 0.3
+    Default = 1.0
 
     Alpha value for `weight_by_num_documents`. Only has an effect if `weight_by_num_documents` = True.
 
@@ -1367,7 +1379,7 @@ Training Arguments
 
 - **attention_dropout**: float
 
-    Default = 0.1
+    Default = 0.0
 
     Post attention dropout probability.
 
@@ -1375,7 +1387,7 @@ Training Arguments
 
 - **hidden_dropout**: float
 
-    Default = 0.1
+    Default = 0.0
 
     Dropout probability for hidden state transformer.
 
@@ -1383,7 +1395,7 @@ Training Arguments
 
 - **weight_decay**: float
 
-    Default = 0.01
+    Default = 0.1
 
     Weight decay coefficient for L2 regularization.
 
@@ -1464,7 +1476,7 @@ Training Arguments
 
 - **clip_grad**: float
 
-    Default = None
+    Default = 1.0
 
     Gradient clipping based on global L2 norm.
 

@@ -237,7 +237,7 @@ class NeoXArgs(*BASE_CLASSES):
     # start of command line args interface
 
     @classmethod
-    def consume_deepy_args(cls):
+    def consume_deepy_args(cls, input_args=None):
         """
         entry point for deepy.py configuring and consuming command line arguments.
 
@@ -293,13 +293,13 @@ class NeoXArgs(*BASE_CLASSES):
             type=str,
             nargs="+",
             default=None,
-            help="Optionally overwrite eval tasks to run for evaluate.py",
+            help="Optionally overwrite eval tasks to run for eval.py",
         )
         group.add_argument(
             "--iteration",
             type=int,
             default=None,
-            help="Iteration to load checkpoint from in evaluate.py / generate.py. If None is provided, uses the latest iteration.",
+            help="Iteration to load checkpoint from in the eval.py and generate.py scripts. If None is provided, uses the latest iteration.",
         )
         group.add_argument(
             "--eval_results_prefix",
@@ -339,8 +339,7 @@ class NeoXArgs(*BASE_CLASSES):
             choices=("tune", "run"),
             help="Use DeepSpeed's autotuning feature to optimize certain hyperparameters. For more details refer to documentation here: https://www.deepspeed.ai/tutorials/autotuning/",
         )
-
-        args_parsed = parser.parse_args()
+        args_parsed = parser.parse_args(input_args)
 
         # Validate user_script exists
         assert os.path.exists(
@@ -394,7 +393,7 @@ class NeoXArgs(*BASE_CLASSES):
         return neox_args
 
     @classmethod
-    def consume_neox_args(cls, overwrite_values=None):
+    def consume_neox_args(cls, overwrite_values=None, input_args=None):
         """
         Deepspeed launcher needs to pass the arguments for `pretrain_gpt2.py` across to all machines.
 
@@ -419,7 +418,7 @@ class NeoXArgs(*BASE_CLASSES):
             default=None,
             help="Only need this (at this stage) for autotuning",
         )
-        args_parsed, _ = parser.parse_known_args()
+        args_parsed, _ = parser.parse_known_args(input_args)
         megatron_config = json.loads(
             base64.urlsafe_b64decode(args_parsed.megatron_config).decode("utf-8")
         )

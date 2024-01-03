@@ -126,6 +126,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm".
     """
 
+    use_qk_layernorm: bool = False
+    """
+    Use QK Normalization
+    """
+
     layernorm_epsilon: float = 1.0e-5
     """
     Layer norm epsilon.
@@ -644,17 +649,17 @@ class NeoXArgsOther(NeoXArgsTemplate):
     Set during training
     """
 
-    do_train: int = None
+    do_train: bool = None
     """
     Set during training
     """
 
-    do_valid: int = None
+    do_valid: bool = None
     """
     Set during training
     """
 
-    do_test: int = None
+    do_test: bool = None
     """
     Set during training
     """
@@ -772,7 +777,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     See https://arxiv.org/abs/1911.02116 for more details
     """
 
-    weighted_sampler_alpha: float = 0.3
+    weighted_sampler_alpha: float = 1.0
     """
     Alpha value for `weight_by_num_documents`. Only has an effect if `weight_by_num_documents` = True.
 
@@ -921,17 +926,17 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Exit the program after the iteration is divisible by this value.
     """
 
-    attention_dropout: float = 0.1
+    attention_dropout: float = 0.0
     """
     Post attention dropout probability.
     """
 
-    hidden_dropout: float = 0.1
+    hidden_dropout: float = 0.0
     """
     Dropout probability for hidden state transformer.
     """
 
-    weight_decay: float = 0.01
+    weight_decay: float = 0.1
     """
     Weight decay coefficient for L2 regularization.
     """
@@ -980,7 +985,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     gas: int = None
     """gradient_accumulation_steps"""  # TODO this is a duplicate, remove?
 
-    clip_grad: float = None
+    clip_grad: float = 1.0
     """
     Gradient clipping based on global L2 norm.
     """

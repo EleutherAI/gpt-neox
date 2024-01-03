@@ -24,7 +24,7 @@ options:
 ## HuggingFace Scripts
 
 ### `convert_hf_to_sequential.py` 
-A script for converting publicly available Huggingface (HF) checkpoints NeoX format.
+A script for converting publicly available Huggingface (HF) checkpoints to NeoX format.
 
 Note that this script requires access to corresponding config files for equivalent NeoX models to those found in Hugging face.
 

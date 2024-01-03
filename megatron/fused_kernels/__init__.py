@@ -16,7 +16,6 @@ import os
 import pathlib
 import subprocess
 
-from torch.utils import cpp_extension
 from pathlib import Path
 
 srcpath = Path(__file__).parent.absolute()

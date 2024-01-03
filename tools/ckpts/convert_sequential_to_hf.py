@@ -301,12 +301,7 @@ def convert(input_checkpoint_path, loaded_config, output_checkpoint_path):
     return hf_model
 
 
-if __name__ == "__main__":
-
-    # before running script:
-    # `pip install --upgrade transformers`
-    # `huggingface-cli login`
-    #
+def main(input_args=None, overwrite_values=None):
     from huggingface_hub import create_repo, HfApi
 
     parser = argparse.ArgumentParser(
@@ -332,10 +327,12 @@ if __name__ == "__main__":
         action="store_true",
         help="Set to true in order to upload to the HF Hub directly.",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(input_args)
 
     with open(args.config_file) as f:
         loaded_config = yaml.full_load(f)
+        if overwrite_values:
+            loaded_config.update(overwrite_values)
 
     hf_model = convert(args.input_dir, loaded_config, args.output_dir)
 
@@ -373,3 +370,12 @@ if __name__ == "__main__":
             repo_id=repo_name,
             repo_type="model",
         )
+
+
+if __name__ == "__main__":
+
+    # before running script:
+    # `pip install --upgrade transformers`
+    # `huggingface-cli login`
+    #
+    main()
