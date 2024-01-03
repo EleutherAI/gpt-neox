@@ -10,7 +10,7 @@ import pandas as pd
 import torch
 import torch.nn.functional as F
 
-from mup import coord_check as mup_coord_check
+# from mup import coord_check as mup_coord_check
 from megatron.training import train_step
 
 
@@ -39,31 +39,44 @@ def _get_coord_data(
 ):
     df = []
 
+    def word_embedding_coord_check_hook(module, input, output):
+        with torch.no_grad():
+            word_embedding_act_abs_mean_list.append(output.abs().mean().item())
+
     for i in range(nseeds):
         torch.manual_seed(i)
         for width, model in models.items():
             model = model()
             model.train()
-            optimizer = optcls(model)
+            # optimizer = optcls(model)
+            optimizer, _ = optcls(model, neox_args)
             for step in range(nsteps + 1):
+                word_embedding_act_abs_mean_list = []
                 remove_hooks = []
                 # add hooks
-                for name, module in model.named_modules():
-                    if filter_module_by_name and not filter_module_by_name(name):
-                        continue
-                    remove_hooks.append(
-                        module.register_forward_hook(
-                            mup_coord_check._record_coords(
-                                df,
-                                width,
-                                name,
-                                step + 1,
-                                output_fdict=output_fdict,
-                                input_fdict=input_fdict,
-                                param_fdict=param_fdict,
-                            )
-                        )
-                    )
+                # for name, module in model.named_modules():
+                #     if name.endswith(".embedding.word_embeddings"):
+                #         print("yess")
+                #         import sys; sys.exit
+                #         remove_hook.append(
+                #             module.register_forward_hook(word_embedding_coord_check_hook))
+
+                #     # if filter_module_by_name and not filter_module_by_name(name):
+                #     #     continue
+                #     # pass
+                #     # remove_hooks.append(
+                #     #     module.register_forward_hook(
+                #     #         mup_coord_check._record_coords(
+                #     #             df,
+                #     #             width,
+                #     #             name,
+                #     #             step + 1,
+                #     #             output_fdict=output_fdict,
+                #     #             input_fdict=input_fdict,
+                #     #             param_fdict=param_fdict,
+                #     #         )
+                #     #     )
+                #     # )
 
                 # train for a step
                 loss_dict, skipped_iter = train_step(
@@ -79,6 +92,8 @@ def _get_coord_data(
                 for handle in remove_hooks:
                     handle.remove()
 
+            print("word_embedding_act_abs_mean_list")
+            print(word_embedding_act_abs_mean_list)
             import gc
 
             del model
@@ -180,9 +195,10 @@ def get_coord_data(
     if lr is None:
         lr = 0.1 if optimizer == "sgd" else 1e-3
     if mup:
-        from mup.optim import MuAdam as Adam
-        from mup.optim import MuAdamW as AdamW
-        from mup.optim import MuSGD as SGD
+        # from mup.optim import MuAdam as Adam
+        # from mup.optim import MuAdamW as AdamW
+        # from mup.optim import MuSGD as SGD
+        from deepspeed.ops.adam import FusedAdam as Adam
     else:
         from torch.optim import SGD, Adam, AdamW
 
@@ -195,14 +211,15 @@ def get_coord_data(
                     params.append(p)
         return params
 
-    if optimizer == "sgd":
-        optcls = lambda model: SGD(get_trainable(model), lr=lr)
-    elif optimizer == "adam":
-        optcls = lambda model: Adam(get_trainable(model), lr=lr)
-    elif optimizer == "adamw":
-        optcls = lambda model: AdamW(get_trainable(model), lr=lr)
-    elif optimizer is None:
-        raise ValueError("optimizer should be sgd|adam|adamw or a custom function")
+    # if optimizer == "sgd":
+    #     optcls = lambda model: SGD(get_trainable(model), lr=lr)
+    # elif optimizer == "adam":
+    #     optcls = lambda model: Adam(get_trainable(model), lr=lr)
+    # elif optimizer == "adamw":
+    #     optcls = lambda model: AdamW(get_trainable(model), lr=lr)
+    # elif optimizer is None:
+    #     raise ValueError("optimizer should be sgd|adam|adamw or a custom function")
+    optcls = optimizer
 
     data = _get_coord_data(
         neox_args, timers, lr_scheduler, models, dataloader, optcls, **kwargs

@@ -126,7 +126,7 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
 
 def mup_coord_check(neox_args, timers, lr_scheduler, train_data_iterator):
     from megatron.mup_substitute import get_coord_data
-    from mup.coord_check import plot_coord_data
+    # from mup.coord_check import plot_coord_data
 
     def lazy_model(hidden_size):
         def gen():
@@ -149,17 +149,19 @@ def mup_coord_check(neox_args, timers, lr_scheduler, train_data_iterator):
     for hidden_size in (neox_args.num_attention_heads * (2**p) for p in range(2, 9)):
         models[hidden_size] = lazy_model(hidden_size)
 
+    # optimizer, _ = get_optimizer(model, neox_args)
+
     neox_args.use_mup = True
     df_up = get_coord_data(
-        neox_args, timers, lr_scheduler, models, train_data_iterator, mup=True
+        neox_args, timers, lr_scheduler, models, train_data_iterator, mup=True, optimizer=get_optimizer
     )
     neox_args.use_mup = False
     df_sp = get_coord_data(
-        neox_args, timers, lr_scheduler, models, train_data_iterator, mup=False
+        neox_args, timers, lr_scheduler, models, train_data_iterator, mup=False, optimizer=get_optimizer
     )
 
-    plot_coord_data(df_up, save_to=f"coord_check_up.{torch.distributed.get_rank()}.jpg")
-    plot_coord_data(df_sp, save_to=f"coord_check_sp.{torch.distributed.get_rank()}.jpg")
+    # plot_coord_data(df_up, save_to=f"coord_check_up.{torch.distributed.get_rank()}.jpg")
+    # plot_coord_data(df_sp, save_to=f"coord_check_sp.{torch.distributed.get_rank()}.jpg")
 
     print_rank_0("Saved coord check plots... exiting")
     sys.exit(1)
@@ -204,6 +206,7 @@ def pretrain(neox_args):
     timers("train/valid/test data iterators").stop()
 
     if neox_args.use_mup and neox_args.coord_check:
+        print_rank_0("Do muP Coord Check")
         mup_coord_check(neox_args, timers, lr_scheduler, train_data_iterator)
 
     # Print setup timing.
@@ -408,6 +411,7 @@ def get_model(neox_args, use_cache=False):
 
         if neox_args.mup_m_width == 1:
             neox_args.mup_m_width = neox_args.hidden_size / neox_args.mup_d_model_base
+        print_rank_0(f"mup_m_width set to {neox_args.mup_m_width}")
 
         # base_shapes = f"{neox_args.base_shapes_file}.{torch.distributed.get_rank()}"
 
@@ -623,6 +627,7 @@ def get_learning_rate_scheduler(optimizer, neox_args):
         use_checkpoint_lr_scheduler=neox_args.use_checkpoint_lr_scheduler,
         override_lr_scheduler=neox_args.override_lr_scheduler,
         use_mup=neox_args.use_mup,
+        mup_m_width=neox_args.mup_m_width,
     )
 
     return lr_scheduler
@@ -722,11 +727,6 @@ def backward_step(neox_args, timers, optimizer, model, loss):
 
 def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler):
     """Single training step."""
-
-    if neox_args.use_mup:
-        for pg in optimizer.param_groups:
-            if ("lr_adjust" in pg) and pg["lr_adjust"] is True:
-                pg["lr"] /= neox_args.mup_m_width
 
     # Pipeline parallelism schedules forward/backward/step
     if neox_args.is_pipe_parallel:
