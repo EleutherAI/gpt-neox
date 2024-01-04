@@ -731,8 +731,14 @@ class NeoXArgs(*BASE_CLASSES):
         if self.deepspeed_slurm:
             os.environ["LOCAL_RANK"] = os.environ["SLURM_LOCALID"]
             os.environ["RANK"] = os.environ["SLURM_PROCID"]
-            os.environ["WORLD_SIZE"] = os.environ["SLURM_NTASKS"] if os.environ.get("SLURM_NTASKS") is not None \
-                                        else str(int(os.environ["SLURM_NNODES"]) * int(os.environ["SLURM_NTASKS_PER_NODE"]))
+            os.environ["WORLD_SIZE"] = (
+                os.environ["SLURM_NTASKS"]
+                if os.environ.get("SLURM_NTASKS") is not None
+                else str(
+                    int(os.environ["SLURM_NNODES"])
+                    * int(os.environ["SLURM_NTASKS_PER_NODE"])
+                )
+            )
 
         self.update_value("local_rank", int(os.getenv("LOCAL_RANK", "0")))
         self.update_value("rank", int(os.getenv("RANK", "0")))

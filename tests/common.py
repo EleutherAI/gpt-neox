@@ -106,6 +106,7 @@ def get_config_directory():
 def get_configs_with_path(configs):
     return [str(get_config_directory() / cfg) for cfg in configs]
 
+
 def clear_test_dirs():
     log_dir = os.path.join(get_root_directory(), TEST_LOG_DIR)
     if os.path.isdir(log_dir):
@@ -277,6 +278,7 @@ def model_setup(yaml_list=None, param_dict=None, clear_data=True):
 
 def simulate_deepy_env(monkeypatch, input_args):
     from megatron.neox_arguments import NeoXArgs
+
     monkeypatch.setenv("WORLD_SIZE", "1")
     monkeypatch.setenv("RANK", "0")
     neox_args = NeoXArgs.consume_deepy_args(input_args)
@@ -318,7 +320,9 @@ def model_setup_simple(deepspeed_main_args, overwrite_values, iteration=None):
     from megatron import initialize_megatron
     from megatron.training import setup_model_and_optimizer
 
-    neox_args = NeoXArgs.consume_neox_args(input_args=deepspeed_main_args, overwrite_values=overwrite_values)
+    neox_args = NeoXArgs.consume_neox_args(
+        input_args=deepspeed_main_args, overwrite_values=overwrite_values
+    )
     neox_args.configure_distributed_args()
     neox_args.build_tokenizer()
     initialize_megatron(neox_args=neox_args)

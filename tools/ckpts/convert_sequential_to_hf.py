@@ -25,7 +25,9 @@ from transformers import GPTNeoXConfig, GPTNeoXForCausalLM
 from typing import List
 
 sys.path.append(
-    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir))
+    os.path.abspath(
+        os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir)
+    )
 )
 from megatron.tokenizer import build_tokenizer
 

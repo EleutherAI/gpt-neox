@@ -397,7 +397,14 @@ class NeoXArgsOptimizer(NeoXArgsTemplate):
     """
 
     optimizer_type: Literal[
-        "adam", "onebitadam", "cpu_adam", "cpu_torch_adam", "sm3", "madgrad_wd", "sgd", "lion"
+        "adam",
+        "onebitadam",
+        "cpu_adam",
+        "cpu_torch_adam",
+        "sm3",
+        "madgrad_wd",
+        "sgd",
+        "lion",
     ] = "adam"
     """
     Type of optimizer to use. Choose from ['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd', 'sgd', 'lion']
@@ -779,7 +786,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     See https://arxiv.org/abs/1911.02116 for more details
     """
 
-    weighted_sampler_alpha: float = 0.3
+    weighted_sampler_alpha: float = 1.0
     """
     Alpha value for `weight_by_num_documents`. Only has an effect if `weight_by_num_documents` = True.
 
@@ -811,7 +818,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     s3_chunk_size: int = 104_857_600
     """
     The number of bytes in each file chunk when uploading to s3. Defaults to 100MiB.
-    """ 
+    """
 
     config_files: dict = None
     """
@@ -928,17 +935,17 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Exit the program after the iteration is divisible by this value.
     """
 
-    attention_dropout: float = 0.1
+    attention_dropout: float = 0.0
     """
     Post attention dropout probability.
     """
 
-    hidden_dropout: float = 0.1
+    hidden_dropout: float = 0.0
     """
     Dropout probability for hidden state transformer.
     """
 
-    weight_decay: float = 0.01
+    weight_decay: float = 0.1
     """
     Weight decay coefficient for L2 regularization.
     """
@@ -987,7 +994,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     gas: int = None
     """gradient_accumulation_steps"""  # TODO this is a duplicate, remove?
 
-    clip_grad: float = None
+    clip_grad: float = 1.0
     """
     Gradient clipping based on global L2 norm.
     """

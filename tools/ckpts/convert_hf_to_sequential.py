@@ -14,7 +14,9 @@ from functools import reduce
 from transformers import GPTNeoXForCausalLM, GPTNeoXConfig
 
 sys.path.append(
-    os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir))
+    os.path.abspath(
+        os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir)
+    )
 )
 from megatron.neox_arguments import NeoXArgs
 from megatron.training import get_model, get_optimizer, get_learning_rate_scheduler
