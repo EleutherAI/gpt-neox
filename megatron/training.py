@@ -532,7 +532,7 @@ def get_optimizer(model, neox_args):
         optimizer = Lion(
             param_groups,
             weight_decay=neox_args.weight_decay,
-            **neox_args.optimizer["params"]
+            **neox_args.optimizer["params"],
         )
     elif neox_args.optimizer_type.lower() == "adam":
         # Use Adam

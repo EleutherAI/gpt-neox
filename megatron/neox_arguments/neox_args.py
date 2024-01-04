@@ -392,7 +392,14 @@ class NeoXArgsOptimizer(NeoXArgsTemplate):
     """
 
     optimizer_type: Literal[
-        "adam", "onebitadam", "cpu_adam", "cpu_torch_adam", "sm3", "madgrad_wd", "sgd", "lion"
+        "adam",
+        "onebitadam",
+        "cpu_adam",
+        "cpu_torch_adam",
+        "sm3",
+        "madgrad_wd",
+        "sgd",
+        "lion",
     ] = "adam"
     """
     Type of optimizer to use. Choose from ['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd', 'sgd', 'lion']
@@ -806,7 +813,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     s3_chunk_size: int = 104_857_600
     """
     The number of bytes in each file chunk when uploading to s3. Defaults to 100MiB.
-    """ 
+    """
 
     config_files: dict = None
     """
