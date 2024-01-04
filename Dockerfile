@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM nvidia/cuda:11.7.1-runtime-ubuntu20.04
+FROM nvidia/cuda:11.7.1-devel-ubuntu20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
