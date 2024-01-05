@@ -259,7 +259,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     """
     Enable bias and dropout fusion.
     """
-    
+
     rope_fusion: bool = False
     """
     Enable rotary embedding fusion.

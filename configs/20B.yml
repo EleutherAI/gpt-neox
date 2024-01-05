@@ -30,6 +30,7 @@
   "output_layer_parallelism": "column",
   "scaled_upper_triang_masked_softmax_fusion": true,
   "bias_gelu_fusion": true,
+  "rope_fusion": false,
 
   # init methods
   "init_method": "small_init",
