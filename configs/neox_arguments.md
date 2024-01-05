@@ -447,6 +447,14 @@ Model Arguments
 
 
 
+- **rope_fusion**: bool
+
+    Default = False
+
+    Enable rotary embedding fusion.
+
+
+
 - **fp16_lm_cross_entropy**: bool
 
     Default = False

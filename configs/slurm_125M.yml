@@ -11,6 +11,7 @@
    "no_weight_tying": true,
    "scaled_upper_triang_masked_softmax_fusion": true,
    "bias_gelu_fusion": true,
+   "rope_fusion": false,
    "optimizer": {
      "type": "Adam",
      "params": {
