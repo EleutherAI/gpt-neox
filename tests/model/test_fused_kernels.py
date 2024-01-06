@@ -36,6 +36,7 @@ def test_load_fused_kernels():
     try:
         import scaled_masked_softmax_cuda
         import scaled_upper_triang_masked_softmax_cuda
+        import fused_rotary_positional_embedding
         import torch
 
         print("[Success] load_fused_kernels")
