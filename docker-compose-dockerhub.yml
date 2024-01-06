@@ -20,5 +20,5 @@ services:
         max-size: "100m"
         max-file: "3"
     volumes:
-      - ${NEOX_DATA_PATH}:/gpt-neox/data
+      - ${NEOX_DATA_PATH}:/data
       - .:/gpt-neox

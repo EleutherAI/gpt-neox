@@ -239,7 +239,7 @@ And then, from the gpt-neox directory, you can build the image and run a shell i
 
 ```docker compose run gpt-neox bash```
 
-The container will have your gpt-neox directory mounted at /gpt-neox/ and your data directory mounted at /gpt-neox/data/.
+The container will have your gpt-neox directory mounted at /gpt-neox/ and your data directory mounted at /data/.
 
 For a long-running job, you should run
 
