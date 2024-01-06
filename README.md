@@ -225,12 +225,39 @@ You can then kick off a training run with `sbatch my_sbatch_script.sh`
 
 ### Containerized Setup
 
-We also provide a Dockerfile if you prefer to run NeoX in a container. To use this option, first build an image named `gpt-neox` from the repository root directory with `docker build -t gpt-neox -f Dockerfile .`. We also host pre-built images on [Docker Hub at `leogao2/gpt-neox`](https://hub.docker.com/r/leogao2/gpt-neox/tags).
+We also provide a Dockerfile if you prefer to run NeoX in a container. 
 
-You can then run a container based on this image. For instance, the below snippet mounts the cloned repository (`gpt-neox`) directory to `/gpt-neox` in the container and uses [nvidia-docker](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) to make four GPUs (numbers 0-3) accessible to the container. [As noted by the NCCL documentation](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/troubleshooting.html#sharing-data), both `--shm-size=1g` and `--ulimit memlock=-1` are important to prevent Docker from allocating too little shared memory.
-```
-nvidia-docker run --rm -it -e NVIDIA_VISIBLE_DEVICES=0,1,2,3 --shm-size=1g --ulimit memlock=-1 --mount type=bind,src=$PWD,dst=/gpt-neox gpt-neox
-```
+Requirements to run the container are to have appropriate GPU drivers, an up-to-date installation of Docker, and [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) installed. To test if your installation is good you can use their "sample workload", which is:
+
+```docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi```
+
+Provided that will run, you need to export NEOX_DATA_PATH in your environment to specify your data directory:
+
+```export NEOX_DATA_PATH=/mnt/sda/data/enwiki8 #or wherever your data is stored on your system```
+
+And then, from the gpt-neox directory, you can build the image and run a shell in a container with
+
+```docker compose run gpt-neox bash```
+
+The container will have your gpt-neox directory mounted at /gpt-neox/ and your data directory mounted at /gpt-neox/data/.
+
+For a long-running job, you should run
+
+```docker compose up -d```
+
+to run the container in detached mode, and then, in a separate terminal session, run
+
+```docker compose exec gpt-neox bash```
+
+You can then run any job you want from inside the container.
+
+Concerns when running for a long time or in detached mode include
+ - You will have to terminate the container manually when you are no longer using it
+ - If you want processes to continue running when your shell session ends, you will need to background them.
+
+If you prefer to run the prebuilt container image from dockerhub, you can run the docker compose commands with ```-f docker-compose-dockerhub.yml``` instead, e.g.,
+
+```docker compose run -f docker-compose-dockerhub.yml gpt-neox bash```
 
 ## Usage
 

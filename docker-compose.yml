@@ -1,0 +1,23 @@
+version: '3'
+services:
+  gpt-neox:
+    command: nvidia-smi -q --loop=10
+    image: gpt-neox
+    build:
+      context: .
+      dockerfile: Dockerfile
+    shm_size: 1g
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    volumes:
+      - ${NEOX_DATA_PATH}:/gpt-neox/data
+      - .:/gpt-neox
