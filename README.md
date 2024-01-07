@@ -229,25 +229,35 @@ We also provide a Dockerfile if you prefer to run NeoX in a container.
 
 Requirements to run the container are to have appropriate GPU drivers, an up-to-date installation of Docker, and [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) installed. To test if your installation is good you can use their "sample workload", which is:
 
-```docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi```
+```
+docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi
+```
 
 Provided that will run, you need to export NEOX_DATA_PATH in your environment to specify your data directory:
 
-```export NEOX_DATA_PATH=/mnt/sda/data/enwiki8 #or wherever your data is stored on your system```
+```
+export NEOX_DATA_PATH=/mnt/sda/data/enwiki8 #or wherever your data is stored on your system
+```
 
 And then, from the gpt-neox directory, you can build the image and run a shell in a container with
 
-```docker compose run gpt-neox bash```
+```
+docker compose run gpt-neox bash
+```
 
 The container will have your gpt-neox directory mounted at /gpt-neox/ and your data directory mounted at /data/.
 
 For a long-running job, you should run
 
-```docker compose up -d```
+```
+docker compose up -d
+```
 
 to run the container in detached mode, and then, in a separate terminal session, run
 
-```docker compose exec gpt-neox bash```
+```
+docker compose exec gpt-neox bash
+```
 
 You can then run any job you want from inside the container.
 
@@ -257,7 +267,9 @@ Concerns when running for a long time or in detached mode include
 
 If you prefer to run the prebuilt container image from dockerhub, you can run the docker compose commands with ```-f docker-compose-dockerhub.yml``` instead, e.g.,
 
-```docker compose run -f docker-compose-dockerhub.yml gpt-neox bash```
+```
+docker compose run -f docker-compose-dockerhub.yml gpt-neox bash
+```
 
 ## Usage
 
