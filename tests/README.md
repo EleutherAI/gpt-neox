@@ -48,4 +48,4 @@ if You see this kind of error:
 ```
 RuntimeError: Cannot re-initialize CUDA in forked subprocess. To use CUDA with multiprocessing, you must use the 'spawn' start method
 ```
-It means that you used some pytorch.cuda function before the test creates the processes.
+It usually means that you used some pytorch.cuda function before the test creates the processes. However just importing `from torch.utils import cpp_extension` can also trigger this.

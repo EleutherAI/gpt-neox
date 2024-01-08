@@ -1,0 +1,100 @@
+<mediawiki xmlns="http://www.mediawiki.org/xml/export-0.3/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mediawiki.org/xml/export-0.3/ http://www.mediawiki.org/xml/export-0.3.xsd" version="0.3" xml:lang="en">
+  <siteinfo>
+    <sitename>Wikipedia</sitename>
+    <base>http://en.wikipedia.org/wiki/Main_Page</base>
+    <generator>MediaWiki 1.6alpha</generator>
+    <case>first-letter</case>
+      <namespaces>
+      <namespace key="-2">Media</namespace>
+      <namespace key="-1">Special</namespace>
+      <namespace key="0" />
+      <namespace key="1">Talk</namespace>
+      <namespace key="2">User</namespace>
+      <namespace key="3">User talk</namespace>
+      <namespace key="4">Wikipedia</namespace>
+      <namespace key="5">Wikipedia talk</namespace>
+      <namespace key="6">Image</namespace>
+      <namespace key="7">Image talk</namespace>
+      <namespace key="8">MediaWiki</namespace>
+      <namespace key="9">MediaWiki talk</namespace>
+      <namespace key="10">Template</namespace>
+      <namespace key="11">Template talk</namespace>
+      <namespace key="12">Help</namespace>
+      <namespace key="13">Help talk</namespace>
+      <namespace key="14">Category</namespace>
+      <namespace key="15">Category talk</namespace>
+      <namespace key="100">Portal</namespace>
+      <namespace key="101">Portal talk</namespace>
+    </namespaces>
+  </siteinfo>
+  <page>
+    <title>AaA</title>
+    <id>1</id>
+    <revision>
+      <id>32899315</id>
+      <timestamp>2005-12-27T18:46:47Z</timestamp>
+      <contributor>
+        <username>Jsmethers</username>
+        <id>614213</id>
+      </contributor>
+      <text xml:space="preserve">#REDIRECT [[AAA]]</text>
+    </revision>
+  </page>
+  <page>
+    <title>AlgeriA</title>
+    <id>5</id>
+    <revision>
+      <id>18063769</id>
+      <timestamp>2005-07-03T11:13:13Z</timestamp>
+      <contributor>
+        <username>Docu</username>
+        <id>8029</id>
+      </contributor>
+      <minor />
+      <comment>adding cur_id=5: {{R from CamelCase}}</comment>
+      <text xml:space="preserve">#REDIRECT [[Algeria]]{{R from CamelCase}}</text>
+    </revision>
+  </page>
+  <page>
+    <title>AmericanSamoa</title>
+    <id>6</id>
+    <revision>
+      <id>18063795</id>
+      <timestamp>2005-07-03T11:14:17Z</timestamp>
+      <contributor>
+        <username>Docu</username>
+        <id>8029</id>
+      </contributor>
+      <minor />
+      <comment>adding to cur_id=6  {{R from CamelCase}}</comment>
+      <text xml:space="preserve">#REDIRECT [[American Samoa]]{{R from CamelCase}}</text>
+    </revision>
+  </page>
+  <page>
+    <title>AppliedEthics</title>
+    <id>8</id>
+    <revision>
+      <id>15898943</id>
+      <timestamp>2002-02-25T15:43:11Z</timestamp>
+      <contributor>
+        <ip>Conversion script</ip>
+      </contributor>
+      <minor />
+      <comment>Automated conversion</comment>
+      <text xml:space="preserve">#REDIRECT [[Applied ethics]]
+</text>
+    </revision>
+  </page>
+  <page>
+    <title>AccessibleComputing</title>
+    <id>10</id>
+    <revision>
+      <id>15898945</id>
+      <timestamp>2003-04-25T22:18:38Z</timestamp>
+      <contributor>
+        <username>Ams80</username>
+        <id>7543</id>
+      </contributor>
+      <minor />
+      <comment>Fixing redirect</comment>
+      <text xml:space="preserve">#REDIRECT [[Accessible_computing]]</text>

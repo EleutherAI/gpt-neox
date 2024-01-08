@@ -32,6 +32,7 @@
    # these should provide some speedup but takes a while to build, set to true if desired
    "scaled_upper_triang_masked_softmax_fusion": false,
    "bias_gelu_fusion": false,
+   "rope_fusion": false,
 
    # optimizer settings
    "optimizer": {
@@ -86,7 +87,7 @@
    "distributed_backend": "nccl",
    "lr_decay_style": "cosine",
    "warmup": 0.01,
-   "save_interval": 10000,
+   "checkpoint_factor": 10000,
    "eval_interval": 1000,
    "eval_iters": 10,
 

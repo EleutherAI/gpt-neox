@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = b18f25c
+    Default = 31cb364
 
     current git hash of repository
 
@@ -258,6 +258,14 @@ Model Arguments
     Default = layernorm
 
     Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm".
+
+
+
+- **use_qk_layernorm**: bool
+
+    Default = False
+
+    Use QK Normalization
 
 
 
@@ -436,6 +444,14 @@ Model Arguments
     Default = False
 
     Enable bias and dropout fusion.
+
+
+
+- **rope_fusion**: bool
+
+    Default = False
+
+    Enable rotary embedding fusion.
 
 
 
@@ -800,7 +816,7 @@ Misc. Arguments
 
 
 
-- **do_train**: int
+- **do_train**: bool
 
     Default = None
 
@@ -808,7 +824,7 @@ Misc. Arguments
 
 
 
-- **do_valid**: int
+- **do_valid**: bool
 
     Default = None
 
@@ -816,7 +832,7 @@ Misc. Arguments
 
 
 
-- **do_test**: int
+- **do_test**: bool
 
     Default = None
 
@@ -952,7 +968,7 @@ Text Generation arguments
 
 - **prompt_end**: str
 
-    Default = 
+    Default =
 
 
     a single prompt's end. Defaults to newline
@@ -994,7 +1010,7 @@ Text Generation arguments
 
 - **eval_results_prefix**: str
 
-    Default = 
+    Default =
 
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
 
@@ -1135,7 +1151,7 @@ Training Arguments
 
 - **weighted_sampler_alpha**: float
 
-    Default = 0.3
+    Default = 1.0
 
     Alpha value for `weight_by_num_documents`. Only has an effect if `weight_by_num_documents` = True.
 
@@ -1365,7 +1381,7 @@ Training Arguments
 
 - **attention_dropout**: float
 
-    Default = 0.1
+    Default = 0.0
 
     Post attention dropout probability.
 
@@ -1373,7 +1389,7 @@ Training Arguments
 
 - **hidden_dropout**: float
 
-    Default = 0.1
+    Default = 0.0
 
     Dropout probability for hidden state transformer.
 
@@ -1381,7 +1397,7 @@ Training Arguments
 
 - **weight_decay**: float
 
-    Default = 0.01
+    Default = 0.1
 
     Weight decay coefficient for L2 regularization.
 
@@ -1462,7 +1478,7 @@ Training Arguments
 
 - **clip_grad**: float
 
-    Default = None
+    Default = 1.0
 
     Gradient clipping based on global L2 norm.
 
@@ -1744,7 +1760,7 @@ Args for deepspeed config
 
     Default = None
 
-    
+
 
 
 
@@ -2036,4 +2052,3 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = None
 
     Adds a `--comment` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometime necessary for cluster rules, or so I've heard.
-

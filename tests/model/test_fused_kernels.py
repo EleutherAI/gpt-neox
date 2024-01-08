@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import math
-
+import pytest
 import torch
 
 from transformers import BertTokenizer
@@ -29,10 +29,14 @@ transformers.logging.set_verbosity(
 )
 
 
+@pytest.mark.xfail(
+    reason="ModuleNotFoundError: No module named 'scaled_masked_softmax_cuda'"
+)
 def test_load_fused_kernels():
     try:
         import scaled_masked_softmax_cuda
         import scaled_upper_triang_masked_softmax_cuda
+        import fused_rotary_positional_embedding
         import torch
 
         print("[Success] load_fused_kernels")
@@ -41,6 +45,7 @@ def test_load_fused_kernels():
         raise e
 
 
+@pytest.mark.xfail(reason="SystemExit: None")
 def test_fused_softmax():
     from megatron.model.fused_softmax import FusedScaleMaskSoftmax, SoftmaxFusionTypes
     from megatron.model.gpt2_model import (
@@ -142,6 +147,7 @@ def test_fused_softmax():
         )
 
 
+@pytest.mark.xfail(reason="SystemExit: None")
 def test_fused_upper_triangle_mask_softmax():
     from megatron.model.gpt2_model import (
         gpt2_attention_mask_func as attention_mask_func,

@@ -16,7 +16,6 @@ import os
 import pathlib
 import subprocess
 
-from torch.utils import cpp_extension
 from pathlib import Path
 
 srcpath = Path(__file__).parent.absolute()
@@ -33,6 +32,7 @@ def load_fused_kernels():
     try:
         import scaled_upper_triang_masked_softmax_cuda
         import scaled_masked_softmax_cuda
+        import fused_rotary_positional_embedding
     except (ImportError, ModuleNotFoundError) as e:
         print("\n")
         print(e)

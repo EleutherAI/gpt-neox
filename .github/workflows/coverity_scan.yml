@@ -23,29 +23,38 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+      with:
+        path: gpt-neox
 
     - name: Install utils
       run: |
-        apt update -y && apt upgrade -y
-        apt install curl jq wget -y
+        sudo apt update -y && sudo apt upgrade -y
+        sudo apt install curl jq wget -y
 
     - name: Coverity Download
       run: |
-        wget https://scan.coverity.com/download/linux64 --post-data "token=$COVERITY_TOKEN&project=EleutherAI%2Fgpt-neox" -O coverity_tool.tgz
-        $GITHUB_WORKSPACE/bin/cov-configure --python
-        $GITHUB_WORKSPACE/bin/cov-configure --gcc
+        wget https://scan.coverity.com/download/linux64 --post-data "token=$COVERITY_TOKEN&project=$COVERITY_PROJECT" -O coverity_tool.tgz --no-verbose
+        mkdir $GITHUB_WORKSPACE/coverity && tar xvf coverity_tool.tgz -C $GITHUB_WORKSPACE/coverity --strip-components=1
+        $GITHUB_WORKSPACE/coverity/bin/cov-configure --python
+        $GITHUB_WORKSPACE/coverity/bin/cov-configure --gcc
 
-    - name: Coverity Scan
+    - name: Coverity Scan and Upload
       run: |
         set -x
-        $GITHUB_WORKSPACE/bin/cov-build --dir cov-int --no-command --fs-capture-search $GITHUB_WORKSPACE
-
-    - name: Coverity Upload
-      run: |
+        pushd $GITHUB_WORKSPACE
+        cd $GITHUB_WORKSPACE/gpt-neox
+        $GITHUB_WORKSPACE/coverity/bin/cov-build --dir $GITHUB_WORKSPACE/cov-int --no-command --fs-capture-search ./
+        popd
         tar caf build-results.bz2 cov-int
-        curl --form token=$COV_PASSPHRASE \
+        curl --form token=$COVERITY_TOKEN \
           --form email=$COV_USER \
-          --form file=@GITHUB_WORKSPACE/build-results.bz2 \
-          --form version="Version" \
-          --form description="Build" \
-          https://scan.coverity.com/builds?project=EleutherAI%2Fgpt-neox
+          --form file=@build-results.bz2 \
+          --form version="${{ inputs.build_version }}" \
+          --form description="${{ inputs.build_description }}" \
+          https://scan.coverity.com/builds?project=$COVERITY_PROJECT
+
+    - name: Upload Scan Build as Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverity-build-${{ github.sha }}
+        path: build-results.bz2

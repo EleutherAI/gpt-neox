@@ -92,17 +92,19 @@ def get_flops(neox_args, iter_time_s) -> float:
     hidden_size = neox_args.hidden_size
     num_layers = neox_args.num_layers
     ckpt_activations_factor = 4 if neox_args.checkpoint_activations else 3
-    flops_calc1 = (
+    flops_per_iteration = (
         24
         * ckpt_activations_factor
         * batch_size
         * seq_len
         * num_layers
         * (hidden_size**2)
-        * (1.0 + (seq_len / (6.0 * hidden_size)))
+        * (
+            1.0
+            + (seq_len / (6.0 * hidden_size))
+            + (vocab_size / (16.0 * num_layers * hidden_size))
+        )
     )
-    flops_calc2 = vocab_size / (16.0 * num_layers * hidden_size)
-    flops_per_iteration = flops_calc1 + flops_calc2
     return flops_per_iteration / (iter_time_s * world_size)
 
 

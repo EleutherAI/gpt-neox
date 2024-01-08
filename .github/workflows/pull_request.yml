@@ -12,7 +12,16 @@ jobs:
           python-version: 3.8
           cache: "pip"
           cache-dependency-path: "**/requirements*.txt"
+      # Need the right version of clang-format
+      - run: pip install -r requirements/requirements-dev.txt
       - uses: pre-commit/action@v2.0.3
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      -
+        name: Docker build
+        id: docker_build
+        uses: docker/build-push-action@v2
 
   update-documentation:
     runs-on: ubuntu-20.04

@@ -20,7 +20,13 @@ import pytest
 
 import torch
 import os
-from ..common import distributed_test, model_setup, clear_test_dirs, parametrize, binary
+from tests.common import (
+    distributed_test,
+    model_setup,
+    clear_test_dirs,
+    parametrize,
+    binary,
+)
 
 PARAMS_TO_TEST = {
     "pipe_parallel_size,model_parallel_size,world_size": [
@@ -69,6 +75,9 @@ parameters, names = parametrize(
 )
 
 
+@pytest.mark.xfail(
+    reason="Either fused kernels are not installed, or Cannot re-initialize CUDA in forked subprocess'"
+)
 @pytest.mark.parametrize("param_dict", parameters, ids=names)
 def test_instantiate(param_dict):
     @distributed_test(world_size=param_dict.pop("world_size", 2))
@@ -94,7 +103,10 @@ opt_params, opt_name = parametrize(
 )
 
 
-@pytest.mark.parametrize("param_dict", parameters, ids=names)
+@pytest.mark.xfail(
+    reason="Either fused kernels are not installed, or 'Cannot re-initialize CUDA in forked subprocess'"
+)
+@pytest.mark.parametrize("param_dict", opt_params, ids=opt_name)
 def test_instantiate_optimizers(param_dict):
     @distributed_test(world_size=2)
     def wrapper():

@@ -33,6 +33,10 @@ from megatron.model.positional_embeddings import (
     apply_rotary_pos_emb,
     AliBi,
 )
+from megatron.model.fused_rope import (
+    FusedRoPEFunc,
+    fused_apply_rotary_pos_emb_cached,
+)
 from megatron.model.fused_bias_dropout import (
     get_bias_dropout_add,
     bias_dropout_add_fused_train,
@@ -284,6 +288,16 @@ class ParallelSelfAttention(nn.Module):
             neox_args.num_attention_heads, world_size
         )
         self.pos_emb = neox_args.pos_emb
+        self.use_qk_layernorm = neox_args.use_qk_layernorm
+        if self.use_qk_layernorm:
+            norm, eps = get_norm(neox_args)
+            self.qk_layernorm = norm(
+                [
+                    self.num_attention_heads_per_partition,
+                    self.hidden_size_per_attention_head,
+                ],
+                eps=eps,
+            )
 
         # Strided linear layer.
         self.query_key_value = mpu.ColumnParallelLinear(
@@ -336,6 +350,7 @@ class ParallelSelfAttention(nn.Module):
         else:
             self.rotary_emb = None
 
+        self.rope_fusion = neox_args.rope_fusion
         self.attention_type = neox_args.attention_config[layer_number]
         self.use_flash_attention = self.attention_type == "flash"
         self.sparse = self.attention_type not in ("global", "flash")
@@ -639,6 +654,11 @@ class ParallelSelfAttention(nn.Module):
             mixed_x_layer, 3
         )
 
+        # QK Normalization https://arxiv.org/abs/2302.05442
+        if self.use_qk_layernorm:
+            query_layer = self.qk_layernorm(query_layer)
+            key_layer = self.qk_layernorm(key_layer)
+
         if exists(self.rotary_emb):
             if exists(self.rotary_ndims):
                 # partial rotary
@@ -654,19 +674,25 @@ class ParallelSelfAttention(nn.Module):
                 # full rotary
                 query_rot, key_rot = query_layer, key_layer
 
-            apply_rotary_fn = (
-                apply_rotary_pos_emb_torch if self.bf16 else apply_rotary_pos_emb
-            )
-
             seq_len = key_layer.shape[0]
             offset = 0
             if exists(layer_past) and layer_past.numel() > 0:
                 offset = layer_past[0].shape[0]
                 seq_len += offset
             cos, sin = self.rotary_emb(value_layer, seq_len=seq_len)
-            query_layer, key_layer = apply_rotary_fn(
-                query_rot, key_rot, cos, sin, offset=offset
-            )
+            if self.rope_fusion:
+                query_layer, key_layer = (
+                    fused_apply_rotary_pos_emb_cached(rot, cos, sin)
+                    for rot in [query_rot, key_rot]
+                )
+            else:
+                if self.bf16:
+                    apply_rotary_fn = apply_rotary_pos_emb_torch
+                else:
+                    apply_rotary_fn = apply_rotary_pos_emb
+                query_layer, key_layer = apply_rotary_fn(
+                    query_rot, key_rot, cos, sin, offset=offset
+                )
 
             if exists(self.rotary_ndims):
                 query_layer = torch.cat((query_layer, query_pass), dim=-1)
