@@ -23,5 +23,6 @@ services:
         max-size: "100m"
         max-file: "3"
     volumes:
-      - ${NEOX_DATA_PATH}:/data
-      - .:/gpt-neox
+      - ${NEOX_DATA_PATH}:/home/mchorse/data
+      - ${NEOX_CHECKPOINT_PATH}:/home/mchorse/chk
+      - .:/home/mchorse/gpt-neox

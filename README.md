@@ -225,7 +225,7 @@ You can then kick off a training run with `sbatch my_sbatch_script.sh`
 
 ### Containerized Setup
 
-We also provide a Dockerfile if you prefer to run NeoX in a container. 
+We also provide a Dockerfile and docker-compose configuration if you prefer to run NeoX in a container. 
 
 Requirements to run the container are to have appropriate GPU drivers, an up-to-date installation of Docker, and [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) installed. To test if your installation is good you can use their "sample workload", which is:
 
@@ -233,10 +233,11 @@ Requirements to run the container are to have appropriate GPU drivers, an up-to-
 docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi
 ```
 
-Provided that will run, you need to export NEOX_DATA_PATH in your environment to specify your data directory:
+Provided that will run, you need to export NEOX_DATA_PATH and NEOX_CHECKPOINT_PATH in your environment to specify your data directory and directory for storing and loading checkpoints:
 
 ```
 export NEOX_DATA_PATH=/mnt/sda/data/enwiki8 #or wherever your data is stored on your system
+export NEOX_CHECKPOINT_PATH=/mnt/sda/checkpoints
 ```
 
 And then, from the gpt-neox directory, you can build the image and run a shell in a container with
@@ -245,7 +246,24 @@ And then, from the gpt-neox directory, you can build the image and run a shell i
 docker compose run gpt-neox bash
 ```
 
-The container will have your gpt-neox directory mounted at /gpt-neox/ and your data directory mounted at /data/.
+After the build, you should be able to do this:
+```
+mchorse@537851ed67de:~$ echo $(pwd)
+/home/mchorse
+mchorse@537851ed67de:~$ ls -al
+total 48
+drwxr-xr-x  1 mchorse mchorse 4096 Jan  8 05:33 .
+drwxr-xr-x  1 root    root    4096 Jan  8 04:09 ..
+-rw-r--r--  1 mchorse mchorse  220 Feb 25  2020 .bash_logout
+-rw-r--r--  1 mchorse mchorse 3972 Jan  8 04:09 .bashrc
+drwxr-xr-x  4 mchorse mchorse 4096 Jan  8 05:35 .cache
+drwx------  3 mchorse mchorse 4096 Jan  8 05:33 .nv
+-rw-r--r--  1 mchorse mchorse  807 Feb 25  2020 .profile
+drwxr-xr-x  2 root    root    4096 Jan  8 04:09 .ssh
+drwxrwxr-x  8 mchorse mchorse 4096 Jan  8 05:35 chk
+drwxrwxrwx  6 root    root    4096 Jan  7 17:02 data
+drwxr-xr-x 11 mchorse mchorse 4096 Jan  8 03:52 gpt-neox
+```
 
 For a long-running job, you should run
 
@@ -264,7 +282,8 @@ You can then run any job you want from inside the container.
 Concerns when running for a long time or in detached mode include
  - You will have to terminate the container manually when you are no longer using it
  - If you want processes to continue running when your shell session ends, you will need to background them.
-
+ - If you then want logging, you will have to make sure to pipe logs to disk or set up wandb.
+ 
 If you prefer to run the prebuilt container image from dockerhub, you can run the docker compose commands with ```-f docker-compose-dockerhub.yml``` instead, e.g.,
 
 ```

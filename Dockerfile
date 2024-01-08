@@ -26,11 +26,11 @@ LABEL org.opencontainers.image.base.name="docker.io/nvidia/cuda:11.7.1-devel-ubu
 #### System package (uses default Python 3 version in Ubuntu 20.04)
 RUN apt-get update -y && \
     apt-get install -y \
-        git python3.9 python3-dev libpython3-dev python3-pip sudo pdsh \
-        htop llvm-9-dev tmux zstd software-properties-common build-essential autotools-dev \
-        nfs-common pdsh cmake g++ gcc curl wget vim less unzip htop iftop iotop ca-certificates ssh \
-        rsync iputils-ping net-tools libcupti-dev libmlx4-1 infiniband-diags ibutils ibverbs-utils \
-        rdmacm-utils perftest rdma-core nano && \
+    git python3.9 python3-dev libpython3-dev python3-pip sudo pdsh \
+    htop llvm-9-dev tmux zstd software-properties-common build-essential autotools-dev \
+    nfs-common pdsh cmake g++ gcc curl wget vim less unzip htop iftop iotop ca-certificates ssh \
+    rsync iputils-ping net-tools libcupti-dev libmlx4-1 infiniband-diags ibutils ibverbs-utils \
+    rdmacm-utils perftest rdma-core nano && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3 1 && \
     update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1 && \
     pip install --upgrade pip && \
