@@ -225,7 +225,7 @@ You can then kick off a training run with `sbatch my_sbatch_script.sh`
 
 ### Containerized Setup
 
-We also provide a Dockerfile and docker-compose configuration if you prefer to run NeoX in a container. 
+We also provide a Dockerfile and docker-compose configuration if you prefer to run NeoX in a container.
 
 Requirements to run the container are to have appropriate GPU drivers, an up-to-date installation of Docker, and [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) installed. To test if your installation is good you can use their "sample workload", which is:
 
@@ -283,7 +283,7 @@ Concerns when running for a long time or in detached mode include
  - You will have to terminate the container manually when you are no longer using it
  - If you want processes to continue running when your shell session ends, you will need to background them.
  - If you then want logging, you will have to make sure to pipe logs to disk or set up wandb.
- 
+
 If you prefer to run the prebuilt container image from dockerhub, you can run the docker compose commands with ```-f docker-compose-dockerhub.yml``` instead, e.g.,
 
 ```
