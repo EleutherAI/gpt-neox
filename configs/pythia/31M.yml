@@ -14,7 +14,7 @@
   "no-weight-tying": true,
   "gpt-j-residual": true,
   "output-layer-parallelism": "column",
-  
+
   "attention-config": [[["flash"], 6]],
 
   "scaled-upper-triang-masked-softmax-fusion": true,
@@ -54,7 +54,7 @@
   # activation checkpointing
   "checkpoint-activations": false,
   "checkpoint-num-layers": 1,
-  "partition-activations": false, 
+  "partition-activations": false,
   "synchronize-each-layer": true,
 
   # regularization
