@@ -246,7 +246,7 @@ class HackerNews(DataDownloader):
 class OpenWebText2(DataDownloader):
     name = "openwebtext2"
     urls = [
-        "https://the-eye.eu/public/AI/pile_preliminary_components/openwebtext2.jsonl.zst.tar"
+        "https://huggingface.co/datasets/segyges/OpenWebText2/resolve/main/openwebtext2.jsonl.zst.tar"
     ]
     num_docs = 17103000
 
