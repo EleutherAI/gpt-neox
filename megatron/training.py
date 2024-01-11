@@ -30,7 +30,6 @@ import deepspeed
 from deepspeed.runtime.data_pipeline.curriculum_scheduler import CurriculumScheduler
 import numpy as np
 
-from CPCargo import Heartbeat
 from megatron.utils import (
     Timers,
     init_wandb,
