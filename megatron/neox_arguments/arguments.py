@@ -271,6 +271,21 @@ class NeoXArgs(*BASE_CLASSES):
             help="Configuration file path. Multiple files can be provided and will be merged.",
         )
 
+        group.add_argument(
+            "--lr",
+            type=float
+        )
+
+        group.add_argument(
+            "--save",
+            type=str,
+        )
+        
+        group.add_argument(
+            "--log_dir",
+            type=str,
+        )
+
         group = parser.add_argument_group(title="Weights and Biases monitoring args")
 
         group.add_argument(
@@ -984,9 +999,11 @@ class NeoXArgs(*BASE_CLASSES):
         self.update_values(
             {
                 "optimizer_type": opt_params.get("type", OPT_DEFAULT),
-                "lr": opt_params["params"].get("lr", OPT_PARAMS_DEFAULTS["lr"]),
             }
         )
+
+        if not self.lr:
+            self.update_values({"lr": opt_params["params"].get("lr", OPT_PARAMS_DEFAULTS["lr"])})
 
         if self.optimizer_type.lower() == "onebitadam":
             # onebitadam needs to instantiated by deepspeed, and so we need to pass deepspeed scheduler args
