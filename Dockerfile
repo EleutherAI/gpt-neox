@@ -30,7 +30,7 @@ RUN apt-get update -y && \
     htop tmux zstd software-properties-common build-essential autotools-dev \
     nfs-common pdsh cmake g++ gcc curl wget vim less unzip htop iftop iotop ca-certificates ssh \
     rsync iputils-ping net-tools libcupti-dev libmlx4-1 infiniband-diags ibutils ibverbs-utils \
-    rdmacm-utils perftest rdma-core nano wget && \
+    rdmacm-utils perftest rdma-core nano && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3 1 && \
     update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1 && \
     python -m pip install --upgrade pip && \
@@ -88,7 +88,7 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
     echo 'export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:$LD_LIBRARY_PATH' >> /home/mchorse/.bashrc
 
 #### Python packages
-RUN python -m pip install torch==1.13.0+cu117 torchvision==0.14.0+cu117 torchaudio==0.13.0 --extra-index-url https://download.pytorch.org/whl/cu117 && pip cache purge
+RUN python -m pip install torch==1.13.1+cu117 torchvision==0.14.1+cu117 torchaudio==0.13.1+cu117 --extra-index-url https://download.pytorch.org/whl/cu117 && pip cache purge
 COPY requirements/requirements.txt .
 COPY requirements/requirements-wandb.txt .
 COPY requirements/requirements-onebitadam.txt .
