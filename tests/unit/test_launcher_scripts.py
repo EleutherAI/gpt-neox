@@ -8,6 +8,7 @@ import evaluate
 from megatron.neox_arguments import NeoXArgs
 from tests.common import simulate_deepy_env, save_random_model
 
+
 @pytest.fixture(
     params=[
         "HFGPT2Tokenizer",
@@ -21,9 +22,11 @@ from tests.common import simulate_deepy_env, save_random_model
 def tokenizer_type(request):
     return request.param
 
+
 @pytest.fixture(params=[None, "tests/data/sample_prompt.txt"])
 def sample_input_file(request):
     return request.param
+
 
 @pytest.mark.cpu
 def test_preprocess_data(tokenizer_type):
@@ -55,10 +58,7 @@ def test_preprocess_data(tokenizer_type):
 def test_generate(monkeypatch, tmpdir, tmp_path, sample_input_file):
     model_dir = str(tmpdir)
     sample_output_file = str(tmp_path) + ".txt"
-    input_args = [
-        "generate.py",
-        "tests/config/test_setup.yml"
-    ]
+    input_args = ["generate.py", "tests/config/test_setup.yml"]
     deepspeed_main_args = simulate_deepy_env(monkeypatch, input_args)
     save_random_model(deepspeed_main_args, model_dir)
 
@@ -74,10 +74,7 @@ def test_generate(monkeypatch, tmpdir, tmp_path, sample_input_file):
 def test_evaluate(monkeypatch, tmpdir, tmp_path):
     model_dir = str(tmpdir)
     sample_output_file = str(tmp_path)
-    input_args = [
-        "generate.py",
-        "tests/config/test_setup.yml"
-    ]
+    input_args = ["generate.py", "tests/config/test_setup.yml"]
     deepspeed_main_args = simulate_deepy_env(monkeypatch, input_args)
     save_random_model(deepspeed_main_args, model_dir)
 
@@ -108,4 +105,3 @@ def test_train_launcher(monkeypatch):
     input_args = ["train.py", "tests/config/test_setup.yml"]
     deepspeed_main_args = simulate_deepy_env(monkeypatch, input_args)
     train.main(input_args=deepspeed_main_args)
-

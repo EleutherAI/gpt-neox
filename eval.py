@@ -32,7 +32,9 @@ import json
 
 
 def main(input_args=None, overwrite_values=None):
-    model, neox_args = setup_for_inference_or_eval(use_cache=False, input_args=input_args, overwrite_values=overwrite_values)
+    model, neox_args = setup_for_inference_or_eval(
+        use_cache=False, input_args=input_args, overwrite_values=overwrite_values
+    )
     results = run_eval_harness(
         model,
         forward_step,

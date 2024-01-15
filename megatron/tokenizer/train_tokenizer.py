@@ -118,11 +118,12 @@ def parse_args(input_args=None):
 
 def main(args):
     train_tokenizer(
-            args.json_input_dir,
-            save_path=args.tokenizer_output_path,
-            tokenizer_type=args.tokenizer_type,
-            vocab_size=args.vocab_size,
-        )
+        args.json_input_dir,
+        save_path=args.tokenizer_output_path,
+        tokenizer_type=args.tokenizer_type,
+        vocab_size=args.vocab_size,
+    )
+
 
 if __name__ == "__main__":
     args = parse_args()

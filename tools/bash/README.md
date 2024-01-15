@@ -1,5 +1,5 @@
 # Bash Scripts
-Useful for running distributed per-node scripts on e.g. Kubernetes 
+Useful for running distributed per-node scripts on e.g. Kubernetes
 
 * `kill.sh` kills all python processes
 * `killall.sh` uses pdsh to kill all `train.py` processes on the nodes listed in `/job/hosts/`

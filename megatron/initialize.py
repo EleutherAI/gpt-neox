@@ -57,6 +57,7 @@ def initialize_megatron(neox_args, allow_no_cuda=False):
     if (
         neox_args.scaled_upper_triang_masked_softmax_fusion
         or neox_args.scaled_masked_softmax_fusion
+        or neox_args.rope_fusion
     ):
         fused_kernels.load_fused_kernels()
 
