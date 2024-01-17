@@ -42,6 +42,67 @@ Please investigate carefully whether your model is compatible with all architect
 """
 
 
+
+
+# Model definitions: a list of keys, and where they fall in terms of handling them in the presence of TP.
+# in format : {model arch: {param type: {param in neox: param in HF}}}
+
+MODEL_KEYS = {
+    "neox": {
+        "COLUMN_PARALLEL_LINEAR_KEYS": {
+            "mlp.dense_h_to_4h.weight": "mlp.dense_h_to_4h.weight",
+            "mlp.dense_h_to_4h.bias": "mlp.dense_h_to_4h.bias",
+            "attention.query_key_value.weight": "attention.query_key_value.weight",
+            "attention.query_key_value.bias": "attention.query_key_value.bias", # TODO: handle GQA separately?
+        },
+        "ROW_PARALLEL_LINEAR_KEYS": {
+            "attention.dense.weight": "attention.dense.weight",
+            "mlp.dense_4h_to_h.weight": "mlp.dense_4h_to_h.weight",
+        },
+        "ROW_PARALLEL_BIAS_KEYS": {
+            "mlp.dense_4h_to_h.bias": "mlp.dense_4h_to_h.bias",
+            "attention.dense.bias": "attention.dense.bias",
+        },
+        "NORM_KEYS": {
+            "input_layernorm.weight": "input_layernorm.weight",
+            "input_layernorm.bias": "input_layernorm.bias",
+            "post_attention_layernorm.weight": "post_attention_layernorm.weight",
+            "post_attention_layernorm.bias": "post_attention_layernorm.bias",
+        },
+        "FINAL_NORM_KEYS": {
+            "norm.weight": "weight",
+            "norm.bias": "bias",
+        },
+    },
+    "llama": { 
+        "COLUMN_PARALLEL_LINEAR_KEYS": {
+            "mlp.w1.weight": "mlp.gate_proj.weight",
+            "mlp.w3.weight": "mlp.up_proj.weight",
+        },
+        "ROW_PARALLEL_LINEAR_KEYS": {
+            "attention.dense.weight": "self_attn.o_proj.weight",
+            "mlp.w2.weight": "mlp.down_proj.weight",    
+        },
+        "ROW_PARALLEL_BIAS_KEYS": {}, # No biases in RowParallelLinear layers
+        "NORM_KEYS": {
+            "input_layernorm.scale": "input_layernorm.weight",
+            "post_attention_layernorm.scale": "post_attention_layernorm.weight",
+        },
+        "FINAL_NORM_KEYS": {
+            "norm.scale": "weight",
+        },
+        "GQA_QKV_KEYS": { # because Llama can have Grouped Query Attention and has separate Q, K, and V linear proj params, handle them separately.
+            "attention.query_key_value.weight": [
+                "self.attn.q_proj.weight", "self_attn.k_proj.weight", "self_attn.v_proj.weight"
+            ],
+        }
+
+    }
+}
+
+MODEL_KEYS["mistral"] = MODEL_KEYS["llama"]
+
+
 def load_partitions(input_checkpoint_path: str, mp_partitions: int, layer_idx: int, sequential: bool) -> List[torch.Tensor]:
     """Returns a list containing all states from a model (across MP partitions)"""
 
@@ -166,15 +227,23 @@ def convert(
     loaded_config, 
     output_checkpoint_path, 
     sequential: bool = True, 
-    precision: Literal["auto", "fp16", "bf16", "fp32"] = "auto"):
+    precision: Literal["auto", "fp16", "bf16", "fp32"] = "auto",
+    architecture: Literal["neox", "llama", "mistral"],
+):
     """convert a NeoX checkpoint to a HF model format.
     should perform model-parallel merging correctly
     but only supports features allowed by HF GPT-NeoX implementation (e.g. rotary embeddings)
     """
 
+    ARCH = MODEL_KEYS[architecture]
+    if architecture == "neox":
+        hf_transformer = hf_model.gpt_neox
+    else:
+        hf_transformer = hf_model.model
+
     hf_config = create_config(loaded_config)
 
-    hf_model = GPTNeoXForCausalLM(hf_config)
+    hf_model = AutoModelForCausalLM(hf_config)
 
     if precision == "auto":
         print("Auto-detecting precision to save model into...")
@@ -219,7 +288,11 @@ def convert(
 
     ### Embedding layer ###
     # Embedding is layer idx 0
-    hf_model.gpt_neox.embed_in.load_state_dict(
+        if architecture == "neox":
+        embed_in = hf_transformer.embed_in
+    else:
+        embed_in = hf_transformer.embed_tokens
+    embed_in.load_state_dict( # TODO: embed_in is not always model's name for embedding
         {
             "weight": torch.cat(
                 get_state(loaded_tp_ranks, "word_embeddings.weight", 0), dim=0
@@ -227,14 +300,14 @@ def convert(
         }
     )
     assert (
-        hf_config.vocab_size == hf_model.gpt_neox.embed_in.weight.shape[0]
-    ), f"ERROR: calculated vocab size {hf_config.vocab_size} != embed param size {hf_model.gpt_neox.embed_in.shape[0]}"
+        hf_config.vocab_size == embed_in.weight.shape[0]
+    ), f"ERROR: calculated vocab size {hf_config.vocab_size} != embed param size {embed_in.shape[0]}"
     ### End Embedding Layer ###
 
     for layer_i in tqdm(range(get_key(loaded_config, "num-layers"))):
 
         # get layer from hf model
-        hf_layer = hf_model.gpt_neox.layers[layer_i]
+        hf_layer = hf_transformer.layers[layer_i] # TODO: model module names
 
         if not sequential:
             # in the non-sequential case, must load from each layer individually.
@@ -243,48 +316,32 @@ def convert(
 
         # + 2 bc of embed layer and a dummy _pre_transformer_block
         state_dict = {}
-        for key in [
-            "attention.dense.weight",
-            "mlp.dense_4h_to_h.weight",
-        ]:
+        for key, hf_key in ARCH["ROW_PARALLEL_LINEAR_KEYS"].items():
             state_dict[key] = torch.cat(
-                get_state(loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=args.sequential), dim=1
+                get_state(loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential), dim=1
             )
 
         # average layernorm stats over mp ranks
-        for key in [
-            "input_layernorm.weight",
-            "input_layernorm.bias",
-            "post_attention_layernorm.weight",
-            "post_attention_layernorm.bias",
-        ]:
-            state_dict[key] = sum(get_state(loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=args.sequential)) / len(
+        for key, hf_key in ARCH["NORM_KEYS"].items():
+            state_dict[key] = sum(get_state(loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential)) / len(
                 loaded_tp_ranks
             )
 
         # LinearWithTPMerge
-        for key in [
-            "mlp.dense_h_to_4h.weight",
-            "mlp.dense_h_to_4h.bias",
-            "attention.query_key_value.weight",
-            "attention.query_key_value.bias",
-        ]:
+        for key, hf_key in ARCH["COLUMN_PARALLEL_LINEAR_KEYS"].items():
             state_dict[key] = torch.cat(
-                get_state(loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=args.sequential), dim=0
+                get_state(loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential), dim=0
             )
 
         # LinearWithTPSplitBias
-        for key in [
-            "mlp.dense_4h_to_h.bias",
-            "attention.dense.bias",
-        ]:
-            state_dict[key] = sum(get_state(loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=args.sequential)) / len(
+        for key, hf_key in ARCH["ROW_PARALLEL_BIAS_KEYS"].items():
+            state_dict[key] = sum(get_state(loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential)) / len(
                 loaded_tp_ranks
             )
 
         # Just take one
         state_dict["attention.rotary_emb.inv_freq"] = get_state(
-            loaded_tp_ranks, "attention.rotary_emb.inv_freq", layer_idx=layer_i + 2, sequential=args.sequential
+            loaded_tp_ranks, "attention.rotary_emb.inv_freq", layer_idx=layer_i + 2, sequential=sequential
         )[0]
 
         if "attention.bias" in hf_layer.state_dict():
@@ -297,42 +354,53 @@ def convert(
         # load state_dict into layer
         hf_layer.load_state_dict(state_dict)
 
+    if sequential:
+        loaded_tp_ranks = load_partitions(
+            input_checkpoint_path, mp_partitions, get_key(loaded_config, "num-layers") + 3
+        )
     # Load final layer norm
-    hf_model.gpt_neox.final_layer_norm.load_state_dict(
-        {
-            "weight": (
-                sum(
-                    get_state(
-                        loaded_tp_ranks,
-                        "norm.weight",
-                        layer_idx=get_key(loaded_config, "num-layers") + 3,
-                        sequential=args.sequential
-                    )
-                )
-            )
-            / len(loaded_tp_ranks),
-            "bias": (
-                sum(
-                    get_state(
-                        loaded_tp_ranks,
-                        "norm.bias",
-                        layer_idx=get_key(loaded_config, "num-layers") + 3,
-                        sequential=args.sequential
-                    )
-                )
-            )
-            / len(loaded_tp_ranks),
-        }
+    if architecture == "neox":
+        lm_head = hf_model.embed_out
+    else:
+        lm_head = hf_model.lm_head
+    norm_state_dict = {}
+    for key, hf_key in ARCH["FINAL_NORM_KEYS"].items():
+        norm_state_dict[hf_key] = sum(
+            get_state(
+                loaded_tp_ranks,
+                key,
+                layer_idx=get_key(loaded_config, "num-layers") + 3,
+                sequential=sequential,
+            ) 
+        ) / len(loaded_tp_ranks)
+
+    if architecture == "neox":
+        final_layer_norm = hf_transformer.final_layer_norm
+    else:
+        final_layer_norm = hf_transformer.norm
+    
+    final_layer_norm.load_state_dict(
+        norm_state_dict
     )
+
+    # Load output embedding
+    if sequential:
+        loaded_tp_ranks = load_partitions(
+            input_checkpoint_path, mp_partitions, get_key(loaded_config, "num-layers") + 4
+        )
     # output embedding / LM head
-    hf_model.embed_out.load_state_dict(
+    if architecture == "neox": # name of lm head / final linear proj varies
+        lm_head = hf_model.embed_out
+    else:
+        lm_head = hf_model.lm_head
+    lm_head.load_state_dict(
         {
             "weight": torch.cat(
                 get_state(
                     loaded_tp_ranks,
                     "final_linear.weight",
                     layer_idx=get_key(loaded_config, "num-layers") + 4,
-                    sequential=args.sequential
+                    sequential=sequential
                 ),
                 dim=0,
             ),
@@ -368,12 +436,19 @@ def main(input_args=None, overwrite_values=None):
     parser.add_argument(
         "--precision",
         type=Literal["auto", "fp16", "bf16", "fp32"]
+        default="auto",
         help="What precision to save the model into. Defaults to auto, which auto-detects which 16-bit dtype to save into, or falls back to fp32."
     )
     parser.add_argument(
         "--no_save_tokenizer",
         action='store_true',
         help="Whether to skip saving the tokenizer alongside a model."
+    )
+    parser.add_argument(
+        "--architecture",
+        type=Literal["neox", "llama", "mistral"],
+        default="neox",
+        help="What HF model class type to export into."
     )
     args = parser.parse_args(input_args)
 
