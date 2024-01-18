@@ -222,6 +222,75 @@ def create_config(neox_config):
     return hf_config
 
 
+def reshard_and_split_qkv(
+    param_mapping: dict, # a dictionary mapping the QKV weight keys in GPT-NeoX -> a list of keys representing the Q, K, and V weight keys the HF model will use
+    config: AutoConfig, # a HF model config for the model
+    loaded_tp_ranks: List[torch.Tensor],
+):
+    """
+    A helper function which performs reshaping and sharding to make the QKV projection from NeoX compatible with HF Llama models, 
+    even when grouped-query attention is required. 
+    """
+    for key, hf_keys in param_mapping.items():
+        assert (isinstance(hf_keys, list) and len(hf_keys) == 3), "Must map QKV to precisely 3 resulting weight matrices."
+    
+            
+    for key, hf_keys in param_mapping.items():
+        # we first merge the QKV proj. across TP ranks
+        sharded_qkv = torch.stack(get_state(loaded_tp_ranks, key, layer_i + 2), dim=0)
+        # should now have shape [TP_SIZE, (hidden_size + 2 * kv_hidden_size) / TP_SIZE, hidden_size].
+
+        sharded_qkv = sharded_qkv.view(
+            len(loaded_tp_ranks),
+            hf_config.num_attention_heads // len(loaded_tp_ranks),
+            int(hf_config.hidden_size // hf_config.num_attention_heads * (1+ 2 * hf_config.num_key_value_heads / hf_config.num_attention_heads)), 
+            hf_config.hidden_size
+        ) # is meant to convert to shape [TP_SIZE, NUM_QUERY_HEADS_PER_SHARD, dims_per_head * (1 + 2 * kv-to-q head ratio), hidden_size]
+        
+        q, k, v = torch.split(
+            sharded_qkv, [
+                hf_config.hidden_size // hf_config.num_attention_heads,
+                int((hf_config.num_key_value_heads / hf_config.num_attention_heads) * hf_config.hidden_size // hf_config.num_attention_heads),
+                int((hf_config.num_key_value_heads / hf_config.num_attention_heads) * hf_config.hidden_size // hf_config.num_attention_heads),
+            ],
+            dim=2
+        )
+        # splits along the (dims_per_head * (1 + 2 * kv-to-q head ratio)_ dim to get 3 tensors:
+        # 1 x [TP_SIZE, NUM_Q_HEADS_PER_SHARD, dims_per_head, hidden_size] and 2 x [TP_SIZE, NUM_Q_HEADS_PER_SHARD, (dims_per_head / kv-to-q head ratio), hidden_size]
+        # these are the Q, and K, V tensors respectively. 
+
+        # we have to do additional reshape for each individual tensor now, 
+        # into the expected square (or smaller than square, for K/V tensors) shape
+        q, k, v = q.squeeze(dim=2), k.squeeze(dim=2), v.squeeze(dim=2)
+        q = q.view(
+            hf_config.num_attention_heads,
+            hf_config.hidden_size // hf_config.num_attention_heads,
+            hf_config.hidden_size
+        ).reshape(
+            hf_config.hidden_size, hf_config.hidden_size
+        )
+        k = k.reshape(
+            hf_config.num_key_value_heads,
+            hf_config.hidden_size // hf_config.num_attention_heads,
+            hf_config.hidden_size
+        ).reshape(
+            hf_config.hidden_size // hf_config.num_attention_heads * hf_config.num_key_value_heads, hf_config.hidden_size
+        )
+        v = v.reshape(
+            hf_config.num_key_value_heads,
+            hf_config.hidden_size // hf_config.num_attention_heads,
+            hf_config.hidden_size
+        ).reshape(
+            hf_config.hidden_size // hf_config.num_attention_heads * hf_config.num_key_value_heads, hf_config.hidden_size
+        )
+
+        # return these
+        state_dict = {}
+        for hf_key, proj in zip(hf_keys, [q, k, v]):
+            state_dict[hf_key] = proj.clone()
+        return state_dict
+    
+
 def convert(
     input_checkpoint_path, 
     loaded_config, 
@@ -353,6 +422,17 @@ def convert(
                 "attention.masked_bias"
             ]
 
+        # some architectures, like Mistral and Llama, have the following which must be handled specially:
+        # - Q, K, V projections are performed separately, so we must split apart GPT-NeoX library's single QKV proj
+        # - Support for Grouped-Query Attention, meaning the Q and the K, V projections may not be the same size
+        if "GQA_QKV_KEYS" in ARCH:
+            state_dict.update(
+                reshard_and_split_qkv(
+                    param_mapping=ARCH["GQA_QKV_KEYS"],
+                    config=hf_config,
+                    loaded_tp_ranks=loaded_tp_ranks,
+                )
+            )
         # load state_dict into layer
         hf_layer.load_state_dict(state_dict)
 
