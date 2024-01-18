@@ -65,6 +65,7 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     row_model_parallel_size: int = 1
     column_model_parallel_size: int = 1
     depth_model_parallel_size: int = 1
+    optimize_axonn_communication: bool = False
 
     """
     Size of the model parallelism.

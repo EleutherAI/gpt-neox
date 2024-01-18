@@ -195,6 +195,7 @@ def _initialize_distributed(neox_args):
         column_mp = neox_args.column_model_parallel_size
         depth_mp = neox_args.depth_model_parallel_size
         assert row_mp * column_mp * depth_mp == neox_args.model_parallel_size, "product of row-model-parallel-size, column-model-parallel-sizem and depth-model-parallel-size should equal model-parallel-size"
+        assert neox_args.pipe_parallel_size == 0, "AxoNN's tensor parallelism has not been tested with pipeline parallelism"
         ax.init(
                 G_inter= pp,
                 G_data = dp,

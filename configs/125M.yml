@@ -2,14 +2,16 @@
 {
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
-   "pipe_parallel_size": 1,
+   "pipe_parallel_size": 0,
    "model_parallel_size": 2,
 
+   ## axonn's arguments
    "use_axonn_model_parallelism": true,
    ## these are the 3 dimensions of AxoNN's TP
-   "depth_model_parallel_size": 1,
+   "depth_model_parallel_size": 2,
    "row_model_parallel_size": 1,
-   "column_model_parallel_size": 2,
+   "column_model_parallel_size": 1,
+   "optimize_axonn_communication": true,
 
    # model settings
    "num_layers": 12,

@@ -55,7 +55,12 @@ from megatron.utils import (
     CharCounter,
 )
 from megatron.model.gpt2_model import cross_entropy
+from megatron.model.transformer import ParallelTransformerLayer
 from eval_tasks import run_eval_harness
+
+from axonn.intra_layer import optimize_communication, sync_gradients
+from contextlib import nullcontext
+from functools import partial
 
 
 def mup_weights_reinit(neox_args, model):
@@ -730,27 +735,46 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
         )
     else:
         losses = []
+        if neox_args.use_axonn_model_parallelism and neox_args.optimize_axonn_communication:
+            ctx = partial(
+                    optimize_communication,
+                    overlap_all_reduce=True, 
+                    overlap_reduce_scatter=True,
+                    overlap_all_gather=True,
+                    model_object_for_overlapping_allgathers=model
+                )
+        else:
+            ctx = nullcontext
+
         for _ in range(neox_args.gradient_accumulation_steps):
             # Forward model for one step.
             timers("forward").start()
-            loss = forward_step(
-                neox_args=neox_args,
-                timers=timers,
-                data_iterator=data_iterator,
-                model=model,
-                is_train=True,
-            )
+            with ctx():
+                loss = forward_step(
+                    neox_args=neox_args,
+                    timers=timers,
+                    data_iterator=data_iterator,
+                    model=model,
+                    is_train=True,
+                )
             timers("forward").stop()
             losses.append(loss)
             # Calculate gradients, reduce across processes, and clip.
             timers("backward").start()
-            backward_step(
-                neox_args=neox_args,
-                timers=timers,
-                optimizer=optimizer,
-                model=model,
-                loss=loss,
-            )
+            with ctx():
+                backward_step(
+                    neox_args=neox_args,
+                    timers=timers,
+                    optimizer=optimizer,
+                    model=model,
+                    loss=loss,
+                )
+            if neox_args.use_axonn_model_parallelism:
+                modules_to_sync = []
+                for module in model.modules():
+                    if isinstance(module, ParallelTransformerLayer):
+                        sync_gradients(module)
+            #sync_gradients(model)
             timers("backward").stop()
             # Update parameters.
             timers("optimizer").start()
