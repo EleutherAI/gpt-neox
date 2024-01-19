@@ -1,12 +1,13 @@
 # Copyright (c) 2024, NVIDIA CORPORATION. All rights reserved.
 
 import pytest
-from tools.datasets import preprocess_data
-import train
+
+import eval
 import generate
-import evaluate
+import train
 from megatron.neox_arguments import NeoXArgs
-from tests.common import simulate_deepy_env, save_random_model
+from tests.common import save_random_model, simulate_deepy_env
+from tools.datasets import preprocess_data
 
 
 @pytest.fixture(
@@ -84,7 +85,7 @@ def test_evaluate(monkeypatch, tmpdir, tmp_path):
         "eval_tasks": ["lambada"],  # ["lambada", "hellaswag", "piqa", "sciq"],
         "eval_results_prefix": sample_output_file,
     }
-    evaluate.main(input_args=deepspeed_main_args, overwrite_values=evaluate_args)
+    eval.main(input_args=deepspeed_main_args, overwrite_values=evaluate_args)
 
 
 def test_finetuning(monkeypatch, tmpdir, tmp_path):
