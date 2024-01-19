@@ -88,6 +88,9 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
     echo 'export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:$LD_LIBRARY_PATH' >> /home/mchorse/.bashrc
 
 #### Python packages
+# Apex compilation is inconsistent across pip version so we need to fix the version of pip
+COPY requirements/requirements-apex-pip.txt .
+RUN python -m pip install -r requirements/requirements-apex-pip.txt
 RUN python -m pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 COPY requirements/requirements.txt .
 COPY requirements/requirements-wandb.txt .
