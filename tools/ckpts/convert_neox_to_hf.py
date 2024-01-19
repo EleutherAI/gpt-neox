@@ -20,7 +20,7 @@ import argparse
 from tqdm import tqdm
 
 import torch
-from transformers import GPTNeoXConfig, AutoModelForCausalLM
+from transformers import MistralConfig, LlamaConfig, GPTNeoXConfig, AutoModelForCausalLM, AutoConfig
 
 from typing import List, Literal
 
@@ -93,7 +93,7 @@ MODEL_KEYS = {
         },
         "GQA_QKV_KEYS": { # because Llama can have Grouped Query Attention and has separate Q, K, and V linear proj params, handle them separately.
             "attention.query_key_value.weight": [
-                "self.attn.q_proj.weight", "self_attn.k_proj.weight", "self_attn.v_proj.weight"
+                "self_attn.q_proj.weight", "self_attn.k_proj.weight", "self_attn.v_proj.weight"
             ],
         }
 
@@ -161,10 +161,18 @@ def get_key(loaded_config, key, default=None):
             return default
 
 
-def create_config(neox_config):
+def create_config(neox_config, architecture="neox"):
     """take in a loaded yaml from NeoX and assign relevant values to HF config.
     Returns: GPTNeoXConfig() object
     """
+
+    def gated_size(hidden_dim):
+        # takes in a hidden dim and calculates intermediate dim of a LLaMAParallelMLP.
+        # (only used if intermediate_size not specified in config)
+        # hidden-size * 8 / 3 , rounded up to nearest multiple of 256
+        ff_dim = int(2 * hidden_dim * 4 / 3)
+        ff_dim = 256 * ((ff_dim + 256 - 1) // 256)
+        return ff_dim
 
     class TokenizerArgs:
         # kinda hacky.
@@ -201,31 +209,67 @@ def create_config(neox_config):
         )
 
     # set all config values.
-    hf_config = GPTNeoXConfig(
-        vocab_size=args.padded_vocab_size,
-        hidden_size=get_key(neox_config, "hidden-size"),
-        num_hidden_layers=get_key(neox_config, "num-layers"),
-        num_attention_heads=get_key(neox_config, "num-attention-heads"),
-        intermediate_size=(get_key(neox_config, "hidden-size") * 4),
-        hidden_act=get_key(neox_config, "activation", default="gelu"),
-        rotary_pct=get_key(neox_config, "rotary-pct", default=1.0),
-        rotary_emb_base=get_key(neox_config, "rotary-emb-base", default=10000),
-        max_position_embeddings=get_key(neox_config, "max-position-embeddings"),
-        initializer_range=get_key(neox_config, "init-method-std", 0.02),
-        layer_norm_eps=get_key(neox_config, "layernorm-epsilon", 1e-5),
-        use_cache=True,
-        bos_token_id=tokenizer.eod,
-        eos_token_id=tokenizer.eod,
-        tie_word_embeddings=(not get_key(neox_config, "no-weight-tying", False)),
-        use_parallel_residual=get_key(neox_config, "gpt-j-residual", False),
-    )
+
+    # shared config parameters.
+    args = {
+        "vocab_size": args.padded_vocab_size,
+        "hidden_size": get_key(neox_config, "hidden-size"),
+        "num_hidden_layers": get_key(neox_config, "num-layers"),
+        "num_attention_heads": get_key(neox_config, "num-attention-heads"),
+        "max_position_embeddings": get_key(neox_config, "max-position-embeddings"),
+        "initializer_range": get_key(neox_config, "init-method-std", 0.02),
+        "tie_word_embeddings": (not get_key(neox_config, "no-weight-tying", False)),
+        "use_cache": True,
+    }
+    if architecture == "mistral" or architecture == "llama":
+        args.update({
+            "intermediate_size": get_key(neox_config, "intermediate-size", gated_size(get_key(neox_config, "hidden-size"))),
+            "num_key_value_heads": get_key(neox_config, "num-kv-heads", get_key(neox_config, "num-attention-heads")),
+            "hidden_act": get_key(neox_config, "activation", default="silu"),
+            "rms_norm_eps": get_key(neox_config, "rms-norm-epsilon", 1.0e-6),
+            "bos_token_id": tokenizer.eod,
+            "eos_token_id": tokenizer.eod,
+            "rope_theta": get_key(neox_config, "rotary-emb-base", 10000.0)
+        })
+
+        if architecture == "mistral": 
+            # mistral-specific options
+            args.update(
+                {
+                    "sliding_window": get_key(neox_config, "sliding-window-width", 4096),
+                }
+            )
+            hf_config = MistralConfig(**args)
+        elif architecture == "llama":
+            # llama-specific options
+            args.update(
+                {
+                    # NeoX library defaults to using bias in attention
+                    "attention_bias": get_key(neox_config, "use_bias_in_attn_linear", True),
+                }
+            )
+            hf_config = LlamaConfig(**args)
+    else:
+        # GPT-NeoX HF model class-specific options
+        args.update(
+            {
+                "rotary_pct": get_key(neox_config, "rotary-pct", default=1.0),
+                "rotary_emb_base": get_key(neox_config, "rotary-emb-base", default=1000.0),
+                "use_parallel_residual": get_key(neox_config, "gpt-j-residual", False),
+                "layer_norm_eps": get_key(neox_config, "layernorm-epsilon", 1e-5),
+            }
+        )
+        hf_config = GPTNeoXConfig(**args)
+
     return hf_config
 
 
 def reshard_and_split_qkv(
     param_mapping: dict, # a dictionary mapping the QKV weight keys in GPT-NeoX -> a list of keys representing the Q, K, and V weight keys the HF model will use
-    config: AutoConfig, # a HF model config for the model
+    hf_config: AutoConfig, # a HF model config for the model
     loaded_tp_ranks: List[torch.Tensor],
+    layer_idx: int,
+    sequential: bool,
 ):
     """
     A helper function which performs reshaping and sharding to make the QKV projection from NeoX compatible with HF Llama models, 
@@ -237,7 +281,7 @@ def reshard_and_split_qkv(
             
     for key, hf_keys in param_mapping.items():
         # we first merge the QKV proj. across TP ranks
-        sharded_qkv = torch.stack(get_state(loaded_tp_ranks, key, layer_i + 2), dim=0)
+        sharded_qkv = torch.stack(get_state(loaded_tp_ranks, key, layer_idx, sequential), dim=0)
         # should now have shape [TP_SIZE, (hidden_size + 2 * kv_hidden_size) / TP_SIZE, hidden_size].
 
         sharded_qkv = sharded_qkv.view(
@@ -307,7 +351,7 @@ def convert(
     ARCH = MODEL_KEYS[architecture]
 
 
-    hf_config = create_config(loaded_config)
+    hf_config = create_config(loaded_config, architecture=architecture)
 
     hf_model = AutoModelForCausalLM.from_config(hf_config)
 
@@ -345,6 +389,7 @@ def convert(
             "fp16": torch.float16,
             "fp32": torch.float,
         }
+        print(f"Saving model into specified {precision} precision...")
         hf_model.to(dtype=name_to_dtype[precision])
 
     mp_partitions = get_key(loaded_config, "model-parallel-size")
@@ -388,32 +433,33 @@ def convert(
         # + 2 bc of embed layer and a dummy _pre_transformer_block
         state_dict = {}
         for key, hf_key in ARCH["ROW_PARALLEL_LINEAR_KEYS"].items():
-            state_dict[key] = torch.cat(
+            state_dict[hf_key] = torch.cat(
                 get_state(loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential), dim=1
             )
 
         # average layernorm stats over mp ranks
         for key, hf_key in ARCH["NORM_KEYS"].items():
-            state_dict[key] = sum(get_state(loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential)) / len(
+            state_dict[hf_key] = sum(get_state(loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential)) / len(
                 loaded_tp_ranks
             )
 
         # LinearWithTPMerge
         for key, hf_key in ARCH["COLUMN_PARALLEL_LINEAR_KEYS"].items():
-            state_dict[key] = torch.cat(
+            state_dict[hf_key] = torch.cat(
                 get_state(loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential), dim=0
             )
 
         # LinearWithTPSplitBias
         for key, hf_key in ARCH["ROW_PARALLEL_BIAS_KEYS"].items():
-            state_dict[key] = sum(get_state(loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential)) / len(
+            state_dict[hf_key] = sum(get_state(loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential)) / len(
                 loaded_tp_ranks
             )
 
         # Just take one
-        state_dict["attention.rotary_emb.inv_freq"] = get_state(
-            loaded_tp_ranks, "attention.rotary_emb.inv_freq", layer_idx=layer_i + 2, sequential=sequential
-        )[0]
+        if "attention.rotary_emb.inv_freq" in hf_layer.state_dict():
+            state_dict["attention.rotary_emb.inv_freq"] = get_state(
+                loaded_tp_ranks, "attention.rotary_emb.inv_freq", layer_idx=layer_i + 2, sequential=sequential
+            )[0]
 
         if "attention.bias" in hf_layer.state_dict():
             state_dict["attention.bias"] = hf_layer.state_dict()["attention.bias"]
@@ -429,8 +475,10 @@ def convert(
             state_dict.update(
                 reshard_and_split_qkv(
                     param_mapping=ARCH["GQA_QKV_KEYS"],
-                    config=hf_config,
+                    hf_config=hf_config,
                     loaded_tp_ranks=loaded_tp_ranks,
+                    layer_idx=layer_i + 2,
+                    sequential=sequential,
                 )
             )
         # load state_dict into layer
@@ -557,7 +605,7 @@ def main(input_args=None, overwrite_values=None):
         print(f"Detected 'pipe-parallel-size' of {pipeline_world_size}, assuming model is saved as PipelineModule...")
 
     # convert the model to HF.
-    hf_model = convert(args.input_dir, loaded_config, args.output_dir, sequential=sequential)
+    hf_model = convert(args.input_dir, loaded_config, args.output_dir, sequential=sequential, architecture=args.architecture)
 
     # Save to disk.
     hf_model.save_pretrained(args.output_dir)
@@ -568,6 +616,7 @@ def main(input_args=None, overwrite_values=None):
 
         if tokenizer_type == "HFTokenizer": # TODO: handle sentencepiece tokenizers?
             print(f"saving tokenizer from file {get_key(loaded_config, 'vocab-file')}")
+            print("Warning: please check that your model config and tokenizer end with the correct special tokens (EOS, BOS).")
             from transformers import PreTrainedTokenizerFast
 
             tokenizer = PreTrainedTokenizerFast(

@@ -27,7 +27,7 @@ INTERMEDIATE_SIZE_MAP = {
     "34B": 22016,
     "65B": 22016,
     "70B": 28672,
-    "Mistral-7B-v0.1": 14336, 
+    "mistral-7B-v0.1": 14336, 
 }
 NUM_SHARDS = {
     "7B": 1,
@@ -36,7 +36,7 @@ NUM_SHARDS = {
     "34B": 4, 
     "65B": 8,
     "70B": 8,
-    "Mistral-7B-v0.1": 1,
+    "mistral-7B-v0.1": 1,
 }
 
 
@@ -161,6 +161,8 @@ def convert_model_pipeline(
     if model_size == "7B":
         rope_freqs = loaded[0]["layers.0.attention.inner_attention.rope.freqs"]
         helper.del_loaded("layers.0.attention.inner_attention.rope.freqs")
+    elif "mistral" in model_size:
+        rope_freqs = None
     else:
         rope_freqs = loaded[0]["rope.freqs"]
         helper.del_loaded("rope.freqs")
@@ -284,7 +286,7 @@ def convert_model_pipeline(
                     # Duplicated layers
                     "input_layernorm.scale": input_layernorm,
                     "post_attention_layernorm.scale": post_attention_layernorm,
-                    "attention.rotary_emb.inv_freq": rope_freqs,
+                    **({"attention.rotary_emb.inv_freq": rope_freqs} if "mistral" not in model_size else {}),
                 },
                 layer_i=layer_i + 2,
                 rank=out_rank,
@@ -403,6 +405,8 @@ def convert_model_sequential(
     if model_size == "7B":
         rope_freqs = loaded[0]["layers.0.attention.inner_attention.rope.freqs"]
         helper.del_loaded("layers.0.attention.inner_attention.rope.freqs")
+    elif "mistral" in model_size:
+        rope_freqs = None
     else:
         rope_freqs = loaded[0]["rope.freqs"]
         helper.del_loaded("rope.freqs")
@@ -528,7 +532,7 @@ def convert_model_sequential(
                     # Duplicated layers
                     "input_layernorm.scale": input_layernorm,
                     "post_attention_layernorm.scale": post_attention_layernorm,
-                    "attention.rotary_emb.inv_freq": rope_freqs,
+                    **({"attention.rotary_emb.inv_freq": rope_freqs} if "mistral" not in model_size else {}),
                 },
                 layer_i=layer_i + 2,
                 rank=out_rank,
@@ -586,7 +590,7 @@ class Helper:
             )
 
     def save(self, obj, layer_i, rank):
-        torch.save(obj, self.save_path(layer_i=layer_i + 2, rank=rank))
+        torch.save(obj, self.save_path(layer_i=layer_i, rank=rank))
 
     def shard(self, x, dim):
         x_shape = list(x.shape)
@@ -634,7 +638,7 @@ def main():
     )
     parser.add_argument(
         "--model_size",
-        choices=["7B", "Mistral-7b-v0.1", "13B", "30B", "34B", "65B", "tokenizer_only"],
+        choices=["7B", "mistral-7B-v0.1", "13B", "30B", "34B", "65B", "tokenizer_only"],
     )
     parser.add_argument(
         "--output_dir",
