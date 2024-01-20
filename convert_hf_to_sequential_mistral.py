@@ -61,6 +61,24 @@ MULTI_GPU_ARGS = " ".join(
     ]
 )
 
+def reshape_qkv_helper(heads, num_heads, hidden_size, num_mp_ranks, num_q_heads):
+    assert hidden_size >= num_q_heads
+    assert num_q_heads >= num_mp_ranks
+    assert int(hidden_size//num_q_heads * (num_heads/num_q_heads)) > 0
+    heads = heads.reshape(num_heads, hidden_size//num_q_heads, hidden_size)
+    heads = heads.reshape(num_mp_ranks, num_q_heads//num_mp_ranks, int(hidden_size//num_q_heads * (num_heads/num_q_heads)), hidden_size)
+    return heads
+
+def handle_qkv(hf_layer_sd, num_mp_ranks, hf_config):
+    hidden_size = hf_config.hidden_size
+    num_attention_heads = hf_config.num_attention_heads
+    num_key_value_heads = hf_config.num_key_value_heads
+    q = reshape_qkv_helper(hf_layer_sd["self_attn.q_proj.weight"], num_attention_heads, hidden_size, num_mp_ranks, num_attention_heads)
+    k = reshape_qkv_helper(hf_layer_sd["self_attn.k_proj.weight"], num_key_value_heads, hidden_size, num_mp_ranks, num_attention_heads)
+    v = reshape_qkv_helper(hf_layer_sd["self_attn.v_proj.weight"], num_key_value_heads, hidden_size, num_mp_ranks, num_attention_heads)
+
+    return torch.cat([q, k, v], dim=2).reshape(num_mp_ranks, (hidden_size + int(2 * (hidden_size * num_key_value_heads/num_attention_heads)))//num_mp_ranks, hidden_size)
+    # return torch.cat([hf_layer_sd["self_attn.q_proj.weight"], hf_layer_sd["self_attn.k_proj.weight"], hf_layer_sd["self_attn.v_proj.weight"]], dim=0)
 
 def convert_hf_to_sequential(hf_model, seq_state_dict, num_mp_ranks):
     """Converts the weights of a HuggingFace model to neox 2.0 format.
@@ -70,8 +88,9 @@ def convert_hf_to_sequential(hf_model, seq_state_dict, num_mp_ranks):
 
     returns the updated sequential state dict
     """
-    num_layers = hf_model.config.num_hidden_layers
 
+    num_layers = hf_model.config.num_hidden_layers
+    hf_config = hf_model.config
 
     # Embedding is layer idx 0
     seq_state_dict[
@@ -88,17 +107,21 @@ def convert_hf_to_sequential(hf_model, seq_state_dict, num_mp_ranks):
 
 
         seq_state_dict[f"sequential.{layer_seq}.attention.query_key_value.weight"] \
-                        = split_reorder_and_stack_separate_qkv(hf_layer_sd["self_attn.q_proj.weight"], 
-                                                               hf_layer_sd["self_attn.k_proj.weight"],
-                                                               hf_layer_sd["self_attn.v_proj.weight"],
-                                                               num_mp_ranks=num_mp_ranks,
-                                                               dim=0)
+                        = handle_qkv(hf_layer_sd, num_mp_ranks, hf_config)
+                        # = split_reorder_and_stack_separate_qkv(hf_layer_sd["self_attn.q_proj.weight"], 
+                        #                                        hf_layer_sd["self_attn.k_proj.weight"],
+                        #                                        hf_layer_sd["self_attn.v_proj.weight"],
+                        #                                        num_mp_ranks=num_mp_ranks,
+                        #                                        dim=0)
         seq_state_dict[f"sequential.{layer_seq}.attention.dense.weight"] = hf_layer_sd["self_attn.o_proj.weight"]
         seq_state_dict[f"sequential.{layer_seq}.mlp.w1.weight"] = hf_layer_sd["mlp.gate_proj.weight"]
         seq_state_dict[f"sequential.{layer_seq}.mlp.w3.weight"] = hf_layer_sd["mlp.up_proj.weight"]
         seq_state_dict[f"sequential.{layer_seq}.mlp.w2.weight"] = hf_layer_sd["mlp.down_proj.weight"]
         seq_state_dict[f"sequential.{layer_seq}.input_layernorm.scale"] = hf_layer_sd["input_layernorm.weight"]
         seq_state_dict[f"sequential.{layer_seq}.post_attention_layernorm.scale"] = hf_layer_sd["post_attention_layernorm.weight"]
+# 
+
+
 
 # Conversion table for Mistral 7b 0.1
 # FOR PARTS LOADED THROUGH hf_model.model
@@ -157,6 +180,8 @@ def shard_sequential_mp(num_mp_ranks, sequential):
             for x in range(num_mp_ranks):
                 ranks[x][k] = v
         else:
+            print(k)
+            print(v.shape)
             if len(v.shape) == 1:
                 size_per_rank = v.shape[0] / num_mp_ranks
                 if size_per_rank % 128 != 0.0:
@@ -258,6 +283,52 @@ def shard_sequential_mp(num_mp_ranks, sequential):
                             else v[:, size_per_rank * x : size_per_rank * (x + 1)]
                         )
 
+            elif len(v.shape) == 3:
+                if reduce(
+                    np.logical_or,
+                    [
+                        x in k
+                        for x in [
+                            "attention.query_key_value.weight",
+                        ]
+                    ],
+                ):
+                    # row parallel (indices start at 1 since idx 0 is mp rank)
+                    max_, min_ = 1, 2
+                else:
+                    raise Exception("Unknown weight to shard: {}".format(k))
+
+                # size_per_rank = v.shape[max_]
+                # if size_per_rank % 128 != 0.0:
+                #     padded_size = (128 - (size_per_rank % 128)) + size_per_rank
+                #     size_diff = int((padded_size * num_mp_ranks) - v.shape[max_])
+
+                #     assert (
+                #         size_diff > 0
+                #     ), "[ERROR] size diff is negative: {} for size_per_rank: {}, k:{}, shape:{}, padded_size:{}".format(
+                #         size_diff, size_per_rank, k, v.shape, padded_size
+                #     )
+
+                #     zero_pad = (
+                #         torch.zeros((v.shape[0], size_diff, v.shape[min_]))
+                #         if max_ == 0
+                #         else torch.zeros((v.shape[min_], size_diff))
+                #     )
+
+                #     v = torch.cat([v, zero_pad], dim=max_)
+                # else:
+                #     padded_size = size_per_rank
+
+                # assert size_per_rank % 1.0 == 0.0
+                # assert padded_size % 1.0 == 0.0
+
+                # padded_size = int(padded_size)
+                # size_per_rank = int(size_per_rank)
+
+                # print("size_per_rank 2", size_per_rank)
+                # print("padded_size 2", padded_size)
+                for x in range(num_mp_ranks):
+                    ranks[x][k] = v[x, :, :]
             else:
                 raise NotImplementedError()
 
@@ -277,6 +348,16 @@ def replace_sharded_seq(mp_checkpoints, mp_sharded_seq):
             try:
                 mp_checkpoints[mp_key]["module"][k] = shard[k]
             except KeyError:
+                if reduce(
+                    np.logical_or,
+                    [
+                        x in k
+                        for x in [
+                            "rotary_emb",
+                        ]
+                    ],
+                ):
+                    continue
                 print("ERROR key:{} not found in shard.".format(k))
 
 
@@ -407,7 +488,7 @@ def convert(hf_model, ckpt_dir, output_dir):
 
     # set latest file within the output_dir
     latest_file = os.path.join("/".join(output_dir.split("/")[:-1]), "latest")
-    os.system("rm -r" + latest_file)
+    os.system("rm -r " + latest_file)
     with open(latest_file, "w") as f:
         f.write(output_dir.split("/")[-1])
 
@@ -473,7 +554,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--ckpt-tmp-dir",
-        default="/tmp/ckpt_tmp_dir/" + os.environ["USER"],
+        default="tmp/convert_ckpt_tmp_dir/JOBID_" + os.environ["SLURM_JOB_ID"],
         help="Directory to store cached hugging face checkpoints. [WARNING: MUST BE VISIBLE TO ALL RANKS]"
     )
     parser.add_argument(
@@ -540,6 +621,9 @@ if __name__ == "__main__":
     torch.distributed.barrier()
 
     model = get_model(neox_args=neox_args, use_cache=True)
+
+    torch.distributed.barrier()
+
     optimizer, param_groups = get_optimizer(model=model, neox_args=neox_args)
     lr_scheduler = get_learning_rate_scheduler(optimizer=optimizer, neox_args=neox_args)
 
@@ -553,7 +637,7 @@ if __name__ == "__main__":
         config_params=neox_args.deepspeed_config,
         mpu=mpu if not neox_args.is_pipe_parallel else None,
     )
-
+    
 
     if os.environ.get("RANK", "1") == "0":
         os.makedirs(f"{tmp_cache_dir}", exist_ok=True)
