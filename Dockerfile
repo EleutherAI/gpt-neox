@@ -105,7 +105,7 @@ RUN python -m pip install protobuf==3.20.*
 RUN python -m pip cache purge
 
 ## Install APEX
-RUN pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings --global-option=--cpp_ext --config-settings --global-option=--cuda_ext git+https://github.com/NVIDIA/apex.git@bae1f93d033716dc9115a0baf7bcda328addabe9 
+RUN pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings --global-option=--cpp_ext --config-settings --global-option=--cuda_ext git+https://github.com/segyges/apex-fused-adamw.git@bae1f93d033716dc9115a0baf7bcda328addabe9 
 
 COPY megatron/fused_kernels/ megatron/fused_kernels
 WORKDIR /megatron/fused_kernels
