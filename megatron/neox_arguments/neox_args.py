@@ -83,6 +83,11 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     according to pipeline parallel size.
     """
 
+    expert_interval: int = 2
+    """
+    Have one MoE layer every expert_interval layers
+    """
+
 
 @dataclass
 class NeoXArgsModel(NeoXArgsTemplate):
@@ -1153,4 +1158,49 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     eval_tasks: list = None
     """
     Tasks to evaluate on using lm_eval_harness
+    """
+
+    topk: int = 2
+    """
+    Activate top K experts in MoE
+    """
+
+    use_tutel: bool = False
+    """
+    Use Tutel optimizations in MoE
+    """
+
+    num_experts: int = 1
+    """
+    Number of MoE experts
+    """
+
+    moe_train_capacity_factor: float = 1.0
+    """
+    The capacity of the expert at train time
+    """
+
+    moe_eval_capacity_factor: float = 1.0
+    """
+    The capacity of the expert at eval time
+    """
+
+    moe_min_capacity: int = 4
+    """
+    The minimum capacity per expert regardless of the capacity_factor
+    """
+
+    moe_token_dropping: bool = True
+    """
+    Whether to drop tokens when exceeding capacity
+    """
+
+    create_moe_param_group: bool = True
+    """
+    Whether to create a separate parameter group for MoE parameters
+    """
+
+    moe_expert_parallel_size: int = 1
+    """
+    Number of parallel experts in MoE
     """

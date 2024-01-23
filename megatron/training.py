@@ -478,6 +478,16 @@ def get_optimizer(model, neox_args):
         f'Configuring Optimizer type: {neox_args.optimizer_type} with params: {neox_args.optimizer["params"]}'
     )
 
+    if neox_args.create_moe_param_group:
+        from deepspeed.moe.utils import (
+            is_moe_param,
+            split_params_into_different_moe_groups_for_optimizer,
+        )
+
+        param_groups = split_params_into_different_moe_groups_for_optimizer(
+            param_groups
+        )
+
     # Add model parallel attribute if it is not set.
     for param_group in param_groups:
         for param in param_group["params"]:
