@@ -387,7 +387,13 @@ def forward_step(
 
     if neox_args.memory_profiling:
         torch.cuda.nvtx.range_push(f"Forward pass")
-    outputs = model((tokens, position_ids, attention_mask), neox_args=neox_args)
+    # Sequential returns moe_losses, but this is not yet supported by pipe parallel
+    maybe_tuple = model((tokens, position_ids, attention_mask), neox_args=neox_args)
+    if type(maybe_tuple) is tuple:
+        outputs, moe_losses = maybe_tuple
+    else:
+        outputs = maybe_tuple
+        moe_losses = []
     if (
         is_train
         and neox_args.curriculum_learning
@@ -395,9 +401,14 @@ def forward_step(
     ):
         loss_mask = loss_mask[:, : neox_args.curriculum_seqlen].contiguous()
         labels = labels[:, : neox_args.curriculum_seqlen].contiguous()
-    loss = cross_entropy(
+    main_loss = cross_entropy(
         outputs, (labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy
     )
+    if neox_args.num_experts > 1:
+        moe_loss = neox_args.moe_loss_coeff * sum(m.item() for m in moe_losses)
+    else:
+        moe_loss = 0.0
+    loss = main_loss + moe_loss
     if neox_args.memory_profiling:
         torch.cuda.nvtx.range_pop()
     if return_logits:
@@ -488,6 +499,16 @@ def get_optimizer(model, neox_args):
     print_rank_0(
         f'Configuring Optimizer type: {neox_args.optimizer_type} with params: {neox_args.optimizer["params"]}'
     )
+
+    if neox_args.create_moe_param_group:
+        from deepspeed.moe.utils import (
+            is_moe_param,
+            split_params_into_different_moe_groups_for_optimizer,
+        )
+
+        param_groups = split_params_into_different_moe_groups_for_optimizer(
+            param_groups
+        )
 
     # Add model parallel attribute if it is not set.
     for param_group in param_groups:
