@@ -510,8 +510,9 @@ def make_streaming_data_loader(dataset, neox_args):
     # )
     # Torch dataloader.
     from streaming import StreamingDataLoader
+   
     return StreamingDataLoader(
-        dataset, batch_size=neox_args.train_micro_batch_size_per_gpu, num_workers=num_workers, pin_memory=True
+        dataset, batch_size=neox_args.train_micro_batch_size_per_gpu, num_workers=num_workers, drop_last=True, pin_memory=True
     )
 
 
@@ -564,9 +565,9 @@ def build_train_valid_test_data_iterators_streaming(neox_args):
                 [neox_args.train_data_paths, neox_args.valid_data_paths, neox_args.test_data_paths]
             ): # TODO: assumes only one data source per split
                 # Remote directory (S3 or local filesystem) where dataset is stored
-                remote_dir = 's3://{data_path[0]}'
+                remote_dir = f's3://{data_path[0]}'
                 # Local directory where dataset is cached during operation
-                local_dir = '/tmp/cache-{data_path[0]}/{split}'
+                local_dir = f'/tmp/cache-{data_path[0]}/{split}/'
 
                 # TODO: switch to StreamingTextDataset from llm-foundry
                 new_ds = build_streaming_dataset(split=split, neox_args=neox_args)

@@ -202,6 +202,7 @@ def pretrain(neox_args):
             valid_data_iterator,
             test_data_iterator,
         ) = build_train_valid_test_data_iterators_streaming(neox_args=neox_args)
+
     else: 
         (
             train_data_iterator,
@@ -319,8 +320,8 @@ def get_batch(neox_args, data_iterator):
         data["text"] = next(data_iterator)
     else:
         data = None
-    # print(data)
-    # print(data["text"].shape)
+    #print(data)
+    #print(data["text"].shape)
     return _get_batch(
         neox_args=neox_args,
         tokenizer=neox_args.tokenizer,

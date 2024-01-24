@@ -164,6 +164,7 @@ class StreamingTextDataset(StreamingDataset):
             raise RuntimeError(
                 'StreamingTextDataset needs samples to have a `tokens` column'
             )
+        #print(token_sample.shape)
         return token_sample
 
 
@@ -199,6 +200,7 @@ def build_streaming_dataset(split, neox_args=None):
         data_weights = [weight / sum(data_weights) for weight in data_weights]
 
     streams = []
+    import os
     for i, path in enumerate(data_paths): 
         remote = path if "s3://" in path else None
         local=path if "s3://" not in path else f"/tmp/{path[5:]}"
@@ -206,17 +208,24 @@ def build_streaming_dataset(split, neox_args=None):
         streams.append(
             Stream(
                 remote=path if "s3://" in path else None,
-                local=path if "s3://" not in path else f"/tmp/{path[5:]}",
+                local=path if "s3://" not in path else f"/weka/hailey/cond-training/streaming-cache/{path[5:]}-rank{os.environ['RANK']}",
                 proportion=data_weights[i] if data_weights else None, # support for upsampling
             )
         )
-        print()
-    
+    from megatron import mpu   
+
+    world_size = mpu.get_data_parallel_world_size()
+    rank = mpu.get_data_parallel_rank()
+    global_batch_size = neox_args.batch_size * world_size
+ 
     return StreamingTextDataset(
         max_seq_len=neox_args.seq_length + 1,
         streams=streams,
         split=None,
         epoch_size=train_val_test_num_samples[split],
-        # batch_size=neox_args.train_batch_size_per_gpu,
+        # download_timeout=300,
+        predownload=8192,
+        batch_size=global_batch_size,
+        #batch_size=neox_args.train_micro_batch_size_per_gpu,
     )
 
