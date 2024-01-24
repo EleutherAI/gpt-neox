@@ -55,7 +55,7 @@ from megatron.utils import (
     CharCounter,
 )
 from megatron.model.gpt2_model import cross_entropy
-from eval_tasks import run_eval_harness
+# from eval_tasks import run_eval_harness
 
 
 def mup_weights_reinit(neox_args, model):
@@ -124,7 +124,7 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
     sys.exit(1)
 
 
-def mup_coord_check(neox_args, timers, lr_scheduler, train_data_iterator):
+def mup_coord_check(neox_args, timers, train_data_iterator):
     from megatron.mup_substitute import get_coord_data
     # from mup.coord_check import plot_coord_data
 
@@ -133,7 +133,7 @@ def mup_coord_check(neox_args, timers, lr_scheduler, train_data_iterator):
             old_hidden_size = neox_args.hidden_size
             neox_args.hidden_size = hidden_size
 
-            model, optimizer, _ = setup_model_and_optimizer(
+            model, optimizer, lr_scheduler = setup_model_and_optimizer(
                 neox_args=neox_args, use_cache=False
             )
 
@@ -145,23 +145,34 @@ def mup_coord_check(neox_args, timers, lr_scheduler, train_data_iterator):
 
     models = {}
 
-    # Hidden size needs to be divisible by num attention heads
-    for hidden_size in (neox_args.num_attention_heads * (2**p) for p in range(2, 9)):
-        models[hidden_size] = lazy_model(hidden_size)
+    # # Hidden size needs to be divisible by num attention heads
+    # for hidden_size in (neox_args.num_attention_heads * (2**p) for p in range(2, 9)):
+    #     models[hidden_size] = lazy_model(hidden_size)
 
-    # optimizer, _ = get_optimizer(model, neox_args)
+    # 128
+    # 256
+    # 512
+    # 1024
+    # 2048
+    # 4096
+    # 8192
 
+    models[neox_args.hidden_size] = lazy_model(neox_args.hidden_size)
+
+    print_rank_0("df_up")
     neox_args.use_mup = True
     df_up = get_coord_data(
-        neox_args, timers, lr_scheduler, models, train_data_iterator, mup=True, optimizer=get_optimizer
+        neox_args, timers, None, models, train_data_iterator, mup=True, optimizer="adam"
     )
+    print_rank_0("df_sp")
     neox_args.use_mup = False
     df_sp = get_coord_data(
-        neox_args, timers, lr_scheduler, models, train_data_iterator, mup=False, optimizer=get_optimizer
+        neox_args, timers, None, models, train_data_iterator, mup=False, optimizer="adam"
     )
 
     # plot_coord_data(df_up, save_to=f"coord_check_up.{torch.distributed.get_rank()}.jpg")
     # plot_coord_data(df_sp, save_to=f"coord_check_sp.{torch.distributed.get_rank()}.jpg")
+
 
     print_rank_0("Saved coord check plots... exiting")
     sys.exit(1)
@@ -207,7 +218,9 @@ def pretrain(neox_args):
 
     if neox_args.use_mup and neox_args.coord_check:
         print_rank_0("Do muP Coord Check")
-        mup_coord_check(neox_args, timers, lr_scheduler, train_data_iterator)
+        mup_coord_check(neox_args, timers, train_data_iterator)
+    else:
+        pass
 
     # Print setup timing.
     print_rank_0("done with setups ...")

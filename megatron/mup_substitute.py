@@ -10,6 +10,8 @@ import pandas as pd
 import torch
 import torch.nn.functional as F
 
+from megatron import print_rank_0
+
 # from mup import coord_check as mup_coord_check
 from megatron.training import train_step
 
@@ -30,7 +32,7 @@ def _get_coord_data(
     filter_module_by_name=None,
     fix_data=True,
     cuda=True,
-    nseeds=1,
+    nseeds=3,
     output_fdict=None,
     input_fdict=None,
     param_fdict=None,
@@ -43,40 +45,47 @@ def _get_coord_data(
         with torch.no_grad():
             word_embedding_act_abs_mean_list.append(output.abs().mean().item())
 
+    word_embedding_act_abs_mean_list = []
+    _seeds = []
+    _steps = []
+    remove_hooks = []
+
     for i in range(nseeds):
         torch.manual_seed(i)
         for width, model in models.items():
             model = model()
             model.train()
-            # optimizer = optcls(model)
-            optimizer, _ = optcls(model, neox_args)
-            for step in range(nsteps + 1):
-                word_embedding_act_abs_mean_list = []
-                remove_hooks = []
-                # add hooks
-                # for name, module in model.named_modules():
-                #     if name.endswith(".embedding.word_embeddings"):
-                #         print("yess")
-                #         import sys; sys.exit
-                #         remove_hook.append(
-                #             module.register_forward_hook(word_embedding_coord_check_hook))
+            optimizer = optcls(model)
+            # optimizer, _ = optcls(model, neox_args)
 
-                #     # if filter_module_by_name and not filter_module_by_name(name):
-                #     #     continue
-                #     # pass
-                #     # remove_hooks.append(
-                #     #     module.register_forward_hook(
-                #     #         mup_coord_check._record_coords(
-                #     #             df,
-                #     #             width,
-                #     #             name,
-                #     #             step + 1,
-                #     #             output_fdict=output_fdict,
-                #     #             input_fdict=input_fdict,
-                #     #             param_fdict=param_fdict,
-                #     #         )
-                #     #     )
-                #     # )
+            for step in range(nsteps + 1):
+
+                # add hooks
+                for name, module in model.named_modules():
+                    if name.endswith(".word_embeddings"):
+                        remove_hooks.append(
+                            module.register_forward_hook(word_embedding_coord_check_hook))
+
+                        _steps.append(step)
+                        _seeds.append(i)
+
+
+                    # if filter_module_by_name and not filter_module_by_name(name):
+                    #     continue
+                    # pass
+                    # remove_hooks.append(
+                    #     module.register_forward_hook(
+                    #         mup_coord_check._record_coords(
+                    #             df,
+                    #             width,
+                    #             name,
+                    #             step + 1,
+                    #             output_fdict=output_fdict,
+                    #             input_fdict=input_fdict,
+                    #             param_fdict=param_fdict,
+                    #         )
+                    #     )
+                    # )
 
                 # train for a step
                 loss_dict, skipped_iter = train_step(
@@ -91,13 +100,12 @@ def _get_coord_data(
                 # remove hooks
                 for handle in remove_hooks:
                     handle.remove()
-
-            print("word_embedding_act_abs_mean_list")
-            print(word_embedding_act_abs_mean_list)
             import gc
-
             del model
             gc.collect()
+
+    for _i,_j,_k in zip(_seeds, _steps, word_embedding_act_abs_mean_list):
+        print_rank_0(_i, _j, _k)
 
     return pd.DataFrame(df)
 
@@ -211,15 +219,14 @@ def get_coord_data(
                     params.append(p)
         return params
 
-    # if optimizer == "sgd":
-    #     optcls = lambda model: SGD(get_trainable(model), lr=lr)
-    # elif optimizer == "adam":
-    #     optcls = lambda model: Adam(get_trainable(model), lr=lr)
-    # elif optimizer == "adamw":
-    #     optcls = lambda model: AdamW(get_trainable(model), lr=lr)
-    # elif optimizer is None:
-    #     raise ValueError("optimizer should be sgd|adam|adamw or a custom function")
-    optcls = optimizer
+    if optimizer == "sgd":
+        optcls = lambda model: SGD(get_trainable(model), lr=lr)
+    elif optimizer == "adam":
+        optcls = lambda model: Adam(get_trainable(model), lr=lr)
+    elif optimizer == "adamw":
+        optcls = lambda model: AdamW(get_trainable(model), lr=lr)
+    elif optimizer is None:
+        raise ValueError("optimizer should be sgd|adam|adamw or a custom function")
 
     data = _get_coord_data(
         neox_args, timers, lr_scheduler, models, dataloader, optcls, **kwargs
