@@ -1155,6 +1155,16 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
     """
 
+    ds_inference: bool = False
+    """
+    Use DeepSpeed inference.
+    """
+
+    moe_type: str = "standard"
+    """
+    Specify the type of MoE layer. We have two types of MoE layer: standard and residual.
+    """
+
     eval_tasks: list = None
     """
     Tasks to evaluate on using lm_eval_harness

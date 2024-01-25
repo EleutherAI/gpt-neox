@@ -840,7 +840,7 @@ class ParallelTransformerLayer(nn.Module):
         else:
             from torch import distributed as dist
 
-            if self.num_experts > dist.get_world_size():
+            if neox_args.ds_inference or self.num_experts > dist.get_world_size():
                 moe_mp_size = 1
             else:
                 moe_mp_size = dist.get_world_size() // self.num_experts

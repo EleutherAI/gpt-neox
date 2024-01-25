@@ -452,7 +452,28 @@ def setup_for_inference_or_eval(use_cache=True, overwrite_values=None, input_arg
     print_rank_0("Finished loading model")
 
     model.module.inference_mode(use_cache=use_cache)
+
+    if neox_args.ds_inference:
+        model = ds_inference(model, neox_args)
+        print("> DeepSpeed Inference engine initialized")
+
     return model, neox_args
+
+
+def ds_inference(model, neox_args):
+    import deepspeed
+
+    engine = deepspeed.init_inference(
+        model=model,
+        mp_size=neox_args.model_parallel_size,
+        tensor_parallel={"mpu": mpu},
+        dtype=torch.half,
+        replace_with_kernel_inject=True,
+        moe_experts=[neox_args.num_experts],
+        moe_type=neox_args.moe_type,
+    )
+
+    return engine.module
 
 
 class CharCounter:
