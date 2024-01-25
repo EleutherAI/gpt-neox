@@ -1,6 +1,6 @@
 # Dependencies
 
-Tests use pytests with coverage and html output plugins. Install with:
+Tests use pytests with coverage and forked plugins. Install with:
 
 ```bash
 pip install -r requirements/requirements-dev.txt
@@ -15,18 +15,19 @@ python prepare_data.py
 
 Tests can be run using pytest.
 
+* The argument --forked needs to be provided
 * A coverage report can be created using the optional arguments --cov-report and --cov (see pytest documentation)
 * A subset of tests can be selected by pointing to the module within tests
 
 ```bash
-# run all tests, output coverage and html report of megatron module in terminal
-pytest --cov-report term --cov=megatron --html=test-report.html --self-contained-html tests
+# run all tests, output coverage report of megatron module in terminal
+pytest --forked --cov-report term --cov=megatron tests
 
-# run tests in tests/model, output coverage report and test report of megatron module as html
-pytest --cov-report html --cov=megatron --html=model-test--report.html --self-contained-html tests/model
+# run tests in tests/model, output coverage report of megatron module as html
+pytest --forked --cov-report html --cov=megatron tests/model
 
 # run tests in tests/model/test_model_generation.py, don't output coverage report
-pytest tests/model/test_model_generation.py
+pytest --forked tests/model/test_model_generation.py
 ```
 
 Some tests can run on cpu only. These are marked with the decorator @pytest.mark.cpu.
