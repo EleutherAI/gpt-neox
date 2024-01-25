@@ -42,7 +42,7 @@
   },
 
   "zero_optimization": {
-    "stage": 1,
+    "stage": 0,
     "allgather_partitions": true,
     "allgather_bucket_size": 1260000000,
     "overlap_comm": true,
@@ -91,14 +91,15 @@
   "wall_clock_breakdown": true,
 
   "tokenizer_type": "SPMTokenizer",
-  "vocab-file": "/fsx/adami/raw_mistral/mistral-v0.1/7B/tokenizer.model", # use tokenizer.model from Meta CodeLlama download
+  "vocab-file": "/path/to/mistral-7B-v0.1/tokenizer.model", # use tokenizer.model from Meta CodeLlama download
 
-  "save": "/fsx/proj-mathlm/saved-weights/34b_1epoch",
+  "save": "checkpoints/test",
   # "load": "" # set to same as "save" to resume from intermediate finetuning step
-  "load": "/path/to/converted/codellama_34b_weights_with_mp8",
+  "load": "checkpoints/neox-converted",
 
-  "finetune": true, # set to false once resuming from intermediate finetuning step
-  "checkpoint_validation_with_forward_pass": true,
+# Set these 2 (finetune and validation with fw pass) to false during conversion
+  "finetune": false, # set to false once resuming from intermediate finetuning step
+  "checkpoint_validation_with_forward_pass": false,
 
 
   "use_wandb": false,
@@ -108,5 +109,13 @@
   "wandb_host": "https://api.wandb.ai",
 
   "launcher": "slurm",
-  "deepspeed_slurm": true
+  "deepspeed_slurm": true,
+
+  # Special stability ?
+  "no_ssh_check": true,
+  "comment": "neox",
+
+  "train-data-paths": ["data/enwik8/enwik8_text_document"],
+  "valid-data-paths": ["data/enwik8/enwik8_text_document"],
+  "test-data-paths": ["data/enwik8/enwik8_text_document"], 
 }

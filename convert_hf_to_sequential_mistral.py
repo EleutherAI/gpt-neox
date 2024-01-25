@@ -657,17 +657,17 @@ if __name__ == "__main__":
 
 
     if torch.distributed.get_rank() == 0:
-        config = AutoConfig.from_pretrained(
-            f"{args.hf_model_name}",
-            cache_dir=os.path.join(
-                args.cache_dir,f"{args.hf_model_name}"
-                ),
-            )
+        # config = AutoConfig.from_pretrained(
+        #     f"{args.hf_model_name}",
+        #     cache_dir=os.path.join(
+        #         args.cache_dir,f"{args.hf_model_name}"
+        #         ),
+        #     )
         # does not change the weights, but is needed to align logits
         # config.update({'hidden_act':'gelu_fast'})
         hf_model = AutoModelForCausalLM.from_pretrained(
             f"{args.hf_model_name}",
-            config=config,
+            #config=config,
             cache_dir=os.path.join(
                 args.cache_dir,f"{args.hf_model_name}"
                 ),
