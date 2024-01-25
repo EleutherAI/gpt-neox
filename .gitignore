@@ -150,3 +150,7 @@ test_logs/
 logs/
 tensorboard/
 src/
+
+data/*
+tests/data/*.bin
+tests/data/*.idx
