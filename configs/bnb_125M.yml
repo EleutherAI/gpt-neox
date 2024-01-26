@@ -20,7 +20,7 @@
    "scaled_upper_triang_masked_softmax_fusion": false,
    "bias_gelu_fusion": false,
    "rope_fusion": false,
-   "layernorm_fusion": true,
+   "layernorm_fusion": false,
 
 
    # optimizer settings

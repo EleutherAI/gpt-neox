@@ -125,7 +125,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm".
     """
 
-    layernorm_fusion: bool = True
+    layernorm_fusion: bool = False
     """
     Use fused layer norm kernel (if `norm` is `layernorm`).
     """
