@@ -88,9 +88,6 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
     echo 'export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:$LD_LIBRARY_PATH' >> /home/mchorse/.bashrc
 
 #### Python packages
-# Apex compilation is inconsistent across pip version so we need to fix the version of pip
-COPY requirements/requirements-apex-pip.txt .
-RUN python -m pip install -r requirements-apex-pip.txt
 RUN python -m pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 COPY requirements/requirements.txt .
 COPY requirements/requirements-wandb.txt .
@@ -105,7 +102,16 @@ RUN python -m pip install protobuf==3.20.*
 RUN python -m pip cache purge
 
 ## Install APEX
-RUN python -m pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings --global-option=--cpp_ext --config-settings --global-option=--cuda_ext git+https://github.com/NVIDIA/apex.git@141bbf1cf362d4ca4d94f4284393e91dda5105a5
+RUN wget https://github.com/segyges/not-nvidia-apex/releases/download/jan-2024/apex-0.1-cp310-cp310-linux_x86_64.zip
+RUN unzip ./apex-0.1-cp310-cp310-linux_x86_64.zip
+RUN python -m pip install ./apex-0.1-cp310-cp310-linux_x86_64.whl
+
+#Install apex directly from source, if you want to wait half an hour
+#Also necessary if switching to a different apex than is in that specific binary
+#Apex compilation is inconsistent across pip version so we need to fix the version of pip
+#COPY requirements/requirements-apex-pip.txt .
+#RUN python -m pip install -r requirements-apex-pip.txt
+#RUN python -m pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings --global-option=--cpp_ext --config-settings --global-option=--cuda_ext git+https://github.com/NVIDIA/apex.git@141bbf1cf362d4ca4d94f4284393e91dda5105a5
 
 COPY megatron/fused_kernels/ megatron/fused_kernels
 WORKDIR /megatron/fused_kernels
