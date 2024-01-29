@@ -84,7 +84,7 @@ Based on the issue we shall discuss the merit of the new feature and decide whet
 ### Step 2: implementation and verification
 Contributor will go ahead and implement the feature, and the GPT-NeoX team will provide guidance/helps as needed. The required deliverables include:
 
-* A PR to [EleutherAI/GPT-NeoX](https://github.com/EleutherAI/gpt-neox) including (1) the feature implementation (2) unit tests (3) documentation (4) tutorial
+* A PR to [EleutherAI/GPT-NeoX](https://github.com/EleutherAI/gpt-neox) including (1) the feature implementation (2) unit tests (3) documentation (4) example usage.
 * In the implementation (code, documentation, tutorial), we require the feature author to record their GitHub username as a contact method for future questions/maintenance.
 
 After receiving the PRs, we will review them and merge them after necessary tests/fixes.
