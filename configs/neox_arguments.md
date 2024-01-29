@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 765c219
+    Default = cd9a8ea
 
     current git hash of repository
 
@@ -258,6 +258,14 @@ Model Arguments
     Default = layernorm
 
     Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm".
+
+
+
+- **layernorm_fusion**: bool
+
+    Default = False
+
+    Use fused layer norm kernel (if `norm` is `layernorm`).
 
 
 
