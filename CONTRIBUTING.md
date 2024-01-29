@@ -3,13 +3,13 @@ GPT-NeoX welcomes your contributions!
 
 ## Prerequisites
 GPT-NeoX uses [pre-commit](https://pre-commit.com/) to ensure that formatting is
-consistent across GPT-NeoX. First, ensure that `pre-commit` is installed with 
-`pip install pre-commit`. Next, the pre-commit hooks must be installed once 
+consistent across GPT-NeoX. First, ensure that `pre-commit` is installed with
+`pip install pre-commit`. Next, the pre-commit hooks must be installed once
 before commits can be made:
 ```bash
 pre-commit install
 ```
-Please install `clang-format` from Conda: 
+Please install `clang-format` from Conda:
 ```bash
 conda install clang-format
 ```
@@ -26,7 +26,7 @@ and then repeat the previous `git commit` command.
 
 ## Testing
 GPT-NeoX tracks two types of tests: unit tests and more costly model convergence tests.
-Unit tests are found in `tests/unit/` andthe model convergence tests are found in 
+Unit tests are found in `tests/unit/` and the model convergence tests are found in
 `tests/model/`.
 
 ### Unit Tests
