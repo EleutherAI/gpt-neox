@@ -59,17 +59,10 @@ to provide a CLA and decorate the PR appropriately (e.g., status check, comment)
 follow the instructions provided by the bot. You will only need to do this once across
 all repos using our CLA.
 
-## Code of Conduct
-This project has adopted the [Microsoft Open Source Code of
-Conduct](https://opensource.microsoft.com/codeofconduct/). For more information see the
-[Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or contact
-[opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or
-comments.
-
 ## New Feature Contribution Guidelines
 Unlike bug fix or improving existing feature (where users usually directly submit a PR and we review it), adding a new feature to GPT-NeoX requires several steps: (1) proposal and discussion, (2) implementation and verification, (3) release and maintenance. This general guideline applies to all new feature contributions. Core GPT-NeoX team member contributions may complete step 1 internally.
 
-### Step 1: proposal and discussion
+### Step 1: Proposal and Discussion
 We ask users to first post your intended feature in an issue. This issue needs to include:
 
 * A description of the proposed feature.
@@ -79,15 +72,15 @@ We ask users to first post your intended feature in an issue. This issue needs t
   * If the feature only affects performance and does not affect training convergence, we require testing on a fraction of training to demonstrate that the training/validation loss are consistent with baseline, and that the performance is better than baseline.
   * If the feature does affect training convergence, we require testing the whole training to demonstrate that the feature achieves better/on-par final model quality and training performance compared to baseline.
 
-Based on the issue we shall discuss the merit of the new feature and decide whether accept or decline the proposal. Once accepted and after we confirm the design and implementation plan, we are ready for step 2.
+Based on the issue we shall discuss the merit of the new feature and decide whether to accept or decline the proposal. Once accepted and after we confirm the design and implementation plan, we are ready for step 2.
 
-### Step 2: implementation and verification
-Contributor will go ahead and implement the feature, and the GPT-NeoX team will provide guidance/helps as needed. The required deliverables include:
+### Step 2: Implementation and Verification
+The contributor will proceed and implement the feature, and the GPT-NeoX team will provide guidance/helps as needed. The required deliverables include:
 
 * A PR to [EleutherAI/GPT-NeoX](https://github.com/EleutherAI/gpt-neox) including (1) the feature implementation (2) unit tests (3) documentation (4) example usage.
 * In the implementation (code, documentation, tutorial), we require the feature author to record their GitHub username as a contact method for future questions/maintenance.
 
 After receiving the PRs, we will review them and merge them after necessary tests/fixes.
 
-### Step 3: release and maintenance
+### Step 3: Release and Maintenance
 After the PRs are merged, we will announce the feature on our website (with credit to the feature author). We ask the feature author to commit to the maintenance of the feature.
