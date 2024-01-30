@@ -89,11 +89,7 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
 
 #### Python packages
 RUN python -m pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-COPY requirements/requirements.txt .
-COPY requirements/requirements-wandb.txt .
-COPY requirements/requirements-onebitadam.txt .
-COPY requirements/requirements-sparseattention.txt .
-COPY requirements/requirements-flashattention.txt .
+COPY requirements/* ./
 RUN python -m pip install --no-cache-dir -r requirements.txt && pip install -r requirements-onebitadam.txt
 RUN python -m pip install -r requirements-sparseattention.txt
 RUN python -m pip install -r requirements-flashattention.txt
@@ -109,7 +105,6 @@ RUN python -m pip install ./apex-0.1-cp310-cp310-linux_x86_64.whl
 #Install apex directly from source, if you want to wait half an hour
 #Also necessary if switching to a different apex than is in that specific binary
 #Apex compilation is inconsistent across pip version so we need to fix the version of pip
-#COPY requirements/requirements-apex-pip.txt .
 #RUN python -m pip install -r requirements-apex-pip.txt
 #RUN python -m pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings --global-option=--cpp_ext --config-settings --global-option=--cuda_ext git+https://github.com/NVIDIA/apex.git@141bbf1cf362d4ca4d94f4284393e91dda5105a5
 
