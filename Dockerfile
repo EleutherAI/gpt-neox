@@ -98,15 +98,17 @@ RUN python -m pip install protobuf==3.20.*
 RUN python -m pip cache purge
 
 ## Install APEX
-RUN wget https://github.com/segyges/not-nvidia-apex/releases/download/jan-2024/apex-0.1-cp310-cp310-linux_x86_64.zip
-RUN unzip ./apex-0.1-cp310-cp310-linux_x86_64.zip
-RUN python -m pip install ./apex-0.1-cp310-cp310-linux_x86_64.whl
-
-#Install apex directly from source, if you want to wait half an hour
-#Also necessary if switching to a different apex than is in that specific binary
-#Apex compilation is inconsistent across pip version so we need to fix the version of pip
-#RUN python -m pip install -r requirements-apex-pip.txt
-#RUN python -m pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings --global-option=--cpp_ext --config-settings --global-option=--cuda_ext git+https://github.com/NVIDIA/apex.git@141bbf1cf362d4ca4d94f4284393e91dda5105a5
+# Detect the architecture and install Apex accordingly
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then \
+        wget https://github.com/segyges/not-nvidia-apex/releases/download/jan-2024/apex-0.1-cp310-cp310-linux_x86_64.zip && \
+        unzip ./apex-0.1-cp310-cp310-linux_x86_64.zip && \
+        python -m pip install ./apex-0.1-cp310-cp310-linux_x86_64.whl; \
+    else \
+    # Install Apex directly from source for other architectures
+        python -m pip install -r requirements-apex-pip.txt && \
+        python -m pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings --global-option=--cpp_ext --config-settings --global-option=--cuda_ext git+https://github.com/NVIDIA/apex.git@141bbf1cf362d4ca4d94f4284393e91dda5105a5; \
+    fi
 
 COPY megatron/fused_kernels/ megatron/fused_kernels
 WORKDIR /megatron/fused_kernels
