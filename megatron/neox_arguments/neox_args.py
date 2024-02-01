@@ -1158,4 +1158,6 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     eval_tasks: list = None
     """
     Tasks to evaluate on using lm_eval_harness
+
+    NOTE: Requires internet connection
     """
