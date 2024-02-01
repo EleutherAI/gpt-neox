@@ -55,7 +55,6 @@ from megatron.utils import (
     CharCounter,
 )
 from megatron.model.gpt2_model import cross_entropy
-from eval_tasks import run_eval_harness
 
 
 def mup_weights_reinit(neox_args, model):
@@ -967,6 +966,8 @@ def evaluate(
         )
 
     if neox_args.eval_tasks:
+        from eval_tasks import run_eval_harness
+
         eval_results.update(
             run_eval_harness(
                 model, forward_step_fn, neox_args, eval_tasks=neox_args.eval_tasks
