@@ -236,7 +236,6 @@ class ParallelLinear(nn.Module):
     #                init_method=init_method,
     #                parallel_output=parallel_output,
     #                skip_bias_add=False,
-    #                mup_rescale_parameters=is_last_layer,  # only called if neox_args.use_mup = True, despite it not being included here
     #            )
 
     def forward(self, hidden_states):
