@@ -429,7 +429,7 @@ class ColumnParallelLinear(torch.nn.Module):
         self.stride = stride
         self.mup_rescale_parameters = mup_rescale_parameters
         self.use_mup = neox_args.use_mup
-        self.m_width = neox_args.mup_m_width
+        self.m_width = neox_args.mup_width_multiplier
 
         # Parameters.
         # Note: torch.nn.functional.linear performs XA^T + b and as a result
@@ -627,7 +627,7 @@ class RowParallelLinear(torch.nn.Module):
         self.keep_master_weight_for_test = keep_master_weight_for_test
         self.mup_rescale_parameters = mup_rescale_parameters
         self.use_mup = neox_args.use_mup
-        self.m_width = neox_args.mup_m_width
+        self.m_width = neox_args.mup_width_multiplier
 
         # Parameters.
         # Note: torch.nn.functional.linear performs XA^T + b and as a result

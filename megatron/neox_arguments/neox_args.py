@@ -1046,7 +1046,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Embedding output multiplier
     """
 
-    mup_m_width: float = None
+    mup_width_multiplier: float = None
     """
     Manually set the layer width multiplier (d_model/d_model,base)
     """

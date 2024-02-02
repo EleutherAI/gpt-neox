@@ -422,9 +422,9 @@ def get_model(neox_args, use_cache=False):
     # neox_args.use_mup = False
     if neox_args.use_mup:
 
-        if neox_args.mup_m_width == 1:
-            neox_args.mup_m_width = neox_args.hidden_size / neox_args.mup_d_model_base
-        print_rank_0(f"mup_m_width set to {neox_args.mup_m_width}")
+        if neox_args.mup_width_multiplier == 1:
+            neox_args.mup_width_multiplier = neox_args.hidden_size / neox_args.mup_d_model_base
+        print_rank_0(f"mup_width_multiplier set to {neox_args.mup_width_multiplier}")
 
         # base_shapes = f"{neox_args.base_shapes_file}.{torch.distributed.get_rank()}"
 
@@ -640,7 +640,7 @@ def get_learning_rate_scheduler(optimizer, neox_args):
         use_checkpoint_lr_scheduler=neox_args.use_checkpoint_lr_scheduler,
         override_lr_scheduler=neox_args.override_lr_scheduler,
         use_mup=neox_args.use_mup,
-        mup_m_width=neox_args.mup_m_width,
+        mup_width_multiplier=neox_args.mup_width_multiplier,
     )
 
     return lr_scheduler

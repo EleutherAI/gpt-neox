@@ -68,12 +68,12 @@ def _orthogonal(tensor, gain=1):
     return tensor
 
 
-def orthogonal_init_method(n_layers=1, mup_m_width=1.0):
+def orthogonal_init_method(n_layers=1, mup_width_multiplier=1.0):
     """Fills the input Tensor with a (semi) orthogonal matrix, as described in
     Exact solutions to the nonlinear dynamics of learning in deep linear neural networks - Saxe, A. et al. (2013)
     Optionally scaling by number of layers possible, as introduced in OBST - Nestler et. al. (2021, to be released)"""
 
-    if mup_m_width != 1:
+    if mup_width_multiplier != 1:
         raise ValueError(
             "Orthogonal init needs to be patched to support mup. Disable mup or use a different init method to avoid this error"
         )
@@ -84,57 +84,57 @@ def orthogonal_init_method(n_layers=1, mup_m_width=1.0):
     return init_
 
 
-def xavier_uniform_init_method(mup_m_width=1.0):
+def xavier_uniform_init_method(mup_width_multiplier=1.0):
     """Fills the input Tensor with values according to the method described in Understanding the difficulty of
     training deep feedforward neural networks - Glorot, X. & Bengio, Y. (2010), using a uniform distribution."""
 
-    def init_(tensor, mup_m_width=mup_m_width):
+    def init_(tensor, mup_width_multiplier=mup_width_multiplier):
         init_weight = torch.nn.init.xavier_uniform_(tensor)
-        if mup_m_width != 1:
+        if mup_width_multiplier != 1:
             with torch.no_grad():
-                init_weight.div_(mup_m_width)
+                init_weight.div_(mup_width_multiplier)
         return init_weight
 
     return init_
 
 
-def xavier_normal_init_method(mup_m_width=1.0):
+def xavier_normal_init_method(mup_width_multiplier=1.0):
     """Fills the input Tensor with values according to the method described in Understanding the difficulty of
     training deep feedforward neural networks - Glorot, X. & Bengio, Y. (2010), using a normal distribution."""
 
-    def init_(tensor, mup_m_width=mup_m_width):
+    def init_(tensor, mup_width_multiplier=mup_width_multiplier):
         init_weight = torch.nn.init.xavier_normal_(tensor)
-        if mup_m_width != 1:
+        if mup_width_multiplier != 1:
             with torch.no_grad():
-                init_weight.div_(mup_m_width)
+                init_weight.div_(mup_width_multiplier)
         return init_weight
 
     return init_
 
 
-def small_init_init_method(dim, mup_m_width=1.0):
+def small_init_init_method(dim, mup_width_multiplier=1.0):
     """Fills the input Tensor with values according to the method described in Transformers without Tears: Improving
     the Normalization of Self-Attention - Nguyen, T. & Salazar, J. (2010), using a normal distribution."""
     std = math.sqrt(2 / (5 * dim))
 
-    def init_(tensor, mup_m_width=mup_m_width):
+    def init_(tensor, mup_width_multiplier=mup_width_multiplier):
         init_weight = torch.nn.init.normal_(tensor, mean=0.0, std=std)
-        if mup_m_width != 1:
+        if mup_width_multiplier != 1:
             with torch.no_grad():
-                init_weight.div_(mup_m_width)
+                init_weight.div_(mup_width_multiplier)
         return init_weight
 
     return init_
 
 
-def wang_init_method(n_layers, dim, mup_m_width=1.0):
+def wang_init_method(n_layers, dim, mup_width_multiplier=1.0):
     std = 2 / n_layers / math.sqrt(dim)
 
-    def init_(tensor, mup_m_width=mup_m_width):
+    def init_(tensor, mup_width_multiplier=mup_width_multiplier):
         init_weight = torch.nn.init.normal_(tensor, mean=0.0, std=std)
-        if mup_m_width != 1:
+        if mup_width_multiplier != 1:
             with torch.no_grad():
-                init_weight.div_(mup_m_width)
+                init_weight.div_(mup_width_multiplier)
         return init_weight
             
     return init_
@@ -145,30 +145,30 @@ def get_init_methods(args):
     def _get(name):
         if name == "normal":
             return init_method_normal(
-                sigma=args.init_method_std/math.sqrt(args.mup_m_width)
+                sigma=args.init_method_std/math.sqrt(args.mup_width_multiplier)
             )
         elif name == "scaled_normal":
             return scaled_init_method_normal(
-                sigma=args.init_method_std/math.sqrt(args.mup_m_width),
+                sigma=args.init_method_std/math.sqrt(args.mup_width_multiplier),
                 num_layers=args.num_layers
             )
         elif name == "orthogonal":
-            return orthogonal_init_method(args.mup_m_width)
+            return orthogonal_init_method(args.mup_width_multiplier)
         elif name == "scaled_orthogonal":
             return orthogonal_init_method(
-                args.num_layers, args.mup_m_width
+                args.num_layers, args.mup_width_multiplier
             )
         elif name == "xavier_uniform":
-            return xavier_uniform_init_method(args.mup_m_width)
+            return xavier_uniform_init_method(args.mup_width_multiplier)
         elif name == "xavier_normal":
-            return xavier_normal_init_method(args.mup_m_width)
+            return xavier_normal_init_method(args.mup_width_multiplier)
         elif name == "wang_init":
             return wang_init_method(
-                args.num_layers, args.hidden_size, args.mup_m_width
+                args.num_layers, args.hidden_size, args.mup_width_multiplier
             )
         elif name == "small_init":
             return small_init_init_method(
-                args.hidden_size, args.mup_m_width
+                args.hidden_size, args.mup_width_multiplier
             )
         else:
             raise NotImplementedError(f"Unknown init method {name}")

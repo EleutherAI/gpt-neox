@@ -1567,7 +1567,7 @@ Training Arguments
 
 
 
-- **mup_m_width**: int
+- **mup_width_multiplier**: int
 
     Default = 1
 
@@ -1577,7 +1577,7 @@ Training Arguments
 
 - **mup_d_model_base**: int
 
-    Default = 64
+    Default = 256
 
     d_model,base
     Proxy (base) model's layer width
