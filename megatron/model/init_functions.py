@@ -92,7 +92,7 @@ def xavier_uniform_init_method(mup_width_multiplier=1.0):
         init_weight = torch.nn.init.xavier_uniform_(tensor)
         if mup_width_multiplier != 1:
             with torch.no_grad():
-                init_weight.div_(mup_width_multiplier)
+                init_weight.div_(math.sqrt(mup_width_multiplier))
         return init_weight
 
     return init_
@@ -106,7 +106,7 @@ def xavier_normal_init_method(mup_width_multiplier=1.0):
         init_weight = torch.nn.init.xavier_normal_(tensor)
         if mup_width_multiplier != 1:
             with torch.no_grad():
-                init_weight.div_(mup_width_multiplier)
+                init_weight.div_(math.sqrt(mup_width_multiplier))
         return init_weight
 
     return init_
@@ -121,7 +121,7 @@ def small_init_init_method(dim, mup_width_multiplier=1.0):
         init_weight = torch.nn.init.normal_(tensor, mean=0.0, std=std)
         if mup_width_multiplier != 1:
             with torch.no_grad():
-                init_weight.div_(mup_width_multiplier)
+                init_weight.div_(math.sqrt(mup_width_multiplier))
         return init_weight
 
     return init_
@@ -134,7 +134,7 @@ def wang_init_method(n_layers, dim, mup_width_multiplier=1.0):
         init_weight = torch.nn.init.normal_(tensor, mean=0.0, std=std)
         if mup_width_multiplier != 1:
             with torch.no_grad():
-                init_weight.div_(mup_width_multiplier)
+                init_weight.div_(math.sqrt(mup_width_multiplier))
         return init_weight
             
     return init_
