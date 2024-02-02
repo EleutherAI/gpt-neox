@@ -1559,7 +1559,7 @@ Training Arguments
 
 
 
-- **mup_emb**: int
+- **mup_embedding_multiplier**: int
 
     Default = 1
 

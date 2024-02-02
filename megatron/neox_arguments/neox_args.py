@@ -1041,7 +1041,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Path to the base shapes to save to/load from
     """
 
-    mup_m_emb: float = 1.0
+    mup_embedding_multiplier: float = 1.0
     """
     Embedding output multiplier
     """
