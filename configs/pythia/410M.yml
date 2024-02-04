@@ -1,23 +1,26 @@
 {
-  "pipe_parallel_size": 1,
-  "model_parallel_size": 1,
+  # parallelism settings
+  "pipe-parallel-size": 1,
+  "model-parallel-size": 1,
 
-  "num_layers": 24,
-  "hidden_size": 1024,
-  "num_attention_heads": 16,
-  "seq_length": 2048,
-  "max_position_embeddings": 2048,
-  "pos_emb": "rotary",
-  "rotary_pct": 0.25,
-  "no_weight_tying": true,
-  "gpt_j_residual": true,
-  "output_layer_parallelism": "column",
+  # model settings
+  "num-layers": 24,
+  "hidden-size": 1024,
+  "num-attention-heads": 16,
+  "seq-length": 2048,
+  "max-position-embeddings": 2048,
+  "pos-emb": "rotary",
+  "rotary-pct": 0.25,
+  "no-weight-tying": true,
+  "gpt-j-residual": true,
+  "output-layer-parallelism": "column",
 
-  "attention_config": [[["flash"], 24]],
+  "attention-config": [[["flash"], 24]],
 
-  "scaled_upper_triang_masked_softmax_fusion": true,
-  "bias_gelu_fusion": true,
+  "scaled-upper-triang-masked-softmax-fusion": true,
+  "bias-gelu-fusion": true,
 
+  # init methods
   "init_method": "small_init",
   "output_layer_init_method": "wang_init",
 
@@ -42,21 +45,25 @@
     "cpu_offload": false
   },
 
+  # batch size (trained on 32 gpus)
   "train_micro_batch_size_per_gpu": 32,
   "gas": 1,
-  "data_impl": "mmap",
+  "data-impl": "mmap",
   "num_workers": 1,
 
-  "checkpoint_activations": true,
-  "checkpoint_num_layers": 1,
-  "partition_activations": true,
-  "synchronize_each_layer": true,
+  # activation checkpointing
+  "checkpoint-activations": true,
+  "checkpoint-num-layers": 1,
+  "partition-activations": true,
+  "synchronize-each-layer": true,
 
+  # regularization
   "gradient_clipping": 1.0,
-  "weight_decay": 0.1,
-  "hidden_dropout": 0,
-  "attention_dropout": 0,
+  "weight-decay": 0.1,
+  "hidden-dropout": 0,
+  "attention-dropout": 0,
 
+  # precision settings
   "fp16": {
     "fp16": true,
     "enabled": true,
@@ -64,22 +71,22 @@
     "loss_scale_window": 1000,
     "initial_scale_power": 12,
     "hysteresis": 2,
-    "min_loss_scale": 1
+    "min_loss_scale": 1,
   },
 
-  "train_iters": 143000,
-  "lr_decay_iters": 143000,
-  "distributed_backend": "nccl",
-  "lr_decay_style": "cosine",
+  "train-iters": 143000,
+  "lr-decay-iters": 143000,
+  "distributed-backend": "nccl",
+  "lr-decay-style": "cosine",
   "warmup": 0.01,
-  "checkpoint_factor": 1000,
-  "extra_save_iters": [0,1,2,4,8,16,32,64,128,256,512],
-  "eval_interval": 143000,
-  "eval_iters": 10,
+  "checkpoint-factor": 1000,
+  "extra-save-iters": [0,1,2,4,8,16,32,64,128,256,512],
+  "eval-interval": 40000,
+  "eval-iters": 10,
 
-  "log_interval": 10,
+  "log-interval": 10,
   "steps_per_print": 10,
   "wall_clock_breakdown": true,
 
-  "tokenizer_type": "HFTokenizer"
+  "tokenizer-type": "HFTokenizer",
 }
