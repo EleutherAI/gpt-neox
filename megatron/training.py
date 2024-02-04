@@ -927,7 +927,7 @@ def evaluate(
 
             # although we're not accumulating gradients here, we count one iter as train_batch_size_per_gpu * g.a.s
             # to be consistent with deepspeed's pipe parallel engine
-            # since pipe parallel already takes graduent_accumulation_steps into account - default to 1 here if pipe parallel is true
+            # since pipe parallel already takes gradient_accumulation_steps into account - default to 1 here if pipe parallel is true
             for _ in range(
                 1
                 if neox_args.is_pipe_parallel
