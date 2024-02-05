@@ -1,7 +1,7 @@
-# Copyright (c) 2021, EleutherAI
+# Copyright (c) 2024, EleutherAI
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -55,7 +55,6 @@ from megatron.utils import (
     CharCounter,
 )
 from megatron.model.gpt2_model import cross_entropy
-from eval_tasks import run_eval_harness
 
 
 def mup_weights_reinit(neox_args, model):
@@ -928,7 +927,7 @@ def evaluate(
 
             # although we're not accumulating gradients here, we count one iter as train_batch_size_per_gpu * g.a.s
             # to be consistent with deepspeed's pipe parallel engine
-            # since pipe parallel already takes gas into account - default to 1 here if pipe parallel is true
+            # since pipe parallel already takes gradient_accumulation_steps into account - default to 1 here if pipe parallel is true
             for _ in range(
                 1
                 if neox_args.is_pipe_parallel
@@ -967,6 +966,8 @@ def evaluate(
         )
 
     if neox_args.eval_tasks:
+        from eval_tasks import run_eval_harness
+
         eval_results.update(
             run_eval_harness(
                 model, forward_step_fn, neox_args, eval_tasks=neox_args.eval_tasks

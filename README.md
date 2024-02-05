@@ -76,6 +76,7 @@ Prior to 3/9/2023, GPT-NeoX relied on [DeeperSpeed](https://github.com/EleutherA
     + [Other Modalities](#other-modalities)
 - [Administrative Notes](#administrative-notes)
   * [Citing GPT-NeoX](#citing-gpt-neox)
+  * [Contributing](#contributing)
   * [Licensing](#licensing)
   * [Acknowledgements](#acknowledgements)
 
@@ -637,9 +638,14 @@ To cite the 20 billion parameter model named `GPT-NeoX-20B`, please use
 }
 ```
 
+## Contributing
+GPT-NeoX is built by the open-source AI community, and relies on our amazing contributors! Please see our
+[contributing](CONTRIBUTING.md) guide for more details on our CLA, code formatting, testing,
+etc.
+
 ## Licensing
 
-This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright (c) 2021, EleutherAI. Licensed under the Apache License:
+This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright (c) 2024, EleutherAI. Licensed under the Apache License:
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.

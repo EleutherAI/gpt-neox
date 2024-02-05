@@ -1,4 +1,4 @@
-# Copyright (c) 2021, EleutherAI
+# Copyright (c) 2024, EleutherAI
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -123,6 +123,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     norm: Literal["layernorm", "rmsnorm", "scalenorm"] = "layernorm"
     """
     Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm".
+    """
+
+    layernorm_fusion: bool = False
+    """
+    Use fused layer norm kernel (if `norm` is `layernorm`).
     """
 
     use_qk_layernorm: bool = False
@@ -991,9 +996,6 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Partition Activations across GPUs before checkpointing.
     """
 
-    gas: int = None
-    """gradient_accumulation_steps"""  # TODO this is a duplicate, remove?
-
     clip_grad: float = 1.0
     """
     Gradient clipping based on global L2 norm.
@@ -1153,4 +1155,6 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     eval_tasks: list = None
     """
     Tasks to evaluate on using lm_eval_harness
+
+    NOTE: Requires internet connection
     """

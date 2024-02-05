@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 4ea64ab
+    Default = 78b8466
 
     current git hash of repository
 
@@ -258,6 +258,14 @@ Model Arguments
     Default = layernorm
 
     Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm".
+
+
+
+- **layernorm_fusion**: bool
+
+    Default = False
+
+    Use fused layer norm kernel (if `norm` is `layernorm`).
 
 
 
@@ -1022,6 +1030,8 @@ Text Generation arguments
 
     Tasks to evaluate on using lm_eval_harness
 
+    NOTE: Requires internet connection
+
 
 
 ## NeoXArgsTokenizer
@@ -1465,14 +1475,6 @@ Training Arguments
     Default = False
 
     Partition Activations across GPUs before checkpointing.
-
-
-
-- **gas**: int
-
-    Default = None
-
-    gradient_accumulation_steps
 
 
 
@@ -2051,5 +2053,12 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
     Default = None
 
-    Adds a `--comment` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometime necessary for cluster rules, or so I've heard.
+    Adds a `--comment` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometimes necessary for cluster rules, or so I've heard.
 
+
+
+- **account**: str
+
+    Default = None
+
+    Adds a `--account` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometimes necessary for cluster rules, or so I've heard.
