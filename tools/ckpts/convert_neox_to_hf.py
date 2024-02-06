@@ -232,6 +232,9 @@ def create_config(neox_config, architecture="neox"):
             "rope_theta": get_key(neox_config, "rotary-emb-base", 10000.0)
         })
 
+        if args["num_attention_heads"] != args["num_key_value_heads"]:
+            assert False, "Got num_key_value_heads != num_attention_heads, but Grouped-Query Attention is not yet supported by NeoX."
+
         if architecture == "mistral": 
             # mistral-specific options
             args.update(
@@ -585,6 +588,11 @@ def main(input_args=None, overwrite_values=None):
     # validate arguments
     assert args.precision in ["auto", "fp16", "bf16", "fp32"], f"expected --precision to be one of 'auto', 'fp16', 'bf16', 'fp32' but got '{args.precision}' !"
     assert args.architecture in ["neox", "llama", "mistral"], f"expected --architecture to be one of 'neox', 'mistral', 'llama', but got '{args.architecture}' !"
+
+    if args.architecture == "mistral":
+        # Mistral Support Coming Soon
+        assert False, "Got num_key_value_heads != num_attention_heads, but Grouped-Query Attention is not yet supported by NeoX."
+
 
     with open(args.config_file) as f:
         loaded_config = yaml.full_load(f)
