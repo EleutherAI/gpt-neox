@@ -543,7 +543,7 @@ python tools/ckpts/convert_raw_llama_weights_to_neox.py --input_dir /path/to/mod
 ```
 
 
-To convert from a Hugging Face model into a , run `tools/ckpts/convert_hf_to_sequential.py`. See documentation within that file for further options.
+To convert from a Hugging Face model into a NeoX-loadable, run `tools/ckpts/convert_hf_to_sequential.py`. See documentation within that file for further options.
 
 
 # Monitoring
