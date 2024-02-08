@@ -20,7 +20,13 @@ import argparse
 from tqdm import tqdm
 
 import torch
-from transformers import MistralConfig, LlamaConfig, GPTNeoXConfig, AutoModelForCausalLM, AutoConfig
+from transformers import (
+    MistralConfig,
+    LlamaConfig,
+    GPTNeoXConfig,
+    AutoModelForCausalLM,
+    AutoConfig,
+)
 
 from typing import List, Literal
 
@@ -42,8 +48,6 @@ Please investigate carefully whether your model is compatible with all architect
 """
 
 
-
-
 # Model definitions: a list of keys, and where they fall in terms of handling them in the presence of TP.
 # in format : {model arch: {param type: {param in neox: param in HF}}}
 
@@ -53,7 +57,7 @@ MODEL_KEYS = {
             "mlp.dense_h_to_4h.weight": "mlp.dense_h_to_4h.weight",
             "mlp.dense_h_to_4h.bias": "mlp.dense_h_to_4h.bias",
             "attention.query_key_value.weight": "attention.query_key_value.weight",
-            "attention.query_key_value.bias": "attention.query_key_value.bias", # TODO: handle GQA separately?
+            "attention.query_key_value.bias": "attention.query_key_value.bias",  # TODO: handle GQA separately?
         },
         "ROW_PARALLEL_LINEAR_KEYS": {
             "attention.dense.weight": "attention.dense.weight",
@@ -74,16 +78,16 @@ MODEL_KEYS = {
             "norm.bias": "bias",
         },
     },
-    "llama": { 
+    "llama": {
         "COLUMN_PARALLEL_LINEAR_KEYS": {
             "mlp.w1.weight": "mlp.gate_proj.weight",
             "mlp.w3.weight": "mlp.up_proj.weight",
         },
         "ROW_PARALLEL_LINEAR_KEYS": {
             "attention.dense.weight": "self_attn.o_proj.weight",
-            "mlp.w2.weight": "mlp.down_proj.weight",    
+            "mlp.w2.weight": "mlp.down_proj.weight",
         },
-        "ROW_PARALLEL_BIAS_KEYS": {}, # No biases in RowParallelLinear layers
+        "ROW_PARALLEL_BIAS_KEYS": {},  # No biases in RowParallelLinear layers
         "NORM_KEYS": {
             "input_layernorm.scale": "input_layernorm.weight",
             "post_attention_layernorm.scale": "post_attention_layernorm.weight",
@@ -91,19 +95,22 @@ MODEL_KEYS = {
         "FINAL_NORM_KEYS": {
             "norm.scale": "weight",
         },
-        "GQA_QKV_KEYS": { # because Llama can have Grouped Query Attention and has separate Q, K, and V linear proj params, handle them separately.
+        "GQA_QKV_KEYS": {  # because Llama can have Grouped Query Attention and has separate Q, K, and V linear proj params, handle them separately.
             "attention.query_key_value.weight": [
-                "self_attn.q_proj.weight", "self_attn.k_proj.weight", "self_attn.v_proj.weight"
+                "self_attn.q_proj.weight",
+                "self_attn.k_proj.weight",
+                "self_attn.v_proj.weight",
             ],
-        }
-
-    }
+        },
+    },
 }
 
 MODEL_KEYS["mistral"] = MODEL_KEYS["llama"]
 
 
-def load_partitions(input_checkpoint_path: str, mp_partitions: int, layer_idx: int, sequential: bool) -> List[torch.Tensor]:
+def load_partitions(
+    input_checkpoint_path: str, mp_partitions: int, layer_idx: int, sequential: bool
+) -> List[torch.Tensor]:
     """Returns a list containing all states from a model (across MP partitions)"""
 
     if sequential:
@@ -126,10 +133,7 @@ def load_partitions(input_checkpoint_path: str, mp_partitions: int, layer_idx: i
 
 
 def get_state(
-    state_dicts: List[torch.Tensor],
-    key: str,
-    layer_idx: int,
-    sequential: bool
+    state_dicts: List[torch.Tensor], key: str, layer_idx: int, sequential: bool
 ) -> torch.Tensor:
     """Helper that returns a list containing a given weight's state from each MP partition, for a given layer in the model."""
 
@@ -222,24 +226,38 @@ def create_config(neox_config, architecture="neox"):
         "use_cache": True,
     }
     if architecture == "mistral" or architecture == "llama":
-        args.update({
-            "intermediate_size": get_key(neox_config, "intermediate-size", gated_size(get_key(neox_config, "hidden-size"))),
-            "num_key_value_heads": get_key(neox_config, "num-kv-heads", get_key(neox_config, "num-attention-heads")),
-            "hidden_act": get_key(neox_config, "activation", default="silu"),
-            "rms_norm_eps": get_key(neox_config, "rms-norm-epsilon", 1.0e-6),
-            "bos_token_id": tokenizer.eod,
-            "eos_token_id": tokenizer.eod,
-            "rope_theta": get_key(neox_config, "rotary-emb-base", 10000.0)
-        })
+        args.update(
+            {
+                "intermediate_size": get_key(
+                    neox_config,
+                    "intermediate-size",
+                    gated_size(get_key(neox_config, "hidden-size")),
+                ),
+                "num_key_value_heads": get_key(
+                    neox_config,
+                    "num-kv-heads",
+                    get_key(neox_config, "num-attention-heads"),
+                ),
+                "hidden_act": get_key(neox_config, "activation", default="silu"),
+                "rms_norm_eps": get_key(neox_config, "rms-norm-epsilon", 1.0e-6),
+                "bos_token_id": tokenizer.eod,
+                "eos_token_id": tokenizer.eod,
+                "rope_theta": get_key(neox_config, "rotary-emb-base", 10000.0),
+            }
+        )
 
         if args["num_attention_heads"] != args["num_key_value_heads"]:
-            assert False, "Got num_key_value_heads != num_attention_heads, but Grouped-Query Attention is not yet supported by NeoX."
+            assert (
+                False
+            ), "Got num_key_value_heads != num_attention_heads, but Grouped-Query Attention is not yet supported by NeoX."
 
-        if architecture == "mistral": 
+        if architecture == "mistral":
             # mistral-specific options
             args.update(
                 {
-                    "sliding_window": get_key(neox_config, "sliding-window-width", 4096),
+                    "sliding_window": get_key(
+                        neox_config, "sliding-window-width", 4096
+                    ),
                 }
             )
             hf_config = MistralConfig(**args)
@@ -248,7 +266,9 @@ def create_config(neox_config, architecture="neox"):
             args.update(
                 {
                     # NeoX library defaults to using bias in attention
-                    "attention_bias": get_key(neox_config, "use_bias_in_attn_linear", True),
+                    "attention_bias": get_key(
+                        neox_config, "use_bias_in_attn_linear", True
+                    ),
                 }
             )
             hf_config = LlamaConfig(**args)
@@ -257,7 +277,9 @@ def create_config(neox_config, architecture="neox"):
         args.update(
             {
                 "rotary_pct": get_key(neox_config, "rotary-pct", default=1.0),
-                "rotary_emb_base": get_key(neox_config, "rotary-emb-base", default=1000.0),
+                "rotary_emb_base": get_key(
+                    neox_config, "rotary-emb-base", default=1000.0
+                ),
                 "use_parallel_residual": get_key(neox_config, "gpt-j-residual", False),
                 "layer_norm_eps": get_key(neox_config, "layernorm-epsilon", 1e-5),
             }
@@ -268,67 +290,90 @@ def create_config(neox_config, architecture="neox"):
 
 
 def reshard_and_split_qkv(
-    param_mapping: dict, # a dictionary mapping the QKV weight keys in GPT-NeoX -> a list of keys representing the Q, K, and V weight keys the HF model will use
-    hf_config: AutoConfig, # a HF model config for the model
+    param_mapping: dict,  # a dictionary mapping the QKV weight keys in GPT-NeoX -> a list of keys representing the Q, K, and V weight keys the HF model will use
+    hf_config: AutoConfig,  # a HF model config for the model
     loaded_tp_ranks: List[torch.Tensor],
     layer_idx: int,
     sequential: bool,
 ):
     """
-    A helper function which performs reshaping and sharding to make the QKV projection from NeoX compatible with HF Llama models, 
-    even when grouped-query attention is required. 
+    A helper function which performs reshaping and sharding to make the QKV projection from NeoX compatible with HF Llama models,
+    even when grouped-query attention is required.
     """
     for key, hf_keys in param_mapping.items():
-        assert (isinstance(hf_keys, list) and len(hf_keys) == 3), "Must map QKV to precisely 3 resulting weight matrices."
-    
-            
+        assert (
+            isinstance(hf_keys, list) and len(hf_keys) == 3
+        ), "Must map QKV to precisely 3 resulting weight matrices."
+
     for key, hf_keys in param_mapping.items():
         # we first merge the QKV proj. across TP ranks
-        sharded_qkv = torch.stack(get_state(loaded_tp_ranks, key, layer_idx, sequential), dim=0)
+        sharded_qkv = torch.stack(
+            get_state(loaded_tp_ranks, key, layer_idx, sequential), dim=0
+        )
         # should now have shape [TP_SIZE, (hidden_size + 2 * kv_hidden_size) / TP_SIZE, hidden_size].
 
         sharded_qkv = sharded_qkv.view(
             len(loaded_tp_ranks),
             hf_config.num_attention_heads // len(loaded_tp_ranks),
-            int(hf_config.hidden_size // hf_config.num_attention_heads * (1+ 2 * hf_config.num_key_value_heads / hf_config.num_attention_heads)), 
-            hf_config.hidden_size
-        ) # is meant to convert to shape [TP_SIZE, NUM_QUERY_HEADS_PER_SHARD, dims_per_head * (1 + 2 * kv-to-q head ratio), hidden_size]
-        
+            int(
+                hf_config.hidden_size
+                // hf_config.num_attention_heads
+                * (
+                    1
+                    + 2 * hf_config.num_key_value_heads / hf_config.num_attention_heads
+                )
+            ),
+            hf_config.hidden_size,
+        )  # is meant to convert to shape [TP_SIZE, NUM_QUERY_HEADS_PER_SHARD, dims_per_head * (1 + 2 * kv-to-q head ratio), hidden_size]
+
         q, k, v = torch.split(
-            sharded_qkv, [
+            sharded_qkv,
+            [
                 hf_config.hidden_size // hf_config.num_attention_heads,
-                int((hf_config.num_key_value_heads / hf_config.num_attention_heads) * hf_config.hidden_size // hf_config.num_attention_heads),
-                int((hf_config.num_key_value_heads / hf_config.num_attention_heads) * hf_config.hidden_size // hf_config.num_attention_heads),
+                int(
+                    (hf_config.num_key_value_heads / hf_config.num_attention_heads)
+                    * hf_config.hidden_size
+                    // hf_config.num_attention_heads
+                ),
+                int(
+                    (hf_config.num_key_value_heads / hf_config.num_attention_heads)
+                    * hf_config.hidden_size
+                    // hf_config.num_attention_heads
+                ),
             ],
-            dim=2
+            dim=2,
         )
         # splits along the (dims_per_head * (1 + 2 * kv-to-q head ratio)_ dim to get 3 tensors:
         # 1 x [TP_SIZE, NUM_Q_HEADS_PER_SHARD, dims_per_head, hidden_size] and 2 x [TP_SIZE, NUM_Q_HEADS_PER_SHARD, (dims_per_head / kv-to-q head ratio), hidden_size]
-        # these are the Q, and K, V tensors respectively. 
+        # these are the Q, and K, V tensors respectively.
 
-        # we have to do additional reshape for each individual tensor now, 
+        # we have to do additional reshape for each individual tensor now,
         # into the expected square (or smaller than square, for K/V tensors) shape
         q, k, v = q.squeeze(dim=2), k.squeeze(dim=2), v.squeeze(dim=2)
         q = q.view(
             hf_config.num_attention_heads,
             hf_config.hidden_size // hf_config.num_attention_heads,
-            hf_config.hidden_size
-        ).reshape(
-            hf_config.hidden_size, hf_config.hidden_size
-        )
+            hf_config.hidden_size,
+        ).reshape(hf_config.hidden_size, hf_config.hidden_size)
         k = k.reshape(
             hf_config.num_key_value_heads,
             hf_config.hidden_size // hf_config.num_attention_heads,
-            hf_config.hidden_size
+            hf_config.hidden_size,
         ).reshape(
-            hf_config.hidden_size // hf_config.num_attention_heads * hf_config.num_key_value_heads, hf_config.hidden_size
+            hf_config.hidden_size
+            // hf_config.num_attention_heads
+            * hf_config.num_key_value_heads,
+            hf_config.hidden_size,
         )
         v = v.reshape(
             hf_config.num_key_value_heads,
             hf_config.hidden_size // hf_config.num_attention_heads,
-            hf_config.hidden_size
+            hf_config.hidden_size,
         ).reshape(
-            hf_config.hidden_size // hf_config.num_attention_heads * hf_config.num_key_value_heads, hf_config.hidden_size
+            hf_config.hidden_size
+            // hf_config.num_attention_heads
+            * hf_config.num_key_value_heads,
+            hf_config.hidden_size,
         )
 
         # return these
@@ -336,13 +381,13 @@ def reshard_and_split_qkv(
         for hf_key, proj in zip(hf_keys, [q, k, v]):
             state_dict[hf_key] = proj.clone()
         return state_dict
-    
+
 
 def convert(
-    input_checkpoint_path, 
-    loaded_config, 
-    output_checkpoint_path, 
-    sequential: bool = True, 
+    input_checkpoint_path,
+    loaded_config,
+    output_checkpoint_path,
+    sequential: bool = True,
     precision: Literal["auto", "fp16", "bf16", "fp32"] = "auto",
     architecture: Literal["neox", "llama", "mistral"] = "neox",
 ):
@@ -352,7 +397,6 @@ def convert(
     """
 
     ARCH = MODEL_KEYS[architecture]
-
 
     hf_config = create_config(loaded_config, architecture=architecture)
 
@@ -397,13 +441,14 @@ def convert(
 
     mp_partitions = get_key(loaded_config, "model-parallel-size")
 
-        
-    # Sequential saves all model states from an MP rank in one file. 
+    # Sequential saves all model states from an MP rank in one file.
     # so we only load the MP ranks only once and index into them with get_state().
     # for the pipeline-parallel case (pipeline-parallel-size >= 1),
     # we must load the correct layer's states at each step.
     # (this does mean that less memory is required for PP conversion.)
-    loaded_tp_ranks = load_partitions(input_checkpoint_path, mp_partitions, layer_idx=0, sequential=sequential)
+    loaded_tp_ranks = load_partitions(
+        input_checkpoint_path, mp_partitions, layer_idx=0, sequential=sequential
+    )
 
     ### Embedding layer ###
     # Embedding is layer idx 0
@@ -411,10 +456,16 @@ def convert(
         embed_in = hf_transformer.embed_in
     else:
         embed_in = hf_transformer.embed_tokens
-    embed_in.load_state_dict( # TODO: embed_in is not always model's name for embedding
+    embed_in.load_state_dict(  # TODO: embed_in is not always model's name for embedding
         {
             "weight": torch.cat(
-                get_state(loaded_tp_ranks, "word_embeddings.weight", layer_idx=0, sequential=sequential), dim=0
+                get_state(
+                    loaded_tp_ranks,
+                    "word_embeddings.weight",
+                    layer_idx=0,
+                    sequential=sequential,
+                ),
+                dim=0,
             )
         }
     )
@@ -426,40 +477,60 @@ def convert(
     for layer_i in tqdm(range(get_key(loaded_config, "num-layers"))):
 
         # get layer from hf model
-        hf_layer = hf_transformer.layers[layer_i] # TODO: model module names
+        hf_layer = hf_transformer.layers[layer_i]  # TODO: model module names
 
         if not sequential:
             # in the non-sequential case, must load from each layer individually.
             # use layer index + 2 bc of embed layer and a dummy _pre_transformer_block, which are "layers 0 and 1"
-            loaded_tp_ranks = load_partitions(input_checkpoint_path, mp_partitions, layer_idx=layer_i + 2, sequential=sequential)
+            loaded_tp_ranks = load_partitions(
+                input_checkpoint_path,
+                mp_partitions,
+                layer_idx=layer_i + 2,
+                sequential=sequential,
+            )
 
         # + 2 bc of embed layer and a dummy _pre_transformer_block
         state_dict = {}
         for key, hf_key in ARCH["ROW_PARALLEL_LINEAR_KEYS"].items():
             state_dict[hf_key] = torch.cat(
-                get_state(loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential), dim=1
+                get_state(
+                    loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential
+                ),
+                dim=1,
             )
 
         # average layernorm stats over mp ranks
         for key, hf_key in ARCH["NORM_KEYS"].items():
-            state_dict[hf_key] = sum(get_state(loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential)) / len(
-                loaded_tp_ranks
-            )
+            state_dict[hf_key] = sum(
+                get_state(
+                    loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential
+                )
+            ) / len(loaded_tp_ranks)
 
         # LinearWithTPMerge
         for key, hf_key in ARCH["COLUMN_PARALLEL_LINEAR_KEYS"].items():
             state_dict[hf_key] = torch.cat(
-                get_state(loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential), dim=0
+                get_state(
+                    loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential
+                ),
+                dim=0,
             )
 
         # LinearWithTPSplitBias
         for key, hf_key in ARCH["ROW_PARALLEL_BIAS_KEYS"].items():
-            state_dict[hf_key] = sum(get_state(loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential))
+            state_dict[hf_key] = sum(
+                get_state(
+                    loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential
+                )
+            )
 
         # Just take one
         if "attention.rotary_emb.inv_freq" in hf_layer.state_dict():
             state_dict["attention.rotary_emb.inv_freq"] = get_state(
-                loaded_tp_ranks, "attention.rotary_emb.inv_freq", layer_idx=layer_i + 2, sequential=sequential
+                loaded_tp_ranks,
+                "attention.rotary_emb.inv_freq",
+                layer_idx=layer_i + 2,
+                sequential=sequential,
             )[0]
 
         if "attention.bias" in hf_layer.state_dict():
@@ -487,7 +558,10 @@ def convert(
 
     if not sequential:
         loaded_tp_ranks = load_partitions(
-            input_checkpoint_path, mp_partitions, get_key(loaded_config, "num-layers") + 3, sequential=sequential
+            input_checkpoint_path,
+            mp_partitions,
+            get_key(loaded_config, "num-layers") + 3,
+            sequential=sequential,
         )
     # Load final layer norm
     if architecture == "neox":
@@ -502,25 +576,26 @@ def convert(
                 key,
                 layer_idx=get_key(loaded_config, "num-layers") + 3,
                 sequential=sequential,
-            ) 
+            )
         ) / len(loaded_tp_ranks)
 
     if architecture == "neox":
         final_layer_norm = hf_transformer.final_layer_norm
     else:
         final_layer_norm = hf_transformer.norm
-    
-    final_layer_norm.load_state_dict(
-        norm_state_dict
-    )
+
+    final_layer_norm.load_state_dict(norm_state_dict)
 
     # Load output embedding
     if not sequential:
         loaded_tp_ranks = load_partitions(
-            input_checkpoint_path, mp_partitions, get_key(loaded_config, "num-layers") + 4, sequential=sequential
+            input_checkpoint_path,
+            mp_partitions,
+            get_key(loaded_config, "num-layers") + 4,
+            sequential=sequential,
         )
     # output embedding / LM head
-    if architecture == "neox": # name of lm head / final linear proj varies
+    if architecture == "neox":  # name of lm head / final linear proj varies
         lm_head = hf_model.embed_out
     else:
         lm_head = hf_model.lm_head
@@ -531,7 +606,7 @@ def convert(
                     loaded_tp_ranks,
                     "final_linear.weight",
                     layer_idx=get_key(loaded_config, "num-layers") + 4,
-                    sequential=sequential
+                    sequential=sequential,
                 ),
                 dim=0,
             ),
@@ -568,29 +643,39 @@ def main(input_args=None, overwrite_values=None):
         "--precision",
         type=str,
         default="auto",
-        help="What precision to save the model into. Defaults to auto, which auto-detects which 16-bit dtype to save into, or falls back to fp32."
+        help="What precision to save the model into. Defaults to auto, which auto-detects which 16-bit dtype to save into, or falls back to fp32.",
     )
     parser.add_argument(
         "--no_save_tokenizer",
-        action='store_true',
-        help="Whether to skip saving the tokenizer alongside a model."
+        action="store_true",
+        help="Whether to skip saving the tokenizer alongside a model.",
     )
     parser.add_argument(
         "--architecture",
         type=str,
         default="neox",
-        help="What HF model class type to export into."
+        help="What HF model class type to export into.",
     )
     args = parser.parse_args(input_args)
 
     # validate arguments
-    assert args.precision in ["auto", "fp16", "bf16", "fp32"], f"expected --precision to be one of 'auto', 'fp16', 'bf16', 'fp32' but got '{args.precision}' !"
-    assert args.architecture in ["neox", "llama", "mistral"], f"expected --architecture to be one of 'neox', 'mistral', 'llama', but got '{args.architecture}' !"
+    assert args.precision in [
+        "auto",
+        "fp16",
+        "bf16",
+        "fp32",
+    ], f"expected --precision to be one of 'auto', 'fp16', 'bf16', 'fp32' but got '{args.precision}' !"
+    assert args.architecture in [
+        "neox",
+        "llama",
+        "mistral",
+    ], f"expected --architecture to be one of 'neox', 'mistral', 'llama', but got '{args.architecture}' !"
 
     if args.architecture == "mistral":
         # Mistral Support Coming Soon
-        assert False, "Got num_key_value_heads != num_attention_heads, but Grouped-Query Attention is not yet supported by NeoX."
-
+        assert (
+            False
+        ), "Got num_key_value_heads != num_attention_heads, but Grouped-Query Attention is not yet supported by NeoX."
 
     with open(args.config_file) as f:
         loaded_config = yaml.full_load(f)
@@ -605,13 +690,23 @@ def main(input_args=None, overwrite_values=None):
     pipeline_world_size = get_key(loaded_config, "pipe-parallel-size", 1)
     if pipeline_world_size == 0:
         sequential = True
-        print(f"Detected 'pipe-parallel-size' of {pipeline_world_size}, assuming model is saved as Sequential...")
+        print(
+            f"Detected 'pipe-parallel-size' of {pipeline_world_size}, assuming model is saved as Sequential..."
+        )
     else:
         sequential = False
-        print(f"Detected 'pipe-parallel-size' of {pipeline_world_size}, assuming model is saved as PipelineModule...")
+        print(
+            f"Detected 'pipe-parallel-size' of {pipeline_world_size}, assuming model is saved as PipelineModule..."
+        )
 
     # convert the model to HF.
-    hf_model = convert(args.input_dir, loaded_config, args.output_dir, sequential=sequential, architecture=args.architecture)
+    hf_model = convert(
+        args.input_dir,
+        loaded_config,
+        args.output_dir,
+        sequential=sequential,
+        architecture=args.architecture,
+    )
 
     # Save to disk.
     hf_model.save_pretrained(args.output_dir)
@@ -620,9 +715,11 @@ def main(input_args=None, overwrite_values=None):
         # save tokenizer to directory as well, for easy loading of model as a HF model.
         tokenizer_type = get_key(loaded_config, "tokenizer-type")
 
-        if tokenizer_type == "HFTokenizer": # TODO: handle sentencepiece tokenizers?
+        if tokenizer_type == "HFTokenizer":  # TODO: handle sentencepiece tokenizers?
             print(f"saving tokenizer from file {get_key(loaded_config, 'vocab-file')}")
-            print("Warning: please check that your model config and tokenizer end with the correct special tokens (EOS, BOS).")
+            print(
+                "Warning: please check that your model config and tokenizer end with the correct special tokens (EOS, BOS)."
+            )
             from transformers import PreTrainedTokenizerFast
 
             tokenizer = PreTrainedTokenizerFast(

@@ -527,15 +527,15 @@ and input the requested information, including HF hub user token.
 
 NeoX supplies several utilities for converting a pretrained model checkpoint into a format that can be trained within the library.
 
-The following models can be loaded in GPT-NeoX: 
+The following models can be loaded in GPT-NeoX:
 - Llama 1
 - Llama 2 (Up to size 13B)
 - CodeLlama (Up to size 13B)
 - Mistral-7b-v0.1 (Coming Soon!)
 
-We provide two utilities for converting from two different checkpoint formats into a format compatible with GPT-NeoX. 
+We provide two utilities for converting from two different checkpoint formats into a format compatible with GPT-NeoX.
 
-To convert a Llama 1 or Llama 2 checkpoint distributed by Meta AI from its original file format (downloadable [here](https://github.com/facebookresearch/llama) or [here](https://huggingface.co/meta-llama/Llama-2-7b)) into the GPT-NeoX library, run 
+To convert a Llama 1 or Llama 2 checkpoint distributed by Meta AI from its original file format (downloadable [here](https://github.com/facebookresearch/llama) or [here](https://huggingface.co/meta-llama/Llama-2-7b)) into the GPT-NeoX library, run
 
 ```
 python tools/ckpts/convert_raw_llama_weights_to_neox.py --input_dir /path/to/model/parent/dir/7B --model_size 7B --output_dir /path/to/save/ckpt --num_output_shards <TENSOR_PARALLEL_SIZE> (--pipeline_parallel if pipeline-parallel-size >= 1)

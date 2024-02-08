@@ -27,13 +27,13 @@ INTERMEDIATE_SIZE_MAP = {
     "34B": 22016,
     "65B": 22016,
     "70B": 28672,
-    "mistral-7B-v0.1": 14336, 
+    "mistral-7B-v0.1": 14336,
 }
 NUM_SHARDS = {
     "7B": 1,
     "13B": 2,
     "30B": 4,
-    "34B": 4, 
+    "34B": 4,
     "65B": 8,
     "70B": 8,
     "mistral-7B-v0.1": 1,
@@ -73,7 +73,9 @@ def convert_model_pipeline(
     num_layers = params["n_layers"]
     num_heads = params["n_heads"]
     if "n_kv_heads" in params:
-        assert False, "Found `n_kv_heads` != `n_heads` in checkpoint config. However, Grouped-Query Attention is not yet supported by NeoX"
+        assert (
+            False
+        ), "Found `n_kv_heads` != `n_heads` in checkpoint config. However, Grouped-Query Attention is not yet supported by NeoX"
         num_kv_heads = params["n_kv_heads"]
     else:
         num_kv_heads = num_heads
@@ -262,7 +264,8 @@ def convert_model_pipeline(
 
         sharded_qkv = sharded_qkv.view(
             num_output_shards,
-            num_heads_per_output_shard * dims_per_head + 2 * num_kv_heads_per_output_shard * dims_per_head,
+            num_heads_per_output_shard * dims_per_head
+            + 2 * num_kv_heads_per_output_shard * dims_per_head,
             hidden_size,
         )
         helper.del_loaded(f"layers.{layer_i}.attention.wq.weight")
@@ -287,7 +290,11 @@ def convert_model_pipeline(
                     # Duplicated layers
                     "input_layernorm.scale": input_layernorm,
                     "post_attention_layernorm.scale": post_attention_layernorm,
-                    **({"attention.rotary_emb.inv_freq": rope_freqs} if "mistral" not in model_size else {}),
+                    **(
+                        {"attention.rotary_emb.inv_freq": rope_freqs}
+                        if "mistral" not in model_size
+                        else {}
+                    ),
                 },
                 layer_i=layer_i + 2,
                 rank=out_rank,
@@ -326,7 +333,9 @@ def convert_model_sequential(
     num_layers = params["n_layers"]
     num_heads = params["n_heads"]
     if "n_kv_heads" in params:
-        assert False, "Found `n_kv_heads` != `n_heads` in checkpoint config. However, Grouped-Query Attention is not yet supported by NeoX"
+        assert (
+            False
+        ), "Found `n_kv_heads` != `n_heads` in checkpoint config. However, Grouped-Query Attention is not yet supported by NeoX"
         num_kv_heads = params["n_kv_heads"]
     else:
         num_kv_heads = num_heads
@@ -508,7 +517,8 @@ def convert_model_sequential(
 
         sharded_qkv = sharded_qkv.view(
             num_output_shards,
-            num_heads_per_output_shard * dims_per_head + 2 * num_kv_heads_per_output_shard * dims_per_head,
+            num_heads_per_output_shard * dims_per_head
+            + 2 * num_kv_heads_per_output_shard * dims_per_head,
             hidden_size,
         )
 
@@ -534,7 +544,11 @@ def convert_model_sequential(
                     # Duplicated layers
                     "input_layernorm.scale": input_layernorm,
                     "post_attention_layernorm.scale": post_attention_layernorm,
-                    **({"attention.rotary_emb.inv_freq": rope_freqs} if "mistral" not in model_size else {}),
+                    **(
+                        {"attention.rotary_emb.inv_freq": rope_freqs}
+                        if "mistral" not in model_size
+                        else {}
+                    ),
                 },
                 layer_i=layer_i + 2,
                 rank=out_rank,
