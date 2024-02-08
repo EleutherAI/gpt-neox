@@ -454,9 +454,7 @@ def convert(
 
         # LinearWithTPSplitBias
         for key, hf_key in ARCH["ROW_PARALLEL_BIAS_KEYS"].items():
-            state_dict[hf_key] = sum(get_state(loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential)) / len(
-                loaded_tp_ranks
-            )
+            state_dict[hf_key] = sum(get_state(loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential))
 
         # Just take one
         if "attention.rotary_emb.inv_freq" in hf_layer.state_dict():
