@@ -1,5 +1,6 @@
 # Based on: https://github.com/HazyResearch/flash-attention/blob/4a6eaa9f27df6fff7ffb2c24e894938a687dd870/flash_attn/flash_attn_interface.py
 
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -7,14 +8,16 @@ import torch.nn.functional as F
 from flash_attn import flash_attn_triton
 import flash_attn_2_cuda as flash_attn_cuda  # For flash_attn version 2.1.1
 
-
 def flash_attn_unpadded_unpacked_func_triton(
     q, k, v, bias=None, causal=False, softmax_scale=None
 ):
     return flash_attn_triton.flash_attn_func(q, k, v, bias, causal, softmax_scale)
 
+def _get_block_size(device, head_dim, is_dropout):
+    assert head_dim % 8 == 0 and head_dim <= 128
+    return 256 if head_dim <= 64 else 128
 
-def _flash_attn_forward_cuda(
+def _flash_attn_forward(
     q,
     k,
     v,
@@ -58,7 +61,7 @@ def _flash_attn_forward_cuda(
     return out, softmax_lse, S_dmask
 
 
-def _flash_attn_backward_cuda(
+def _flash_attn_backward(
     dout,
     q,
     k,
@@ -101,7 +104,7 @@ def _flash_attn_backward_cuda(
         max_seqlen_k,
         dropout_p,
         softmax_scale,
-        False,
+        True,
         causal,
         num_splits,
         generator,
@@ -127,7 +130,7 @@ class FlashAttnQKVPackedFunc(torch.autograd.Function):
         rng_state = torch.cuda.get_rng_state() if dropout_p > 0 else None
         if softmax_scale is None:
             softmax_scale = qkv.shape[-1] ** (-0.5)
-        out, softmax_lse, S_dmask = _flash_attn_forward_cuda(
+        out, softmax_lse, S_dmask = _flash_attn_forward(
             qkv[:, 0],
             qkv[:, 1],
             qkv[:, 2],
@@ -155,7 +158,7 @@ class FlashAttnQKVPackedFunc(torch.autograd.Function):
             cur_rng_state = torch.cuda.get_rng_state()
             torch.cuda.set_rng_state(rng_state)
         dqkv = torch.empty_like(qkv)
-        _flash_attn_backward_cuda(
+        _flash_attn_backward(
             dout,
             qkv[:, 0],
             qkv[:, 1],
@@ -178,7 +181,7 @@ class FlashAttnQKVPackedFunc(torch.autograd.Function):
         return dqkv, None, None, None, None, None, None
 
 
-def flash_attn_unpadded_qkvpacked_func_cuda(
+def flash_attn_unpadded_qkvpacked_func(
     qkv,
     cu_seqlens,
     max_seqlen,
@@ -187,6 +190,28 @@ def flash_attn_unpadded_qkvpacked_func_cuda(
     causal=False,
     return_attn_probs=False,
 ):
+    """dropout_p should be set to 0.0 during evaluation
+    Arguments:
+        qkv: (total, 3, nheads, headdim), where total = total number of tokens in the batch.
+        cu_seqlens: (batch_size + 1,), dtype torch.int32. The cumulative sequence lengths
+           of the sequences in the batch, used to index into qkv.
+        max_seqlen: int. Maximum sequence length in the batch.
+        dropout_p: float. Dropout probability.
+        softmax_scale: float. The scaling of QK^T before applying softmax.
+            Default to 1 / sqrt(headdim).
+        causal: bool. Whether to apply causal attention mask (e.g., for auto-regressive modeling).
+        return_attn_probs: bool. Whether to return the attention probabilities. This option is for
+           testing only. The returned probabilities are not guaranteed to be correct
+           (they might not have the right scaling).
+    Return:
+        out: (total, nheads, headdim).
+        softmax_lse [optional, if return_attn_probs=True]: (batch_size, nheads, seqlen). The
+            logsumexp of each row of the matrix QK^T * scaling (e.g., log of the softmax
+            normalization factor).
+        S_dmask [optional, if return_attn_probs=True]: (batch_size, nheads, seqlen, seqlen).
+            The output of softmax (possibly with different scaling). It also encodes the dropout
+            pattern (negative means that location was dropped, nonnegative means it was kept).
+    """
     return FlashAttnQKVPackedFunc.apply(
         qkv, cu_seqlens, max_seqlen, dropout_p, softmax_scale, causal, return_attn_probs
     )
@@ -211,7 +236,7 @@ class FlashAttnKVPackedFunc(torch.autograd.Function):
         rng_state = torch.cuda.get_rng_state() if dropout_p > 0 else None
         if softmax_scale is None:
             softmax_scale = q.shape[-1] ** (-0.5)
-        out, softmax_lse, S_dmask = _flash_attn_forward_cuda(
+        out, softmax_lse, S_dmask = _flash_attn_forward(
             q,
             kv[:, 0],
             kv[:, 1],
@@ -251,7 +276,7 @@ class FlashAttnKVPackedFunc(torch.autograd.Function):
             torch.cuda.set_rng_state(rng_state)
         dq = torch.empty_like(q)
         dkv = torch.empty_like(kv)
-        _flash_attn_backward_cuda(
+        _flash_attn_backward(
             dout,
             q,
             kv[:, 0],
@@ -274,7 +299,7 @@ class FlashAttnKVPackedFunc(torch.autograd.Function):
         return dq, dkv, None, None, None, None, None, None, None, None
 
 
-def flash_attn_unpadded_kvpacked_func_cuda(
+def flash_attn_unpadded_kvpacked_func(
     q,
     kv,
     cu_seqlens_q,
@@ -346,7 +371,7 @@ class FlashAttnFunc(torch.autograd.Function):
         rng_state = torch.cuda.get_rng_state() if dropout_p > 0 else None
         if softmax_scale is None:
             softmax_scale = q.shape[-1] ** (-0.5)
-        out, softmax_lse, S_dmask = _flash_attn_forward_cuda(
+        out, softmax_lse, S_dmask = _flash_attn_forward(
             q,
             k,
             v,
@@ -386,7 +411,7 @@ class FlashAttnFunc(torch.autograd.Function):
             cur_rng_state = torch.cuda.get_rng_state()
             torch.cuda.set_rng_state(rng_state)
         dq, dk, dv = torch.empty_like(q), torch.empty_like(k), torch.empty_like(v)
-        _flash_attn_backward_cuda(
+        _flash_attn_backward(
             dout,
             q,
             k,
@@ -409,7 +434,7 @@ class FlashAttnFunc(torch.autograd.Function):
         return dq, dk, dv, None, None, None, None, None, None, None, None
 
 
-def flash_attn_unpadded_func_cuda(
+def flash_attn_unpadded_func(
     q,
     k,
     v,
