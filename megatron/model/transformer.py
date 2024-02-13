@@ -166,7 +166,7 @@ class LLaMAParallelMLP(nn.Module):
         else:
             ff_dim = int(2 * neox_args.hidden_size * 4 / 3)
             ff_dim = self.multiple_of * ((ff_dim + multiple_of - 1) // multiple_of)
-            
+
         self.w1 = mpu.ColumnParallelLinear(
             neox_args=neox_args,
             input_size=neox_args.hidden_size,
@@ -227,22 +227,23 @@ class ParallelLinear(nn.Module):
                 skip_bias_add=False,
                 mup_rescale_parameters=is_last_layer,  # rescale params only called if neox_args.use_mup = True, despite it not being included here
             )
-#        else:
-#            print(
-#                'ERROR: Output layer parallelism over the hidden dim is currently broken (https://github.com/EleutherAI/gpt-neox/issues/905). Please run with output_layer_parallelism = "column" until this issue is fixed.'
-#            )
-#            exit()
-#            self.final_linear = mpu.RowParallelLinear(
-#                neox_args=neox_args,
-#                input_size=neox_args.hidden_size,
-#                output_size=neox_args.padded_vocab_size,
-#                bias=False,
-#                input_is_parallel=False,
-#                init_method=init_method,
-#                parallel_output=parallel_output,
-#                skip_bias_add=False,
-#                mup_rescale_parameters=is_last_layer,  # only called if neox_args.use_mup = True, despite it not being included here
-#            )
+
+    #        else:
+    #            print(
+    #                'ERROR: Output layer parallelism over the hidden dim is currently broken (https://github.com/EleutherAI/gpt-neox/issues/905). Please run with output_layer_parallelism = "column" until this issue is fixed.'
+    #            )
+    #            exit()
+    #            self.final_linear = mpu.RowParallelLinear(
+    #                neox_args=neox_args,
+    #                input_size=neox_args.hidden_size,
+    #                output_size=neox_args.padded_vocab_size,
+    #                bias=False,
+    #                input_is_parallel=False,
+    #                init_method=init_method,
+    #                parallel_output=parallel_output,
+    #                skip_bias_add=False,
+    #                mup_rescale_parameters=is_last_layer,  # only called if neox_args.use_mup = True, despite it not being included here
+    #            )
 
     def forward(self, hidden_states):
         return self.final_linear(hidden_states)
@@ -292,22 +293,28 @@ class ParallelSelfAttention(nn.Module):
 
         self.attention_type = neox_args.attention_type
         if self.attention_type != "multihead":
-            self.num_kv_heads_per_partition = mpu.divide(neox_args.num_kv_heads, world_size) # TODO: we want to clone single-kv heads across ranks...
-            self.kv_hidden_size = neox_args.num_kv_heads * self.hidden_size_per_attention_head
+            self.num_kv_heads_per_partition = mpu.divide(
+                neox_args.num_kv_heads, world_size
+            )  # TODO: we want to clone single-kv heads across ranks...
+            self.kv_hidden_size = (
+                neox_args.num_kv_heads * self.hidden_size_per_attention_head
+            )
         else:
-            self.num_kv_heads_per_partition = self.num_attention_heads_per_partition #None
-            self.kv_hidden_size = neox_args.hidden_size #None
+            self.num_kv_heads_per_partition = (
+                self.num_attention_heads_per_partition
+            )  # None
+            self.kv_hidden_size = neox_args.hidden_size  # None
 
         if self.attention_type == "multihead":
             # Strided linear layer.
             self.query_key_value = mpu.ColumnParallelLinear(
-                    neox_args=neox_args,
-                    input_size=neox_args.hidden_size,
-                    output_size=3 * neox_args.hidden_size,
-                    gather_output=False,
-                    init_method=init_method,
-                    bias=neox_args.use_bias_in_attn_linear,
-                )
+                neox_args=neox_args,
+                input_size=neox_args.hidden_size,
+                output_size=3 * neox_args.hidden_size,
+                gather_output=False,
+                init_method=init_method,
+                bias=neox_args.use_bias_in_attn_linear,
+            )
         else:
             self.query_key_value = mpu.ColumnParallelLinear(
                 neox_args=neox_args,
@@ -317,7 +324,6 @@ class ParallelSelfAttention(nn.Module):
                 init_method=init_method,
                 bias=neox_args.use_bias_in_attn_linear,
             )
-
 
         coeff = None
         self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
@@ -352,10 +358,10 @@ class ParallelSelfAttention(nn.Module):
                 else self.hidden_size_per_attention_head
             )
             self.rotary_emb = RotaryEmbedding(
-                dim, 
-                base=neox_args.rotary_emb_base, 
+                dim,
+                base=neox_args.rotary_emb_base,
                 max_seq_len=neox_args.seq_length,
-                precision=neox_args.params_dtype
+                precision=neox_args.params_dtype,
             )
         else:
             self.rotary_emb = None
@@ -372,10 +378,21 @@ class ParallelSelfAttention(nn.Module):
             )
         else:
             if self.use_flash_attention:
-                from flash_attn.flash_attn_interface import flash_attn_func, flash_attn_varlen_func
-                self.flash_triton_fn = None
+                from megatron.model.flash_attention import (
+                    flash_attn_unpadded_qkvpacked_func_cuda,
+                    flash_attn_unpadded_kvpacked_func_cuda,
+                    flash_attn_unpadded_unpacked_func_triton,
+                )
+                from flash_attn.flash_attn_interface import (
+                    flash_attn_func,
+                    flash_attn_varlen_func,
+                )
+
+                self.flash_triton_fn = flash_attn_unpadded_unpacked_func_triton
                 self.flash_qkv_fn = flash_attn_func
-                self.flash_varlen_qkv_fn = flash_attn_varlen_func
+                self.flash_varlen_qkv_fn = (
+                    flash_attn_varlen_func  # TODO: use neox's flash attention interface
+                )
             else:
                 self.scale_mask_softmax = FusedScaleMaskSoftmax(
                     input_in_fp16=self.fp16,
@@ -520,10 +537,10 @@ class ParallelSelfAttention(nn.Module):
 
             # [sk, b, np, hn] -> [b, sk, np, hn] -> [b * sk, 1, np, hn]
             key_layer = key_layer.transpose(0, 1).reshape(
-                output_size[0], output_size[3], self.num_kv_heads_per_partition, -1 
+                output_size[0], output_size[3], self.num_kv_heads_per_partition, -1
             )
             value_layer = value_layer.transpose(0, 1).reshape(
-                output_size[0], output_size[3], self.num_kv_heads_per_partition, -1 
+                output_size[0], output_size[3], self.num_kv_heads_per_partition, -1
             )
 
             batch_size = output_size[0]
@@ -550,32 +567,46 @@ class ParallelSelfAttention(nn.Module):
             query_layer = query_layer.transpose(0, 1).reshape(
                 output_size[0], output_size[2], output_size[1], -1
             )
-            
-            #print(key_layer.shape)
-            #print(value_layer.shape)
+
+            # print(key_layer.shape)
+            # print(value_layer.shape)
 
             if not self.training:
                 q_shape = query_layer.shape
                 k_shape = key_layer.shape
                 v_shape = value_layer.shape
                 output = self.flash_varlen_qkv_fn(
-                    query_layer.reshape((q_shape[0]*q_shape[1], q_shape[2], q_shape[3])),
-                    key_layer.reshape((k_shape[0]*k_shape[1], k_shape[2], k_shape[3])), 
-                    value_layer.reshape((v_shape[0]*v_shape[1], v_shape[2], v_shape[3])),
-                    cu_seqlens_q, cu_seqlens_k,
-                    max_seqlen_q, max_seqlen_k,
+                    query_layer.reshape(
+                        (q_shape[0] * q_shape[1], q_shape[2], q_shape[3])
+                    ),
+                    key_layer.reshape(
+                        (k_shape[0] * k_shape[1], k_shape[2], k_shape[3])
+                    ),
+                    value_layer.reshape(
+                        (v_shape[0] * v_shape[1], v_shape[2], v_shape[3])
+                    ),
+                    cu_seqlens_q,
+                    cu_seqlens_k,
+                    max_seqlen_q,
+                    max_seqlen_k,
                     softmax_scale=None,
                     causal=True,
-                    window_size=(self.sliding_window_width, -1) if self.sliding_window_width is not None else (-1, -1),
+                    window_size=(self.sliding_window_width, -1)
+                    if self.sliding_window_width is not None
+                    else (-1, -1),
                 )
                 output = output.reshape(q_shape)
             else:
                 output = self.flash_qkv_fn(
-                    query_layer, key_layer, value_layer,
+                    query_layer,
+                    key_layer,
+                    value_layer,
                     self.dropout_p if self.training else 0.0,
                     softmax_scale=None,
                     causal=True,
-                    window_size=(self.sliding_window_width, -1) if self.sliding_window_width is not None else (-1, -1),
+                    window_size=(self.sliding_window_width, -1)
+                    if self.sliding_window_width is not None
+                    else (-1, -1),
                 )
 
             matmul_result = output
@@ -628,7 +659,7 @@ class ParallelSelfAttention(nn.Module):
         # Query, Key, and Value
         # =====================
 
-        if self.attention_type=="multihead":
+        if self.attention_type == "multihead":
             # Attention heads [sq, b, h] --> [sq, b, (np * 3 * hn)]
             mixed_x_layer, _ = self.query_key_value(hidden_states)
 
@@ -643,36 +674,77 @@ class ParallelSelfAttention(nn.Module):
             (query_layer, key_layer, value_layer) = mpu.split_tensor_along_last_dim(
                 mixed_x_layer, 3
             )
-        else: 
+        else:
             # Attention heads [sq, b, h] --> [sq, b, (np + 2 * num. (query / num. kv)) * hn)]
             mixed_x_layer, _ = self.query_key_value(hidden_states)
 
             # TODO: instead split here into [sq, b, np * hn], 2 [sq, b, np/kv_ratio * hn] and then reshape?
             # TODO: check equivalence (in the multihead case(?))
             # TODO: refactor this out into an mpu.utils fn like split_tensor_along_last_dim
-            mixed_x_layer = mixed_x_layer.reshape((mixed_x_layer.shape[0], mixed_x_layer.shape[1], self.num_attention_heads_per_partition, int(self.hidden_size_per_attention_head * (1 + 2 * (self.num_kv_heads_per_partition / self.num_attention_heads_per_partition)))))
+            mixed_x_layer = mixed_x_layer.reshape(
+                (
+                    mixed_x_layer.shape[0],
+                    mixed_x_layer.shape[1],
+                    self.num_attention_heads_per_partition,
+                    int(
+                        self.hidden_size_per_attention_head
+                        * (
+                            1
+                            + 2
+                            * (
+                                self.num_kv_heads_per_partition
+                                / self.num_attention_heads_per_partition
+                            )
+                        )
+                    ),
+                )
+            )
             (query_layer, key_layer, value_layer) = [
-                    x.contiguous() for x in torch.split(
-                        mixed_x_layer, [
-                            self.hidden_size_per_attention_head, 
-                            int((self.num_kv_heads_per_partition / self.num_attention_heads_per_partition) * self.hidden_size_per_attention_head), 
-                            int((self.num_kv_heads_per_partition / self.num_attention_heads_per_partition) * self.hidden_size_per_attention_head)
-                        ], 
-                        dim=mixed_x_layer.dim() - 1
-                    )
+                x.contiguous()
+                for x in torch.split(
+                    mixed_x_layer,
+                    [
+                        self.hidden_size_per_attention_head,
+                        int(
+                            (
+                                self.num_kv_heads_per_partition
+                                / self.num_attention_heads_per_partition
+                            )
+                            * self.hidden_size_per_attention_head
+                        ),
+                        int(
+                            (
+                                self.num_kv_heads_per_partition
+                                / self.num_attention_heads_per_partition
+                            )
+                            * self.hidden_size_per_attention_head
+                        ),
+                    ],
+                    dim=mixed_x_layer.dim() - 1,
+                )
             ]
 
             # [sq, b, (np * (1 + 2 * num. (query / num. kv)) * hn)] --> [sq, b, np, (1 + 2 * nq / nkv) * hn]
-            #new_tensor_shape = mixed_x_layer.size()[:-1] + (
+            # new_tensor_shape = mixed_x_layer.size()[:-1] + (
             #     self.num_attention_heads_per_partition + ???,
             #     self.hidden_size_per_attention_head,
 
             # [sq, b, np * hn] --> [sq, b, np, hn]
-            new_query_shape = (query_layer.size(0), query_layer.size(1), self.num_attention_heads_per_partition, self.hidden_size_per_attention_head)
+            new_query_shape = (
+                query_layer.size(0),
+                query_layer.size(1),
+                self.num_attention_heads_per_partition,
+                self.hidden_size_per_attention_head,
+            )
 
             query_layer = query_layer.view(*new_query_shape)
 
-            new_kv_shape = (key_layer.size(0), key_layer.size(1), self.num_kv_heads_per_partition, self.hidden_size_per_attention_head,)
+            new_kv_shape = (
+                key_layer.size(0),
+                key_layer.size(1),
+                self.num_kv_heads_per_partition,
+                self.hidden_size_per_attention_head,
+            )
 
             key_layer = key_layer.view(*new_kv_shape)
 
@@ -681,10 +753,9 @@ class ParallelSelfAttention(nn.Module):
             # mixed_x_layer = mixed_x_layer.view(*new_tensor_shape)
 
             ## [sq, b, np, 3 * hn
-            #(query_layer, key_layer, value_layer) = mpu.split_tensor_along_last_dim(
+            # (query_layer, key_layer, value_layer) = mpu.split_tensor_along_last_dim(
             #    mixed_x_layer, 3
-            #)
-
+            # )
 
         if exists(self.rotary_emb):
             if exists(self.rotary_ndims):
