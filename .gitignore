@@ -150,15 +150,3 @@ test_logs/
 logs/
 tensorboard/
 src/
-*.out
-
-# extensions
-extensions/fused_adam/.ninja_deps
-extensions/fused_adam/.ninja_log
-extensions/fused_adam/build.ninja
-extensions/fused_adam/multi_tensor_adam.cuda.o
-extensions/utils/.ninja_deps
-extensions/utils/.ninja_log
-extensions/utils/build.ninja
-extensions/utils/flatten_unflatten.o
-testbed_gptneox.py

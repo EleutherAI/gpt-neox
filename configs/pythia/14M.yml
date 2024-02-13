@@ -1,0 +1,98 @@
+{
+  # parallelism settings
+  "pipe-parallel-size": 0,
+  "model-parallel-size": 1,
+
+  # model settings
+  "num-layers": 6,
+  "hidden-size": 128,
+  "num-attention-heads": 4,
+  "seq-length": 2048,
+  "max-position-embeddings": 2048,
+  "pos-emb": "rotary",
+  "rotary-pct": 0.25,
+  "no-weight-tying": true,
+  "gpt-j-residual": true,
+  "output-layer-parallelism": "column",
+
+  "attention-config": [[["flash"], 6]],
+
+  "scaled-upper-triang-masked-softmax-fusion": true,
+  "bias-gelu-fusion": true,
+
+  # init methods
+  "init_method": "small_init",
+  "output_layer_init_method": "wang_init",
+
+  "optimizer": {
+    "type": "Adam",
+    "params": {
+      "lr": 0.001,
+      "betas": [0.9, 0.95],
+      "eps": 1.0e-8
+    }
+  },
+  "min_lr": 0.0001,
+
+  "zero_optimization": {
+    "stage": 0,
+    "allgather_partitions": true,
+    "allgather_bucket_size": 50000000,
+    "overlap_comm": true,
+    "reduce_scatter": true,
+    "reduce_bucket_size": 50000000,
+    "contiguous_gradients": true,
+    "cpu_offload": false
+  },
+
+  # batch size (trained on 32 gpus)
+  "train_micro_batch_size_per_gpu": 32,
+  "gas": 1,
+  "data-impl": "mmap",
+  "num_workers": 4,
+
+  # activation checkpointing
+  "checkpoint-activations": false, #true,
+  "checkpoint-num-layers": 1,
+  "partition-activations": false, #true,
+  "synchronize-each-layer": true,
+
+  # regularization
+  "gradient_clipping": 1.0,
+  "weight-decay": 0.1,
+  "hidden-dropout": 0,
+  "attention-dropout": 0,
+
+  # precision settings
+  "fp16": {
+    "fp16": true,
+    "enabled": true,
+    "loss_scale": 0,
+    "loss_scale_window": 1000,
+    "initial_scale_power": 12,
+    "hysteresis": 2,
+    "min_loss_scale": 1
+  },
+
+  "train-iters": 143000,
+  "lr-decay-iters": 143000,
+  "distributed-backend": "nccl",
+  "lr-decay-style": "cosine",
+  "warmup": 0.01,
+  "checkpoint-factor": 1000,
+  "extra-save-iters": [0,1,2,4,8,16,32,64,128,256,512],
+  "eval-interval": 100000,
+  "eval-iters": 10,
+
+  "log-interval": 10,
+  "steps_per_print": 10,
+  "wall_clock_breakdown": true,
+
+  "train-data-paths": ["/mnt/ssd-2/pile_deduped/pile_20B_tokenizer_text_document"],
+  "valid-data-paths": ["/mnt/ssd-2/pile_deduped/pile_20B_tokenizer_text_document"],
+  "test-data-paths": ["/mnt/ssd-2/pile_deduped/pile_20B_tokenizer_text_document"],
+
+  "tokenizer-type": "HFTokenizer",
+  "vocab-file": "/mnt/ssd-2/pile/20B_tokenizer.json"
+
+}

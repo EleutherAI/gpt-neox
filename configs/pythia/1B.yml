@@ -1,0 +1,86 @@
+{
+  "pipe_parallel_size": 1,
+  "model_parallel_size": 1,
+
+  "num_layers": 16,
+  "hidden_size": 2048,
+  "num_attention_heads": 8,
+  "seq_length": 2048,
+  "max_position_embeddings": 2048,
+  "pos_emb": "rotary",
+  "rotary_pct": 0.25,
+  "no_weight_tying": true,
+  "gpt_j_residual": true,
+  "output_layer_parallelism": "column",
+
+  "scaled_upper_triang_masked_softmax_fusion": true,
+  "bias_gelu_fusion": true,
+
+  "init_method": "small_init",
+  "output_layer_init_method": "wang_init",
+
+  "optimizer": {
+    "type": "Adam",
+    "params": {
+      "lr": 0.00025,
+      "betas": [0.9, 0.95],
+      "eps": 1.0e-8
+    }
+  },
+  "min_lr": 0.000025,
+
+  "zero_optimization": {
+    "stage": 0,
+    "allgather_partitions": true,
+    "allgather_bucket_size": 500000000,
+    "overlap_comm": true,
+    "reduce_scatter": true,
+    "reduce_bucket_size": 500000000,
+    "contiguous_gradients": true,
+    "cpu_offload": false
+  },
+
+  "fp16": {
+    "enabled": true,
+    "type": "bfloat16",
+    "auto_cast": true,
+    "loss_scale": 0,
+    "loss_scale_window": 1000,
+    "initial_scale_power": 12,
+    "hysteresis": 2,
+    "min_loss_scale": 1
+  },
+
+  "fp32_allreduce": true,
+
+  "train_micro_batch_size_per_gpu": 4,
+  "gradient_accumulation_steps": 4,
+  "data_impl": "mmap",
+  "num_workers": 1,
+
+  "checkpoint_activations": true,
+  "checkpoint_num_layers": 1,
+  "partition_activations": true,
+  "synchronize_each_layer": true,
+
+  "gradient_clipping": 1.0,
+  "weight_decay": 0.1,
+  "hidden_dropout": 0,
+  "attention_dropout": 0,
+
+  "train_iters": 143000,
+  "lr_decay_iters": 143000,
+  "distributed_backend": "nccl",
+  "lr_decay_style": "cosine",
+  "warmup": 0.01,
+  "checkpoint_factor": 1000,
+  "extra_save_iters": [0,1,2,4,8,16,32,64,128,256,512],
+  "eval_interval": 143000,
+  "eval_iters": 10,
+
+  "log_interval": 10,
+  "steps_per_print": 10,
+  "wall_clock_breakdown": true,
+
+  "tokenizer_type": "HFTokenizer"
+}

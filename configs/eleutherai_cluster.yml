@@ -1,0 +1,29 @@
+# Data paths and options when using EleutherAI cluster
+{
+  # you may include multiple distinct datasets if desired
+  "train_data_paths": ["/mnt/ssd-1/data/enwik8/enwik8_text_document"],
+  "valid_data_paths": ["/mnt/ssd-1/data/enwik8/enwik8_val_text_document"],
+  "test_data_paths": ["/mnt/ssd-1/data/enwik8/enwik8_test_text_document"],
+
+  # if using multiple datasets, provide weights for them to be sampled with
+  # "train-data-weights": [1., 2.],
+  # "test-data-weights": [2., 1.],
+  # "valid-data-weights": [0.5, 0.4],
+
+
+  # If you would like the code to create val and test datasets from your training set use the following instead
+  # "split" determines the relative size of train, val, and test
+
+  # "split" 995,4,1
+  # "data_path": "/mnt/ssd-1/data/enwik8/enwik8_text_document",
+
+  "vocab_file": "/mnt/ssd-1/data/gpt2-vocab.json",
+  "merge_file": "/mnt/ssd-1/data/gpt2-merges.txt",
+  "save": "/mnt/ssd-1/checkpoints",
+  "load": "/mnt/ssd-1/checkpoints",
+  "tensorboard_dir": "/mnt/ssd-1/tensorboard",
+  "log_dir": "/mnt/ssd-1/logs",
+  "wandb_team": "eleutherai",
+  "wandb_project": "neox",
+  "wandb_group": "example"
+}

@@ -1,0 +1,113 @@
+# DISCLAIMER: This is the configuration file for the GPT-NeoX-20B model as it was trained on 96x 40GB A100
+# GPUs. Depending on your system configuration, you may need to change some parameters in order to fit
+# the model in memory.
+
+{
+  # Tokenizer /  checkpoint settings - you will need to change these to the location you have them saved in
+  "vocab_file": "./20B_checkpoints/20B_tokenizer.json",
+  "save": "./20B_checkpoints",
+  "load": "./20B_checkpoints",
+
+  # If finetuning, edit the following to the location of your finetuning dataset:
+  "data_path": "./data/pile_20B_tokenizer/pile_20B_tokenizer_text_document",
+
+  # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
+  # across the node boundaries )
+  "pipe_parallel_size": 4,
+  "model_parallel_size": 2,
+
+  # model settings
+  "num_layers": 44,
+  "hidden_size": 6144,
+  "num_attention_heads": 64,
+  "seq_length": 2048,
+  "max_position_embeddings": 2048,
+  "norm": "layernorm",
+  "pos_emb": "rotary",
+  "rotary_pct": 0.25,
+  "no_weight_tying": true,
+  "gpt_j_residual": true,
+  "output_layer_parallelism": "column",
+  "scaled_upper_triang_masked_softmax_fusion": true,
+  "bias_gelu_fusion": true,
+  "rope_fusion": false,
+  "layernorm_fusion": false,
+
+  # init methods
+  "init_method": "small_init",
+  "output_layer_init_method": "wang_init",
+
+  # optimizer settings
+  "optimizer": {
+    "type": "Adam",
+    "params": {
+      "lr": 0.97e-4,
+      "betas": [0.9, 0.95],
+      "eps": 1.0e-8,
+      }
+      },
+
+  "min_lr": 0.97e-5,
+
+  # for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
+  "zero_optimization": {
+  "stage": 1,
+  "allgather_partitions": True,
+  "allgather_bucket_size": 1260000000,
+  "overlap_comm": True,
+  "reduce_scatter": True,
+  "reduce_bucket_size": 1260000000,
+  "contiguous_gradients": True,
+  },
+
+  # batch / data settings (assuming 96 GPUs)
+  "train_micro_batch_size_per_gpu": 4,
+  "gradient_accumulation_steps": 32,
+  "data_impl": "mmap",
+  "split": "995,4,1",
+
+  # activation checkpointing
+  "checkpoint_activations": true,
+  "checkpoint_num_layers": 1,
+  "partition_activations": false,
+  "synchronize_each_layer": true,
+
+  # regularization
+  "gradient_clipping": 1.0,
+  "weight_decay": 0.01,
+  "hidden_dropout": 0,
+  "attention_dropout": 0,
+
+  # precision settings
+  "fp16": {
+    "fp16": true,
+    "enabled": true,
+    "loss_scale": 0,
+    "loss_scale_window": 1000,
+    "initial_scale_power": 12,
+    "hysteresis": 2,
+    "min_loss_scale": 1
+    },
+
+  # misc. training settings
+  "train_iters": 150000,
+  "lr_decay_iters": 150000,
+
+  "distributed_backend": "nccl",
+  "lr_decay_style": "cosine",
+  "warmup": 0.01,
+  "checkpoint_factor": 500, # this variable previously called `save-interval`
+  "eval_interval": 1000,
+  "eval_iters": 10,
+
+  # logging
+  "log_interval": 2,
+  "steps_per_print": 2,
+  "wall_clock_breakdown": false,
+
+  ### NEW DATA: ####
+  "tokenizer_type": "HFTokenizer",
+  "tensorboard-dir": "./tensorboard",
+  "log_dir": "./logs",
+
+}

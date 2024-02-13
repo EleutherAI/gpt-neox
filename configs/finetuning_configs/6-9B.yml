@@ -1,0 +1,89 @@
+{
+  # finetuning option
+  "load": "/path/to/checkpoint",
+  "finetune": true,
+
+  "pipe-parallel-size": 1,
+  "model-parallel-size": 2,
+
+   "num-layers": 32,
+   "hidden-size": 4096,
+   "num-attention-heads": 32,
+   "seq-length": 2048,
+   "max-position-embeddings": 2048,
+   "norm": "layernorm",
+   "pos-emb": "rotary",
+   "rotary_pct": 0.25,
+   "no-weight-tying": true,
+   "gpt_j_residual": true,
+   "output_layer_parallelism": "column",
+
+   "attention-config": [[["flash"], 32]],
+
+   "scaled-upper-triang-masked-softmax-fusion": true,
+   "bias-gelu-fusion": true,
+
+
+   "optimizer": {
+     "type": "Adam",
+     "params": {
+       "lr": 0.00012,
+       "betas": [0.9, 0.95],
+       "eps": 1.0e-8
+     }
+   },
+
+   "min_lr": 0.000012,
+
+   "zero_optimization": {
+    "stage": 1,
+    "allgather_partitions": true,
+    "allgather_bucket_size": 1260000000,
+    "overlap_comm": true,
+    "reduce_scatter": true,
+    "reduce_bucket_size": 1260000000,
+    "contiguous_gradients": true,
+    "cpu_offload": false,
+    "load_from_fp32_weights": False, # if checkpoint has fp16/bf16 params
+  },
+
+   "train_micro_batch_size_per_gpu": 8,
+   "gradient_accumulation_steps": 2,
+   "data-impl": "mmap",
+
+   "checkpoint-activations": true,
+   "checkpoint-num-layers": 1,
+   "partition-activations": true,
+   "synchronize-each-layer": true,
+
+   "gradient_clipping": 1.0,
+   "weight-decay": 0.1,
+   "hidden-dropout": 0,
+   "attention-dropout": 0,
+
+   "fp16": {
+     "fp16": true,
+     "enabled": true,
+     "loss_scale": 0,
+     "loss_scale_window": 1000,
+     "initial_scale_power": 12,
+     "hysteresis": 2,
+     "min_loss_scale": 1
+   },
+
+   "train-iters": 143000,
+   "lr-decay-iters": 143000,
+   "distributed-backend": "nccl",
+   "lr-decay-style": "cosine",
+   "warmup": 0.01,
+   "checkpoint-factor": 1000,
+   "extra-save-iters": [0,1,2,4,8,16,32,64,128,256,512],
+   "eval-interval": 143000,
+   "eval-iters": 10,
+
+   "log-interval": 10,
+   "steps_per_print": 10,
+   "wall_clock_breakdown": true,
+
+   "tokenizer_type": "HFTokenizer"
+}

@@ -1,0 +1,72 @@
+# GPT-2 pretraining setup
+{
+   # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
+   # across the node boundaries )
+   "pipe_parallel_size": 1,
+   "model_parallel_size": 1,
+   "attention_config": [[["gmlp"], "all"]],
+
+
+   # model settings
+   "num_layers": 12,
+   "hidden_size": 768, # gmlp d_ff defaults to hidden_size * 4
+   "gmlp_attn_dim": 64,
+   "num_attention_heads": 12, # this has no effect with gmlp - and amlp defaults to single head attention.
+   "seq_length": 2048,
+   "max_position_embeddings": 2048,
+   "norm": "layernorm",
+   "pos_emb": "none",
+   "no_weight_tying": true,
+
+   # optimizer settings
+   "optimizer": {
+     "type": "Adam",
+     "params": {
+       "lr": 0.0006,
+       "betas": [0.9, 0.999],
+       "eps": 1.0e_8,
+     }
+   },
+
+   # batch / data settings
+   "train_micro_batch_size_per_gpu": 4,
+   "data_impl": "mmap",
+   "split": "949,50,1",
+
+   # activation checkpointing
+   "checkpoint_activations": true,
+   "checkpoint_num_layers": 1,
+   "partition_activations": false,
+   "synchronize_each_layer": true,
+
+   # regularization
+   "gradient_clipping": 1.0,
+   "weight_decay": 0.1,
+   "hidden_dropout": 0.0,
+   "attention_dropout": 0.0,
+
+   # precision settings
+   "fp16": {
+     "enabled": true,
+     "loss_scale": 0,
+     "loss_scale_window": 1000,
+     "hysteresis": 2,
+     "min_loss_scale": 1
+   },
+
+   # misc. training settings
+   "train_iters": 320000,
+   "lr_decay_iters": 320000,
+   "distributed_backend": "nccl",
+   "lr_decay_style": "cosine",
+   "warmup": 0.01,
+   "checkpoint_factor": 10000,
+   "eval_interval": 1000,
+   "eval_iters": 10,
+
+   # logging
+   "log_interval": 100,
+   "steps_per_print": 10,
+   "keep_last_n_checkpoints": 4,
+   "wall_clock_breakdown": true,
+}
