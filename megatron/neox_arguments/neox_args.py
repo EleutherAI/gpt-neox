@@ -470,19 +470,9 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
     Minimum value for learning rate. The scheduler clips values below this threshold.
     """
 
-    decay_lr_to: float = None
-    """
-    If using cosine decay, the ratio of max lr that the lr is decayed to, prior to any clipping based on the value of `min_lr`.
-    """
-
-    warmup: float = None
+    warmup: float = 0.01
     """
     Percentage of total iterations to warmup on (.01 = 1 percent of all training iters).
-    """
-
-    warmup_iters: int = None
-    """
-    Number of iterations to warm up for. Incompatible with `warmup`.
     """
 
     override_lr_scheduler: bool = False

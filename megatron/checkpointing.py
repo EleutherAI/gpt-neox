@@ -1,7 +1,7 @@
-# Copyright (c) 2021, EleutherAI
+# Copyright (c) 2024, EleutherAI
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,8 +27,18 @@ import random
 import sys
 import numpy as np
 
-import boto3
-import hf_transfer
+try:
+    import boto3
+except ModuleNotFoundError:
+    print(
+        "For s3 checkpointing, please install boto3 either using requirements/requirements-s3.txt or https://github.com/boto/boto3"
+    )
+try:
+    import hf_transfer
+except ModuleNotFoundError:
+    print(
+        "For s3 checkpointing, please install hf_transfer either using requirements/requirements-s3.txt or https://github.com/huggingface/hf_transfer"
+    )
 import torch
 from glob import glob
 
@@ -211,6 +221,8 @@ def save_ds_checkpoint(iteration, model, neox_args):
                     f.write(config_data)
                 else:
                     json.dump(config_data, f)
+
+
 def multiprocessing_starmap(func, args, num_processes=None):
     """Wrapper to allow for re-usable multiprocessing pools with `spawn` context handling
     Args:
@@ -219,8 +231,11 @@ def multiprocessing_starmap(func, args, num_processes=None):
         num_processes (int, optional): Number of processes to spawn. Defaults to `multiprocessing.cpu_count() - 1`
     """
     import multiprocessing
+
     num_processes = num_processes or (multiprocessing.cpu_count() - 1)
-    with multiprocessing.get_context("spawn").Pool(processes=num_processes) as process_pool:
+    with multiprocessing.get_context("spawn").Pool(
+        processes=num_processes
+    ) as process_pool:
         process_pool.starmap(func, args)
         process_pool.terminate()
         process_pool.join()
@@ -247,7 +262,7 @@ def _upload(
             chunks in parallel (cannot exceed max_files). Defaults to 63
         max_retries (int, optional): Number of retries for each chunk. Defaults to 5
     """
-    s3 = boto3.client('s3')
+    s3 = boto3.client("s3")
     bucket = s3_key.split("s3://")[1].split("/")[0]
     key = s3_key.split(bucket)[1].lstrip("/")
 
@@ -298,24 +313,42 @@ def _upload(
 
 
 def upload_checkpoint(iteration, neox_args):
-    local_checkpoint_path = os.path.join(os.path.abspath(neox_args.save), get_checkpoint_tag(iteration))
-    local_checkpoint_list = sorted(filter(
-        lambda x: os.path.isfile(x),
-        [str(p) for p in Path(local_checkpoint_path).rglob("*")],
-    ))
+    local_checkpoint_path = os.path.join(
+        os.path.abspath(neox_args.save), get_checkpoint_tag(iteration)
+    )
+    local_checkpoint_list = sorted(
+        filter(
+            lambda x: os.path.isfile(x),
+            [str(p) for p in Path(local_checkpoint_path).rglob("*")],
+        )
+    )
     remote_checkpoint_path = os.path.join(
-        neox_args.s3_path, os.path.basename(neox_args.save), get_checkpoint_tag(iteration))
+        neox_args.s3_path,
+        os.path.basename(neox_args.save),
+        get_checkpoint_tag(iteration),
+    )
     remote_checkpoint_list = [
-        os.path.join(remote_checkpoint_path, os.path.relpath(local_checkpoint, local_checkpoint_path))
+        os.path.join(
+            remote_checkpoint_path,
+            os.path.relpath(local_checkpoint, local_checkpoint_path),
+        )
         for local_checkpoint in local_checkpoint_list
     ]
-    inputs = zip(local_checkpoint_list, remote_checkpoint_list, [neox_args.s3_chunk_size] * len(local_checkpoint_list))
+    inputs = zip(
+        local_checkpoint_list,
+        remote_checkpoint_list,
+        [neox_args.s3_chunk_size] * len(local_checkpoint_list),
+    )
 
-    print_rank_0(f"[RANK {torch.distributed.get_rank()}] Uploading checkpoint `{local_checkpoint_path}` to `{remote_checkpoint_path}`...")
+    print_rank_0(
+        f"[RANK {torch.distributed.get_rank()}] Uploading checkpoint `{local_checkpoint_path}` to `{remote_checkpoint_path}`..."
+    )
     start = time.time()
     multiprocessing_starmap(_upload, inputs)
     total_time = time.time() - start
-    print_rank_0(f"[RANK {torch.distributed.get_rank()}] Uploaded checkpoint `{local_checkpoint_path}` to `{remote_checkpoint_path}` in {total_time:.2f}s")
+    print_rank_0(
+        f"[RANK {torch.distributed.get_rank()}] Uploaded checkpoint `{local_checkpoint_path}` to `{remote_checkpoint_path}` in {total_time:.2f}s"
+    )
 
 
 def save_checkpoint(neox_args, iteration, model, optimizer, lr_scheduler):
@@ -327,19 +360,19 @@ def save_checkpoint(neox_args, iteration, model, optimizer, lr_scheduler):
         raise ValueError("Must be using deepspeed to use neox")
 
     torch.distributed.barrier()
-
-    if neox_args.keep_last_n_checkpoints is not None:
-        delete_old_checkpoints(neox_args.save, neox_args.keep_last_n_checkpoints)
-
-    # Wait so everyone is done (not necessary)
-    torch.distributed.barrier()
     upload_to_s3 = torch.distributed.get_rank() == 0 and neox_args.s3_path is not None
     if upload_to_s3:
         upload_checkpoint(iteration, neox_args)
 
     # Wait so everyone is done (necessary)
     torch.distributed.barrier()
-   
+    if neox_args.keep_last_n_checkpoints is not None:
+        delete_old_checkpoints(neox_args.save, neox_args.keep_last_n_checkpoints)
+
+    # Wait so everyone is done (not necessary)
+    torch.distributed.barrier()
+
+
 def load_checkpoint(
     neox_args, model, optimizer, lr_scheduler, inference=False, iteration=None
 ):
@@ -386,9 +419,12 @@ def load_checkpoint(
     if neox_args.finetune:
         iteration = 0
     else:
-        iteration = state_dict.get("iteration") or state_dict.get(
-            "total_iters"
-        )  # total_iters backward compatible with older checkpoints
+        if "iteration" in state_dict:
+            iteration = state_dict["iteration"]
+        else:
+            iteration = state_dict.get(
+                "total_iters"
+            )  # total_iters backward compatible with older checkpoints
         if iteration is None:
             raise ValueError(
                 f"Unable to load iteration from checkpoint {checkpoint_name} with keys {state_dict.keys()}, exiting"

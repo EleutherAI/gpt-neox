@@ -1,0 +1,2 @@
+boto3
+hf-transfer>=0.1.3
