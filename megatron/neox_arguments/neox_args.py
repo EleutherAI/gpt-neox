@@ -107,8 +107,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
 
     intermediate_size: int = None
     """
-    Transformer intermediate size.
+    Transformer intermediate size. Currently only used for "mlp_type": "llama".
+
+    If not passed, will be set to a reasonable default.
     """
+
     num_attention_heads: int = None
     """
     Number of transformer attention heads. Used for number of query heads only, if num_kv_heads is set.
