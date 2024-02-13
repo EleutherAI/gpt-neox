@@ -73,9 +73,6 @@ def convert_model_pipeline(
     num_layers = params["n_layers"]
     num_heads = params["n_heads"]
     if "n_kv_heads" in params:
-        assert (
-            False
-        ), "Found `n_kv_heads` != `n_heads` in checkpoint config. However, Grouped-Query Attention is not yet supported by NeoX"
         num_kv_heads = params["n_kv_heads"]
     else:
         num_kv_heads = num_heads
@@ -333,9 +330,6 @@ def convert_model_sequential(
     num_layers = params["n_layers"]
     num_heads = params["n_heads"]
     if "n_kv_heads" in params:
-        assert (
-            False
-        ), "Found `n_kv_heads` != `n_heads` in checkpoint config. However, Grouped-Query Attention is not yet supported by NeoX"
         num_kv_heads = params["n_kv_heads"]
     else:
         num_kv_heads = num_heads

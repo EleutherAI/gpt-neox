@@ -246,11 +246,6 @@ def create_config(neox_config, architecture="neox"):
             }
         )
 
-        if args["num_attention_heads"] != args["num_key_value_heads"]:
-            assert (
-                False
-            ), "Got num_key_value_heads != num_attention_heads, but Grouped-Query Attention is not yet supported by NeoX."
-
         if architecture == "mistral":
             # mistral-specific options
             args.update(
@@ -670,12 +665,6 @@ def main(input_args=None, overwrite_values=None):
         "llama",
         "mistral",
     ], f"expected --architecture to be one of 'neox', 'mistral', 'llama', but got '{args.architecture}' !"
-
-    if args.architecture == "mistral":
-        # Mistral Support Coming Soon
-        assert (
-            False
-        ), "Got num_key_value_heads != num_attention_heads, but Grouped-Query Attention is not yet supported by NeoX."
 
     with open(args.config_file) as f:
         loaded_config = yaml.full_load(f)
