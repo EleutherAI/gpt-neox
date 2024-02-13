@@ -114,17 +114,20 @@ class NeoXArgsModel(NeoXArgsTemplate):
 
     num_attention_heads: int = None
     """
-    Number of transformer attention heads. Used for number of query heads only, if num_kv_heads is set.
+    Number of transformer attention heads. 
+    
+    If num_kv_heads is set, will control only number of query heads.
     """
 
     num_kv_heads: int = None 
     """
-    Number of transformer key/value attention heads. Need not be set if using attention_type `multihead` or `multiquery`.
-    """
+    Number of transformer key/value attention heads.
 
-    attention_type: Literal["multihead", "multiquery", "groupedquery"] = "multihead"
-    """
-    Whether to use multi-head, multi-query (https://arxiv.org/pdf/1911.02150.pdf), or grouped-query (https://arxiv.org/pdf/2305.13245.pdf) attention.
+    If set to None or the same value as num_attention_heads, will perform multi-head attention (MHA).
+    If set to < num_attention_heads but > 1, will perform grouped-query attention (GQA) (https://arxiv.org/pdf/2305.13245.pdf)
+    If set to 1, will perform multi-query attention.
+
+    Must be < num_attention_heads and divide num_attention_heads evenly.
     """
 
     seq_length: int = None

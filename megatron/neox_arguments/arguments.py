@@ -1034,6 +1034,16 @@ class NeoXArgs(*BASE_CLASSES):
             # Can't have a default value as an empty dict so need to set it here
             self.update_value("sparsity_config", {})
 
+        # Multi-query or grouped-query attention settings
+        if self.num_kv_heads is not None:
+            # need KV heads <= query heads, and KV heads dividing query heads evenly
+            assert (self.num_attention_heads % self.num_kv_heads == 0), "num_kv_heads must evenly divide num_attention_heads and be no greater than it"
+
+            if self.num_kv_heads < self.num_attention_heads:
+                # GQA / MQA not compatible with sparse attention configurations
+                assert not self.sparsity_config, "Sparse attention not compatible with GQA or MQA"
+                assert all(attn_type == "flash" for attn_type in self.attention_config), "GQA / MQA currently only compatible with Flash Attention 2.0"
+
         # Adding equal dataset weights if none are provided
         if self.train_data_paths and (self.train_data_weights is None):
             self.train_data_weights = [1.0] * len(self.train_data_paths)
