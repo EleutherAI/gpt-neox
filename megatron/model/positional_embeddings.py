@@ -1,4 +1,4 @@
-# Copyright (c) 2021, EleutherAI
+# Copyright (c) 2024, EleutherAI
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,17 +38,24 @@ class SinusoidalPositionalEmbedding(torch.nn.Module):
 class RotaryEmbedding(torch.nn.Module):
     def __init__(self, dim, max_seq_len, base=10000, precision=torch.half):
         super().__init__()
+        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2).float() / dim))
+        self.register_buffer("inv_freq", inv_freq)
+        self.seq_len_cached = None
+        self.cos_cached = None
+        self.sin_cached = None
         self.precision = precision
         self.max_seq_len = max_seq_len
         self.base = base
         self.dim = dim
-        
+
         # precompute cos_cached, sin_cached in fp32
-        cos_cached, sin_cached, inv_freq = self._prepare_cache(max_seq_len, precision, base)
+        cos_cached, sin_cached, inv_freq = self._prepare_cache(
+            max_seq_len, precision, base
+        )
 
         self.register_buffer("inv_freq", inv_freq)
         self.cos_cached = cos_cached
-        self.sin_cached = sin_cached    
+        self.sin_cached = sin_cached
 
     def _prepare_cache(self, seq_len, precision, base):
         # precompute cos_cached, sin_cached in fp32
@@ -60,19 +67,26 @@ class RotaryEmbedding(torch.nn.Module):
 
         cos_cached = emb.cos()[:, None, None, :]
         sin_cached = emb.sin()[:, None, None, :]
-         
-        return cos_cached.to(precision), sin_cached.to(precision), inv_freq.to(precision)
 
-    def forward(self, x, seq_dim=1, seq_len=None):
+        return (
+            cos_cached.to(precision),
+            sin_cached.to(precision),
+            inv_freq.to(precision),
+        )
+
+    def forward(self, x, seq_dim=0, seq_len=None):
         if seq_len is None:
             seq_len = x.shape[seq_dim]
+
         assert seq_len <= self.max_seq_len
+
         if seq_len != self.max_seq_len:
-            cos_new, sin_new, _ = self._prepare_cache(seq_len, self.precision, self.base)
-            # print(f"##############\nseq_len!=max_seq_len\ninput: {x.shape}\ncos_new: {cos_new.shape}\nsin_new: {sin_new.shape}\nseq_dim:{seq_dim}")
-            return cos_new.to(x.device), sin_new.to(x.device)
+            # y, z, _ = self._prepare_cache(seq_len, self.precision, self.base)
+            return (
+                self.cos_cached[:seq_len, ...].to(x.device),
+                self.sin_cached[:seq_len, ...].to(x.device),
+            )
         else:
-            # print(f"##############\nseq_len==max_seq_len\ninput: {x.shape}\ncos_cached: {self.cos_cached.shape}\nsin_cached: {self.cos_cached.shape}")
             return self.cos_cached.to(x.device), self.sin_cached.to(x.device)
 
 
