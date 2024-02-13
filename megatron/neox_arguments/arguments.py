@@ -732,8 +732,14 @@ class NeoXArgs(*BASE_CLASSES):
         if self.deepspeed_slurm:
             os.environ["LOCAL_RANK"] = os.environ["SLURM_LOCALID"]
             os.environ["RANK"] = os.environ["SLURM_PROCID"]
-            os.environ["WORLD_SIZE"] = os.environ["SLURM_NTASKS"] if os.environ.get("SLURM_NTASKS") is not None \
-                                        else str(int(os.environ["SLURM_NNODES"]) * int(os.environ["SLURM_NTASKS_PER_NODE"]))
+            os.environ["WORLD_SIZE"] = (
+                os.environ["SLURM_NTASKS"]
+                if os.environ.get("SLURM_NTASKS") is not None
+                else str(
+                    int(os.environ["SLURM_NNODES"])
+                    * int(os.environ["SLURM_NTASKS_PER_NODE"])
+                )
+            )
 
         self.update_value("local_rank", int(os.getenv("LOCAL_RANK", "0")))
         self.update_value("rank", int(os.getenv("RANK", "0")))
@@ -1037,12 +1043,21 @@ class NeoXArgs(*BASE_CLASSES):
         # Multi-query or grouped-query attention settings
         if self.num_kv_heads is not None:
             # need KV heads <= query heads, and KV heads dividing query heads evenly
-            assert (self.num_attention_heads % self.num_kv_heads == 0), "num_kv_heads must evenly divide num_attention_heads and be no greater than it"
+            assert (
+                self.num_attention_heads % self.num_kv_heads == 0
+            ), "num_kv_heads must evenly divide num_attention_heads and be no greater than it"
 
             if self.num_kv_heads < self.num_attention_heads:
                 # GQA / MQA not compatible with sparse attention configurations
-                assert not self.sparsity_config, "Sparse attention not compatible with GQA or MQA"
-                assert all(attn_type == "flash" for attn_type in self.attention_config), "GQA / MQA currently only compatible with Flash Attention 2.0"
+                assert (
+                    not self.sparsity_config
+                ), "Sparse attention not compatible with GQA or MQA"
+                assert all(
+                    attn_type == "flash" for attn_type in self.attention_config
+                ), "GQA / MQA currently only compatible with Flash Attention 2.0"
+                assert (
+                    self.num_kv_heads % self.model_parallel_size == 0
+                ), "Number of KV heads must be at least model_parallel_size for now!"
 
         # Adding equal dataset weights if none are provided
         if self.train_data_paths and (self.train_data_weights is None):
