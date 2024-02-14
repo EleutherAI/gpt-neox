@@ -1,7 +1,7 @@
-# Copyright (c) 2021, EleutherAI
+# Copyright (c) 2024, EleutherAI
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,9 +19,16 @@
 from megatron.neox_arguments import NeoXArgs
 from megatron.training import pretrain
 
-if __name__ == "__main__":
-    neox_args = NeoXArgs.consume_neox_args()
+
+def main(input_args=None, overwrite_values=None):
+    neox_args = NeoXArgs.consume_neox_args(
+        input_args=input_args, overwrite_values=overwrite_values
+    )
     neox_args.configure_distributed_args()
     neox_args.build_tokenizer()  # tokenizer needs to be build in training in order to set the padding vocab
     neox_args.initialize_tensorboard_writer()  # is initialized if tensorboard directory is defined
     pretrain(neox_args=neox_args)
+
+
+if __name__ == "__main__":
+    main()

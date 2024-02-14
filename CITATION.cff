@@ -5,6 +5,9 @@ authors:
     family-names: Andonian
     given-names: Alex
   - affiliation: EleutherAI
+    family-names: Anthony
+    given-names: Quentin
+  - affiliation: EleutherAI
     family-names: Biderman
     given-names: Stella
   - affiliation: EleutherAI
@@ -35,14 +38,29 @@ authors:
     family-names: Pieler
     given-names: Michael
   - affiliation: EleutherAI
+    family-names: Phang
+    given-names: Jason
+  - affiliation: EleutherAI
     family-names: Purohit
     given-names: Shivanshu
+  - affiliation: EleutherAI
+    family-names: Schoelkopf
+    given-names: Hailey
+  - affiliation: EleutherAI
+    family-names: Stander
+    given-names: Dashiell
   - affiliation: EleutherAI
     family-names: Songz
     given-names: Tri
   - affiliation: EleutherAI
-    family-names: Phil
-    given-names: Wang
+    family-names: Tigges
+    given-names: Curt
+  - affiliation: EleutherAI
+    family-names: Thérien
+    given-names: Benjamin
+  - affiliation: EleutherAI
+    family-names: Wang
+    given-names: Phil
   - affiliation: EleutherAI
     family-names: Weinbach
     given-names: Samuel
@@ -55,7 +73,7 @@ license: "Apache-2.0"
 message: "If you use this software, please cite it using these metadata."
 repository-code: "https://www.github.com/eleutherai/gpt-neox"
 title: "GPT-NeoX: Large Scale Autoregressive Language Modeling in PyTorch"
-version: "0.0.1"
+version: "2.0.0"
 doi: "10.5281/zenodo.5879544"
 date-released: 2021-08-23
 ...

@@ -1,0 +1,60 @@
+name: Coverity
+on:
+  workflow_dispatch:
+    inputs:
+      build_version:
+        description: "Version of GPT-NeoX being submitted for scan"
+        required: false
+        default: "GPT-NeoX build version"
+      build_description:
+        description: "Description of the current build"
+        required: false
+        default: "Current build of GPT-NeoX"
+
+jobs:
+  coverity:
+
+    runs-on: ubuntu-latest
+
+    env:
+      COV_USER: ${{ secrets.COV_USER }}
+      COVERITY_PROJECT: ${{ secrets.COVERITY_PROJECT }}
+      COVERITY_TOKEN: ${{ secrets.COVERITY_TOKEN }}
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        path: gpt-neox
+
+    - name: Install utils
+      run: |
+        sudo apt update -y && sudo apt upgrade -y
+        sudo apt install curl jq wget -y
+
+    - name: Coverity Download
+      run: |
+        wget https://scan.coverity.com/download/linux64 --post-data "token=$COVERITY_TOKEN&project=$COVERITY_PROJECT" -O coverity_tool.tgz --no-verbose
+        mkdir $GITHUB_WORKSPACE/coverity && tar xvf coverity_tool.tgz -C $GITHUB_WORKSPACE/coverity --strip-components=1
+        $GITHUB_WORKSPACE/coverity/bin/cov-configure --python
+        $GITHUB_WORKSPACE/coverity/bin/cov-configure --gcc
+
+    - name: Coverity Scan and Upload
+      run: |
+        set -x
+        pushd $GITHUB_WORKSPACE
+        cd $GITHUB_WORKSPACE/gpt-neox
+        $GITHUB_WORKSPACE/coverity/bin/cov-build --dir $GITHUB_WORKSPACE/cov-int --no-command --fs-capture-search ./
+        popd
+        tar caf build-results.bz2 cov-int
+        curl --form token=$COVERITY_TOKEN \
+          --form email=$COV_USER \
+          --form file=@build-results.bz2 \
+          --form version="${{ inputs.build_version }}" \
+          --form description="${{ inputs.build_description }}" \
+          https://scan.coverity.com/builds?project=$COVERITY_PROJECT
+
+    - name: Upload Scan Build as Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverity-build-${{ github.sha }}
+        path: build-results.bz2

@@ -1,4 +1,4 @@
-# Copyright (c) 2021, EleutherAI
+# Copyright (c) 2024, EleutherAI
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -227,7 +227,7 @@ def _max_reduce_except_dim(tensor, dim):
 # closure is checked if callable or not since some code passes loss directly, rather than in closure param
 
 import math
-from typing import Collection, TYPE_CHECKING, Any, Callable, Optional
+from typing import Collection, TYPE_CHECKING, Any, Callable, Optional, Tuple
 
 import torch
 import torch.optim
@@ -412,4 +412,86 @@ class madgrad_wd(torch.optim.Optimizer):
                         p.data.mul_(1 - ck).add_(z, alpha=ck)
 
         self.state["k"] += 1
+        return loss
+
+
+class Lion(Optimizer):
+    """
+    Implements the Lion Algorithm
+
+    .. / _Lion: https://arxiv.org/abs/2302.06675
+
+    Compared to AdamW and various adaptive optimizers that need to save both first and second moments,
+    Lion only needs the momentum, halving the additional memory footprint. This is beneficial when training large models
+    and / or with a large batch size.
+
+    Arguments:
+        params (iterable):
+            Iterable of parameters to optimize or dicts defining parameter groups.
+        lr (float):
+            Learning rate (default: 1e-2).
+        beta (float):
+            coefficients used for computing running averages of gradient and its square (default: (0.9, 0.99))
+        weight_decay (float):
+            Weight decay, i.e. a L2 penalty (default: 0).
+
+    """
+
+    def __init__(
+        self,
+        params,
+        lr: float = 1e-4,
+        betas: Tuple[float, float] = (0.9, 0.99),
+        weight_decay: float = 0.0,
+    ):
+        if lr <= 0:
+            raise ValueError(f"Learning rate {lr} must be positive")
+        if weight_decay < 0:
+            raise ValueError(f"Weight decay {weight_decay} must be non-negative")
+        if not (0 <= betas[0] <= 1 and 0 <= betas[1] <= 1):
+            raise ValueError(f"Betas {betas} must be in range [0, 1)")
+
+        defaults = dict(lr=lr, betas=betas, weight_decay=weight_decay)
+        super().__init__(params, defaults)
+
+    def update(self, p, grad, exp_avg, lr, wd, beta1, beta2):
+        """https://arxiv.org/pdf/2302.06675.pdf#appendix.A"""
+
+        # update model parameters
+        p.mul_(1 - lr * wd)
+        sign = exp_avg.clone().mul_(beta1).add(grad, alpha=1 - beta1).sign_()
+        p.add_(sign, alpha=-lr)
+
+        # update EMA
+        exp_avg.mul_(beta2).add_(grad, alpha=1 - beta2)
+
+    @torch.no_grad()
+    def step(self, closure: Optional[Callable] = None):
+
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+
+        for group in self.param_groups:
+            for p in group["params"]:
+                if p.grad is None:
+                    continue
+
+                state = self.state[p]
+
+                # init state - exponential moving average of gradient values
+                if len(state) == 0:
+                    state["exp_avg"] = torch.zeros_like(p.data).detach()
+
+                self.update(
+                    p,
+                    p.grad,
+                    state["exp_avg"],
+                    group["lr"],
+                    group["weight_decay"],
+                    group["betas"][0],
+                    group["betas"][1],
+                )
+
         return loss

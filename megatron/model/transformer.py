@@ -1,7 +1,7 @@
-# Copyright (c) 2021 EleutherAI
+# Copyright (c) 2024 EleutherAI
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,6 +32,10 @@ from megatron.model.positional_embeddings import (
     apply_rotary_pos_emb_torch,
     apply_rotary_pos_emb,
     AliBi,
+)
+from megatron.model.fused_rope import (
+    FusedRoPEFunc,
+    fused_apply_rotary_pos_emb_cached,
 )
 from megatron.model.fused_bias_dropout import (
     get_bias_dropout_add,
@@ -366,6 +370,7 @@ class ParallelSelfAttention(nn.Module):
         else:
             self.rotary_emb = None
 
+        self.rope_fusion = neox_args.rope_fusion
         self.attention_type = neox_args.attention_config[layer_number]
         self.use_flash_attention = self.attention_type == "flash"
         self.sparse = self.attention_type not in ("global", "flash")
@@ -379,8 +384,11 @@ class ParallelSelfAttention(nn.Module):
         else:
             if self.use_flash_attention:
                 from megatron.model.flash_attention import (
-                    flash_attn_unpadded_qkvpacked_func_cuda,
-                    flash_attn_unpadded_kvpacked_func_cuda,
+                    # flash_attn_unpadded_qkvpacked_func_cuda,
+                    # flash_attn_unpadded_kvpacked_func_cuda,
+                    # Change of function names going from flash attention 1 -> flash attention 2
+                    flash_attn_varlen_qkvpacked_func,
+                    flash_attn_varlen_kvpacked_func,
                     flash_attn_unpadded_unpacked_func_triton,
                 )
                 from flash_attn.flash_attn_interface import (
@@ -757,6 +765,11 @@ class ParallelSelfAttention(nn.Module):
             #    mixed_x_layer, 3
             # )
 
+        # QK Normalization https://arxiv.org/abs/2302.05442
+        if self.use_qk_layernorm:
+            query_layer = self.qk_layernorm(query_layer)
+            key_layer = self.qk_layernorm(key_layer)
+
         if exists(self.rotary_emb):
             if exists(self.rotary_ndims):
                 # partial rotary
@@ -772,19 +785,25 @@ class ParallelSelfAttention(nn.Module):
                 # full rotary
                 query_rot, key_rot = query_layer, key_layer
 
-            apply_rotary_fn = (
-                apply_rotary_pos_emb_torch if self.bf16 else apply_rotary_pos_emb
-            )
-
             seq_len = key_layer.shape[0]
             offset = 0
             if exists(layer_past) and layer_past.numel() > 0:
                 offset = layer_past[0].shape[0]
                 seq_len += offset
             cos, sin = self.rotary_emb(value_layer, seq_len=seq_len)
-            query_layer, key_layer = apply_rotary_fn(
-                query_rot, key_rot, cos, sin, offset=offset
-            )
+            if self.rope_fusion:
+                query_layer, key_layer = (
+                    fused_apply_rotary_pos_emb_cached(rot, cos, sin)
+                    for rot in [query_rot, key_rot]
+                )
+            else:
+                if self.bf16:
+                    apply_rotary_fn = apply_rotary_pos_emb_torch
+                else:
+                    apply_rotary_fn = apply_rotary_pos_emb
+                query_layer, key_layer = apply_rotary_fn(
+                    query_rot, key_rot, cos, sin, offset=offset
+                )
 
             if exists(self.rotary_ndims):
                 query_layer = torch.cat((query_layer, query_pass), dim=-1)

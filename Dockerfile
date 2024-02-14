@@ -1,4 +1,4 @@
-# Copyright (c) 2021, EleutherAI
+# Copyright (c) 2024, EleutherAI
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM nvidia/cuda:11.7.0-runtime-ubuntu20.04
+FROM nvidia/cuda:11.7.1-devel-ubuntu20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -21,16 +21,16 @@ LABEL org.opencontainers.image.version = "2.0"
 LABEL org.opencontainers.image.authors = "contact@eleuther.ai"
 LABEL org.opencontainers.image.source = "https://www.github.com/eleutherai/gpt-neox"
 LABEL org.opencontainers.image.licenses = " Apache-2.0"
-LABEL org.opencontainers.image.base.name="docker.io/nvidia/cuda:11.1.1-devel-ubuntu20.04"
+LABEL org.opencontainers.image.base.name="docker.io/nvidia/cuda:11.7.1-devel-ubuntu20.04"
 
 #### System package (uses default Python 3 version in Ubuntu 20.04)
 RUN apt-get update -y && \
     apt-get install -y \
-        git python3.9 python3-dev libpython3-dev python3-pip sudo pdsh \
-        htop llvm-9-dev tmux zstd software-properties-common build-essential autotools-dev \
-        nfs-common pdsh cmake g++ gcc curl wget vim less unzip htop iftop iotop ca-certificates ssh \
-        rsync iputils-ping net-tools libcupti-dev libmlx4-1 infiniband-diags ibutils ibverbs-utils \
-        rdmacm-utils perftest rdma-core nano && \
+    git python3.9 python3-dev libpython3-dev python3-pip sudo pdsh \
+    htop llvm-9-dev tmux zstd software-properties-common build-essential autotools-dev \
+    nfs-common pdsh cmake g++ gcc curl wget vim less unzip htop iftop iotop ca-certificates ssh \
+    rsync iputils-ping net-tools libcupti-dev libmlx4-1 infiniband-diags ibutils ibverbs-utils \
+    rdmacm-utils perftest rdma-core nano && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3 1 && \
     update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1 && \
     pip install --upgrade pip && \
@@ -94,17 +94,17 @@ COPY requirements/requirements-wandb.txt .
 COPY requirements/requirements-onebitadam.txt .
 COPY requirements/requirements-sparseattention.txt .
 COPY requirements/requirements-flashattention.txt .
-RUN pip install -r requirements.txt && pip install -r requirements-onebitadam.txt && \
-    pip install -r requirements-sparseattention.txt && \
-    pip install -r requirements-flashattention.txt && \
-    pip install -r requirements-wandb.txt && \
-    pip install protobuf==3.20.* && \
-    pip cache purge
+RUN pip install -r requirements.txt && pip install -r requirements-onebitadam.txt
+RUN pip install -r requirements-sparseattention.txt
+RUN pip install -r requirements-flashattention.txt
+RUN pip install -r requirements-wandb.txt
+RUN pip install protobuf==3.20.*
+RUN pip cache purge
 
 ## Install APEX
 RUN pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" git+https://github.com/NVIDIA/apex.git@a651e2c24ecf97cbf367fd3f330df36760e1c597
 
-COPY megatron/ megatron
+COPY megatron/fused_kernels/ megatron/fused_kernels
 RUN python megatron/fused_kernels/setup.py install
 
 # Clear staging

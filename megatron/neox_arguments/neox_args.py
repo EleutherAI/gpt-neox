@@ -1,4 +1,4 @@
-# Copyright (c) 2021, EleutherAI
+# Copyright (c) 2024, EleutherAI
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -150,6 +150,16 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm".
     """
 
+    layernorm_fusion: bool = False
+    """
+    Use fused layer norm kernel (if `norm` is `layernorm`).
+    """
+
+    use_qk_layernorm: bool = False
+    """
+    Use QK Normalization
+    """
+
     layernorm_epsilon: float = 1.0e-5
     """
     Layer norm epsilon.
@@ -200,7 +210,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     The first item in the list specifies the attention type(s), and should be a list of strings. The second item
     specifies the number of times to repeat those attention types in the full list.
 
-    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird]
+    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird, "gmlp", "amlp", "flash"]
 
     So a 12 layer network with only global attention could be specified like:
         [[[`global`], 12]]
@@ -278,6 +288,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     bias_dropout_fusion: bool = False
     """
     Enable bias and dropout fusion.
+    """
+
+    rope_fusion: bool = False
+    """
+    Enable rotary embedding fusion.
     """
 
     fp16_lm_cross_entropy: bool = False
@@ -412,10 +427,17 @@ class NeoXArgsOptimizer(NeoXArgsTemplate):
     """
 
     optimizer_type: Literal[
-        "adam", "onebitadam", "cpu_adam", "cpu_torch_adam", "sm3", "madgrad_wd", "sgd"
+        "adam",
+        "onebitadam",
+        "cpu_adam",
+        "cpu_torch_adam",
+        "sm3",
+        "madgrad_wd",
+        "sgd",
+        "lion",
     ] = "adam"
     """
-    Type of optimizer to use. Choose from ['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd', 'sgd']
+    Type of optimizer to use. Choose from ['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd', 'sgd', 'lion']
     NOTE: sgd will use MuSGD from Mup. Mup must be enabled for this optimizer.
     """
 
@@ -666,17 +688,17 @@ class NeoXArgsOther(NeoXArgsTemplate):
     Set during training
     """
 
-    do_train: int = None
+    do_train: bool = None
     """
     Set during training
     """
 
-    do_valid: int = None
+    do_valid: bool = None
     """
     Set during training
     """
 
-    do_test: int = None
+    do_test: bool = None
     """
     Set during training
     """
@@ -794,7 +816,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     See https://arxiv.org/abs/1911.02116 for more details
     """
 
-    weighted_sampler_alpha: float = 0.3
+    weighted_sampler_alpha: float = 1.0
     """
     Alpha value for `weight_by_num_documents`. Only has an effect if `weight_by_num_documents` = True.
 
@@ -803,9 +825,9 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     as alpha -> inf, the probability of sampling from the groups with *the most samples* -> 1
     """
 
-    data_impl: str = "infer"
+    data_impl: Literal["infer", "mmap", "cached"] = "infer"
     """
-    Implementation of indexed datasets.
+    Implementation of indexed datasets, can be one of "infer", "cached", or "mmap"
     """
 
     mmap_warmup: bool = False
@@ -943,17 +965,17 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Exit the program after the iteration is divisible by this value.
     """
 
-    attention_dropout: float = 0.1
+    attention_dropout: float = 0.0
     """
     Post attention dropout probability.
     """
 
-    hidden_dropout: float = 0.1
+    hidden_dropout: float = 0.0
     """
     Dropout probability for hidden state transformer.
     """
 
-    weight_decay: float = 0.01
+    weight_decay: float = 0.1
     """
     Weight decay coefficient for L2 regularization.
     """
@@ -999,10 +1021,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Partition Activations across GPUs before checkpointing.
     """
 
-    gas: int = None
-    """gradient_accumulation_steps"""  # TODO this is a duplicate, remove?
-
-    clip_grad: float = None
+    clip_grad: float = 1.0
     """
     Gradient clipping based on global L2 norm.
     """
@@ -1161,4 +1180,6 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     eval_tasks: list = None
     """
     Tasks to evaluate on using lm_eval_harness
+
+    NOTE: Requires internet connection
     """

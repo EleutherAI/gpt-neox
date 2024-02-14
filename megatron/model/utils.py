@@ -1,7 +1,7 @@
-# Copyright (c) 2021 EleutherAI
+# Copyright (c) 2024 EleutherAI
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -97,6 +97,7 @@ class SequentialWrapper(torch.nn.Module):
         self.activation_checkpoint_interval = activation_checkpoint_interval
         self.parent_class_name = parent_class_name
         self.activation_checkpoint_func = activation_checkpoint_func
+        self.batch_fn = None
 
     def _is_checkpointable(self, funcs):
         if self.parent_class_name == "GPT2ModelPipe":
@@ -105,6 +106,14 @@ class SequentialWrapper(torch.nn.Module):
             )
         params = [f.parameters() for f in funcs if isinstance(f, torch.nn.Module)]
         return any(len(list(p)) > 0 for p in params)
+
+    def set_batch_fn(self, fn):
+        """Execute a post-processing function on input data.
+
+        Args:
+            fn (function): The function to run.
+        """
+        self.batch_fn = fn
 
     def inference_mode(self, use_cache=True):
         """
@@ -126,6 +135,9 @@ class SequentialWrapper(torch.nn.Module):
     def forward(
         self, forward_input, curriculum_seqlen=None, labels=None, neox_args=None
     ):
+
+        if self.batch_fn:
+            forward_input = self.batch_fn(forward_input)
 
         if (
             curriculum_seqlen is not None
@@ -189,6 +201,12 @@ class SequentialWrapper(torch.nn.Module):
                 else:
                     x = exec_range_func(start_idx, end_idx)(*x)
         return x
+
+    def clear_cache(self):
+        """
+        Recursively clears the kv cache on all layers
+        """
+        recursive_setattr(self.sequential, "layer_past", None)
 
 
 def recursive_setattr(m, attr, value, assert_type=None, type_filter=None):

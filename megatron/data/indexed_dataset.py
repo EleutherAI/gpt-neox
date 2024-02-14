@@ -1,4 +1,4 @@
-# Copyright (c) 2021, EleutherAI
+# Copyright (c) 2024, EleutherAI
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
 # Copyright (c) Facebook, Inc. and its affiliates.
@@ -68,8 +68,6 @@ def make_dataset(path, impl, skip_warmup=False):
         return None
     if impl == "infer":
         impl = infer_dataset_impl(path)
-    if impl == "lazy" and IndexedDataset.exists(path):
-        return IndexedDataset(path)
     elif impl == "cached" and IndexedDataset.exists(path):
         return IndexedCachedDataset(path)
     elif impl == "mmap" and MMapIndexedDataset.exists(path):

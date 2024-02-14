@@ -1,7 +1,7 @@
-# Copyright (c) 2021, EleutherAI
+# Copyright (c) 2024, EleutherAI
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ from transformers import GPT2Tokenizer, GPT2TokenizerFast
 import numpy as np
 import sentencepiece as spm
 from typing import List, Union
-from .gpt2_tokenization import GPT2Tokenizer
 
 
 def build_tokenizer(args):

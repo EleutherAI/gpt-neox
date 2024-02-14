@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,5 +23,4 @@ def print_rank_0(*message):
         print(*message, flush=True)
 
 
-from .initialize import initialize_megatron
 from .neox_arguments import NeoXArgs
