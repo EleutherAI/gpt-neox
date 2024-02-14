@@ -53,8 +53,10 @@ torch._C._jit_override_can_fuse_on_gpu(True)
 """ We use the following notation throughout this file:
      h: hidden size
      n: number of attention heads
+     kv: number of key or value heads
      p: number of model parallel partitions
      np: n/p
+     kvp: kv/p
      hp: h/p
      hn: h/n
      b: batch size
@@ -295,21 +297,25 @@ class ParallelSelfAttention(nn.Module):
         self.pos_emb = neox_args.pos_emb
         self.sliding_window_width = neox_args.sliding_window_width
 
-        self.attention_type = neox_args.attention_type
-        if self.attention_type != "multihead":
+        if (
+            not neox_args.num_kv_heads
+            or neox_args.num_kv_heads == neox_args.num_attention_heads
+        ):
+            self.gqa = False
+        else:
+            self.gqa = True
+        if self.gqa:
             self.num_kv_heads_per_partition = mpu.divide(
                 neox_args.num_kv_heads, world_size
-            )  # TODO: we want to clone single-kv heads across ranks...
+            )  # we do not yet clone KV heads in MQA across TP ranks...
             self.kv_hidden_size = (
                 neox_args.num_kv_heads * self.hidden_size_per_attention_head
-            )
+            )  # how large the total hidden dim for each of K and V is
         else:
-            self.num_kv_heads_per_partition = (
-                self.num_attention_heads_per_partition
-            )  # None
-            self.kv_hidden_size = neox_args.hidden_size  # None
+            self.num_kv_heads_per_partition = self.num_attention_heads_per_partition
+            self.kv_hidden_size = neox_args.hidden_size
 
-        if self.attention_type == "multihead":
+        if not self.gqa:
             # Strided linear layer.
             self.query_key_value = mpu.ColumnParallelLinear(
                 neox_args=neox_args,
@@ -320,6 +326,7 @@ class ParallelSelfAttention(nn.Module):
                 bias=neox_args.use_bias_in_attn_linear,
             )
         else:
+            # QKV proj is smaller if we are using GQA / MQA
             self.query_key_value = mpu.ColumnParallelLinear(
                 neox_args=neox_args,
                 input_size=neox_args.hidden_size,
@@ -374,6 +381,10 @@ class ParallelSelfAttention(nn.Module):
         self.attention_type = neox_args.attention_config[layer_number]
         self.use_flash_attention = self.attention_type == "flash"
         self.sparse = self.attention_type not in ("global", "flash")
+
+        if self.gqa:
+            assert (not self.sparse) and (self.use_flash_attention)
+
         if self.sparse:
             self.sparse_attn = configure_sparse_attention(
                 neox_args,
@@ -576,9 +587,6 @@ class ParallelSelfAttention(nn.Module):
                 output_size[0], output_size[2], output_size[1], -1
             )
 
-            # print(key_layer.shape)
-            # print(value_layer.shape)
-
             if not self.training:
                 q_shape = query_layer.shape
                 k_shape = key_layer.shape
@@ -667,7 +675,9 @@ class ParallelSelfAttention(nn.Module):
         # Query, Key, and Value
         # =====================
 
-        if self.attention_type == "multihead":
+        if not self.gqa:
+            # QKV projection for MHA.
+
             # Attention heads [sq, b, h] --> [sq, b, (np * 3 * hn)]
             mixed_x_layer, _ = self.query_key_value(hidden_states)
 
@@ -683,12 +693,16 @@ class ParallelSelfAttention(nn.Module):
                 mixed_x_layer, 3
             )
         else:
-            # Attention heads [sq, b, h] --> [sq, b, (np + 2 * num. (query / num. kv)) * hn)]
+            # QKV projection and separation for GQA,
+            # where KV projections may be smaller than Q projection.
+            # we
+
+            # Attention heads [sq, b, h] --> [sq, b, ((np + 2 * kvp) * hn)]
             mixed_x_layer, _ = self.query_key_value(hidden_states)
 
-            # TODO: instead split here into [sq, b, np * hn], 2 [sq, b, np/kv_ratio * hn] and then reshape?
-            # TODO: check equivalence (in the multihead case(?))
             # TODO: refactor this out into an mpu.utils fn like split_tensor_along_last_dim
+
+            # [sq, b, ((np + 2 * kvp) * hn)] --> [sq, b, np, (hn * (1 + 2 * (kvp / np)))]
             mixed_x_layer = mixed_x_layer.reshape(
                 (
                     mixed_x_layer.shape[0],
@@ -707,6 +721,8 @@ class ParallelSelfAttention(nn.Module):
                     ),
                 )
             )
+
+            # [sq, b, np, (hn * (1 + 2 * (kvp / np)))] --> 1 x [sq, b, np, hn] , 2 x [sq, b, np, (hn * (kvp / np))]
             (query_layer, key_layer, value_layer) = [
                 x.contiguous()
                 for x in torch.split(
@@ -732,21 +748,6 @@ class ParallelSelfAttention(nn.Module):
                 )
             ]
 
-            # [sq, b, (np * (1 + 2 * num. (query / num. kv)) * hn)] --> [sq, b, np, (1 + 2 * nq / nkv) * hn]
-            # new_tensor_shape = mixed_x_layer.size()[:-1] + (
-            #     self.num_attention_heads_per_partition + ???,
-            #     self.hidden_size_per_attention_head,
-
-            # [sq, b, np * hn] --> [sq, b, np, hn]
-            new_query_shape = (
-                query_layer.size(0),
-                query_layer.size(1),
-                self.num_attention_heads_per_partition,
-                self.hidden_size_per_attention_head,
-            )
-
-            query_layer = query_layer.view(*new_query_shape)
-
             new_kv_shape = (
                 key_layer.size(0),
                 key_layer.size(1),
@@ -757,14 +758,7 @@ class ParallelSelfAttention(nn.Module):
             key_layer = key_layer.view(*new_kv_shape)
 
             value_layer = value_layer.view(*new_kv_shape)
-
-            # mixed_x_layer = mixed_x_layer.view(*new_tensor_shape)
-
-            ## [sq, b, np, 3 * hn
-            # (query_layer, key_layer, value_layer) = mpu.split_tensor_along_last_dim(
-            #    mixed_x_layer, 3
-            # )
-
+        
         # QK Normalization https://arxiv.org/abs/2302.05442
         if self.use_qk_layernorm:
             query_layer = self.qk_layernorm(query_layer)
