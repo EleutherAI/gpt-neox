@@ -49,7 +49,7 @@
 
   # batch / data settings
   "train_micro_batch_size_per_gpu": 32,
-  "gas": 1,
+  "gradient_accumulation_steps": 1,
   "data_impl": "mmap",
   "num_workers": 1,
 

@@ -24,13 +24,19 @@ INTERMEDIATE_SIZE_MAP = {
     "7B": 11008,
     "13B": 13824,
     "30B": 17920,
+    "34B": 22016,
     "65B": 22016,
+    "70B": 28672,
+    "mistral-7B-v0.1": 14336,
 }
 NUM_SHARDS = {
     "7B": 1,
     "13B": 2,
     "30B": 4,
+    "34B": 4,
     "65B": 8,
+    "70B": 8,
+    "mistral-7B-v0.1": 1,
 }
 
 
@@ -66,19 +72,33 @@ def convert_model_pipeline(
     num_input_shards = NUM_SHARDS[model_size]
     num_layers = params["n_layers"]
     num_heads = params["n_heads"]
+    if "n_kv_heads" in params:
+        assert (
+            False
+        ), "Found `n_kv_heads` != `n_heads` in checkpoint config. However, Grouped-Query Attention is not yet supported by NeoX"
+        num_kv_heads = params["n_kv_heads"]
+    else:
+        num_kv_heads = num_heads
+    num_kv_heads_per_input_shard = num_kv_heads // num_input_shards
     num_heads_per_input_shard = num_heads // num_input_shards
     num_heads_per_output_shard = num_heads // num_output_shards
+    num_kv_heads_per_output_shard = num_kv_heads // num_output_shards
     hidden_size = params["dim"]
     dims_per_head = hidden_size // num_heads
     # base = 10000.0
     # inv_freq = 1.0 / (base ** (torch.arange(0, dims_per_head, 2).float() / dims_per_head))
 
     def permute_rotary(w):
-        assert w.shape == (num_heads, dims_per_head, hidden_size)
+        if w.shape == (num_heads, dims_per_head, hidden_size):
+            N_HEADS = num_heads
+        elif w.shape == (num_kv_heads, dims_per_head, hidden_size):
+            N_HEADS = num_kv_heads
+        else:
+            assert False
         return (
-            w.view(num_heads, dims_per_head // 2, 2, hidden_size)
+            w.view(N_HEADS, dims_per_head // 2, 2, hidden_size)
             .transpose(1, 2)
-            .reshape(num_heads, dims_per_head, hidden_size)
+            .reshape(N_HEADS, dims_per_head, hidden_size)
         )
 
     pbar = tqdm.tqdm(total=num_input_shards + num_layers + 3)
@@ -112,6 +132,7 @@ def convert_model_pipeline(
         ],
         dim=1,
     )
+    print(embeddings_in.shape)
     helper.save_shards(
         {"word_embeddings.weight": helper.shard(embeddings_in, dim=0)}, layer_i=0
     )
@@ -143,6 +164,8 @@ def convert_model_pipeline(
     if model_size == "7B":
         rope_freqs = loaded[0]["layers.0.attention.inner_attention.rope.freqs"]
         helper.del_loaded("layers.0.attention.inner_attention.rope.freqs")
+    elif "mistral" in model_size:
+        rope_freqs = None
     else:
         rope_freqs = loaded[0]["rope.freqs"]
         helper.del_loaded("rope.freqs")
@@ -210,23 +233,25 @@ def convert_model_pipeline(
             torch.cat(
                 [
                     loaded[rank][f"layers.{layer_i}.attention.wk.weight"].view(
-                        num_heads_per_input_shard, dims_per_head, hidden_size
+                        num_kv_heads_per_input_shard, dims_per_head, hidden_size
                     )
                     for rank in range(num_input_shards)
                 ],
                 dim=0,
             )
-        )
+        ).view(num_heads, int(dims_per_head * (num_kv_heads / num_heads)), hidden_size)
+
         w_v = torch.cat(
             [
                 loaded[rank][f"layers.{layer_i}.attention.wv.weight"].view(
-                    num_heads_per_input_shard, dims_per_head, hidden_size
+                    num_kv_heads_per_input_shard, dims_per_head, hidden_size
                 )
                 for rank in range(num_input_shards)
             ],
             dim=0,
-        )
-        sharded_qkv = torch.stack(
+        ).view(num_heads, int(dims_per_head * (num_kv_heads / num_heads)), hidden_size)
+
+        sharded_qkv = torch.cat(
             [
                 helper.shard(
                     w_q, dim=0
@@ -236,9 +261,11 @@ def convert_model_pipeline(
             ],
             dim=2,
         )  # num_output_shards, num_heads_per_output_shard, QKV=3, dims_per_head, hidden_size
+
         sharded_qkv = sharded_qkv.view(
             num_output_shards,
-            num_heads_per_output_shard * 3 * dims_per_head,
+            num_heads_per_output_shard * dims_per_head
+            + 2 * num_kv_heads_per_output_shard * dims_per_head,
             hidden_size,
         )
         helper.del_loaded(f"layers.{layer_i}.attention.wq.weight")
@@ -263,7 +290,11 @@ def convert_model_pipeline(
                     # Duplicated layers
                     "input_layernorm.scale": input_layernorm,
                     "post_attention_layernorm.scale": post_attention_layernorm,
-                    "attention.rotary_emb.inv_freq": rope_freqs,
+                    **(
+                        {"attention.rotary_emb.inv_freq": rope_freqs}
+                        if "mistral" not in model_size
+                        else {}
+                    ),
                 },
                 layer_i=layer_i + 2,
                 rank=out_rank,
@@ -301,19 +332,33 @@ def convert_model_sequential(
     num_input_shards = NUM_SHARDS[model_size]
     num_layers = params["n_layers"]
     num_heads = params["n_heads"]
+    if "n_kv_heads" in params:
+        assert (
+            False
+        ), "Found `n_kv_heads` != `n_heads` in checkpoint config. However, Grouped-Query Attention is not yet supported by NeoX"
+        num_kv_heads = params["n_kv_heads"]
+    else:
+        num_kv_heads = num_heads
+    num_kv_heads_per_input_shard = num_kv_heads // num_input_shards
     num_heads_per_input_shard = num_heads // num_input_shards
     num_heads_per_output_shard = num_heads // num_output_shards
+    num_kv_heads_per_output_shard = num_kv_heads // num_output_shards
     hidden_size = params["dim"]
     dims_per_head = hidden_size // num_heads
     # base = 10000.0
     # inv_freq = 1.0 / (base ** (torch.arange(0, dims_per_head, 2).float() / dims_per_head))
 
     def permute_rotary(w):
-        assert w.shape == (num_heads, dims_per_head, hidden_size)
+        if w.shape == (num_heads, dims_per_head, hidden_size):
+            N_HEADS = num_heads
+        elif w.shape == (num_kv_heads, dims_per_head, hidden_size):
+            N_HEADS = num_kv_heads
+        else:
+            assert False
         return (
-            w.view(num_heads, dims_per_head // 2, 2, hidden_size)
+            w.view(N_HEADS, dims_per_head // 2, 2, hidden_size)
             .transpose(1, 2)
-            .reshape(num_heads, dims_per_head, hidden_size)
+            .reshape(N_HEADS, dims_per_head, hidden_size)
         )
 
     pbar = tqdm.tqdm(total=num_input_shards + num_output_shards)
@@ -345,6 +390,7 @@ def convert_model_sequential(
         ],
         dim=1,
     )
+
     helper.add_sequential_shard(
         {"word_embeddings.weight": helper.shard(embeddings_in, dim=0)}, layer_i=0
     )
@@ -370,6 +416,8 @@ def convert_model_sequential(
     if model_size == "7B":
         rope_freqs = loaded[0]["layers.0.attention.inner_attention.rope.freqs"]
         helper.del_loaded("layers.0.attention.inner_attention.rope.freqs")
+    elif "mistral" in model_size:
+        rope_freqs = None
     else:
         rope_freqs = loaded[0]["rope.freqs"]
         helper.del_loaded("rope.freqs")
@@ -433,27 +481,30 @@ def convert_model_sequential(
                 dim=0,
             )
         )
+
         w_k = permute_rotary(
             torch.cat(
                 [
                     loaded[rank][f"layers.{layer_i}.attention.wk.weight"].view(
-                        num_heads_per_input_shard, dims_per_head, hidden_size
+                        num_kv_heads_per_input_shard, dims_per_head, hidden_size
                     )
                     for rank in range(num_input_shards)
                 ],
                 dim=0,
             )
-        )
+        ).view(num_heads, int(dims_per_head * (num_kv_heads / num_heads)), hidden_size)
+
         w_v = torch.cat(
             [
                 loaded[rank][f"layers.{layer_i}.attention.wv.weight"].view(
-                    num_heads_per_input_shard, dims_per_head, hidden_size
+                    num_kv_heads_per_input_shard, dims_per_head, hidden_size
                 )
                 for rank in range(num_input_shards)
             ],
             dim=0,
-        )
-        sharded_qkv = torch.stack(
+        ).view(num_heads, int(dims_per_head * (num_kv_heads / num_heads)), hidden_size)
+
+        sharded_qkv = torch.cat(
             [
                 helper.shard(
                     w_q, dim=0
@@ -463,11 +514,14 @@ def convert_model_sequential(
             ],
             dim=2,
         )  # num_output_shards, num_heads_per_output_shard, QKV=3, dims_per_head, hidden_size
+
         sharded_qkv = sharded_qkv.view(
             num_output_shards,
-            num_heads_per_output_shard * 3 * dims_per_head,
+            num_heads_per_output_shard * dims_per_head
+            + 2 * num_kv_heads_per_output_shard * dims_per_head,
             hidden_size,
         )
+
         helper.del_loaded(f"layers.{layer_i}.attention.wq.weight")
         helper.del_loaded(f"layers.{layer_i}.attention.wk.weight")
         helper.del_loaded(f"layers.{layer_i}.attention.wv.weight")
@@ -490,7 +544,11 @@ def convert_model_sequential(
                     # Duplicated layers
                     "input_layernorm.scale": input_layernorm,
                     "post_attention_layernorm.scale": post_attention_layernorm,
-                    "attention.rotary_emb.inv_freq": rope_freqs,
+                    **(
+                        {"attention.rotary_emb.inv_freq": rope_freqs}
+                        if "mistral" not in model_size
+                        else {}
+                    ),
                 },
                 layer_i=layer_i + 2,
                 rank=out_rank,
@@ -548,7 +606,7 @@ class Helper:
             )
 
     def save(self, obj, layer_i, rank):
-        torch.save(obj, self.save_path(layer_i=layer_i + 2, rank=rank))
+        torch.save(obj, self.save_path(layer_i=layer_i, rank=rank))
 
     def shard(self, x, dim):
         x_shape = list(x.shape)
@@ -588,19 +646,19 @@ class Helper:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Convert raw LLaMA checkpoints to GPT-NeoX format."
+        description="Convert raw LLaMA or Mistral checkpoints to GPT-NeoX format."
     )
     parser.add_argument(
         "--input_dir",
-        help="Location of LLaMA weights, which contains tokenizer.model and model folders",
+        help="Location of parent directory, which contains tokenizer.model and model weights subfolders",
     )
     parser.add_argument(
         "--model_size",
-        choices=["7B", "13B", "30B", "65B", "tokenizer_only"],
+        choices=["7B", "mistral-7B-v0.1", "13B", "30B", "34B", "65B", "tokenizer_only"],
     )
     parser.add_argument(
         "--output_dir",
-        help="Location to write GPT-NeoX mode",
+        help="Location to write GPT-NeoX model",
     )
     parser.add_argument(
         "--num_output_shards",

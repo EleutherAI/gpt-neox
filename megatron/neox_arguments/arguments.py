@@ -896,7 +896,6 @@ class NeoXArgs(*BASE_CLASSES):
                 "gradient_accumulation_steps": gradient_accumulation_steps,
                 "batch_size": train_micro_batch_size_per_gpu,
                 # duplicate items
-                "gas": self.gradient_accumulation_steps,
                 "clip_grad": self.gradient_clipping,
             }
         )
