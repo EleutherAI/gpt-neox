@@ -37,16 +37,14 @@ def _get_coord_data(
     show_progress=True,
     one_hot_target=False,
 ):
-    df = []
-
-    def word_embedding_coord_check_hook(module, input, output):
-        with torch.no_grad():
-            word_embedding_act_abs_mean_list.append(output.abs().mean().item())
-
-    word_embedding_act_abs_mean_list = []
-    _seeds = []
-    _steps = []
-    remove_hooks = []
+    df = {
+        "seed": [],
+        "step": [],
+        "we_act": [],
+        "ao_act": [],
+        "fo_act": [],
+        "width": [],
+    }
 
     for i in range(nseeds):
         torch.manual_seed(i)
@@ -54,36 +52,31 @@ def _get_coord_data(
             model = model()
             model.train()
             optimizer = optcls(model)
-            # optimizer, _ = optcls(model, neox_args)
 
             for step in range(nsteps + 1):
 
-                # add hooks
+                word_embedding_act_abs_mean_list = []
+                attn_output_act_abs_mean_list = []
+                ffn_output_act_abs_mean_list = []
+                remove_hooks = []
+
+                def word_embedding_coord_check_hook(module, input, output):
+                    with torch.no_grad():
+                        word_embedding_act_abs_mean_list.append(output.abs().mean().item())
+
+                def attn_output_coord_check_hook(module, input, output):
+                    with torch.no_grad():
+                        attn_output_act_abs_mean_list.append(output[0].abs().mean().item())
+
+                def ffn_output_coord_check_hook(module, input, output):
+                    with torch.no_grad():
+                        ffn_output_act_abs_mean_list.append(output[0].abs().mean().item())
+
                 for name, module in model.named_modules():
                     if name.endswith(".word_embeddings"):
                         remove_hooks.append(
-                            module.register_forward_hook(word_embedding_coord_check_hook))
-
-                        _steps.append(step)
-                        _seeds.append(i)
-
-
-                    # if filter_module_by_name and not filter_module_by_name(name):
-                    #     continue
-                    # pass
-                    # remove_hooks.append(
-                    #     module.register_forward_hook(
-                    #         mup_coord_check._record_coords(
-                    #             df,
-                    #             width,
-                    #             name,
-                    #             step + 1,
-                    #             output_fdict=output_fdict,
-                    #             input_fdict=input_fdict,
-                    #             param_fdict=param_fdict,
-                    #         )
-                    #     )
-                    # )
+                            module.register_forward_hook(word_embedding_coord_check_hook)
+                        )
 
                 # train for a step
                 loss_dict, skipped_iter = train_step(
@@ -95,15 +88,30 @@ def _get_coord_data(
                     lr_scheduler=lr_scheduler,
                 )
 
+                word_embedding_act_abs_mean = None
+                attn_output_act_abs_mean = None
+                ffn_output_act_abs_mean = None
+
                 # remove hooks
                 for handle in remove_hooks:
                     handle.remove()
+                word_embedding_act_abs_mean = np.mean(word_embedding_act_abs_mean_list)
+                attn_output_act_abs_mean = np.mean(attn_output_act_abs_mean_list)
+                ffn_output_act_abs_mean = np.mean(ffn_output_act_abs_mean_list)
+
+                df["seed"].append(i)
+                df["step"].append(step)
+                df["we_act"].append(word_embedding_act_abs_mean)
+                # df["ao_act"].append(attn_output_act_abs_mean)
+                # df["fo_act"].append(ffn_output_act_abs_mean)
+                df["width"].append(width)
+
             import gc
             del model
             gc.collect()
 
-    for _i,_j,_k in zip(_seeds, _steps, word_embedding_act_abs_mean_list):
-        print_rank_0(_i, _j, _k)
+    # for _i,_j,_k in zip(_seeds, _steps, word_embedding_act_abs_mean_list):
+    #     print_rank_0(_i, _j, _k)
 
     return pd.DataFrame(df)
 
