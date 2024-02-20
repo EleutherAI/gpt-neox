@@ -573,6 +573,15 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Whether to offload the buffered gradients to cpu when measuring gradient noise scale.
     """
 
+    memory_profiling: bool = False
+    """
+    Whether to take a memory snapshot of the model. Useful for debugging memory issues.
+    """
+
+    memory_profiling_path: str = None
+    """
+    Path to save memory snapshot to.
+    """
 
 @dataclass
 class NeoXArgsOther(NeoXArgsTemplate):
