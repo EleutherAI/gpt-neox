@@ -971,6 +971,7 @@ def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=Non
 
     if args is not None and args.use_mup:
         logits_parallel /= args.mup_width_multiplier
+        logits_parallel *= args.mup_output_multiplier 
 
     # Gather if needed.
     if parallel_output:
