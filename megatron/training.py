@@ -73,7 +73,6 @@ def mup_weights_reinit(neox_args, model):
 
 def mup_coord_check(neox_args, timers, train_data_iterator):
     from megatron.mup_substitute import get_coord_data
-    # from mup.coord_check import plot_coord_data
 
     def lazy_model(hidden_size):
         def gen():
@@ -92,19 +91,9 @@ def mup_coord_check(neox_args, timers, train_data_iterator):
 
     models = {}
 
-    # # Hidden size needs to be divisible by num attention heads
-    # for hidden_size in (neox_args.num_attention_heads * (2**p) for p in range(2, 9)):
-    #     models[hidden_size] = lazy_model(hidden_size)
-
-    # 128
-    # 256
-    # 512
-    # 1024
-    # 2048
-    # 4096
-    # 8192
-
-    models[neox_args.hidden_size] = lazy_model(neox_args.hidden_size)
+    # Hidden size needs to be divisible by num attention heads
+    for hidden_size in [2**p for p in range(7,14)]:
+        models[hidden_size] = lazy_model(hidden_size)
 
     print_rank_0("df_up")
     neox_args.use_mup = True
