@@ -11,8 +11,6 @@ import torch
 import torch.nn.functional as F
 
 from megatron import print_rank_0
-
-# from mup import coord_check as mup_coord_check
 from megatron.training import train_step
 
 

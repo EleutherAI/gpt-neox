@@ -71,59 +71,6 @@ def mup_weights_reinit(neox_args, model):
             layer.mup_reinitialize_weights(neox_args)
 
 
-def save_base_shapes(neox_args, base_shapes, use_cache):
-
-    # Instantiation of the base model fails in the init function (init_functions.py) because we haven't called set_base_shapes on it at this point, so disable it temporarily here
-    neox_args.use_mup = False
-
-    base_model = GPT2ModelPipe(
-        neox_args=neox_args,
-        num_tokentypes=0,
-        parallel_output=True,
-        topology=mpu.get_topology(),
-        use_cache=use_cache,
-    )
-
-    if not neox_args.is_pipe_parallel:
-        base_model = base_model.to_sequential()
-
-    try:
-        import mup
-    except ModuleNotFoundError:
-        print("Please install mup https://github.com/microsoft/mup")
-        raise Exception
-
-    base_shapes = mup.get_shapes(base_model)
-
-    del base_model
-
-    old_hidden_size = neox_args.hidden_size
-    neox_args.hidden_size = neox_args.hidden_size * neox_args.mup_width_scale
-
-    delta_model = GPT2ModelPipe(
-        neox_args=neox_args,
-        num_tokentypes=0,
-        parallel_output=True,
-        topology=mpu.get_topology(),
-        use_cache=use_cache,
-    )
-
-    if not neox_args.is_pipe_parallel:
-        delta_model = delta_model.to_sequential()
-
-    delta_shapes = mup.get_shapes(delta_model)
-
-    # change back
-    neox_args.use_mup = True
-    neox_args.hidden_size = old_hidden_size
-
-    save_shapes = f"{neox_args.base_shapes_file}.{torch.distributed.get_rank()}"
-    print(f"saving base shapes at {save_shapes}")
-    mup.make_base_shapes(base_shapes, delta_shapes, savefile=save_shapes)
-    print(f"base shapes saved...exiting")
-    sys.exit(1)
-
-
 def mup_coord_check(neox_args, timers, train_data_iterator):
     from megatron.mup_substitute import get_coord_data
     # from mup.coord_check import plot_coord_data
@@ -200,13 +147,6 @@ def pretrain(neox_args):
     # Initialize and get arguments, timers, and Tensorboard writer.
     initialize_megatron(neox_args=neox_args)
 
-    # Model, optimizer, and learning rate.
-    timers("model and optimizer").start()
-    model, optimizer, lr_scheduler = setup_model_and_optimizer(
-        neox_args=neox_args, use_cache=False, iteration=neox_args.iteration
-    )
-    timers("model and optimizer").stop()
-
     # Data stuff.
     timers("train/valid/test data iterators").start()
     (
@@ -219,8 +159,16 @@ def pretrain(neox_args):
     if neox_args.use_mup and neox_args.coord_check:
         print_rank_0("Do muP Coord Check")
         mup_coord_check(neox_args, timers, train_data_iterator)
+        sys.exit()
     else:
         pass
+
+    # Model, optimizer, and learning rate.
+    timers("model and optimizer").start()
+    model, optimizer, lr_scheduler = setup_model_and_optimizer(
+        neox_args=neox_args, use_cache=False, iteration=neox_args.iteration
+    )
+    timers("model and optimizer").stop()
 
     # Print setup timing.
     print_rank_0("done with setups ...")
@@ -425,16 +373,6 @@ def get_model(neox_args, use_cache=False):
         if neox_args.mup_width_multiplier == 1:
             neox_args.mup_width_multiplier = neox_args.hidden_size / neox_args.mup_d_model_base
         print_rank_0(f"mup_width_multiplier set to {neox_args.mup_width_multiplier}")
-
-        # base_shapes = f"{neox_args.base_shapes_file}.{torch.distributed.get_rank()}"
-
-        # if neox_args.save_base_shapes:
-        #     save_base_shapes(neox_args, base_shapes, use_cache)
-
-        # mup.set_base_shapes(model, base_shapes)
-
-        # Call the mup replacement init functions on the model now that set_base_shapes has given each weight a .infshape attribute
-        # mup_weights_reinit(neox_args, model)
 
     model = GPT2ModelPipe(
         neox_args=neox_args,
