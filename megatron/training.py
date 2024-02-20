@@ -108,8 +108,6 @@ def mup_coord_check(neox_args, timers, train_data_iterator):
 
     # plot_coord_data(df_up, save_to=f"coord_check_up.{torch.distributed.get_rank()}.jpg")
     # plot_coord_data(df_sp, save_to=f"coord_check_sp.{torch.distributed.get_rank()}.jpg")
-
-
     print_rank_0("Saved coord check plots... exiting")
     sys.exit(1)
 
