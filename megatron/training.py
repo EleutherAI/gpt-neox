@@ -641,9 +641,12 @@ def get_learning_rate_scheduler(optimizer, neox_args):
 def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
     """Setup memory profiler"""
     if neox_args.memory_profiling:
-        torch.cuda.memory._record_memory_history(True,
-    # keep a maximum 100,000 alloc/free events from before the snapshot
-        trace_alloc_max_entries=100000, trace_alloc_record_context=True)
+        torch.cuda.memory._record_memory_history(
+            True,
+            # keep a maximum 100,000 alloc/free events from before the snapshot
+            trace_alloc_max_entries=100000,
+            trace_alloc_record_context=True,
+        )
 
     """Setup model and optimizer."""
     model = get_model(neox_args=neox_args, use_cache=use_cache)
@@ -744,10 +747,12 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
         reduced_loss = train_step_pipe(
             neox_args=neox_args, timers=timers, model=model, data_iterator=data_iterator
         )
-        if neox_args.memory_profiling and \
-            neox_args.iteration >= neox_args.profile_step_start and \
-            neox_args.iteration <= neox_args.profile_step_stop and \
-            torch.distributed.get_rank()==0:
+        if (
+            neox_args.memory_profiling
+            and neox_args.iteration >= neox_args.profile_step_start
+            and neox_args.iteration <= neox_args.profile_step_stop
+            and torch.distributed.get_rank() == 0
+        ):
             save_snapshot(neox_args)
     else:
         losses = []
@@ -764,9 +769,11 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
             timers("forward").stop()
             losses.append(loss)
             # Calculate gradients, reduce across processes, and clip.
-            if neox_args.profiling and \
-                neox_args.iteration >= neox_args.profile_step_start and \
-                neox_args.iteration <= neox_args.profile_step_stop:
+            if (
+                neox_args.profiling
+                and neox_args.iteration >= neox_args.profile_step_start
+                and neox_args.iteration <= neox_args.profile_step_stop
+            ):
                 torch.cuda.nvtx.range_push(f"Backward pass")
             timers("backward").start()
             backward_step(
@@ -777,14 +784,18 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
                 loss=loss,
             )
             timers("backward").stop()
-            if neox_args.profiling and \
-                neox_args.iteration >= neox_args.profile_step_start and \
-                neox_args.iteration <= neox_args.profile_step_stop:
+            if (
+                neox_args.profiling
+                and neox_args.iteration >= neox_args.profile_step_start
+                and neox_args.iteration <= neox_args.profile_step_stop
+            ):
                 torch.cuda.nvtx.range_pop()
             # Update parameters.
-            if neox_args.profiling and \
-                neox_args.iteration >= neox_args.profile_step_start and \
-                neox_args.iteration <= neox_args.profile_step_stop:
+            if (
+                neox_args.profiling
+                and neox_args.iteration >= neox_args.profile_step_start
+                and neox_args.iteration <= neox_args.profile_step_stop
+            ):
                 torch.cuda.nvtx.range_push(f"Optimizer step")
             timers("optimizer").start()
             if neox_args.deepspeed:
@@ -792,14 +803,18 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
             else:
                 raise ValueError("Must be using deepspeed to run neox")
             timers("optimizer").stop()
-            if neox_args.profiling and \
-                neox_args.iteration >= neox_args.profile_step_start and \
-                neox_args.iteration <= neox_args.profile_step_stop:
+            if (
+                neox_args.profiling
+                and neox_args.iteration >= neox_args.profile_step_start
+                and neox_args.iteration <= neox_args.profile_step_stop
+            ):
                 torch.cuda.nvtx.range_pop()
-            if neox_args.profiling and \
-                neox_args.iteration >= neox_args.profile_step_start and \
-                neox_args.iteration <= neox_args.profile_step_stop and \
-                torch.distributed.get_rank()==0:
+            if (
+                neox_args.profiling
+                and neox_args.iteration >= neox_args.profile_step_start
+                and neox_args.iteration <= neox_args.profile_step_stop
+                and torch.distributed.get_rank() == 0
+            ):
                 save_snapshot(neox_args)
         reduced_loss = {
             "lm_loss": reduce_losses(losses).mean()
@@ -1081,11 +1096,14 @@ def evaluate_and_print_results(
     print_rank_0(string)
     print_rank_0("-" * length)
 
+
 def save_snapshot(neox_args):
-    assert neox_args.memory_profiling_path is not None, "Must pass memory_profiling_path config arg to use profiling"
+    assert (
+        neox_args.memory_profiling_path is not None
+    ), "Must pass memory_profiling_path config arg to use profiling"
     snapshot = torch.cuda.memory._snapshot()
     snapshot_path = os.path.join(neox_args.memory_profiling_path)
     if not os.path.exists(snapshot_path):
         os.makedirs(snapshot_path)
-    with open(os.path.join(snapshot_path, 'mem_snapshot.pickle'), 'wb') as f:
+    with open(os.path.join(snapshot_path, "mem_snapshot.pickle"), "wb") as f:
         dump(snapshot, f)

@@ -585,13 +585,13 @@ class NeoXArgsLogging(NeoXArgsTemplate):
 
     profile: bool = False
     """
-    Enable nsys profiling. When using this option, 
-    nsys options should be specified in commandline. 
-    An example nsys commandline is 
+    Enable nsys profiling. When using this option,
+    nsys options should be specified in commandline.
+    An example nsys commandline is
     ```
-    nsys profile -s none -t nvtx,cuda -o <path/to/output_file> 
-    --force-overwrite true 
-    --capture-range=cudaProfilerApi 
+    nsys profile -s none -t nvtx,cuda -o <path/to/output_file>
+    --force-overwrite true
+    --capture-range=cudaProfilerApi
     --capture-range-end=stop
     ```
     """
@@ -605,6 +605,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     """
     Step to stop profiling at.
     """
+
 
 @dataclass
 class NeoXArgsOther(NeoXArgsTemplate):
