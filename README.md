@@ -501,18 +501,20 @@ where `--eval_tasks` is a list of evaluation tasks followed by spaces, e.g `--ev
 
 # Exporting to Hugging Face
 
-GPT-NeoX is optimized heavily for training only, and GPT-NeoX model checkpoints are not compatible out of the box with other deep learning libraries. To make models easily loadable and shareable with end users, and for further exporting to various other frameworks, GPT-NeoX supports checkpoint conversion to the [Hugging Face Transformers](https://arxiv.org/abs/1910.03771) GPTNeoXModel format.
+GPT-NeoX is optimized heavily for training only, and GPT-NeoX model checkpoints are not compatible out of the box with other deep learning libraries. To make models easily loadable and shareable with end users, and for further exporting to various other frameworks, GPT-NeoX supports checkpoint conversion to the [Hugging Face Transformers](https://arxiv.org/abs/1910.03771) format.
 
-To convert a NeoX checkpoint (with pipeline-parallel-size>=1) to Hugging Face-loadable format, run:
-```bash
-python ./tools/ckpts/convert_module_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location
-```
+Though NeoX supports a number of different architectural configurations, including AliBi positional embeddings, not all of these configurations map cleanly onto the supported configurations within Hugging Face Transformers.
 
-To convert a sequential model to Hugging Face format, run:
+NeoX supports export of compatible models into the following architectures:
+- GPTNeoXForCausalLM
+- LlamaForCausalLM (GQA Support Coming Soon -- all Llama 1 models and Llama 2 / Codellama up to size 13B supported)
+
+Training a model which does not fit into one of these Hugging Face Transformers architectures cleanly will require writing custom modeling code for the exported model.
+
+To convert a GPT-NeoX library checkpoint to Hugging Face-loadable format, run:
 ```bash
-python  ./tools/ckpts/convert_sequential_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location
+python ./tools/ckpts/convert_neox_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location --precision {auto,fp16,bf16,fp32} --architecture {neox,llama}
 ```
-(Note: this script should be used for v2.0 checkpoints saved on a v2.0 commit prior to https://github.com/EleutherAI/gpt-neox/pull/866 and which used `pipe-parallel-size=1`. Using `pipe-parallel-size=0` will also save models in this format.)
 
 Then to upload a model to [the Hugging Face Hub](https://huggingface.co/), run:
 ```bash
@@ -521,7 +523,27 @@ python ./tools/ckpts/upload.py
 ```
 and input the requested information, including HF hub user token.
 
-Note, however, that this compatibility is not one-to-one, and only certain configurations from GPT-NeoX are supported in the Hugging Face GPTNeoXModel class. Advanced features such as alternative positional embeddings may require new Transformers modeling code and new conversion script tweaks.
+### Importing Models Into GPT-NeoX
+
+NeoX supplies several utilities for converting a pretrained model checkpoint into a format that can be trained within the library.
+
+The following models can be loaded in GPT-NeoX:
+- Llama 1
+- Llama 2 (Up to size 13B)
+- CodeLlama (Up to size 13B)
+- Mistral-7b-v0.1 (Coming Soon!)
+
+We provide two utilities for converting from two different checkpoint formats into a format compatible with GPT-NeoX.
+
+To convert a Llama 1 or Llama 2 checkpoint distributed by Meta AI from its original file format (downloadable [here](https://github.com/facebookresearch/llama) or [here](https://huggingface.co/meta-llama/Llama-2-7b)) into the GPT-NeoX library, run
+
+```
+python tools/ckpts/convert_raw_llama_weights_to_neox.py --input_dir /path/to/model/parent/dir/7B --model_size 7B --output_dir /path/to/save/ckpt --num_output_shards <TENSOR_PARALLEL_SIZE> (--pipeline_parallel if pipeline-parallel-size >= 1)
+```
+
+
+To convert from a Hugging Face model into a NeoX-loadable, run `tools/ckpts/convert_hf_to_sequential.py`. See documentation within that file for further options.
+
 
 # Monitoring
 

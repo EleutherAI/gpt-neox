@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = f5fd54c
+    Default = 6a8a829
 
     current git hash of repository
 
@@ -1475,14 +1475,6 @@ Training Arguments
     Default = False
 
     Partition Activations across GPUs before checkpointing.
-
-
-
-- **gas**: int
-
-    Default = None
-
-    gradient_accumulation_steps
 
 
 
