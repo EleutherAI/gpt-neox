@@ -639,6 +639,12 @@ def get_learning_rate_scheduler(optimizer, neox_args):
 
 
 def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
+    """Setup memory profiler"""
+    if neox_args.memory_profiling:
+        torch.cuda.memory._record_memory_history(True,
+    # keep a maximum 100,000 alloc/free events from before the snapshot
+        trace_alloc_max_entries=100000, trace_alloc_record_context=True)
+
     """Setup model and optimizer."""
     model = get_model(neox_args=neox_args, use_cache=use_cache)
     optimizer, param_groups = get_optimizer(model=model, neox_args=neox_args)
@@ -738,6 +744,8 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
         reduced_loss = train_step_pipe(
             neox_args=neox_args, timers=timers, model=model, data_iterator=data_iterator
         )
+        if neox_args.memory_profiling and torch.distributed.get_rank()==0:
+            save_snapshot(neox_args)
     else:
         losses = []
         for _ in range(neox_args.gradient_accumulation_steps):
@@ -821,12 +829,6 @@ def train(
     valid_data_iterator,
 ):
     """Train the model function."""
-
-    if neox_args.memory_profiling:
-        torch.cuda.memory._record_memory_history(True,
-    # keep a maximum 100,000 alloc/free events from before the snapshot
-        trace_alloc_max_entries=100000, trace_alloc_record_context=True)
-
     # Turn on training mode which enables dropout.
     model.train()
 
