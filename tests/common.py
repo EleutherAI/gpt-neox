@@ -27,7 +27,7 @@ import random
 import train
 
 import torch
-##torch.multiprocessing.set_start_method("forkserver", force=True)
+
 import torch.distributed as dist
 from torch.multiprocessing import Process
 import torch.multiprocessing as mp
@@ -220,7 +220,6 @@ class DistributedExec(ABC):
                 f"Skipping test because not enough GPUs are available: {num_procs} required, {get_accelerator().device_count()} available"
             )
 
-        # Set start method to `forkserver` (or `fork`)
         mp.set_start_method('spawn', force=True)
 
         # Create process pool or use cached one
@@ -610,4 +609,4 @@ binary = [True, False]
 
 with open("tests/config/test_setup.yml", "r") as f:
     BASE_CONFIG = load(f, Loader=Loader)
-    print(BASE_CONFIG)
+    print(f'Base Config:\n{BASE_CONFIG}')
