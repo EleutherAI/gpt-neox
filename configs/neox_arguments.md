@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 6a8a829
+    Default = f63593b
 
     current git hash of repository
 
@@ -196,6 +196,22 @@ Logging Arguments
     Default = False
 
     Whether to offload the buffered gradients to cpu when measuring gradient noise scale.
+
+
+
+- **memory_profiling**: bool
+
+    Default = False
+
+    Whether to take a memory snapshot of the model. Useful for debugging memory issues.
+
+
+
+- **memory_profiling_path**: str
+
+    Default = None
+
+    Path to save memory snapshot to.
 
 
 
