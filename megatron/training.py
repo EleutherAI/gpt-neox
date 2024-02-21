@@ -1082,7 +1082,7 @@ def evaluate_and_print_results(
     print_rank_0("-" * length)
 
 def save_snapshot(neox_args):
-    assert neox_args.memory_profiling_path is not None
+    assert neox_args.memory_profiling_path is not None, "Must pass memory_profiling_path config arg to use profiling"
     snapshot = torch.cuda.memory._snapshot()
     snapshot_path = os.path.join(neox_args.memory_profiling_path)
     if not os.path.exists(snapshot_path):
