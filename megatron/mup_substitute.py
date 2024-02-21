@@ -51,6 +51,7 @@ def _get_coord_data(
         for width, model in models.items():
             model = model()
             model.train()
+            neox_args.hidden_size = width
             optimizer = optcls(model)
 
             for step in range(nsteps + 1):
@@ -208,13 +209,9 @@ def get_coord_data(
     """
     if lr is None:
         lr = 0.1 if optimizer == "sgd" else 1e-3
-    if mup:
-        # from mup.optim import MuAdam as Adam
-        # from mup.optim import MuAdamW as AdamW
-        # from mup.optim import MuSGD as SGD
-        from deepspeed.ops.adam import FusedAdam as Adam
-    else:
-        from torch.optim import SGD, Adam, AdamW
+        
+    from torch.optim import SGD, AdamW, Adam
+    # from deepspeed.ops.adam import FusedAdam as Adam
 
     def get_trainable(model):
         params = model.parameters()

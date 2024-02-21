@@ -79,7 +79,7 @@ def mup_coord_check(neox_args, timers, train_data_iterator):
             old_hidden_size = neox_args.hidden_size
             neox_args.hidden_size = hidden_size
 
-            model, optimizer, lr_scheduler = setup_model_and_optimizer(
+            model, *_ = setup_model_and_optimizer(
                 neox_args=neox_args, use_cache=False
             )
 
@@ -92,23 +92,26 @@ def mup_coord_check(neox_args, timers, train_data_iterator):
     models = {}
 
     # Hidden size needs to be divisible by num attention heads
-    for hidden_size in [2**p for p in range(7,14)]:
+    for hidden_size in [2**p for p in range(8,14)]:
         models[hidden_size] = lazy_model(hidden_size)
 
-    print_rank_0("df_mup")
+    print_rank_0(">>> Coord Check for mu Parameterization")
     neox_args.use_mup = True
     df_mup = get_coord_data(
         neox_args, timers, None, models, train_data_iterator, mup=True, optimizer="adam"
     )
-    print_rank_0("df_sp")
+    print_rank_0(">>> Coord Check for standard Parameterization")
     neox_args.use_mup = False
     df_sp = get_coord_data(
         neox_args, timers, None, models, train_data_iterator, mup=False, optimizer="adam"
     )
 
-    # plot_coord_data(df_up, save_to=f"coord_check_up.{torch.distributed.get_rank()}.jpg")
+    print_rank_0(df_mup)
+    # plot_coord_data(df_mup, save_to=f"coord_check_up.{torch.distributed.get_rank()}.jpg")
     # plot_coord_data(df_sp, save_to=f"coord_check_sp.{torch.distributed.get_rank()}.jpg")
     print_rank_0("Saved coord check plots... exiting")
+
+    import sys; sys.exit()
     return df_mup, df_sp
 
 def pretrain(neox_args):
@@ -492,8 +495,9 @@ def get_optimizer(model, neox_args):
             # except ModuleNotFoundError:
             #     print("Please install mup https://github.com/microsoft/mup")
             #     raise Exception
-            from deepspeed.ops.adam import FusedAdam as Adam
-            adam_optimizer = Adam
+            # from deepspeed.ops.adam import FusedAdam as Adam
+            # adam_optimizer = Adam
+            adam_optimizer = torch.optim.Adam
         else:
             if neox_args.use_bnb_optimizer:
                 try:
@@ -514,7 +518,8 @@ def get_optimizer(model, neox_args):
                     print(
                         "WARNING: APEX not installed - defaulting to deepspeed's fused adam"
                     )
-                    from deepspeed.ops.adam import FusedAdam as Adam
+                    # from deepspeed.ops.adam import FusedAdam as Adam
+                    from torch.optim import Adam
                 adam_optimizer = Adam
         optimizer = adam_optimizer(
             param_groups,
