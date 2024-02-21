@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from megatron.neox_arguments import NeoXArgs
-from tests.common import BASE_CONFIG, DistributedTest
+from tests.common import BASE_CONFIG, distributed_test
 
 
 def test_main_constructor():
@@ -24,26 +24,18 @@ def test_main_constructor():
     neox_args.configure_distributed_args()
 
 
-class test_constructor_from_ymls_class(DistributedTest):
-    world_size = 2
-
-    def test(self):
+def test_constructor_from_ymls():
+    @distributed_test(world_size=[1, 2])
+    def _test_constructor_from_ymls():
         neox_args = NeoXArgs.from_ymls(["tests/config/test_setup.yml"])
         neox_args.configure_distributed_args()
 
-
-def test_constructor_from_ymls():
-    t1 = test_constructor_from_ymls_class()
-    t1.test()
-
-
-class test_constructor_from_dict_class(DistributedTest):
-    world_size = 2
-
-    def test(self):
-        neox_args = NeoXArgs.from_dict(BASE_CONFIG)
+    _test_constructor_from_ymls()
 
 
 def test_constructor_from_dict():
-    t1 = test_constructor_from_dict_class()
-    t1.test()
+    @distributed_test(world_size=[1, 2])
+    def _test_constructor_from_dict():
+        neox_args = NeoXArgs.from_dict(BASE_CONFIG)
+
+    _test_constructor_from_dict()

@@ -11,3 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from .test_model_instantiation import run_test_model_instantiation
+from .test_model_train import run_train_test
+from .test_model_checkpoint import run_checkpoint_test
