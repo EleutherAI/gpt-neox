@@ -95,9 +95,9 @@ def mup_coord_check(neox_args, timers, train_data_iterator):
     for hidden_size in [2**p for p in range(7,14)]:
         models[hidden_size] = lazy_model(hidden_size)
 
-    print_rank_0("df_up")
+    print_rank_0("df_mup")
     neox_args.use_mup = True
-    df_up = get_coord_data(
+    df_mup = get_coord_data(
         neox_args, timers, None, models, train_data_iterator, mup=True, optimizer="adam"
     )
     print_rank_0("df_sp")
@@ -109,8 +109,7 @@ def mup_coord_check(neox_args, timers, train_data_iterator):
     # plot_coord_data(df_up, save_to=f"coord_check_up.{torch.distributed.get_rank()}.jpg")
     # plot_coord_data(df_sp, save_to=f"coord_check_sp.{torch.distributed.get_rank()}.jpg")
     print_rank_0("Saved coord check plots... exiting")
-    sys.exit(1)
-
+    return df_mup, df_sp
 
 def pretrain(neox_args):
     """Main training program.
@@ -152,7 +151,7 @@ def pretrain(neox_args):
             ) = build_train_valid_test_data_iterators(neox_args=neox_args)
             timers("train/valid/test data iterators").stop()
 
-            mup_coord_check(neox_args, timers, train_data_iterator)
+            df_mup, df_sp = mup_coord_check(neox_args, timers, train_data_iterator)
             sys.exit()
 
     # Model, optimizer, and learning rate.
