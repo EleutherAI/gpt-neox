@@ -976,7 +976,7 @@ Text Generation arguments
 
 - **prompt_end**: str
 
-    Default = 
+    Default =
 
 
     a single prompt's end. Defaults to newline
@@ -1018,7 +1018,7 @@ Text Generation arguments
 
 - **eval_results_prefix**: str
 
-    Default = 
+    Default =
 
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
 
@@ -1770,7 +1770,7 @@ Args for deepspeed config
 
     Default = None
 
-    
+
 
 
 
@@ -2070,4 +2070,3 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = None
 
     Adds a `--account` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometimes necessary for cluster rules, or so I've heard.
-

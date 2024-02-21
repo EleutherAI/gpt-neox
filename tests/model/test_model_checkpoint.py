@@ -76,6 +76,7 @@ def test_train(param_dict):
     t1 = test_run_checkpoint_test_class()
     t1.run_checkpoint_test(param_dict=param_dict)
 
+
 class test_run_checkpoint_test_class(DistributedTest):
     def run_checkpoint_test(yaml_list=None, param_dict=None):
 

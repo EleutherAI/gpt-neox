@@ -26,20 +26,23 @@ def test_main_constructor():
 
 class test_constructor_from_ymls_class(DistributedTest):
     world_size = 2
+
     def test(self):
         neox_args = NeoXArgs.from_ymls(["tests/config/test_setup.yml"])
         neox_args.configure_distributed_args()
+
 
 def test_constructor_from_ymls():
     t1 = test_constructor_from_ymls_class()
     t1.test()
 
 
-
 class test_constructor_from_dict_class(DistributedTest):
     world_size = 2
+
     def test(self):
         neox_args = NeoXArgs.from_dict(BASE_CONFIG)
+
 
 def test_constructor_from_dict():
     t1 = test_constructor_from_dict_class()

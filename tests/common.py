@@ -67,6 +67,7 @@ def get_master_port():
 
 _num_gpus = None
 
+
 def set_accelerator_visible():
     cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES", None)
     xdist_worker_id = get_xdist_worker_id()
@@ -74,29 +75,37 @@ def set_accelerator_visible():
         xdist_worker_id = 0
     if cuda_visible is None:
         # CUDA_VISIBLE_DEVICES is not set, discover it using accelerator specific command instead
-        if get_accelerator().device_name() == 'cuda':
+        if get_accelerator().device_name() == "cuda":
             if is_rocm_pytorch():
-                rocm_smi = subprocess.check_output(['rocm-smi', '--showid'])
-                gpu_ids = filter(lambda s: 'GPU' in s, rocm_smi.decode('utf-8').strip().split('\n'))
+                rocm_smi = subprocess.check_output(["rocm-smi", "--showid"])
+                gpu_ids = filter(
+                    lambda s: "GPU" in s, rocm_smi.decode("utf-8").strip().split("\n")
+                )
                 num_accelerators = len(list(gpu_ids))
             else:
-                nvidia_smi = subprocess.check_output(['nvidia-smi', '--list-gpus'])
-                num_accelerators = len(nvidia_smi.decode('utf-8').strip().split('\n'))
-        elif get_accelerator().device_name() == 'xpu':
-            clinfo = subprocess.check_output(['clinfo'])
-            lines = clinfo.decode('utf-8').strip().split('\n')
+                nvidia_smi = subprocess.check_output(["nvidia-smi", "--list-gpus"])
+                num_accelerators = len(nvidia_smi.decode("utf-8").strip().split("\n"))
+        elif get_accelerator().device_name() == "xpu":
+            clinfo = subprocess.check_output(["clinfo"])
+            lines = clinfo.decode("utf-8").strip().split("\n")
             num_accelerators = 0
             for line in lines:
-                match = re.search('Device Type.*GPU', line)
+                match = re.search("Device Type.*GPU", line)
                 if match:
                     num_accelerators += 1
-        elif get_accelerator().device_name() == 'npu':
-            npu_smi = subprocess.check_output(['npu-smi', 'info', '-l'])
-            num_accelerators = int(npu_smi.decode('utf-8').strip().split('\n')[0].split(':')[1].strip())
+        elif get_accelerator().device_name() == "npu":
+            npu_smi = subprocess.check_output(["npu-smi", "info", "-l"])
+            num_accelerators = int(
+                npu_smi.decode("utf-8").strip().split("\n")[0].split(":")[1].strip()
+            )
         else:
-            assert get_accelerator().device_name() == 'cpu'
+            assert get_accelerator().device_name() == "cpu"
             cpu_sockets = int(
-                subprocess.check_output('cat /proc/cpuinfo | grep "physical id" | sort -u | wc -l', shell=True))
+                subprocess.check_output(
+                    'cat /proc/cpuinfo | grep "physical id" | sort -u | wc -l',
+                    shell=True,
+                )
+            )
             num_accelerators = cpu_sockets
 
         cuda_visible = ",".join(map(str, range(num_accelerators)))
@@ -175,6 +184,7 @@ class DistributedExec(ABC):
     Base class for distributed execution of functions/methods. Contains common
     methods needed for DistributedTest and DistributedFixture.
     """
+
     world_size = 2
     backend = get_accelerator().communication_backend_name()
     init_distributed = True
@@ -215,12 +225,15 @@ class DistributedExec(ABC):
 
     def _launch_procs(self, num_procs):
         # Verify we have enough accelerator devices to run this test
-        if get_accelerator().is_available() and get_accelerator().device_count() < num_procs:
+        if (
+            get_accelerator().is_available()
+            and get_accelerator().device_count() < num_procs
+        ):
             pytest.skip(
                 f"Skipping test because not enough GPUs are available: {num_procs} required, {get_accelerator().device_count()} available"
             )
 
-        mp.set_start_method('spawn', force=True)
+        mp.set_start_method("spawn", force=True)
 
         # Create process pool or use cached one
         master_port = None
@@ -254,22 +267,22 @@ class DistributedExec(ABC):
             pytest.skip(skip_msgs[0])
 
     def _dist_run(self, local_rank, num_procs, master_port):
-        skip_msg = ''
+        skip_msg = ""
         if not dist.is_initialized():
-            """ Initialize deepspeed.comm and execute the user function. """
+            """Initialize deepspeed.comm and execute the user function."""
             if self.set_dist_env:
-                os.environ['MASTER_ADDR'] = '127.0.0.1'
-                os.environ['MASTER_PORT'] = str(master_port)
-                os.environ['LOCAL_RANK'] = str(local_rank)
+                os.environ["MASTER_ADDR"] = "127.0.0.1"
+                os.environ["MASTER_PORT"] = str(master_port)
+                os.environ["LOCAL_RANK"] = str(local_rank)
                 # NOTE: unit tests don't support multi-node so local_rank == global rank
-                os.environ['RANK'] = str(local_rank)
+                os.environ["RANK"] = str(local_rank)
                 # In case of multiprocess launching LOCAL_SIZE should be same as WORLD_SIZE
                 # DeepSpeed single node launcher would also set LOCAL_SIZE accordingly
-                os.environ['LOCAL_SIZE'] = str(num_procs)
-                os.environ['WORLD_SIZE'] = str(num_procs)
+                os.environ["LOCAL_SIZE"] = str(num_procs)
+                os.environ["WORLD_SIZE"] = str(num_procs)
 
             # turn off NCCL logging if set
-            os.environ.pop('NCCL_DEBUG', None)
+            os.environ.pop("NCCL_DEBUG", None)
 
             if get_accelerator().is_available():
                 set_accelerator_visible()
@@ -353,6 +366,7 @@ class DistributedFixture(DistributedExec):
                     with open(os.path.join(class_tmpdir, f"{rank}.txt"), "r") as f:
                         assert f.read() == f"{rank},{regular_pytest_fixture}"
     """
+
     is_dist_fixture = True
 
     # These values are just placeholders so that pytest recognizes this as a fixture
@@ -360,9 +374,13 @@ class DistributedFixture(DistributedExec):
     __name__ = ""
 
     def __init__(self):
-        assert isinstance(self.world_size, int), "Only one world size is allowed for distributed fixtures"
+        assert isinstance(
+            self.world_size, int
+        ), "Only one world size is allowed for distributed fixtures"
         self.__name__ = type(self).__name__
-        _pytestfixturefunction = FixtureFunctionMarker(scope="function", params=None, name=self.__name__)
+        _pytestfixturefunction = FixtureFunctionMarker(
+            scope="function", params=None, name=self.__name__
+        )
 
 
 class DistributedTest(DistributedExec):
@@ -410,9 +428,9 @@ class DistributedTest(DistributedExec):
                 assert int(os.environ["WORLD_SIZE"]) == 1
                 assert all(val1, val2, val3, val4)
     """
+
     def __init__(self):
         self.is_dist_test = True
-
 
     # Temporary directory that is shared among test methods in a class
     @pytest.fixture(autouse=True, scope="class")
@@ -609,4 +627,4 @@ binary = [True, False]
 
 with open("tests/config/test_setup.yml", "r") as f:
     BASE_CONFIG = load(f, Loader=Loader)
-    print(f'Base Config:\n{BASE_CONFIG}')
+    print(f"Base Config:\n{BASE_CONFIG}")

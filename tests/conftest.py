@@ -13,7 +13,7 @@ import torch
 import warnings
 
 # Set this environment variable for the T5 inference unittest(s) (e.g. google/t5-v1_1-small)
-os.environ['PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION'] = 'python'
+os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
 
 # allow having multiple repository checkouts and not needing to remember to rerun
 # 'pip install -e .[dev]' when switching between checkouts and running tests.
@@ -22,9 +22,9 @@ sys.path.insert(1, git_repo_path)
 
 
 def pytest_configure(config):
-#    config.option.color = "yes"
-#    config.option.durations = 0
-#    config.option.durations_min = 1
+    #    config.option.color = "yes"
+    #    config.option.durations = 0
+    #    config.option.durations_min = 1
     config.option.verbose = True
 
 
@@ -34,8 +34,8 @@ def pytest_addoption(parser):
 
 
 def validate_version(expected, found):
-    version_depth = expected.count('.') + 1
-    found = '.'.join(found.split('.')[:version_depth])
+    version_depth = expected.count(".") + 1
+    found = ".".join(found.split(".")[:version_depth])
     return found == expected
 
 
@@ -45,18 +45,22 @@ def check_environment(pytestconfig):
     expected_cuda_version = pytestconfig.getoption("cuda_ver")
     if expected_torch_version is None:
         warnings.warn(
-            "Running test without verifying torch version, please provide an expected torch version with --torch_ver")
+            "Running test without verifying torch version, please provide an expected torch version with --torch_ver"
+        )
     elif not validate_version(expected_torch_version, torch.__version__):
         pytest.exit(
             f"expected torch version {expected_torch_version} did not match found torch version {torch.__version__}",
-            returncode=2)
+            returncode=2,
+        )
     if expected_cuda_version is None:
         warnings.warn(
-            "Running test without verifying cuda version, please provide an expected cuda version with --cuda_ver")
+            "Running test without verifying cuda version, please provide an expected cuda version with --cuda_ver"
+        )
     elif not validate_version(expected_cuda_version, torch.version.cuda):
         pytest.exit(
             f"expected cuda version {expected_cuda_version} did not match found cuda version {torch.version.cuda}",
-            returncode=2)
+            returncode=2,
+        )
 
 
 # Override of pytest "runtest" for DistributedTest class
@@ -78,6 +82,7 @@ def pytest_runtest_teardown(item, nextitem):
         dist_test_class = item.cls()
         for num_procs, pool in dist_test_class._pool_cache.items():
             dist_test_class._close_pool(pool, num_procs, force=True)
+
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_fixture_setup(fixturedef, request):

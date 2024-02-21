@@ -74,6 +74,7 @@ parameters, names = parametrize(
     PARAMS_TO_TEST, max_tests=int(os.getenv("MAX_TESTCASES", 50)), seed=None
 )
 
+
 @pytest.mark.xfail(
     reason="Either fused kernels are not installed, or Cannot re-initialize CUDA in forked subprocess'"
 )
@@ -81,6 +82,7 @@ parameters, names = parametrize(
 def test_instantiate(param_dict):
     t1 = test_instantiate_optimizers_class()
     t1.run_test_model_instantiation(param_dict)
+
 
 OPTIMIZER_PARAMS = {
     "optimizer": [
@@ -97,6 +99,7 @@ opt_params, opt_name = parametrize(
     OPTIMIZER_PARAMS, max_tests=int(os.getenv("MAX_TESTCASES", 50)), seed=None
 )
 
+
 @pytest.mark.xfail(
     reason="Either fused kernels are not installed, or 'Cannot re-initialize CUDA in forked subprocess'"
 )
@@ -104,6 +107,7 @@ opt_params, opt_name = parametrize(
 def test_instantiate_optimizers(param_dict):
     t1 = test_instantiate_optimizers_class()
     t1.run_test_model_instantiation(param_dict)
+
 
 class test_instantiate_optimizers_class(DistributedTest):
     world_size = 2
@@ -113,9 +117,9 @@ class test_instantiate_optimizers_class(DistributedTest):
 
         model, optimizer, lr_scheduler, args_loaded = model_setup(yaml_list, param_dict)
         if args_loaded.pipe_parallel_size < 2:
-            assert isinstance(model, DeepSpeedEngine), "test model instantiation " + str(
-                yaml_list
-            )
+            assert isinstance(
+                model, DeepSpeedEngine
+            ), "test model instantiation " + str(yaml_list)
         else:
             assert isinstance(model, PipelineEngine), "test model instantiation " + str(
                 yaml_list

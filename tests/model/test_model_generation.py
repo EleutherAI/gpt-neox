@@ -70,8 +70,10 @@ def test_train(param_dict):
     t1 = run_generate_test_class()
     t1.run_generate_test(param_dict, param_dict.pop("prompt"))
 
+
 class run_generate_test_class(DistributedTest):
     world_size = 2
+
     def run_generate_test(param_dict, prompt):
         from megatron.text_generation_utils import generate_samples_from_prompt
         from megatron.utils import is_mp_rank_0
