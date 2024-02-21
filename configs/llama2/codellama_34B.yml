@@ -8,8 +8,10 @@
   "hidden_size": 8192,
   "num_attention_heads": 64,
   "num_kv_heads": 8,
-  "seq_length": 4096,
-  "max_position_embeddings": 4096,
+  # Codellama was uptrained on 16k token sequence lengths
+  # with rotary_emb_base adjusted to 1_000_000.
+  "seq_length": 16384,
+  "max_position_embeddings": 16384,
   "pos_emb": "rotary",
   "rotary_pct": 1,
   "rotary_emb_base": 1000000,

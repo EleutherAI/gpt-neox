@@ -9,6 +9,10 @@
   "num_attention_heads": 64,
   "attention_type": "groupedquery",
   "num_kv_heads": 8,
+  # NB: These rotary embedding and sequence length parameters
+  # May differ from CodeLlama configs. They match what we used for
+  # Llemma continued pretraining. See https://arxiv.org/abs/2310.10631
+  # For detailed discussion
   "seq_length": 4096,
   "max_position_embeddings": 4096,
   "pos_emb": "rotary",
