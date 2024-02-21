@@ -371,7 +371,7 @@ def forward_step(
         return model.eval_batch(data_iterator, return_logits=return_logits)
 
     # Get the batch.
-    if neox_args.memory_profiling:
+    if neox_args.memory_profiling and neox_args.it:
         torch.cuda.nvtx.range_push(f"Get batch")
     if timers is not None:
         timers("batch generator").start()
@@ -744,7 +744,10 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
         reduced_loss = train_step_pipe(
             neox_args=neox_args, timers=timers, model=model, data_iterator=data_iterator
         )
-        if neox_args.memory_profiling and torch.distributed.get_rank()==0:
+        if neox_args.memory_profiling and \
+            neox_args.iteration >= neox_args.profile_step_start and \
+            neox_args.iteration <= neox_args.profile_step_stop and \
+            torch.distributed.get_rank()==0:
             save_snapshot(neox_args)
     else:
         losses = []
@@ -761,7 +764,9 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
             timers("forward").stop()
             losses.append(loss)
             # Calculate gradients, reduce across processes, and clip.
-            if neox_args.memory_profiling:
+            if neox_args.profiling and \
+                neox_args.iteration >= neox_args.profile_step_start and \
+                neox_args.iteration <= neox_args.profile_step_stop:
                 torch.cuda.nvtx.range_push(f"Backward pass")
             timers("backward").start()
             backward_step(
@@ -772,10 +777,14 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
                 loss=loss,
             )
             timers("backward").stop()
-            if neox_args.memory_profiling:
+            if neox_args.profiling and \
+                neox_args.iteration >= neox_args.profile_step_start and \
+                neox_args.iteration <= neox_args.profile_step_stop:
                 torch.cuda.nvtx.range_pop()
             # Update parameters.
-            if neox_args.memory_profiling:
+            if neox_args.profiling and \
+                neox_args.iteration >= neox_args.profile_step_start and \
+                neox_args.iteration <= neox_args.profile_step_stop:
                 torch.cuda.nvtx.range_push(f"Optimizer step")
             timers("optimizer").start()
             if neox_args.deepspeed:
@@ -783,9 +792,14 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
             else:
                 raise ValueError("Must be using deepspeed to run neox")
             timers("optimizer").stop()
-            if neox_args.memory_profiling:
+            if neox_args.profiling and \
+                neox_args.iteration >= neox_args.profile_step_start and \
+                neox_args.iteration <= neox_args.profile_step_stop:
                 torch.cuda.nvtx.range_pop()
-            if neox_args.memory_profiling and torch.distributed.get_rank()==0:
+            if neox_args.profiling and \
+                neox_args.iteration >= neox_args.profile_step_start and \
+                neox_args.iteration <= neox_args.profile_step_stop and \
+                torch.distributed.get_rank()==0:
                 save_snapshot(neox_args)
         reduced_loss = {
             "lm_loss": reduce_losses(losses).mean()
@@ -848,6 +862,8 @@ def train(
     # to monitor if we've skipped many iterations in a row and trigger an early exit
     overflow_monitor = OverflowMonitor(optimizer)
     while iteration < neox_args.train_iters:
+        if neox_args.profile and iteration == neox_args.profile_step_start:
+            torch.cuda.cudart().cudaProfilerStart()
         loss_dict, skipped_iter = train_step(
             neox_args=neox_args,
             timers=timers,
@@ -856,6 +872,8 @@ def train(
             optimizer=optimizer,
             lr_scheduler=lr_scheduler,
         )
+        if neox_args.profile and iteration == neox_args.profile_step_stop:
+            torch.cuda.cudart().cudaProfilerStop()
         iteration += 1
         neox_args.iteration = iteration
         if neox_args.precision == "fp16":

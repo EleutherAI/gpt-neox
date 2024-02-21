@@ -583,6 +583,29 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Path to save memory snapshot to.
     """
 
+    profile: bool = False
+    """
+    Enable nsys profiling. When using this option, 
+    nsys options should be specified in commandline. 
+    An example nsys commandline is 
+    ```
+    nsys profile -s none -t nvtx,cuda -o <path/to/output_file> 
+    --force-overwrite true 
+    --capture-range=cudaProfilerApi 
+    --capture-range-end=stop
+    ```
+    """
+
+    profile_step_start: int = 10
+    """
+    Step to start profiling at.
+    """
+
+    profile_step_stop: int = 12
+    """
+    Step to stop profiling at.
+    """
+
 @dataclass
 class NeoXArgsOther(NeoXArgsTemplate):
     """
