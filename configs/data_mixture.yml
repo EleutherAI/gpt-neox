@@ -1,6 +1,0 @@
-{
-  "train-data-paths": ["/path/to/proof-pile_llama_tokenizer/train/arxiv-rp/arxiv-rp_text_document", "/path/to/open-web-math-v1.2_llama/train/open-web-math/open-web-math_text_document", "/path/to/proof-pile_llama_tokenizer/code-with-proofsteps_llama/train/code-with-proofsteps/code-with-proofsteps_text_document", "/path/to/proof-pile_llama_tokenizer/train/pile-sample/pile-sample_text_document", "/path/to/code-rp_llama_tokenizer/train/code-rp/code-rp_text_document"],
-  "train-data-weights": [2, 4, 1, 0.147368, 0.221053],
-  "valid-data-paths": ["/path/to/proof-pile_llama_tokenizer/validation/arxiv-rp/arxiv-rp_text_document", "/path/to/open-web-math-v1.2_llama/validation/open-web-math/open-web-math_text_document", "/path/to/proof-pile_llama_tokenizer/validation/code-with-proofsteps/code-with-proofsteps_text_document"],
-  "test-data-paths": ["/path/to/proof-pile_llama_tokenizer/test/arxiv-rp/arxiv-rp_text_document", "/path/to/open-web-math-v1.2_llama/test/open-web-math/open-web-math_text_document", "/path/to/proof-pile_llama_tokenizer/code-with-proofsteps_llama/test/code-with-proofsteps/code-with-proofsteps_text_document"],
-}
