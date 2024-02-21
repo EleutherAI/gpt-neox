@@ -829,6 +829,7 @@ def train(
     valid_data_iterator,
 ):
     """Train the model function."""
+    
     # Turn on training mode which enables dropout.
     model.train()
 
