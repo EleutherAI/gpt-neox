@@ -134,17 +134,18 @@ def pretrain(neox_args):
     # Initialize and get arguments, timers, and Tensorboard writer.
     initialize_megatron(neox_args=neox_args)
 
-    # Data stuff.
-    timers("train/valid/test data iterators").start()
-    (
-        train_data_iterator,
-        valid_data_iterator,
-        test_data_iterator,
-    ) = build_train_valid_test_data_iterators(neox_args=neox_args)
-    timers("train/valid/test data iterators").stop()
-
     if neox_args.use_mup and neox_args.coord_check:
         print_rank_0("Do muP Coord Check")
+        # Data stuff
+        neox_args.iteration = 0
+        timers("train/valid/test data iterators").start()
+        (
+            train_data_iterator,
+            valid_data_iterator,
+            test_data_iterator,
+        ) = build_train_valid_test_data_iterators(neox_args=neox_args)
+        timers("train/valid/test data iterators").stop()
+
         mup_coord_check(neox_args, timers, train_data_iterator)
         sys.exit()
     else:
@@ -156,6 +157,15 @@ def pretrain(neox_args):
         neox_args=neox_args, use_cache=False, iteration=neox_args.iteration
     )
     timers("model and optimizer").stop()
+
+    # Data stuff.
+    timers("train/valid/test data iterators").start()
+    (
+        train_data_iterator,
+        valid_data_iterator,
+        test_data_iterator,
+    ) = build_train_valid_test_data_iterators(neox_args=neox_args)
+    timers("train/valid/test data iterators").stop()
 
     # Print setup timing.
     print_rank_0("done with setups ...")
