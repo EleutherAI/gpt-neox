@@ -682,29 +682,51 @@ class ParallelSelfAttention(nn.Module):
         # the logic for this is explained in comments of this function
         # detailing the intermediate sizes of tensors at each reshape.
 
-        # Attention heads [sq, b, h] --> [sq, b, ((np + 2 * kvp) * hn)]
+        # pass through projection: [sq, b, h] --> [sq, b, ((np + 2 * kvp) * hn)]
         mixed_x_layer, _ = self.query_key_value(hidden_states)
 
-        # TODO: refactor this out into an mpu.utils fn like split_tensor_along_last_dim
+        # First: reshape so we have seqlen, batch, and num. query heads each as separate dims
+        # Final dim is not exactly head dim: the first (head dim) dims are query heads,
+        # The last (head dim * ratio of kv to q heads) each are the "k/v heads"
+        # (right now we treat like we have same num. heads, but smaller head dim)
 
         # [sq, b, ((np + 2 * kvp) * hn)] --> [sq, b, np, (hn * (1 + 2 * (kvp / np)))]
-        mixed_x_layer = mixed_x_layer.reshape(
-            (
-                mixed_x_layer.shape[0],
-                mixed_x_layer.shape[1],
-                self.num_attention_heads_per_partition,
-                int(
-                    self.hidden_size_per_attention_head
+        new_qkv_shape = (
+            mixed_x_layer.shape[0],
+            mixed_x_layer.shape[1],
+            self.num_attention_heads_per_partition,
+            int(
+                self.hidden_size_per_attention_head
+                * (
+                    1
+                    + 2
                     * (
-                        1
-                        + 2
-                        * (
-                            self.num_kv_heads_per_partition
-                            / self.num_attention_heads_per_partition
-                        )
+                        self.num_kv_heads_per_partition
+                        / self.num_attention_heads_per_partition
                     )
-                ),
-            )
+                )
+            ),
+        )
+        mixed_x_layer = mixed_x_layer.reshape(*new_qkv_shape)
+
+        # Next: split our fake head dim. (last dim) so that the first (head dim) dimensions go to Q,
+        # the last smaller 2 * (head dim * kv to q head ratio) each divided between K and V separately
+        split_sizes = (
+            self.hidden_size_per_attention_head,
+            int(
+                (
+                    self.num_kv_heads_per_partition
+                    / self.num_attention_heads_per_partition
+                )
+                * self.hidden_size_per_attention_head
+            ),
+            int(
+                (
+                    self.num_kv_heads_per_partition
+                    / self.num_attention_heads_per_partition
+                )
+                * self.hidden_size_per_attention_head
+            ),
         )
 
         # [sq, b, np, (hn * (1 + 2 * (kvp / np)))] --> 1 x [sq, b, np, hn] , 2 x [sq, b, np, (hn * (kvp / np))]
@@ -712,28 +734,12 @@ class ParallelSelfAttention(nn.Module):
             x.contiguous()
             for x in torch.split(
                 mixed_x_layer,
-                [
-                    self.hidden_size_per_attention_head,
-                    int(
-                        (
-                            self.num_kv_heads_per_partition
-                            / self.num_attention_heads_per_partition
-                        )
-                        * self.hidden_size_per_attention_head
-                    ),
-                    int(
-                        (
-                            self.num_kv_heads_per_partition
-                            / self.num_attention_heads_per_partition
-                        )
-                        * self.hidden_size_per_attention_head
-                    ),
-                ],
+                split_sizes,
                 dim=mixed_x_layer.dim() - 1,
             )
         ]
 
-        # reshape K/V to proper output shape (last dim = head dim again)
+        # reshape K/V to proper output shape (last dim = correct full "real" head size again)
         # 2 x [sq, b, np, (hn * (kvp / np))] --> 2 x [sq, b, kvp, hn]
         new_kv_shape = (
             key_layer.size(0),
@@ -746,7 +752,7 @@ class ParallelSelfAttention(nn.Module):
 
         value_layer = value_layer.view(*new_kv_shape)
 
-        # TODO: if not use_flash, repeat_interleave on key/value layers
+        # if not using Flash attention, we repeat K/V heads to match Q head counts
         if not self.use_flash_attention:
             key_layer = torch.repeat_interleave(
                 key_layer,
