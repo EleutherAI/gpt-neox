@@ -295,6 +295,18 @@ class ParallelSelfAttention(nn.Module):
             neox_args.num_attention_heads, world_size
         )
         self.pos_emb = neox_args.pos_emb
+
+        self.use_qk_layernorm = neox_args.use_qk_layernorm
+        if self.use_qk_layernorm:
+            norm, eps = get_norm(neox_args)
+            self.qk_layernorm = norm(
+                [
+                    self.num_attention_heads_per_partition,
+                    self.hidden_size_per_attention_head,
+                ],
+                eps=eps,
+            )
+
         self.sliding_window_width = neox_args.sliding_window_width
 
         if (
@@ -383,7 +395,7 @@ class ParallelSelfAttention(nn.Module):
         self.sparse = self.attention_type not in ("global", "flash")
 
         if self.gqa:
-            assert (not self.sparse) and (self.use_flash_attention)
+            assert not self.sparse
 
         if self.sparse:
             self.sparse_attn = configure_sparse_attention(
@@ -454,13 +466,11 @@ class ParallelSelfAttention(nn.Module):
             query_layer.size(0),
             key_layer.size(0),
         )
-
         # [sq, b, np, hn] -> [sq, b * np, hn]
         query_layer = query_layer.view(
             output_size[2], output_size[0] * output_size[1], -1
         )
         key_layer = key_layer.view(output_size[3], output_size[0] * output_size[1], -1)
-
         # preallocating result tensor: [b * np, sq, sk]
         matmul_result = torch.empty(
             output_size[0] * output_size[1],
@@ -481,7 +491,6 @@ class ParallelSelfAttention(nn.Module):
 
         # change view to [b, np, sq, sk]
         attention_scores = matmul_result.view(*output_size)
-
         # ==================================================
         # Update attention mask for inference. [b, np, sq, sk]
         # ==================================================
@@ -667,6 +676,97 @@ class ParallelSelfAttention(nn.Module):
             query_layer, key_layer, value_layer, attn_mask=attn_mask, rpe=rpe
         )
 
+    def gqa_project(self, hidden_states, attention_mask, layer_past=None):
+        # QKV projection and separation into separate Q/K/V layers for GQA,
+        # where KV projections may be smaller than Q projection.
+        # the logic for this is explained in comments of this function
+        # detailing the intermediate sizes of tensors at each reshape.
+
+        # Attention heads [sq, b, h] --> [sq, b, ((np + 2 * kvp) * hn)]
+        mixed_x_layer, _ = self.query_key_value(hidden_states)
+
+        # TODO: refactor this out into an mpu.utils fn like split_tensor_along_last_dim
+
+        # [sq, b, ((np + 2 * kvp) * hn)] --> [sq, b, np, (hn * (1 + 2 * (kvp / np)))]
+        mixed_x_layer = mixed_x_layer.reshape(
+            (
+                mixed_x_layer.shape[0],
+                mixed_x_layer.shape[1],
+                self.num_attention_heads_per_partition,
+                int(
+                    self.hidden_size_per_attention_head
+                    * (
+                        1
+                        + 2
+                        * (
+                            self.num_kv_heads_per_partition
+                            / self.num_attention_heads_per_partition
+                        )
+                    )
+                ),
+            )
+        )
+
+        # [sq, b, np, (hn * (1 + 2 * (kvp / np)))] --> 1 x [sq, b, np, hn] , 2 x [sq, b, np, (hn * (kvp / np))]
+        (query_layer, key_layer, value_layer) = [
+            x.contiguous()
+            for x in torch.split(
+                mixed_x_layer,
+                [
+                    self.hidden_size_per_attention_head,
+                    int(
+                        (
+                            self.num_kv_heads_per_partition
+                            / self.num_attention_heads_per_partition
+                        )
+                        * self.hidden_size_per_attention_head
+                    ),
+                    int(
+                        (
+                            self.num_kv_heads_per_partition
+                            / self.num_attention_heads_per_partition
+                        )
+                        * self.hidden_size_per_attention_head
+                    ),
+                ],
+                dim=mixed_x_layer.dim() - 1,
+            )
+        ]
+
+        # reshape K/V to proper output shape (last dim = head dim again)
+        # 2 x [sq, b, np, (hn * (kvp / np))] --> 2 x [sq, b, kvp, hn]
+        new_kv_shape = (
+            key_layer.size(0),
+            key_layer.size(1),
+            self.num_kv_heads_per_partition,
+            self.hidden_size_per_attention_head,
+        )
+
+        key_layer = key_layer.view(*new_kv_shape)
+
+        value_layer = value_layer.view(*new_kv_shape)
+
+        # TODO: if not use_flash, repeat_interleave on key/value layers
+        if not self.use_flash_attention:
+            key_layer = torch.repeat_interleave(
+                key_layer,
+                repeats=int(
+                    self.num_attention_heads_per_partition
+                    // self.num_kv_heads_per_partition
+                ),
+                dim=2,
+            )
+            value_layer = torch.repeat_interleave(
+                value_layer,
+                repeats=int(
+                    self.num_attention_heads_per_partition
+                    // self.num_kv_heads_per_partition
+                ),
+                dim=2,
+            )
+
+        return query_layer, key_layer, value_layer
+
     def forward(self, hidden_states, attention_mask, layer_past=None):
 
         # hidden_states: [sq, b, h]
@@ -693,72 +793,14 @@ class ParallelSelfAttention(nn.Module):
                 mixed_x_layer, 3
             )
         else:
-            # QKV projection and separation for GQA,
-            # where KV projections may be smaller than Q projection.
-            # we
+            # Grouped Query Attention (GQA) - specific logic for performing QKV proj
+            # and separating out Q, K, and V outputs.
 
-            # Attention heads [sq, b, h] --> [sq, b, ((np + 2 * kvp) * hn)]
-            mixed_x_layer, _ = self.query_key_value(hidden_states)
-
-            # TODO: refactor this out into an mpu.utils fn like split_tensor_along_last_dim
-
-            # [sq, b, ((np + 2 * kvp) * hn)] --> [sq, b, np, (hn * (1 + 2 * (kvp / np)))]
-            mixed_x_layer = mixed_x_layer.reshape(
-                (
-                    mixed_x_layer.shape[0],
-                    mixed_x_layer.shape[1],
-                    self.num_attention_heads_per_partition,
-                    int(
-                        self.hidden_size_per_attention_head
-                        * (
-                            1
-                            + 2
-                            * (
-                                self.num_kv_heads_per_partition
-                                / self.num_attention_heads_per_partition
-                            )
-                        )
-                    ),
-                )
+            # output shapes: 1 x [sq, b, np, hn], 2 x [sq, b, kvp, hn] if using flash
+            query_layer, key_layer, value_layer = self.gqa_project(
+                hidden_states, attention_mask, layer_past=layer_past
             )
 
-            # [sq, b, np, (hn * (1 + 2 * (kvp / np)))] --> 1 x [sq, b, np, hn] , 2 x [sq, b, np, (hn * (kvp / np))]
-            (query_layer, key_layer, value_layer) = [
-                x.contiguous()
-                for x in torch.split(
-                    mixed_x_layer,
-                    [
-                        self.hidden_size_per_attention_head,
-                        int(
-                            (
-                                self.num_kv_heads_per_partition
-                                / self.num_attention_heads_per_partition
-                            )
-                            * self.hidden_size_per_attention_head
-                        ),
-                        int(
-                            (
-                                self.num_kv_heads_per_partition
-                                / self.num_attention_heads_per_partition
-                            )
-                            * self.hidden_size_per_attention_head
-                        ),
-                    ],
-                    dim=mixed_x_layer.dim() - 1,
-                )
-            ]
-
-            new_kv_shape = (
-                key_layer.size(0),
-                key_layer.size(1),
-                self.num_kv_heads_per_partition,
-                self.hidden_size_per_attention_head,
-            )
-
-            key_layer = key_layer.view(*new_kv_shape)
-
-            value_layer = value_layer.view(*new_kv_shape)
-        
         # QK Normalization https://arxiv.org/abs/2302.05442
         if self.use_qk_layernorm:
             query_layer = self.qk_layernorm(query_layer)
