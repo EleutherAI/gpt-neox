@@ -134,22 +134,26 @@ def pretrain(neox_args):
     # Initialize and get arguments, timers, and Tensorboard writer.
     initialize_megatron(neox_args=neox_args)
 
-    if neox_args.use_mup and neox_args.coord_check:
-        print_rank_0("Do muP Coord Check")
-        # Data stuff
-        neox_args.iteration = 0
-        timers("train/valid/test data iterators").start()
-        (
-            train_data_iterator,
-            valid_data_iterator,
-            test_data_iterator,
-        ) = build_train_valid_test_data_iterators(neox_args=neox_args)
-        timers("train/valid/test data iterators").stop()
+    if neox_args.use_mup:
 
-        mup_coord_check(neox_args, timers, train_data_iterator)
-        sys.exit()
-    else:
-        pass
+        if neox_args.mup_width_multiplier is None:
+            neox_args.mup_width_multiplier = neox_args.hidden_size / neox_args.mup_d_model_base
+        print_rank_0(f"mup_width_multiplier set to {neox_args.mup_width_multiplier}")
+
+        if neox_args.coord_check:
+            print_rank_0("---- Do muP Coord Check ----")
+            # Data stuff
+            neox_args.iteration = 0
+            timers("train/valid/test data iterators").start()
+            (
+                train_data_iterator,
+                valid_data_iterator,
+                test_data_iterator,
+            ) = build_train_valid_test_data_iterators(neox_args=neox_args)
+            timers("train/valid/test data iterators").stop()
+
+            mup_coord_check(neox_args, timers, train_data_iterator)
+            sys.exit()
 
     # Model, optimizer, and learning rate.
     timers("model and optimizer").start()
@@ -365,11 +369,6 @@ def get_model(neox_args, use_cache=False):
     # If mup isn't being used anyways, this has no effect.
     # old_use_mup = neox_args.use_mup
     # neox_args.use_mup = False
-    if neox_args.use_mup:
-
-        if neox_args.mup_width_multiplier == 1:
-            neox_args.mup_width_multiplier = neox_args.hidden_size / neox_args.mup_d_model_base
-        print_rank_0(f"mup_width_multiplier set to {neox_args.mup_width_multiplier}")
 
     model = GPT2ModelPipe(
         neox_args=neox_args,
