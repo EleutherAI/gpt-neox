@@ -21,7 +21,7 @@ def _get_coord_data(
     models,
     dataloader,
     optcls,
-    nsteps=3,
+    nsteps=10,
     dict_in_out=False,
     flatten_input=False,
     flatten_output=False,
@@ -30,7 +30,7 @@ def _get_coord_data(
     filter_module_by_name=None,
     fix_data=True,
     cuda=True,
-    nseeds=3,
+    nseeds=1,
     output_fdict=None,
     input_fdict=None,
     param_fdict=None,
@@ -110,9 +110,6 @@ def _get_coord_data(
             import gc
             del model
             gc.collect()
-
-    # for _i,_j,_k in zip(_seeds, _steps, word_embedding_act_abs_mean_list):
-    #     print_rank_0(_i, _j, _k)
 
     return pd.DataFrame(df)
 
