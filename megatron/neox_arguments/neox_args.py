@@ -114,12 +114,12 @@ class NeoXArgsModel(NeoXArgsTemplate):
 
     num_attention_heads: int = None
     """
-    Number of transformer attention heads. 
-    
+    Number of transformer attention heads.
+
     If num_kv_heads is set, will control only number of query heads.
     """
 
-    num_kv_heads: int = None 
+    num_kv_heads: int = None
     """
     Number of transformer key/value attention heads.
 
@@ -848,7 +848,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     s3_chunk_size: int = 104_857_600
     """
     The number of bytes in each file chunk when uploading to s3. Defaults to 100MiB.
-    """ 
+    """
 
     config_files: dict = None
     """
