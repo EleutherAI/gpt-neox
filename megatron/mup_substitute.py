@@ -253,6 +253,7 @@ def get_coord_data(
     elif optimizer is None:
         raise ValueError("optimizer should be sgd|adam|adamw or a custom function")
 
+    neox_args.use_mup = mup
     data = _get_coord_data(
         neox_args, timers, lr_scheduler, models, dataloader, optcls, **kwargs
     )

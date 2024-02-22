@@ -116,6 +116,7 @@ def mup_coord_check(neox_args, timers, train_data_iterator):
         def gen():
             old_hidden_size = neox_args.hidden_size
             neox_args.hidden_size = hidden_size
+            neox_args.mup_width_multiplier = None
 
             model, *_ = setup_model_and_optimizer(
                 neox_args=neox_args, use_cache=False
@@ -129,7 +130,7 @@ def mup_coord_check(neox_args, timers, train_data_iterator):
 
     models = {}
     # Hidden size needs to be divisible by num attention heads
-    for hidden_size in [2**p for p in range(8,11)]:
+    for hidden_size in [2**p for p in range(7,11)]:
         models[hidden_size] = lazy_model(hidden_size)
 
     print_rank_0(">>> Coord Check for mu Parameterization")
@@ -173,26 +174,20 @@ def pretrain(neox_args):
     # Initialize and get arguments, timers, and Tensorboard writer.
     initialize_megatron(neox_args=neox_args)
 
-    if neox_args.use_mup:
+    if neox_args.use_mup and neox_args.coord_check:
+        print_rank_0("---- Do muP Coord Check ----")
+        # Data stuff
+        neox_args.iteration = 0
+        timers("train/valid/test data iterators").start()
+        (
+            train_data_iterator,
+            valid_data_iterator,
+            test_data_iterator,
+        ) = build_train_valid_test_data_iterators(neox_args=neox_args)
+        timers("train/valid/test data iterators").stop()
 
-        if neox_args.mup_width_multiplier is None:
-            neox_args.mup_width_multiplier = neox_args.hidden_size / neox_args.mup_d_model_base
-        print_rank_0(f"mup_width_multiplier set to {neox_args.mup_width_multiplier}")
-
-        if neox_args.coord_check:
-            print_rank_0("---- Do muP Coord Check ----")
-            # Data stuff
-            neox_args.iteration = 0
-            timers("train/valid/test data iterators").start()
-            (
-                train_data_iterator,
-                valid_data_iterator,
-                test_data_iterator,
-            ) = build_train_valid_test_data_iterators(neox_args=neox_args)
-            timers("train/valid/test data iterators").stop()
-
-            df_mup, df_sp = mup_coord_check(neox_args, timers, train_data_iterator)
-            sys.exit()
+        df_mup, df_sp = mup_coord_check(neox_args, timers, train_data_iterator)
+        sys.exit()
 
     # Model, optimizer, and learning rate.
     timers("model and optimizer").start()
@@ -623,6 +618,10 @@ def get_learning_rate_scheduler(optimizer, neox_args):
 
 def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
     """Setup model and optimizer."""
+    if neox_args.mup_width_multiplier is None:
+        neox_args.mup_width_multiplier = neox_args.hidden_size / neox_args.mup_d_model_base
+    print_rank_0(f"mup_width_multiplier set to {neox_args.mup_width_multiplier}")
+
     model = get_model(neox_args=neox_args, use_cache=use_cache)
     optimizer, param_groups = get_optimizer(model=model, neox_args=neox_args)
     lr_scheduler = get_learning_rate_scheduler(optimizer=optimizer, neox_args=neox_args)
