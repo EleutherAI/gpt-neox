@@ -57,6 +57,31 @@ from megatron.utils import (
 from megatron.model.gpt2_model import cross_entropy
 # from eval_tasks import run_eval_harness
 
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+
+def plot_coord_data(df, activation, graph_name):
+
+    """If distributed is initialized print only on rank 0."""
+    if torch.distributed.is_initialized():
+        if torch.distributed.get_rank() == 0:
+            _plot_data(df, activation, graph_name)
+    else:
+        _plot_data(df, activation, graph_name)
+
+    def _plot_data(df, activation, graph_name):
+        df = df.groupby(['step', 'width']).mean().reset_index()
+        sns.lineplot(
+            data=df,
+            x="width", y=activation, hue="step", errorbar=None, style="step",
+            marker="o", dashes=False, legend='full'
+        )
+        plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0)
+        plt.savefig(f"{graph_name}.png")
+        return 0
+
+    return 0
 
 def mup_weights_reinit(neox_args, model):
     def has_method(o, name):
@@ -92,7 +117,7 @@ def mup_coord_check(neox_args, timers, train_data_iterator):
     models = {}
 
     # Hidden size needs to be divisible by num attention heads
-    for hidden_size in [2**p for p in range(8,14)]:
+    for hidden_size in [2**p for p in range(8,11)]:
         models[hidden_size] = lazy_model(hidden_size)
 
     print_rank_0(">>> Coord Check for mu Parameterization")
@@ -106,12 +131,13 @@ def mup_coord_check(neox_args, timers, train_data_iterator):
         neox_args, timers, None, models, train_data_iterator, mup=False, optimizer="adam"
     )
 
-    print_rank_0(df_mup)
-    # plot_coord_data(df_mup, save_to=f"coord_check_up.{torch.distributed.get_rank()}.jpg")
-    # plot_coord_data(df_sp, save_to=f"coord_check_sp.{torch.distributed.get_rank()}.jpg")
+    df_mup.to_csv("df_mup.csv", index=False)
+    df_sp.to_csv("df_sp.csv", index=False)
+    for activation in ["we_act", "ao_act", "fo_act"]:
+        plot_coord_data(df_mup, activation, graph_name=f"coord_check_up.{activation}.jpg")
+        plot_coord_data(df_sp, activation, graph_name=f"coord_check_sp.{activation}.jpg")
     print_rank_0("Saved coord check plots... exiting")
 
-    import sys; sys.exit()
     return df_mup, df_sp
 
 def pretrain(neox_args):

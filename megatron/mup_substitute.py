@@ -30,7 +30,7 @@ def _get_coord_data(
     filter_module_by_name=None,
     fix_data=True,
     cuda=True,
-    nseeds=1,
+    nseeds=2,
     output_fdict=None,
     input_fdict=None,
     param_fdict=None,
@@ -46,10 +46,11 @@ def _get_coord_data(
         "width": [],
     }
 
-    for i in range(nseeds):
-        torch.manual_seed(i)
-        for width, model in models.items():
-            model = model()
+    for width, model_obj in models.items():
+        for i in range(nseeds):
+            torch.manual_seed(10**i)
+            print_rank_0(f">>> Running Model with width: {width} on seed: {i}")
+            model = model_obj()
             model.train()
             neox_args.hidden_size = width
             optimizer = optcls(model)
@@ -116,8 +117,9 @@ def _get_coord_data(
                 df["width"].append(width)
 
             import gc
-            del model
+            del model, optimizer
             gc.collect()
+            torch.cuda.empty_cache()
 
     return pd.DataFrame(df)
 
