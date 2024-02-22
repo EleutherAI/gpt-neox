@@ -111,8 +111,8 @@ def _get_coord_data(
                 df["seed"].append(i)
                 df["step"].append(step)
                 df["we_act"].append(word_embedding_act_abs_mean)
-                # df["ao_act"].append(attn_output_act_abs_mean)
-                # df["fo_act"].append(ffn_output_act_abs_mean)
+                df["ao_act"].append(attn_output_act_abs_mean)
+                df["fo_act"].append(ffn_output_act_abs_mean)
                 df["width"].append(width)
 
             import gc
