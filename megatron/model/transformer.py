@@ -406,24 +406,21 @@ class ParallelSelfAttention(nn.Module):
             )
         else:
             if self.use_flash_attention:
-                from megatron.model.flash_attention import (
-                    # flash_attn_unpadded_qkvpacked_func_cuda,
-                    # flash_attn_unpadded_kvpacked_func_cuda,
-                    # Change of function names going from flash attention 1 -> flash attention 2
-                    flash_attn_varlen_qkvpacked_func,
-                    flash_attn_varlen_kvpacked_func,
-                    flash_attn_unpadded_unpacked_func_triton,
-                )
+                # we now use Flash Attention 2's provided interface.
+                # TODO: we no longer need to use flash_triton_fn since flash cuda supports alibi.
+                # consider adding OpenAI's more recent Flash-2 Triton kernel in future
+                # from https://github.com/openai/triton/blob/main/python/tutorials/06-fused-attention.py
                 from flash_attn.flash_attn_interface import (
                     flash_attn_func,
                     flash_attn_varlen_func,
                 )
+                from flash_attn.flash_attn_triton import (
+                    flash_attn_func as flash_attn_unpadded_unpacked_func_triton,
+                )
 
                 self.flash_triton_fn = flash_attn_unpadded_unpacked_func_triton
                 self.flash_qkv_fn = flash_attn_func
-                self.flash_varlen_qkv_fn = (
-                    flash_attn_varlen_func  # TODO: use neox's flash attention interface
-                )
+                self.flash_varlen_qkv_fn = flash_attn_varlen_func
             else:
                 self.scale_mask_softmax = FusedScaleMaskSoftmax(
                     input_in_fp16=self.fp16,
