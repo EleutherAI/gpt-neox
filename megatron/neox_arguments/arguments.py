@@ -1070,8 +1070,9 @@ class NeoXArgs(*BASE_CLASSES):
                     not self.sparsity_config
                 ), "Sparse attention not compatible with GQA or MQA"
                 assert all(
-                    attn_type == "flash" for attn_type in self.attention_config
-                ), "GQA / MQA currently only compatible with Flash Attention 2.0"
+                    (attn_type == "flash") or (attn_type == "global")
+                    for attn_type in self.attention_config
+                ), "GQA / MQA currently only compatible with Flash or standard global Attention"
                 assert (
                     self.num_kv_heads % self.model_parallel_size == 0
                 ), "Number of KV heads must be at least model_parallel_size for now!"
