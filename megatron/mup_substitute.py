@@ -40,9 +40,10 @@ def _get_coord_data(
     df = {
         "seed": [],
         "step": [],
-        "we_act": [],
-        "ao_act": [],
-        "fo_act": [],
+        "word_embedding_act_abs_mean": [],
+        "attn_output_act_abs_mean": [],
+        "ffn_output_act_abs_mean": [],
+        "output_logits_act_abs_mean": [],
         "width": [],
     }
 
@@ -60,6 +61,7 @@ def _get_coord_data(
                 word_embedding_act_abs_mean_list = []
                 attn_output_act_abs_mean_list = []
                 ffn_output_act_abs_mean_list = []
+                output_logits_act_abs_mean_list = []
                 remove_hooks = []
 
                 def word_embedding_coord_check_hook(module, input, output):
@@ -74,7 +76,14 @@ def _get_coord_data(
                     with torch.no_grad():
                         ffn_output_act_abs_mean_list.append(output[0].abs().mean().item())
 
+                def output_logits_coord_check_hook(module, input, output):
+                    with torch.no_grad():
+                        # print("output_logits_coord_check_hook")
+                        # print_rank_0(output.shape)
+                        output_logits_act_abs_mean_list.append(output[0].abs().mean().item())
+
                 for name, module in model.named_modules():
+                    print_rank_0(name)
                     if name.endswith(".word_embeddings"):
                         remove_hooks.append(
                             module.register_forward_hook(word_embedding_coord_check_hook)
@@ -86,6 +95,10 @@ def _get_coord_data(
                     elif name.endswith(".mlp.dense_4h_to_h"):
                         remove_hooks.append(
                             module.register_forward_hook(ffn_output_coord_check_hook)
+                        )
+                    elif name.endswith(".final_linear"):
+                        remove_hooks.append(
+                            module.register_forward_hook(output_logits_coord_check_hook)
                         )
 
                 # train for a step
@@ -101,6 +114,7 @@ def _get_coord_data(
                 word_embedding_act_abs_mean = None
                 attn_output_act_abs_mean = None
                 ffn_output_act_abs_mean = None
+                output_logits_act_abs_mean = None
 
                 # remove hooks
                 for handle in remove_hooks:
@@ -108,12 +122,14 @@ def _get_coord_data(
                 word_embedding_act_abs_mean = np.mean(word_embedding_act_abs_mean_list)
                 attn_output_act_abs_mean = np.mean(attn_output_act_abs_mean_list)
                 ffn_output_act_abs_mean = np.mean(ffn_output_act_abs_mean_list)
+                output_logits_act_abs_mean = np.mean(output_logits_act_abs_mean_list)
 
                 df["seed"].append(i)
-                df["step"].append(step)
-                df["we_act"].append(word_embedding_act_abs_mean)
-                df["ao_act"].append(attn_output_act_abs_mean)
-                df["fo_act"].append(ffn_output_act_abs_mean)
+                df["step"].append(f"t={step}")
+                df["word_embedding_act_abs_mean"].append(word_embedding_act_abs_mean)
+                df["attn_output_act_abs_mean"].append(attn_output_act_abs_mean)
+                df["ffn_output_act_abs_mean"].append(ffn_output_act_abs_mean)
+                df["output_logits_act_abs_mean"].append(output_logits_act_abs_mean)
                 df["width"].append(width)
 
             import gc

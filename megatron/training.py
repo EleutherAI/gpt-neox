@@ -61,9 +61,9 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 
-def plot_coord_data(df, activation, graph_name):
+def plot_coord_data(df, graph_name_prefix, mup=True):
 
-    def _plot_data(df, activation, graph_name):
+    def _plot_data(df, activation, graph_name_prefix):
         df = df.groupby(['step', 'width']).mean().reset_index()
         sns.lineplot(
             data=df,
@@ -71,15 +71,28 @@ def plot_coord_data(df, activation, graph_name):
             marker="o", dashes=False, legend='full'
         )
         plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0)
-        plt.savefig(f"{graph_name}.png")
+        plt.xlabel("Width")
+        plt.ylabel("Activation with {}".format("muP" if mup else "SP"))
+        plt.title(f"{activation}")
+        plt.savefig(f"{graph_name_prefix}-{activation}.png")
+        plt.close()
+
         return 0
 
+    activation_list = [
+        "word_embedding_act_abs_mean",
+        "attn_output_act_abs_mean",
+        "ffn_output_act_abs_mean",
+        "output_logits_act_abs_mean",
+    ]
     """If distributed is initialized print only on rank 0."""
     if torch.distributed.is_initialized():
         if torch.distributed.get_rank() == 0:
-            _plot_data(df, activation, graph_name)
+            for activation in activation_list:
+                _plot_data(df, activation, graph_name_prefix)
     else:
-        _plot_data(df, activation, graph_name)
+        for activation in activation_list:
+            _plot_data(df, activation, graph_name_prefix)
 
     return 0
 
@@ -115,7 +128,6 @@ def mup_coord_check(neox_args, timers, train_data_iterator):
         return gen
 
     models = {}
-
     # Hidden size needs to be divisible by num attention heads
     for hidden_size in [2**p for p in range(8,11)]:
         models[hidden_size] = lazy_model(hidden_size)
@@ -133,9 +145,8 @@ def mup_coord_check(neox_args, timers, train_data_iterator):
 
     df_mup.to_csv("df_mup.csv", index=False)
     df_sp.to_csv("df_sp.csv", index=False)
-    for activation in ["we_act", "ao_act", "fo_act"]:
-        plot_coord_data(df_mup, activation, graph_name=f"coord_check_mup-{activation}")
-        plot_coord_data(df_sp, activation, graph_name=f"coord_check_sp-{activation}")
+    plot_coord_data(df_mup, graph_name_prefix=f"coord_check_mup", mup=True)
+    plot_coord_data(df_sp, graph_name_prefix=f"coord_check_sp", mup=False)
     print_rank_0("Saved coord check plots... exiting")
 
     return df_mup, df_sp
