@@ -83,7 +83,6 @@ def _get_coord_data(
                         output_logits_act_abs_mean_list.append(output[0].abs().mean().item())
 
                 for name, module in model.named_modules():
-                    print_rank_0(name)
                     if name.endswith(".word_embeddings"):
                         remove_hooks.append(
                             module.register_forward_hook(word_embedding_coord_check_hook)
