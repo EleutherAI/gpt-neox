@@ -63,13 +63,6 @@ import matplotlib.pyplot as plt
 
 def plot_coord_data(df, activation, graph_name):
 
-    """If distributed is initialized print only on rank 0."""
-    if torch.distributed.is_initialized():
-        if torch.distributed.get_rank() == 0:
-            _plot_data(df, activation, graph_name)
-    else:
-        _plot_data(df, activation, graph_name)
-
     def _plot_data(df, activation, graph_name):
         df = df.groupby(['step', 'width']).mean().reset_index()
         sns.lineplot(
@@ -80,6 +73,13 @@ def plot_coord_data(df, activation, graph_name):
         plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0)
         plt.savefig(f"{graph_name}.png")
         return 0
+
+    """If distributed is initialized print only on rank 0."""
+    if torch.distributed.is_initialized():
+        if torch.distributed.get_rank() == 0:
+            _plot_data(df, activation, graph_name)
+    else:
+        _plot_data(df, activation, graph_name)
 
     return 0
 
@@ -134,8 +134,8 @@ def mup_coord_check(neox_args, timers, train_data_iterator):
     df_mup.to_csv("df_mup.csv", index=False)
     df_sp.to_csv("df_sp.csv", index=False)
     for activation in ["we_act", "ao_act", "fo_act"]:
-        plot_coord_data(df_mup, activation, graph_name=f"coord_check_up.{activation}.jpg")
-        plot_coord_data(df_sp, activation, graph_name=f"coord_check_sp.{activation}.jpg")
+        plot_coord_data(df_mup, activation, graph_name=f"coord_check_mup-{activation}")
+        plot_coord_data(df_sp, activation, graph_name=f"coord_check_sp-{activation}")
     print_rank_0("Saved coord check plots... exiting")
 
     return df_mup, df_sp

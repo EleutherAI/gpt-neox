@@ -241,6 +241,6 @@ def get_coord_data(
     data = _get_coord_data(
         neox_args, timers, lr_scheduler, models, dataloader, optcls, **kwargs
     )
-    data["optimizer"] = optimizer
-    data["lr"] = lr
+    # data["optimizer"] = optimizer
+    # data["lr"] = lr
     return data
