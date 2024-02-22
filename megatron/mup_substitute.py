@@ -74,13 +74,22 @@ def _get_coord_data(
                         ffn_output_act_abs_mean_list.append(output[0].abs().mean().item())
 
                 for name, module in model.named_modules():
+                    print_rank_0(name)
                     if name.endswith(".word_embeddings"):
                         remove_hooks.append(
                             module.register_forward_hook(word_embedding_coord_check_hook)
                         )
+                    elif name.endswith(".attention.dense"):
+                        remove_hooks.append(
+                            module.register_forward_hook(attn_output_coord_check_hook)
+                        )
+                    elif name.endswith(".mlp.dense_4h_to_h"):
+                        remove_hooks.append(
+                            module.register_forward_hook(ffn_output_coord_check_hook)
+                        )
 
                 # train for a step
-                loss_dict, skipped_iter = train_step(
+                train_step(
                     neox_args=neox_args,
                     timers=timers,
                     data_iterator=dataloader,
