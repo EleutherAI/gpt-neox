@@ -124,7 +124,7 @@ def _get_coord_data(
                 output_logits_act_abs_mean = np.mean(output_logits_act_abs_mean_list)
 
                 df["seed"].append(i)
-                df["step"].append(f"t={step}")
+                df["step"].append(step)
                 df["word_embedding_act_abs_mean"].append(word_embedding_act_abs_mean)
                 df["attn_output_act_abs_mean"].append(attn_output_act_abs_mean)
                 df["ffn_output_act_abs_mean"].append(ffn_output_act_abs_mean)
@@ -134,7 +134,8 @@ def _get_coord_data(
             import gc
             del model, optimizer
             gc.collect()
-            torch.cuda.empty_cache()
+            with torch.no_grad():
+                torch.cuda.empty_cache()
 
     return pd.DataFrame(df)
 

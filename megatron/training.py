@@ -65,12 +65,14 @@ def plot_coord_data(df, graph_name_prefix, mup=True):
 
     def _plot_data(df, activation, graph_name_prefix):
         df = df.groupby(['step', 'width']).mean().reset_index()
+        sns.color_palette("magma")
         sns.lineplot(
             data=df,
             x="width", y=activation, hue="step", errorbar=None, style="step",
             marker="o", dashes=False, legend='full'
         )
         plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0)
+        plt.tight_layout()
         plt.xlabel("Width")
         plt.ylabel("Activation with {}".format("muP" if mup else "SP"))
         plt.title(f"{activation}")
