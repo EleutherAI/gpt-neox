@@ -1,7 +1,7 @@
 version: '3'
 services:
   gpt-neox:
-    command: nvidia-smi -q --loop=10
+    command: nvidia-smi dmon
     image: gpt-neox
     build:
       context: .
