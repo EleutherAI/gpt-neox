@@ -294,6 +294,7 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
         data=tokens,
         eod_token=neox_args.tokenizer.eod,
         eod_mask_loss=neox_args.eod_mask_loss,
+        sliding_window_width=neox_args.sliding_window_width,
     )
     # If `label` is present, any token < 0 (e.g., -100, the default for torch) skips the loss computation
     if "label" in data_b:

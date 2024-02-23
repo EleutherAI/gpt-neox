@@ -1,0 +1,40 @@
+{
+  "pipe_parallel_size": 1,
+  "model_parallel_size": 1,
+  "make_vocab_size_divisible_by": 1,
+
+  # model settings
+  "num_layers": 32,
+  "hidden_size": 4096,
+  "intermediate_size": 14336,
+  "num_attention_heads": 32,
+  "num_kv_heads": 8,
+  "seq_length": 4096,
+  "sliding_window_width": 4096,
+  "max_position_embeddings": 131072,
+  "pos_emb": "rotary",
+  "rotary_pct": 1,
+  "rotary_emb_base": 10000,
+  "no_weight_tying": true,
+  "gpt_j_residual": false,
+  "output_layer_parallelism": "column",
+  "norm": "rmsnorm",
+  "rms_norm_epsilon": 1.0e-5,
+
+  # Grouped Query Attention is supported for both default ("global")
+  # and Flash attention. However, we highly recommend the use of Flash attention
+  # to get FLOP + runtime speedups when using GQA,
+  # and sliding window attention is currently only supported by Flash attention.
+  "attention_config": [[["flash"], 32]],
+
+  "scaled_upper_triang_masked_softmax_fusion": true,
+  "bias_gelu_fusion": false,
+  "use_bias_in_norms": false,
+  "use_bias_in_attn_linear": false,
+  "mlp_type": "llama",
+  "activation": "silu",
+
+  "tokenizer_type": "SPMTokenizer",
+  #"vocab-file": ".../mistral-7B-v0.1/tokenizer.model", # use tokenizer.model from Mistral-7B-v0.1 direct download
+
+}

@@ -105,14 +105,39 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Transformer hidden size.
     """
 
+    intermediate_size: int = None
+    """
+    Transformer intermediate size. Currently only used for "mlp_type": "llama".
+
+    If not passed, will be set to a reasonable default.
+    """
+
     num_attention_heads: int = None
     """
     Number of transformer attention heads.
+
+    If num_kv_heads is set, will control only number of query heads.
+    """
+
+    num_kv_heads: int = None
+    """
+    Number of transformer key/value attention heads.
+
+    If set to None or the same value as num_attention_heads, will perform multi-head attention (MHA).
+    If set to < num_attention_heads but > 1, will perform grouped-query attention (GQA) (https://arxiv.org/pdf/2305.13245.pdf)
+    If set to 1, will perform multi-query attention.
+
+    Must be < num_attention_heads and divide num_attention_heads evenly.
     """
 
     seq_length: int = None
     """
     Maximum sequence length to process.
+    """
+
+    sliding_window_width: int = None
+    """
+    Width of the attention sliding window. Only supported with Flash Attention 2.
     """
 
     max_position_embeddings: int = None

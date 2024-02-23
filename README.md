@@ -508,13 +508,14 @@ Though NeoX supports a number of different architectural configurations, includi
 
 NeoX supports export of compatible models into the following architectures:
 - GPTNeoXForCausalLM
-- LlamaForCausalLM (GQA Support Coming Soon -- all Llama 1 models and Llama 2 / Codellama up to size 13B supported)
+- LlamaForCausalLM
+- MistralForCausalLM
 
 Training a model which does not fit into one of these Hugging Face Transformers architectures cleanly will require writing custom modeling code for the exported model.
 
 To convert a GPT-NeoX library checkpoint to Hugging Face-loadable format, run:
 ```bash
-python ./tools/ckpts/convert_neox_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location --precision {auto,fp16,bf16,fp32} --architecture {neox,llama}
+python ./tools/ckpts/convert_neox_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location --precision {auto,fp16,bf16,fp32} --architecture {neox,mistral,llama}
 ```
 
 Then to upload a model to [the Hugging Face Hub](https://huggingface.co/), run:
@@ -528,11 +529,11 @@ and input the requested information, including HF hub user token.
 
 NeoX supplies several utilities for converting a pretrained model checkpoint into a format that can be trained within the library.
 
-The following models can be loaded in GPT-NeoX:
+The following models or model families can be loaded in GPT-NeoX:
 - Llama 1
-- Llama 2 (Up to size 13B)
-- CodeLlama (Up to size 13B)
-- Mistral-7b-v0.1 (Coming Soon!)
+- Llama 2
+- CodeLlama
+- Mistral-7b-v0.1
 
 We provide two utilities for converting from two different checkpoint formats into a format compatible with GPT-NeoX.
 

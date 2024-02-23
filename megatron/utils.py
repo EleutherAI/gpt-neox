@@ -64,7 +64,7 @@ def report_memory(name):
     print_rank_0(string)
 
 
-def get_attn_mask(seq_length, device):
+def get_attn_mask(seq_length, device, sliding_window_width):
     """
     Get triangular attention mask for a given sequence length / device.
     """
@@ -72,6 +72,9 @@ def get_attn_mask(seq_length, device):
     mask = torch.tril(torch.ones((1, seq_length, seq_length), device=device)).view(
         1, 1, seq_length, seq_length
     )
+    # get rid of lower diagonals than the sliding window width, if a value was provided
+    if sliding_window_width is not None:
+        mask = torch.triu(mask, diagonal=-sliding_window_width)
 
     # convert to binary
     return mask < 0.5
@@ -81,6 +84,7 @@ def get_ltor_masks_and_position_ids(
     data,
     eod_token,
     eod_mask_loss=False,
+    sliding_window_width=None,
 ):
     """Build masks and position id for left to right model."""
 
@@ -91,6 +95,7 @@ def get_ltor_masks_and_position_ids(
     attention_mask = get_attn_mask(
         seq_length=seq_length,
         device=data.device,
+        sliding_window_width=sliding_window_width,
     )
 
     # Loss mask.

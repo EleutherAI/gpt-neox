@@ -21,6 +21,8 @@ import logging
 import copy
 import torch
 import argparse
+from pkg_resources import packaging
+from importlib.metadata import version
 
 from dataclasses import dataclass
 from typing import List, Dict
@@ -387,6 +389,12 @@ class NeoXArgs(*BASE_CLASSES):
                 raise e
 
             neox_args.wandb_group += "_" + wandb.util.generate_id()
+
+        if neox_args.sliding_window_width is not None:
+            _flash_version = packaging.version.Version(version("flash-attn"))
+            assert _flash_version >= packaging.version.Version(
+                "2.0.0"
+            ), f"Flash-Attention version ({str(_flash_version)}) must be >= 2.0.0 to support sliding window attention."
 
         neox_args.print()
 
@@ -1056,6 +1064,26 @@ class NeoXArgs(*BASE_CLASSES):
         if self.sparsity_config is None:
             # Can't have a default value as an empty dict so need to set it here
             self.update_value("sparsity_config", {})
+
+        # Multi-query or grouped-query attention settings
+        if self.num_kv_heads is not None:
+            # need KV heads <= query heads, and KV heads dividing query heads evenly
+            assert (
+                self.num_attention_heads % self.num_kv_heads == 0
+            ), "num_kv_heads must evenly divide num_attention_heads and be no greater than it"
+
+            if self.num_kv_heads < self.num_attention_heads:
+                # GQA / MQA not compatible with sparse attention configurations
+                assert (
+                    not self.sparsity_config
+                ), "Sparse attention not compatible with GQA or MQA"
+                assert all(
+                    (attn_type == "flash") or (attn_type == "global")
+                    for attn_type in self.attention_config
+                ), "GQA / MQA currently only compatible with Flash or standard global Attention"
+                assert (
+                    self.num_kv_heads % self.model_parallel_size == 0
+                ), "Number of KV heads must be at least model_parallel_size for now!"
 
         # Adding equal dataset weights if none are provided
         if self.train_data_paths and (self.train_data_weights is None):
