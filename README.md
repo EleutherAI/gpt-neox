@@ -67,6 +67,7 @@ Prior to 3/9/2023, GPT-NeoX relied on [DeeperSpeed](https://github.com/EleutherA
   * [Weights and Biases](#weights-and-biases)
   * [TensorBoard](#tensorboard)
 - [Running on multi-node](#running-on-multi-node)
+- [Profiling](#profiling)
 - [Adoption and Publications](#adoption-and-publications)
   * [Publications](#publications)
   * [Models](#models)
@@ -560,6 +561,36 @@ We also support using TensorBoard via the <code><var>tensorboard-dir</var></code
 # Running on multi-node
 
 If you need to supply a hostfile for use with the MPI-based DeepSpeed launcher, you can set the environment variable `DLTS_HOSTFILE` to point to the hostfile.
+
+# Profiling
+
+We support profiling with Nsight Systems and PyTorch Memory Profiling.
+
+## Nsight Systems Profiling
+
+To use the Nsight Systems profiling, set config options `profile`, `profile_step_start`, and `profile_step_stop`. Launch training with:
+
+```
+nsys profile -s none -t nvtx,cuda -o <path/to/profiling/output> --force-overwrite true \
+--capture-range=cudaProfilerApi --capture-range-end=stop python $TRAIN_PATH/deepy.py \
+$TRAIN_PATH/train.py --conf_dir configs <config files>
+```
+
+The generated output file can then by viewed with the Nsight Systems GUI:
+
+![Alt text](images/nsight_profiling.png)
+
+## PyTorch Memory Profiling
+
+To use PyTorch Memory Profiling, set config options `memory_profiling` and `memory_profiling_path`.
+
+![Alt text](images/memory_profiling.png)
+
+View the generated profile with the [memory_viz.py](https://github.com/pytorch/pytorch/blob/main/torch/cuda/_memory_viz.py) script. Run with:
+
+```
+python _memory_viz.py trace_plot <generated_profile> -o trace.html
+```
 
 # Adoption and Publications
 
