@@ -21,6 +21,8 @@ import logging
 import copy
 import torch
 import argparse
+from pkg_resources import packaging
+from importlib.metadata import version
 
 from dataclasses import dataclass
 from typing import List, Dict
@@ -387,6 +389,13 @@ class NeoXArgs(*BASE_CLASSES):
                 raise e
 
             neox_args.wandb_group += "_" + wandb.util.generate_id()
+
+
+        if neox_args.sliding_window_width is not None:
+            _flash_version = packaging.version.Version(version("flash-attn"))
+            assert (
+                _flash_version >= packaging.version.Version("2.0.0")
+            ), f"Flash-Attention version ({str(_flash_version)}) must be >= 2.0.0 to support sliding window attention." 
 
         neox_args.print()
 
