@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 
+from megatron.model.norms import get_norm
+
 import math
 import einops
 
@@ -8,6 +10,14 @@ from mamba_ssm.ops.selective_scan_interface import selective_scan_ref
 
 # TODO: make imports conditional
 from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
+
+from causal_conv1d import causal_conv1d_fn
+
+# flags required to enable jit fusion kernels
+torch._C._jit_set_profiling_mode(False)
+torch._C._jit_set_profiling_executor(False)
+torch._C._jit_override_can_fuse_on_cpu(True)
+torch._C._jit_override_can_fuse_on_gpu(True)
 
 # TODO: put notation up here
 
@@ -20,7 +30,7 @@ class MambaBlock(nn.Module):
     ):
         super().__init__()
 
-        self.neox_args
+        self.neox_args = neox_args
 
         dtype = (
             torch.float16 if neox_args.precision == "fp16" else torch.bfloat16
@@ -35,6 +45,7 @@ class MambaBlock(nn.Module):
         self.dt_rank = math.ceil(
             self.d_model / 16
         )  # if not neox_args.mamba_dt_rank else neox_args.mamba_dt_rank
+        self.dt_scale = 1.0  # TODO: should this be configurable?
 
         self.dt_init = "random"
         self.dt_min, self.dt_max, self.dt_init_floor = 0.001, 0.1, 1e-4
@@ -61,7 +72,7 @@ class MambaBlock(nn.Module):
             **factory_kwargs,
         )
 
-        self.act_fn = nn.SiLU()
+        self.act_fn = nn.SiLU()  # TODO: import from megatron.model.activations
 
         # x_proj corresponds to s_B(x), s_C(x), s_Delta(x)
         # in https://arxiv.org/pdf/2312.00752.pdf Algorithm 2
@@ -140,7 +151,7 @@ class MambaBlock(nn.Module):
         delta_softplus=True,
     ):
 
-        if not self.neox_args.mamba_fused_selective_scan:
+        if not self.neox_args.mamba_selective_scan_fusion:
             y = selective_scan_ref(
                 u=x,
                 delta=dt,
@@ -201,7 +212,16 @@ class MambaBlock(nn.Module):
         # ===========
 
         # TODO: use causal_conv1d cuda kernels, make configurable
-        x = self.act_fn(self.conv1d(x)[..., :seqlen])
+        if not self.neox_args.mamba_causal_conv_fusion:
+            x = self.act_fn(self.conv1d(x)[..., :seqlen])
+        else:
+            # Note: this requires silu to be used.
+            x = causal_conv1d_fn(
+                x=x,
+                weight=einops.rearrange(self.conv1d.weight, "d 1 w -> d w"),
+                bias=self.conv1d.bias,
+                activation="silu",
+            )
 
         # ==============
         # SSM Projection
@@ -240,8 +260,13 @@ class MambaBlock(nn.Module):
         # ===============
         # Down-Projection
         # ===============
+        y = einops.rearrange(y, "b d l -> b l d")
 
         out = self.out_proj(y)
+
+        out = einops.rearrange(
+            out, "b l h -> l b h"
+        )  # TODO: cutting down on rearranges would be nice
 
         return out
 
@@ -262,7 +287,7 @@ class MambaResidualLayer(nn.Module):
 
         norm, eps = get_norm(neox_args)
 
-        self.norm = norm(neox_args, eps=eps)
+        self.norm = norm(neox_args.hidden_size, eps=eps)
 
         # TODO: dropout
 

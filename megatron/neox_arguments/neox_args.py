@@ -418,6 +418,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Enable fused kernels for Mamba selective scan.
     """
 
+    mamba_causal_conv_fusion: bool = False
+    """
+    Enable fused kernels for Mamba causal Conv1d.
+    """
+
     # Output layer parallelism over the hidden dim is currently broken (https://github.com/EleutherAI/gpt-neox/issues/905)
     output_layer_parallelism: Literal["column"] = "column"
 
@@ -614,7 +619,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Path to save memory snapshot to.
     """
 
-    profile: bool = False
+    profiling: bool = False
     """
     Enable nsys profiling. When using this option,
     nsys options should be specified in commandline.
