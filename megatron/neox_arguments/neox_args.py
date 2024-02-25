@@ -608,7 +608,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Path to save memory snapshot to.
     """
 
-    profile: bool = False
+    profiling: bool = False
     """
     Enable nsys profiling. When using this option,
     nsys options should be specified in commandline.
@@ -629,6 +629,11 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     profile_step_stop: int = 12
     """
     Step to stop profiling at.
+    """
+
+    profile_backward: bool = False
+    """
+    Whether to profile backward pass.
     """
 
 
