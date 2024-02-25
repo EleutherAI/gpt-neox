@@ -36,6 +36,7 @@ ATTENTION_TYPE_CHOICES = [
     "gmlp",
     "amlp",
     "flash",
+    "mamba",
 ]
 
 
@@ -210,7 +211,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     The first item in the list specifies the attention type(s), and should be a list of strings. The second item
     specifies the number of times to repeat those attention types in the full list.
 
-    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird, "gmlp", "amlp", "flash"]
+    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird, "gmlp", "amlp", "flash", "mamba"]
 
     So a 12 layer network with only global attention could be specified like:
         [[[`global`], 12]]
@@ -410,6 +411,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
         'num_tokens': int = 10 # length of the soft prompt in tokens
         'init_string': str = '' # if provided, initialize the soft prompt with the word embeddings of this string
         'init_range': float = 0.5 # if no init string is provided, initialize the soft prompt with a uniform distribution between -init_range and init_rang
+    """
+
+    mamba_selective_scan_fusion: bool = False
+    """
+    Enable fused kernels for Mamba selective scan.
     """
 
     # Output layer parallelism over the hidden dim is currently broken (https://github.com/EleutherAI/gpt-neox/issues/905)
