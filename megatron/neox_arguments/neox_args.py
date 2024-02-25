@@ -631,11 +631,6 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Step to stop profiling at.
     """
 
-    profile_backward: bool = False
-    """
-    Whether to profile backward pass.
-    """
-
 
 @dataclass
 class NeoXArgsOther(NeoXArgsTemplate):
