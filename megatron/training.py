@@ -878,7 +878,7 @@ def train(
     # to monitor if we've skipped many iterations in a row and trigger an early exit
     overflow_monitor = OverflowMonitor(optimizer)
     while iteration < neox_args.train_iters:
-        if neox_args.profile and iteration == neox_args.profile_step_start:
+        if neox_args.profiling and iteration == neox_args.profile_step_start:
             torch.cuda.cudart().cudaProfilerStart()
         loss_dict, skipped_iter = train_step(
             neox_args=neox_args,
@@ -888,7 +888,7 @@ def train(
             optimizer=optimizer,
             lr_scheduler=lr_scheduler,
         )
-        if neox_args.profile and iteration == neox_args.profile_step_stop:
+        if neox_args.profiling and iteration == neox_args.profile_step_stop:
             torch.cuda.cudart().cudaProfilerStop()
         iteration += 1
         neox_args.iteration = iteration
