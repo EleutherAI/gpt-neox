@@ -2,6 +2,7 @@
 Helper functions for performing coord check.
 """
 import os
+import gc
 from copy import copy
 from itertools import product
 
@@ -30,7 +31,7 @@ def _get_coord_data(
     filter_module_by_name=None,
     fix_data=True,
     cuda=True,
-    nseeds=2,
+    nseeds=10,
     output_fdict=None,
     input_fdict=None,
     param_fdict=None,
@@ -131,11 +132,14 @@ def _get_coord_data(
                 df["output_logits_act_abs_mean"].append(output_logits_act_abs_mean)
                 df["width"].append(width)
 
-            import gc
             del model, optimizer
             gc.collect()
             with torch.no_grad():
                 torch.cuda.empty_cache()
+
+        gc.collect()
+        with torch.no_grad():
+            torch.cuda.empty_cache()
 
     return pd.DataFrame(df)
 
