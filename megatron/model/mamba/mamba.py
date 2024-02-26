@@ -6,7 +6,11 @@ from megatron.model.norms import get_norm
 import math
 import einops
 
-from mamba_ssm.ops.selective_scan_interface import selective_scan_ref
+from mamba_ssm.ops.selective_scan_interface import (
+    selective_scan_ref,
+    selective_scan_fn,
+    mamba_inner_fn,
+)
 
 # TODO: make imports conditional
 from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
@@ -32,9 +36,7 @@ class MambaBlock(nn.Module):
 
         self.neox_args = neox_args
 
-        dtype = (
-            torch.float16 if neox_args.precision == "fp16" else torch.bfloat16
-        )  # TODO: allow for fp32?
+        dtype = torch.float16 if neox_args.precision == "fp16" else torch.bfloat16
         factory_kwargs = {"device": torch.cuda.current_device(), "dtype": dtype}
 
         self.d_model = neox_args.hidden_size
@@ -118,25 +120,33 @@ class MambaBlock(nn.Module):
             "n -> d n",
             d=self.d_inner,
         ).contiguous()
-        A_log = torch.log(
-            A
+        A_log = torch.log(A).to(
+            torch.float32
         )  # important! # TODO: ensure DeepSpeed doesn't muck with A's dtype
         self.A_log = nn.Parameter(A_log)
         self.A_log._no_weight_decay = (
             True  # TODO: ensure NeoX handles these weight decay properties right
         )
+        self.A_log._deepspeed_no_cast = True
+        print("A_log", self.A_log.dtype)
 
         # D parameter
         self.D = nn.Parameter(
             torch.ones(
                 self.d_inner, device=torch.cuda.current_device(), dtype=torch.float32
             )
+        ).to(
+            torch.float32
         )  # Important? Keep in fp32
         self.D._no_weight_decay = True  # TODO: same as A_log weight decay, see above
+        self.D._deepspeed_no_cast = True
 
+        print("D:", self.D.dtype)
         self.out_proj = nn.Linear(
             self.d_inner, self.d_model, bias=self.use_bias, **factory_kwargs
         )
+
+        # TODO: init out_proj following https://github.com/state-spaces/mamba/blob/ce59daea3a090d011d6476c6e5b97f6d58ddad8b/mamba_ssm/models/mixer_seq_simple.py#L54
 
     def selective_scan(
         self,
@@ -182,8 +192,14 @@ class MambaBlock(nn.Module):
 
     def forward(self, hidden_states):
         """ """
+        assert self.training, "Mamba in NeoX does not support inference!"
+        print("A_log", self.A_log.dtype)
+        print("D:", self.D.dtype)
+        print("in_proj dtype:", self.in_proj.weight.dtype)
+
         # hidden_states: [sq, b, h]
         seqlen, batch, dim = hidden_states.shape
+        print("hiddens: ", hidden_states.dtype)
 
         # TODO: support inference in separate method
         # For now, only handle training (parallel scan).
@@ -199,11 +215,33 @@ class MambaBlock(nn.Module):
         if self.in_proj.bias is not None:
             xz = xz + einops.rearrange(self.in_proj.bias.to(dtype=xz.dtype), "d -> d 1")
 
-        # TODO: add use_fast_path equiv. from mamba code
-
         A = -torch.exp(
             self.A_log.float()
         )  # (d_inner, d_state) # TODO: move this to right before selective scan?
+
+        if self.neox_args.mamba_inner_func_fusion:
+            # mamba provides a mamba_inner fn that computes the entire (post-in_proj) Mamba block.
+            # we want to use it if we can.
+            out = mamba_inner_fn(
+                xz,
+                self.conv1d.weight,
+                self.conv1d.bias,
+                self.x_proj.weight,
+                self.dt_proj.weight,
+                self.out_proj.weight,
+                self.out_proj.bias,
+                A,
+                None,  # B is input-dependent, will compute from x_proj
+                None,  # C is input-dependent, will compute from x_proj
+                self.D.float(),
+                delta_bias=self.dt_proj.bias.float(),
+                delta_softplus=True,
+            )
+
+            out = einops.rearrange(out, "b l h -> l b h")
+
+            print("out dtype", out.dtype)
+            return out
 
         x, z = xz.chunk(2, dim=1)
 

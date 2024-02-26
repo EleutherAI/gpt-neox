@@ -423,6 +423,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Enable fused kernels for Mamba causal Conv1d.
     """
 
+    mamba_inner_func_fusion: bool = False
+    """
+    Enable fused inner operator for Mamba. (Supersedes conv. and selective scan fusion flags, requires each of those kernels to be installed.)
+    """
+
     # Output layer parallelism over the hidden dim is currently broken (https://github.com/EleutherAI/gpt-neox/issues/905)
     output_layer_parallelism: Literal["column"] = "column"
 

@@ -48,14 +48,17 @@ def get_params_for_weight_decay_optimization(module, neox_args):
                 [
                     p
                     for n, p in list(module_._parameters.items())
-                    if p is not None and n != "bias"
+                    if p is not None
+                    and n != "bias"
+                    and not getattr(p, "_no_weight_decay", False)
                 ]
             )
             no_weight_decay_params["params"].extend(
                 [
                     p
                     for n, p in list(module_._parameters.items())
-                    if p is not None and n == "bias"
+                    if p is not None
+                    and (n == "bias" or getattr(p, "_no_weight_decay", False))
                 ]
             )
     if neox_args.weight_decay == 0.0:

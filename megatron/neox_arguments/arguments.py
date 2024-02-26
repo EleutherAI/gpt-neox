@@ -1063,13 +1063,11 @@ class NeoXArgs(*BASE_CLASSES):
             assert (
                 self.pipe_parallel_size == 0 and self.model_parallel_size == 1
             ), "Mamba not currently compatible with parallelism"
-            assert (
-                not self.partition_activations
-            ), "Mamba not currently compatible with partition activations"
+            # assert (
+            #     not self.partition_activations
+            # ), "Mamba not currently compatible with partition activations"
             if isinstance(self.zero_stage, int):
-                assert (
-                    self.zero_stage <= 1
-                ), "Zero Stages 2 and up not compatible with Mamba"
+                assert self.zero_stage <= 2, "Zero stage 3 not compatible with Mamba"
 
         # Sparsity config
         if self.sparsity_config is None:
