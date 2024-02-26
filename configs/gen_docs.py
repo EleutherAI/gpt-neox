@@ -31,6 +31,11 @@ def get_docs(module):
             field_name, field_def = cur
             field_type = field_def.type
             if hasattr(field_type, "__name__"):
+                if field_type.__name__ == "Literal":
+                    field_type = field_type
+                else:
+                    field_type = str(field_type.__name__)
+            else:
                 field_type = str(field_type)
 
             field_default = field_def.default
