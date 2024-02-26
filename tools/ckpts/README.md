@@ -3,7 +3,7 @@
 
 ## Utilities
 
-### `inspect_checkpoints.py` 
+### `inspect_checkpoints.py`
 Reports information about a saved checkpoint.
 ```
 usage: inspect_checkpoints.py [-h] [--attributes [ATTRIBUTES ...]] [--interactive] [--compare] [--diff] dir
@@ -23,7 +23,7 @@ options:
 
 ## HuggingFace Scripts
 
-### `convert_hf_to_sequential.py` 
+### `convert_hf_to_sequential.py`
 A script for converting publicly available Huggingface (HF) checkpoints to NeoX format.
 
 Note that this script requires access to corresponding config files for equivalent NeoX models to those found in Hugging face.
@@ -46,7 +46,7 @@ NOTE: This requires manually changing the arguments below.
 CUDA_VISIBLE_DEVICES=0,1,2,3 python ./deepy.py tools/ckpts/convert_hf_to_sequential.py \
     -d configs pythia/70M.yml local_setup.yml
 ```
-### `convert_module_to_hf.py` 
+### `convert_module_to_hf.py`
 Converts a NeoX model with pipeline parallelism greater than 1 to a HuggingFace transformers `GPTNeoXForCausalLM` model
 
 Note that this script does not support all NeoX features.
@@ -70,7 +70,7 @@ options:
   --upload              Set to true in order to upload to the HF Hub directly.
 ```
 
-### `convert_sequential_to_hf.py` 
+### `convert_sequential_to_hf.py`
 Converts a NeoX model without pipeline parallelism to a HuggingFace transformers `GPTNeoXForCausalLM` model.
 
 ```
@@ -88,7 +88,7 @@ options:
                         Output dir, where to save the HF Model, tokenizer, and configs
   --upload              Set to true in order to upload to the HF Hub directly.
 ```
-### `upload.py` 
+### `upload.py`
 Uploads a _converted_ checkpoint to the HuggingFace hub.
 
 ```
@@ -96,7 +96,7 @@ python upload.py <converted-ckpt-dir> <repo-name> <branch-name>
 ```
 ## NeoX-20B Scripts
 
-### `merge20b.py` 
+### `merge20b.py`
 Reduces model and pipeline parallelism of a 20B checkpoint to 1 and 1.
 
 ```
@@ -113,7 +113,7 @@ options:
 ```
 ## Llama Scripts
 
-### `convert_raw_llama_weights_to_neox.py` 
+### `convert_raw_llama_weights_to_neox.py`
 Takes a Llama checkpoint and puts it into a NeoX-compatible format.
 
 ```

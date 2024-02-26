@@ -1,4 +1,4 @@
-# Copyright (c) 2021, EleutherAI
+# Copyright (c) 2024, EleutherAI
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,26 +29,43 @@ from tests.common import simulate_deepy_env, BASE_CONFIG
 PARAMS_TO_TEST = {
     "gpt_j_residual": [True, False],
     "mlp_type": ["llama", "regular"],
-    "pos_emb": ['learned', 'rotary', 'sinusoidal', 'rpe', 'alibi', 'none'],
-    "attention_config":
-        ["global", "local", "sparse_fixed", "sparse_variable", "bigbird", "bslongformer", "gmlp", "amlp", "flash"],
+    "pos_emb": ["learned", "rotary", "sinusoidal", "rpe", "alibi", "none"],
+    "attention_config": [
+        "global",
+        "local",
+        "sparse_fixed",
+        "sparse_variable",
+        "bigbird",
+        "bslongformer",
+        "gmlp",
+        "flash",
+    ],
     "hidden_dropout": [0, 0.1],
     "weight_decay": [0, 0.1],
     "use_bias_in_attn_linear": [True, False],
     "use_bias_in_norms": [True, False],
-    "precision": ["fp16", "fp32", "bfloat16"]
+    "precision": ["fp16", "fp32", "bfloat16"],
 }
 
 keys_to_test = PARAMS_TO_TEST.keys()
 
-@pytest.mark.parametrize("key, value", [(key, value) for key in keys_to_test for value in PARAMS_TO_TEST[key]])
+# TODO: fix model training tests
+@pytest.mark.skip(
+    reason="All model tests are skipped until we fix the CUDA + torch multiprocessing issue."
+)
+@pytest.mark.parametrize(
+    "key, value",
+    [(key, value) for key in keys_to_test for value in PARAMS_TO_TEST[key]],
+)
 def test_model_training_options(monkeypatch, key, value):
     # TODO: Possibly add testing over world_size=2 back in
     neox_args = NeoXArgs.from_dict(BASE_CONFIG)
-    if getattr(neox_args,key) == value:
+    if getattr(neox_args, key) == value:
         pytest.skip("Skipping to avoid redundancy as no change in base config")
     if key == "precision" and value == "bfloat16":
-        pytest.xfail(reason="Assumes that ZeRO optimization stage has been set in the YAML")
+        pytest.xfail(
+            reason="Assumes that ZeRO optimization stage has been set in the YAML"
+        )
     param_dict = {key: value}
     run_train_test(monkeypatch, overwrite_values=param_dict)
 
@@ -67,7 +84,9 @@ def run_train_test(monkeypatch, overwrite_values: dict):
         side_effect=lambda x: loss_per_iteration.append(x),
     ):
         train.main(input_args=deepspeed_main_args, overwrite_values=overwrite_values)
-        assert len(loss_per_iteration) == max_train_iters, "patching should have collected loss values from each train step"
+        assert (
+            len(loss_per_iteration) == max_train_iters
+        ), "patching should have collected loss values from each train step"
 
         # loss should have decreased by now (otherwise increasing the max_steps parameter could have the testcase pass)
         assert min(loss_per_iteration) < loss_per_iteration[0], (

@@ -16,10 +16,10 @@ repos:
             args: [--fix=lf]
           - id: requirements-txt-fixer
           - id: trailing-whitespace
-    - repo: https://gitlab.com/daverona/pre-commit-cpp
+    - repo: https://gitlab.com/daverona/pre-commit/cpp
       rev: 0.8.0
       hooks:
-          - id: clang-format # formatter of C/C++ code based on a style guide: LLVM, Google, Chromium, Mozilla, and WebKit available
+          - id: clang-format  # formatter of C/C++ code based on a style guide: LLVM, Google, Chromium, Mozilla, and WebKit available
             args: []
 
     - repo: https://github.com/psf/black
@@ -36,3 +36,4 @@ repos:
               --check-filenames,
               --check-hidden,
           ]
+        exclude: tests/data/hf_cache/tokenizer/gpt2.json

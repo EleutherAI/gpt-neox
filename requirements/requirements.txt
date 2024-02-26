@@ -3,7 +3,8 @@ git+https://github.com/EleutherAI/DeeperSpeed.git@b9260436e7da3e297fc6bedfd27d9e
 ftfy>=6.0.1
 git+https://github.com/EleutherAI/lm_dataformat.git@4eec05349977071bf67fc072290b95e31c8dd836
 huggingface_hub>=0.11.0
-git+https://github.com/EleutherAI/lm-evaluation-harness.git@main#egg=lm_eval
+jinja2==3.1.3
+lm_eval>=0.4.0,<=0.4.1
 mpi4py>=3.0.3
 numpy>=1.22.0
 pybind11>=2.6.2

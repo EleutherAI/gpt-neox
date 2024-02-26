@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 31cb364
+    Default = 211e726
 
     current git hash of repository
 
@@ -199,6 +199,54 @@ Logging Arguments
 
 
 
+- **memory_profiling**: bool
+
+    Default = False
+
+    Whether to take a memory snapshot of the model. Useful for debugging memory issues.
+
+
+
+- **memory_profiling_path**: str
+
+    Default = None
+
+    Path to save memory snapshot to.
+
+
+
+- **profile**: bool
+
+    Default = False
+
+    Enable nsys profiling. When using this option,
+    nsys options should be specified in commandline.
+    An example nsys commandline is
+    ```
+    nsys profile -s none -t nvtx,cuda -o <path/to/output_file>
+    --force-overwrite true
+    --capture-range=cudaProfilerApi
+    --capture-range-end=stop
+    ```
+
+
+
+- **profile_step_start**: int
+
+    Default = 10
+
+    Step to start profiling at.
+
+
+
+- **profile_step_stop**: int
+
+    Default = 12
+
+    Step to stop profiling at.
+
+
+
 ## NeoXArgsModel
 
 Model Arguments
@@ -258,6 +306,14 @@ Model Arguments
     Default = layernorm
 
     Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm".
+
+
+
+- **layernorm_fusion**: bool
+
+    Default = False
+
+    Use fused layer norm kernel (if `norm` is `layernorm`).
 
 
 
@@ -444,6 +500,14 @@ Model Arguments
     Default = False
 
     Enable bias and dropout fusion.
+
+
+
+- **rope_fusion**: bool
+
+    Default = False
+
+    Enable rotary embedding fusion.
 
 
 
@@ -962,7 +1026,7 @@ Text Generation arguments
 
 - **prompt_end**: str
 
-    Default = 
+    Default =
 
 
     a single prompt's end. Defaults to newline
@@ -1004,7 +1068,7 @@ Text Generation arguments
 
 - **eval_results_prefix**: str
 
-    Default = 
+    Default =
 
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
 
@@ -1015,6 +1079,8 @@ Text Generation arguments
     Default = None
 
     Tasks to evaluate on using lm_eval_harness
+
+    NOTE: Requires internet connection
 
 
 
@@ -1462,14 +1528,6 @@ Training Arguments
 
 
 
-- **gas**: int
-
-    Default = None
-
-    gradient_accumulation_steps
-
-
-
 - **clip_grad**: float
 
     Default = 1.0
@@ -1730,7 +1788,7 @@ Args for deepspeed config
 
     Default = None
 
-    
+
 
 
 
@@ -2021,5 +2079,12 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
     Default = None
 
-    Adds a `--comment` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometime necessary for cluster rules, or so I've heard.
+    Adds a `--comment` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometimes necessary for cluster rules, or so I've heard.
 
+
+
+- **account**: str
+
+    Default = None
+
+    Adds a `--account` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometimes necessary for cluster rules, or so I've heard.

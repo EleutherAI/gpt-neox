@@ -15,6 +15,8 @@
 
   "scaled_upper_triang_masked_softmax_fusion": false,
   "bias_gelu_fusion": false,
+  "rope_fusion": false,
+  "layernorm_fusion": false,
 
   # init methods
   "init_method": "small_init",
@@ -42,7 +44,7 @@
   },
 
   "train_micro_batch_size_per_gpu": 16,
-  "gas": 1,
+  "gradient_accumulation_steps": 1,
   "data_impl": "mmap",
   "num_workers": 1,
 

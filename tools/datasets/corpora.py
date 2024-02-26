@@ -1,4 +1,4 @@
-# Copyright (c) 2021, EleutherAI
+# Copyright (c) 2024, EleutherAI
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -246,7 +246,7 @@ class HackerNews(DataDownloader):
 class OpenWebText2(DataDownloader):
     name = "openwebtext2"
     urls = [
-        "https://the-eye.eu/public/AI/pile_preliminary_components/openwebtext2.jsonl.zst.tar"
+        "https://huggingface.co/datasets/segyges/OpenWebText2/resolve/main/openwebtext2.jsonl.zst.tar"
     ]
     num_docs = 17103000
 

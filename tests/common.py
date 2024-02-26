@@ -1,4 +1,4 @@
-# Copyright (c) 2021, EleutherAI
+# Copyright (c) 2024, EleutherAI
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,15 +17,20 @@ import time
 import shutil
 import itertools
 from pathlib import Path
+from abc import ABC, abstractmethod
+from deepspeed.accelerator import get_accelerator
 
 import pytest
+from _pytest.outcomes import Skipped
+from _pytest.fixtures import FixtureLookupError, FixtureFunctionMarker
 import random
 import train
 
 import torch
+
 import torch.distributed as dist
 from torch.multiprocessing import Process
-import multiprocessing as mp
+import torch.multiprocessing as mp
 from yaml import load
 
 try:
@@ -41,6 +46,7 @@ TEST_TENSORBOARD_DIR = "test_tensorboard"
 
 # Worker timeout *after* the first worker has completed.
 DEEPSPEED_UNIT_WORKER_TIMEOUT = 120
+DEEPSPEED_TEST_TIMEOUT = 600
 
 
 def get_xdist_worker_id():
@@ -60,6 +66,58 @@ def get_master_port():
 
 
 _num_gpus = None
+
+
+def set_accelerator_visible():
+    cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES", None)
+    xdist_worker_id = get_xdist_worker_id()
+    if xdist_worker_id is None:
+        xdist_worker_id = 0
+    if cuda_visible is None:
+        # CUDA_VISIBLE_DEVICES is not set, discover it using accelerator specific command instead
+        if get_accelerator().device_name() == "cuda":
+            if is_rocm_pytorch():
+                rocm_smi = subprocess.check_output(["rocm-smi", "--showid"])
+                gpu_ids = filter(
+                    lambda s: "GPU" in s, rocm_smi.decode("utf-8").strip().split("\n")
+                )
+                num_accelerators = len(list(gpu_ids))
+            else:
+                nvidia_smi = subprocess.check_output(["nvidia-smi", "--list-gpus"])
+                num_accelerators = len(nvidia_smi.decode("utf-8").strip().split("\n"))
+        elif get_accelerator().device_name() == "xpu":
+            clinfo = subprocess.check_output(["clinfo"])
+            lines = clinfo.decode("utf-8").strip().split("\n")
+            num_accelerators = 0
+            for line in lines:
+                match = re.search("Device Type.*GPU", line)
+                if match:
+                    num_accelerators += 1
+        elif get_accelerator().device_name() == "npu":
+            npu_smi = subprocess.check_output(["npu-smi", "info", "-l"])
+            num_accelerators = int(
+                npu_smi.decode("utf-8").strip().split("\n")[0].split(":")[1].strip()
+            )
+        else:
+            assert get_accelerator().device_name() == "cpu"
+            cpu_sockets = int(
+                subprocess.check_output(
+                    'cat /proc/cpuinfo | grep "physical id" | sort -u | wc -l',
+                    shell=True,
+                )
+            )
+            num_accelerators = cpu_sockets
+
+        cuda_visible = ",".join(map(str, range(num_accelerators)))
+
+    # rotate list based on xdist worker id, example below
+    # wid=0 -> ['0', '1', '2', '3']
+    # wid=1 -> ['1', '2', '3', '0']
+    # wid=2 -> ['2', '3', '0', '1']
+    # wid=3 -> ['3', '0', '1', '2']
+    dev_id_list = cuda_visible.split(",")
+    dev_id_list = dev_id_list[xdist_worker_id:] + dev_id_list[:xdist_worker_id]
+    os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(dev_id_list)
 
 
 def count_gpus():
@@ -106,6 +164,7 @@ def get_config_directory():
 def get_configs_with_path(configs):
     return [str(get_config_directory() / cfg) for cfg in configs]
 
+
 def clear_test_dirs():
     log_dir = os.path.join(get_root_directory(), TEST_LOG_DIR)
     if os.path.isdir(log_dir):
@@ -120,117 +179,298 @@ def clear_test_dirs():
         shutil.rmtree(tensorboard_dir)
 
 
-def distributed_test(world_size=2, backend="nccl"):
-    """A decorator for executing a function (e.g., a unit test) in a distributed manner.
-    This decorator manages the spawning and joining of processes, initialization of
-    torch.distributed, and catching of errors.
-
-    This function is copied from: https://github.com/EleutherAI/DeeperSpeed/blob/24026e5bb37c528a222b8635c46256b1e1825d2e/tests/unit/common.py#L16
-
-    Usage example:
-        @distributed_test(worker_size=[2,3])
-        def my_test():
-            rank = dist.get_rank()
-            world_size = dist.get_world_size()
-            assert(rank < world_size)
-
-    Arguments:
-        world_size (int or list): number of ranks to spawn. Can be a list to spawn
-        multiple tests.
+class DistributedExec(ABC):
+    """
+    Base class for distributed execution of functions/methods. Contains common
+    methods needed for DistributedTest and DistributedFixture.
     """
 
-    def dist_wrap(run_func):
-        """Second-level decorator for dist_test. This actually wraps the function."""
+    world_size = 2
+    backend = get_accelerator().communication_backend_name()
+    init_distributed = True
+    set_dist_env = True
+    requires_cuda_env = True
+    reuse_dist_env = False
+    _pool_cache = {}
+    exec_timeout = DEEPSPEED_TEST_TIMEOUT
 
-        def dist_init(local_rank, num_procs, *func_args, **func_kwargs):
-            """Initialize torch.distributed and execute the user function."""
-            os.environ["MASTER_ADDR"] = "127.0.0.1"
-            os.environ["MASTER_PORT"] = get_master_port()
-            os.environ["LOCAL_RANK"] = str(local_rank)
-            # NOTE: unit tests don't support multi-node so local_rank == global rank
-            os.environ["RANK"] = str(local_rank)
-            os.environ["WORLD_SIZE"] = str(num_procs)
+    @abstractmethod
+    def run(self):
+        ...
+
+    def __call__(self, request=None):
+        self._fixture_kwargs = self._get_fixture_kwargs(request, self.run)
+        world_size = self.world_size
+        if self.requires_cuda_env and not get_accelerator().is_available():
+            pytest.skip("only supported in accelerator environments.")
+
+        if isinstance(world_size, int):
+            world_size = [world_size]
+        for procs in world_size:
+            self._launch_procs(procs)
+
+    def _get_fixture_kwargs(self, request, func):
+        if not request:
+            return {}
+        # Grab fixture / parametrize kwargs from pytest request object
+        fixture_kwargs = {}
+        params = inspect.getfullargspec(func).args
+        params.remove("self")
+        for p in params:
+            try:
+                fixture_kwargs[p] = request.getfixturevalue(p)
+            except FixtureLookupError:
+                pass  # test methods can have kwargs that are not fixtures
+        return fixture_kwargs
+
+    def _launch_procs(self, num_procs):
+        # Verify we have enough accelerator devices to run this test
+        if (
+            get_accelerator().is_available()
+            and get_accelerator().device_count() < num_procs
+        ):
+            pytest.skip(
+                f"Skipping test because not enough GPUs are available: {num_procs} required, {get_accelerator().device_count()} available"
+            )
+
+        mp.set_start_method("spawn", force=True)
+
+        # Create process pool or use cached one
+        master_port = None
+        if self.reuse_dist_env:
+            if num_procs not in self._pool_cache:
+                self._pool_cache[num_procs] = mp.Pool(processes=num_procs)
+                master_port = get_master_port()
+            pool = self._pool_cache[num_procs]
+        else:
+            pool = mp.Pool(processes=num_procs)
+            master_port = get_master_port()
+
+        # Run the test
+        args = [(local_rank, num_procs, master_port) for local_rank in range(num_procs)]
+        skip_msgs_async = pool.starmap_async(self._dist_run, args)
+
+        try:
+            skip_msgs = skip_msgs_async.get(self.exec_timeout)
+        except mp.TimeoutError:
+            # Shortcut to exit pytest in the case of a hanged test. This
+            # usually means an environment error and the rest of tests will
+            # hang (causing super long unit test runtimes)
+            pytest.exit("Test hanged, exiting", returncode=0)
+
+        # Tear down distributed environment and close process pools
+        self._close_pool(pool, num_procs)
+
+        # If we skipped a test, propagate that to this process
+        if any(skip_msgs):
+            assert len(set(skip_msgs)) == 1, "Multiple different skip messages received"
+            pytest.skip(skip_msgs[0])
+
+    def _dist_run(self, local_rank, num_procs, master_port):
+        skip_msg = ""
+        if not dist.is_initialized():
+            """Initialize deepspeed.comm and execute the user function."""
+            if self.set_dist_env:
+                os.environ["MASTER_ADDR"] = "127.0.0.1"
+                os.environ["MASTER_PORT"] = str(master_port)
+                os.environ["LOCAL_RANK"] = str(local_rank)
+                # NOTE: unit tests don't support multi-node so local_rank == global rank
+                os.environ["RANK"] = str(local_rank)
+                # In case of multiprocess launching LOCAL_SIZE should be same as WORLD_SIZE
+                # DeepSpeed single node launcher would also set LOCAL_SIZE accordingly
+                os.environ["LOCAL_SIZE"] = str(num_procs)
+                os.environ["WORLD_SIZE"] = str(num_procs)
 
             # turn off NCCL logging if set
             os.environ.pop("NCCL_DEBUG", None)
 
-            deepspeed.init_distributed(dist_backend=backend)
+            if get_accelerator().is_available():
+                set_accelerator_visible()
 
-            if torch.cuda.is_available():
-                torch.cuda.set_device(local_rank)
+            if get_accelerator().is_available():
+                get_accelerator().set_device(local_rank)
 
-            run_func(*func_args, **func_kwargs)
+            if self.init_distributed:
+                deepspeed.init_distributed(dist_backend=self.backend)
+                dist.barrier()
 
-            # make sure all ranks finish at the same time
-            torch.distributed.barrier()
-            # tear down after test completes
-            torch.distributed.destroy_process_group()
-
-        def dist_launcher(num_procs, *func_args, **func_kwargs):
-            """Launch processes and gracefully handle failures."""
-
-            # Spawn all workers on subprocesses.
-            processes = []
-            for local_rank in range(num_procs):
-                p = Process(
-                    target=dist_init,
-                    args=(local_rank, num_procs, *func_args),
-                    kwargs=func_kwargs,
-                )
-                p.start()
-                processes.append(p)
-
-            # Now loop and wait for a test to complete. The spin-wait here isn't a big
-            # deal because the number of processes will be O(#GPUs) << O(#CPUs).
-            any_done = False
-            while not any_done:
-                for p in processes:
-                    if not p.is_alive():
-                        any_done = True
-                        break
-
-            # Wait for all other processes to complete
-            for p in processes:
-                p.join(DEEPSPEED_UNIT_WORKER_TIMEOUT)
-
-            failed = [(rank, p) for rank, p in enumerate(processes) if p.exitcode != 0]
-            for rank, p in failed:
-                # If it still hasn't terminated, kill it because it hung.
-                if p.exitcode is None:
-                    p.terminate()
-                    pytest.fail(f"Worker {rank} hung.", pytrace=False)
-                if p.exitcode < 0:
-                    pytest.fail(
-                        f"Worker {rank} killed by signal {-p.exitcode}", pytrace=False
-                    )
-                if p.exitcode > 0:
-                    pytest.fail(
-                        f"Worker {rank} exited with code {p.exitcode}", pytrace=False
-                    )
-
-        def run_func_decorator(*func_args, **func_kwargs):
-            """Entry point for @distributed_test()."""
-
-            gpus = count_gpus()
-
-            if isinstance(world_size, int):
-                if gpus < world_size:
-                    pytest.mark.skip(
-                        reason=f"at least {world_size} GPUs are required to run this test"
-                    )
-                    return
-
-                dist_launcher(world_size, *func_args, **func_kwargs)
-            elif isinstance(world_size, list):
-                for procs in world_size:
-                    dist_launcher(procs, *func_args, **func_kwargs)
-                    time.sleep(0.5)
+        try:
+            self.run(**self._fixture_kwargs)
+        except BaseException as e:
+            if isinstance(e, Skipped):
+                skip_msg = e.msg
             else:
-                raise TypeError(f"world_size must be an integer or a list of integers.")
+                raise e
 
-        return run_func_decorator
+        return skip_msg
 
-    return dist_wrap
+    def _dist_destroy(self):
+        if (dist is not None) and dist.is_initialized():
+            dist.barrier()
+            dist.destroy_process_group()
+
+    def _close_pool(self, pool, num_procs, force=False):
+        if force or not self.reuse_dist_env:
+            msg = pool.starmap(self._dist_destroy, [() for _ in range(num_procs)])
+            pool.close()
+            pool.join()
+
+
+class DistributedFixture(DistributedExec):
+    """
+    Implementation that extends @pytest.fixture to allow for distributed execution.
+    This is primarily meant to be used when a test requires executing two pieces of
+    code with different world sizes.
+
+    There are 2 parameters that can be modified:
+        - world_size: int = 2 -- the number of processes to launch
+        - backend: Literal['nccl','mpi','gloo'] = 'nccl' -- which backend to use
+
+    Features:
+        - able to call pytest.skip() inside fixture
+        - can be reused by multiple tests
+        - can accept other fixtures as input
+
+    Limitations:
+        - cannot use @pytest.mark.parametrize
+        - world_size cannot be modified after definition and only one world_size value is accepted
+        - any fixtures used must also be used in the test that uses this fixture (see example below)
+        - return values cannot be returned. Passing values to a DistributedTest
+          object can be achieved using class_tmpdir and writing to file (see example below)
+
+    Usage:
+        - must implement a run(self, ...) method
+        - fixture can be used by making the class name input to a test function
+
+    Example:
+        @pytest.fixture(params=[10,20])
+        def regular_pytest_fixture(request):
+            return request.param
+
+        class distributed_fixture_example(DistributedFixture):
+            world_size = 4
+
+            def run(self, regular_pytest_fixture, class_tmpdir):
+                assert int(os.environ["WORLD_SIZE"]) == self.world_size
+                local_rank = os.environ["LOCAL_RANK"]
+                print(f"Rank {local_rank} with value {regular_pytest_fixture}")
+                with open(os.path.join(class_tmpdir, f"{local_rank}.txt"), "w") as f:
+                    f.write(f"{local_rank},{regular_pytest_fixture}")
+
+        class TestExample(DistributedTest):
+            world_size = 1
+
+            def test(self, distributed_fixture_example, regular_pytest_fixture, class_tmpdir):
+                assert int(os.environ["WORLD_SIZE"]) == self.world_size
+                for rank in range(4):
+                    with open(os.path.join(class_tmpdir, f"{rank}.txt"), "r") as f:
+                        assert f.read() == f"{rank},{regular_pytest_fixture}"
+    """
+
+    is_dist_fixture = True
+
+    # These values are just placeholders so that pytest recognizes this as a fixture
+    _pytestfixturefunction = FixtureFunctionMarker(scope="function", params=None)
+    __name__ = ""
+
+    def __init__(self):
+        assert isinstance(
+            self.world_size, int
+        ), "Only one world size is allowed for distributed fixtures"
+        self.__name__ = type(self).__name__
+        _pytestfixturefunction = FixtureFunctionMarker(
+            scope="function", params=None, name=self.__name__
+        )
+
+
+class DistributedTest(DistributedExec):
+    """
+    Implementation for running pytest with distributed execution.
+
+    There are 2 parameters that can be modified:
+        - world_size: Union[int,List[int]] = 2 -- the number of processes to launch
+        - backend: Literal['nccl','mpi','gloo'] = 'nccl' -- which backend to use
+
+    Features:
+        - able to call pytest.skip() inside tests
+        - works with pytest fixtures, parametrize, mark, etc.
+        - can contain multiple tests (each of which can be parametrized separately)
+        - class methods can be fixtures (usable by tests in this class only)
+        - world_size can be changed for individual tests using @pytest.mark.world_size(world_size)
+        - class_tmpdir is a fixture that can be used to get a tmpdir shared among
+          all tests (including DistributedFixture)
+
+    Usage:
+        - class name must start with "Test"
+        - must implement one or more test*(self, ...) methods
+
+    Example:
+        @pytest.fixture(params=[10,20])
+        def val1(request):
+            return request.param
+
+        @pytest.mark.fast
+        @pytest.mark.parametrize("val2", [30,40])
+        class TestExample(DistributedTest):
+            world_size = 2
+
+            @pytest.fixture(params=[50,60])
+            def val3(self, request):
+                return request.param
+
+            def test_1(self, val1, val2, str1="hello world"):
+                assert int(os.environ["WORLD_SIZE"]) == self.world_size
+                assert all(val1, val2, str1)
+
+            @pytest.mark.world_size(1)
+            @pytest.mark.parametrize("val4", [70,80])
+            def test_2(self, val1, val2, val3, val4):
+                assert int(os.environ["WORLD_SIZE"]) == 1
+                assert all(val1, val2, val3, val4)
+    """
+
+    def __init__(self):
+        self.is_dist_test = True
+
+    # Temporary directory that is shared among test methods in a class
+    @pytest.fixture(autouse=True, scope="class")
+    def class_tmpdir(self, tmpdir_factory):
+        fn = tmpdir_factory.mktemp(self.__class__.__name__)
+        return fn
+
+    def run(self, **fixture_kwargs):
+        self._current_test(**fixture_kwargs)
+
+    def __call__(self, request):
+        self._current_test = self._get_current_test_func(request)
+        self._fixture_kwargs = self._get_fixture_kwargs(request, self._current_test)
+
+        if self.requires_cuda_env and not get_accelerator().is_available():
+            pytest.skip("only supported in accelerator environments.")
+
+        # Catch world_size override pytest mark
+        for mark in getattr(request.function, "pytestmark", []):
+            if mark.name == "world_size":
+                world_size = mark.args[0]
+                break
+        else:
+            world_size = self.world_size
+
+        if isinstance(world_size, int):
+            world_size = [world_size]
+        for procs in world_size:
+            self._launch_procs(procs)
+            time.sleep(0.5)
+
+    def _get_current_test_func(self, request):
+        # DistributedTest subclasses may have multiple test methods
+        func_name = request.function.__name__
+        return getattr(self, func_name)
+
+
+def get_test_path(filename):
+    curr_path = Path(__file__).parent
+    return str(curr_path.joinpath(filename))
 
 
 def model_setup(yaml_list=None, param_dict=None, clear_data=True):
@@ -277,6 +517,7 @@ def model_setup(yaml_list=None, param_dict=None, clear_data=True):
 
 def simulate_deepy_env(monkeypatch, input_args):
     from megatron.neox_arguments import NeoXArgs
+
     monkeypatch.setenv("WORLD_SIZE", "1")
     monkeypatch.setenv("RANK", "0")
     neox_args = NeoXArgs.consume_deepy_args(input_args)
@@ -318,7 +559,9 @@ def model_setup_simple(deepspeed_main_args, overwrite_values, iteration=None):
     from megatron import initialize_megatron
     from megatron.training import setup_model_and_optimizer
 
-    neox_args = NeoXArgs.consume_neox_args(input_args=deepspeed_main_args, overwrite_values=overwrite_values)
+    neox_args = NeoXArgs.consume_neox_args(
+        input_args=deepspeed_main_args, overwrite_values=overwrite_values
+    )
     neox_args.configure_distributed_args()
     neox_args.build_tokenizer()
     initialize_megatron(neox_args=neox_args)
@@ -384,3 +627,4 @@ binary = [True, False]
 
 with open("tests/config/test_setup.yml", "r") as f:
     BASE_CONFIG = load(f, Loader=Loader)
+    print(f"Base Config:\n{BASE_CONFIG}")

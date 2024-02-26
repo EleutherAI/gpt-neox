@@ -1,4 +1,4 @@
-# Copyright (c) 2021, EleutherAI
+# Copyright (c) 2024, EleutherAI
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ to run in order to perform follow up tests. Joining in one test reduces runtime 
 
 import os
 import pytest
-from tests.common import distributed_test, model_setup, parametrize
+from tests.common import DistributedTest, model_setup, parametrize
 
 PARAMS_TO_TEST = {
     "pipe_parallel_size,model_parallel_size,world_size": [
@@ -67,47 +67,47 @@ parameters, names = parametrize(
 @pytest.mark.skip
 @pytest.mark.parametrize("param_dict", parameters, ids=names)
 def test_train(param_dict):
-    @distributed_test(world_size=param_dict.pop("world_size", 2))
-    def wrapper():
-        run_generate_test(param_dict=param_dict, prompt=param_dict.pop("prompt"))
-
-    wrapper()
+    t1 = run_generate_test_class()
+    t1.run_generate_test(param_dict, param_dict.pop("prompt"))
 
 
-def run_generate_test(param_dict, prompt):
-    from megatron.text_generation_utils import generate_samples_from_prompt
-    from megatron.utils import is_mp_rank_0
+class run_generate_test_class(DistributedTest):
+    world_size = 2
 
-    fixed_params = {
-        "num_samples": 3,
-        "maximum_tokens": 50,
-        "make_vocab_size_divisible_by": 2,
-        "sample_output_file": "test_sample_output.txt",
-        "checkpoint_activations": False,
-        "partition_activations": False,
-        "no_load_optim": True,
-    }
+    def run_generate_test(param_dict, prompt):
+        from megatron.text_generation_utils import generate_samples_from_prompt
+        from megatron.utils import is_mp_rank_0
 
-    param_dict.update(fixed_params)
-    # TODO: we don't need to reinstantiate the model every time if we're only changing sampling settings - should be a workaround for this
-    model, _, _, args_loaded = model_setup(None, param_dict, clear_data=True)
-    model.eval()
+        fixed_params = {
+            "num_samples": 3,
+            "maximum_tokens": 50,
+            "make_vocab_size_divisible_by": 2,
+            "sample_output_file": "test_sample_output.txt",
+            "checkpoint_activations": False,
+            "partition_activations": False,
+            "no_load_optim": True,
+        }
 
-    prompts = [prompt for _ in range(args_loaded.num_samples)]
-    output = generate_samples_from_prompt(
-        neox_args=args_loaded,
-        model=model,
-        text=prompts,
-        maximum_tokens=args_loaded.maximum_tokens,
-        recompute=False,
-        temperature=args_loaded.temperature,
-        top_k=args_loaded.top_k,
-        top_p=args_loaded.top_p,
-    )
+        param_dict.update(fixed_params)
+        # TODO: we don't need to reinstantiate the model every time if we're only changing sampling settings - should be a workaround for this
+        model, _, _, args_loaded = model_setup(None, param_dict, clear_data=True)
+        model.eval()
 
-    # outputs only get generated on mp rank 0
-    if is_mp_rank_0():
-        assert len(output) == len(prompts)
-        for prompt, out in zip(prompts, output):
-            assert prompt == out["context"]
-            assert len(out["text"]) > 0
+        prompts = [prompt for _ in range(args_loaded.num_samples)]
+        output = generate_samples_from_prompt(
+            neox_args=args_loaded,
+            model=model,
+            text=prompts,
+            maximum_tokens=args_loaded.maximum_tokens,
+            recompute=False,
+            temperature=args_loaded.temperature,
+            top_k=args_loaded.top_k,
+            top_p=args_loaded.top_p,
+        )
+
+        # outputs only get generated on mp rank 0
+        if is_mp_rank_0():
+            assert len(output) == len(prompts)
+            for prompt, out in zip(prompts, output):
+                assert prompt == out["context"]
+                assert len(out["text"]) > 0

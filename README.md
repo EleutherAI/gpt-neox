@@ -67,6 +67,7 @@ Prior to 3/9/2023, GPT-NeoX relied on [DeeperSpeed](https://github.com/EleutherA
   * [Weights and Biases](#weights-and-biases)
   * [TensorBoard](#tensorboard)
 - [Running on multi-node](#running-on-multi-node)
+- [Profiling](#profiling)
 - [Adoption and Publications](#adoption-and-publications)
   * [Publications](#publications)
   * [Models](#models)
@@ -76,6 +77,7 @@ Prior to 3/9/2023, GPT-NeoX relied on [DeeperSpeed](https://github.com/EleutherA
     + [Other Modalities](#other-modalities)
 - [Administrative Notes](#administrative-notes)
   * [Citing GPT-NeoX](#citing-gpt-neox)
+  * [Contributing](#contributing)
   * [Licensing](#licensing)
   * [Acknowledgements](#acknowledgements)
 
@@ -225,11 +227,69 @@ You can then kick off a training run with `sbatch my_sbatch_script.sh`
 
 ### Containerized Setup
 
-We also provide a Dockerfile if you prefer to run NeoX in a container. To use this option, first build an image named `gpt-neox` from the repository root directory with `docker build -t gpt-neox -f Dockerfile .`. We also host pre-built images on [Docker Hub at `leogao2/gpt-neox`](https://hub.docker.com/r/leogao2/gpt-neox/tags).
+We also provide a Dockerfile and docker-compose configuration if you prefer to run NeoX in a container.
 
-You can then run a container based on this image. For instance, the below snippet mounts the cloned repository (`gpt-neox`) directory to `/gpt-neox` in the container and uses [nvidia-docker](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) to make four GPUs (numbers 0-3) accessible to the container. [As noted by the NCCL documentation](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/troubleshooting.html#sharing-data), both `--shm-size=1g` and `--ulimit memlock=-1` are important to prevent Docker from allocating too little shared memory.
+Requirements to run the container are to have appropriate GPU drivers, an up-to-date installation of Docker, and [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) installed. To test if your installation is good you can use their "sample workload", which is:
+
 ```
-nvidia-docker run --rm -it -e NVIDIA_VISIBLE_DEVICES=0,1,2,3 --shm-size=1g --ulimit memlock=-1 --mount type=bind,src=$PWD,dst=/gpt-neox gpt-neox
+docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi
+```
+
+Provided that will run, you need to export NEOX_DATA_PATH and NEOX_CHECKPOINT_PATH in your environment to specify your data directory and directory for storing and loading checkpoints:
+
+```
+export NEOX_DATA_PATH=/mnt/sda/data/enwiki8 #or wherever your data is stored on your system
+export NEOX_CHECKPOINT_PATH=/mnt/sda/checkpoints
+```
+
+And then, from the gpt-neox directory, you can build the image and run a shell in a container with
+
+```
+docker compose run gpt-neox bash
+```
+
+After the build, you should be able to do this:
+```
+mchorse@537851ed67de:~$ echo $(pwd)
+/home/mchorse
+mchorse@537851ed67de:~$ ls -al
+total 48
+drwxr-xr-x  1 mchorse mchorse 4096 Jan  8 05:33 .
+drwxr-xr-x  1 root    root    4096 Jan  8 04:09 ..
+-rw-r--r--  1 mchorse mchorse  220 Feb 25  2020 .bash_logout
+-rw-r--r--  1 mchorse mchorse 3972 Jan  8 04:09 .bashrc
+drwxr-xr-x  4 mchorse mchorse 4096 Jan  8 05:35 .cache
+drwx------  3 mchorse mchorse 4096 Jan  8 05:33 .nv
+-rw-r--r--  1 mchorse mchorse  807 Feb 25  2020 .profile
+drwxr-xr-x  2 root    root    4096 Jan  8 04:09 .ssh
+drwxrwxr-x  8 mchorse mchorse 4096 Jan  8 05:35 chk
+drwxrwxrwx  6 root    root    4096 Jan  7 17:02 data
+drwxr-xr-x 11 mchorse mchorse 4096 Jan  8 03:52 gpt-neox
+```
+
+For a long-running job, you should run
+
+```
+docker compose up -d
+```
+
+to run the container in detached mode, and then, in a separate terminal session, run
+
+```
+docker compose exec gpt-neox bash
+```
+
+You can then run any job you want from inside the container.
+
+Concerns when running for a long time or in detached mode include
+ - You will have to terminate the container manually when you are no longer using it
+ - If you want processes to continue running when your shell session ends, you will need to background them.
+ - If you then want logging, you will have to make sure to pipe logs to disk or set up wandb.
+
+If you prefer to run the prebuilt container image from dockerhub, you can run the docker compose commands with ```-f docker-compose-dockerhub.yml``` instead, e.g.,
+
+```
+docker compose run -f docker-compose-dockerhub.yml gpt-neox bash
 ```
 
 ## Usage
@@ -442,18 +502,21 @@ where `--eval_tasks` is a list of evaluation tasks followed by spaces, e.g `--ev
 
 # Exporting to Hugging Face
 
-GPT-NeoX is optimized heavily for training only, and GPT-NeoX model checkpoints are not compatible out of the box with other deep learning libraries. To make models easily loadable and shareable with end users, and for further exporting to various other frameworks, GPT-NeoX supports checkpoint conversion to the [Hugging Face Transformers](https://arxiv.org/abs/1910.03771) GPTNeoXModel format.
+GPT-NeoX is optimized heavily for training only, and GPT-NeoX model checkpoints are not compatible out of the box with other deep learning libraries. To make models easily loadable and shareable with end users, and for further exporting to various other frameworks, GPT-NeoX supports checkpoint conversion to the [Hugging Face Transformers](https://arxiv.org/abs/1910.03771) format.
 
-To convert a NeoX checkpoint (with pipeline-parallel-size>=1) to Hugging Face-loadable format, run:
-```bash
-python ./tools/ckpts/convert_module_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location
-```
+Though NeoX supports a number of different architectural configurations, including AliBi positional embeddings, not all of these configurations map cleanly onto the supported configurations within Hugging Face Transformers.
 
-To convert a sequential model to Hugging Face format, run:
+NeoX supports export of compatible models into the following architectures:
+- GPTNeoXForCausalLM
+- LlamaForCausalLM
+- MistralForCausalLM
+
+Training a model which does not fit into one of these Hugging Face Transformers architectures cleanly will require writing custom modeling code for the exported model.
+
+To convert a GPT-NeoX library checkpoint to Hugging Face-loadable format, run:
 ```bash
-python  ./tools/ckpts/convert_sequential_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location
+python ./tools/ckpts/convert_neox_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location --precision {auto,fp16,bf16,fp32} --architecture {neox,mistral,llama}
 ```
-(Note: this script should be used for v2.0 checkpoints saved on a v2.0 commit prior to https://github.com/EleutherAI/gpt-neox/pull/866 and which used `pipe-parallel-size=1`. Using `pipe-parallel-size=0` will also save models in this format.)
 
 Then to upload a model to [the Hugging Face Hub](https://huggingface.co/), run:
 ```bash
@@ -462,7 +525,27 @@ python ./tools/ckpts/upload.py
 ```
 and input the requested information, including HF hub user token.
 
-Note, however, that this compatibility is not one-to-one, and only certain configurations from GPT-NeoX are supported in the Hugging Face GPTNeoXModel class. Advanced features such as alternative positional embeddings may require new Transformers modeling code and new conversion script tweaks.
+### Importing Models Into GPT-NeoX
+
+NeoX supplies several utilities for converting a pretrained model checkpoint into a format that can be trained within the library.
+
+The following models or model families can be loaded in GPT-NeoX:
+- Llama 1
+- Llama 2
+- CodeLlama
+- Mistral-7b-v0.1
+
+We provide two utilities for converting from two different checkpoint formats into a format compatible with GPT-NeoX.
+
+To convert a Llama 1 or Llama 2 checkpoint distributed by Meta AI from its original file format (downloadable [here](https://github.com/facebookresearch/llama) or [here](https://huggingface.co/meta-llama/Llama-2-7b)) into the GPT-NeoX library, run
+
+```
+python tools/ckpts/convert_raw_llama_weights_to_neox.py --input_dir /path/to/model/parent/dir/7B --model_size 7B --output_dir /path/to/save/ckpt --num_output_shards <TENSOR_PARALLEL_SIZE> (--pipeline_parallel if pipeline-parallel-size >= 1)
+```
+
+
+To convert from a Hugging Face model into a NeoX-loadable, run `tools/ckpts/convert_hf_to_sequential.py`. See documentation within that file for further options.
+
 
 # Monitoring
 
@@ -479,6 +562,36 @@ We also support using TensorBoard via the <code><var>tensorboard-dir</var></code
 # Running on multi-node
 
 If you need to supply a hostfile for use with the MPI-based DeepSpeed launcher, you can set the environment variable `DLTS_HOSTFILE` to point to the hostfile.
+
+# Profiling
+
+We support profiling with Nsight Systems and PyTorch Memory Profiling.
+
+## Nsight Systems Profiling
+
+To use the Nsight Systems profiling, set config options `profile`, `profile_step_start`, and `profile_step_stop`. Launch training with:
+
+```
+nsys profile -s none -t nvtx,cuda -o <path/to/profiling/output> --force-overwrite true \
+--capture-range=cudaProfilerApi --capture-range-end=stop python $TRAIN_PATH/deepy.py \
+$TRAIN_PATH/train.py --conf_dir configs <config files>
+```
+
+The generated output file can then by viewed with the Nsight Systems GUI:
+
+![Alt text](images/nsight_profiling.png)
+
+## PyTorch Memory Profiling
+
+To use PyTorch Memory Profiling, set config options `memory_profiling` and `memory_profiling_path`.
+
+![Alt text](images/memory_profiling.png)
+
+View the generated profile with the [memory_viz.py](https://github.com/pytorch/pytorch/blob/main/torch/cuda/_memory_viz.py) script. Run with:
+
+```
+python _memory_viz.py trace_plot <generated_profile> -o trace.html
+```
 
 # Adoption and Publications
 
@@ -579,9 +692,14 @@ To cite the 20 billion parameter model named `GPT-NeoX-20B`, please use
 }
 ```
 
+## Contributing
+GPT-NeoX is built by the open-source AI community, and relies on our amazing contributors! Please see our
+[contributing](CONTRIBUTING.md) guide for more details on our CLA, code formatting, testing,
+etc.
+
 ## Licensing
 
-This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright (c) 2021, EleutherAI. Licensed under the Apache License:
+This repository hosts code that is part of EleutherAI's GPT-NeoX project. Copyright (c) 2024, EleutherAI. Licensed under the Apache License:
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.

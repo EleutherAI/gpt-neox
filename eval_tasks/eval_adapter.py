@@ -1,4 +1,4 @@
-# Copyright (c) 2021, EleutherAI
+# Copyright (c) 2024, EleutherAI
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -146,7 +146,9 @@ class EvalHarnessAdapter(HFLM):
             return (len(toks), x[0])
 
         reord = utils.Reorderer(reqs, _collate)
-        for context, gen_kwargs in tqdm(reord.get_reordered(), "Running greedy generation"):
+        for context, gen_kwargs in tqdm(
+            reord.get_reordered(), "Running greedy generation"
+        ):
             if isinstance(gen_kwargs, dict):
                 kwargs = copy.deepcopy(gen_kwargs)  # edge case for repeats > 1
                 if "until" in kwargs.keys():
@@ -406,7 +408,7 @@ class EvalHarnessAdapter(HFLM):
                 "winogrande",
                 "mathqa",
                 "pubmedqa",
-                "triviaqa"
+                "triviaqa",
             ]
 
         # register all the default tasks bundled with lm-evaluation-harness repository
@@ -442,7 +444,14 @@ class EvalHarnessAdapter(HFLM):
         lm = self
 
         if use_cache:
-            use_cache = 'lm_cache/neox' + '_dp_rank' + str(self._dp_rank) + '_dp_group' + str(self._dp_group) + '.db'
+            use_cache = (
+                "lm_cache/neox"
+                + "_dp_rank"
+                + str(self._dp_rank)
+                + "_dp_group"
+                + str(self._dp_group)
+                + ".db"
+            )
             print(f"Using cache at {use_cache}...")
             lm = lm_eval.api.model.CachingLM(
                 lm,
@@ -481,7 +490,7 @@ class EvalHarnessAdapter(HFLM):
         results = evaluator.evaluate(
             lm=lm,
             task_dict=task_dict,
-            limit=10, #limit,
+            limit=10,  # limit,
             bootstrap_iters=bootstrap_iters,
             log_samples=False,
         )

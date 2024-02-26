@@ -1,0 +1,12 @@
+{
+  "train-data-paths": ["/home/mchorse/data/pile_deduped/pile_0.87_deduped_text_document"],
+  "valid-data-paths": ["/home/mchorse/data/pile_deduped/pile_0.87_deduped_text_document"],
+  "test-data-paths": ["/home/mchorse/data/pile_deduped/pile_0.87_deduped_text_document"],
+
+  "tokenizer-type": "HFTokenizer",
+  "vocab-file": "/home/mchorse/data/tokenizers/20B_tokenizer.json",
+
+  "save": "/home/mchorse/chk/",
+  "load": "/home/mchorse/chk/",
+  "checkpoint_validation_with_forward_pass": False
+}

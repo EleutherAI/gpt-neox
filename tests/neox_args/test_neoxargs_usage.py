@@ -1,4 +1,4 @@
-# Copyright (c) 2021, EleutherAI
+# Copyright (c) 2024, EleutherAI
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ def test_neoxargs_usage():
             "build_tokenizer",
             "attention_config[i]",
             "print",
-            "update"
+            "update",
         ]
     )
 

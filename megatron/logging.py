@@ -1,4 +1,4 @@
-# Copyright (c) 2021, EleutherAI.
+# Copyright (c) 2024, EleutherAI.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -99,7 +99,11 @@ def get_flops(neox_args, iter_time_s) -> float:
         * seq_len
         * num_layers
         * (hidden_size**2)
-        * (1.0 + (seq_len / (6.0 * hidden_size)) + (vocab_size / (16.0 * num_layers * hidden_size)))
+        * (
+            1.0
+            + (seq_len / (6.0 * hidden_size))
+            + (vocab_size / (16.0 * num_layers * hidden_size))
+        )
     )
     return flops_per_iteration / (iter_time_s * world_size)
 

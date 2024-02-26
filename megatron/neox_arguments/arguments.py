@@ -1,4 +1,4 @@
-# Copyright (c) 2021, EleutherAI
+# Copyright (c) 2024, EleutherAI
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,8 @@ import logging
 import copy
 import torch
 import argparse
+from pkg_resources import packaging
+from importlib.metadata import version
 
 from dataclasses import dataclass
 from typing import List, Dict
@@ -388,6 +390,12 @@ class NeoXArgs(*BASE_CLASSES):
 
             neox_args.wandb_group += "_" + wandb.util.generate_id()
 
+        if neox_args.sliding_window_width is not None:
+            _flash_version = packaging.version.Version(version("flash-attn"))
+            assert _flash_version >= packaging.version.Version(
+                "2.0.0"
+            ), f"Flash-Attention version ({str(_flash_version)}) must be >= 2.0.0 to support sliding window attention."
+
         neox_args.print()
 
         return neox_args
@@ -505,6 +513,12 @@ class NeoXArgs(*BASE_CLASSES):
                 args_list.extend(
                     self.convert_key_value_to_command_line_arg("comment", comment)
                 )
+            account = getattr(self, "account")
+            if account:
+                args_list.extend(
+                    self.convert_key_value_to_command_line_arg("account", account)
+                )
+
             # master_address = os.environ['SLURM_JOB_NODELIST'].split('\n')[0]
             # args_list.extend(
             #    self.convert_key_value_to_command_line_arg('master_addr', master_address)
@@ -731,8 +745,14 @@ class NeoXArgs(*BASE_CLASSES):
         if self.deepspeed_slurm:
             os.environ["LOCAL_RANK"] = os.environ["SLURM_LOCALID"]
             os.environ["RANK"] = os.environ["SLURM_PROCID"]
-            os.environ["WORLD_SIZE"] = os.environ["SLURM_NTASKS"] if os.environ.get("SLURM_NTASKS") is not None \
-                                        else str(int(os.environ["SLURM_NNODES"]) * int(os.environ["SLURM_NTASKS_PER_NODE"]))
+            os.environ["WORLD_SIZE"] = (
+                os.environ["SLURM_NTASKS"]
+                if os.environ.get("SLURM_NTASKS") is not None
+                else str(
+                    int(os.environ["SLURM_NNODES"])
+                    * int(os.environ["SLURM_NTASKS_PER_NODE"])
+                )
+            )
 
         self.update_value("local_rank", int(os.getenv("LOCAL_RANK", "0")))
         self.update_value("rank", int(os.getenv("RANK", "0")))
@@ -884,7 +904,6 @@ class NeoXArgs(*BASE_CLASSES):
                 "gradient_accumulation_steps": gradient_accumulation_steps,
                 "batch_size": train_micro_batch_size_per_gpu,
                 # duplicate items
-                "gas": self.gradient_accumulation_steps,
                 "clip_grad": self.gradient_clipping,
             }
         )
@@ -1045,6 +1064,26 @@ class NeoXArgs(*BASE_CLASSES):
         if self.sparsity_config is None:
             # Can't have a default value as an empty dict so need to set it here
             self.update_value("sparsity_config", {})
+
+        # Multi-query or grouped-query attention settings
+        if self.num_kv_heads is not None:
+            # need KV heads <= query heads, and KV heads dividing query heads evenly
+            assert (
+                self.num_attention_heads % self.num_kv_heads == 0
+            ), "num_kv_heads must evenly divide num_attention_heads and be no greater than it"
+
+            if self.num_kv_heads < self.num_attention_heads:
+                # GQA / MQA not compatible with sparse attention configurations
+                assert (
+                    not self.sparsity_config
+                ), "Sparse attention not compatible with GQA or MQA"
+                assert all(
+                    (attn_type == "flash") or (attn_type == "global")
+                    for attn_type in self.attention_config
+                ), "GQA / MQA currently only compatible with Flash or standard global Attention"
+                assert (
+                    self.num_kv_heads % self.model_parallel_size == 0
+                ), "Number of KV heads must be at least model_parallel_size for now!"
 
         # Adding equal dataset weights if none are provided
         if self.train_data_paths and (self.train_data_weights is None):

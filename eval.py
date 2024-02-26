@@ -1,7 +1,7 @@
-# Copyright (c) 2021, EleutherAI
+# Copyright (c) 2024, EleutherAI
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,7 +32,9 @@ import json
 
 
 def main(input_args=None, overwrite_values=None):
-    model, neox_args = setup_for_inference_or_eval(use_cache=False, input_args=input_args, overwrite_values=overwrite_values)
+    model, neox_args = setup_for_inference_or_eval(
+        use_cache=False, input_args=input_args, overwrite_values=overwrite_values
+    )
     results = run_eval_harness(
         model,
         forward_step,

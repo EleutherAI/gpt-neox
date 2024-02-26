@@ -1,7 +1,7 @@
-# Copyright (c) 2021, EleutherAI
+# Copyright (c) 2024, EleutherAI
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -57,6 +57,7 @@ def initialize_megatron(neox_args, allow_no_cuda=False):
     if (
         neox_args.scaled_upper_triang_masked_softmax_fusion
         or neox_args.scaled_masked_softmax_fusion
+        or neox_args.rope_fusion
     ):
         fused_kernels.load_fused_kernels()
 

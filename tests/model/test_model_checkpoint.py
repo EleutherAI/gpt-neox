@@ -1,4 +1,4 @@
-# Copyright (c) 2021, EleutherAI
+# Copyright (c) 2024, EleutherAI
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import torch
 
 import pytest
 from tests.common import (
-    distributed_test,
+    DistributedTest,
     clear_test_dirs,
     model_setup,
     binary,
@@ -73,60 +73,58 @@ def test_train(param_dict):
     d = tempfile.mkdtemp()
     param_dict["save"] = d
 
-    @distributed_test(world_size=2)
-    def wrapper():
-        run_checkpoint_test(param_dict=param_dict)
-
-    wrapper()
+    t1 = test_run_checkpoint_test_class()
+    t1.run_checkpoint_test(param_dict=param_dict)
 
 
-def run_checkpoint_test(yaml_list=None, param_dict=None):
+class test_run_checkpoint_test_class(DistributedTest):
+    def run_checkpoint_test(yaml_list=None, param_dict=None):
 
-    from megatron.checkpointing import load_checkpoint
-    from megatron.checkpointing import save_checkpoint
+        from megatron.checkpointing import load_checkpoint
+        from megatron.checkpointing import save_checkpoint
 
-    model, optimizer, lr_scheduler, args_loaded = model_setup(
-        yaml_list, param_dict, clear_data=True
-    )
-
-    # save model checkpoint
-    save_checkpoint(
-        neox_args=args_loaded,
-        iteration=42,
-        model=model,
-        optimizer=optimizer,
-        lr_scheduler=lr_scheduler,
-    )
-
-    # reload model from checkpoint
-    (
-        reloaded_model,
-        reloaded_optimizer,
-        reloaded_lr_scheduler,
-        args_reloaded,
-    ) = model_setup(yaml_list, param_dict, clear_data=False)
-    iteration = load_checkpoint(
-        neox_args=args_reloaded,
-        model=reloaded_model,
-        optimizer=reloaded_optimizer,
-        lr_scheduler=reloaded_lr_scheduler,
-    )
-
-    # ensure same checkpoint is loaded
-    assert (
-        iteration == 42
-    ), "run_checkpoint_test() iteration loaded from checkpoint correct"
-
-    # check all weight groups are the same
-    for idx, ((n1, p1), (n2, p2)) in enumerate(
-        zip(
-            list(model.module.named_parameters()),
-            list(reloaded_model.module.named_parameters()),
+        model, optimizer, lr_scheduler, args_loaded = model_setup(
+            yaml_list, param_dict, clear_data=True
         )
-    ):
-        assert n1 == n2
-        params_equal = (p1 == p2).all().item()
-        assert params_equal, "run_checkpoint_test() params equal: " + str(n1)
+
+        # save model checkpoint
+        save_checkpoint(
+            neox_args=args_loaded,
+            iteration=42,
+            model=model,
+            optimizer=optimizer,
+            lr_scheduler=lr_scheduler,
+        )
+
+        # reload model from checkpoint
+        (
+            reloaded_model,
+            reloaded_optimizer,
+            reloaded_lr_scheduler,
+            args_reloaded,
+        ) = model_setup(yaml_list, param_dict, clear_data=False)
+        iteration = load_checkpoint(
+            neox_args=args_reloaded,
+            model=reloaded_model,
+            optimizer=reloaded_optimizer,
+            lr_scheduler=reloaded_lr_scheduler,
+        )
+
+        # ensure same checkpoint is loaded
+        assert (
+            iteration == 42
+        ), "run_checkpoint_test() iteration loaded from checkpoint correct"
+
+        # check all weight groups are the same
+        for idx, ((n1, p1), (n2, p2)) in enumerate(
+            zip(
+                list(model.module.named_parameters()),
+                list(reloaded_model.module.named_parameters()),
+            )
+        ):
+            assert n1 == n2
+            params_equal = (p1 == p2).all().item()
+            assert params_equal, "run_checkpoint_test() params equal: " + str(n1)
 
 
 if __name__ == "__main__":

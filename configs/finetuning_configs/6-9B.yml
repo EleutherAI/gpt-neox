@@ -17,9 +17,9 @@
    "no-weight-tying": true,
    "gpt_j_residual": true,
    "output_layer_parallelism": "column",
-   
+
    "attention-config": [[["flash"], 32]],
-   
+
    "scaled-upper-triang-masked-softmax-fusion": true,
    "bias-gelu-fusion": true,
 
@@ -32,7 +32,7 @@
        "eps": 1.0e-8
      }
    },
-   
+
    "min_lr": 0.000012,
 
    "zero_optimization": {
@@ -43,7 +43,7 @@
     "reduce_scatter": true,
     "reduce_bucket_size": 1260000000,
     "contiguous_gradients": true,
-    "cpu_offload": false
+    "cpu_offload": false,
     "load_from_fp32_weights": False, # if checkpoint has fp16/bf16 params
   },
 

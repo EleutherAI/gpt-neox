@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ def load_fused_kernels():
     try:
         import scaled_upper_triang_masked_softmax_cuda
         import scaled_masked_softmax_cuda
+        import fused_rotary_positional_embedding
     except (ImportError, ModuleNotFoundError) as e:
         print("\n")
         print(e)

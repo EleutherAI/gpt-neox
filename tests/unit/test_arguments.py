@@ -1,4 +1,4 @@
-# Copyright (c) 2021, EleutherAI
+# Copyright (c) 2024, EleutherAI
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,29 +13,37 @@
 # limitations under the License.
 
 from megatron.neox_arguments import NeoXArgs
-from tests.common import BASE_CONFIG, distributed_test
+from tests.common import BASE_CONFIG, DistributedTest
 
 
 def test_main_constructor():
-    input_args = ['train.py', 'tests/config/test_setup.yml']
+    input_args = ["train.py", "tests/config/test_setup.yml"]
     neox_args = NeoXArgs.consume_deepy_args(input_args)
     deepspeed_main_args = neox_args.get_deepspeed_main_args()
     neox_args = NeoXArgs.consume_neox_args(input_args=deepspeed_main_args)
     neox_args.configure_distributed_args()
 
 
-def test_constructor_from_ymls():
-    @distributed_test(world_size=[1,2])
-    def _test_constructor_from_ymls():
-        neox_args = NeoXArgs.from_ymls(['tests/config/test_setup.yml'])
+class test_constructor_from_ymls_class(DistributedTest):
+    world_size = 2
+
+    def test(self):
+        neox_args = NeoXArgs.from_ymls(["tests/config/test_setup.yml"])
         neox_args.configure_distributed_args()
 
-    _test_constructor_from_ymls()
+
+def test_constructor_from_ymls():
+    t1 = test_constructor_from_ymls_class()
+    t1.test()
+
+
+class test_constructor_from_dict_class(DistributedTest):
+    world_size = 2
+
+    def test(self):
+        neox_args = NeoXArgs.from_dict(BASE_CONFIG)
 
 
 def test_constructor_from_dict():
-    @distributed_test(world_size=[1,2])
-    def _test_constructor_from_dict():
-        neox_args = NeoXArgs.from_dict(BASE_CONFIG)
-    
-    _test_constructor_from_dict()
+    t1 = test_constructor_from_dict_class()
+    t1.test()

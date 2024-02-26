@@ -1,7 +1,7 @@
-# Copyright (c) 2021 EleutherAI
+# Copyright (c) 2024 EleutherAI
 # This file is based on code by the authors denoted below and has been modified from its original version.
 #
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -48,7 +48,9 @@ def gpt2_attention_mask_func(attention_scores, ltor_mask):
     mask_value = torch.finfo(attention_scores.dtype).min
     # Need to be a tensor, otherwise we get error: `RuntimeError: expected scalar type float but found double`.
     # Need to be on the same device, otherwise `RuntimeError: ..., x and y to be on the same device`
-    mask_value = torch.tensor(mask_value, dtype=attention_scores.dtype, device=attention_scores.device)
+    mask_value = torch.tensor(
+        mask_value, dtype=attention_scores.dtype, device=attention_scores.device
+    )
     attention_scores.masked_fill_(ltor_mask, mask_value)
     return attention_scores
 
