@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = c967761
+    Default = 418b4d2
 
     current git hash of repository
 
@@ -215,7 +215,7 @@ Logging Arguments
 
 
 
-- **profiling**: bool
+- **profile**: bool
 
     Default = False
 
