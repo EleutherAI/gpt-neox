@@ -7,7 +7,7 @@ LR Scheduler Arguments
 
 
 
-- **lr_decay_style**: Literal
+- **lr_decay_style**: typing.Literal['constant', 'linear', 'cosine', 'exponential']
 
     Default = linear
 
@@ -15,7 +15,7 @@ LR Scheduler Arguments
 
 
 
-- **lr_decay_iters**: int
+- **lr_decay_iters**: <class 'int'>
 
     Default = None
 
@@ -23,7 +23,7 @@ LR Scheduler Arguments
 
 
 
-- **min_lr**: float
+- **min_lr**: <class 'float'>
 
     Default = 0.0
 
@@ -31,7 +31,7 @@ LR Scheduler Arguments
 
 
 
-- **warmup**: float
+- **warmup**: <class 'float'>
 
     Default = 0.01
 
@@ -39,7 +39,7 @@ LR Scheduler Arguments
 
 
 
-- **override_lr_scheduler**: bool
+- **override_lr_scheduler**: <class 'bool'>
 
     Default = False
 
@@ -47,7 +47,7 @@ LR Scheduler Arguments
 
 
 
-- **use_checkpoint_lr_scheduler**: bool
+- **use_checkpoint_lr_scheduler**: <class 'bool'>
 
     Default = False
 
@@ -61,7 +61,7 @@ Logging Arguments
 
 
 
-- **use_wandb**: bool
+- **use_wandb**: <class 'bool'>
 
     Default = None
 
@@ -69,7 +69,7 @@ Logging Arguments
 
 
 
-- **wandb_group**: str
+- **wandb_group**: <class 'str'>
 
     Default = None
 
@@ -77,7 +77,7 @@ Logging Arguments
 
 
 
-- **wandb_team**: str
+- **wandb_team**: <class 'str'>
 
     Default = None
 
@@ -85,7 +85,7 @@ Logging Arguments
 
 
 
-- **wandb_project**: str
+- **wandb_project**: <class 'str'>
 
     Default = neox
 
@@ -93,7 +93,7 @@ Logging Arguments
 
 
 
-- **wandb_host**: str
+- **wandb_host**: <class 'str'>
 
     Default = https://api.wandb.ai
 
@@ -101,7 +101,7 @@ Logging Arguments
 
 
 
-- **wandb_init_all_ranks**: bool
+- **wandb_init_all_ranks**: <class 'bool'>
 
     Default = False
 
@@ -109,15 +109,15 @@ Logging Arguments
 
 
 
-- **git_hash**: str
+- **git_hash**: <class 'str'>
 
-    Default = 8cb4241
+    Default = b5024e3
 
     current git hash of repository
 
 
 
-- **log_dir**: str
+- **log_dir**: <class 'str'>
 
     Default = None
 
@@ -125,7 +125,7 @@ Logging Arguments
 
 
 
-- **tensorboard_dir**: str
+- **tensorboard_dir**: <class 'str'>
 
     Default = None
 
@@ -133,7 +133,7 @@ Logging Arguments
 
 
 
-- **log_interval**: int
+- **log_interval**: <class 'int'>
 
     Default = 100
 
@@ -141,7 +141,7 @@ Logging Arguments
 
 
 
-- **log_grad_pct_zeros**: bool
+- **log_grad_pct_zeros**: <class 'bool'>
 
     Default = False
 
@@ -149,7 +149,7 @@ Logging Arguments
 
 
 
-- **log_param_norm**: bool
+- **log_param_norm**: <class 'bool'>
 
     Default = False
 
@@ -157,7 +157,7 @@ Logging Arguments
 
 
 
-- **log_grad_norm**: bool
+- **log_grad_norm**: <class 'bool'>
 
     Default = False
 
@@ -167,7 +167,7 @@ Logging Arguments
 
 
 
-- **log_optimizer_states**: bool
+- **log_optimizer_states**: <class 'bool'>
 
     Default = False
 
@@ -175,7 +175,7 @@ Logging Arguments
 
 
 
-- **log_gradient_noise_scale**: bool
+- **log_gradient_noise_scale**: <class 'bool'>
 
     Default = False
 
@@ -183,7 +183,7 @@ Logging Arguments
 
 
 
-- **gradient_noise_scale_n_batches**: int
+- **gradient_noise_scale_n_batches**: <class 'int'>
 
     Default = 5
 
@@ -191,7 +191,7 @@ Logging Arguments
 
 
 
-- **gradient_noise_scale_cpu_offload**: bool
+- **gradient_noise_scale_cpu_offload**: <class 'bool'>
 
     Default = False
 
@@ -199,7 +199,7 @@ Logging Arguments
 
 
 
-- **memory_profiling**: bool
+- **memory_profiling**: <class 'bool'>
 
     Default = False
 
@@ -207,7 +207,7 @@ Logging Arguments
 
 
 
-- **memory_profiling_path**: str
+- **memory_profiling_path**: <class 'str'>
 
     Default = None
 
@@ -215,7 +215,7 @@ Logging Arguments
 
 
 
-- **profile**: bool
+- **profile**: <class 'bool'>
 
     Default = False
 
@@ -231,7 +231,7 @@ Logging Arguments
 
 
 
-- **profile_step_start**: int
+- **profile_step_start**: <class 'int'>
 
     Default = 10
 
@@ -239,7 +239,7 @@ Logging Arguments
 
 
 
-- **profile_step_stop**: int
+- **profile_step_stop**: <class 'int'>
 
     Default = 12
 
@@ -253,7 +253,7 @@ Model Arguments
 
 
 
-- **precision**: Literal
+- **precision**: typing.Literal['fp16', 'fp32', 'bfloat16']
 
     Default = None
 
@@ -261,7 +261,7 @@ Model Arguments
 
 
 
-- **num_layers**: int
+- **num_layers**: <class 'int'>
 
     Default = None
 
@@ -269,7 +269,7 @@ Model Arguments
 
 
 
-- **hidden_size**: int
+- **hidden_size**: <class 'int'>
 
     Default = None
 
@@ -277,7 +277,7 @@ Model Arguments
 
 
 
-- **intermediate_size**: int
+- **intermediate_size**: <class 'int'>
 
     Default = None
 
@@ -287,7 +287,7 @@ Model Arguments
 
 
 
-- **num_attention_heads**: int
+- **num_attention_heads**: <class 'int'>
 
     Default = None
 
@@ -297,7 +297,7 @@ Model Arguments
 
 
 
-- **num_kv_heads**: int
+- **num_kv_heads**: <class 'int'>
 
     Default = None
 
@@ -311,7 +311,7 @@ Model Arguments
 
 
 
-- **seq_length**: int
+- **seq_length**: <class 'int'>
 
     Default = None
 
@@ -319,7 +319,7 @@ Model Arguments
 
 
 
-- **sliding_window_width**: int
+- **sliding_window_width**: <class 'int'>
 
     Default = None
 
@@ -327,7 +327,7 @@ Model Arguments
 
 
 
-- **max_position_embeddings**: int
+- **max_position_embeddings**: <class 'int'>
 
     Default = None
 
@@ -335,7 +335,7 @@ Model Arguments
 
 
 
-- **norm**: Literal
+- **norm**: typing.Literal['layernorm', 'rmsnorm', 'scalenorm']
 
     Default = layernorm
 
@@ -343,7 +343,7 @@ Model Arguments
 
 
 
-- **layernorm_fusion**: bool
+- **layernorm_fusion**: <class 'bool'>
 
     Default = False
 
@@ -351,7 +351,7 @@ Model Arguments
 
 
 
-- **use_qk_layernorm**: bool
+- **use_qk_layernorm**: <class 'bool'>
 
     Default = False
 
@@ -359,7 +359,7 @@ Model Arguments
 
 
 
-- **layernorm_epsilon**: float
+- **layernorm_epsilon**: <class 'float'>
 
     Default = 1e-05
 
@@ -367,7 +367,7 @@ Model Arguments
 
 
 
-- **rms_norm_epsilon**: float
+- **rms_norm_epsilon**: <class 'float'>
 
     Default = 1e-08
 
@@ -375,7 +375,7 @@ Model Arguments
 
 
 
-- **scalenorm_epsilon**: float
+- **scalenorm_epsilon**: <class 'float'>
 
     Default = 1e-08
 
@@ -383,7 +383,7 @@ Model Arguments
 
 
 
-- **pos_emb**: Literal
+- **pos_emb**: typing.Literal['learned', 'rotary', 'sinusoidal', 'rpe', 'alibi', 'none']
 
     Default = learned
 
@@ -391,7 +391,7 @@ Model Arguments
 
 
 
-- **rpe_num_buckets**: int
+- **rpe_num_buckets**: <class 'int'>
 
     Default = 32
 
@@ -399,7 +399,7 @@ Model Arguments
 
 
 
-- **rpe_max_distance**: int
+- **rpe_max_distance**: <class 'int'>
 
     Default = 128
 
@@ -407,7 +407,7 @@ Model Arguments
 
 
 
-- **opt_pos_emb_offset**: int
+- **opt_pos_emb_offset**: <class 'int'>
 
     Default = 0
 
@@ -415,7 +415,7 @@ Model Arguments
 
 
 
-- **no_weight_tying**: bool
+- **no_weight_tying**: <class 'bool'>
 
     Default = False
 
@@ -423,7 +423,7 @@ Model Arguments
 
 
 
-- **attention_config**: list
+- **attention_config**: <class 'list'>
 
     Default = None
 
@@ -445,7 +445,7 @@ Model Arguments
 
 
 
-- **sparsity_config**: dict
+- **sparsity_config**: <class 'dict'>
 
     Default = None
 
@@ -473,7 +473,7 @@ Model Arguments
 
 
 
-- **num_unique_layers**: int
+- **num_unique_layers**: <class 'int'>
 
     Default = None
 
@@ -481,7 +481,7 @@ Model Arguments
 
 
 
-- **param_sharing_style**: str
+- **param_sharing_style**: <class 'str'>
 
     Default = grouped
 
@@ -489,7 +489,7 @@ Model Arguments
 
 
 
-- **make_vocab_size_divisible_by**: int
+- **make_vocab_size_divisible_by**: <class 'int'>
 
     Default = 128
 
@@ -497,7 +497,7 @@ Model Arguments
 
 
 
-- **activation**: Literal
+- **activation**: typing.Literal['gelu', 'geglu', 'relu', 'softsign', 'swish', 'mish', 'silu']
 
     Default = gelu
 
@@ -505,7 +505,7 @@ Model Arguments
 
 
 
-- **scaled_upper_triang_masked_softmax_fusion**: bool
+- **scaled_upper_triang_masked_softmax_fusion**: <class 'bool'>
 
     Default = False
 
@@ -513,7 +513,7 @@ Model Arguments
 
 
 
-- **scaled_masked_softmax_fusion**: bool
+- **scaled_masked_softmax_fusion**: <class 'bool'>
 
     Default = False
 
@@ -521,7 +521,7 @@ Model Arguments
 
 
 
-- **bias_gelu_fusion**: bool
+- **bias_gelu_fusion**: <class 'bool'>
 
     Default = False
 
@@ -529,7 +529,7 @@ Model Arguments
 
 
 
-- **bias_dropout_fusion**: bool
+- **bias_dropout_fusion**: <class 'bool'>
 
     Default = False
 
@@ -537,7 +537,7 @@ Model Arguments
 
 
 
-- **rope_fusion**: bool
+- **rope_fusion**: <class 'bool'>
 
     Default = False
 
@@ -545,7 +545,7 @@ Model Arguments
 
 
 
-- **fp16_lm_cross_entropy**: bool
+- **fp16_lm_cross_entropy**: <class 'bool'>
 
     Default = False
 
@@ -553,7 +553,7 @@ Model Arguments
 
 
 
-- **init_method_std**: float
+- **init_method_std**: <class 'float'>
 
     Default = 0.02
 
@@ -561,7 +561,7 @@ Model Arguments
 
 
 
-- **apply_query_key_layer_scaling**: bool
+- **apply_query_key_layer_scaling**: <class 'bool'>
 
     Default = False
 
@@ -569,7 +569,7 @@ Model Arguments
 
 
 
-- **use_cpu_initialization**: bool
+- **use_cpu_initialization**: <class 'bool'>
 
     Default = False
 
@@ -577,7 +577,7 @@ Model Arguments
 
 
 
-- **attention_softmax_in_fp32**: bool
+- **attention_softmax_in_fp32**: <class 'bool'>
 
     Default = False
 
@@ -585,7 +585,7 @@ Model Arguments
 
 
 
-- **rotary_pct**: float
+- **rotary_pct**: <class 'float'>
 
     Default = 1.0
 
@@ -593,7 +593,7 @@ Model Arguments
 
 
 
-- **rotary_emb_base**: int
+- **rotary_emb_base**: <class 'int'>
 
     Default = 10000
 
@@ -601,7 +601,7 @@ Model Arguments
 
 
 
-- **init_method**: Literal
+- **init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init']
 
     Default = normal
 
@@ -610,7 +610,7 @@ Model Arguments
 
 
 
-- **output_layer_init_method**: Literal
+- **output_layer_init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init']
 
     Default = scaled_normal
 
@@ -619,7 +619,7 @@ Model Arguments
 
 
 
-- **gmlp_attn_dim**: int
+- **gmlp_attn_dim**: <class 'int'>
 
     Default = 64
 
@@ -628,7 +628,7 @@ Model Arguments
 
 
 
-- **gpt_j_residual**: bool
+- **gpt_j_residual**: <class 'bool'>
 
     Default = False
 
@@ -641,7 +641,7 @@ Model Arguments
 
 
 
-- **gpt_j_tied**: bool
+- **gpt_j_tied**: <class 'bool'>
 
     Default = False
 
@@ -653,7 +653,7 @@ Model Arguments
 
 
 
-- **use_bias_in_norms**: bool
+- **use_bias_in_norms**: <class 'bool'>
 
     Default = True
 
@@ -661,7 +661,7 @@ Model Arguments
 
 
 
-- **use_bias_in_attn_linear**: bool
+- **use_bias_in_attn_linear**: <class 'bool'>
 
     Default = True
 
@@ -669,7 +669,7 @@ Model Arguments
 
 
 
-- **mlp_type**: str
+- **mlp_type**: <class 'str'>
 
     Default = regular
 
@@ -679,7 +679,7 @@ Model Arguments
 
 
 
-- **soft_prompt_tuning**: dict
+- **soft_prompt_tuning**: <class 'dict'>
 
     Default = None
 
@@ -693,7 +693,7 @@ Model Arguments
 
 
 
-- **output_layer_parallelism**: Literal
+- **output_layer_parallelism**: typing.Literal['column']
 
     Default = column
 
@@ -707,7 +707,7 @@ Optimizer Arguments
 
 
 
-- **optimizer_type**: Literal
+- **optimizer_type**: typing.Literal['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd', 'sgd', 'lion']
 
     Default = adam
 
@@ -716,7 +716,7 @@ Optimizer Arguments
 
 
 
-- **use_bnb_optimizer**: bool
+- **use_bnb_optimizer**: <class 'bool'>
 
     Default = False
 
@@ -724,7 +724,7 @@ Optimizer Arguments
 
 
 
-- **zero_stage**: Union
+- **zero_stage**: typing.Union[int, typing.List[int], typing.Literal['all']]
 
     Default = None
 
@@ -732,7 +732,7 @@ Optimizer Arguments
 
 
 
-- **zero_reduce_scatter**: bool
+- **zero_reduce_scatter**: <class 'bool'>
 
     Default = None
 
@@ -740,7 +740,7 @@ Optimizer Arguments
 
 
 
-- **zero_contiguous_gradients**: bool
+- **zero_contiguous_gradients**: <class 'bool'>
 
     Default = None
 
@@ -748,7 +748,7 @@ Optimizer Arguments
 
 
 
-- **zero_reduce_bucket_size**: int
+- **zero_reduce_bucket_size**: <class 'int'>
 
     Default = None
 
@@ -756,7 +756,7 @@ Optimizer Arguments
 
 
 
-- **zero_allgather_bucket_size**: int
+- **zero_allgather_bucket_size**: <class 'int'>
 
     Default = None
 
@@ -764,7 +764,7 @@ Optimizer Arguments
 
 
 
-- **lr**: float
+- **lr**: <class 'float'>
 
     Default = None
 
@@ -778,7 +778,7 @@ Misc. Arguments
 
 
 
-- **distributed_backend**: str
+- **distributed_backend**: <class 'str'>
 
     Default = nccl
 
@@ -786,7 +786,7 @@ Misc. Arguments
 
 
 
-- **local_rank**: int
+- **local_rank**: <class 'int'>
 
     Default = None
 
@@ -794,7 +794,7 @@ Misc. Arguments
 
 
 
-- **rank**: int
+- **rank**: <class 'int'>
 
     Default = None
 
@@ -802,7 +802,7 @@ Misc. Arguments
 
 
 
-- **lazy_mpu_init**: bool
+- **lazy_mpu_init**: <class 'bool'>
 
     Default = False
 
@@ -810,7 +810,7 @@ Misc. Arguments
 
 
 
-- **short_seq_prob**: float
+- **short_seq_prob**: <class 'float'>
 
     Default = 0.1
 
@@ -818,7 +818,7 @@ Misc. Arguments
 
 
 
-- **eod_mask_loss**: bool
+- **eod_mask_loss**: <class 'bool'>
 
     Default = False
 
@@ -826,7 +826,7 @@ Misc. Arguments
 
 
 
-- **adlr_autoresume**: bool
+- **adlr_autoresume**: <class 'bool'>
 
     Default = False
 
@@ -834,7 +834,7 @@ Misc. Arguments
 
 
 
-- **adlr_autoresume_interval**: int
+- **adlr_autoresume_interval**: <class 'int'>
 
     Default = 1000
 
@@ -842,7 +842,7 @@ Misc. Arguments
 
 
 
-- **seed**: int
+- **seed**: <class 'int'>
 
     Default = 1234
 
@@ -850,7 +850,7 @@ Misc. Arguments
 
 
 
-- **onnx_safe**: bool
+- **onnx_safe**: <class 'bool'>
 
     Default = False
 
@@ -858,7 +858,7 @@ Misc. Arguments
 
 
 
-- **deepscale**: bool
+- **deepscale**: <class 'bool'>
 
     Default = False
 
@@ -866,7 +866,7 @@ Misc. Arguments
 
 
 
-- **deepscale_config**: str
+- **deepscale_config**: <class 'str'>
 
     Default = None
 
@@ -874,7 +874,7 @@ Misc. Arguments
 
 
 
-- **deepspeed_mpi**: bool
+- **deepspeed_mpi**: <class 'bool'>
 
     Default = False
 
@@ -882,7 +882,7 @@ Misc. Arguments
 
 
 
-- **deepspeed_slurm**: bool
+- **deepspeed_slurm**: <class 'bool'>
 
     Default = False
 
@@ -890,7 +890,7 @@ Misc. Arguments
 
 
 
-- **user_script**: str
+- **user_script**: <class 'str'>
 
     Default = None
 
@@ -898,7 +898,7 @@ Misc. Arguments
 
 
 
-- **iteration**: int
+- **iteration**: <class 'int'>
 
     Default = None
 
@@ -906,7 +906,7 @@ Misc. Arguments
 
 
 
-- **do_train**: bool
+- **do_train**: <class 'bool'>
 
     Default = None
 
@@ -914,7 +914,7 @@ Misc. Arguments
 
 
 
-- **do_valid**: bool
+- **do_valid**: <class 'bool'>
 
     Default = None
 
@@ -922,7 +922,7 @@ Misc. Arguments
 
 
 
-- **do_test**: bool
+- **do_test**: <class 'bool'>
 
     Default = None
 
@@ -930,7 +930,7 @@ Misc. Arguments
 
 
 
-- **save_iters**: list
+- **save_iters**: <class 'list'>
 
     Default = None
 
@@ -938,7 +938,7 @@ Misc. Arguments
 
 
 
-- **global_num_gpus**: int
+- **global_num_gpus**: <class 'int'>
 
     Default = None
 
@@ -952,7 +952,7 @@ Parallelism Arguments
 
 
 
-- **pipe_parallel_size**: int
+- **pipe_parallel_size**: <class 'int'>
 
     Default = 0
 
@@ -960,7 +960,7 @@ Parallelism Arguments
 
 
 
-- **model_parallel_size**: int
+- **model_parallel_size**: <class 'int'>
 
     Default = 1
 
@@ -968,7 +968,7 @@ Parallelism Arguments
 
 
 
-- **pipe_partition_method**: str
+- **pipe_partition_method**: <class 'str'>
 
     Default = type:transformer|mlp
 
@@ -978,7 +978,7 @@ Parallelism Arguments
 
 
 
-- **world_size**: int
+- **world_size**: <class 'int'>
 
     Default = None
 
@@ -986,7 +986,7 @@ Parallelism Arguments
 
 
 
-- **is_pipe_parallel**: bool
+- **is_pipe_parallel**: <class 'bool'>
 
     Default = False
 
@@ -1007,7 +1007,7 @@ Text Generation arguments
 
 
 
-- **text_gen_type**: str
+- **text_gen_type**: <class 'str'>
 
     Default = None
 
@@ -1016,7 +1016,7 @@ Text Generation arguments
 
 
 
-- **temperature**: float
+- **temperature**: <class 'float'>
 
     Default = 0.0
 
@@ -1024,7 +1024,7 @@ Text Generation arguments
 
 
 
-- **top_p**: float
+- **top_p**: <class 'float'>
 
     Default = 0.0
 
@@ -1032,7 +1032,7 @@ Text Generation arguments
 
 
 
-- **top_k**: int
+- **top_k**: <class 'int'>
 
     Default = 0
 
@@ -1040,7 +1040,7 @@ Text Generation arguments
 
 
 
-- **return_logits**: bool
+- **return_logits**: <class 'bool'>
 
     Default = False
 
@@ -1048,7 +1048,7 @@ Text Generation arguments
 
 
 
-- **maximum_tokens**: int
+- **maximum_tokens**: <class 'int'>
 
     Default = 64
 
@@ -1056,7 +1056,7 @@ Text Generation arguments
 
 
 
-- **prompt_end**: str
+- **prompt_end**: <class 'str'>
 
     Default = 
 
@@ -1065,7 +1065,7 @@ Text Generation arguments
 
 
 
-- **sample_input_file**: str
+- **sample_input_file**: <class 'str'>
 
     Default = None
 
@@ -1073,7 +1073,7 @@ Text Generation arguments
 
 
 
-- **sample_output_file**: str
+- **sample_output_file**: <class 'str'>
 
     Default = samples.txt
 
@@ -1081,7 +1081,7 @@ Text Generation arguments
 
 
 
-- **num_samples**: int
+- **num_samples**: <class 'int'>
 
     Default = 1
 
@@ -1089,7 +1089,7 @@ Text Generation arguments
 
 
 
-- **recompute**: bool
+- **recompute**: <class 'bool'>
 
     Default = False
 
@@ -1098,7 +1098,7 @@ Text Generation arguments
 
 
 
-- **eval_results_prefix**: str
+- **eval_results_prefix**: <class 'str'>
 
     Default = 
 
@@ -1106,7 +1106,7 @@ Text Generation arguments
 
 
 
-- **eval_tasks**: list
+- **eval_tasks**: <class 'list'>
 
     Default = None
 
@@ -1122,7 +1122,7 @@ Tokenizer Arguments
 
 
 
-- **tokenizer_type**: Literal
+- **tokenizer_type**: typing.Literal['GPT2BPETokenizer', 'HFTokenizer', 'HFGPT2Tokenizer', 'SPMTokenizer', 'CharLevelTokenizer', 'TiktokenTokenizer']
 
     Default = GPT2BPETokenizer
 
@@ -1130,7 +1130,7 @@ Tokenizer Arguments
 
 
 
-- **padded_vocab_size**: int
+- **padded_vocab_size**: <class 'int'>
 
     Default = None
 
@@ -1145,7 +1145,7 @@ Training Arguments
 
 
 
-- **data_path**: str
+- **data_path**: <class 'str'>
 
     Default = None
 
@@ -1153,7 +1153,7 @@ Training Arguments
 
 
 
-- **use_shared_fs**: bool
+- **use_shared_fs**: <class 'bool'>
 
     Default = True
 
@@ -1162,7 +1162,7 @@ Training Arguments
 
 
 
-- **train_data_paths**: list
+- **train_data_paths**: <class 'list'>
 
     Default = None
 
@@ -1170,7 +1170,7 @@ Training Arguments
 
 
 
-- **label_data_paths**: list
+- **label_data_paths**: <class 'list'>
 
     Default = None
 
@@ -1178,7 +1178,7 @@ Training Arguments
 
 
 
-- **test_data_paths**: list
+- **test_data_paths**: <class 'list'>
 
     Default = None
 
@@ -1186,7 +1186,7 @@ Training Arguments
 
 
 
-- **valid_data_paths**: list
+- **valid_data_paths**: <class 'list'>
 
     Default = None
 
@@ -1194,7 +1194,7 @@ Training Arguments
 
 
 
-- **train_data_weights**: list
+- **train_data_weights**: <class 'list'>
 
     Default = None
 
@@ -1203,7 +1203,7 @@ Training Arguments
 
 
 
-- **valid_data_weights**: list
+- **valid_data_weights**: <class 'list'>
 
     Default = None
 
@@ -1212,7 +1212,7 @@ Training Arguments
 
 
 
-- **test_data_weights**: list
+- **test_data_weights**: <class 'list'>
 
     Default = None
 
@@ -1221,7 +1221,7 @@ Training Arguments
 
 
 
-- **weight_by_num_documents**: bool
+- **weight_by_num_documents**: <class 'bool'>
 
     Default = False
 
@@ -1241,7 +1241,7 @@ Training Arguments
 
 
 
-- **weighted_sampler_alpha**: float
+- **weighted_sampler_alpha**: <class 'float'>
 
     Default = 1.0
 
@@ -1253,7 +1253,7 @@ Training Arguments
 
 
 
-- **data_impl**: Literal
+- **data_impl**: typing.Literal['infer', 'mmap', 'cached']
 
     Default = infer
 
@@ -1261,7 +1261,7 @@ Training Arguments
 
 
 
-- **mmap_warmup**: bool
+- **mmap_warmup**: <class 'bool'>
 
     Default = False
 
@@ -1269,7 +1269,7 @@ Training Arguments
 
 
 
-- **save**: str
+- **save**: <class 'str'>
 
     Default = None
 
@@ -1277,7 +1277,7 @@ Training Arguments
 
 
 
-- **s3_path**: str
+- **s3_path**: <class 'str'>
 
     Default = None
 
@@ -1285,7 +1285,7 @@ Training Arguments
 
 
 
-- **s3_chunk_size**: int
+- **s3_chunk_size**: <class 'int'>
 
     Default = 104857600
 
@@ -1293,7 +1293,7 @@ Training Arguments
 
 
 
-- **config_files**: dict
+- **config_files**: <class 'dict'>
 
     Default = None
 
@@ -1301,7 +1301,7 @@ Training Arguments
 
 
 
-- **load**: str
+- **load**: <class 'str'>
 
     Default = None
 
@@ -1309,7 +1309,7 @@ Training Arguments
 
 
 
-- **checkpoint_validation_with_forward_pass**: bool
+- **checkpoint_validation_with_forward_pass**: <class 'bool'>
 
     Default = False
 
@@ -1317,7 +1317,7 @@ Training Arguments
 
 
 
-- **checkpoint_scale**: Literal
+- **checkpoint_scale**: typing.Literal['linear', 'log']
 
     Default = linear
 
@@ -1326,7 +1326,7 @@ Training Arguments
 
 
 
-- **checkpoint_factor**: int
+- **checkpoint_factor**: <class 'int'>
 
     Default = None
 
@@ -1342,7 +1342,7 @@ Training Arguments
 
 
 
-- **extra_save_iters**: list
+- **extra_save_iters**: <class 'list'>
 
     Default = None
 
@@ -1351,7 +1351,7 @@ Training Arguments
 
 
 
-- **no_save_optim**: bool
+- **no_save_optim**: <class 'bool'>
 
     Default = False
 
@@ -1359,7 +1359,7 @@ Training Arguments
 
 
 
-- **no_save_rng**: bool
+- **no_save_rng**: <class 'bool'>
 
     Default = False
 
@@ -1367,7 +1367,7 @@ Training Arguments
 
 
 
-- **no_load_optim**: bool
+- **no_load_optim**: <class 'bool'>
 
     Default = False
 
@@ -1375,7 +1375,7 @@ Training Arguments
 
 
 
-- **no_load_rng**: bool
+- **no_load_rng**: <class 'bool'>
 
     Default = False
 
@@ -1383,7 +1383,7 @@ Training Arguments
 
 
 
-- **finetune**: bool
+- **finetune**: <class 'bool'>
 
     Default = False
 
@@ -1391,7 +1391,7 @@ Training Arguments
 
 
 
-- **batch_size**: int
+- **batch_size**: <class 'int'>
 
     Default = None
 
@@ -1399,7 +1399,7 @@ Training Arguments
 
 
 
-- **train_iters**: int
+- **train_iters**: <class 'int'>
 
     Default = None
 
@@ -1407,7 +1407,7 @@ Training Arguments
 
 
 
-- **eval_iters**: int
+- **eval_iters**: <class 'int'>
 
     Default = 100
 
@@ -1415,7 +1415,7 @@ Training Arguments
 
 
 
-- **keep_last_n_checkpoints**: int
+- **keep_last_n_checkpoints**: <class 'int'>
 
     Default = None
 
@@ -1423,7 +1423,7 @@ Training Arguments
 
 
 
-- **eval_interval**: int
+- **eval_interval**: <class 'int'>
 
     Default = 1000
 
@@ -1431,7 +1431,7 @@ Training Arguments
 
 
 
-- **split**: str
+- **split**: <class 'str'>
 
     Default = 969, 30, 1
 
@@ -1439,7 +1439,7 @@ Training Arguments
 
 
 
-- **vocab_file**: str
+- **vocab_file**: <class 'str'>
 
     Default = None
 
@@ -1447,7 +1447,7 @@ Training Arguments
 
 
 
-- **merge_file**: str
+- **merge_file**: <class 'str'>
 
     Default = None
 
@@ -1455,7 +1455,7 @@ Training Arguments
 
 
 
-- **num_workers**: int
+- **num_workers**: <class 'int'>
 
     Default = 2
 
@@ -1463,7 +1463,7 @@ Training Arguments
 
 
 
-- **exit_interval**: int
+- **exit_interval**: <class 'int'>
 
     Default = None
 
@@ -1471,7 +1471,7 @@ Training Arguments
 
 
 
-- **attention_dropout**: float
+- **attention_dropout**: <class 'float'>
 
     Default = 0.0
 
@@ -1479,7 +1479,7 @@ Training Arguments
 
 
 
-- **hidden_dropout**: float
+- **hidden_dropout**: <class 'float'>
 
     Default = 0.0
 
@@ -1487,7 +1487,7 @@ Training Arguments
 
 
 
-- **weight_decay**: float
+- **weight_decay**: <class 'float'>
 
     Default = 0.1
 
@@ -1495,7 +1495,7 @@ Training Arguments
 
 
 
-- **checkpoint_activations**: bool
+- **checkpoint_activations**: <class 'bool'>
 
     Default = False
 
@@ -1503,7 +1503,7 @@ Training Arguments
 
 
 
-- **checkpoint_num_layers**: int
+- **checkpoint_num_layers**: <class 'int'>
 
     Default = 1
 
@@ -1511,7 +1511,7 @@ Training Arguments
 
 
 
-- **deepspeed_activation_checkpointing**: bool
+- **deepspeed_activation_checkpointing**: <class 'bool'>
 
     Default = True
 
@@ -1520,7 +1520,7 @@ Training Arguments
 
 
 
-- **contiguous_checkpointing**: bool
+- **contiguous_checkpointing**: <class 'bool'>
 
     Default = False
 
@@ -1528,7 +1528,7 @@ Training Arguments
 
 
 
-- **checkpoint_in_cpu**: bool
+- **checkpoint_in_cpu**: <class 'bool'>
 
     Default = False
 
@@ -1536,7 +1536,7 @@ Training Arguments
 
 
 
-- **synchronize_each_layer**: bool
+- **synchronize_each_layer**: <class 'bool'>
 
     Default = False
 
@@ -1544,7 +1544,7 @@ Training Arguments
 
 
 
-- **profile_backward**: bool
+- **profile_backward**: <class 'bool'>
 
     Default = False
 
@@ -1552,7 +1552,7 @@ Training Arguments
 
 
 
-- **partition_activations**: bool
+- **partition_activations**: <class 'bool'>
 
     Default = False
 
@@ -1560,7 +1560,7 @@ Training Arguments
 
 
 
-- **clip_grad**: float
+- **clip_grad**: <class 'float'>
 
     Default = 1.0
 
@@ -1568,7 +1568,7 @@ Training Arguments
 
 
 
-- **hysteresis**: int
+- **hysteresis**: <class 'int'>
 
     Default = 2
 
@@ -1576,7 +1576,7 @@ Training Arguments
 
 
 
-- **dynamic_loss_scale**: bool
+- **dynamic_loss_scale**: <class 'bool'>
 
     Default = None
 
@@ -1584,7 +1584,7 @@ Training Arguments
 
 
 
-- **loss_scale**: float
+- **loss_scale**: <class 'float'>
 
     Default = None
 
@@ -1593,7 +1593,7 @@ Training Arguments
 
 
 
-- **loss_scale_window**: float
+- **loss_scale_window**: <class 'float'>
 
     Default = 1000.0
 
@@ -1601,7 +1601,7 @@ Training Arguments
 
 
 
-- **min_scale**: float
+- **min_scale**: <class 'float'>
 
     Default = 1.0
 
@@ -1609,7 +1609,7 @@ Training Arguments
 
 
 
-- **char_level_ppl**: bool
+- **char_level_ppl**: <class 'bool'>
 
     Default = False
 
@@ -1617,7 +1617,7 @@ Training Arguments
 
 
 
-- **use_mup**: bool
+- **use_mup**: <class 'bool'>
 
     Default = False
 
@@ -1625,7 +1625,7 @@ Training Arguments
 
 
 
-- **coord_check**: bool
+- **coord_check**: <class 'bool'>
 
     Default = False
 
@@ -1633,7 +1633,7 @@ Training Arguments
 
 
 
-- **save_base_shapes**: bool
+- **save_base_shapes**: <class 'bool'>
 
     Default = False
 
@@ -1641,7 +1641,7 @@ Training Arguments
 
 
 
-- **base_shapes_file**: str
+- **base_shapes_file**: <class 'str'>
 
     Default = None
 
@@ -1649,7 +1649,7 @@ Training Arguments
 
 
 
-- **mup_init_scale**: float
+- **mup_init_scale**: <class 'float'>
 
     Default = 1.0
 
@@ -1657,7 +1657,7 @@ Training Arguments
 
 
 
-- **mup_attn_temp**: float
+- **mup_attn_temp**: <class 'float'>
 
     Default = 1.0
 
@@ -1665,7 +1665,7 @@ Training Arguments
 
 
 
-- **mup_output_temp**: float
+- **mup_output_temp**: <class 'float'>
 
     Default = 1.0
 
@@ -1674,7 +1674,7 @@ Training Arguments
 
 
 
-- **mup_embedding_mult**: float
+- **mup_embedding_mult**: <class 'float'>
 
     Default = 1.0
 
@@ -1682,7 +1682,7 @@ Training Arguments
 
 
 
-- **mup_rp_embedding_mult**: float
+- **mup_rp_embedding_mult**: <class 'float'>
 
     Default = 1.0
 
@@ -1690,7 +1690,7 @@ Training Arguments
 
 
 
-- **mup_width_scale**: int
+- **mup_width_scale**: <class 'int'>
 
     Default = 2
 
@@ -1706,7 +1706,7 @@ Args for deepspeed config
 
 
 
-- **deepspeed**: bool
+- **deepspeed**: <class 'bool'>
 
     Default = True
 
@@ -1714,7 +1714,7 @@ Args for deepspeed config
 
 
 
-- **train_batch_size**: int
+- **train_batch_size**: <class 'int'>
 
     Default = None
 
@@ -1722,7 +1722,7 @@ Args for deepspeed config
 
 
 
-- **train_micro_batch_size_per_gpu**: int
+- **train_micro_batch_size_per_gpu**: <class 'int'>
 
     Default = None
 
@@ -1730,7 +1730,7 @@ Args for deepspeed config
 
 
 
-- **gradient_accumulation_steps**: int
+- **gradient_accumulation_steps**: <class 'int'>
 
     Default = 1
 
@@ -1738,7 +1738,7 @@ Args for deepspeed config
 
 
 
-- **optimizer**: dict
+- **optimizer**: <class 'dict'>
 
     Default = None
 
@@ -1750,7 +1750,7 @@ Args for deepspeed config
 
 
 
-- **scheduler**: dict
+- **scheduler**: <class 'dict'>
 
     Default = None
 
@@ -1762,7 +1762,7 @@ Args for deepspeed config
 
 
 
-- **fp32_allreduce**: bool
+- **fp32_allreduce**: <class 'bool'>
 
     Default = False
 
@@ -1770,7 +1770,7 @@ Args for deepspeed config
 
 
 
-- **prescale_gradients**: bool
+- **prescale_gradients**: <class 'bool'>
 
     Default = False
 
@@ -1778,7 +1778,7 @@ Args for deepspeed config
 
 
 
-- **gradient_predivide_factor**: float
+- **gradient_predivide_factor**: <class 'float'>
 
     Default = 1.0
 
@@ -1786,7 +1786,7 @@ Args for deepspeed config
 
 
 
-- **sparse_gradients**: bool
+- **sparse_gradients**: <class 'bool'>
 
     Default = False
 
@@ -1794,7 +1794,7 @@ Args for deepspeed config
 
 
 
-- **fp16**: dict
+- **fp16**: <class 'dict'>
 
     Default = None
 
@@ -1804,7 +1804,7 @@ Args for deepspeed config
 
 
 
-- **bf16**: dict
+- **bf16**: <class 'dict'>
 
     Default = None
 
@@ -1812,7 +1812,7 @@ Args for deepspeed config
 
 
 
-- **amp**: dict
+- **amp**: <class 'dict'>
 
     Default = None
 
@@ -1822,7 +1822,7 @@ Args for deepspeed config
 
 
 
-- **gradient_clipping**: float
+- **gradient_clipping**: <class 'float'>
 
     Default = 1.0
 
@@ -1830,7 +1830,7 @@ Args for deepspeed config
 
 
 
-- **zero_optimization**: dict
+- **zero_optimization**: <class 'dict'>
 
     Default = None
 
@@ -1840,7 +1840,7 @@ Args for deepspeed config
 
 
 
-- **curriculum_learning**: dict
+- **curriculum_learning**: <class 'dict'>
 
     Default = None
 
@@ -1848,7 +1848,7 @@ Args for deepspeed config
 
 
 
-- **curriculum_seqlen**: int
+- **curriculum_seqlen**: <class 'int'>
 
     Default = 0
 
@@ -1856,7 +1856,7 @@ Args for deepspeed config
 
 
 
-- **steps_per_print**: int
+- **steps_per_print**: <class 'int'>
 
     Default = 10
 
@@ -1864,7 +1864,7 @@ Args for deepspeed config
 
 
 
-- **wall_clock_breakdown**: bool
+- **wall_clock_breakdown**: <class 'bool'>
 
     Default = False
 
@@ -1872,7 +1872,7 @@ Args for deepspeed config
 
 
 
-- **dump_state**: bool
+- **dump_state**: <class 'bool'>
 
     Default = False
 
@@ -1880,7 +1880,7 @@ Args for deepspeed config
 
 
 
-- **flops_profiler**: dict
+- **flops_profiler**: <class 'dict'>
 
     Default = None
 
@@ -1890,7 +1890,7 @@ Args for deepspeed config
 
 
 
-- **communication_data_type**: bool
+- **communication_data_type**: <class 'bool'>
 
     Default = None
 
@@ -1898,7 +1898,7 @@ Args for deepspeed config
 
 
 
-- **autotuning**: dict
+- **autotuning**: <class 'dict'>
 
     Default = None
 
@@ -1908,7 +1908,7 @@ Args for deepspeed config
 
 
 
-- **activation_checkpointing**: dict
+- **activation_checkpointing**: <class 'dict'>
 
     Default = None
 
@@ -1918,7 +1918,7 @@ Args for deepspeed config
 
 
 
-- **sparse_attention**: dict
+- **sparse_attention**: <class 'dict'>
 
     Default = None
 
@@ -1928,7 +1928,7 @@ Args for deepspeed config
 
 
 
-- **data_efficiency**: dict
+- **data_efficiency**: <class 'dict'>
 
     Default = None
 
@@ -1938,7 +1938,7 @@ Args for deepspeed config
 
 
 
-- **tensorboard**: dict
+- **tensorboard**: <class 'dict'>
 
     Default = None
 
@@ -1948,7 +1948,7 @@ Args for deepspeed config
 
 
 
-- **wandb**: dict
+- **wandb**: <class 'dict'>
 
     Default = None
 
@@ -1956,7 +1956,7 @@ Args for deepspeed config
 
 
 
-- **csv_monitor**: dict
+- **csv_monitor**: <class 'dict'>
 
     Default = None
 
@@ -1964,7 +1964,7 @@ Args for deepspeed config
 
 
 
-- **elasticity**: dict
+- **elasticity**: <class 'dict'>
 
     Default = None
 
@@ -1974,7 +1974,7 @@ Args for deepspeed config
 
 
 
-- **comms_logger**: dict
+- **comms_logger**: <class 'dict'>
 
     Default = None
 
@@ -1984,7 +1984,7 @@ Args for deepspeed config
 
 
 
-- **compression_training**: dict
+- **compression_training**: <class 'dict'>
 
     Default = None
 
@@ -1994,7 +1994,7 @@ Args for deepspeed config
 
 
 
-- **checkpoint**: dict
+- **checkpoint**: <class 'dict'>
 
     Default = None
 
@@ -2004,7 +2004,7 @@ Args for deepspeed config
 
 
 
-- **data_types**: dict
+- **data_types**: <class 'dict'>
 
     Default = None
 
@@ -2014,7 +2014,7 @@ Args for deepspeed config
 
 
 
-- **deepspeed_extra_args**: dict
+- **deepspeed_extra_args**: <class 'dict'>
 
     Default = None
 
@@ -2029,7 +2029,7 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
-- **hostfile**: str
+- **hostfile**: <class 'str'>
 
     Default = None
 
@@ -2043,7 +2043,7 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
-- **include**: str
+- **include**: <class 'str'>
 
     Default = None
 
@@ -2051,7 +2051,7 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
-- **exclude**: str
+- **exclude**: <class 'str'>
 
     Default = None
 
@@ -2059,7 +2059,7 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
-- **num_nodes**: int
+- **num_nodes**: <class 'int'>
 
     Default = -1
 
@@ -2067,7 +2067,7 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
-- **num_gpus**: int
+- **num_gpus**: <class 'int'>
 
     Default = None
 
@@ -2075,7 +2075,7 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
-- **master_port**: int
+- **master_port**: <class 'int'>
 
     Default = 29500
 
@@ -2083,7 +2083,7 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
-- **master_addr**: str
+- **master_addr**: <class 'str'>
 
     Default = None
 
@@ -2091,7 +2091,7 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
-- **launcher**: Literal
+- **launcher**: typing.Literal['pdsh', 'openmpi', 'mvapich', 'slurm']
 
     Default = pdsh
 
@@ -2099,7 +2099,7 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
-- **force_multi**: bool
+- **force_multi**: <class 'bool'>
 
     Default = False
 
@@ -2107,7 +2107,7 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
-- **detect_nvlink_pairs**: bool
+- **detect_nvlink_pairs**: <class 'bool'>
 
     Default = False
 
@@ -2115,7 +2115,7 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
-- **autotuning_run**: str
+- **autotuning_run**: <class 'str'>
 
     Default = None
 
@@ -2123,7 +2123,7 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
-- **no_ssh_check**: bool
+- **no_ssh_check**: <class 'bool'>
 
     Default = False
 
@@ -2131,7 +2131,7 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
-- **comment**: str
+- **comment**: <class 'str'>
 
     Default = None
 
@@ -2139,7 +2139,7 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
-- **account**: str
+- **account**: <class 'str'>
 
     Default = None
 
