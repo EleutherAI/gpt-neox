@@ -7,7 +7,7 @@ LR Scheduler Arguments
 
 
 
-- **lr_decay_style**: Literal
+- **lr_decay_style**: typing.Literal['constant', 'linear', 'cosine', 'exponential']
 
     Default = linear
 
@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = c967761
+    Default = 211e726
 
     current git hash of repository
 
@@ -215,7 +215,7 @@ Logging Arguments
 
 
 
-- **profiling**: bool
+- **profile**: bool
 
     Default = False
 
@@ -253,7 +253,7 @@ Model Arguments
 
 
 
-- **precision**: Literal
+- **precision**: typing.Literal['fp16', 'fp32', 'bfloat16']
 
     Default = None
 
@@ -277,37 +277,11 @@ Model Arguments
 
 
 
-- **intermediate_size**: int
-
-    Default = None
-
-    Transformer intermediate size. Currently only used for "mlp_type": "llama".
-
-    If not passed, will be set to a reasonable default.
-
-
-
 - **num_attention_heads**: int
 
     Default = None
 
     Number of transformer attention heads.
-
-    If num_kv_heads is set, will control only number of query heads.
-
-
-
-- **num_kv_heads**: int
-
-    Default = None
-
-    Number of transformer key/value attention heads.
-
-    If set to None or the same value as num_attention_heads, will perform multi-head attention (MHA).
-    If set to < num_attention_heads but > 1, will perform grouped-query attention (GQA) (https://arxiv.org/pdf/2305.13245.pdf)
-    If set to 1, will perform multi-query attention.
-
-    Must be < num_attention_heads and divide num_attention_heads evenly.
 
 
 
@@ -319,14 +293,6 @@ Model Arguments
 
 
 
-- **sliding_window_width**: int
-
-    Default = None
-
-    Width of the attention sliding window. Only supported with Flash Attention 2.
-
-
-
 - **max_position_embeddings**: int
 
     Default = None
@@ -335,7 +301,7 @@ Model Arguments
 
 
 
-- **norm**: Literal
+- **norm**: typing.Literal['layernorm', 'rmsnorm', 'scalenorm']
 
     Default = layernorm
 
@@ -383,7 +349,7 @@ Model Arguments
 
 
 
-- **pos_emb**: Literal
+- **pos_emb**: typing.Literal['learned', 'rotary', 'sinusoidal', 'rpe', 'alibi', 'none']
 
     Default = learned
 
@@ -497,7 +463,7 @@ Model Arguments
 
 
 
-- **activation**: Literal
+- **activation**: typing.Literal['gelu', 'geglu', 'relu', 'softsign', 'swish', 'mish', 'silu']
 
     Default = gelu
 
@@ -601,7 +567,7 @@ Model Arguments
 
 
 
-- **init_method**: Literal
+- **init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init']
 
     Default = normal
 
@@ -610,7 +576,7 @@ Model Arguments
 
 
 
-- **output_layer_init_method**: Literal
+- **output_layer_init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init']
 
     Default = scaled_normal
 
@@ -693,7 +659,7 @@ Model Arguments
 
 
 
-- **output_layer_parallelism**: Literal
+- **output_layer_parallelism**: typing.Literal['column']
 
     Default = column
 
@@ -707,7 +673,7 @@ Optimizer Arguments
 
 
 
-- **optimizer_type**: Literal
+- **optimizer_type**: typing.Literal['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd', 'sgd', 'lion']
 
     Default = adam
 
@@ -724,7 +690,7 @@ Optimizer Arguments
 
 
 
-- **zero_stage**: Union
+- **zero_stage**: typing.Union[int, typing.List[int], typing.Literal['all']]
 
     Default = None
 
@@ -1058,7 +1024,7 @@ Text Generation arguments
 
 - **prompt_end**: str
 
-    Default = 
+    Default =
 
 
     a single prompt's end. Defaults to newline
@@ -1100,7 +1066,7 @@ Text Generation arguments
 
 - **eval_results_prefix**: str
 
-    Default = 
+    Default =
 
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
 
@@ -1122,7 +1088,7 @@ Tokenizer Arguments
 
 
 
-- **tokenizer_type**: Literal
+- **tokenizer_type**: typing.Literal['GPT2BPETokenizer', 'HFTokenizer', 'HFGPT2Tokenizer', 'SPMTokenizer', 'CharLevelTokenizer', 'TiktokenTokenizer']
 
     Default = GPT2BPETokenizer
 
@@ -1253,7 +1219,7 @@ Training Arguments
 
 
 
-- **data_impl**: Literal
+- **data_impl**: typing.Literal['infer', 'mmap', 'cached']
 
     Default = infer
 
@@ -1317,7 +1283,7 @@ Training Arguments
 
 
 
-- **checkpoint_scale**: Literal
+- **checkpoint_scale**: typing.Literal['linear', 'log']
 
     Default = linear
 
@@ -1844,7 +1810,7 @@ Args for deepspeed config
 
     Default = None
 
-    
+
 
 
 
@@ -2091,7 +2057,7 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
-- **launcher**: Literal
+- **launcher**: typing.Literal['pdsh', 'openmpi', 'mvapich', 'slurm']
 
     Default = pdsh
 
@@ -2144,4 +2110,3 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = None
 
     Adds a `--account` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometimes necessary for cluster rules, or so I've heard.
-
