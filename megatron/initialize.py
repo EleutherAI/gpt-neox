@@ -54,12 +54,10 @@ def initialize_megatron(neox_args, allow_no_cuda=False):
         _set_random_seed(neox_args.seed)
 
     # check fused kernels are installed:
-    if (
-        neox_args.scaled_upper_triang_masked_softmax_fusion
-        or neox_args.scaled_masked_softmax_fusion
-        or neox_args.rope_fusion
-    ):
-        fused_kernels.load_fused_kernels()
+    if neox_args.rank == 0:
+            print("> JIT Compiling fused kernels")
+    fused_kernels.load(neox_args)
+    fused_kernels.load_fused_kernels()
 
     if neox_args.lazy_mpu_init:
         neox_args.use_cpu_initialization = True
