@@ -67,6 +67,7 @@ Prior to 3/9/2023, GPT-NeoX relied on [DeeperSpeed](https://github.com/EleutherA
   * [Weights and Biases](#weights-and-biases)
   * [TensorBoard](#tensorboard)
 - [Running on multi-node](#running-on-multi-node)
+- [Profiling](#profiling)
 - [Adoption and Publications](#adoption-and-publications)
   * [Publications](#publications)
   * [Models](#models)
@@ -507,13 +508,14 @@ Though NeoX supports a number of different architectural configurations, includi
 
 NeoX supports export of compatible models into the following architectures:
 - GPTNeoXForCausalLM
-- LlamaForCausalLM (GQA Support Coming Soon -- all Llama 1 models and Llama 2 / Codellama up to size 13B supported)
+- LlamaForCausalLM
+- MistralForCausalLM
 
 Training a model which does not fit into one of these Hugging Face Transformers architectures cleanly will require writing custom modeling code for the exported model.
 
 To convert a GPT-NeoX library checkpoint to Hugging Face-loadable format, run:
 ```bash
-python ./tools/ckpts/convert_neox_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location --precision {auto,fp16,bf16,fp32} --architecture {neox,llama}
+python ./tools/ckpts/convert_neox_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location --precision {auto,fp16,bf16,fp32} --architecture {neox,mistral,llama}
 ```
 
 Then to upload a model to [the Hugging Face Hub](https://huggingface.co/), run:
@@ -527,11 +529,11 @@ and input the requested information, including HF hub user token.
 
 NeoX supplies several utilities for converting a pretrained model checkpoint into a format that can be trained within the library.
 
-The following models can be loaded in GPT-NeoX:
+The following models or model families can be loaded in GPT-NeoX:
 - Llama 1
-- Llama 2 (Up to size 13B)
-- CodeLlama (Up to size 13B)
-- Mistral-7b-v0.1 (Coming Soon!)
+- Llama 2
+- CodeLlama
+- Mistral-7b-v0.1
 
 We provide two utilities for converting from two different checkpoint formats into a format compatible with GPT-NeoX.
 
@@ -560,6 +562,36 @@ We also support using TensorBoard via the <code><var>tensorboard-dir</var></code
 # Running on multi-node
 
 If you need to supply a hostfile for use with the MPI-based DeepSpeed launcher, you can set the environment variable `DLTS_HOSTFILE` to point to the hostfile.
+
+# Profiling
+
+We support profiling with Nsight Systems and PyTorch Memory Profiling.
+
+## Nsight Systems Profiling
+
+To use the Nsight Systems profiling, set config options `profile`, `profile_step_start`, and `profile_step_stop`. Launch training with:
+
+```
+nsys profile -s none -t nvtx,cuda -o <path/to/profiling/output> --force-overwrite true \
+--capture-range=cudaProfilerApi --capture-range-end=stop python $TRAIN_PATH/deepy.py \
+$TRAIN_PATH/train.py --conf_dir configs <config files>
+```
+
+The generated output file can then by viewed with the Nsight Systems GUI:
+
+![Alt text](images/nsight_profiling.png)
+
+## PyTorch Memory Profiling
+
+To use PyTorch Memory Profiling, set config options `memory_profiling` and `memory_profiling_path`.
+
+![Alt text](images/memory_profiling.png)
+
+View the generated profile with the [memory_viz.py](https://github.com/pytorch/pytorch/blob/main/torch/cuda/_memory_viz.py) script. Run with:
+
+```
+python _memory_viz.py trace_plot <generated_profile> -o trace.html
+```
 
 # Adoption and Publications
 

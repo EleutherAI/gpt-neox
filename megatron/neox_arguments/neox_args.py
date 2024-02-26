@@ -105,14 +105,39 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Transformer hidden size.
     """
 
+    intermediate_size: int = None
+    """
+    Transformer intermediate size. Currently only used for "mlp_type": "llama".
+
+    If not passed, will be set to a reasonable default.
+    """
+
     num_attention_heads: int = None
     """
     Number of transformer attention heads.
+
+    If num_kv_heads is set, will control only number of query heads.
+    """
+
+    num_kv_heads: int = None
+    """
+    Number of transformer key/value attention heads.
+
+    If set to None or the same value as num_attention_heads, will perform multi-head attention (MHA).
+    If set to < num_attention_heads but > 1, will perform grouped-query attention (GQA) (https://arxiv.org/pdf/2305.13245.pdf)
+    If set to 1, will perform multi-query attention.
+
+    Must be < num_attention_heads and divide num_attention_heads evenly.
     """
 
     seq_length: int = None
     """
     Maximum sequence length to process.
+    """
+
+    sliding_window_width: int = None
+    """
+    Width of the attention sliding window. Only supported with Flash Attention 2.
     """
 
     max_position_embeddings: int = None
@@ -571,6 +596,39 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     gradient_noise_scale_cpu_offload: bool = False
     """
     Whether to offload the buffered gradients to cpu when measuring gradient noise scale.
+    """
+
+    memory_profiling: bool = False
+    """
+    Whether to take a memory snapshot of the model. Useful for debugging memory issues.
+    """
+
+    memory_profiling_path: str = None
+    """
+    Path to save memory snapshot to.
+    """
+
+    profile: bool = False
+    """
+    Enable nsys profiling. When using this option,
+    nsys options should be specified in commandline.
+    An example nsys commandline is
+    ```
+    nsys profile -s none -t nvtx,cuda -o <path/to/output_file>
+    --force-overwrite true
+    --capture-range=cudaProfilerApi
+    --capture-range-end=stop
+    ```
+    """
+
+    profile_step_start: int = 10
+    """
+    Step to start profiling at.
+    """
+
+    profile_step_stop: int = 12
+    """
+    Step to stop profiling at.
     """
 
 

@@ -137,6 +137,7 @@ data/**/*.bin
 data/**/*.json*
 data/**/*.txt
 data/**/*.gz
+data/**/*.zip
 data/**/*.np*
 data/**/*.npy
 checkpoints/
@@ -150,3 +151,7 @@ test_logs/
 logs/
 tensorboard/
 src/
+
+# test data files
+tests/data/*.bin
+tests/data/*.idx

@@ -73,9 +73,6 @@ def convert_model_pipeline(
     num_layers = params["n_layers"]
     num_heads = params["n_heads"]
     if "n_kv_heads" in params:
-        assert (
-            False
-        ), "Found `n_kv_heads` != `n_heads` in checkpoint config. However, Grouped-Query Attention is not yet supported by NeoX"
         num_kv_heads = params["n_kv_heads"]
     else:
         num_kv_heads = num_heads
@@ -165,7 +162,13 @@ def convert_model_pipeline(
         rope_freqs = loaded[0]["layers.0.attention.inner_attention.rope.freqs"]
         helper.del_loaded("layers.0.attention.inner_attention.rope.freqs")
     elif "mistral" in model_size:
-        rope_freqs = None
+        # mistral does not include rope freqs in the distributed checkpoint, unlike llama.
+        # rather than making this buffer always non-persistent on the NeoX side,
+        # just create and save it for Mistral.
+        base = 10000.0
+        rope_freqs = 1.0 / (
+            base ** (torch.arange(0, dims_per_head, 2).float() / dims_per_head)
+        )
     else:
         rope_freqs = loaded[0]["rope.freqs"]
         helper.del_loaded("rope.freqs")
@@ -290,11 +293,7 @@ def convert_model_pipeline(
                     # Duplicated layers
                     "input_layernorm.scale": input_layernorm,
                     "post_attention_layernorm.scale": post_attention_layernorm,
-                    **(
-                        {"attention.rotary_emb.inv_freq": rope_freqs}
-                        if "mistral" not in model_size
-                        else {}
-                    ),
+                    "attention.rotary_emb.inv_freq": rope_freqs,
                 },
                 layer_i=layer_i + 2,
                 rank=out_rank,
@@ -333,9 +332,6 @@ def convert_model_sequential(
     num_layers = params["n_layers"]
     num_heads = params["n_heads"]
     if "n_kv_heads" in params:
-        assert (
-            False
-        ), "Found `n_kv_heads` != `n_heads` in checkpoint config. However, Grouped-Query Attention is not yet supported by NeoX"
         num_kv_heads = params["n_kv_heads"]
     else:
         num_kv_heads = num_heads
@@ -417,7 +413,13 @@ def convert_model_sequential(
         rope_freqs = loaded[0]["layers.0.attention.inner_attention.rope.freqs"]
         helper.del_loaded("layers.0.attention.inner_attention.rope.freqs")
     elif "mistral" in model_size:
-        rope_freqs = None
+        # mistral does not include rope freqs in the distributed checkpoint, unlike llama.
+        # rather than making this buffer always non-persistent on the NeoX side,
+        # just create and save it for Mistral.
+        base = 10000.0
+        rope_freqs = 1.0 / (
+            base ** (torch.arange(0, dims_per_head, 2).float() / dims_per_head)
+        )
     else:
         rope_freqs = loaded[0]["rope.freqs"]
         helper.del_loaded("rope.freqs")
@@ -544,11 +546,7 @@ def convert_model_sequential(
                     # Duplicated layers
                     "input_layernorm.scale": input_layernorm,
                     "post_attention_layernorm.scale": post_attention_layernorm,
-                    **(
-                        {"attention.rotary_emb.inv_freq": rope_freqs}
-                        if "mistral" not in model_size
-                        else {}
-                    ),
+                    "attention.rotary_emb.inv_freq": rope_freqs,
                 },
                 layer_i=layer_i + 2,
                 rank=out_rank,

@@ -1,0 +1,101 @@
+{
+  "pipe_parallel_size": 0,
+  "model_parallel_size": 8,
+  "make_vocab_size_divisible_by": 1,
+
+  # model settings
+  "num_layers": 48,
+  "hidden_size": 8192,
+  "num_attention_heads": 64,
+  "attention_type": "groupedquery",
+  "num_kv_heads": 8,
+  # NB: These rotary embedding and sequence length parameters
+  # May differ from CodeLlama configs. They match what we used for
+  # Llemma continued pretraining. See https://arxiv.org/abs/2310.10631
+  # For detailed discussion
+  "seq_length": 4096,
+  "max_position_embeddings": 4096,
+  "pos_emb": "rotary",
+  "rotary_pct": 1,
+  "rotary_emb_base": 1000000,
+  "no_weight_tying": true,
+  "gpt_j_residual": false,
+  "output_layer_parallelism": "column",
+  "norm": "rmsnorm",
+  "rms_norm_epsilon": 1.0e-5,
+
+  "attention_config": [[["flash"], 48]],
+
+  "scaled_upper_triang_masked_softmax_fusion": true,
+  "bias_gelu_fusion": false,
+  "use_bias_in_norms": false,
+  "use_bias_in_attn_linear": false,
+  "mlp_type": "llama",
+  "activation": "silu",
+
+   "optimizer": {
+     "type": "Adam",
+     "params": {
+       "lr": 0.00005,
+       "betas": [0.9, 0.95],
+       "eps": 1.0e-8
+     }
+   },
+
+   "zero_optimization": {
+    "stage": 1,
+    "allgather_partitions": true,
+    "allgather_bucket_size": 1260000000,
+    "overlap_comm": true,
+    "reduce_scatter": true,
+    "reduce_bucket_size": 1260000000,
+    "contiguous_gradients": true,
+    "cpu_offload": false
+  },
+
+  # trained on 256 gpus
+  "train_micro_batch_size_per_gpu": 2,
+  "gradient_accumulation_steps": 16,
+  "data_impl": "mmap",
+
+  "checkpoint_activations": true,
+  "checkpoint_num_layers": 1,
+  "partition_activations": true,
+  "synchronize_each_layer": true,
+
+  "gradient_clipping": 1.0,
+  "weight_decay": 0.1,
+  "hidden_dropout": 0,
+  "attention_dropout": 0,
+
+  "precision": "bfloat16",
+  "fp32_allreduce": true,
+  "bf16": {
+    "enabled": true
+  },
+  "data_types": {
+    "grad_accum_dtype": "fp32"
+  },
+
+  "train_iters": 12000,
+  "lr_decay_iters": 12000,
+  "distributed_backend": "nccl",
+  "lr_decay_style": "cosine",
+  "min_lr": 1.65e-6,
+  "warmup": 0.042, # warmup for ~500 iters
+  "checkpoint_factor": 250,
+  "eval_interval": 250,
+  "eval_iters": 25,
+
+  "log_interval": 1,
+  "steps_per_print": 1,
+  "wall_clock_breakdown": true,
+
+  "tokenizer_type": "SPMTokenizer",
+  #"vocab-file": # use 'tokenizer.model' from Meta CodeLlama download
+
+  # "load": "" # set to same as "save" to resume from intermediate finetuning step
+  #"load": MP=8 CodeLlama-34B checkpoint, converted from Meta CodeLlama download.
+  # When resuming from mid-finetuning run, change "load" to the same as save location.
+  "finetune": true, # set to false once resuming from intermediate finetuning step
+}
