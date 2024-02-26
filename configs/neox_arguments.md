@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 211e726
+    Default = 6bb4e62
 
     current git hash of repository
 
@@ -277,11 +277,37 @@ Model Arguments
 
 
 
+- **intermediate_size**: int
+
+    Default = None
+
+    Transformer intermediate size. Currently only used for "mlp_type": "llama".
+
+    If not passed, will be set to a reasonable default.
+
+
+
 - **num_attention_heads**: int
 
     Default = None
 
     Number of transformer attention heads.
+
+    If num_kv_heads is set, will control only number of query heads.
+
+
+
+- **num_kv_heads**: int
+
+    Default = None
+
+    Number of transformer key/value attention heads.
+
+    If set to None or the same value as num_attention_heads, will perform multi-head attention (MHA).
+    If set to < num_attention_heads but > 1, will perform grouped-query attention (GQA) (https://arxiv.org/pdf/2305.13245.pdf)
+    If set to 1, will perform multi-query attention.
+
+    Must be < num_attention_heads and divide num_attention_heads evenly.
 
 
 
@@ -290,6 +316,14 @@ Model Arguments
     Default = None
 
     Maximum sequence length to process.
+
+
+
+- **sliding_window_width**: int
+
+    Default = None
+
+    Width of the attention sliding window. Only supported with Flash Attention 2.
 
 
 
@@ -1024,7 +1058,7 @@ Text Generation arguments
 
 - **prompt_end**: str
 
-    Default =
+    Default = 
 
 
     a single prompt's end. Defaults to newline
@@ -1066,7 +1100,7 @@ Text Generation arguments
 
 - **eval_results_prefix**: str
 
-    Default =
+    Default = 
 
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
 
@@ -1810,7 +1844,7 @@ Args for deepspeed config
 
     Default = None
 
-
+    
 
 
 
@@ -2110,3 +2144,4 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = None
 
     Adds a `--account` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometimes necessary for cluster rules, or so I've heard.
+
