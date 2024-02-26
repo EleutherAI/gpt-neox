@@ -417,6 +417,7 @@ class ParallelSelfAttention(nn.Module):
                 from flash_attn.flash_attn_triton import (
                     flash_attn_func as flash_attn_unpadded_unpacked_func_triton,
                 )
+
                 self.flash_triton_fn = flash_attn_unpadded_unpacked_func_triton
                 self.flash_qkv_fn = flash_attn_func
                 self.flash_varlen_qkv_fn = flash_attn_varlen_func

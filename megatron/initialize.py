@@ -55,7 +55,7 @@ def initialize_megatron(neox_args, allow_no_cuda=False):
 
     # check fused kernels are installed:
     if neox_args.rank == 0:
-            print("> JIT Compiling fused kernels")
+        print("> JIT Compiling fused kernels")
     fused_kernels.load(neox_args)
     fused_kernels.load_fused_kernels()
 
