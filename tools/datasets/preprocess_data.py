@@ -53,12 +53,13 @@ class Encoder(object):
         for key in self.args.jsonl_keys:
             doc_ids = []
             text_ids = Encoder.tokenizer.tokenize(text)
+            token_length = len(text_ids)
             if len(text_ids) > 0:
                 doc_ids.append(text_ids)
             if self.args.append_eod:
                 doc_ids[-1].append(Encoder.tokenizer.eod)
             ids[key] = doc_ids
-        return ids, len(text)
+        return ids, len(text), token_length
 
 
 def get_args():
@@ -210,9 +211,11 @@ def main():
     # actually do tokenization
     proc_start = time.time()
     total_bytes_processed = 0
+    total_num_tokens = 0
     pbar = tqdm.tqdm()
-    for i, (doc, bytes_processed) in enumerate(encoded_docs, start=1):
+    for i, (doc, bytes_processed, token_length) in enumerate(encoded_docs, start=1):
         total_bytes_processed += bytes_processed
+        total_num_tokens += token_length
 
         # release semaphore so `yield_from_files` can add another file to the buffer
         semaphore.release()
@@ -230,7 +233,7 @@ def main():
             elapsed = current - proc_start
             mbs = total_bytes_processed / elapsed / 1024 / 1024
             pbar.set_description(
-                f"Processed {i}{'' if args.num_docs is None else '/' + str(args.num_docs)} documents ({i / elapsed :.2f} docs/s, {mbs:.2f} MB/s)."
+                    f"Processed {i}{'' if args.num_docs is None else '/' + str(args.num_docs)} documents ({i / elapsed :.2f} docs/s, {total_num_tokens:.3e} tokens, {mbs:.2f} MB/s)."
             )
             if i != 0:
                 pbar.update(args.log_interval)
@@ -238,6 +241,8 @@ def main():
     # save output file
     for key in args.jsonl_keys:
         builders[key].finalize(output_idx_files[key])
+
+    print(f"{total_num_tokens:.3e} TOKENS")
 
 
 if __name__ == "__main__":

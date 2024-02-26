@@ -123,23 +123,21 @@ class DataDownloader(ABC):
 
     def download(self):
         """downloads dataset"""
-        os.makedirs(os.path.join(self.base_dir, self.name), exist_ok=True)
-        for url in self.urls:
-            try:
-                os_cmd = f"wget {url} -O {os.path.join(self.base_dir, self.name, os.path.basename(url))}"
-                if os.system(os_cmd) != 0:
-                    raise Exception(
-                        f"Cannot download file at URL {url}: server may be down"
-                    )
-            except Exception as e:
-                raise Exception(f"Download error: {e}")
+        pass
+
+
 
     def tokenize(self):
         """tokenizes dataset"""
         parent_folder = os.path.join(self.base_dir, self.name)
         jsonl_filepath = ",".join(
-            [os.path.join(parent_folder, os.path.basename(url)) for url in self.urls]
+            [
+                os.path.join(parent_folder, f)
+                for f in os.listdir(parent_folder)
+                if f.endswith(".jsonl")
+            ]
         )
+
 
         cmd = f"python tools/datasets/preprocess_data.py \
             --input {jsonl_filepath} \
@@ -160,12 +158,6 @@ class DataDownloader(ABC):
         os.system(cmd)
 
     def prepare(self):
-        if self._force_redownload:
-            self.download()
-        else:
-            if not self.exists():
-                self.download()
-
         self.tokenize()
 
 
@@ -287,10 +279,66 @@ class C4OpenWebText(DataDownloader):
         for i in range(512)
     ]
 
+class PileSample(DataDownloader):
+    name="pile-sample"
+    urls=[]
 
 class Enwik8(DataDownloader):
     name = "enwik8"
     urls = ["http://mattmahoney.net/dc/enwik8.zip"]
+
+class OpenWebMath(DataDownloader):
+    name = "open-web-math"
+    urls = []
+
+class Lean(DataDownloader):
+    name = "lean"
+    urls = []
+
+class AlgstackNoLean(DataDownloader):
+    name = "algstack-no-lean"
+    urls = []
+
+class FormalVZeroPointOne(DataDownloader):
+    name = "formal-v0.1"
+    urls = []
+
+class FormalVZeroPointTwo(DataDownloader):
+    name = "formal-v0.2"
+    urls = []
+
+class FormalVZeroPointTwoSource(DataDownloader):
+    name = "formal-v0.2-source"
+    urls = []
+
+class FormalVZeroPointTwoLeanStatesOnly(DataDownloader):
+    name = "formal-v0.2-lean-states-only"
+    urls = []
+
+class FormalVZeroPointTwoNoTerms(DataDownloader):
+    name = "formal-v0.2-no-terms"
+    urls = []
+
+class LeanAlt(DataDownloader):
+    name = "lean-alt"
+    urls = []
+
+class LeanProjects(DataDownloader):
+    name = "lean-projects"
+    urls = []
+
+class MuInstruct(DataDownloader):
+    name = "muinstruct"
+    urls = []
+
+class CamelMath(DataDownloader):
+    name = "camel-math"
+    urls = []
+
+class OpenHermes(DataDownloader):
+    name = "openhermes"
+    urls = []
+
 
 
 def maybe_download_gpt2_tokenizer_data(tokenizer_type, data_dir):
@@ -324,6 +372,20 @@ DATA_DOWNLOADERS = {
     "c4": C4,
     "c4_openwebtext": C4OpenWebText,
     "enwik8": Enwik8,
+    "pile-sample": PileSample,
+    "open-web-math": OpenWebMath,
+    "lean": Lean,
+    "algstack-no-lean": AlgstackNoLean,
+    "formal-v0.1": FormalVZeroPointOne,
+    "formal-v0.2": FormalVZeroPointTwo,
+    "formal-v0.2-source": FormalVZeroPointTwoSource,
+    "formal-v0.2-lean-states-only": FormalVZeroPointTwoLeanStatesOnly,
+    "formal-v0.2-no-terms": FormalVZeroPointTwoNoTerms,
+    "lean-alt": LeanAlt,
+    "lean-projects": LeanProjects,
+    "muinstruct": MuInstruct,
+    "camel-math": CamelMath,
+    "openhermes": OpenHermes,
 }
 
 
