@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = e1f1620
+    Default = eb0cbb6
 
     current git hash of repository
 
@@ -724,7 +724,7 @@ Optimizer Arguments
 
 
 
-- **zero_stage**: Union
+- **zero_stage**: typing.Union[int, typing.List[int], typing.Literal['all']]
 
     Default = None
 
