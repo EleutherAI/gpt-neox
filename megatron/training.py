@@ -24,6 +24,7 @@ from functools import partial
 
 import math
 import sys
+import gc
 
 import torch
 import deepspeed
@@ -84,10 +85,10 @@ def plot_coord_data(df, graph_name_prefix, mup=True):
         return 0
 
     activation_list = [
-        "word_embedding_act_abs_mean",
-        "attn_output_act_abs_mean",
-        "ffn_output_act_abs_mean",
-        "output_logits_act_abs_mean",
+        "word_embedding_act_abs_std",
+        "attn_output_act_abs_std",
+        "ffn_output_act_abs_std",
+        "output_logits_act_abs_std",
     ]
     """If distributed is initialized print only on rank 0."""
     if torch.distributed.is_initialized():
@@ -113,7 +114,7 @@ def mup_weights_reinit(neox_args, model):
             layer.mup_reinitialize_weights(neox_args)
 
 
-def mup_coord_check(neox_args, timers, train_data_iterator):
+def coord_check(neox_args, timers, train_data_iterator):
     from megatron.mup_substitute import get_coord_data
 
     def lazy_model(hidden_size, attention_head):
@@ -123,43 +124,38 @@ def mup_coord_check(neox_args, timers, train_data_iterator):
             neox_args.hidden_size = hidden_size
             neox_args.num_attention_heads = attention_head
             neox_args.mup_width_multiplier = None
-            model, *_ = setup_model_and_optimizer(
+            model, optimizer, _ = setup_model_and_optimizer(
                 neox_args=neox_args, use_cache=False
             )
 
             neox_args.hidden_size = old_hidden_size
             neox_args.num_attention_heads = old_num_attention_heads
-            return model
+            return model, optimizer
 
         return gen
 
     models = {}
     # Hidden size needs to be divisible by num attention heads
-    for idx, hidden_size in enumerate([2**p for p in range(7,12)]):
+    for idx, hidden_size in enumerate([2**p for p in range(8,12)]):
         models[hidden_size] = lazy_model(
             hidden_size,
             neox_args.num_attention_heads*(2**idx)
         )
 
-    # print_rank_0(">>> Coord Check for mu Parameterization")
-    # neox_args.use_mup = True
-    # df_mup = get_coord_data(
-    #     neox_args, timers, None, models, train_data_iterator, mup=True, optimizer="adam"
-    # )
-    # df_mup.to_csv("df_mup.csv", index=False)
-    # plot_coord_data(df_mup, graph_name_prefix=f"coord_check_mup", mup=True)
+    df_mode = "mup" if neox_args.use_mup else "sp"
+    if neox_args.use_mup:
+        print_rank_0(">>> Coord Check for mu Parameterization")
+    else:
+        print_rank_0(">>> Coord Check for standard Parameterization")
 
-    print_rank_0(">>> Coord Check for standard Parameterization")
-    neox_args.use_mup = False
-    df_sp = get_coord_data(
-        neox_args, timers, None, models, train_data_iterator, mup=False, optimizer="adam"
+    df = get_coord_data(
+        neox_args, timers, models, train_data_iterator, neox_args.coord_check_nsteps, neox_args.coord_check_nseeds,
     )
-    df_sp.to_csv("df_sp.csv", index=False)
-    plot_coord_data(df_sp, graph_name_prefix=f"coord_check_sp", mup=False)
+    df.to_csv(f"df_{df_mode}.csv", index=False)
+    plot_coord_data(df, graph_name_prefix=f"coord_check_{df_mode}", mup=neox_args.use_mup)
 
     print_rank_0("Saved coord check plots... exiting")
-    import sys; sys.exit()
-    return df_mup, df_sp
+    return 0
 
 def pretrain(neox_args):
     """Main training program.
@@ -183,8 +179,8 @@ def pretrain(neox_args):
     # Initialize and get arguments, timers, and Tensorboard writer.
     initialize_megatron(neox_args=neox_args)
 
-    if neox_args.use_mup and neox_args.coord_check:
-        print_rank_0("---- Do muP Coord Check ----")
+    if neox_args.coord_check:
+        print_rank_0("---- Do Coord Check ----")
         # Data stuff
         neox_args.iteration = 0
         timers("train/valid/test data iterators").start()
@@ -195,7 +191,7 @@ def pretrain(neox_args):
         ) = build_train_valid_test_data_iterators(neox_args=neox_args)
         timers("train/valid/test data iterators").stop()
 
-        mup_coord_check(neox_args, timers, train_data_iterator)
+        coord_check(neox_args, timers, train_data_iterator)
         sys.exit()
 
     # Model, optimizer, and learning rate.
