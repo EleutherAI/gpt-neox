@@ -22,7 +22,7 @@
 
   # init methods
   "init_method": "normal",
-  "output_layer_init_method": "scaled_normal",
+  "output_layer_init_method": "normal",
 
   # optimizer settings
   "optimizer": {
@@ -48,8 +48,8 @@
   },
 
   # batch / data settings
-  "train_micro_batch_size_per_gpu": 4,
-  "gradient_accumulation_steps": 8,
+  "train_micro_batch_size_per_gpu": 2,
+  "gradient_accumulation_steps": 32,
   "data_impl": "mmap",
   "num_workers": 1,
 
