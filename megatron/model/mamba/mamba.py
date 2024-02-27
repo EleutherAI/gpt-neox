@@ -67,12 +67,13 @@ class MambaBlock(nn.Module):
         self.conv1d = nn.Conv1d(
             in_channels=self.d_inner,
             out_channels=self.d_inner,
-            bias=self.use_bias,  # TODO: separate from Linear proj biases
+            bias=True,  # TODO: separate from Linear proj biases
             kernel_size=self.d_conv,
             groups=self.d_inner,
             padding=self.d_conv - 1,
             **factory_kwargs,
         )
+        self.conv1d.to(factory_kwargs["dtype"])  # Conv1d bias
 
         self.act_fn = nn.SiLU()  # TODO: import from megatron.model.activations
 
@@ -128,7 +129,6 @@ class MambaBlock(nn.Module):
             True  # TODO: ensure NeoX handles these weight decay properties right
         )
         self.A_log._deepspeed_no_cast = True
-        print("A_log", self.A_log.dtype)
 
         # D parameter
         self.D = nn.Parameter(
@@ -141,7 +141,6 @@ class MambaBlock(nn.Module):
         self.D._no_weight_decay = True  # TODO: same as A_log weight decay, see above
         self.D._deepspeed_no_cast = True
 
-        print("D:", self.D.dtype)
         self.out_proj = nn.Linear(
             self.d_inner, self.d_model, bias=self.use_bias, **factory_kwargs
         )
@@ -193,13 +192,9 @@ class MambaBlock(nn.Module):
     def forward(self, hidden_states):
         """ """
         assert self.training, "Mamba in NeoX does not support inference!"
-        print("A_log", self.A_log.dtype)
-        print("D:", self.D.dtype)
-        print("in_proj dtype:", self.in_proj.weight.dtype)
 
         # hidden_states: [sq, b, h]
         seqlen, batch, dim = hidden_states.shape
-        print("hiddens: ", hidden_states.dtype)
 
         # TODO: support inference in separate method
         # For now, only handle training (parallel scan).
@@ -225,7 +220,9 @@ class MambaBlock(nn.Module):
             out = mamba_inner_fn(
                 xz,
                 self.conv1d.weight,
-                self.conv1d.bias,
+                self.conv1d.bias.to(
+                    torch.float16
+                ),  # for some bizarre reason this becomes fp32 sometime after init
                 self.x_proj.weight,
                 self.dt_proj.weight,
                 self.out_proj.weight,
@@ -240,7 +237,6 @@ class MambaBlock(nn.Module):
 
             out = einops.rearrange(out, "b l h -> l b h")
 
-            print("out dtype", out.dtype)
             return out
 
         x, z = xz.chunk(2, dim=1)
@@ -251,13 +247,16 @@ class MambaBlock(nn.Module):
 
         # TODO: use causal_conv1d cuda kernels, make configurable
         if not self.neox_args.mamba_causal_conv_fusion:
+            self.conv1d.to(
+                torch.float16
+            )  # don't need if not hacking DeepSpeed to use fp32 A_log, D
             x = self.act_fn(self.conv1d(x)[..., :seqlen])
         else:
             # Note: this requires silu to be used.
             x = causal_conv1d_fn(
                 x=x,
                 weight=einops.rearrange(self.conv1d.weight, "d 1 w -> d w"),
-                bias=self.conv1d.bias,
+                bias=self.conv1d.bias.to(torch.float16),
                 activation="silu",
             )
 
