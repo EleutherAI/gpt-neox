@@ -31,7 +31,7 @@ def _get_coord_data(
     filter_module_by_name=None,
     fix_data=True,
     cuda=True,
-    nseeds=10,
+    nseeds=2,
     output_fdict=None,
     input_fdict=None,
     param_fdict=None,
@@ -47,6 +47,8 @@ def _get_coord_data(
         "output_logits_act_abs_mean": [],
         "width": [],
     }
+    with torch.no_grad():
+        torch.cuda.empty_cache()
 
     for width, model_obj in models.items():
         for i in range(nseeds):

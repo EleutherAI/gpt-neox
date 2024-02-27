@@ -118,7 +118,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         self.parallel_output = parallel_output
         self.hidden_size = self.neox_args.hidden_size
         self.num_tokentypes = num_tokentypes
-        self.init_method, self.output_layer_init_method = get_init_methods(
+        self.init_method, self.input_embedding_init_method, self.output_layer_init_method = get_init_methods(
             self.neox_args
         )
         self.__topology__ = topology
@@ -188,7 +188,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                     self.neox_args.padded_vocab_size,
                     self.neox_args.max_position_embeddings,
                     self.neox_args.hidden_dropout,
-                    self.init_method,
+                    self.input_embedding_init_method,
                     self.num_tokentypes,
                     tied_weight_attr="word_embeddings_weight",
                 )
