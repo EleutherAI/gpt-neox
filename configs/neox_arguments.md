@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = b2f1101
+    Default = 6bb4e62
 
     current git hash of repository
 
@@ -275,6 +275,16 @@ Model Arguments
 
     Transformer hidden size.
     When using muP, this is d_model
+
+
+
+- **intermediate_size**: int
+
+    Default = None
+
+    Transformer intermediate size. Currently only used for "mlp_type": "llama".
+
+    If not passed, will be set to a reasonable default.
 
 
 
