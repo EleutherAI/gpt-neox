@@ -31,7 +31,7 @@ def _get_coord_data(
     filter_module_by_name=None,
     fix_data=True,
     cuda=True,
-    nseeds=2,
+    nseeds=10,
     output_fdict=None,
     input_fdict=None,
     param_fdict=None,
@@ -41,10 +41,10 @@ def _get_coord_data(
     df = {
         "seed": [],
         "step": [],
-        "word_embedding_act_abs_mean": [],
-        "attn_output_act_abs_mean": [],
-        "ffn_output_act_abs_mean": [],
-        "output_logits_act_abs_mean": [],
+        "word_embedding_act_abs_std": [],
+        "attn_output_act_abs_std": [],
+        "ffn_output_act_abs_std": [],
+        "output_logits_act_abs_std": [],
         "width": [],
     }
     with torch.no_grad():
@@ -53,7 +53,7 @@ def _get_coord_data(
     for width, model_obj in models.items():
         for i in range(nseeds):
             torch.manual_seed(10**i)
-            print_rank_0(f">>> Running Model with width: {width} on seed: {i}")
+            print_rank_0(f">>> Running Model with width: {width} on seed: {i}\n")
             model = model_obj()
             model.train()
             neox_args.hidden_size = width
@@ -61,29 +61,29 @@ def _get_coord_data(
 
             for step in range(nsteps + 1):
 
-                word_embedding_act_abs_mean_list = []
-                attn_output_act_abs_mean_list = []
-                ffn_output_act_abs_mean_list = []
-                output_logits_act_abs_mean_list = []
+                word_embedding_act_abs_std_list = []
+                attn_output_act_abs_std_list = []
+                ffn_output_act_abs_std_list = []
+                output_logits_act_abs_std_list = []
                 remove_hooks = []
 
                 def word_embedding_coord_check_hook(module, input, output):
                     with torch.no_grad():
-                        word_embedding_act_abs_mean_list.append(output.abs().mean().item())
+                        word_embedding_act_abs_std_list.append(output.abs().std().item())
 
                 def attn_output_coord_check_hook(module, input, output):
                     with torch.no_grad():
-                        attn_output_act_abs_mean_list.append(output[0].abs().mean().item())
+                        attn_output_act_abs_std_list.append(output[0].abs().std().item())
 
                 def ffn_output_coord_check_hook(module, input, output):
                     with torch.no_grad():
-                        ffn_output_act_abs_mean_list.append(output[0].abs().mean().item())
+                        ffn_output_act_abs_std_list.append(output[0].abs().std().item())
 
                 def output_logits_coord_check_hook(module, input, output):
                     with torch.no_grad():
                         # print("output_logits_coord_check_hook")
                         # print_rank_0(output.shape)
-                        output_logits_act_abs_mean_list.append(output[0].abs().mean().item())
+                        output_logits_act_abs_std_list.append(output[0].abs().std().item())
 
                 for name, module in model.named_modules():
                     if name.endswith(".word_embeddings"):
@@ -113,25 +113,25 @@ def _get_coord_data(
                     lr_scheduler=lr_scheduler,
                 )
 
-                word_embedding_act_abs_mean = None
-                attn_output_act_abs_mean = None
-                ffn_output_act_abs_mean = None
-                output_logits_act_abs_mean = None
+                word_embedding_act_abs_std = None
+                attn_output_act_abs_std = None
+                ffn_output_act_abs_std = None
+                output_logits_act_abs_std = None
 
                 # remove hooks
                 for handle in remove_hooks:
                     handle.remove()
-                word_embedding_act_abs_mean = np.mean(word_embedding_act_abs_mean_list)
-                attn_output_act_abs_mean = np.mean(attn_output_act_abs_mean_list)
-                ffn_output_act_abs_mean = np.mean(ffn_output_act_abs_mean_list)
-                output_logits_act_abs_mean = np.mean(output_logits_act_abs_mean_list)
+                word_embedding_act_abs_std = np.mean(word_embedding_act_abs_std_list)
+                attn_output_act_abs_std = np.mean(attn_output_act_abs_std_list)
+                ffn_output_act_abs_std = np.mean(ffn_output_act_abs_std_list)
+                output_logits_act_abs_std = np.mean(output_logits_act_abs_std_list)
 
                 df["seed"].append(i)
                 df["step"].append(step)
-                df["word_embedding_act_abs_mean"].append(word_embedding_act_abs_mean)
-                df["attn_output_act_abs_mean"].append(attn_output_act_abs_mean)
-                df["ffn_output_act_abs_mean"].append(ffn_output_act_abs_mean)
-                df["output_logits_act_abs_mean"].append(output_logits_act_abs_mean)
+                df["word_embedding_act_abs_std"].append(word_embedding_act_abs_std)
+                df["attn_output_act_abs_std"].append(attn_output_act_abs_std)
+                df["ffn_output_act_abs_std"].append(ffn_output_act_abs_std)
+                df["output_logits_act_abs_std"].append(output_logits_act_abs_std)
                 df["width"].append(width)
 
             del model, optimizer
