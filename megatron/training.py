@@ -74,7 +74,7 @@ def plot_coord_data(df, graph_name_prefix, mup=True):
             marker="o", dashes=False, legend='full'
         )
         plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0)
-        plt.tight_layout()
+        plt.tight_layout(pad=3.0)
         plt.xlabel("Width")
         plt.ylabel("Activation with {}".format("muP" if mup else "SP"))
         plt.title(f"{activation}")
@@ -116,44 +116,49 @@ def mup_weights_reinit(neox_args, model):
 def mup_coord_check(neox_args, timers, train_data_iterator):
     from megatron.mup_substitute import get_coord_data
 
-    def lazy_model(hidden_size):
+    def lazy_model(hidden_size, attention_head):
         def gen():
             old_hidden_size = neox_args.hidden_size
+            old_num_attention_heads = neox_args.num_attention_heads
             neox_args.hidden_size = hidden_size
+            neox_args.num_attention_heads = attention_head
             neox_args.mup_width_multiplier = None
-
             model, *_ = setup_model_and_optimizer(
                 neox_args=neox_args, use_cache=False
             )
 
             neox_args.hidden_size = old_hidden_size
-
+            neox_args.num_attention_heads = old_num_attention_heads
             return model
 
         return gen
 
     models = {}
     # Hidden size needs to be divisible by num attention heads
-    for hidden_size in [2**p for p in range(7,11)]:
-        models[hidden_size] = lazy_model(hidden_size)
+    for idx, hidden_size in enumerate([2**p for p in range(7,12)]):
+        models[hidden_size] = lazy_model(
+            hidden_size,
+            neox_args.num_attention_heads*(2**idx)
+        )
 
-    print_rank_0(">>> Coord Check for mu Parameterization")
-    neox_args.use_mup = True
-    df_mup = get_coord_data(
-        neox_args, timers, None, models, train_data_iterator, mup=True, optimizer="adam"
-    )
+    # print_rank_0(">>> Coord Check for mu Parameterization")
+    # neox_args.use_mup = True
+    # df_mup = get_coord_data(
+    #     neox_args, timers, None, models, train_data_iterator, mup=True, optimizer="adam"
+    # )
+    # df_mup.to_csv("df_mup.csv", index=False)
+    # plot_coord_data(df_mup, graph_name_prefix=f"coord_check_mup", mup=True)
+
     print_rank_0(">>> Coord Check for standard Parameterization")
     neox_args.use_mup = False
     df_sp = get_coord_data(
         neox_args, timers, None, models, train_data_iterator, mup=False, optimizer="adam"
     )
-
-    df_mup.to_csv("df_mup.csv", index=False)
     df_sp.to_csv("df_sp.csv", index=False)
-    plot_coord_data(df_mup, graph_name_prefix=f"coord_check_mup", mup=True)
     plot_coord_data(df_sp, graph_name_prefix=f"coord_check_sp", mup=False)
-    print_rank_0("Saved coord check plots... exiting")
 
+    print_rank_0("Saved coord check plots... exiting")
+    import sys; sys.exit()
     return df_mup, df_sp
 
 def pretrain(neox_args):
@@ -190,7 +195,7 @@ def pretrain(neox_args):
         ) = build_train_valid_test_data_iterators(neox_args=neox_args)
         timers("train/valid/test data iterators").stop()
 
-        df_mup, df_sp = mup_coord_check(neox_args, timers, train_data_iterator)
+        mup_coord_check(neox_args, timers, train_data_iterator)
         sys.exit()
 
     # Model, optimizer, and learning rate.
@@ -534,13 +539,15 @@ def get_optimizer(model, neox_args):
         # Use Adam
         if neox_args.use_mup:
             # try:
-            #     from mup import MuAdam
-
-            #     adam_optimizer = MuAdam
+            # #     from mup import MuAdam
+            # #     adam_optimizer = MuAdam
+            # # except ModuleNotFoundError:
+            # #     print("Please install mup https://github.com/microsoft/mup")
+            # #     raise Exception
+            #     from deepspeed.ops.adam import FusedAdam as Adam
+            #     adam_optimizer = Adam
             # except ModuleNotFoundError:
-            #     print("Please install mup https://github.com/microsoft/mup")
-            #     raise Exception
-            # from deepspeed.ops.adam import FusedAdam as Adam
+            # from apex.optimizers import FusedAdam as Adam
             # adam_optimizer = Adam
             adam_optimizer = torch.optim.Adam
         else:
@@ -642,7 +649,7 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
     """Setup model and optimizer."""
     if neox_args.mup_width_multiplier is None:
         neox_args.mup_width_multiplier = neox_args.hidden_size / neox_args.mup_d_model_base
-    print_rank_0(f"mup_width_multiplier set to {neox_args.mup_width_multiplier}")
+        print_rank_0(f">>> mup_width_multiplier set to {neox_args.mup_width_multiplier}")
 
     model = get_model(neox_args=neox_args, use_cache=use_cache)
     optimizer, param_groups = get_optimizer(model=model, neox_args=neox_args)
