@@ -1103,6 +1103,16 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Whether to generate a "coord check" plot to verify mup's implementation in neox
     """
 
+    coord_check_nsteps: int = 10
+    """
+    
+    """
+
+    coord_check_nseeds: int = 5
+    """
+    
+    """
+
     save_base_shapes: bool = False
     """
     Whether to save base shapes for mup. This will save the shapes to the path specified in base-shapes-file.
