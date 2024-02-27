@@ -96,6 +96,8 @@
   "vocab-file": "/weka/lintangsutawika/09-mup-neox/20B_tokenizer.json",
 
   "coord_check": true,
+  "coord_check_nsteps": 10,
+  "coord_check_nseeds": 5,
   "use_mup": true,
   # sigma_base
   "init_method_std": 0.08,
