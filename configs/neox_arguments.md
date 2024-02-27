@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 7483246
+    Default = 4f39209
 
     current git hash of repository
 
@@ -1633,6 +1633,22 @@ Training Arguments
     Default = False
 
     Whether to generate a "coord check" plot to verify mup's implementation in neox
+
+
+
+- **coord_check_nsteps**: int
+
+    Default = 10
+
+    
+
+
+
+- **coord_check_nseeds**: int
+
+    Default = 5
+
+    
 
 
 
