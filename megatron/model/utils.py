@@ -30,7 +30,7 @@ def get_params_for_weight_decay_optimization(module, neox_args):
     Layernorms and biases will have no weight decay but the rest will.
     """
     weight_decay_params = {"params": [], "lr_adjust": True}
-    no_weight_decay_params = {"params": [], "lr_adjust": False, "weight_decay": 0.0}
+    no_weight_decay_params = {"params": [], "lr_adjust": True, "weight_decay": 0.0}
     embedding_weight_decay_params = {"params": [], "lr_adjust": False}
     embedding_no_weight_decay_params = {"params": [], "lr_adjust": False, "weight_decay": 0.0}
 
@@ -44,9 +44,14 @@ def get_params_for_weight_decay_optimization(module, neox_args):
         ) or (
             neox_args.weight_decay == 0.0
         ):  # also include all parameters here if no weight decay is being done
-            no_weight_decay_params["params"].extend(
-                [p for p in list(module_._parameters.values()) if p is not None]
-            )
+            if isinstance(module_, VocabParallelEmbedding):
+                embedding_no_weight_decay_params["params"].extend(
+                            [p for p in list(module_._parameters.values()) if p is not None]
+                        )
+            else:
+                no_weight_decay_params["params"].extend(
+                    [p for p in list(module_._parameters.values()) if p is not None]
+                )
         else:
             if any(
                 [
@@ -89,7 +94,8 @@ def get_params_for_weight_decay_optimization(module, neox_args):
         # only return a single param group
         # with onebitadam, we want to minimize the calls to compressed_allreduce. Every param group calls it once.
         # to avoid this, only use a single param group when weight decay is off.
-        return [no_weight_decay_params]
+        # return [no_weight_decay_params]
+        return no_weight_decay_params, embedding_no_weight_decay_params
     return weight_decay_params, no_weight_decay_params, embedding_weight_decay_params, embedding_no_weight_decay_params
 
 
