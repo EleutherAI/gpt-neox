@@ -23,7 +23,6 @@ def get_coord_data(
     nsteps=10,
     nseeds=2,
 ):
-    lr_scheduler = None
     df = {
         "seed": [],
         "step": [],
@@ -40,7 +39,7 @@ def get_coord_data(
         for i in range(nseeds):
             torch.manual_seed(10**i)
             print_rank_0(f">>> Running Model with width: {width} on seed: {i}\n")
-            model, optimizer = model_obj()
+            model, optimizer, lr_scheduler = model_obj()
             model.train()
             neox_args.hidden_size = width
 
@@ -117,9 +116,6 @@ def get_coord_data(
                 df["output_logits_act_abs_std"].append(output_logits_act_abs_std)
                 df["width"].append(width)
 
-            print_rank_0(
-                f">>> BEFORE Memory allocated: {torch.cuda.memory_allocated() / 1024 ** 2}, reserved: {torch.cuda.memory_reserved() // 1024 ** 2}"
-            )
             def del_obj_attrs(obj):
                 attributes = [attr for attr in vars(obj) if not callable(getattr(obj, attr))]
                 for attr in attributes:
@@ -141,8 +137,5 @@ def get_coord_data(
             gc.collect()
             torch.cuda.empty_cache()
             deepspeed.runtime.utils.empty_cache()
-            print_rank_0(
-                f">>> AFTER Memory allocated: {torch.cuda.memory_allocated() / 1024 ** 2}, reserved: {torch.cuda.memory_reserved() // 1024 ** 2}"
-            )
 
     return pd.DataFrame(df)
