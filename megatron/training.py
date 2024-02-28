@@ -233,18 +233,18 @@ def pretrain(neox_args):
             valid_data_iterator=valid_data_iterator,
         )
 
-    if neox_args.do_valid:
+    if False and neox_args.do_valid:
         prefix = "the end of training for val data"
-        evaluate_and_print_results(
-            neox_args=neox_args,
-            prefix=prefix,
-            forward_step_func=forward_step,
-            data_iterator=valid_data_iterator,
-            model=model,
-            iteration=iteration,
-            verbose=False,
-            timers=timers,
-        )
+        # evaluate_and_print_results(
+        #     neox_args=neox_args,
+        #     prefix=prefix,
+        #     forward_step_func=forward_step,
+        #     data_iterator=valid_data_iterator,
+        #     model=model,
+        #     iteration=iteration,
+        #     verbose=False,
+        #     timers=timers,
+        # )
 
     if neox_args.save and iteration != 0:
         save_checkpoint(
@@ -255,20 +255,20 @@ def pretrain(neox_args):
             lr_scheduler=lr_scheduler,
         )
 
-    if neox_args.do_test:
+    if False and neox_args.do_test:
         # Run on test data.
         prefix = "the end of training for test data"
-        evaluate_and_print_results(
-            neox_args=neox_args,
-            prefix=prefix,
-            forward_step_func=forward_step,
-            data_iterator=test_data_iterator,
-            model=model,
-            iteration=iteration,
-            verbose=True,
-            timers=timers,
-            chart_name="test",
-        )
+        # evaluate_and_print_results(
+        #     neox_args=neox_args,
+        #     prefix=prefix,
+        #     forward_step_func=forward_step,
+        #     data_iterator=test_data_iterator,
+        #     model=model,
+        #     iteration=iteration,
+        #     verbose=True,
+        #     timers=timers,
+        #     chart_name="test",
+        # )
 
 
 def _get_batch(neox_args, tokenizer, keys, data, datatype):
@@ -780,16 +780,16 @@ def train(
     """Train the model function."""
     # evaluate on step 0
     prefix = "iteration 0"
-    evaluate_and_print_results(
-        neox_args=neox_args,
-        prefix=prefix,
-        forward_step_func=forward_step,
-        data_iterator=valid_data_iterator,
-        model=model,
-        iteration=0,
-        verbose=False,
-        timers=timers,
-    )
+    # evaluate_and_print_results(
+    #     neox_args=neox_args,
+    #     prefix=prefix,
+    #     forward_step_func=forward_step,
+    #     data_iterator=valid_data_iterator,
+    #     model=model,
+    #     iteration=0,
+    #     verbose=False,
+    #     timers=timers,
+    # )
 
     # Turn on training mode which enables dropout.
     model.train()
@@ -858,22 +858,22 @@ def train(
             )
 
         # Evaluation
-        if (
+        if False and (
             neox_args.eval_interval
             and iteration % neox_args.eval_interval == 0
             and neox_args.do_valid
         ):
             prefix = "iteration {}".format(iteration)
-            evaluate_and_print_results(
-                neox_args=neox_args,
-                prefix=prefix,
-                forward_step_func=forward_step,
-                data_iterator=valid_data_iterator,
-                model=model,
-                iteration=iteration,
-                verbose=False,
-                timers=timers,
-            )
+            # evaluate_and_print_results(
+            #     neox_args=neox_args,
+            #     prefix=prefix,
+            #     forward_step_func=forward_step,
+            #     data_iterator=valid_data_iterator,
+            #     model=model,
+            #     iteration=iteration,
+            #     verbose=False,
+            #     timers=timers,
+            # )
 
         if neox_args.exit_interval and iteration % neox_args.exit_interval == 0:
             torch.distributed.barrier()
