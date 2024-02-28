@@ -78,26 +78,17 @@
   # },
 
   # misc. training settings
-  "train_iters": 300,
-  "lr_decay_iters": 300,
+  "train_iters": 10,
+  "lr_decay_iters": 10,
+  "log_interval": 1,
   "distributed_backend": "nccl",
-  "lr_decay_style": "cosine",
-  "warmup": 0.01,
-  "checkpoint_factor": 300,
-  "eval_interval": 300,
-  "eval_iters": 10,
-
-  # logging
-  "log_interval": 10,
-  "steps_per_print": 10,
-  "wall_clock_breakdown": true,
-
+  "lr_decay_style": "constant",
   "tokenizer_type": "HFTokenizer",
   "vocab-file": "/weka/lintangsutawika/09-mup-neox/20B_tokenizer.json",
 
   "coord_check": true,
   "coord_check_nsteps": 10,
-  "coord_check_nseeds": 5,
+  "coord_check_nseeds": 3,
   "use_mup": false,
   # sigma_base
   "init_method_std": 0.08,
