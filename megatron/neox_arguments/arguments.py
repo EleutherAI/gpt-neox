@@ -280,12 +280,20 @@ class NeoXArgs(*BASE_CLASSES):
             "--save",
             type=str,
         )
+
+        group.add_argument(
+            "--load",
+            type=str,
+        )
         
         group.add_argument(
             "--log_dir",
             type=str,
         )
-
+        group.add_argument(
+            "--train_iters",
+            type=int,
+        )
         group = parser.add_argument_group(title="Weights and Biases monitoring args")
 
         group.add_argument(
