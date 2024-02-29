@@ -571,6 +571,7 @@ def build_train_valid_test_data_iterators_streaming(neox_args):
 
                 # TODO: switch to StreamingTextDataset from llm-foundry
                 new_ds = build_streaming_dataset(split=split, neox_args=neox_args)
+                print_rank_0("new_ds_state_dict", new_ds.state_dict(1, True))
                 ds.append(new_ds)
    
             #Load mosaic streaming datasets from train_data_paths, valid_data_paths, test_data_paths
@@ -614,7 +615,6 @@ def build_train_valid_test_data_iterators_streaming(neox_args):
     neox_args.do_test = flags[2].item()
 
     # Shift the start iterations. 
-    # TODO: how to do this with streamingdatasets? 
     # if train_dataloader is not None:
     #     train_dataloader.batch_sampler.start_iter = (
     #         neox_args.iteration * neox_args.gradient_accumulation_steps
@@ -637,6 +637,43 @@ def build_train_valid_test_data_iterators_streaming(neox_args):
     #             valid_dataloader.batch_sampler.start_iter
     #         )
     #     )
+    if "num_canonical_nodes" in neox_args.__dict__.keys():
+        num_canonical_nodes = neox_args.num_canonical_nodes
+    else:
+        print_rank_0("WARNING: did not find num_canonical_nodes in neox_args, it's only okay if you're not resuming from a checkpoint")
+        print_rank_0(f"Using {train_ds.num_canonical_nodes} as num_canonical_nodes")
+        num_canonical_nodes = train_ds.num_canonical_nodes
+        assert num_canonical_nodes == valid_ds.num_canonical_nodes
+    if train_dataloader is not None:
+        
+        train_dataloader_state_dict = {
+           "epoch": neox_args.iteration * neox_args.gradient_accumulation_steps // len(train_dataloader), #check this
+           "sample_in_epoch": neox_args.iteration * neox_args.gradient_accumulation_steps % len(train_dataloader), #check this
+           "shuffle_seed": neox_args.seed,#state_dict["shuffle_seed"],#neox_args.seed,
+            "num_canonical_nodes": num_canonical_nodes,#state_dict["num_canonical_nodes"],
+        }
+        print_rank_0("Resuming using train_dataloader_state_dict", train_dataloader_state_dict)
+        train_dataloader.load_state_dict(train_dataloader_state_dict)
+    if valid_dataloader is not None:
+        start_iter_val = (
+            (neox_args.iteration * neox_args.gradient_accumulation_steps)
+            // neox_args.eval_interval
+            ) * neox_args.eval_iters # number of iterations in the validation set
+        #just to get num_canonical_nodes
+        # state_dict = valid_ds.state_dict(
+        #     num_samples = 0,
+        #     from_beginning = False,
+        # )
+        #print("valid_dataloader_state_dict", state_dict)
+        valid_dataloader_state_dict = {
+            "epoch": start_iter_val // len(valid_dataloader), #check this
+            "sample_in_epoch": start_iter_val % len(valid_dataloader), #check this
+            "shuffle_seed": neox_args.seed,#state_dict["shuffle_seed"],#neox_args.seed,
+            "num_canonical_nodes": num_canonical_nodes,#state_dict["num_canonical_nodes"],
+        }
+        print_rank_0("Resuming using valid_dataloader_state_dict", valid_dataloader_state_dict)
+        valid_dataloader.load_state_dict(valid_dataloader_state_dict)
+    neox_args.num_canonical_nodes = num_canonical_nodes
 
     # Build iterators.
     if train_dataloader is not None:
