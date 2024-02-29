@@ -771,7 +771,7 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
             losses.append(loss)
             # Calculate gradients, reduce across processes, and clip.
             if (
-                neox_args.profiling
+                neox_args.profile
                 and neox_args.iteration >= neox_args.profile_step_start
                 and neox_args.iteration <= neox_args.profile_step_stop
             ):
@@ -786,14 +786,14 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
             )
             timers("backward").stop()
             if (
-                neox_args.profiling
+                neox_args.profile
                 and neox_args.iteration >= neox_args.profile_step_start
                 and neox_args.iteration <= neox_args.profile_step_stop
             ):
                 torch.cuda.nvtx.range_pop()
             # Update parameters.
             if (
-                neox_args.profiling
+                neox_args.profile
                 and neox_args.iteration >= neox_args.profile_step_start
                 and neox_args.iteration <= neox_args.profile_step_stop
             ):
@@ -805,13 +805,13 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
                 raise ValueError("Must be using deepspeed to run neox")
             timers("optimizer").stop()
             if (
-                neox_args.profiling
+                neox_args.profile
                 and neox_args.iteration >= neox_args.profile_step_start
                 and neox_args.iteration <= neox_args.profile_step_stop
             ):
                 torch.cuda.nvtx.range_pop()
             if (
-                neox_args.profiling
+                neox_args.profile
                 and neox_args.iteration >= neox_args.profile_step_start
                 and neox_args.iteration <= neox_args.profile_step_stop
                 and torch.distributed.get_rank() == 0
