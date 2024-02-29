@@ -22,7 +22,7 @@
 
   # init methods
   "init_method": "normal",
-  "output_layer_init_method": "normal",
+  "output_layer_init_method": "scaled_normal",
 
   # optimizer settings
   "optimizer": {
@@ -79,7 +79,6 @@
 
   # misc. training settings
   "train_iters": 10,
-  "lr_decay_iters": 10,
   "log_interval": 1,
   "distributed_backend": "nccl",
   "lr_decay_style": "constant",
