@@ -220,10 +220,13 @@ def build_streaming_dataset(split, neox_args=None):
     rank = mpu.get_data_parallel_rank()
     global_batch_size = neox_args.batch_size * world_size
 
+    # We compute num_canonical_nodes ourselves to
+    # be able to save it easily in the config
+    # (it's required to resume shuffling correctly)
     shuffle_algo = "py1e" #StreamingDataset default
-    # compute num_canonical_nodes as done in StreamingDataset
     num_nodes = World.detect().num_nodes
     print_rank_0("NUM NODES", num_nodes)
+    # similar to StreamingDataset code
     num_canonical_nodes = 64 * num_nodes if shuffle_algo in ["py1s", "py2s"] else num_nodes
  
     return StreamingTextDataset(
