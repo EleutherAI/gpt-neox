@@ -64,7 +64,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 
-def plot_coord_data(df, graph_name_prefix, mup=True):
+def plot_coord_data(df, graph_name_prefix, use_mup=True):
 
     def _plot_data(df, activation, graph_name_prefix):
         df = df.groupby(['step', 'width']).mean().reset_index()
@@ -77,7 +77,7 @@ def plot_coord_data(df, graph_name_prefix, mup=True):
         plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0)
         plt.tight_layout(pad=3.0)
         plt.xlabel("Width")
-        plt.ylabel("Activation with {}".format("muP" if mup else "SP"))
+        plt.ylabel("Activation with {}".format("muP" if use_mup else "SP"))
         plt.title(f"{activation}")
         plt.savefig(f"{graph_name_prefix}-{activation}.png")
         plt.close()
@@ -101,18 +101,6 @@ def plot_coord_data(df, graph_name_prefix, mup=True):
 
     return 0
 
-def mup_weights_reinit(neox_args, model):
-    def has_method(o, name):
-        return callable(getattr(o, name, None))
-
-    for layer in model.modules():
-        # This normally would happen in set_base_shapes if we actually were able to use the MuReadout class
-        if hasattr(layer, "mup_rescale_parameters") and layer.mup_rescale_parameters:
-            layer._rescale_parameters()
-
-        if has_method(layer, "mup_reinitialize_weights"):
-            layer.mup_reinitialize_weights(neox_args)
-
 
 def coord_check(neox_args, timers, train_data_iterator):
     from megatron.mup_substitute import get_coord_data
@@ -124,13 +112,14 @@ def coord_check(neox_args, timers, train_data_iterator):
             neox_args.hidden_size = hidden_size
             neox_args.num_attention_heads = attention_head
             neox_args.mup_width_multiplier = None
-            model, optimizer, _ = setup_model_and_optimizer(
+            neox_args.mup_d_model_base = 2**8
+            model, optimizer, lr_scheduler = setup_model_and_optimizer(
                 neox_args=neox_args, use_cache=False
             )
 
             neox_args.hidden_size = old_hidden_size
             neox_args.num_attention_heads = old_num_attention_heads
-            return model, optimizer
+            return model, optimizer, lr_scheduler
 
         return gen
 
@@ -152,8 +141,7 @@ def coord_check(neox_args, timers, train_data_iterator):
         neox_args, timers, models, train_data_iterator, neox_args.coord_check_nsteps, neox_args.coord_check_nseeds,
     )
     df.to_csv(f"df_{df_mode}.csv", index=False)
-    plot_coord_data(df, graph_name_prefix=f"coord_check_{df_mode}", mup=neox_args.use_mup)
-
+    plot_coord_data(df, graph_name_prefix=f"coord_check_{df_mode}", use_mup=neox_args.use_mup)
     print_rank_0("Saved coord check plots... exiting")
     return 0
 
@@ -413,11 +401,6 @@ def get_model(neox_args, use_cache=False):
     # Build model on cpu.
     print_rank_0("building GPT2 model ...")
 
-    # Temporarily disable mup so that the base model does not use the mup init functions before set_base_shapes is called below.
-    # If mup isn't being used anyways, this has no effect.
-    # old_use_mup = neox_args.use_mup
-    # neox_args.use_mup = False
-
     model = GPT2ModelPipe(
         neox_args=neox_args,
         num_tokentypes=0,
@@ -449,8 +432,6 @@ def get_model(neox_args, use_cache=False):
     if not neox_args.is_pipe_parallel:
         # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
         model = model.to_sequential()
-
-    # neox_args.use_mup = old_use_mup
 
     if neox_args.deepspeed:
         # DeepSpeed handles CUDA, FP16, and DDP components.
@@ -532,55 +513,36 @@ def get_optimizer(model, neox_args):
             **neox_args.optimizer["params"],
         )
     elif neox_args.optimizer_type.lower() == "adam":
-        # Use Adam
-        if neox_args.use_mup:
-            # try:
-            # #     from mup import MuAdam
-            # #     adam_optimizer = MuAdam
-            # # except ModuleNotFoundError:
-            # #     print("Please install mup https://github.com/microsoft/mup")
-            # #     raise Exception
-            #     from deepspeed.ops.adam import FusedAdam as Adam
-            #     adam_optimizer = Adam
-            # except ModuleNotFoundError:
-            # from apex.optimizers import FusedAdam as Adam
-            # adam_optimizer = Adam
-            adam_optimizer = torch.optim.Adam
-        else:
-            if neox_args.use_bnb_optimizer:
-                try:
-                    import bitsandbytes as bnb
+        if neox_args.use_bnb_optimizer:
+            try:
+                import bitsandbytes as bnb
 
-                    adam_optimizer = bnb.optim.Adam8bit
-                except ModuleNotFoundError:
-                    print(
-                        "Please install bitsandbytes following https://github.com/facebookresearch/bitsandbytes."
-                    )
-                    raise Exception
-            else:
-                try:
-                    # default to apex as it's slightly faster
-                    from apex.optimizers import FusedAdam as Adam
-                except ImportError:
-                    # if apex isn't installed, use deepspeed's FusedAdam
-                    print(
-                        "WARNING: APEX not installed - defaulting to deepspeed's fused adam"
-                    )
-                    # from deepspeed.ops.adam import FusedAdam as Adam
-                    from torch.optim import Adam
-                adam_optimizer = Adam
+                adam_optimizer = bnb.optim.Adam8bit
+            except ModuleNotFoundError:
+                print(
+                    "Please install bitsandbytes following https://github.com/facebookresearch/bitsandbytes."
+                )
+                raise Exception
+        else:
+            try:
+                # default to apex as it's slightly faster
+                from apex.optimizers import FusedAdam as Adam
+            except ImportError:
+                # if apex isn't installed, use deepspeed's FusedAdam
+                print(
+                    "WARNING: APEX not installed - defaulting to deepspeed's fused adam"
+                )
+                # from deepspeed.ops.adam import FusedAdam as Adam
+                from torch.optim import Adam
+            adam_optimizer = Adam
         optimizer = adam_optimizer(
             param_groups,
             weight_decay=neox_args.weight_decay,
             **neox_args.optimizer["params"],
         )
     elif neox_args.optimizer_type.lower() == "sgd":
-        try:
-            from mup import MuSGD
-        except ModuleNotFoundError:
-            print("Please install mup https://github.com/microsoft/mup")
-            raise Exception
-        optimizer = MuSGD(
+        from torch.optim import SGD
+        optimizer = SGD(
             param_groups,
             weight_decay=neox_args.weight_decay,
             **neox_args.optimizer["params"],
@@ -645,7 +607,7 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
     """Setup model and optimizer."""
     if neox_args.mup_width_multiplier is None:
         neox_args.mup_width_multiplier = neox_args.hidden_size / neox_args.mup_d_model_base
-        print_rank_0(f">>> mup_width_multiplier set to {neox_args.mup_width_multiplier}")
+    print_rank_0(f">>> mup_width_multiplier set to {neox_args.mup_width_multiplier}")
 
     model = get_model(neox_args=neox_args, use_cache=use_cache)
     optimizer, param_groups = get_optimizer(model=model, neox_args=neox_args)
