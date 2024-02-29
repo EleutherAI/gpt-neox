@@ -30,9 +30,17 @@ def get_params_for_weight_decay_optimization(module, neox_args):
     Layernorms and biases will have no weight decay but the rest will.
     """
     lr_adjust_weight_decay_params = {"params": [], "lr_adjust": True}
-    lr_adjust_no_weight_decay_params = {"params": [], "lr_adjust": True, "weight_decay": 0.0}
+    lr_adjust_no_weight_decay_params = {
+        "params": [],
+        "lr_adjust": True,
+        "weight_decay": 0.0,
+    }
     no_lr_adjust_weight_decay_params = {"params": [], "lr_adjust": False}
-    no_lr_adjust_no_weight_decay_params = {"params": [], "lr_adjust": False, "weight_decay": 0.0}
+    no_lr_adjust_no_weight_decay_params = {
+        "params": [],
+        "lr_adjust": False,
+        "weight_decay": 0.0,
+    }
 
     for module_ in module.modules():
         if neox_args.weight_decay == 0.0:
@@ -73,7 +81,7 @@ def get_params_for_weight_decay_optimization(module, neox_args):
                 no_lr_adjust_no_weight_decay_params["params"].extend(
                     [p for p in list(module_._parameters.values()) if p is not None]
                 )
-                
+
             elif isinstance(module_, VocabParallelEmbedding):
                 no_lr_adjust_weight_decay_params["params"].extend(
                     [
@@ -110,16 +118,13 @@ def get_params_for_weight_decay_optimization(module, neox_args):
         # with onebitadam, we want to minimize the calls to compressed_allreduce. Every param group calls it once.
         # to avoid this, only use a single param group when weight decay is off.
         # return (lr_adjust_no_weight_decay_params, no_lr_adjust_no_weight_decay_params)
-        return (
-            lr_adjust_no_weight_decay_params,
-            no_lr_adjust_no_weight_decay_params
-            )
+        return (lr_adjust_no_weight_decay_params, no_lr_adjust_no_weight_decay_params)
     return (
         lr_adjust_weight_decay_params,
         lr_adjust_no_weight_decay_params,
         no_lr_adjust_weight_decay_params,
-        no_lr_adjust_no_weight_decay_params
-        )
+        no_lr_adjust_no_weight_decay_params,
+    )
 
 
 def exists(x):

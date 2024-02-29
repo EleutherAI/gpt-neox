@@ -117,9 +117,11 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         self.parallel_output = parallel_output
         self.hidden_size = self.neox_args.hidden_size
         self.num_tokentypes = num_tokentypes
-        self.init_method, self.input_embedding_init_method, self.output_layer_init_method = get_init_methods(
-            self.neox_args
-        )
+        (
+            self.init_method,
+            self.input_embedding_init_method,
+            self.output_layer_init_method,
+        ) = get_init_methods(self.neox_args)
         self.__topology__ = topology
 
         self.specs = []
@@ -176,7 +178,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         # Embedding layer
         # input will be (input_ids, position_ids, attention_mask)
 
-        # TODO Initilized weights here should not be divided by m_width
+        # TODO Initialized weights here should not be divided by m_width
         if weight_tying:
             self.specs.append(
                 TiedLayerSpec(
@@ -272,7 +274,10 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             """Just a wrapper to massage inputs/outputs from pipeline."""
 
             logits = parallel_lm_logits(
-                lm_output, embedding.word_embeddings_weight, self.parallel_output, self.neox_args
+                lm_output,
+                embedding.word_embeddings_weight,
+                self.parallel_output,
+                self.neox_args,
             )
             return logits
 

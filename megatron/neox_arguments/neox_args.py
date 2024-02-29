@@ -1105,12 +1105,12 @@ class NeoXArgsTraining(NeoXArgsTemplate):
 
     coord_check_nsteps: int = 10
     """
-    
+    Number of steps to do for the coordinate check
     """
 
     coord_check_nseeds: int = 5
     """
-    
+    Number of repetition for each size in coordinate check
     """
 
     save_base_shapes: bool = False

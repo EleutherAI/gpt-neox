@@ -136,28 +136,24 @@ def wang_init_method(n_layers, dim, mup_width_multiplier=1.0):
             with torch.no_grad():
                 init_weight.div_(math.sqrt(mup_width_multiplier))
         return init_weight
-            
+
     return init_
 
 
 def get_init_methods(args):
-
     def _get(name, use_mup=False):
         if name == "normal":
             sigma = args.init_method_std
             if use_mup:
-                sigma = sigma/math.sqrt(args.mup_width_multiplier)
+                sigma = sigma / math.sqrt(args.mup_width_multiplier)
             return init_method_normal(
                 sigma=sigma,
             )
         elif name == "scaled_normal":
             sigma = args.init_method_std
             if use_mup:
-                sigma = sigma/math.sqrt(args.mup_width_multiplier)
-            return scaled_init_method_normal(
-                sigma=sigma,
-                num_layers=args.num_layers
-            )
+                sigma = sigma / math.sqrt(args.mup_width_multiplier)
+            return scaled_init_method_normal(sigma=sigma, num_layers=args.num_layers)
         elif name == "orthogonal":
             return orthogonal_init_method(args.mup_width_multiplier if use_mup else 1.0)
         elif name == "scaled_orthogonal":
@@ -165,12 +161,18 @@ def get_init_methods(args):
                 args.num_layers, args.mup_width_multiplier if use_mup else 1.0
             )
         elif name == "xavier_uniform":
-            return xavier_uniform_init_method(args.mup_width_multiplier if use_mup else 1.0)
+            return xavier_uniform_init_method(
+                args.mup_width_multiplier if use_mup else 1.0
+            )
         elif name == "xavier_normal":
-            return xavier_normal_init_method(args.mup_width_multiplier if use_mup else 1.0)
+            return xavier_normal_init_method(
+                args.mup_width_multiplier if use_mup else 1.0
+            )
         elif name == "wang_init":
             return wang_init_method(
-                args.num_layers, args.hidden_size, args.mup_width_multiplier if use_mup else 1.0
+                args.num_layers,
+                args.hidden_size,
+                args.mup_width_multiplier if use_mup else 1.0,
             )
         elif name == "small_init":
             return small_init_init_method(
@@ -179,4 +181,8 @@ def get_init_methods(args):
         else:
             raise NotImplementedError(f"Unknown init method {name}")
 
-    return _get(args.init_method, use_mup=args.use_mup), _get(args.init_method), _get(args.output_layer_init_method, use_mup=args.use_mup)
+    return (
+        _get(args.init_method, use_mup=args.use_mup),
+        _get(args.init_method),
+        _get(args.output_layer_init_method, use_mup=args.use_mup),
+    )

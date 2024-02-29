@@ -65,16 +65,21 @@ import matplotlib.pyplot as plt
 
 
 def plot_coord_data(df, graph_name_prefix, use_mup=True):
-
     def _plot_data(df, activation, graph_name_prefix):
-        df = df.groupby(['step', 'width']).mean().reset_index()
+        df = df.groupby(["step", "width"]).mean().reset_index()
         sns.color_palette("magma")
         sns.lineplot(
             data=df,
-            x="width", y=activation, hue="step", errorbar=None, style="step",
-            marker="o", dashes=False, legend='full'
+            x="width",
+            y=activation,
+            hue="step",
+            errorbar=None,
+            style="step",
+            marker="o",
+            dashes=False,
+            legend="full",
         )
-        plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0)
+        plt.legend(bbox_to_anchor=(1.02, 1), loc="upper left", borderaxespad=0)
         plt.tight_layout(pad=3.0)
         plt.xlabel("Width")
         plt.ylabel("Activation with {}".format("muP" if use_mup else "SP"))
@@ -125,10 +130,9 @@ def coord_check(neox_args, timers, train_data_iterator):
 
     models = {}
     # Hidden size needs to be divisible by num attention heads
-    for idx, hidden_size in enumerate([2**p for p in range(8,12)]):
+    for idx, hidden_size in enumerate([2**p for p in range(8, 12)]):
         models[hidden_size] = lazy_model(
-            hidden_size,
-            neox_args.num_attention_heads*(2**idx)
+            hidden_size, neox_args.num_attention_heads * (2**idx)
         )
 
     df_mode = "mup" if neox_args.use_mup else "sp"
@@ -138,12 +142,20 @@ def coord_check(neox_args, timers, train_data_iterator):
         print_rank_0(">>> Coord Check for standard Parameterization")
 
     df = get_coord_data(
-        neox_args, timers, models, train_data_iterator, neox_args.coord_check_nsteps, neox_args.coord_check_nseeds,
+        neox_args,
+        timers,
+        models,
+        train_data_iterator,
+        neox_args.coord_check_nsteps,
+        neox_args.coord_check_nseeds,
     )
     df.to_csv(f"df_{df_mode}.csv", index=False)
-    plot_coord_data(df, graph_name_prefix=f"coord_check_{df_mode}", use_mup=neox_args.use_mup)
+    plot_coord_data(
+        df, graph_name_prefix=f"coord_check_{df_mode}", use_mup=neox_args.use_mup
+    )
     print_rank_0("Saved coord check plots... exiting")
     return 0
+
 
 def pretrain(neox_args):
     """Main training program.
@@ -542,6 +554,7 @@ def get_optimizer(model, neox_args):
         )
     elif neox_args.optimizer_type.lower() == "sgd":
         from torch.optim import SGD
+
         optimizer = SGD(
             param_groups,
             weight_decay=neox_args.weight_decay,
@@ -606,7 +619,9 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
 
     """Setup model and optimizer."""
     if neox_args.mup_width_multiplier is None:
-        neox_args.mup_width_multiplier = neox_args.hidden_size / neox_args.mup_d_model_base
+        neox_args.mup_width_multiplier = (
+            neox_args.hidden_size / neox_args.mup_d_model_base
+        )
     print_rank_0(f">>> mup_width_multiplier set to {neox_args.mup_width_multiplier}")
 
     model = get_model(neox_args=neox_args, use_cache=use_cache)

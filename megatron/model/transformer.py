@@ -232,7 +232,7 @@ class ParallelLinear(nn.Module):
                 gather_output=not parallel_output,
                 skip_bias_add=False,
             )
-        
+
         self.neox_args = neox_args
         self.is_last_layer = is_last_layer
 
@@ -259,7 +259,7 @@ class ParallelLinear(nn.Module):
             _logits, *_args = logits
             if self.neox_args.use_mup:
                 _logits /= self.neox_args.mup_width_multiplier
-                _logits *= self.neox_args.mup_output_multiplier 
+                _logits *= self.neox_args.mup_output_multiplier
             logits = (_logits, *_args)
         return logits
 
@@ -1132,7 +1132,9 @@ class NormPipe(nn.Module):
         return self.norm(args)
 
 
-def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=None, args=None):
+def parallel_lm_logits(
+    input_, word_embeddings_weight, parallel_output, bias=None, args=None
+):
     """LM logits using word embedding weights."""
     # Parallel logits.
     input_parallel = mpu.copy_to_model_parallel_region(input_)
@@ -1145,7 +1147,7 @@ def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=Non
 
     if args is not None and args.use_mup:
         logits_parallel /= args.mup_width_multiplier
-        logits_parallel *= args.mup_output_multiplier 
+        logits_parallel *= args.mup_output_multiplier
 
     # Gather if needed.
     if parallel_output:

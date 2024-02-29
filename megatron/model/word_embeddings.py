@@ -50,7 +50,9 @@ class Embedding(torch.nn.Module):
         self.hidden_size = hidden_size
         self.init_method = init_method
         self.num_tokentypes = num_tokentypes
-        self.mup_embedding_multiplier = float(neox_args.mup_embedding_multiplier) if neox_args.use_mup else 1
+        self.mup_embedding_multiplier = (
+            float(neox_args.mup_embedding_multiplier) if neox_args.use_mup else 1
+        )
 
         # Word embeddings (parallel).
         self.word_embeddings = mpu.VocabParallelEmbedding(

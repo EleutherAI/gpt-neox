@@ -37,7 +37,7 @@ def get_coord_data(
 
     for width, model_obj in models.items():
         for i in range(nseeds):
-            torch.manual_seed((i+1)*100000)
+            torch.manual_seed((i + 1) * 100000)
             print_rank_0(f">>> Running Model with width: {width} on seed: {i}\n")
             model, optimizer, lr_scheduler = model_obj()
             model.train()
@@ -53,24 +53,34 @@ def get_coord_data(
 
                 def word_embedding_coord_check_hook(module, input, output):
                     with torch.no_grad():
-                        word_embedding_act_abs_std_list.append(output.cpu().abs().std().item())
+                        word_embedding_act_abs_std_list.append(
+                            output.cpu().abs().std().item()
+                        )
 
                 def attn_output_coord_check_hook(module, input, output):
                     with torch.no_grad():
-                        attn_output_act_abs_std_list.append(output[0].cpu().abs().std().item())
+                        attn_output_act_abs_std_list.append(
+                            output[0].cpu().abs().std().item()
+                        )
 
                 def ffn_output_coord_check_hook(module, input, output):
                     with torch.no_grad():
-                        ffn_output_act_abs_std_list.append(output[0].cpu().abs().std().item())
+                        ffn_output_act_abs_std_list.append(
+                            output[0].cpu().abs().std().item()
+                        )
 
                 def output_logits_coord_check_hook(module, input, output):
                     with torch.no_grad():
-                        output_logits_act_abs_std_list.append(output[0].cpu().abs().std().item())
+                        output_logits_act_abs_std_list.append(
+                            output[0].cpu().abs().std().item()
+                        )
 
                 for name, module in model.named_modules():
                     if name.endswith(".word_embeddings"):
                         remove_hooks.append(
-                            module.register_forward_hook(word_embedding_coord_check_hook)
+                            module.register_forward_hook(
+                                word_embedding_coord_check_hook
+                            )
                         )
                     elif name.endswith(".attention.dense"):
                         remove_hooks.append(
@@ -117,10 +127,12 @@ def get_coord_data(
                 df["width"].append(width)
 
             def del_obj_attrs(obj):
-                attributes = [attr for attr in vars(obj) if not callable(getattr(obj, attr))]
+                attributes = [
+                    attr for attr in vars(obj) if not callable(getattr(obj, attr))
+                ]
                 for attr in attributes:
                     try:
-                        delattr(obj,attr)
+                        delattr(obj, attr)
                     except:
                         pass
 
