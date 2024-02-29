@@ -7,7 +7,7 @@ LR Scheduler Arguments
 
 
 
-- **lr_decay_style**: Literal
+- **lr_decay_style**: typing.Literal['constant', 'linear', 'cosine', 'exponential']
 
     Default = linear
 
@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 6bb4e62
+    Default = 66aee43
 
     current git hash of repository
 
@@ -253,7 +253,7 @@ Model Arguments
 
 
 
-- **precision**: Literal
+- **precision**: typing.Literal['fp16', 'fp32', 'bfloat16']
 
     Default = None
 
@@ -335,7 +335,7 @@ Model Arguments
 
 
 
-- **norm**: Literal
+- **norm**: typing.Literal['layernorm', 'rmsnorm', 'scalenorm']
 
     Default = layernorm
 
@@ -383,7 +383,7 @@ Model Arguments
 
 
 
-- **pos_emb**: Literal
+- **pos_emb**: typing.Literal['learned', 'rotary', 'sinusoidal', 'rpe', 'alibi', 'none']
 
     Default = learned
 
@@ -497,7 +497,7 @@ Model Arguments
 
 
 
-- **activation**: Literal
+- **activation**: typing.Literal['gelu', 'geglu', 'relu', 'softsign', 'swish', 'mish', 'silu']
 
     Default = gelu
 
@@ -601,7 +601,7 @@ Model Arguments
 
 
 
-- **init_method**: Literal
+- **init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init']
 
     Default = normal
 
@@ -610,7 +610,7 @@ Model Arguments
 
 
 
-- **output_layer_init_method**: Literal
+- **output_layer_init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init']
 
     Default = scaled_normal
 
@@ -709,7 +709,15 @@ Model Arguments
 
 
 
-- **output_layer_parallelism**: Literal
+- **mamba_inner_func_fusion**: bool
+
+    Default = False
+
+    Enable fused inner operator for Mamba. (Supersedes conv. and selective scan fusion flags, requires each of those kernels to be installed.)
+
+
+
+- **output_layer_parallelism**: typing.Literal['column']
 
     Default = column
 
@@ -723,7 +731,7 @@ Optimizer Arguments
 
 
 
-- **optimizer_type**: Literal
+- **optimizer_type**: typing.Literal['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd', 'sgd', 'lion']
 
     Default = adam
 
@@ -740,7 +748,7 @@ Optimizer Arguments
 
 
 
-- **zero_stage**: Union
+- **zero_stage**: typing.Union[int, typing.List[int], typing.Literal['all']]
 
     Default = None
 
@@ -1138,7 +1146,7 @@ Tokenizer Arguments
 
 
 
-- **tokenizer_type**: Literal
+- **tokenizer_type**: typing.Literal['GPT2BPETokenizer', 'HFTokenizer', 'HFGPT2Tokenizer', 'SPMTokenizer', 'CharLevelTokenizer', 'TiktokenTokenizer']
 
     Default = GPT2BPETokenizer
 
@@ -1269,7 +1277,7 @@ Training Arguments
 
 
 
-- **data_impl**: Literal
+- **data_impl**: typing.Literal['infer', 'mmap', 'cached']
 
     Default = infer
 
@@ -1333,7 +1341,7 @@ Training Arguments
 
 
 
-- **checkpoint_scale**: Literal
+- **checkpoint_scale**: typing.Literal['linear', 'log']
 
     Default = linear
 
@@ -2107,7 +2115,7 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
-- **launcher**: Literal
+- **launcher**: typing.Literal['pdsh', 'openmpi', 'mvapich', 'slurm']
 
     Default = pdsh
 
