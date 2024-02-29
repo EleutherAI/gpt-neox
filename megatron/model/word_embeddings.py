@@ -50,8 +50,7 @@ class Embedding(torch.nn.Module):
         self.hidden_size = hidden_size
         self.init_method = init_method
         self.num_tokentypes = num_tokentypes
-        self.use_mup = neox_args.use_mup
-        self.mup_embedding_multiplier = float(neox_args.mup_embedding_multiplier)
+        self.mup_embedding_multiplier = float(neox_args.mup_embedding_multiplier) if neox_args.use_mup else 1
 
         # Word embeddings (parallel).
         self.word_embeddings = mpu.VocabParallelEmbedding(
@@ -152,11 +151,8 @@ class Embedding(torch.nn.Module):
 
         # Dropout.
         embeddings = self.embedding_dropout(embeddings)
-
         # Y_emb = m_emb * embed(X)
-        if self.use_mup:
-            with torch.no_grad():
-                embeddings = torch.mul(embeddings, self.mup_embedding_multiplier)
+        embeddings = torch.mul(embeddings, self.mup_embedding_multiplier)
 
         return embeddings
 
