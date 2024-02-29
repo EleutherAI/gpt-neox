@@ -232,6 +232,9 @@ class ParallelLinear(nn.Module):
                 gather_output=not parallel_output,
                 skip_bias_add=False,
             )
+        
+        self.neox_args = neox_args
+        self.is_last_layer = is_last_layer
 
     #        else:
     #            print(
@@ -250,7 +253,15 @@ class ParallelLinear(nn.Module):
     #            )
 
     def forward(self, hidden_states):
-        return self.final_linear(hidden_states)
+        logits = self.final_linear(hidden_states)
+
+        if self.is_last_layer:
+            _logits, *_args = logits
+            if self.neox_args.use_mup:
+                _logits /= self.neox_args.mup_width_multiplier
+                _logits *= self.neox_args.mup_output_multiplier 
+            logits = (_logits, *_args)
+        return logits
 
 
 class ParallelSelfAttention(nn.Module):
@@ -348,12 +359,14 @@ class ParallelSelfAttention(nn.Module):
 
         coeff = None
         if neox_args.use_mup:
-            self.norm_factor = self.hidden_size_per_attention_head
+            # self.norm_factor = self.hidden_size_per_attention_head
+            self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
         else:
             self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
-            if self.apply_query_key_layer_scaling:
-                coeff = max(1, self.layer_number)
-                self.norm_factor *= coeff
+
+        if self.apply_query_key_layer_scaling:
+            coeff = max(1, self.layer_number)
+            self.norm_factor *= coeff
 
         self.rpe = rpe
 
