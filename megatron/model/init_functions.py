@@ -179,4 +179,4 @@ def get_init_methods(args):
         else:
             raise NotImplementedError(f"Unknown init method {name}")
 
-    return _get(args.init_method, use_mup=args.use_mup), _get(args.init_method), _get(args.output_layer_init_method)
+    return _get(args.init_method, use_mup=args.use_mup), _get(args.init_method), _get(args.output_layer_init_method, use_mup=args.use_mup)
