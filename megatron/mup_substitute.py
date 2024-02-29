@@ -37,7 +37,7 @@ def get_coord_data(
 
     for width, model_obj in models.items():
         for i in range(nseeds):
-            torch.manual_seed(10**i)
+            torch.manual_seed((i+1)*100000)
             print_rank_0(f">>> Running Model with width: {width} on seed: {i}\n")
             model, optimizer, lr_scheduler = model_obj()
             model.train()
