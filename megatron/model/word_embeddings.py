@@ -50,9 +50,9 @@ class Embedding(torch.nn.Module):
         self.hidden_size = hidden_size
         self.init_method = init_method
         self.num_tokentypes = num_tokentypes
-        self.use_mup = neox_args.use_mup
-        self.mup_embedding_mult = neox_args.mup_embedding_mult
-        self.mup_rp_embedding_mult = neox_args.mup_rp_embedding_mult
+        self.mup_embedding_multiplier = (
+            float(neox_args.mup_embedding_multiplier) if neox_args.use_mup else 1
+        )
 
         # Word embeddings (parallel).
         self.word_embeddings = mpu.VocabParallelEmbedding(
@@ -142,7 +142,6 @@ class Embedding(torch.nn.Module):
                 # OPT always adds 2 for some reason, according to the HF implementation
                 position_ids = position_ids + self.opt_pos_emb_offset
             position_embeddings = self.position_embeddings(position_ids)
-            position_embeddings.mul_(self.mup_rp_embedding_mult)
             embeddings = words_embeddings + position_embeddings
         else:
             embeddings = words_embeddings
@@ -154,10 +153,8 @@ class Embedding(torch.nn.Module):
 
         # Dropout.
         embeddings = self.embedding_dropout(embeddings)
-
-        if self.use_mup:
-            with torch.no_grad():
-                embeddings.mul_(self.mup_embedding_mult)
+        # Y_emb = m_emb * embed(X)
+        embeddings = torch.mul(embeddings, self.mup_embedding_multiplier)
 
         return embeddings
 

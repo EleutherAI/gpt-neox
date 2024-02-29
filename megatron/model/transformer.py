@@ -231,8 +231,10 @@ class ParallelLinear(nn.Module):
                 init_method=init_method,
                 gather_output=not parallel_output,
                 skip_bias_add=False,
-                mup_rescale_parameters=is_last_layer,  # rescale params only called if neox_args.use_mup = True, despite it not being included here
             )
+
+        self.neox_args = neox_args
+        self.is_last_layer = is_last_layer
 
     #        else:
     #            print(
@@ -248,11 +250,18 @@ class ParallelLinear(nn.Module):
     #                init_method=init_method,
     #                parallel_output=parallel_output,
     #                skip_bias_add=False,
-    #                mup_rescale_parameters=is_last_layer,  # only called if neox_args.use_mup = True, despite it not being included here
     #            )
 
     def forward(self, hidden_states):
-        return self.final_linear(hidden_states)
+        logits = self.final_linear(hidden_states)
+
+        if self.is_last_layer:
+            _logits, *_args = logits
+            if self.neox_args.use_mup:
+                _logits /= self.neox_args.mup_width_multiplier
+                _logits *= self.neox_args.mup_output_multiplier
+            logits = (_logits, *_args)
+        return logits
 
 
 class ParallelSelfAttention(nn.Module):
@@ -349,13 +358,15 @@ class ParallelSelfAttention(nn.Module):
             )
 
         coeff = None
-        self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
+        if neox_args.use_mup:
+            # self.norm_factor = self.hidden_size_per_attention_head
+            self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
+        else:
+            self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
+
         if self.apply_query_key_layer_scaling:
             coeff = max(1, self.layer_number)
             self.norm_factor *= coeff
-
-        if neox_args.use_mup:
-            self.norm_factor = self.hidden_size_per_attention_head
 
         self.rpe = rpe
 
@@ -1121,7 +1132,9 @@ class NormPipe(nn.Module):
         return self.norm(args)
 
 
-def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=None):
+def parallel_lm_logits(
+    input_, word_embeddings_weight, parallel_output, bias=None, args=None
+):
     """LM logits using word embedding weights."""
     # Parallel logits.
     input_parallel = mpu.copy_to_model_parallel_region(input_)
@@ -1131,6 +1144,10 @@ def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=Non
         logits_parallel = F.linear(input_parallel, word_embeddings_weight)
     else:
         logits_parallel = F.linear(input_parallel, word_embeddings_weight, bias)
+
+    if args is not None and args.use_mup:
+        logits_parallel /= args.mup_width_multiplier
+        logits_parallel *= args.mup_output_multiplier
 
     # Gather if needed.
     if parallel_output:
