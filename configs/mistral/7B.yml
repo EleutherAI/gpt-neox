@@ -11,7 +11,7 @@
   "num_kv_heads": 8,
   # per Mistral, Mistral-7B-v0.1 was pretrained with 8192 seqlen
   # and instruction tuned to 16384 seqlen, all with 4096 sliding window
-  "seq_length": 8192, 
+  "seq_length": 8192,
   "sliding_window_width": 4096,
   "max_position_embeddings": 131072,
   "pos_emb": "rotary",

@@ -595,12 +595,10 @@ class ParallelSelfAttention(nn.Module):
 
             # only pass in window_size kwarg to flash-attn
             # if we use Sliding Window Attention.
-            # Flash attn defaults to (-1,-1), or 
+            # Flash attn defaults to (-1,-1), or
             # does not have this kwarg prior to v2.3.0
             extra_kwargs = (
-                {
-                    "window_size": (self.sliding_window_width, -1)
-                }    
+                {"window_size": (self.sliding_window_width, -1)}
                 if self.sliding_window_width is not None
                 else {}
             )
