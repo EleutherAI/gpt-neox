@@ -158,20 +158,6 @@ def convert_model_pipeline(
     pbar.update(1)
 
     # Layers
-    if model_size == "7B":
-        rope_freqs = loaded[0]["layers.0.attention.inner_attention.rope.freqs"]
-        helper.del_loaded("layers.0.attention.inner_attention.rope.freqs")
-    elif "mistral" in model_size:
-        # mistral does not include rope freqs in the distributed checkpoint, unlike llama.
-        # rather than making this buffer always non-persistent on the NeoX side,
-        # just create and save it for Mistral.
-        base = 10000.0
-        rope_freqs = 1.0 / (
-            base ** (torch.arange(0, dims_per_head, 2).float() / dims_per_head)
-        )
-    else:
-        rope_freqs = loaded[0]["rope.freqs"]
-        helper.del_loaded("rope.freqs")
     for layer_i in range(num_layers):
 
         # Linear
@@ -293,7 +279,6 @@ def convert_model_pipeline(
                     # Duplicated layers
                     "input_layernorm.scale": input_layernorm,
                     "post_attention_layernorm.scale": post_attention_layernorm,
-                    "attention.rotary_emb.inv_freq": rope_freqs,
                 },
                 layer_i=layer_i + 2,
                 rank=out_rank,
@@ -409,20 +394,6 @@ def convert_model_sequential(
     helper.del_loaded("output.weight")
 
     # Layers
-    if model_size == "7B":
-        rope_freqs = loaded[0]["layers.0.attention.inner_attention.rope.freqs"]
-        helper.del_loaded("layers.0.attention.inner_attention.rope.freqs")
-    elif "mistral" in model_size:
-        # mistral does not include rope freqs in the distributed checkpoint, unlike llama.
-        # rather than making this buffer always non-persistent on the NeoX side,
-        # just create and save it for Mistral.
-        base = 10000.0
-        rope_freqs = 1.0 / (
-            base ** (torch.arange(0, dims_per_head, 2).float() / dims_per_head)
-        )
-    else:
-        rope_freqs = loaded[0]["rope.freqs"]
-        helper.del_loaded("rope.freqs")
     for layer_i in range(num_layers):
 
         # Linear
@@ -546,7 +517,6 @@ def convert_model_sequential(
                     # Duplicated layers
                     "input_layernorm.scale": input_layernorm,
                     "post_attention_layernorm.scale": post_attention_layernorm,
-                    "attention.rotary_emb.inv_freq": rope_freqs,
                 },
                 layer_i=layer_i + 2,
                 rank=out_rank,
