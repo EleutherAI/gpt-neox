@@ -538,9 +538,18 @@ def get_optimizer(model, neox_args):
             **neox_args.optimizer["params"],
         )
     elif neox_args.optimizer_type.lower() == "lion":
-        from .optimizers import Lion
+        # if we want the deepspeed zero lion...megatron lion will throw DeepSpeed Error
+        if neox_args.zero_optimization["stage"] != 0:
+            from deepspeed.ops.lion import FusedLion
 
-        optimizer = Lion(
+            lion_optimizer = FusedLion
+        # if not zero
+        else:
+            from .optimizers import Lion
+
+            lion_optimizer = Lion
+
+        optimizer = lion_optimizer(
             param_groups,
             weight_decay=neox_args.weight_decay,
             **neox_args.optimizer["params"],
