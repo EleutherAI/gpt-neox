@@ -7,8 +7,9 @@ repos:
           - id: check-symlinks
           - id: check-yaml
           - id: destroyed-symlinks
+            exclude: ^(docs/CNAME/|configs/neox_arguments.md)
           - id: end-of-file-fixer
-            exclude: docs/CNAME
+            exclude: ^(docs/CNAME/|configs/neox_arguments.md)
           - id: fix-byte-order-marker
           - id: fix-encoding-pragma
             args: [--remove]
