@@ -594,6 +594,15 @@ class ParallelSelfAttention(nn.Module):
                 output_size[0], output_size[2], output_size[1], -1
             )
 
+            # only pass in window_size kwarg to flash-attn
+            # if we use Sliding Window Attention.
+            # Flash attn defaults to (-1,-1), or
+            # does not have this kwarg prior to v2.3.0
+            extra_kwargs = (
+                {"window_size": (self.sliding_window_width, -1)}
+                if self.sliding_window_width is not None
+                else {}
+            )
             if not self.training:
                 q_shape = query_layer.shape
                 k_shape = key_layer.shape
@@ -614,9 +623,7 @@ class ParallelSelfAttention(nn.Module):
                     max_seqlen_k,
                     softmax_scale=None,
                     causal=True,
-                    window_size=(self.sliding_window_width, -1)
-                    if self.sliding_window_width is not None
-                    else (-1, -1),
+                    **extra_kwargs,
                 )
                 output = output.reshape(q_shape)
             else:
@@ -627,9 +634,7 @@ class ParallelSelfAttention(nn.Module):
                     self.dropout_p if self.training else 0.0,
                     softmax_scale=None,
                     causal=True,
-                    window_size=(self.sliding_window_width, -1)
-                    if self.sliding_window_width is not None
-                    else (-1, -1),
+                    **extra_kwargs,
                 )
 
             matmul_result = output
