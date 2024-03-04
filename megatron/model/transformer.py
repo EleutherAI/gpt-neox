@@ -43,6 +43,7 @@ from megatron.model.fused_bias_dropout import (
     bias_dropout_add_fused_inference,
 )
 from megatron.model.utils import configure_sparse_attention
+from deepspeed.moe.layer import MoE
 
 # flags required to enable jit fusion kernels
 torch._C._jit_set_profiling_mode(False)
@@ -84,7 +85,13 @@ class ParallelMLP(nn.Module):
     """
 
     def __init__(
-        self, neox_args, init_method, output_layer_init_method, parallel_output=False
+        self,
+        neox_args,
+        init_method,
+        output_layer_init_method,
+        parallel_output=False,
+        MOE=False,
+        MoE_mp_size=1,
     ):
         super().__init__()
 
@@ -106,6 +113,8 @@ class ParallelMLP(nn.Module):
             gather_output=False,
             init_method=init_method,
             skip_bias_add=True,
+            MOE=MOE,
+            MoE_mp_size=MoE_mp_size,
         )
         ff_dim_in = ff_dim // 2 if self.activation_type == "geglu" else ff_dim
         # Project back to h.
@@ -115,8 +124,10 @@ class ParallelMLP(nn.Module):
             output_size=neox_args.hidden_size,
             input_is_parallel=True,
             init_method=output_layer_init_method,
-            skip_bias_add=True,
             parallel_output=parallel_output,
+            skip_bias_add=True,
+            MOE=MOE,
+            MoE_mp_size=MoE_mp_size,
         )
 
     def forward(self, hidden_states):
@@ -973,6 +984,44 @@ class ParallelTransformerLayer(nn.Module):
         else:
             raise KeyError(neox_args.mlp_type)
 
+        self.num_experts = neox_args.num_experts
+        args = neox_args
+        if self.num_experts <= 1:
+            self.mlp = ParallelMLP(
+                neox_args=neox_args,
+                init_method=init_method,
+                output_layer_init_method=output_layer_init_method,
+                parallel_output=self.gpt_j_residual,
+            )
+        else:
+            from torch import distributed as dist
+
+            if neox_args.ds_inference or self.num_experts > dist.get_world_size():
+                moe_mp_size = 1
+            else:
+                moe_mp_size = dist.get_world_size() // self.num_experts
+
+            self.mlp = MoE(
+                args.hidden_size,
+                ParallelMLP(
+                    neox_args=neox_args,
+                    init_method=init_method,
+                    output_layer_init_method=output_layer_init_method,
+                    parallel_output=self.gpt_j_residual,
+                    MOE=True,
+                    MoE_mp_size=moe_mp_size,
+                ),
+                num_experts=self.num_experts,
+                ep_size=args.moe_expert_parallel_size,
+                k=args.topk,
+                use_residual=(args.mlp_type == "residual"),
+                capacity_factor=args.moe_train_capacity_factor,
+                eval_capacity_factor=args.moe_eval_capacity_factor,
+                min_capacity=args.moe_min_capacity,
+                drop_tokens=args.moe_token_dropping,
+                use_tutel=args.use_tutel,
+            )
+
         self.layer_past = None  # used to cache k/v pairs in inference
 
     def _get_bias_dropout(self):
@@ -1069,9 +1118,18 @@ class ParallelTransformerLayer(nn.Module):
                     )
 
             # output = x + mlp(ln2(x))
-            mlp_output, mlp_bias = self.mlp(
-                self.post_attention_layernorm(attention_output)
+            layernorm_output = self.post_attention_layernorm(attention_output)
+            moe_loss = torch.tensor(
+                0.0, device=layernorm_output.device, dtype=layernorm_output.dtype
             )
+            mlp_bias = torch.tensor(
+                0.0, device=layernorm_output.device, dtype=layernorm_output.dtype
+            )
+
+            if self.num_experts == 1:
+                mlp_output, mlp_bias = self.mlp(layernorm_output)
+            else:
+                mlp_output, moe_loss, _ = self.mlp(layernorm_output)
 
             with torch.enable_grad():
                 if self.mlp_type == "llama":
@@ -1086,7 +1144,7 @@ class ParallelTransformerLayer(nn.Module):
                         prob=self.hidden_dropout,
                     )
 
-        return output
+        return output, moe_loss
 
 
 class ParallelTransformerLayerPipe(ParallelTransformerLayer):
@@ -1098,7 +1156,7 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
         ), "ParallelTransformerLayerPipe expects 2 arguments - hidden_states and attention_mask"
         hidden_states, attention_mask = args
         # we are returning just [hidden_states, mask]
-        return super().forward(hidden_states, attention_mask), attention_mask
+        return super().forward(hidden_states, attention_mask)[0], attention_mask
 
 
 class ParallelLinearPipe(ParallelLinear):

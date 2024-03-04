@@ -266,6 +266,12 @@ def get_pipe_parallel_world_size():
     return torch.distributed.get_world_size(group=get_pipe_parallel_group())
 
 
+# Needed for MOE. True tensor parallelism todo.
+def get_tensor_model_parallel_world_size():
+    """Return world size for the tensor model parallel group."""
+    return torch.distributed.get_world_size()
+
+
 def destroy_model_parallel():
     """Set the groups to none."""
     global _MODEL_PARALLEL_GROUP
