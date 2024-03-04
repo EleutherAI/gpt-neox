@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM nvidia/cuda:12.1.1-devel-ubuntu22.04
+FROM nvcr.io/nvidia/pytorch:24.02-py3
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -21,7 +21,7 @@ LABEL org.opencontainers.image.version = "2.0"
 LABEL org.opencontainers.image.authors = "contact@eleuther.ai"
 LABEL org.opencontainers.image.source = "https://www.github.com/eleutherai/gpt-neox"
 LABEL org.opencontainers.image.licenses = " Apache-2.0"
-LABEL org.opencontainers.image.base.name="docker.io/nvidia/cuda:12.1.1-devel-ubuntu22.04"
+LABEL org.opencontainers.image.base.name="nvcr.io/nvidia/pytorch:24.02-py3"
 
 #### System package (uses default Python 3 version in Ubuntu 20.04)
 RUN apt-get update -y && \
@@ -48,21 +48,6 @@ RUN mkdir /var/run/sshd && \
 # Expose SSH port
 EXPOSE 22
 
-#### OPENMPI
-ENV OPENMPI_BASEVERSION=4.1
-ENV OPENMPI_VERSION=${OPENMPI_BASEVERSION}.0
-RUN mkdir -p /build && \
-    cd /build && \
-    wget -q -O - https://download.open-mpi.org/release/open-mpi/v${OPENMPI_BASEVERSION}/openmpi-${OPENMPI_VERSION}.tar.gz | tar xzf - && \
-    cd openmpi-${OPENMPI_VERSION} && \
-    ./configure --prefix=/usr/local/openmpi-${OPENMPI_VERSION} && \
-    make -j"$(nproc)" install && \
-    ln -s /usr/local/openmpi-${OPENMPI_VERSION} /usr/local/mpi && \
-    # Sanity check:
-    test -f /usr/local/mpi/bin/mpic++ && \
-    cd ~ && \
-    rm -rf /build
-
 # Needs to be in docker PATH if compiling other items & bashrc PATH (later)
 ENV PATH=/usr/local/mpi/bin:${PATH} \
     LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:${LD_LIBRARY_PATH}
@@ -88,29 +73,14 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
     echo 'export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:$LD_LIBRARY_PATH' >> /home/mchorse/.bashrc
 
 #### Python packages
-RUN python -m pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 COPY requirements/* ./
 RUN python -m pip install --no-cache-dir -r requirements.txt && pip install -r requirements-onebitadam.txt
 RUN python -m pip install -r requirements-sparseattention.txt
 RUN python -m pip install -r requirements-flashattention.txt
 RUN python -m pip install -r requirements-wandb.txt
 RUN python -m pip install protobuf==3.20.*
-RUN python -m pip cache purge
 
-## Install APEX
-# Detect the architecture and install Apex accordingly
-RUN ARCH=$(uname -m) && \
-    if [ "$ARCH" = "x86_64" ]; then \
-        wget https://github.com/segyges/not-nvidia-apex/releases/download/jan-2024/apex-0.1-cp310-cp310-linux_x86_64.zip && \
-        unzip ./apex-0.1-cp310-cp310-linux_x86_64.zip && \
-        python -m pip install ./apex-0.1-cp310-cp310-linux_x86_64.whl; \
-    else \
-    # Install Apex directly from source for other architectures
-        python -m pip install -r requirements-apex-pip.txt && \
-        python -m pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings --global-option=--cpp_ext --config-settings --global-option=--cuda_ext git+https://github.com/NVIDIA/apex.git@141bbf1cf362d4ca4d94f4284393e91dda5105a5; \
-    fi
-
-COPY megatron/fused_kernels/ megatron/fused_kernels
+COPY megatron/fused_kernels/ /megatron/fused_kernels
 WORKDIR /megatron/fused_kernels
 RUN python setup.py install
 

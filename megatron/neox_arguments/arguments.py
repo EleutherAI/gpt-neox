@@ -390,12 +390,6 @@ class NeoXArgs(*BASE_CLASSES):
 
             neox_args.wandb_group += "_" + wandb.util.generate_id()
 
-        if neox_args.sliding_window_width is not None:
-            _flash_version = packaging.version.Version(version("flash-attn"))
-            assert _flash_version >= packaging.version.Version(
-                "2.0.0"
-            ), f"Flash-Attention version ({str(_flash_version)}) must be >= 2.0.0 to support sliding window attention."
-
         neox_args.print()
 
         return neox_args
@@ -1089,10 +1083,16 @@ class NeoXArgs(*BASE_CLASSES):
                 assert all(
                     (attn_type == "flash") or (attn_type == "global")
                     for attn_type in self.attention_config
-                ), "GQA / MQA currently only compatible with Flash or standard global Attention"
+                ), "GQA / MQA currently only compatible with Flash or standard global/sliding window Attention"
                 assert (
                     self.num_kv_heads % self.model_parallel_size == 0
                 ), "Number of KV heads must be at least model_parallel_size for now!"
+        # Flash attention version >=2.3.0 required to combine Flash + Sliding Window Attention
+        if self.sliding_window_width is not None and "flash" in self.attention_config:
+            _flash_version = packaging.version.Version(version("flash-attn"))
+            assert _flash_version >= packaging.version.Version(
+                "2.3.0"
+            ), f"Flash-Attention version ({str(_flash_version)}) must be >= 2.3.0 to support sliding window attention."
 
         # Adding equal dataset weights if none are provided
         if self.train_data_paths and (self.train_data_weights is None):
