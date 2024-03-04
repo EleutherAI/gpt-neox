@@ -7,7 +7,6 @@ repos:
           - id: check-symlinks
           - id: check-yaml
           - id: destroyed-symlinks
-            exclude: ^(docs/CNAME/|configs/neox_arguments.md)
           - id: end-of-file-fixer
             exclude: ^(docs/CNAME/|configs/neox_arguments.md)
           - id: fix-byte-order-marker
@@ -17,6 +16,7 @@ repos:
             args: [--fix=lf]
           - id: requirements-txt-fixer
           - id: trailing-whitespace
+            exclude: ^(docs/CNAME/|configs/neox_arguments.md)
     - repo: https://gitlab.com/daverona/pre-commit/cpp
       rev: 0.8.0
       hooks:
