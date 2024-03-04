@@ -541,10 +541,12 @@ def get_optimizer(model, neox_args):
         # if we want the deepspeed zero lion...megatron lion will throw DeepSpeed Error
         if neox_args.zero_optimization["stage"] != 0:
             from deepspeed.ops.lion import FusedLion
+
             lion_optimizer = FusedLion
         # if not zero
         else:
             from .optimizers import Lion
+
             lion_optimizer = Lion
 
         optimizer = lion_optimizer(
