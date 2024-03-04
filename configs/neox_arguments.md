@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = b804ee8
+    Default = 2a3c4e1
 
     current git hash of repository
 
@@ -598,6 +598,18 @@ Model Arguments
     Default = 10000
 
     Base for rotary positional embedding
+
+
+
+- **rotary_save_freqs_buffer**: bool
+
+    Default = False
+
+    Used to control whether the `inv_freqs` buffer in rotary embeddings
+    will be stored in checkpoints (persistent=True) or not.
+
+    Defaults to false, but is left configurable to maintain backward-compatibility
+    with GPT-NeoX checkpoints that were trained with this flag.
 
 
 
