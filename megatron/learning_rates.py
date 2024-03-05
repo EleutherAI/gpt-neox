@@ -98,8 +98,9 @@ class AnnealingLR(object):
         new_lr = self.get_lr()
         for group in self.optimizer.param_groups:
             if self.use_mup and ("lr_adjust" in group) and group["lr_adjust"] is True:
-                new_lr = new_lr / self.mup_width_multiplier
-            group["lr"] = new_lr
+                group["lr"] = new_lr / self.mup_width_multiplier
+            else:
+                group["lr"] = new_lr
 
     def state_dict(self):
         state_dict = {
