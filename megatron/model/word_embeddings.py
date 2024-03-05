@@ -51,7 +51,7 @@ class Embedding(torch.nn.Module):
         self.init_method = init_method
         self.num_tokentypes = num_tokentypes
         self.mup_embedding_multiplier = (
-            float(neox_args.mup_embedding_multiplier) if neox_args.use_mup else 1
+            float(neox_args.mup_embedding_multiplier) if neox_args.use_mup else 1.0
         )
 
         # Word embeddings (parallel).
