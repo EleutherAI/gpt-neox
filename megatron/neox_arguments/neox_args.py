@@ -331,6 +331,15 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Base for rotary positional embedding
     """
 
+    rotary_save_freqs_buffer: bool = False
+    """
+    Used to control whether the `inv_freqs` buffer in rotary embeddings
+    will be stored in checkpoints (persistent=True) or not.
+
+    Defaults to false, but is left configurable to maintain backward-compatibility
+    with GPT-NeoX checkpoints that were trained with this flag.
+    """
+
     init_method: Literal[
         "normal",
         "scaled_normal",
