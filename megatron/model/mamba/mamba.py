@@ -29,7 +29,6 @@ class MambaBlock(nn.Module):
     def __init__(
         self,
         neox_args,
-        # ...
     ):
         super().__init__()
 
