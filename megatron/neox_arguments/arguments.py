@@ -1062,10 +1062,13 @@ class NeoXArgs(*BASE_CLASSES):
             ), "GMLP Blocks are not compatible with partition activations"
         if "mamba" in self.attention_config:
             assert (
-                self.is_pipe_parallel and self.model_parallel_size == 1
+                not self.is_pipe_parallel and self.model_parallel_size == 1
             ), "Mamba not currently compatible with parallelism"
             if isinstance(self.zero_stage, int):
                 assert self.zero_stage <= 2, "Zero stage 3 not compatible with Mamba"
+            assert (
+                self.hidden_dropout == 0.0,
+            ), "Mamba does not yet have dropout implemented"
 
         # Sparsity config
         if self.sparsity_config is None:
