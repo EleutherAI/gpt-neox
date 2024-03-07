@@ -10,19 +10,13 @@ try:
         selective_scan_fn,
         mamba_inner_fn,
     )
-except ModuleNotFoundError:
-    pass
-try:
     from causal_conv1d import causal_conv1d_fn
-except ModuleNotFoundError:
-    pass
-try:
     import einops
 except ModuleNotFoundError:
     pass
-# TODO: add a print in mambaBlock
 
-from megatron.model.norms import get_norm  # TODO: import get_activation
+
+from megatron.model.norms import get_norm
 
 # Mamba layer, without parallelism.
 class MambaBlock(nn.Module):
