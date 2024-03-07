@@ -1,29 +1,28 @@
+import math
+
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
-from megatron.model.norms import get_norm
+try:
+    from mamba_ssm.ops.selective_scan_interface import (
+        selective_scan_ref,
+        selective_scan_fn,
+        mamba_inner_fn,
+    )
+except ModuleNotFoundError:
+    pass
+try:
+    from causal_conv1d import causal_conv1d_fn
+except ModuleNotFoundError:
+    pass
+try:
+    import einops
+except ModuleNotFoundError:
+    pass
+# TODO: add a print in mambaBlock
 
-import math
-import einops
-
-from mamba_ssm.ops.selective_scan_interface import (
-    selective_scan_ref,
-    selective_scan_fn,
-    mamba_inner_fn,
-)
-
-# TODO: make imports conditional
-from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
-
-from causal_conv1d import causal_conv1d_fn
-
-# flags required to enable jit fusion kernels
-torch._C._jit_set_profiling_mode(False)
-torch._C._jit_set_profiling_executor(False)
-torch._C._jit_override_can_fuse_on_cpu(True)
-torch._C._jit_override_can_fuse_on_gpu(True)
-
-# TODO: put notation up here
+from megatron.model.norms import get_norm  # TODO: import get_activation
 
 # Mamba layer, without parallelism.
 class MambaBlock(nn.Module):
@@ -36,26 +35,30 @@ class MambaBlock(nn.Module):
 
         self.neox_args = neox_args
 
-        dtype = torch.float16 if neox_args.precision == "fp16" else torch.bfloat16
+        dtype = {
+            "fp16": torch.float16,
+            "bf16": torch.bfloat16,
+            "fp32": torch.float32,
+        }[neox_args.precision]
+        self.precision = dtype
         factory_kwargs = {"device": torch.cuda.current_device(), "dtype": dtype}
 
+        # set variables, mostly following mamba defaults
         self.d_model = neox_args.hidden_size
-        self.d_state = 16  # neox_args.mamba_state_dim
-        self.d_conv = 4  # neox_args.mamba_conv_dim
-        self.expand = 2
+        self.d_state = 16  # state dimensions per channel
+        self.d_conv = 4  # convolution width
+        self.expand = 2  # linear projection expansion factors
         self.d_inner = int(self.expand * self.d_model)
-        self.dt_rank = math.ceil(
-            self.d_model / 16
-        )  # if not neox_args.mamba_dt_rank else neox_args.mamba_dt_rank
-        self.dt_scale = 1.0  # TODO: should this be configurable?
+        self.dt_rank = math.ceil(self.d_model / 16)  # rank of dt / Delta parameter
+        self.dt_scale = 1.0
 
         self.dt_init = "random"
         self.dt_min, self.dt_max, self.dt_init_floor = 0.001, 0.1, 1e-4
         assert self.dt_init in ["constant", "random"]
 
-        self.use_bias = False  # TODO: add arg for this
+        self.use_bias = False  # currently hardcoded to mamba default.
 
-        # up-projection in MambaBlock.
+        # up-projection.
         self.in_proj = nn.Linear(
             self.d_model,
             self.d_inner * 2,
@@ -63,28 +66,31 @@ class MambaBlock(nn.Module):
             **factory_kwargs,
         )
 
-        # convolution in MambaBlock
+        # convolution.
         self.conv1d = nn.Conv1d(
             in_channels=self.d_inner,
             out_channels=self.d_inner,
-            bias=True,  # TODO: separate from Linear proj biases
+            bias=True,  # hardcode to have bias, currently
             kernel_size=self.d_conv,
             groups=self.d_inner,
             padding=self.d_conv - 1,
             **factory_kwargs,
         )
-        self.conv1d.to(factory_kwargs["dtype"])  # Conv1d bias
+        # Conv bias sometimes in 32-bit erroneously, when holding other parameters in fp32.
+        # Uncertain why
+        self.conv1d.to(self.precision)
 
-        self.act_fn = nn.SiLU()  # TODO: import from megatron.model.activations
+        self.act_fn = F.silu  # we do not allow for
 
         # x_proj corresponds to s_B(x), s_C(x), s_Delta(x)
         # in https://arxiv.org/pdf/2312.00752.pdf Algorithm 2
+        # (computes data-dependent B, C, Delta/dt)
         self.x_proj = nn.Linear(
             self.d_inner, self.dt_rank + self.d_state * 2, bias=False, **factory_kwargs
         )
 
         # up-project dt / Delta from dt_rank to d_inner
-        self.dt_proj = nn.Linear(  # TODO: why does this use a bias?
+        self.dt_proj = nn.Linear(
             self.dt_rank, self.d_inner, bias=True, **factory_kwargs
         )
 
@@ -107,10 +113,8 @@ class MambaBlock(nn.Module):
         inv_dt = dt + torch.log(-torch.expm1(-dt))
         with torch.no_grad():
             self.dt_proj.bias.copy_(inv_dt)
-        # Our initialization would set all Linear.bias to zero, need to mark this one as _no_reinit
-        self.dt_proj.bias._no_reinit = True
 
-        # initialize A . uses S4D real initialization #TODO: add a flag controlling this
+        # initialize A . uses S4D real initialization
         A = einops.repeat(
             torch.arange(
                 1,
@@ -123,11 +127,13 @@ class MambaBlock(nn.Module):
         ).contiguous()
         A_log = torch.log(A).to(
             torch.float32
-        )  # important! # TODO: ensure DeepSpeed doesn't muck with A's dtype
+        )  # Keep in fp32, following https://github.com/state-spaces/mamba#precision and code comments
         self.A_log = nn.Parameter(A_log)
         self.A_log._no_weight_decay = (
-            True  # TODO: ensure NeoX handles these weight decay properties right
+            True  # setting this attribute turns off weight decay for this param
         )
+        # setting this attribute prevents deeperspeed from casting this param to fp32
+        # requires commit ... or later
         self.A_log._deepspeed_no_cast = True
 
         # D parameter
@@ -137,10 +143,15 @@ class MambaBlock(nn.Module):
             )
         ).to(
             torch.float32
-        )  # Important? Keep in fp32
-        self.D._no_weight_decay = True  # TODO: same as A_log weight decay, see above
+        )  # Keep in fp32, following https://github.com/state-spaces/mamba#precision and code comments
+        self.D._no_weight_decay = (
+            True  # setting this attribute turns off weight decay for this param
+        )
+        # setting this attribute prevents deeperspeed from casting this param to fp32
+        # requires commit ... or later
         self.D._deepspeed_no_cast = True
 
+        # out down-projection
         self.out_proj = nn.Linear(
             self.d_inner, self.d_model, bias=self.use_bias, **factory_kwargs
         )
@@ -191,38 +202,39 @@ class MambaBlock(nn.Module):
 
     def forward(self, hidden_states):
         """ """
+        # TODO: support inference natively in neox.
+        # For now, we only handle training (parallel scan).
         assert self.training, "Mamba in NeoX does not support inference!"
 
         # hidden_states: [sq, b, h]
         seqlen, batch, dim = hidden_states.shape
 
-        # TODO: support inference in separate method
-        # For now, only handle training (parallel scan).
-
         # first up: perform in_proj
-        # TODO: make this compatible with TP / Megatron ParallelLinears
         xz = einops.rearrange(
             self.in_proj.weight @ einops.rearrange(hidden_states, "l b d -> d (b l)"),
             "d (b l) -> b d l",
             l=seqlen,
-        )  # TODO: is the fact hidden_states input is different shape from Mamba code hidden states shape a problem?
+        )
 
         if self.in_proj.bias is not None:
             xz = xz + einops.rearrange(self.in_proj.bias.to(dtype=xz.dtype), "d -> d 1")
 
-        A = -torch.exp(
-            self.A_log.float()
-        )  # (d_inner, d_state) # TODO: move this to right before selective scan?
+        A = -torch.exp(self.A_log.float())  # (d_inner, d_state)
 
         if self.neox_args.mamba_inner_func_fusion:
+            # =================
+            # Fused mamba inner
+            # =================
+
             # mamba provides a mamba_inner fn that computes the entire (post-in_proj) Mamba block.
-            # we want to use it if we can.
+            # we want to use it if we can, as it saves memory and provides speedups.
+            # equivalent to use_fast_path=True in state-spaces/mamba.
             out = mamba_inner_fn(
                 xz,
                 self.conv1d.weight,
-                self.conv1d.bias.to(
-                    torch.float16
-                ),  # for some bizarre reason this becomes fp32 sometime after init
+                # for some bizarre reason this becomes fp32 sometime after init, when A and D held in fp32.
+                # cast it manually
+                self.conv1d.bias.to(self.precision),
                 self.x_proj.weight,
                 self.dt_proj.weight,
                 self.out_proj.weight,
@@ -245,27 +257,24 @@ class MambaBlock(nn.Module):
         # Convolution
         # ===========
 
-        # TODO: use causal_conv1d cuda kernels, make configurable
         if not self.neox_args.mamba_causal_conv_fusion:
-            self.conv1d.to(
-                torch.float16
-            )  # don't need if not hacking DeepSpeed to use fp32 A_log, D
+            self.conv1d.to(self.precision)  # required if keeping fp32 A_log, D
             x = self.act_fn(self.conv1d(x)[..., :seqlen])
         else:
-            # Note: this requires silu to be used.
+            # Note: this requires silu as activation.
             x = causal_conv1d_fn(
                 x=x,
                 weight=einops.rearrange(self.conv1d.weight, "d 1 w -> d w"),
-                bias=self.conv1d.bias.to(torch.float16),
+                bias=self.conv1d.bias.to(self.precision),
                 activation="silu",
             )
 
         # ==============
-        # SSM Projection
+        # SSM (S6) layer
         # ==============
 
         # project: perform s_B, s_C, s_Delta projections
-        x_dbl = self.x_proj(einops.rearrange(x, "b d l -> (b l) d"))  # shape (bl d)
+        x_dbl = self.x_proj(einops.rearrange(x, "b d l -> (b l) d"))
         # split into component dt, B, C
         dt, B, C = torch.split(
             x_dbl, [self.dt_rank, self.d_state, self.d_state], dim=-1
@@ -279,19 +288,17 @@ class MambaBlock(nn.Module):
         B = einops.rearrange(B, "(b l) d_state -> b d_state l", l=seqlen).contiguous()
         C = einops.rearrange(C, "(b l) d_state -> b d_state l", l=seqlen).contiguous()
 
-        # TODO: assert activation is silu or swish for scan?
-
+        # perform selective scan.
         y = self.selective_scan(
             x,
             dt,
             A,
             B,
             C,
-            self.D.float(),  # TODO: why's this cast here?
+            self.D.float(),
             z=z,
             delta_bias=self.dt_proj.bias.float(),
             delta_softplus=True,
-            # return_last_state, #TODO: inference concerns
         )
 
         # ===============
@@ -301,9 +308,7 @@ class MambaBlock(nn.Module):
 
         out = self.out_proj(y)
 
-        out = einops.rearrange(
-            out, "b l h -> l b h"
-        )  # TODO: cutting down on rearranges would be nice
+        out = einops.rearrange(out, "b l h -> l b h")
 
         return out
 
@@ -326,8 +331,6 @@ class MambaResidualLayer(nn.Module):
 
         self.norm = norm(neox_args.hidden_size, eps=eps)
 
-        # TODO: dropout
-
         self.mixer = MambaBlock(
             neox_args=neox_args,
         )
@@ -338,9 +341,7 @@ class MambaResidualLayer(nn.Module):
         # x = x + mixer(norm(x))
         residual = x
 
-        hidden_states = self.mixer(
-            self.norm(x)
-        )  # TODO: do norm in fp32? what is it by default
+        hidden_states = self.mixer(self.norm(x))
 
         return hidden_states + residual
 
