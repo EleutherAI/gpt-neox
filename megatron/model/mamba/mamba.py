@@ -15,14 +15,16 @@ try:
 except ModuleNotFoundError:
     pass
 
-
 from megatron.model.norms import get_norm
+
 
 # Mamba layer, without parallelism.
 class MambaBlock(nn.Module):
     def __init__(
         self,
         neox_args,
+        init_method,
+        output_layer_init_method,
     ):
         super().__init__()
 
@@ -58,6 +60,7 @@ class MambaBlock(nn.Module):
             bias=self.use_bias,
             **factory_kwargs,
         )
+        init_method(self.in_proj.weight)
 
         # convolution.
         self.conv1d = nn.Conv1d(
@@ -81,6 +84,7 @@ class MambaBlock(nn.Module):
         self.x_proj = nn.Linear(
             self.d_inner, self.dt_rank + self.d_state * 2, bias=False, **factory_kwargs
         )
+        init_method(self.x_proj.weight)
 
         # up-project dt / Delta from dt_rank to d_inner
         self.dt_proj = nn.Linear(
@@ -127,7 +131,8 @@ class MambaBlock(nn.Module):
         )
         # setting this attribute prevents deeperspeed from casting this param to fp32
         # requires commit ... or later
-        self.A_log._deepspeed_no_cast = True
+        if self.neox_args.mamba_selective_fp32_params:
+            self.A_log._deepspeed_no_cast = True
 
         # D parameter
         self.D = nn.Parameter(
@@ -142,14 +147,14 @@ class MambaBlock(nn.Module):
         )
         # setting this attribute prevents deeperspeed from casting this param to fp32
         # requires commit ... or later
-        self.D._deepspeed_no_cast = True
+        if self.neox_args.mamba_selective_fp32_params:
+            self.D._deepspeed_no_cast = True
 
         # out down-projection
         self.out_proj = nn.Linear(
             self.d_inner, self.d_model, bias=self.use_bias, **factory_kwargs
         )
-
-        # TODO: init out_proj following https://github.com/state-spaces/mamba/blob/ce59daea3a090d011d6476c6e5b97f6d58ddad8b/mamba_ssm/models/mixer_seq_simple.py#L54
+        output_layer_init_method(self.out_proj.weight)
 
     def selective_scan(
         self,
@@ -314,6 +319,8 @@ class MambaResidualLayer(nn.Module):
     def __init__(
         self,
         neox_args,
+        init_method,
+        output_layer_init_method,
         layer_number,
     ):
         super().__init__()
@@ -326,6 +333,8 @@ class MambaResidualLayer(nn.Module):
 
         self.mixer = MambaBlock(
             neox_args=neox_args,
+            init_method=init_method,
+            output_layer_init_method=output_layer_init_method,
         )
 
     def forward(self, x, attention_mask=None, layer_past=None):

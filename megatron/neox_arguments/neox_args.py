@@ -354,6 +354,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
         "xavier_normal",
         "wang_init",
         "small_init",
+        "single_residual_scaled_normal",
     ] = "normal"
     """
     Init function used on all layers except ff residual outputs - choose from
@@ -369,6 +370,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
         "xavier_normal",
         "wang_init",
         "small_init",
+        "single_residual_scaled_normal",
     ] = "scaled_normal"
     """
     Init function used for ff residual outputs - choose from
@@ -440,6 +442,12 @@ class NeoXArgsModel(NeoXArgsTemplate):
     mamba_inner_func_fusion: bool = False
     """
     Enable fused inner operator for Mamba. (Supersedes conv. and selective scan fusion flags, requires each of those kernels to be installed.)
+    """
+
+    mamba_selective_fp32_params: bool = True
+    """
+    Keep selected parameters in fp32 for Mamba (A and D).
+    Requires https://github.com/EleutherAI/DeeperSpeed/pull/61 .
     """
 
     # Output layer parallelism over the hidden dim is currently broken (https://github.com/EleutherAI/gpt-neox/issues/905)
@@ -638,7 +646,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Path to save memory snapshot to.
     """
 
-    profiling: bool = False
+    profile: bool = False
     """
     Enable nsys profiling. When using this option,
     nsys options should be specified in commandline.

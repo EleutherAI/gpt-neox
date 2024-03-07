@@ -256,6 +256,8 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                     LayerSpec(
                         MambaResidualLayerPipe,
                         neox_args=self.neox_args,
+                        init_method=self.init_method,
+                        output_layer_init_method=self.output_layer_init_method,
                         layer_number=i,
                     )
                 )
