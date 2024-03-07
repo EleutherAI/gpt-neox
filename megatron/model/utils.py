@@ -179,7 +179,7 @@ class SequentialWrapper(torch.nn.Module):
                     inputs = inputs[0]
                 for idx, layer in enumerate(self.sequential[start:end]):
                     inputs = layer(inputs)
-                    if hasattr(layer, 'last_moe_loss'):
+                    if hasattr(layer, "last_moe_loss"):
                         moe_losses.append(layer.last_moe_loss)
                 return inputs
 

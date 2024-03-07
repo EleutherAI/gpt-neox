@@ -982,7 +982,7 @@ class ParallelTransformerLayer(nn.Module):
                     init_method=init_method,
                     output_layer_init_method=output_layer_init_method,
                     parallel_output=self.gpt_j_residual,
-                    **kw
+                    **kw,
                 )
             elif mlp_type == "llama":
                 return LLaMAParallelMLP(
@@ -990,7 +990,7 @@ class ParallelTransformerLayer(nn.Module):
                     init_method=init_method,
                     output_layer_init_method=output_layer_init_method,
                     parallel_output=self.gpt_j_residual,
-                    **kw
+                    **kw,
                 )
             else:
                 raise KeyError(mlp_type)
