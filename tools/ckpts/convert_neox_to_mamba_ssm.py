@@ -21,7 +21,10 @@ sys.path.append(
 )
 from megatron.tokenizer import build_tokenizer
 
-
+"""
+Conversion utility for converting a Mamba model
+trained in GPT-NeoX into the mamba_ssm package ckpt format.
+"""
 ARCH = {
     "COLUMN_PARALLEL_LINEAR_KEYS": {
         "mixer.in_proj.weight": "mixer.in_proj.weight",
