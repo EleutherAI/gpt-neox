@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 16ad157
+    Default = 29f0280
 
     current git hash of repository
 
@@ -735,6 +735,22 @@ Model Arguments
 
     Keep selected parameters in fp32 for Mamba (A and D).
     Requires https://github.com/EleutherAI/DeeperSpeed/pull/61 .
+
+
+
+- **mamba_use_bias_in_conv**: bool
+
+    Default = True
+
+    If false, conv1d in mamba block will not have bias term
+
+
+
+- **mamba_use_bias_in_linears**: bool
+
+    Default = False
+
+    Enable bias terms in mamba block up- and down- projections (in_proj and out_proj).
 
 
 
