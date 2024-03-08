@@ -450,6 +450,16 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Requires https://github.com/EleutherAI/DeeperSpeed/pull/61 .
     """
 
+    mamba_use_bias_in_conv: bool = True
+    """
+    If false, conv1d in mamba block will not have bias term
+    """
+
+    mamba_use_bias_in_linears: bool = False
+    """
+    Enable bias terms in mamba block up- and down- projections (in_proj and out_proj).
+    """
+
     # Output layer parallelism over the hidden dim is currently broken (https://github.com/EleutherAI/gpt-neox/issues/905)
     output_layer_parallelism: Literal["column"] = "column"
 

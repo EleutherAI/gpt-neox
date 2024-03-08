@@ -51,13 +51,11 @@ class MambaBlock(nn.Module):
         self.dt_min, self.dt_max, self.dt_init_floor = 0.001, 0.1, 1e-4
         assert self.dt_init in ["constant", "random"]
 
-        self.use_bias = False  # currently hardcoded to mamba default.
-
         # up-projection.
         self.in_proj = nn.Linear(
             self.d_model,
             self.d_inner * 2,
-            bias=self.use_bias,
+            bias=neox_args.mamba_use_bias_in_linears,
             **factory_kwargs,
         )
         init_method(self.in_proj.weight)
@@ -66,7 +64,7 @@ class MambaBlock(nn.Module):
         self.conv1d = nn.Conv1d(
             in_channels=self.d_inner,
             out_channels=self.d_inner,
-            bias=True,  # hardcode to have bias, currently
+            bias=neox_args.mamba_use_bias_in_conv,
             kernel_size=self.d_conv,
             groups=self.d_inner,
             padding=self.d_conv - 1,
@@ -152,7 +150,10 @@ class MambaBlock(nn.Module):
 
         # out down-projection
         self.out_proj = nn.Linear(
-            self.d_inner, self.d_model, bias=self.use_bias, **factory_kwargs
+            self.d_inner,
+            self.d_model,
+            bias=neox_args.mamba_use_bias_in_linears,
+            **factory_kwargs,
         )
         output_layer_init_method(self.out_proj.weight)
 
@@ -231,8 +232,10 @@ class MambaBlock(nn.Module):
                 xz,
                 self.conv1d.weight,
                 # for some bizarre reason this becomes fp32 sometime after init, when A and D held in fp32.
-                # cast it manually
-                self.conv1d.bias.to(self.precision),
+                # cast it manually if the bias exists
+                self.conv1d.bias.to(self.precision)
+                if self.conv1d.bias is not None
+                else self.conv1d.bias,
                 self.x_proj.weight,
                 self.dt_proj.weight,
                 self.out_proj.weight,
@@ -263,7 +266,9 @@ class MambaBlock(nn.Module):
             x = causal_conv1d_fn(
                 x=x,
                 weight=einops.rearrange(self.conv1d.weight, "d 1 w -> d w"),
-                bias=self.conv1d.bias.to(self.precision),
+                bias=self.conv1d.bias.to(self.precision)
+                if self.conv1d.bias is not None
+                else self.conv1d.bias,
                 activation="silu",
             )
 
