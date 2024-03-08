@@ -26,11 +26,11 @@ LABEL org.opencontainers.image.base.name="nvcr.io/nvidia/pytorch:24.02-py3"
 #### System package (uses default Python 3 version in Ubuntu 20.04)
 RUN apt-get update -y && \
     apt-get install -y \
-    git python3-dev libpython3-dev python3-pip sudo pdsh \
-    htop tmux zstd software-properties-common build-essential autotools-dev \
-    nfs-common pdsh cmake g++ gcc curl wget vim less unzip htop iftop iotop ca-certificates ssh \
-    rsync iputils-ping net-tools libcupti-dev libmlx4-1 infiniband-diags ibutils ibverbs-utils \
-    rdmacm-utils perftest rdma-core nano && \
+    python3-pip sudo pdsh \
+    htop tmux zstd software-properties-common \
+    nfs-common pdsh cmake htop iftop iotop ssh \
+    iputils-ping net-tools libcupti-dev libmlx4-1 infiniband-diags ibutils \
+    rdmacm-utils perftest rdma-core && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3 1 && \
     update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1 && \
     python -m pip install --upgrade pip && \
@@ -75,8 +75,6 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
 #### Python packages
 COPY requirements/* ./
 RUN python -m pip install --no-cache-dir -r requirements.txt && pip install -r requirements-onebitadam.txt
-RUN python -m pip install -r requirements-sparseattention.txt
-RUN python -m pip install -r requirements-flashattention.txt
 RUN python -m pip install -r requirements-wandb.txt
 RUN python -m pip install protobuf==3.20.*
 
