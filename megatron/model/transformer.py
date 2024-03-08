@@ -626,6 +626,7 @@ class ParallelSelfAttention(nn.Module):
                 q_shape = query_layer.shape
                 k_shape = key_layer.shape
                 v_shape = value_layer.shape
+                is_causal = max_seqlen_q == max_seqlen_k
                 output = self.flash_varlen_qkv_fn(
                     query_layer.reshape(
                         (q_shape[0] * q_shape[1], q_shape[2], q_shape[3])
@@ -641,7 +642,7 @@ class ParallelSelfAttention(nn.Module):
                     max_seqlen_q,
                     max_seqlen_k,
                     softmax_scale=None,
-                    causal=True,
+                    causal=is_causal,
                     **extra_kwargs,
                 )
                 output = output.reshape(q_shape)
