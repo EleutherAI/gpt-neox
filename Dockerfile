@@ -75,10 +75,8 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
 #### Python packages
 COPY requirements/* ./
 RUN python -m pip install --no-cache-dir -r requirements.txt && pip install -r requirements-onebitadam.txt
-RUN python -m pip install -r requirements-sparseattention.txt
 RUN python -m pip install -r requirements-flashattention.txt
 RUN python -m pip install -r requirements-wandb.txt
-RUN python -m pip install protobuf==3.20.*
 
 COPY megatron/fused_kernels/ /megatron/fused_kernels
 WORKDIR /megatron/fused_kernels
