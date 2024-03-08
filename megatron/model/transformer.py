@@ -1046,6 +1046,7 @@ class ParallelTransformerLayer(nn.Module):
     def forward(self, x, attention_mask, layer_past=None):
         layer_past = layer_past if layer_past is not None else self.layer_past
         bias_dropout_fn = self._get_bias_dropout()
+        moe_loss = torch.tensor(0.0, device=x.device, dtype=x.dtype)
         # x: [b, s, h]
         if self.gpt_j_residual:
             # pseudocode:
@@ -1127,9 +1128,6 @@ class ParallelTransformerLayer(nn.Module):
 
             # output = x + mlp(ln2(x))
             layernorm_output = self.post_attention_layernorm(attention_output)
-            moe_loss = torch.tensor(
-                0.0, device=layernorm_output.device, dtype=layernorm_output.dtype
-            )
             mlp_bias = torch.tensor(
                 0.0, device=layernorm_output.device, dtype=layernorm_output.dtype
             )
