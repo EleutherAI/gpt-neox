@@ -38,6 +38,8 @@ class MambaBlock(nn.Module):
         self.precision = dtype
         factory_kwargs = {"device": torch.cuda.current_device(), "dtype": dtype}
 
+        assert not (neox_args.mamba_use_bias_in_linears and neox_args.mamba_inner_func_fusion), "Mamba fused inner fn and bias in x_proj not compatible!"
+
         # set variables, mostly following mamba defaults
         self.d_model = neox_args.hidden_size
         self.d_state = 16  # state dimensions per channel
@@ -80,7 +82,7 @@ class MambaBlock(nn.Module):
         # in https://arxiv.org/pdf/2312.00752.pdf Algorithm 2
         # (computes data-dependent B, C, Delta/dt)
         self.x_proj = nn.Linear(
-            self.d_inner, self.dt_rank + self.d_state * 2, bias=False, **factory_kwargs
+            self.d_inner, self.dt_rank + self.d_state * 2, bias=neox_args.mamba_use_bias_in_linears, **factory_kwargs
         )
         init_method(self.x_proj.weight)
 
