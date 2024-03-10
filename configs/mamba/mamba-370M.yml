@@ -1,4 +1,5 @@
 {
+  # Parallelism is not yet supported for Mamba
   "pipe_parallel_size": 0,
   "model_parallel_size": 1,
 

@@ -38,7 +38,9 @@ class MambaBlock(nn.Module):
         self.precision = dtype
         factory_kwargs = {"device": torch.cuda.current_device(), "dtype": dtype}
 
-        assert not (neox_args.mamba_use_bias_in_linears and neox_args.mamba_inner_func_fusion), "Mamba fused inner fn and bias in x_proj not compatible!"
+        assert not (
+            neox_args.mamba_use_bias_in_linears and neox_args.mamba_inner_func_fusion
+        ), "Mamba fused inner fn and bias in x_proj not compatible!"
 
         # set variables, mostly following mamba defaults
         self.d_model = neox_args.hidden_size
@@ -82,11 +84,19 @@ class MambaBlock(nn.Module):
         # in https://arxiv.org/pdf/2312.00752.pdf Algorithm 2
         # (computes data-dependent B, C, Delta/dt)
         self.x_proj = nn.Linear(
-            self.d_inner, self.dt_rank + self.d_state * 2, bias=neox_args.mamba_use_bias_in_linears, **factory_kwargs
+            self.d_inner,
+            self.dt_rank + self.d_state * 2,
+            bias=neox_args.mamba_use_bias_in_linears,
+            **factory_kwargs,
         )
         init_method(self.x_proj.weight)
 
         # up-project dt / Delta from dt_rank to d_inner
+        # dt_proj 's bias is a special case and I believe we should keep it turned on -- Alg. 2 in the Mamba paper (https://arxiv.org/abs/2312.00752)
+        # defines Delta as Delta = Tau_{Delta}(Parameter + s_{Delta}(x)) where s_{Delta}(x) = Broadcast_{D}(Linear_{1}(x))
+        # or as they further explain in section 3.6 can be also s_{Delta}(x) = Linear_{D}(Linear_{R}(x)) where Linear_R
+        # is the delta portion of x_proj and Linear_D is the dt_proj weight. Then, the Parameter term from Alg. 2 can
+        # be viewed as the bias term in dt_proj, with a special initialization from https://arxiv.org/abs/2206.12037
         self.dt_proj = nn.Linear(
             self.dt_rank, self.d_inner, bias=True, **factory_kwargs
         )
@@ -130,7 +140,7 @@ class MambaBlock(nn.Module):
             True  # setting this attribute turns off weight decay for this param
         )
         # setting this attribute prevents deeperspeed from casting this param to fp32
-        # requires commit ... or later
+        # requires DeepersSpeed commit https://github.com/EleutherAI/DeeperSpeed/commit/6d097beccc4e3b0ac806c7d975f8c10d4689de26 or later
         if self.neox_args.mamba_selective_fp32_params:
             self.A_log._deepspeed_no_cast = True
 
@@ -146,7 +156,7 @@ class MambaBlock(nn.Module):
             True  # setting this attribute turns off weight decay for this param
         )
         # setting this attribute prevents deeperspeed from casting this param to fp32
-        # requires commit ... or later
+        # requires DeeperSpeed commit https://github.com/EleutherAI/DeeperSpeed/commit/6d097beccc4e3b0ac806c7d975f8c10d4689de26 or later
         if self.neox_args.mamba_selective_fp32_params:
             self.D._deepspeed_no_cast = True
 
@@ -334,6 +344,7 @@ class MambaResidualLayer(nn.Module):
         # TODO: allow for residual in fp32 if it helps?
         self.layer_number = layer_number
 
+        # TODO: Add support for triton RMSNorm fused kernel at https://github.com/state-spaces/mamba/blob/v1.2.0/mamba_ssm/ops/triton/layernorm.py
         norm, eps = get_norm(neox_args)
 
         self.norm = norm(neox_args.hidden_size, eps=eps)
