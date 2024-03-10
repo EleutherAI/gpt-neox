@@ -36,6 +36,7 @@ ATTENTION_TYPE_CHOICES = [
     "gmlp",
     "amlp",
     "flash",
+    "mamba",
 ]
 
 
@@ -215,7 +216,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     The first item in the list specifies the attention type(s), and should be a list of strings. The second item
     specifies the number of times to repeat those attention types in the full list.
 
-    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird, "gmlp", "amlp", "flash"]
+    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird, "gmlp", "amlp", "flash", "mamba"]
 
     So a 12 layer network with only global attention could be specified like:
         [[[`global`], 12]]
@@ -353,6 +354,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
         "xavier_normal",
         "wang_init",
         "small_init",
+        "single_residual_scaled_normal",
     ] = "normal"
     """
     Init function used on all layers except ff residual outputs - choose from
@@ -368,6 +370,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
         "xavier_normal",
         "wang_init",
         "small_init",
+        "single_residual_scaled_normal",
     ] = "scaled_normal"
     """
     Init function used for ff residual outputs - choose from
@@ -424,6 +427,37 @@ class NeoXArgsModel(NeoXArgsTemplate):
         'num_tokens': int = 10 # length of the soft prompt in tokens
         'init_string': str = '' # if provided, initialize the soft prompt with the word embeddings of this string
         'init_range': float = 0.5 # if no init string is provided, initialize the soft prompt with a uniform distribution between -init_range and init_rang
+    """
+
+    mamba_selective_scan_fusion: bool = False
+    """
+    Enable fused kernels for Mamba selective scan.
+    """
+
+    mamba_causal_conv_fusion: bool = False
+    """
+    Enable fused kernels for Mamba causal Conv1d.
+    """
+
+    mamba_inner_func_fusion: bool = False
+    """
+    Enable fused inner operator for Mamba. (Supersedes conv. and selective scan fusion flags, requires each of those kernels to be installed.)
+    """
+
+    mamba_selective_fp32_params: bool = True
+    """
+    Keep selected parameters in fp32 for Mamba (A and D).
+    Requires https://github.com/EleutherAI/DeeperSpeed/pull/61 .
+    """
+
+    mamba_use_bias_in_conv: bool = True
+    """
+    If false, conv1d in mamba block will not have bias term
+    """
+
+    mamba_use_bias_in_linears: bool = False
+    """
+    Enable bias terms in mamba block up- and down- projections (in_proj and out_proj).
     """
 
     # Output layer parallelism over the hidden dim is currently broken (https://github.com/EleutherAI/gpt-neox/issues/905)

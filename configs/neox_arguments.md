@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = e6c4b62
+    Default = 33f2842
 
     current git hash of repository
 
@@ -432,7 +432,7 @@ Model Arguments
     The first item in the list specifies the attention type(s), and should be a list of strings. The second item
     specifies the number of times to repeat those attention types in the full list.
 
-    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird, "gmlp", "amlp", "flash"]
+    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird, "gmlp", "amlp", "flash", "mamba"]
 
     So a 12 layer network with only global attention could be specified like:
         [[[`global`], 12]]
@@ -613,7 +613,7 @@ Model Arguments
 
 
 
-- **init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init']
+- **init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init', 'single_residual_scaled_normal']
 
     Default = normal
 
@@ -622,7 +622,7 @@ Model Arguments
 
 
 
-- **output_layer_init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init']
+- **output_layer_init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init', 'single_residual_scaled_normal']
 
     Default = scaled_normal
 
@@ -702,6 +702,55 @@ Model Arguments
         'num_tokens': int = 10 # length of the soft prompt in tokens
         'init_string': str = '' # if provided, initialize the soft prompt with the word embeddings of this string
         'init_range': float = 0.5 # if no init string is provided, initialize the soft prompt with a uniform distribution between -init_range and init_rang
+
+
+
+- **mamba_selective_scan_fusion**: bool
+
+    Default = False
+
+    Enable fused kernels for Mamba selective scan.
+
+
+
+- **mamba_causal_conv_fusion**: bool
+
+    Default = False
+
+    Enable fused kernels for Mamba causal Conv1d.
+
+
+
+- **mamba_inner_func_fusion**: bool
+
+    Default = False
+
+    Enable fused inner operator for Mamba. (Supersedes conv. and selective scan fusion flags, requires each of those kernels to be installed.)
+
+
+
+- **mamba_selective_fp32_params**: bool
+
+    Default = True
+
+    Keep selected parameters in fp32 for Mamba (A and D).
+    Requires https://github.com/EleutherAI/DeeperSpeed/pull/61 .
+
+
+
+- **mamba_use_bias_in_conv**: bool
+
+    Default = True
+
+    If false, conv1d in mamba block will not have bias term
+
+
+
+- **mamba_use_bias_in_linears**: bool
+
+    Default = False
+
+    Enable bias terms in mamba block up- and down- projections (in_proj and out_proj).
 
 
 

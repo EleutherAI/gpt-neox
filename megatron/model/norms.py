@@ -57,6 +57,7 @@ class RMSNorm(torch.nn.Module):
             self.register_parameter("offset", self.offset)
 
     def forward(self, x):
+        dtype = x.dtype
         if self.p < 0.0 or self.p > 1.0:
             norm_x = x.norm(2, dim=-1, keepdim=True)
             d_x = self.d
@@ -73,7 +74,7 @@ class RMSNorm(torch.nn.Module):
         if self.bias:
             return self.scale * x_normed + self.offset
 
-        return self.scale * x_normed
+        return (self.scale * x_normed).to(dtype)
 
 
 class ScaleNorm(torch.nn.Module):
