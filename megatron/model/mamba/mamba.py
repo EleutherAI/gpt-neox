@@ -58,22 +58,33 @@ class ParallelMambaBlock(nn.Module):
         self.dt_min, self.dt_max, self.dt_init_floor = 0.001, 0.1, 1e-4
         assert self.dt_init in ["constant", "random"]
 
-        # up-projection.
-        self.in_proj = nn.Linear(
-            self.d_model,
-            self.d_inner * 2,
-            bias=neox_args.mamba_use_bias_in_linears,
-            **factory_kwargs,
-        )
-        init_method(self.in_proj.weight)
+        # TP-specific setup
+        world_size = mpu.get_model_parallel_world_size()
+        self.d_inner_per_rank = mpu.divide(self.d_inner, world_size)
 
-        # convolution.
+        if neox_args.mamba_inner_func_fusion and world_size > 1:
+            # as with gpt-j residual, we must manually reduce output from final proj
+            # across TP ranks, since it is not done by fused mamba_inner_fn .
+            self.reduce = mpu.mappings.reduce_from_model_parallel_region
+
+        # up-projection.
+        self.in_proj = mpu.ColumnParallelLinear(
+            neox_args=neox_args,
+            input_size=self.d_model,
+            output_size=self.d_inner * 2,
+            gather_output=False,
+            init_method=init_method,
+            skip_bias_add=not neox_args.mamba_use_bias_in_linears,
+            bias=neox_args.mamba_use_bias_in_linears,
+        )
+
+        # convolution (parallelized across d_inner)
         self.conv1d = nn.Conv1d(
-            in_channels=self.d_inner,
-            out_channels=self.d_inner,
+            in_channels=self.d_inner_per_rank,
+            out_channels=self.d_inner_per_rank,
             bias=neox_args.mamba_use_bias_in_conv,
             kernel_size=self.d_conv,
-            groups=self.d_inner,
+            groups=self.d_inner_per_rank,
             padding=self.d_conv - 1,
             **factory_kwargs,
         )
@@ -81,21 +92,24 @@ class ParallelMambaBlock(nn.Module):
         # Uncertain why
         self.conv1d.to(self.precision)
 
-        self.act_fn = F.silu  # we do not allow for
+        self.act_fn = F.silu  # we do not allow for other activation fns
 
         # x_proj corresponds to s_B(x), s_C(x), s_Delta(x)
         # in https://arxiv.org/pdf/2312.00752.pdf Algorithm 2
         # (computes data-dependent B, C, Delta/dt)
-        self.x_proj = nn.Linear(
-            self.d_inner,
-            self.dt_rank + self.d_state * 2,
+        self.x_proj = mpu.RowParallelLinear(
+            neox_args=neox_args,
+            input_size=self.d_inner,
+            output_size=self.dt_rank + self.d_state * 2,
+            input_is_parallel=True,
+            init_method=init_method,
+            skip_bias_add=not neox_args.mamba_use_bias_in_linears,
+            parallel_output=True,
             bias=neox_args.mamba_use_bias_in_linears,
-            **factory_kwargs,
         )
-        init_method(self.x_proj.weight)
 
         # up-project dt / Delta from dt_rank to d_inner
-        # dt_proj 's bias is a special case and I believe we should keep it turned on -- Alg. 2 in the Mamba paper (https://arxiv.org/abs/2312.00752)
+        # dt_proj 's bias is a special case and should be kept always turned on -- Alg. 2 in the Mamba paper (https://arxiv.org/abs/2312.00752)
         # defines Delta as Delta = Tau_{Delta}(Parameter + s_{Delta}(x)) where s_{Delta}(x) = Broadcast_{D}(Linear_{1}(x))
         # or as they further explain in section 3.6 can be also s_{Delta}(x) = Linear_{D}(Linear_{R}(x)) where Linear_R
         # is the delta portion of x_proj and Linear_D is the dt_proj weight. Then, the Parameter term from Alg. 2 can
@@ -133,7 +147,7 @@ class ParallelMambaBlock(nn.Module):
                 device=torch.cuda.current_device(),
             ),
             "n -> d n",
-            d=self.d_inner,
+            d=self.d_inner_per_rank,
         ).contiguous()
         A_log = torch.log(A).to(
             torch.float32
@@ -150,7 +164,9 @@ class ParallelMambaBlock(nn.Module):
         # D parameter
         self.D = nn.Parameter(
             torch.ones(
-                self.d_inner, device=torch.cuda.current_device(), dtype=torch.float32
+                self.d_inner_per_rank,
+                device=torch.cuda.current_device(),
+                dtype=torch.float32,
             )
         ).to(
             torch.float32
@@ -163,14 +179,20 @@ class ParallelMambaBlock(nn.Module):
         if self.neox_args.mamba_selective_fp32_params:
             self.D._deepspeed_no_cast = True
 
-        # out down-projection
-        self.out_proj = nn.Linear(
-            self.d_inner,
-            self.d_model,
+        # out down-projection.
+        # use "single_residual_scaled_normal"
+        # for output_layer_init_method
+        # to perform gpt-2 style scaled init as done in Mamba paper.
+        self.out_proj = mpu.RowParallelLinear(
+            neox_args=neox_args,
+            input_size=self.d_inner,
+            output_size=self.d_model,
+            input_is_parallel=True,
+            init_method=output_layer_init_method,
+            skip_bias_add=not neox_args.mamba_use_bias_in_linears,
             bias=neox_args.mamba_use_bias_in_linears,
-            **factory_kwargs,
+            parallel_output=False,
         )
-        output_layer_init_method(self.out_proj.weight)
 
     def selective_scan(
         self,
@@ -224,14 +246,8 @@ class ParallelMambaBlock(nn.Module):
         seqlen, batch, dim = hidden_states.shape
 
         # first up: perform in_proj
-        xz = einops.rearrange(
-            self.in_proj.weight @ einops.rearrange(hidden_states, "l b d -> d (b l)"),
-            "d (b l) -> b d l",
-            l=seqlen,
-        )
-
-        if self.in_proj.bias is not None:
-            xz = xz + einops.rearrange(self.in_proj.bias.to(dtype=xz.dtype), "d -> d 1")
+        xz, _ = self.in_proj(hidden_states)
+        xz = einops.rearrange(xz, "l b d -> b d l")
 
         A = -torch.exp(self.A_log.float())  # (d_inner, d_state)
 
@@ -262,6 +278,12 @@ class ParallelMambaBlock(nn.Module):
                 delta_bias=self.dt_proj.bias.float(),
                 delta_softplus=True,
             )
+            if getattr(self, "reduce", None):
+                # manually reduce after mamba_inner_fn
+                # to collect outputs from different TP ranks.
+                # handled by running self.out_proj(y) below
+                # so only needed here.
+                out = self.reduce(out)
 
             out = einops.rearrange(out, "b l h -> l b h")
 
@@ -292,7 +314,7 @@ class ParallelMambaBlock(nn.Module):
         # ==============
 
         # project: perform s_B, s_C, s_Delta projections
-        x_dbl = self.x_proj(einops.rearrange(x, "b d l -> (b l) d"))
+        x_dbl, _ = self.x_proj(einops.rearrange(x, "b d l -> (b l) d"))
         # split into component dt, B, C
         dt, B, C = torch.split(
             x_dbl, [self.dt_rank, self.d_state, self.d_state], dim=-1
@@ -324,7 +346,7 @@ class ParallelMambaBlock(nn.Module):
         # ===============
         y = einops.rearrange(y, "b d l -> b l d")
 
-        out = self.out_proj(y)
+        out, _ = self.out_proj(y)
 
         out = einops.rearrange(out, "b l h -> l b h")
 
