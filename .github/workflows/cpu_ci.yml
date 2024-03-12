@@ -6,9 +6,9 @@ jobs:
   run-tests:
     #runs-on: ubuntu-latest
     runs-on: [ 'test', 'self-hosted' ]
-    container:
-      image: amr-registry.caas.intel.com/aiops/aikit-products-dev:2024.1.0
-      options: --privileged
+    # container:
+    #   image: amr-registry.caas.intel.com/aiops/aikit-products-dev:2024.1.0
+    #   options: --privileged
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
