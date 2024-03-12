@@ -49,7 +49,7 @@ jobs:
           BASE_URL=https://us.download.nvidia.com/tesla
           DRIVER_VERSION=550.54.14
           curl -fSsl -O $BASE_URL/$DRIVER_VERSION/NVIDIA-Linux-x86_64-$DRIVER_VERSION.run
-          sudo sh NVIDIA-Linux-x86_64-$DRIVER_VERSION.run
+          sudo bash NVIDIA-Linux-x86_64-$DRIVER_VERSION.run
         
       - name: Installing nvidia Container Toolkit
         run: |
