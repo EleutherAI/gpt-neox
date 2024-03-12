@@ -44,9 +44,14 @@ jobs:
           sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
           sudo docker run hello-world
       
-      - name: Docker testing
+      - name: Installing  nvidia-container-runtime
         run: |
-          sudo docker run hello-world
+          curl -s -L https://nvidia.github.io/nvidia-container-runtime/gpgkey | \
+            sudo apt-key add -
+          distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+          curl -s -L https://nvidia.github.io/nvidia-container-runtime/$distribution/nvidia-container-runtime.list | \
+            sudo tee /etc/apt/sources.list.d/nvidia-container-runtime.list
+          sudo apt-get update
 
       - name: Testing containers
         run: |
