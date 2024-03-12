@@ -21,7 +21,7 @@ except ModuleNotFoundError:
 from megatron.model.norms import get_norm
 from megatron import mpu
 
-# Mamba sublayer. supports TP, PP still not working
+# Mamba sublayer, with tensor parallelism
 class ParallelMambaBlock(nn.Module):
     def __init__(
         self,
