@@ -6,8 +6,11 @@ jobs:
   run-tests:
     #runs-on: ubuntu-latest
     runs-on: [ 'test', 'self-hosted' ]
+    container:
+      image: amr-registry.caas.intel.com/aiops/aikit-products-dev:2024.1.0
+      options: --privileged
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install Python
         uses: actions/setup-python@v4
@@ -19,13 +22,20 @@ jobs:
       - name: Upgrade Pip
         run: python -m pip install --upgrade pip
 
-      - name: Install Dependencies
+      - name: Testing containers
         run: |
-          sudo apt-get install libopenmpi-dev -y
-          pip install torch==1.8.2 torchvision==0.9.2 torchaudio==0.8.2 --extra-index-url https://download.pytorch.org/whl/lts/1.8/cpu
-          pip install -r requirements/requirements.txt
-          pip install -r requirements/requirements-dev.txt
-          pip install -r requirements/requirements-wandb.txt
+          docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi
+          pwd
+          export NEOX_DATA_PATH=/mnt/sda/data/enwiki8 #or wherever your data is stored on your system
+          export NEOX_CHECKPOINT_PATH=/mnt/sda/checkpoints
+
+      # - name: Install Dependencies
+      #   run: |
+      #     sudo apt-get install libopenmpi-dev -y
+      #     pip install torch==1.8.2 torchvision==0.9.2 torchaudio==0.8.2 --extra-index-url https://download.pytorch.org/whl/lts/1.8/cpu
+      #     pip install -r requirements/requirements.txt
+      #     pip install -r requirements/requirements-dev.txt
+      #     pip install -r requirements/requirements-wandb.txt
 
       - name: Prepare Data
         run: python prepare_data.py
