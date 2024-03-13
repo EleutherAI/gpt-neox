@@ -11,13 +11,13 @@ services:
       memlock:
         soft: -1
         hard: -1
-    runtime: nvidia
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: [gpu]
+    # runtime: nvidia
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           capabilities: [gpu]
     logging:
       options:
         max-size: "100m"

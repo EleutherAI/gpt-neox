@@ -238,7 +238,7 @@ docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi
 Provided that will run, you need to export NEOX_DATA_PATH and NEOX_CHECKPOINT_PATH in your environment to specify your data directory and directory for storing and loading checkpoints:
 
 ```
-export NEOX_DATA_PATH=/mnt/sda/data/enwiki8 #or wherever your data is stored on your system
+export NEOX_DATA_PATH=/mnt/sda/data/enwik8 #or wherever your data is stored on your system
 export NEOX_CHECKPOINT_PATH=/mnt/sda/checkpoints
 ```
 

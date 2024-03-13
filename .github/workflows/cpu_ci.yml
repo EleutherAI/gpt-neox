@@ -1,14 +1,12 @@
 name: "Run CPU Tests"
 
 on: "push"
-
+env:
+  CONTAINER: 'gpt-neox-container'
 jobs:
   run-tests:
     #runs-on: ubuntu-latest
     runs-on: [ 'test', 'self-hosted' ]
-    # container:
-    #   image: amr-registry.caas.intel.com/aiops/aikit-products-dev:2024.1.0
-    #   options: --privileged
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
@@ -44,45 +42,49 @@ jobs:
           sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
           sudo docker run hello-world
       
-      - name: Installing nvidia Driver
-        run: |
-          BASE_URL=https://us.download.nvidia.com/tesla
-          DRIVER_VERSION=550.54.14
-          curl -fSsl -O $BASE_URL/$DRIVER_VERSION/NVIDIA-Linux-x86_64-$DRIVER_VERSION.run
-          sudo bash NVIDIA-Linux-x86_64-$DRIVER_VERSION.run
-        
-      - name: Installing nvidia Container Toolkit
-        run: |
-          curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
-            && curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
-            sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
-            sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-          sudo apt-get update
-          sudo apt-get install -y nvidia-container-toolkit
-
-      - name: Configuring Docker
-        run: |
-          sudo nvidia-ctk runtime configure --runtime=docker
-          sudo systemctl restart docker
-
-      - name: Testing containers
-        run: |
-          pwd
-          docker run --rm --runtime=nvidia --gpus all ubuntu nvidia-smi
-          pwd
-          export NEOX_DATA_PATH=/mnt/sda/data/enwiki8 #or wherever your data is stored on your system
-          export NEOX_CHECKPOINT_PATH=/mnt/sda/checkpoints
-
-      # - name: Install Dependencies
+      # - name: Installing nvidia Driver
       #   run: |
-      #     sudo apt-get install libopenmpi-dev -y
-      #     pip install torch==1.8.2 torchvision==0.9.2 torchaudio==0.8.2 --extra-index-url https://download.pytorch.org/whl/lts/1.8/cpu
-      #     pip install -r requirements/requirements.txt
-      #     pip install -r requirements/requirements-dev.txt
-      #     pip install -r requirements/requirements-wandb.txt
+      #     BASE_URL=https://us.download.nvidia.com/tesla
+      #     DRIVER_VERSION=550.54.14
+      #     curl -fSsl -O $BASE_URL/$DRIVER_VERSION/NVIDIA-Linux-x86_64-$DRIVER_VERSION.run
+      #     sudo bash NVIDIA-Linux-x86_64-$DRIVER_VERSION.run
+        
+      # - name: Installing nvidia Container Toolkit
+      #   run: |
+      #     curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
+      #       && curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+      #       sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+      #       sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+      #     sudo apt-get update
+      #     sudo apt-get install -y nvidia-container-toolkit
 
-      - name: Prepare Data
-        run: python prepare_data.py
+      # - name: Configuring Docker for nvidia
+      #   run: |
+      #     sudo nvidia-ctk runtime configure --runtime=docker
+      #     sudo systemctl restart docker
 
-      - name: Run CPU Tests
-        run: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pytest tests -m cpu
+      - name: Prepare data
+        run: |
+          python prepare_data.py -d ./data
+
+      - name: Create container
+        run: |
+          export NEOX_DATA_PATH='./data/enwik8'
+          export NEOX_CHECKPOINT_PATH='/mnt/sda/checkpoints' #todo: where do I get this?
+          docker compose run -d --name $CONTAINER gpt-neox tail -f /dev/null
+
+      - name: Install test requirements
+        run: |
+          docker exec $CONTAINER pip install -r /workspace/requirements-dev.txt
+
+      - name: Execute CPU tests 1
+        run: |
+          pytest tests -m cpu
+
+      - name: Execute CPU tests 2
+        run: |
+          PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pytest tests -m cpu
+
+      - name: Generate report
+        run: |
+          python -m http.server --directory htmlcov 8000
