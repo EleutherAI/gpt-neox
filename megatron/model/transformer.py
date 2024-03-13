@@ -21,6 +21,8 @@ import math
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
+from pkg_resources import packaging
+from importlib.metadata import version
 
 from .norms import get_norm
 from megatron import mpu
@@ -412,6 +414,14 @@ class ParallelSelfAttention(nn.Module):
         self.rope_fusion = neox_args.rope_fusion
         self.attention_type = neox_args.attention_config[layer_number]
         self.use_flash_attention = self.attention_type == "flash"
+        self.use_triton = (
+            self.use_flash_attention
+            and self.pos_emb == "alibi"
+            and (
+                not packaging.version.Version(version("flash-attn"))
+                >= packaging.version.Version("2.4.0.post1")
+            )
+        )
         self.sparse = self.attention_type not in ("global", "flash")
 
         if self.gqa:
@@ -578,7 +588,7 @@ class ParallelSelfAttention(nn.Module):
             key_layer.size(0),
         )
 
-        if self.pos_emb != "alibi":
+        if self.use_flash_attention and not self.use_triton:
 
             # [sk, b, np, hn] -> [b, sk, np, hn] -> [b * sk, 1, np, hn]
             key_layer = key_layer.transpose(0, 1).reshape(
@@ -588,33 +598,13 @@ class ParallelSelfAttention(nn.Module):
                 output_size[0], output_size[3], self.num_kv_heads_per_partition, -1
             )
 
-            batch_size = output_size[0]
-            max_seqlen_q = output_size[2]
-            max_seqlen_k = output_size[3]
-
-            cu_seqlens_q = torch.arange(
-                0,
-                (batch_size + 1) * max_seqlen_q,
-                step=max_seqlen_q,
-                dtype=torch.int32,
-                device=query_layer.device,
-            )
-
-            cu_seqlens_k = torch.arange(
-                0,
-                (batch_size + 1) * max_seqlen_k,
-                step=max_seqlen_k,
-                dtype=torch.int32,
-                device=key_layer.device,
-            )
-
             # [sq, b, np, hn] -> [b, sq, np, hn]
             query_layer = query_layer.transpose(0, 1).reshape(
                 output_size[0], output_size[2], output_size[1], -1
             )
 
-            # only pass in window_size kwarg to flash-attn
-            # if we use Sliding Window Attention.
+            # only pass in window_size or alibi_slopes kwarg
+            # if we use Sliding Window Attention / AliBi.
             # Flash attn defaults to (-1,-1), or
             # does not have this kwarg prior to v2.3.0
             extra_kwargs = (
@@ -622,7 +612,32 @@ class ParallelSelfAttention(nn.Module):
                 if self.sliding_window_width is not None
                 else {}
             )
+            if self.pos_emb == "alibi":
+                extra_kwargs["alibi_slopes"] = self.alibi_embed.slopes.to(
+                    query_layer.device
+                ).to(torch.float32)
+
             if not self.training:
+                batch_size = output_size[0]
+                max_seqlen_q = output_size[2]
+                max_seqlen_k = output_size[3]
+
+                cu_seqlens_q = torch.arange(
+                    0,
+                    (batch_size + 1) * max_seqlen_q,
+                    step=max_seqlen_q,
+                    dtype=torch.int32,
+                    device=query_layer.device,
+                )
+
+                cu_seqlens_k = torch.arange(
+                    0,
+                    (batch_size + 1) * max_seqlen_k,
+                    step=max_seqlen_k,
+                    dtype=torch.int32,
+                    device=key_layer.device,
+                )
+
                 q_shape = query_layer.shape
                 k_shape = key_layer.shape
                 v_shape = value_layer.shape
@@ -662,6 +677,8 @@ class ParallelSelfAttention(nn.Module):
             matmul_result = matmul_result.transpose(1, 2)
 
         else:
+            # we still use Triton if using AliBi with flash-attn<2.4.0.post1.
+
             # [sq, b, np, hn] -> [b, sq, np, hn]
             sq = query_layer.size(0)
             b = query_layer.size(1)
