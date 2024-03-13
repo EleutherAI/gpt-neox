@@ -65,11 +65,11 @@ jobs:
 
       - name: Execute CPU tests 1
         run: |
-          docker exec $CONTAINER pytest /home/mchorse/gpt-neox/tests -m cpu
+          docker exec $CONTAINER sh -c "cd gpt-neox && pytest tests -m cpu"
 
       - name: Execute CPU tests 2
         run: |
-          docker exec $CONTAINER PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pytest /home/mchorse/gpt-neox/tests -m cpu
+          docker exec $CONTAINER sh -c "cd gpt-neox && PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pytest tests -m cpu"
 
       - name: Generate report
         run: |
