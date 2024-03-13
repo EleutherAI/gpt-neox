@@ -71,7 +71,7 @@ jobs:
         run: |
           export NEOX_DATA_PATH='./data/enwik8'
           export NEOX_CHECKPOINT_PATH='/mnt/sda/checkpoints' #todo: where do I get this?
-          docker compose run -d --name $CONTAINER gpt-neox tail -f /dev/null
+          docker compose run -d --build --name $CONTAINER gpt-neox tail -f /dev/null
 
       - name: Install test requirements
         run: |
@@ -79,12 +79,12 @@ jobs:
 
       - name: Execute CPU tests 1
         run: |
-          pytest tests -m cpu
+          docker exec $CONTAINER pytest tests -m cpu
 
       - name: Execute CPU tests 2
         run: |
-          PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pytest tests -m cpu
+          docker exec $CONTAINER PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pytest tests -m cpu
 
       - name: Generate report
         run: |
-          python -m http.server --directory htmlcov 8000
+          docker exec $CONTAINER python -m http.server --directory htmlcov 8000
