@@ -67,6 +67,13 @@ jobs:
         run: |
           python prepare_data.py -d ./data
 
+      - name: Remove previous container
+        run: |
+          if docker ps -a | grep -q "$CONTAINER"; then
+            echo "Container already exists, deleting it..."
+            docker rm -f $CONTAINER
+          fi
+
       - name: Create container
         run: |
           export NEOX_DATA_PATH='./data/enwik8'
