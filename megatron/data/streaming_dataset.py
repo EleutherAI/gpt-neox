@@ -1,9 +1,11 @@
 try:
     from streaming import Stream, StreamingDataset
+    from streaming.base.world import World
 except ModuleNotFoundError:
     raise Exception("Must install `streaming` package to use StreamingDatasets!")
 
 from typing import Optional, Sequence, Union, Any, Dict, List
+from megatron import print_rank_0
 
 import torch
 import numpy as np
@@ -204,7 +206,7 @@ def build_streaming_dataset(split, neox_args=None):
     for i, path in enumerate(data_paths): 
         remote = path if "s3://" in path else None
         local=path if "s3://" not in path else f"/tmp/{path[5:]}"
-        print(remote, local)
+        print_rank_0(f"stream {i} remote: {remote} local: {local}")
         streams.append(
             Stream(
                 remote=path if "s3://" in path else None,
@@ -217,6 +219,15 @@ def build_streaming_dataset(split, neox_args=None):
     world_size = mpu.get_data_parallel_world_size()
     rank = mpu.get_data_parallel_rank()
     global_batch_size = neox_args.batch_size * world_size
+
+    # We compute num_canonical_nodes ourselves to
+    # be able to save it easily in the config
+    # (it's required to resume shuffling correctly)
+    shuffle_algo = "py1e" #StreamingDataset default
+    num_nodes = World.detect().num_nodes
+    print_rank_0("NUM NODES", num_nodes)
+    # similar to StreamingDataset code
+    num_canonical_nodes = 64 * num_nodes if shuffle_algo in ["py1s", "py2s"] else num_nodes
  
     return StreamingTextDataset(
         max_seq_len=neox_args.seq_length + 1,
@@ -227,6 +238,9 @@ def build_streaming_dataset(split, neox_args=None):
         predownload=8192,
         batch_size=global_batch_size,
         shuffle=True,
+        shuffle_seed=neox_args.seed,
+        shuffle_algo=shuffle_algo,
+        num_canonical_nodes=num_canonical_nodes,
         #batch_size=neox_args.train_micro_batch_size_per_gpu,
     )
 

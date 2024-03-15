@@ -205,6 +205,9 @@ def save_ds_checkpoint(iteration, model, neox_args):
         logits = do_forward_pass(neox_args=neox_args, model=model)
         sd["checkpoint_validation_logits"] = logits
 
+    if neox_args.use_streaming:
+        sd["num_canonical_nodes"] = neox_args.num_canonical_nodes
+
     # checkpoint folder name
     tag = get_checkpoint_tag(iteration)
 
@@ -474,6 +477,9 @@ def load_checkpoint(
                 "exiting ...".format(checkpoint_name)
             )
             sys.exit()
+
+    if neox_args.use_streaming:
+        neox_args.num_canonical_nodes = state_dict["num_canonical_nodes"]
 
     torch.distributed.barrier()
     if mpu.get_data_parallel_rank() == 0:
