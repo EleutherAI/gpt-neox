@@ -226,6 +226,7 @@ def build_streaming_dataset(split, neox_args=None):
         # download_timeout=300,
         predownload=8192,
         batch_size=global_batch_size,
+        shuffle=True,
         #batch_size=neox_args.train_micro_batch_size_per_gpu,
     )
 

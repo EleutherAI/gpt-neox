@@ -315,9 +315,13 @@ def get_batch(neox_args, data_iterator):
     datatype = torch.int64
 
     # Broadcast data.
+
     if data_iterator is not None:
-        data = {}
-        data["text"] = next(data_iterator)
+        if neox_args.use_streaming:
+            data = {}
+            data["text"] = next(data_iterator)
+        else:
+            data = next(data_iterator)
     else:
         data = None
     #print(data)
