@@ -519,6 +519,11 @@ def make_streaming_data_loader(dataset, neox_args):
 def build_train_valid_test_data_iterators_streaming(neox_args):
     """as above, but builds Mosaic StreamingDatasets instead"""
 
+    # clean shared memory to prevent hanging error
+    from streaming.base.util import clean_stale_shared_memory
+    print_rank_0("Cleaning shared memory")
+    clean_stale_shared_memory()
+
     (train_dataloader, valid_dataloader, test_dataloader) = (None, None, None)
 
     print_rank_0("> building train, validation, and test datasets ...")
