@@ -25,6 +25,7 @@ import triton.language as tl
 # TODO: remove AMP / autocast stuff
 # TODO: maybe add fused (residual + LN)...
 # TODO: do this alongside configurable layers
+# TODO: we can't do fused resid. + LN if using gpt-j style resid.
 def layer_norm_ref(x, weight, bias, residual=None, eps=1e-6, prenorm=False, upcast=False):
     dtype = x.dtype
     if upcast:
