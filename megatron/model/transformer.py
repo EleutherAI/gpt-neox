@@ -1170,6 +1170,179 @@ class ParallelTransformerLayer(nn.Module):
 
         return output, moe_loss
 
+class ParallelConfigurableBlock(nn.Module):
+
+    """
+    A generalized configurable architectural block 
+    where users can specify its (arbitrarily many) sublayers 
+    through the block_config arg.
+    """
+    def __init__(
+        self,
+        neox_args,
+        attention_mask_func,
+        init_method,
+        output_layer_init_method,
+        layer_number,
+        rpe=None,
+        rotary=False,
+        use_cache=False, # TODO: do we want all these args?
+        # TODO: mamba layer should be able to get parallel_output passed to init
+    ):
+
+        # initialize norm_0, sublayer_0 through {i}
+        
+        # TODO: minimize code reuse between TransformerLayer and this?
+        super().__init__()
+        self.layer_number = layer_number
+
+        norm, eps = get_norm(neox_args)
+
+        self.use_cache = use_cache
+
+        self.hidden_dropout = neox_args.hidden_dropout
+        self.bias_dropout_fusion = neox_args.bias_dropout_fusion
+        self.gpt_j_residual = neox_args.gpt_j_residual
+        self.gpt_j_tied = neox_args.gpt_j_tied
+        self.mlp_type = neox_args.mlp_type
+
+        if self.gpt_j_residual:
+            self.reduce = mpu.mappings.reduce_from_model_parallel_region
+
+        self.block_config = neox_args.block_config[i]
+        # TODO: handle MOE inside MLP layer inits? eh probably just copy from transformer layer?
+        # TODO: make mamba be able to return bias for compat with bias dropout fusion
+
+        for i, in enumerate(self.block_config):
+            setattr(self, f"norm_{i}", norm(neox_args.hidden_size, eps=eps)) #TODO allow rmsnorm fusion...
+
+            setattr(self, f"sublayer_{i}", ) # TODO: define a helper fn get_sublayer() somewhere that inits sublayer for you
+
+        self.layer_past = None
+
+    def _get_bias_dropout(self):
+        if self.bias_dropout_fusion:
+            fn = (
+                bias_dropout_add_fused_train
+                if self.training
+                else bias_dropout_add_fused_inference
+            )
+        else:
+            fn = get_bias_dropout_add(self.training)
+        return fn
+
+    def forward(self, x, attention_mask, layer_past=None):
+        layer_past = layer_past if layer_past is not None else self.layer_past
+        bias_dropout_fn = self._get_bias_dropout()
+        moe_loss = torch.tensor(0.0, device=x.device, dtype=x.dtype)
+        # x: [b, s, h] # TODO: this annotation is totally wrong I think
+
+        # TODO: override this stuff
+        # if self.gpt_j_residual:
+        #     # pseudocode:
+        #     # x = x + attn(ln(x)) + mlp(ln(x))
+        #     # this means we can avoid doing the allreduce in the attn / mlp outputs
+        #     # to save communication time (we can do a single allreduce after we add mlp / attn outputs).
+
+        #     residual = x
+        #     # applies the correct normalization depending on if the norms are tied
+        #     if self.gpt_j_tied:
+        #         x = self.input_layernorm(x)
+        #         x1, x2 = x, x
+        #     else:
+        #         x1, x2 = self.input_layernorm(x), self.post_attention_layernorm(x)
+
+        #     # attention operator
+        #     attention_output, attention_bias = self.attention(
+        #         x1, attention_mask, layer_past=layer_past
+        #     )
+        #     if self.use_cache:
+        #         attention_output, presents = attention_output
+        #         self.layer_past = presents
+
+        #     with torch.enable_grad():
+        #         attention_output = bias_dropout_fn(
+        #             attention_output,
+        #             bias=attention_bias.expand_as(attention_output),
+        #             residual=None,
+        #             prob=self.hidden_dropout,
+        #         )
+
+        #     # mlp operator
+        #     mlp_output, mlp_bias = self.mlp(x2)
+        #     with torch.enable_grad():
+        #         output = bias_dropout_fn(
+        #             mlp_output,
+        #             bias=mlp_bias.expand_as(mlp_output),
+        #             residual=attention_output,
+        #             prob=self.hidden_dropout,
+        #         )
+
+        #     # output = (x + attn(ln(x)) + mlp(ln(x))
+        #     output = residual + self.reduce(output)
+        # else:
+        #     # pseudocode:
+        #     # x = x + attn(ln1(x))
+        #     # x = x + mlp(ln2(x))
+
+        #     residual = x
+
+        #     # x = x + attn(ln1(x))
+        #     attention_output, attention_bias = self.attention(
+        #         self.input_layernorm(x), attention_mask, layer_past=layer_past
+        #     )
+        #     if self.use_cache:
+        #         attention_output, presents = attention_output
+        #         self.layer_past = presents
+        #     with torch.enable_grad():
+        #         if attention_bias is not None:
+        #             # Use special bias_dropout_fn if we have a bias term from the above attention layer
+        #             attention_output = bias_dropout_fn(
+        #                 attention_output,
+        #                 bias=attention_bias.expand_as(residual),
+        #                 residual=residual,
+        #                 prob=self.hidden_dropout,
+        #             )
+        #         else:
+        #             # Otherwise just apply dropout + residual
+        #             attention_output = (
+        #                 torch.nn.functional.dropout(
+        #                     attention_output,
+        #                     p=self.hidden_dropout,
+        #                     training=self.training,
+        #                 )
+        #                 + residual
+        #             )
+
+        #     # output = x + mlp(ln2(x))
+        #     layernorm_output = self.post_attention_layernorm(attention_output)
+        #     mlp_bias = torch.tensor(
+        #         0.0, device=layernorm_output.device, dtype=layernorm_output.dtype
+        #     )
+
+        #     if self.num_experts == 1:
+        #         mlp_output, mlp_bias = self.mlp(layernorm_output)
+        #     else:
+        #         mlp_output, moe_loss, _ = self.mlp(layernorm_output)
+        #         mlp_bias = None  # deepspeed.moe.layer.MoE.forward ignores the bias term
+
+        #     with torch.enable_grad():
+        #         if self.mlp_type == "llama" or self.num_experts > 1:
+        #             # No dropout either
+        #             assert mlp_bias is None
+        #             output = mlp_output + attention_output
+        #         else:
+        #             output = bias_dropout_fn(
+        #                 mlp_output,
+        #                 bias=mlp_bias.expand_as(attention_output),
+        #                 residual=attention_output,
+        #                 prob=self.hidden_dropout,
+        #             )
+
+        # return output, moe_loss
+
+        
+        
 
 class ParallelTransformerLayerPipe(ParallelTransformerLayer):
     """Extends ParallelTransformerLayer to forward attention_mask through the pipeline."""
