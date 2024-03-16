@@ -14,12 +14,20 @@
 
 import torch
 from torch.nn import LayerNorm as LayerNorm
+
+from functools import partial
+
 from .fused_layer_norm import MixedFusedLayerNorm
+from .fused_triton_layernorm import rms_norm_fn
 
 
 def get_norm(neox_args):
     if neox_args.norm == "rmsnorm":
-        norm = RMSNorm
+        norm = partial(
+            RMSNorm,
+            use_triton=neox_args.rmsnorm_fusion,
+            legacy=neox_args.legacy_rmsnorm,
+        )
         eps = neox_args.rms_norm_epsilon
     elif neox_args.norm == "layernorm":
         eps = neox_args.layernorm_epsilon
@@ -33,7 +41,9 @@ def get_norm(neox_args):
 
 
 class RMSNorm(torch.nn.Module):
-    def __init__(self, dim, p=-1.0, eps=1e-8, bias=False):
+    def __init__(
+        self, dim, p=-1.0, eps=1e-8, bias=False, use_triton=False, legacy=False
+    ):
         """
             Root Mean Square Layer Normalization
         :param dim: model size
@@ -41,6 +51,9 @@ class RMSNorm(torch.nn.Module):
         :param eps:  epsilon value, default 1e-8
         :param bias: whether use bias term for RMSNorm, disabled by
             default because RMSNorm doesn't enforce re-centering invariance.
+        :param use_triton: whether to use fused triton kernels for rmsnorm.
+        :param legacy: whether to use old rmsnorm implementation in NeoX,
+            which adds epsilon in a nonstandard way.
         """
         super(RMSNorm, self).__init__()
 
@@ -48,6 +61,14 @@ class RMSNorm(torch.nn.Module):
         self.d = dim
         self.p = p
         self.bias = bias
+        self.legacy = legacy
+
+        self.use_triton = use_triton
+
+        if self.use_triton or not self.legacy:
+            assert (
+                self.p == -1.0
+            ), "partial RMSNorm not compatible with triton + requires legacy rmsnorm"
 
         self.scale = torch.nn.Parameter(torch.ones(dim))
         self.register_parameter("scale", self.scale)
@@ -57,24 +78,51 @@ class RMSNorm(torch.nn.Module):
             self.register_parameter("offset", self.offset)
 
     def forward(self, x):
+        if self.use_triton:
+            # Use Triton rmsnorm impl.
+            return rms_norm_fn(
+                x,
+                weight=self.scale,
+                bias=self.offset if self.bias else None,
+                residual=None,
+                prenorm=True,
+                eps=self.eps,
+            )
+
         dtype = x.dtype
-        if self.p < 0.0 or self.p > 1.0:
-            norm_x = x.norm(2, dim=-1, keepdim=True)
-            d_x = self.d
+        if self.legacy:
+            # old nonstandard rmsnorm impl
+            dtype = x.dtype
+            if self.p < 0.0 or self.p > 1.0:
+                norm_x = x.norm(2, dim=-1, keepdim=True)
+                d_x = self.d
+            else:
+                partial_size = int(self.d * self.p)
+                partial_x, _ = torch.split(
+                    x, [partial_size, self.d - partial_size], dim=-1
+                )
+
+                norm_x = partial_x.norm(2, dim=-1, keepdim=True)
+                d_x = partial_size
+
+                rms_x = norm_x * d_x ** (-1.0 / 2)
+                x_normed = x / (rms_x + self.eps)
+
+            if self.bias:
+                return self.scale * x_normed + self.offset
+
+            return (self.scale * x_normed).to(dtype)
+
         else:
-            partial_size = int(self.d * self.p)
-            partial_x, _ = torch.split(x, [partial_size, self.d - partial_size], dim=-1)
-
-            norm_x = partial_x.norm(2, dim=-1, keepdim=True)
-            d_x = partial_size
-
-        rms_x = norm_x * d_x ** (-1.0 / 2)
-        x_normed = x / (rms_x + self.eps)
-
-        if self.bias:
-            return self.scale * x_normed + self.offset
-
-        return (self.scale * x_normed).to(dtype)
+            # https://github.com/state-spaces/mamba/blob/9127d1f47f367f5c9cc49c73ad73557089d02cb8/mamba_ssm/ops/triton/layernorm.py#L45-L48
+            rstd = 1 / torch.sqrt((x.square()).mean(dim=-1, keepdim=True) + self.eps)
+            out = (
+                (x * rstd * self.scale) + self.offset
+                if self.offset is not None
+                else (x * rstd * self.scale)
+            )
+            out = out.to(dtype)
+            return out
 
 
 class ScaleNorm(torch.nn.Module):
