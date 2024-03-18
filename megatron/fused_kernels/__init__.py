@@ -28,7 +28,7 @@ from torch.utils import cpp_extension
 os.environ["TORCH_CUDA_ARCH_LIST"] = ""
 
 
-def load(neox_args):
+def load(neox_args=None):
 
     # Check if cuda 11 is installed for compute capability 8.0
     cc_flag = []
@@ -57,6 +57,9 @@ def load(neox_args):
     buildpath = srcpath / "build"
     _create_build_dir(buildpath)
 
+    # Determine verbosity
+    verbose = True if neox_args is None else (neox_args.rank == 0)
+
     # Helper function to build the kernels.
     def _cpp_extention_load_helper(
         name, sources, extra_cuda_flags, extra_include_paths
@@ -79,7 +82,7 @@ def load(neox_args):
             ],
             extra_cuda_cflags=extra_cuda_cflags,
             extra_include_paths=extra_include_paths,
-            verbose=(neox_args.rank == 0),
+            verbose=verbose,
         )
 
     # ==============
