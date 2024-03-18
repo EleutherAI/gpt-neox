@@ -24,6 +24,7 @@ from functools import partial
 
 import math
 import sys
+from contextlib import nullcontext
 
 import torch
 import deepspeed
@@ -427,16 +428,8 @@ def get_model(neox_args, use_cache=False):
     old_use_mup = neox_args.use_mup
     neox_args.use_mup = False
 
-    if neox_args.zero_stage == 3:
-        with deepspeed.zero.Init():
-            model = GPT2ModelPipe(
-                neox_args=neox_args,
-                num_tokentypes=0,
-                parallel_output=True,
-                topology=mpu.get_topology(),
-                use_cache=use_cache,
-            )
-    else: 
+
+    with deepspeed.zero.Init() if neox_args.zero_stage == 3 else nullcontext() as gs:
         model = GPT2ModelPipe(
             neox_args=neox_args,
             num_tokentypes=0,
