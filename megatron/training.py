@@ -24,6 +24,7 @@ from functools import partial
 
 import math
 import sys
+from contextlib import nullcontext
 
 import torch
 import deepspeed
@@ -426,13 +427,15 @@ def get_model(neox_args, use_cache=False):
     # If mup isn't being used anyways, this has no effect.
     old_use_mup = neox_args.use_mup
     neox_args.use_mup = False
-    model = GPT2ModelPipe(
-        neox_args=neox_args,
-        num_tokentypes=0,
-        parallel_output=True,
-        topology=mpu.get_topology(),
-        use_cache=use_cache,
-    )
+
+    with deepspeed.zero.Init() if neox_args.zero_stage == 3 else nullcontext() as gs:
+        model = GPT2ModelPipe(
+            neox_args=neox_args,
+            num_tokentypes=0,
+            parallel_output=True,
+            topology=mpu.get_topology(),
+            use_cache=use_cache,
+        )
 
     ### soft prompt tuning stuff ###
     if neox_args.soft_prompt_tuning is not None and neox_args.soft_prompt_tuning.get(
