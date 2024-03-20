@@ -37,7 +37,7 @@ from megatron.model.transformer import (
     ParallelLinear,
 )
 from megatron.model.gmlp import GMLPBlock
-from megatron.model.mamba import MambaResidualLayerPipe
+from megatron.model.mamba import ParallelMambaResidualLayerPipe
 from megatron.model.word_embeddings import EmbeddingPipe, SoftEmbedding
 
 # Pipeline parallelism
@@ -138,7 +138,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             checkpointable_layers=[
                 "GMLPBlock",
                 "ParallelTransformerLayerPipe",
-                "MambaResidualLayerPipe",
+                "ParallelMambaResidualLayerPipe",
             ],
         )
 
@@ -174,7 +174,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             checkpointable_layers=[
                 "GMLPBlock",
                 "ParallelTransformerLayerPipe",
-                "MambaResidualLayerPipe",
+                "ParallelMambaResidualLayerPipe",
             ],
         )
 
@@ -254,7 +254,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             elif layer_type in ["mamba"]:
                 self.specs.append(
                     LayerSpec(
-                        MambaResidualLayerPipe,
+                        ParallelMambaResidualLayerPipe,
                         neox_args=self.neox_args,
                         init_method=self.init_method,
                         output_layer_init_method=self.output_layer_init_method,

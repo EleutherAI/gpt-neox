@@ -1,1 +1,4 @@
-from .mamba import MambaResidualLayer, MambaResidualLayerPipe
+from .mamba import (
+    ParallelMambaResidualLayer,
+    ParallelMambaResidualLayerPipe,
+)
