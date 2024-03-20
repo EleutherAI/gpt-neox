@@ -428,7 +428,9 @@ def get_model(neox_args, use_cache=False):
     old_use_mup = neox_args.use_mup
     neox_args.use_mup = False
 
-    with deepspeed.zero.Init() if neox_args.zero_stage == 3 else nullcontext() as gs:
+    with deepspeed.zero.Init(
+        config_dict_or_path=neox_args.deespeed_config
+    ) if neox_args.zero_stage == 3 else nullcontext() as gs:
         model = GPT2ModelPipe(
             neox_args=neox_args,
             num_tokentypes=0,
