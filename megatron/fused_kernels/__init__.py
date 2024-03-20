@@ -1,3 +1,6 @@
+# Copyright (c) 2024, EleutherAI
+# This file is based on code by the authors denoted below and has been modified from its original version.
+#
 # Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,8 +14,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
+#
+# This file has been modified from its original version
+#
 
 import os
 import pathlib
