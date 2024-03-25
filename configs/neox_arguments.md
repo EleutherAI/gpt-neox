@@ -7,7 +7,7 @@ LR Scheduler Arguments
 
 
 
-- **lr_decay_style**: typing.Literal['constant', 'linear', 'cosine', 'exponential']
+- **lr_decay_style**: typing.Literal['constant', 'linear', 'cosine', 'exponential', 'infinite_cosine', 'infinite_inv_sqrt']
 
     Default = linear
 
@@ -31,11 +31,43 @@ LR Scheduler Arguments
 
 
 
+- **constant_lr**: float
+
+    Default = 0.0
+
+    Constant learning rate when using infinite cosine or infinite inv sqrt decay styles.
+
+
+
 - **warmup**: float
 
     Default = 0.01
 
     Percentage of total iterations to warmup on (.01 = 1 percent of all training iters).
+
+
+
+- **cooldown_iters_perc**: float
+
+    Default = 0.0
+
+    Percentage of total iterations to cooldown for.
+
+
+
+- **constant_iters_perc**: float
+
+    Default = 0.0
+
+    Percentage of total iterations to keep the learning rate constant for.
+
+
+
+- **timescale**: float
+
+    Default = 1.0
+
+    Timescale for the steepness of the inverse square root cooldown.
 
 
 
@@ -111,7 +143,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = f70c54d
+    Default = 5f2a3f2
 
     current git hash of repository
 
