@@ -415,7 +415,7 @@ python tools/datasets/preprocess_data.py \
 You would then run training with the following settings added to your configuration file:
 
 ```yaml
-  "data-path": "data/mydataset/mydataset",
+  "data-path": "data/mydataset_text_document",
 ```
 
 # Training and Finetuning
