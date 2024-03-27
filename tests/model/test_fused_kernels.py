@@ -22,6 +22,7 @@ from transformers.models.bert.modeling_bert import BertModel
 from transformers import BertTokenizer, GPT2Tokenizer
 from transformers.models.bert.modeling_bert import BertModel
 from transformers.models.gpt2.modeling_gpt2 import GPT2Model
+from megatron.fused_kernels import load
 import transformers
 
 transformers.logging.set_verbosity(
@@ -33,6 +34,7 @@ transformers.logging.set_verbosity(
     reason="ModuleNotFoundError: No module named 'scaled_masked_softmax_cuda'"
 )
 def test_load_fused_kernels():
+    load()
     try:
         import scaled_masked_softmax_cuda
         import scaled_upper_triang_masked_softmax_cuda
@@ -47,6 +49,7 @@ def test_load_fused_kernels():
 
 @pytest.mark.xfail(reason="SystemExit: None")
 def test_fused_softmax():
+    load()
     from megatron.model.fused_softmax import FusedScaleMaskSoftmax, SoftmaxFusionTypes
     from megatron.model.gpt2_model import (
         gpt2_attention_mask_func as attention_mask_func,
@@ -149,6 +152,7 @@ def test_fused_softmax():
 
 @pytest.mark.xfail(reason="SystemExit: None")
 def test_fused_upper_triangle_mask_softmax():
+    load()
     from megatron.model.gpt2_model import (
         gpt2_attention_mask_func as attention_mask_func,
     )
