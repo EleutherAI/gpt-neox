@@ -1,138 +1,0 @@
-llemma_f_v0.2_main_1e-5lr
-/home/hailey81/miniconda3/envs/llmath/bin/python
-ln: failed to access ‘/home/za2514/.local/bin/gcc’: Not a directory
-/home/za2514/Llemma/gpt-neox-math-lm-2-rotary
-Setting ds_accelerator to cuda (auto detect)
-> building SPMTokenizer tokenizer ...
- > padded vocab (size: 32016) with 0 dummy tokens (new size: 32016)
-  0%|          | 0/32 [00:00<?, ?it/s]  3%|▎         | 1/32 [00:00<00:09,  3.15it/s]  6%|▋         | 2/32 [00:00<00:09,  3.22it/s]  9%|▉         | 3/32 [00:00<00:08,  3.24it/s] 12%|█▎        | 4/32 [00:01<00:08,  3.26it/s] 16%|█▌        | 5/32 [00:01<00:08,  3.27it/s] 19%|█▉        | 6/32 [00:01<00:07,  3.28it/s] 22%|██▏       | 7/32 [00:02<00:07,  3.28it/s] 25%|██▌       | 8/32 [00:02<00:07,  3.28it/s] 28%|██▊       | 9/32 [00:02<00:06,  3.31it/s] 31%|███▏      | 10/32 [00:03<00:06,  3.42it/s] 34%|███▍      | 11/32 [00:03<00:06,  3.38it/s] 38%|███▊      | 12/32 [00:03<00:06,  3.19it/s] 41%|████      | 13/32 [00:04<00:06,  2.91it/s] 44%|████▍     | 14/32 [00:04<00:06,  2.75it/s] 47%|████▋     | 15/32 [00:04<00:06,  2.65it/s] 50%|█████     | 16/32 [00:05<00:06,  2.57it/s] 53%|█████▎    | 17/32 [00:05<00:05,  2.53it/s] 56%|█████▋    | 18/32 [00:06<00:05,  2.50it/s] 59%|█████▉    | 19/32 [00:06<00:05,  2.46it/s] 62%|██████▎   | 20/32 [00:07<00:05,  2.39it/s] 66%|██████▌   | 21/32 [00:07<00:04,  2.38it/s] 69%|██████▉   | 22/32 [00:07<00:04,  2.45it/s] 72%|███████▏  | 23/32 [00:08<00:03,  2.72it/s] 75%|███████▌  | 24/32 [00:08<00:02,  2.84it/s] 78%|███████▊  | 25/32 [00:08<00:02,  2.93it/s] 81%|████████▏ | 26/32 [00:09<00:01,  3.02it/s] 84%|████████▍ | 27/32 [00:09<00:01,  3.08it/s] 88%|████████▊ | 28/32 [00:09<00:01,  3.13it/s] 91%|█████████ | 29/32 [00:09<00:00,  3.15it/s] 94%|█████████▍| 30/32 [00:10<00:00,  3.18it/s] 97%|█████████▋| 31/32 [00:10<00:00,  3.20it/s]100%|██████████| 32/32 [00:10<00:00,  3.21it/s]100%|██████████| 32/32 [00:10<00:00,  2.94it/s]
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-torch.Size([2, 6144, 4096])
-torch.Size([2, 16, 3, 128, 4096])
-torch.Size([4096, 4096])
-dict_keys(['self_attn.o_proj.weight', 'mlp.down_proj.weight', 'input_layernorm.weight', 'post_attention_layernorm.weight', 'mlp.gate_proj.weight', 'mlp.up_proj.weight', 'self_attn.rotary_emb.inv_freq', 'self_attn.q_proj.weight', 'self_attn.k_proj.weight', 'self_attn.v_proj.weight'])
-‘/home/za2514/codellama/tokenizer.model’ -> ‘/home/za2514/saved-weights/llemma-f-0.2/llemma_f_v0.2_main_1e-5lr/tokenizer.model’
-exited successfully from 
