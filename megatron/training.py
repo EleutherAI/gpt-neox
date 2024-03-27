@@ -405,7 +405,7 @@ def forward_step(
     main_loss = cross_entropy(
         outputs, (labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy
     )
-    if neox_args.num_experts > 1:
+    if neox_args.use_deepspeed_moe:
         moe_loss = neox_args.moe_loss_coeff * sum(m.item() for m in moe_losses)
     else:
         moe_loss = 0.0
@@ -503,7 +503,7 @@ def get_optimizer(model, neox_args):
         f'Configuring Optimizer type: {neox_args.optimizer_type} with params: {neox_args.optimizer["params"]}'
     )
 
-    if neox_args.create_moe_param_group:
+    if neox_args.create_deepspeed_moe_param_group:
         from deepspeed.moe.utils import (
             is_moe_param,
             split_params_into_different_moe_groups_for_optimizer,
