@@ -24,6 +24,8 @@ import torch.nn as nn
 from pkg_resources import packaging
 from importlib.metadata import version
 
+from megatron.model.moe import ParallelDroplessMoE
+
 from .norms import get_norm
 from megatron import mpu
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
@@ -970,6 +972,12 @@ class ParallelTransformerLayer(nn.Module):
         self.gpt_j_residual = neox_args.gpt_j_residual
         self.gpt_j_tied = neox_args.gpt_j_tied
         self.mlp_type = neox_args.mlp_type
+        self.num_experts = (
+            neox_args.moe_num_experts
+            if layer_number % neox_args.moe_expert_interval == 0
+            else 1
+        )
+        self.use_deepspeed_moe = neox_args.use_deepspeed_moe
 
         if self.gpt_j_residual:
             self.reduce = mpu.mappings.reduce_from_model_parallel_region
@@ -992,7 +1000,7 @@ class ParallelTransformerLayer(nn.Module):
         # leads to cleaner code
         self.post_attention_layernorm = norm(neox_args.hidden_size, eps=eps)
 
-        # MLP
+        # Dense MLP + DeepSpeed MoE
         def get_mlp(mlp_type, **kw):
             if mlp_type == "regular":
                 return ParallelMLP(
@@ -1013,14 +1021,18 @@ class ParallelTransformerLayer(nn.Module):
             else:
                 raise KeyError(mlp_type)
 
-        self.num_experts = (
-            neox_args.num_experts
-            if layer_number % neox_args.expert_interval == 0
-            else 1
-        )
-        args = neox_args
         if self.num_experts <= 1:
             self.mlp = get_mlp(neox_args.mlp_type)
+        
+        # Dropless MoE MLP
+        elif neox_args.use_deepspeed_moe is False:
+            self.mlp = ParallelDroplessMoE(
+                neox_args=neox_args,
+                init_method=init_method,
+                output_layer_init_method=output_layer_init_method,
+            )
+        
+        # use legacy DeepSpeed token dropping MoE
         else:
             from torch import distributed as dist
 
@@ -1030,21 +1042,21 @@ class ParallelTransformerLayer(nn.Module):
                 moe_mp_size = dist.get_world_size() // self.num_experts
 
             self.mlp = MoE(
-                args.hidden_size,
+                neox_args.hidden_size,
                 get_mlp(
                     "regular",
                     MOE=True,
                     MoE_mp_size=moe_mp_size,
                 ),
                 num_experts=self.num_experts,
-                ep_size=args.moe_expert_parallel_size,
-                k=args.moe_top_k,
-                use_residual=args.moe_use_residual,
-                capacity_factor=args.moe_train_capacity_factor,
-                eval_capacity_factor=args.moe_eval_capacity_factor,
-                min_capacity=args.moe_min_capacity,
-                drop_tokens=args.moe_token_dropping,
-                use_tutel=args.use_tutel,
+                ep_size=neox_args.moe_deepspeed_expert_parallel_size,
+                k=neox_args.moe_top_k,
+                use_residual=neox_args.moe_deepspeed_use_residual,
+                capacity_factor=neox_args.moe_deepspeed_train_capacity_factor,
+                eval_capacity_factor=neox_args.moe_deepspeed_eval_capacity_factor,
+                min_capacity=neox_args.moe_deepspeed_min_capacity,
+                drop_tokens=neox_args.moe_deepspeed_token_dropping,
+                use_tutel=neox_args.use_tutel,
             )
 
         self.layer_past = None  # used to cache k/v pairs in inference
@@ -1151,9 +1163,11 @@ class ParallelTransformerLayer(nn.Module):
 
             if self.num_experts == 1:
                 mlp_output, mlp_bias = self.mlp(layernorm_output)
-            else:
+            elif self.use_deepspeed_moe:
                 mlp_output, moe_loss, _ = self.mlp(layernorm_output)
                 mlp_bias = None  # deepspeed.moe.layer.MoE.forward ignores the bias term
+            else:
+                mlp_output, mlp_bias = self.mlp(layernorm_output)
 
             with torch.enable_grad():
                 if self.mlp_type == "llama" or self.num_experts > 1:

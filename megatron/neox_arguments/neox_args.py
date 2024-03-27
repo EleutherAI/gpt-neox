@@ -84,11 +84,6 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     according to pipeline parallel size.
     """
 
-    expert_interval: int = 2
-    """
-    Have one MoE layer every expert_interval layers
-    """
-
 
 @dataclass
 class NeoXArgsModel(NeoXArgsTemplate):
@@ -1265,19 +1260,52 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     NOTE: Requires internet connection
     """
 
+@dataclass
+class NeoXArgsMoE(NeoXArgsTemplate):
+    """
+    Mixture of Expert (MoE) Arguments
+    """
+
+    moe_num_experts: int = 1
+    """
+    The number of experts in MoE layers. MoE layers not used if set to 1
+    """
+
+    moe_expert_interval: int = 1
+    """
+    Have one MoE layer every expert_interval layers
+    """
+
     moe_top_k: int = 1
     """
-    Activate top K experts in MoE
+    The number of experts each token is routed to in MoE layers.
+    """
+
+    moe_router_type: Literal["sinkhorn", "topk"] = "sinkhorn"
+    """
+    What token routing algorithm to use
+    """
+
+    moe_lbl_in_fp32: bool = False
+    """
+    Whether to compute the load balancing loss in fp32.
+    """
+
+    moe_jitter_eps: float = None
+    """
+    Coefficient for MoE routing jitter. Jitter is 
+    not used if set to None
+    """
+
+    use_deepspeed_moe: bool = False
+    """
+    Whether to use legacy deepspeed token dropping MoE implementation.
     """
 
     use_tutel: bool = False
     """
     Use Tutel optimizations in MoE
-    """
-
-    num_experts: int = 1
-    """
-    Number of MoE experts
+    ONLY USED by DeepSpeed MoE
     """
 
     moe_loss_coeff: float = 0.1
@@ -1285,37 +1313,44 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     Coefficient for MoE loss
     """
 
-    moe_train_capacity_factor: float = 1.0
+    moe_deepspeed_train_capacity_factor: float = 1.0
     """
     The capacity of the expert at train time
+    ONLY USED by DeepSpeed MoE
     """
 
-    moe_eval_capacity_factor: float = 1.0
+    moe_deepspeed_eval_capacity_factor: float = 1.0
     """
     The capacity of the expert at eval time
+    ONLY USED by DeepSpeed MoE
     """
 
-    moe_min_capacity: int = 4
+    moe_deepspeed_min_capacity: int = 4
     """
     The minimum capacity per expert regardless of the capacity_factor
+    ONLY USED by DeepSpeed MoE
     """
 
-    moe_token_dropping: bool = True
+    moe_deepspeed_token_dropping: bool = True
     """
-    Whether to drop tokens when exceeding capacity
-    """
-
-    create_moe_param_group: bool = True
-    """
-    Whether to create a separate parameter group for MoE parameters
+    Whether to drop tokens when exceeding capacity.
+    ONLY USED by DeepSpeed MoE
     """
 
-    moe_use_residual: bool = True
+    create_deepspeed_moe_param_group: bool = True
+    """
+    Whether to create a separate parameter group for MoE parameters.
+    ONLY USED by DeepSpeed MoE
+    """
+
+    moe_deepspeed_use_residual: bool = True
     """
     Whether to use residual in MoE
+    ONLY USED by DeepSpeed MoE
     """
 
-    moe_expert_parallel_size: int = 1
+    moe_deepspeed_expert_parallel_size: int = 1
     """
-    Number of parallel experts in MoE
+    Number of parallel experts in MoE.
+    ONLY USED by DeepSpeed MoE; dMoE uses model parallel group for expert parallelism
     """
