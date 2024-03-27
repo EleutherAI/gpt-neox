@@ -181,9 +181,9 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Scalenorm epsilon
     """
 
-    pos_emb: Literal[
-        "learned", "rotary", "sinusoidal", "rpe", "alibi", "none"
-    ] = "learned"
+    pos_emb: Literal["learned", "rotary", "sinusoidal", "rpe", "alibi", "none"] = (
+        "learned"
+    )
     """
     Type of positional embedding to use - choose from 'learned', 'rotary', 'sinusoidal', 'rpe', 'none'
     """
@@ -1275,7 +1275,7 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     Use Tutel optimizations in MoE
     """
 
-    num_experts: int = 1
+    moe_num_experts: int = 1
     """
     Number of MoE experts
     """
@@ -1318,4 +1318,30 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     moe_expert_parallel_size: int = 1
     """
     Number of parallel experts in MoE
+    """
+
+    moe_type: str = "deepspeed"
+    """
+    Either `deepspeed` or `megablocks`
+    """
+
+    moe_glu: bool = False
+    """
+    Use gated linear units in MoE
+    """
+
+    moe_lbl_in_fp32: bool = False
+    """
+    Whether to compute the load balancing loss in fp32.
+    """
+
+    moe_jitter_eps: float = None
+    """
+    Coefficient for MoE routing jitter. Jitter is 
+    not used if set to None
+    """
+
+    enable_expert_tensor_parallelism: bool = False
+    """
+    Enable expert tensor parallelism
     """

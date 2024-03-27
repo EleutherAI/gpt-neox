@@ -1,17 +1,18 @@
 # GPT-2 pretraining setup
 {
    # Have 4 experts per layer (every 2 layers by default)
-   # So with 12 layers total:
-   # 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11
-   # Experts would be in layers:
-   # 0, 2, 4, 6, 8, 10
    "moe_num_experts": 4,
 
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
+   "moe_type": "megablocks",
+   "moe_train_capacity_factor": 0,
+   "moe_eval_capacity_factor": 0,
    "pipe_parallel_size": 1,
-   "model_parallel_size": 1,
+   "model_parallel_size": 2,
    "moe_expert_parallel_size": 1,
+   "enable_expert_tensor_parallelism": true,
+   "moe_top_k": 1,
 
    # model settings
    "num_layers": 12,
@@ -48,7 +49,7 @@
 
    # for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
    "zero_optimization": {
-    "stage": 1,
+    "stage": 0,
     "allgather_partitions": True,
     "allgather_bucket_size": 500000000,
     "overlap_comm": True,

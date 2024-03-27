@@ -1034,13 +1034,15 @@ class NeoXArgs(*BASE_CLASSES):
         # if we set pipe_parallel_size to 0 or 1, GPT2ModelPipe.to_sequential() is called, and we run training with
         # the sequential model without the PipelineModule wrapper to avoid the overhead it incurs
         self.update_value(
-            "is_pipe_parallel", self.pipe_parallel_size > 1 and self.num_experts == 1
+            "is_pipe_parallel",
+            self.pipe_parallel_size > 1 and self.moe_num_experts == 1,
         )
-        if self.num_experts > 1:
+        if self.moe_num_experts > 1:
             assert not (
                 self.is_pipe_parallel or self.pipe_parallel_size > 1
             ), "MoE not supported with pipeline parallelism"
             assert self.zero_optimization["stage"] != 3, "MoE not compatible with zero3"
+            assert self.mlp_type == "regular", "MoE not compatible with LLaMA"
 
         # Attention config
         if self.attention_config is None:
