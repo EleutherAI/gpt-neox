@@ -277,6 +277,11 @@ class NeoXArgs(*BASE_CLASSES):
         )
 
         group.add_argument(
+            "--load",
+            type=str,
+        )
+        
+        group.add_argument(
             "--save",
             type=str,
         )
