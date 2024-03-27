@@ -27,6 +27,7 @@ class ScaleGradient(torch.autograd.Function):
 
 scale_gradient = ScaleGradient.apply
 
+
 class MemoryOptimizedParallelGroupedMLP(torch.autograd.Function):
     """GroupedMLP with manually scheduled memory reuse."""
 
@@ -34,8 +35,7 @@ class MemoryOptimizedParallelGroupedMLP(torch.autograd.Function):
     @torch.cuda.amp.custom_fwd
     def forward(ctx, x, w1, w2, batch_sizes, activation_fn):
         # x: [m, k], w1: [n, k], w2: [n, k]
-        if (not x.is_contiguous() or not w1.is_contiguous() or
-            not w2.is_contiguous()):
+        if not x.is_contiguous() or not w1.is_contiguous() or not w2.is_contiguous():
             raise ValueError("Expected contiguous 'x', 'w1' and 'w2'.")
 
         # Layer 0: x @ w1.t().
@@ -61,9 +61,11 @@ class MemoryOptimizedParallelGroupedMLP(torch.autograd.Function):
     @staticmethod
     @torch.cuda.amp.custom_bwd
     def backward(ctx, ddsd_out):
-        if (not ctx.needs_input_grad[0] or
-            not ctx.needs_input_grad[1] or
-            not ctx.needs_input_grad[2]):
+        if (
+            not ctx.needs_input_grad[0]
+            or not ctx.needs_input_grad[1]
+            or not ctx.needs_input_grad[2]
+        ):
             raise ValueError("Expected all MLP inputs to need grad.")
 
         # Unpack saved tensors
@@ -82,15 +84,13 @@ class MemoryOptimizedParallelGroupedMLP(torch.autograd.Function):
             activation_grad_fn = activation_fn_out.backward
 
         # Compute dw2 with recomputed activation_fn output.
-        dw2 = gg.backend.gmm(
-            activation_fn_out, ddsd_out, batch_sizes, trans_a=True)
+        dw2 = gg.backend.gmm(activation_fn_out, ddsd_out, batch_sizes, trans_a=True)
 
         # Compute dactivation_fn_out.
         #
         # NOTE: We reuse the activation_fn_out allocation.
         dactivation_fn_out = activation_fn_out
-        gg.backend.gmm(
-            ddsd_out, w2, batch_sizes, trans_b=True, c=dactivation_fn_out)
+        gg.backend.gmm(ddsd_out, w2, batch_sizes, trans_b=True, c=dactivation_fn_out)
 
         # Compute dsdd_out.
         #
@@ -112,17 +112,19 @@ class MemoryOptimizedParallelGroupedMLP(torch.autograd.Function):
         dx = ddsd_out
         return dx, dw1, dw2, None, None
 
+
 memory_optimized_grouped_mlp = MemoryOptimizedParallelGroupedMLP.apply
+
 
 class ParallelGroupedMLP(torch.nn.Module):
     def __init__(
-            self,
-            neox_args: NeoXArgs,
-            init_method,
-            output_layer_init_method,
-            stride=1,
-            multiple_of=256,
-        ):
+        self,
+        neox_args: NeoXArgs,
+        init_method,
+        output_layer_init_method,
+        stride=1,
+        multiple_of=256,
+    ):
         """
         Copied from SparseMLP
         """
@@ -138,7 +140,6 @@ class ParallelGroupedMLP(torch.nn.Module):
         self.experts_per_rank = divide(self.num_experts, world_size)
 
         self.hidden_size = neox_args.hidden_size
-        
 
         # Allow custom intermediate size
         if neox_args.intermediate_size is not None:
@@ -146,7 +147,9 @@ class ParallelGroupedMLP(torch.nn.Module):
         # Otherwise, 4 x hidden size, padded to multiple of 256
         else:
             per_expert_ff_dim = 4 * self.hidden_size
-            per_expert_ff_dim = self.multiple_of * ((per_expert_ff_dim + multiple_of - 1) // multiple_of)
+            per_expert_ff_dim = self.multiple_of * (
+                (per_expert_ff_dim + multiple_of - 1) // multiple_of
+            )
 
         self.per_expert_ff_dim = per_expert_ff_dim
         # number of rows per rank is the number of experts * ff dimension
@@ -204,6 +207,7 @@ class ParallelGroupedMLP(torch.nn.Module):
         x = self.activation_func(x)
         return gg.ops.gmm(x, w2, grouped_gemm_batch_sizes)
 
+
 class MemoryOptimizedParallelGroupedLLaMAMLP(torch.autograd.Function):
     """GroupedMLP with manually scheduled memory reuse."""
 
@@ -211,8 +215,12 @@ class MemoryOptimizedParallelGroupedLLaMAMLP(torch.autograd.Function):
     @torch.cuda.amp.custom_fwd
     def forward(ctx, x, w1, w3, w2, batch_sizes, activation_fn):
         # x: [m, k], w1: [n, k], w3: [n, k], w2: [n, k]
-        if (not x.is_contiguous() or not w1.is_contiguous() or
-            not w3.is_contiguous() or not w2.is_contiguous()):
+        if (
+            not x.is_contiguous()
+            or not w1.is_contiguous()
+            or not w3.is_contiguous()
+            or not w2.is_contiguous()
+        ):
             raise ValueError("Expected contiguous 'x', 'w1', 'w3' and 'w2'.")
 
         # Layer 0: x @ w1.t().
@@ -239,9 +247,11 @@ class MemoryOptimizedParallelGroupedLLaMAMLP(torch.autograd.Function):
     @staticmethod
     @torch.cuda.amp.custom_bwd
     def backward(ctx, ddsd_out):
-        if (not ctx.needs_input_grad[0] or
-            not ctx.needs_input_grad[1] or
-            not ctx.needs_input_grad[2]):
+        if (
+            not ctx.needs_input_grad[0]
+            or not ctx.needs_input_grad[1]
+            or not ctx.needs_input_grad[2]
+        ):
             raise ValueError("Expected all MLP inputs to need grad.")
 
         # Unpack saved tensors
@@ -261,15 +271,13 @@ class MemoryOptimizedParallelGroupedLLaMAMLP(torch.autograd.Function):
             activation_grad_fn = activation_fn_out.backward
 
         # Compute dw2 with recomputed activation_fn output.
-        dw2 = gg.backend.gmm(
-            activation_fn_out, ddsd_out, batch_sizes, trans_a=True)
+        dw2 = gg.backend.gmm(activation_fn_out, ddsd_out, batch_sizes, trans_a=True)
 
         # Compute dactivation_fn_out.
         #
         # NOTE: We reuse the activation_fn_out allocation.
         dactivation_fn_out = activation_fn_out
-        gg.backend.gmm(
-            ddsd_out, w2, batch_sizes, trans_b=True, c=dactivation_fn_out)
+        gg.backend.gmm(ddsd_out, w2, batch_sizes, trans_b=True, c=dactivation_fn_out)
 
         # Compute dsdd_out.
         #
@@ -293,17 +301,19 @@ class MemoryOptimizedParallelGroupedLLaMAMLP(torch.autograd.Function):
         dx += gg.backend.gmm(dw3_out, w3, batch_sizes)
         return dx, dw1, dw3, dw2, None, None
 
+
 memory_optimized_grouped_llama_mlp = MemoryOptimizedParallelGroupedLLaMAMLP.apply
+
 
 class ParallelGroupedLLaMAMLP(torch.nn.Module):
     def __init__(
-            self,
-            neox_args: NeoXArgs,
-            init_method,
-            output_layer_init_method,
-            stride=1,
-            multiple_of=256,
-        ):
+        self,
+        neox_args: NeoXArgs,
+        init_method,
+        output_layer_init_method,
+        stride=1,
+        multiple_of=256,
+    ):
         """
         Copied from SparseMLP
         """
@@ -319,7 +329,6 @@ class ParallelGroupedLLaMAMLP(torch.nn.Module):
         self.experts_per_rank = divide(self.num_experts, world_size)
 
         self.hidden_size = neox_args.hidden_size
-        
 
         # Allow custom intermediate size
         if neox_args.intermediate_size is not None:
@@ -328,7 +337,9 @@ class ParallelGroupedLLaMAMLP(torch.nn.Module):
         # TODO: why is this how we formulate it this way?
         else:
             per_expert_ff_dim = int(2 * neox_args.hidden_size * 4 / 3)
-            per_expert_ff_dim = self.multiple_of * ((per_expert_ff_dim + multiple_of - 1) // multiple_of)
+            per_expert_ff_dim = self.multiple_of * (
+                (per_expert_ff_dim + multiple_of - 1) // multiple_of
+            )
 
         self.per_expert_ff_dim = per_expert_ff_dim
         # number of rows per rank is the number of experts * ff dimension per expert
@@ -388,7 +399,11 @@ class ParallelGroupedLLaMAMLP(torch.nn.Module):
 
     def forward(self, x: torch.Tensor, tokens_per_expert: torch.Tensor):
         grouped_gemm_batch_sizes = tokens_per_expert.cpu().to(torch.long)
-        w1, w3, w2 = (self.scale_grad(self.w1), self.scale_grad(self.w3), self.scale_grad(self.w2))
+        w1, w3, w2 = (
+            self.scale_grad(self.w1),
+            self.scale_grad(self.w3),
+            self.scale_grad(self.w2),
+        )
 
         w1 = self.w1.view(self.experts_per_rank, -1, self.hidden_size)
         w3 = w3.view(self.experts_per_rank, -1, self.hidden_size)
@@ -403,28 +418,23 @@ class ParallelGroupedLLaMAMLP(torch.nn.Module):
         #     grouped_gemm_batch_sizes,
         #     self.activation_func
         # )
-        
+
         llama_x_w1T = gg.ops.gmm(
-            x, # x
-            w1, # w1
-            grouped_gemm_batch_sizes,
-            trans_b=True
+            x, w1, grouped_gemm_batch_sizes, trans_b=True  # x  # w1
         )
 
         llama_x_w3T = gg.ops.gmm(
-            x, # x
-            w3, # w3
-            grouped_gemm_batch_sizes,
-            trans_b=True
+            x, w3, grouped_gemm_batch_sizes, trans_b=True  # x  # w3
         )
 
         llama_act_x_w1T = self.activation_func(llama_x_w1T)
-        
+
         # self.w2(self.activation_func(w1_out) * w3_out)
         llama_mlp_out = gg.ops.gmm(
-            llama_act_x_w1T * llama_x_w3T, # activation results gated (element-wise) with w3
-            w2, # w2
-            grouped_gemm_batch_sizes, # batch_sizes
+            llama_act_x_w1T
+            * llama_x_w3T,  # activation results gated (element-wise) with w3
+            w2,  # w2
+            grouped_gemm_batch_sizes,  # batch_sizes
         )
 
         return llama_mlp_out

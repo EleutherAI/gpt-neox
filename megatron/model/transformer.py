@@ -1023,7 +1023,7 @@ class ParallelTransformerLayer(nn.Module):
 
         if self.num_experts <= 1:
             self.mlp = get_mlp(neox_args.mlp_type)
-        
+
         # Dropless MoE MLP
         elif neox_args.use_deepspeed_moe is False:
             self.mlp = ParallelDroplessMoE(
@@ -1031,7 +1031,7 @@ class ParallelTransformerLayer(nn.Module):
                 init_method=init_method,
                 output_layer_init_method=output_layer_init_method,
             )
-        
+
         # use legacy DeepSpeed token dropping MoE
         else:
             from torch import distributed as dist

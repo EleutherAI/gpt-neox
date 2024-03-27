@@ -1033,7 +1033,7 @@ class NeoXArgs(*BASE_CLASSES):
         # if we set pipe_parallel_size to 0, GPT2ModelPipe.to_sequential() is called, and we run training with
         # the sequential model without the PipelineModule wrapper to avoid the overhead it incurs
         self.update_value("is_pipe_parallel", self.pipe_parallel_size >= 1)
-        
+
         # only legacy DeepSpeed MoE doesn't support pipeline parallelism
         if self.use_deepspeed_moe:
             assert not (

@@ -266,7 +266,12 @@ def get_pipe_parallel_world_size():
     """Return world size for the pipe parallel group."""
     return torch.distributed.get_world_size(group=get_pipe_parallel_group())
 
-def get_expert_tokens_for_rank(routed_tokens: torch.Tensor, tokens_per_expert: torch.Tensor, rank: Optional[int] = None):
+
+def get_expert_tokens_for_rank(
+    routed_tokens: torch.Tensor,
+    tokens_per_expert: torch.Tensor,
+    rank: Optional[int] = None,
+):
     """
     Allow user to specify rank, fall back on this device
     """
@@ -277,7 +282,7 @@ def get_expert_tokens_for_rank(routed_tokens: torch.Tensor, tokens_per_expert: t
 
     # TODO: is this check necessary here/what does it cost us to redundantly do it in multiple places?
     assert tokens_per_expert.shape[0] % world_size == 0
-    
+
     cumulative_sums = torch.cumsum(tokens_per_expert, dim=0)
     assert cumulative_sums[-1] == routed_tokens.shape[0]
 
@@ -291,7 +296,10 @@ def get_expert_tokens_for_rank(routed_tokens: torch.Tensor, tokens_per_expert: t
 
     return selected_experts
 
-def get_expert_token_counts_for_rank(tokens_per_expert: torch.Tensor, rank: Optional[int] = None):
+
+def get_expert_token_counts_for_rank(
+    tokens_per_expert: torch.Tensor, rank: Optional[int] = None
+):
     """
     Allow user to specify rank, fall back on this device
     """
@@ -302,6 +310,7 @@ def get_expert_token_counts_for_rank(tokens_per_expert: torch.Tensor, rank: Opti
         rank = get_model_parallel_rank()
 
     return tokens_per_expert.chunk(world_size)[rank]
+
 
 def set_tensor_model_parallel_world_size(world_size):
     """Set the tensor model parallel size"""

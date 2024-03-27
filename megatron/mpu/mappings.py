@@ -152,6 +152,7 @@ def _dmoe_split(input_, tokens_per_expert):
 
     return output
 
+
 def _dmoe_gather(input_: torch.Tensor, tokens_per_expert: torch.Tensor):
     """Gather tensors and concatinate along the first dimension)"""
 
@@ -169,15 +170,14 @@ def _dmoe_gather(input_: torch.Tensor, tokens_per_expert: torch.Tensor):
     gather_dim = 0
     rank = get_model_parallel_rank()
 
-    tokens_by_rank = [get_expert_token_counts_for_rank(tokens_per_expert, r) for r in range(world_size)]
+    tokens_by_rank = [
+        get_expert_token_counts_for_rank(tokens_per_expert, r)
+        for r in range(world_size)
+    ]
     # print(f"{torch.cuda.current_device()}: tokens_by_rank {tokens_by_rank}")
     tensor_list = [
-        torch.empty(
-            sum(r),
-            input_.shape[-1],
-            device=input_.device,
-            dtype=input_.dtype
-        ) for r in tokens_by_rank
+        torch.empty(sum(r), input_.shape[-1], device=input_.device, dtype=input_.dtype)
+        for r in tokens_by_rank
     ]
     tensor_list[rank] = input_
     torch.distributed.all_gather(tensor_list, input_, group=get_model_parallel_group())
@@ -190,6 +190,7 @@ def _dmoe_gather(input_: torch.Tensor, tokens_per_expert: torch.Tensor):
         output = output.bfloat16()
 
     return output
+
 
 class _CopyToModelParallelRegion(torch.autograd.Function):
     """Pass the input to the model parallel region."""
@@ -225,7 +226,7 @@ class _CopyToExpertModelParallelRegion(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output):
         # Retrieve the tokens_per_expert from the context
-        tokens_per_expert, = ctx.saved_tensors
+        (tokens_per_expert,) = ctx.saved_tensors
 
         # no grad for tokens_per_expert
         # return _dmoe_reduce(grad_output, tokens_per_expert), None
@@ -278,10 +279,11 @@ class _GatherFromModelParallelRegion(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output):
         return _split(grad_output)
-    
+
+
 class _GatherFromExpertModelParallelRegion(torch.autograd.Function):
     """Gather the input from expert model parallel region and concatinate.
-    
+
     The major difference between this and _GatherFromModelParallelRegion is in the
     dMoE case, we need to gather & split along the first dimension, not the last
     """
@@ -299,10 +301,10 @@ class _GatherFromExpertModelParallelRegion(torch.autograd.Function):
         return _dmoe_gather(input_, tokens_per_expert)
 
     @staticmethod
-    def backward(ctx, grad_output):        
+    def backward(ctx, grad_output):
         # Retrieve the tokens_per_expert from the context
-        tokens_per_expert, = ctx.saved_tensors
-        
+        (tokens_per_expert,) = ctx.saved_tensors
+
         # no grad for tokens_per_expert
         return _dmoe_split(grad_output, tokens_per_expert), None
 

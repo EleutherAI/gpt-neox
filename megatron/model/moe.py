@@ -23,6 +23,7 @@ class ParallelDroplessMLP(torch.nn.Module):
 
     The implication of this parallelism decision is that the expert weights can only be sharded within a single node
     """
+
     def __init__(
         self,
         neox_args: NeoXArgs,
@@ -30,7 +31,7 @@ class ParallelDroplessMLP(torch.nn.Module):
         output_layer_init_method,
     ):
         """
-        
+
         Bias is currently not supported
         """
         super(ParallelDroplessMLP, self).__init__()
@@ -61,7 +62,6 @@ class ParallelDroplessMLP(torch.nn.Module):
             )
         else:
             raise KeyError(neox_args.mlp_type)
-
 
     def indices_and_bins(self, top_expert: torch.Tensor):
         # Sort the expert ids to produce the scatter/gather
@@ -100,7 +100,7 @@ class ParallelDroplessMLP(torch.nn.Module):
         grouped_permute_and_compute
 
         torch.distributed.all_reduce(tensor, op=<RedOpType.SUM: 0>, group=None, async_op=False)
-        
+
         NOTE: Megablocks sets up all MLP tensors as column parallel and uses transposes on some of the grouped_gemm calls for the ops that would be row parallel. This seems to be fine and since we aren't using the underlying NeoX ColumnParallelLinear and RowParallelLinear classes, there doesn't seem to be a reason to change it...because that'd introduce a lot of additional complexity.
 
         column parallel linear forward
@@ -138,7 +138,9 @@ class ParallelDroplessMLP(torch.nn.Module):
         # with torch.no_grad():
         local_tokens_per_expert = get_expert_token_counts_for_rank(tokens_per_expert)
         if torch.cuda.current_device() == 0:
-            print(f"{torch.cuda.current_device()}: local_tokens_per_expert {local_tokens_per_expert}, global tokens {tokens_per_expert}")
+            print(
+                f"{torch.cuda.current_device()}: local_tokens_per_expert {local_tokens_per_expert}, global tokens {tokens_per_expert}"
+            )
 
         # Perform the expert computation for this rank's experts
         output_parallel = self.mlp(input_parallel, local_tokens_per_expert)
@@ -173,11 +175,11 @@ class ParallelDroplessMLP(torch.nn.Module):
         """
         # save shape so we can re-shape the outputs later
         in_shape = x.size()
-        
+
         # both are now (sl * bs * top_k)
         expert_weights = expert_weights.flatten()
         expert_indices = expert_indices.flatten()
-        
+
         with torch.no_grad():
             indices, bin_ids, bins, tokens_per_expert = self.indices_and_bins(
                 expert_indices
@@ -200,29 +202,30 @@ class ParallelDroplessMLP(torch.nn.Module):
 
 def cast_if_autocast_enabled(tensor: torch.Tensor):
     if torch.is_autocast_enabled():
-        if tensor.device.type == 'cuda':
+        if tensor.device.type == "cuda":
             dtype = torch.get_autocast_gpu_dtype()
-        elif tensor.device.type == 'cpu':
+        elif tensor.device.type == "cpu":
             dtype = torch.get_autocast_cpu_dtype()
         else:
             raise NotImplementedError()
         return tensor.to(dtype=dtype)
     return tensor
 
+
 class ParallelDroplessMoE(torch.nn.Module):
     def __init__(
-            self,
-            neox_args: NeoXArgs,
-            init_method,
-            output_layer_init_method,
-        ):
+        self,
+        neox_args: NeoXArgs,
+        init_method,
+        output_layer_init_method,
+    ):
         super(ParallelDroplessMoE, self).__init__()
 
         if neox_args.moe_router_type == "sinkhorn":
             self.router = SinkhornRouter(
                 neox_args,
                 init_method,
-            )    
+            )
         elif neox_args.moe_router_type == "topk":
             self.router = TopKTokenChoiceRouter(
                 neox_args,
@@ -230,7 +233,6 @@ class ParallelDroplessMoE(torch.nn.Module):
             )
         else:
             raise ValueError(f"Invalid MoE Router type {neox_args.moe_router_type}")
-    
 
         self.experts = ParallelDroplessMLP(
             neox_args,

@@ -9,6 +9,7 @@ import torch
 from megatron.neox_arguments.arguments import NeoXArgs
 from megatron.mpu import get_model_parallel_group, get_model_parallel_rank
 
+
 class SinkhornRouter(torch.nn.Module):
     # TODO: reduce precision on expert_indices? it looks like it's currently int64
     # TODO: how do we ensure that all copies of the router get the same
@@ -22,10 +23,10 @@ class SinkhornRouter(torch.nn.Module):
     # - https://github.com/NVIDIA/Megatron-LM/blob/cafda9529d9956578014d4cb89b69b741702b514/megatron/core/transformer/moe/router.py#L215: this his how megatron actually does its router forward pass
 
     def __init__(
-            self,
-            neox_args: NeoXArgs,
-            init_method,
-        ):
+        self,
+        neox_args: NeoXArgs,
+        init_method,
+    ):
         super().__init__()
         self.top_k = neox_args.moe_top_k
         self.params_dtype = neox_args.params_dtype
@@ -63,7 +64,7 @@ class SinkhornRouter(torch.nn.Module):
             error = torch.mean(torch.abs(d1_old - d1))
             d1_old = d1
         return d1 * cost * d0.unsqueeze(1)
-    
+
     def sinkhorn_load_balancing(self, logits: torch.Tensor):
         """Apply sinkhorn routing to the logits tensor.
 
@@ -78,7 +79,9 @@ class SinkhornRouter(torch.nn.Module):
             if self.top_k == 1:
                 logits = torch.sigmoid(logits)
             else:  # k > 1
-                logits = torch.softmax(logits, dim=-1, dtype=torch.float32).type_as(logits)
+                logits = torch.softmax(logits, dim=-1, dtype=torch.float32).type_as(
+                    logits
+                )
             return logits
 
         # assert self.config.moe_aux_loss_coeff == 0, "Sinkhorn routing does not support aux loss."
@@ -115,7 +118,7 @@ class SinkhornRouter(torch.nn.Module):
             # x.view shape: (sl * bs, hs)...every token as a row
             # router_logits (float) shape: (sl * bs, num_experts)...expert rankings for every token
             router_logits = self.layer(x.view(-1, x.shape[-1]))
-            
+
             # expert_weights (float) shape: (sl * bs, top_k)...value(s) from scores corresponding to the top_k experts
             # expert_indices (int) shape: (sl * bs, top_k)...index(indices) from scores corresponding to the top_k experts
             expert_weights, expert_indices = self.sinkhorn_load_balancing(router_logits)
@@ -136,8 +139,18 @@ class SinkhornRouter(torch.nn.Module):
         else:
             # sl * bs
             num_rows = x.view(-1, x.shape[-1]).shape[0]
-            expert_weights = torch.empty(num_rows, self.top_k, device = torch.cuda.current_device(), dtype = self.params_dtype)
-            expert_indices = torch.empty(num_rows, self.top_k, device = torch.cuda.current_device(), dtype = torch.int64)
+            expert_weights = torch.empty(
+                num_rows,
+                self.top_k,
+                device=torch.cuda.current_device(),
+                dtype=self.params_dtype,
+            )
+            expert_indices = torch.empty(
+                num_rows,
+                self.top_k,
+                device=torch.cuda.current_device(),
+                dtype=torch.int64,
+            )
 
             expert_weights_broadcast = torch.distributed.broadcast(
                 expert_weights,
@@ -156,7 +169,7 @@ class SinkhornRouter(torch.nn.Module):
         # we wait for first
         expert_weights_broadcast.wait()
         expert_indices_broadcast.wait()
-        
+
         return expert_weights, expert_indices
 
 
@@ -165,10 +178,10 @@ class TopKTokenChoiceRouter(torch.nn.Module):
     # initializations and stay in sync over time? Or is this handled by RNG seeding?
 
     def __init__(
-            self,
-            neox_args: NeoXArgs,
-            init_method,
-        ):
+        self,
+        neox_args: NeoXArgs,
+        init_method,
+    ):
         super().__init__()
         self.jitter_eps = neox_args.moe_jitter_eps
         self.top_k = neox_args.moe_top_k
@@ -238,7 +251,7 @@ class TopKTokenChoiceRouter(torch.nn.Module):
         # x.view shape: (sl * bs, hs)...every token as a row
         # scores (float) shape: (sl * bs, num_experts)...expert rankings for every token
         scores = self.layer(x.view(-1, x.shape[-1])).softmax(dim=-1)
-        
+
         # expert_weights (float) shape: (sl * bs, top_k)...value(s) from scores corresponding to the top_k experts
         # expert_indices (int) shape: (sl * bs, top_k)...index(indices) from scores corresponding to the top_k experts
         expert_weights, expert_indices = self._top_k(scores)

@@ -1260,6 +1260,7 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     NOTE: Requires internet connection
     """
 
+
 @dataclass
 class NeoXArgsMoE(NeoXArgsTemplate):
     """
@@ -1293,7 +1294,7 @@ class NeoXArgsMoE(NeoXArgsTemplate):
 
     moe_jitter_eps: float = None
     """
-    Coefficient for MoE routing jitter. Jitter is 
+    Coefficient for MoE routing jitter. Jitter is
     not used if set to None
     """
 
