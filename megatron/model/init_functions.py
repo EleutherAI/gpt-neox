@@ -15,7 +15,6 @@
 import math
 
 import torch
-from rwkv import TimeMixing, ChannelMixing
 
 try:
     import mup
