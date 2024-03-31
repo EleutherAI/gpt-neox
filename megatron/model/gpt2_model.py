@@ -37,6 +37,7 @@ from megatron.model.transformer import (
     ParallelLinear,
 )
 from megatron.model.gmlp import GMLPBlock
+from megatron.model.rwkv  import  RWKVResidualLayerPipe
 from megatron.model.word_embeddings import EmbeddingPipe, SoftEmbedding
 
 # Pipeline parallelism
@@ -166,7 +167,9 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             topology=self.__topology__,
             activation_checkpoint_interval=self.activation_checkpoint_interval,
             partition_method=self.neox_args.pipe_partition_method,
-            checkpointable_layers=["GMLPBlock", "ParallelTransformerLayerPipe"],
+            checkpointable_layers=["GMLPBlock",
+                                   "ParallelTransformerLayerPipe",
+                                   "RWKVResidualLayerPipe"],
         )
 
     def init_specs(self):
@@ -240,6 +243,14 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                         output_layer_init_method=self.output_layer_init_method,
                         neox_args=self.neox_args,
                         mask_fn=gpt2_attention_mask_func,
+                    )
+                )
+            elif layer_type == "rwkv":
+                self.specs.append(
+                    LayerSpec(
+                        RWKVResidualLayerPipe,
+                        self.neox_args,
+                        i,
                     )
                 )
             else:

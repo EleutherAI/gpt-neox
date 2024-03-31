@@ -36,6 +36,7 @@ ATTENTION_TYPE_CHOICES = [
     "gmlp",
     "amlp",
     "flash",
+    "rwkv",
 ]
 
 
@@ -210,7 +211,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     The first item in the list specifies the attention type(s), and should be a list of strings. The second item
     specifies the number of times to repeat those attention types in the full list.
 
-    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird, "gmlp", "amlp", "flash"]
+    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird, "gmlp", "amlp", "flash", "rwkv"]
 
     So a 12 layer network with only global attention could be specified like:
         [[[`global`], 12]]
@@ -1139,6 +1140,16 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     mup_width_scale: int = 2
     """
     What to scale width by when creating the delta model for mup
+    """
+
+    rwkv_pre_ffn: bool = False
+    """
+    Use channel mix block as first time mix block
+    """
+
+    rwkv_mishglu: bool = False
+    """
+    mishglu ffn
     """
 
 
