@@ -27,23 +27,25 @@ trained in GPT-NeoX into the mamba_ssm package ckpt format.
 """
 ARCH = {
     "COLUMN_PARALLEL_LINEAR_KEYS": {
+        # these require concat across dim=0
         "mixer.in_proj.weight": "mixer.in_proj.weight",
         # "mixer.in_proj.bias": "mixer.in_proj.bias",
-    },
-    "ROW_PARALLEL_LINEAR_KEYS": {
-        "mixer.out_proj.weight": "mixer.out_proj.weight",
-    },
-    "ROW_PARALLEL_BIAS_KEYS": {
-        # "mixer.out_proj.bias": "mixer.out_proj.bias",
-    },
-    "NO_SHARD_KEYS": {
         "mixer.A_log": "mixer.A_log",
         "mixer.D": "mixer.D",
-        "mixer.x_proj.weight": "mixer.x_proj.weight",
-        "mixer.dt_proj.weight": "mixer.dt_proj.weight",
-        "mixer.dt_proj.bias": "mixer.dt_proj.bias",
         "mixer.conv1d.weight": "mixer.conv1d.weight",
         "mixer.conv1d.bias": "mixer.conv1d.bias",
+        "mixer.dt_proj.weight": "mixer.dt_proj.weight",
+        "mixer.dt_proj.bias": "mixer.dt_proj.bias",
+    },
+    "ROW_PARALLEL_LINEAR_KEYS": {
+        # these require concat across dim=1
+        "mixer.out_proj.weight": "mixer.out_proj.weight",
+        "mixer.x_proj.weight": "mixer.x_proj.weight",
+    },
+    "ROW_PARALLEL_BIAS_KEYS": {
+        # these require summing across ranks
+        # "mixer.x_proj.bias": "mixer.x_proj.bias",
+        # "mixer.out_proj.bias": "mixer.out_proj.bias",
     },
     "NORM_KEYS": {
         "norm.scale": "norm.weight",
@@ -226,15 +228,6 @@ def convert(
                 )
             )
 
-        # Average params which aren't sharded across ranks.
-        # they should be the same across ranks, so should be fine
-        for key, hf_key in ARCH["NO_SHARD_KEYS"].items():
-            state_dict[hf_key] = sum(
-                get_state(
-                    loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential
-                )
-            ) / len(loaded_tp_ranks)
-
         layer.load_state_dict(state_dict)
 
     if not sequential:
@@ -319,12 +312,6 @@ def main(input_args=None, overwrite_values=None):
         "--no_save_tokenizer",
         action="store_true",
         help="Whether to skip saving the tokenizer alongside a model.",
-    )
-    parser.add_argument(
-        "--architecture",
-        type=str,
-        default="neox",
-        help="What HF model class type to export into.",
     )
     args = parser.parse_args(input_args)
 
