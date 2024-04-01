@@ -1,0 +1,69 @@
+name: "Pull Request CPU Tests"
+
+on:
+  pull_request:
+    paths: # job only triggers when the PR changes files under megatron directory
+      - "megatron/**"
+
+jobs:
+  run-tests:
+    runs-on: [ 'test', 'self-hosted' ]
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.8"
+          cache: "pip"
+          cache-dependency-path: "**/requirements*.txt"
+
+      - name: Upgrade Pip
+        run: python -m pip install --upgrade pip
+
+      - name: Set up Docker repository # this should possibly be done by the worker before the job starts in the interest of execution time?
+        run: |
+          # Add Docker's official GPG key:
+          sudo apt-get update -y
+          sudo apt-get install ca-certificates curl -y
+          sudo install -m 0755 -d /etc/apt/keyrings
+          sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+          sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+          # Add the repository to Apt sources:
+          echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+            $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+            sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+          sudo apt-get update
+      - name: Docker installation # this should possibly be done by the worker before the job starts in the interest of execution time?
+        run: |
+          sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
+          sudo docker run hello-world
+      - name: Prepare data
+        run: |
+          python prepare_data.py -d ./data
+      - name: Remove previous container
+        run: |
+          if docker ps -a | grep -q "$CONTAINER"; then
+            echo "Container already exists, deleting it..."
+            docker rm -f $CONTAINER
+          fi
+      - name: Create container
+        run: |
+          export NEOX_DATA_PATH='./data/enwik8'
+          export NEOX_CHECKPOINT_PATH='/mnt/sda/checkpoints' #todo: where do I get this?
+          docker compose run -d --build --name $CONTAINER gpt-neox tail -f /dev/null
+      - name: Install test requirements
+        run: |
+          docker exec $CONTAINER pip install -r /workspace/requirements-dev.txt
+      - name: Execute CPU tests 1
+        run: |
+          docker exec $CONTAINER sh -c "cd gpt-neox && pytest tests -m cpu"
+      - name: Execute CPU tests 2
+        run: |
+          docker exec $CONTAINER sh -c "cd gpt-neox && PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pytest tests -m cpu"
+      - name: Generate report
+        run: |
+          docker exec $CONTAINER python -m http.server --directory htmlcov 8000
