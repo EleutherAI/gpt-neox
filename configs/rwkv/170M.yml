@@ -5,7 +5,8 @@
 
   "num_layers": 12,
   "hidden_size": 768,
-  "num_attention_heads": 12, # ignored when using rwkv
+  "num_attention_heads": 12, # head_size = dim_att / num_attention_heads. 
+                             # head_size is 64 for all rwkv models
   "seq_length": 512,
   "max_position_embeddings": 2048,
   "output_layer_parallelism": "column",

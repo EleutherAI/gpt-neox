@@ -8,7 +8,7 @@ import torch
 # torch._C._jit_set_profiling_mode(True)
 import torch.nn as nn
 from torch.nn import functional as F
-from rwkv.cuda import rwkv_cuda
+
 
 ########################################################################################################
 # CUDA Kernel
@@ -16,21 +16,21 @@ from rwkv.cuda import rwkv_cuda
 
 from torch.utils.cpp_extension import load
 
-HEAD_SIZE = 64
+#HEAD_SIZE = 64
 
 #wkv_cuda = load(name="wkv6", sources=["/weka/home-jacob/gpt-neox/megatron/model/rwkv/cuda/wkv6_op.cpp", f"/weka/home-jacob/gpt-neox/megatron/model/rwkv/cuda/wkv6_cuda.cu"],
 #                verbose=True, extra_cuda_cflags=["-res-usage", "--use_fast_math", "-O3", "-Xptxas -O3", "--extra-device-vectorization", f"-D_N_={HEAD_SIZE}", f"-D_T_={512}"])
 
 class WKV(torch.autograd.Function):
     @staticmethod
-    def forward(WKV, ctx, B, T, C, H, r, k, v, w, u):
+    def forward(ctx, B, T, C, H, r, k, v, w, u):
         with torch.no_grad():
             assert r.dtype == torch.bfloat16
             assert k.dtype == torch.bfloat16
             assert v.dtype == torch.bfloat16
             assert w.dtype == torch.bfloat16
             assert u.dtype == torch.bfloat16
-            assert HEAD_SIZE == C // H
+            #assert HEAD_SIZE == C // H
             ctx.B = B
             ctx.T = T
             ctx.C = C
@@ -65,7 +65,7 @@ class WKV(torch.autograd.Function):
             gu = torch.sum(gu, 0).view(H, C//H)
             return (None, None, None, None, gr, gk, gv, gw, gu)
 
-def RUN_CUDA_RWKV(WKV, B, T, C, H, r, k, v, w, u):
+def RUN_CUDA_RWKV(B, T, C, H, r, k, v, w, u):
     return WKV.apply(B, T, C, H, r, k, v, w, u)
 
 # RWKV6 time mix
@@ -74,17 +74,6 @@ class RWKV_TimeMix(nn.Module):
         super().__init__()
         self.neox_args = neox_args
         self.layer_number = layer_number
-
-        self.head_size = 64
-        self.num_attention_heads = neox_args.dim_att // self.head_size
-        assert neox_args.dim_att % self.num_attention_heads == 0
-        self.wkv_cuda = load(name="wkv6", sources=["/weka/home-jacob/gpt-neox/megatron/model/rwkv/cuda/wkv6_op.cpp",
-                                              f"/weka/home-jacob/gpt-neox/megatron/model/rwkv/cuda/wkv6_cuda.cu"],
-                                              verbose=True,
-                                              extra_cuda_cflags=["-res-usage", "--use_fast_math", "-O3", "-Xptxas -O3",
-                                                 "--extra-device-vectorization",
-                                                 f"-D_N_={self.neox_args.head_size}", f"-D_T_={self.neox_args.seq_length}"])
-
 
         with torch.no_grad():
             ratio_0_to_1 = layer_number / (neox_args.num_layers - 1)  # 0 to 1
@@ -120,7 +109,7 @@ class RWKV_TimeMix(nn.Module):
                 zigzag = ((n + 1) % 3 - 1) * 0.1
                 tmp[n] = ratio_0_to_1 * (1 - (n / (neox_args.dim_att - 1))) + zigzag
 
-            self.time_faaaa = nn.Parameter(tmp.reshape(self.num_attention_heads, self.head_size))
+            self.time_faaaa = nn.Parameter(tmp.reshape(neox_args.num_attention_heads, neox_args.head_size))
 
         self.time_shift = nn.ZeroPad2d((0, 0, 1, -1))
         self.receptance = nn.Linear(neox_args.hidden_size, neox_args.dim_att, bias=False)
@@ -129,7 +118,7 @@ class RWKV_TimeMix(nn.Module):
         self.value = nn.Linear(neox_args.hidden_size, neox_args.dim_att, bias=False)
         self.output = nn.Linear(neox_args.dim_att, neox_args.hidden_size, bias=False)
         self.gate = nn.Linear(neox_args.hidden_size, neox_args.dim_att, bias=False)
-        self.ln_x = nn.GroupNorm(self.num_attention_heads, neox_args.dim_att, eps=(1e-5)*(8**2))
+        self.ln_x = nn.GroupNorm(neox_args.num_attention_heads, neox_args.dim_att, eps=(1e-5)*(8**2))
 
     #@torch.jit.script
     def jit_func(self, x):
@@ -169,10 +158,10 @@ class RWKV_TimeMix(nn.Module):
 
     def forward(self, x):
         B, T, C = x.size()
-        H = self.num_attention_heads
+        H = self.neox_args.num_attention_heads
 
         r, k, v, g, w = self.jit_func(x)
-        x = RUN_CUDA_RWKV(self.WKV, B, T, C, H, r, k, v, w, u=self.time_faaaa)
+        x = RUN_CUDA_RWKV(B, T, C, H, r, k, v, w, u=self.time_faaaa)
 
         return self.jit_func_2(x, g)
 
@@ -257,6 +246,10 @@ class RWKVResidualLayer(nn.Module):
         assert neox_args.hidden_size % 32 == 0
         assert neox_args.dim_att % 32 == 0
         assert neox_args.dim_ffn % 32 == 0
+        self.neox_args.head_size = neox_args.dim_att // neox_args.num_attention_heads 
+        self.head_size = self.neox_args.head_size
+        self.num_attention_heads = neox_args.num_attention_heads
+        assert neox_args.dim_att % self.num_attention_heads == 0
 
         if neox_args.attention_dropout > 0:
             self.drop0 = nn.Dropout(p = neox_args.attention_dropout)
@@ -279,18 +272,20 @@ class RWKVResidualLayer(nn.Module):
         if neox_args.hidden_dropout > 0:
             self.drop1 = nn.Dropout(p = neox_args.hidden_dropout)
 
-        global wkv_cuda
-        wkv_cuda = load(name="wkv6", sources=["/weka/home-jacob/gpt-neox/megatron/model/rwkv/cuda/wkv6_op.cpp", f"/weka/home-jacob/gpt-neox/megatron/model/rwkv/cuda/wkv6_cuda.cu"],
-                        verbose=True, extra_cuda_cflags=["-res-usage", "--use_fast_math", "-O3", "-Xptxas -O3", "--extra-device-vectorization", f"-D_N_={HEAD_SIZE}", f"-D_T_={512}"])
+        if layer_number == 0:
+            global wkv_cuda
+            wkv_cuda = load(name="wkv6", sources=["megatron/model/rwkv/cuda/wkv6_op.cpp",
+                                              f"megatron/model/rwkv/cuda/wkv6_cuda.cu"],
+                                              verbose=True,
+                                              extra_cuda_cflags=["-res-usage", "--use_fast_math", "-O3", "-Xptxas -O3",
+                                                 "--extra-device-vectorization",
+                                                 f"-D_N_={self.neox_args.head_size}", f"-D_T_={self.neox_args.seq_length}"])
 
     def forward(self, x):
         neox_args = self.neox_args
         B, T, C = x.size()
         if self.layer_number == 0:
             x = self.ln1(x)
-            #if neox_args.pos_emb > 0:
-            #    pos_emb = (self.pos_emb_x + self.pos_emb_y).reshape(T+1, -1)[:-1,:]
-            #    x = x + pos_emb
 
         if self.neox_args.attention_dropout == 0 and self.neox_args.hidden_dropout == 0:
             if self.layer_number == 0 and neox_args.rwkv_pre_ffn > 0:
