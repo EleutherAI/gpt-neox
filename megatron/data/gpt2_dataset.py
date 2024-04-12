@@ -39,6 +39,9 @@ class GPT2Dataset(torch.utils.data.Dataset):
         build_index_mappings=True,
         use_shared_fs=True,
         label_dataset=None,
+        index_mapping_paths=None,
+        index_offset=0,
+        reshuffle_when_loading=True,
     ):
 
         self.name = name
@@ -48,6 +51,8 @@ class GPT2Dataset(torch.utils.data.Dataset):
         # Checks
         assert np.min(documents) >= 0
         assert np.max(documents) < indexed_dataset.sizes.shape[0]
+        if not build_index_mappings:
+            assert index_mapping_paths, "If not building index mappings, the path to existing ones must be provided."
 
         if build_index_mappings:
             # Build index mappings.
@@ -61,13 +66,32 @@ class GPT2Dataset(torch.utils.data.Dataset):
                 seed,
                 use_shared_fs=use_shared_fs,
             )
-            self.shuffle_idx_len = self.shuffle_idx.shape[0] - 1
-            self.sample_idx_len = self.sample_idx.shape[0] - 1
+            
+        else:
+            # If not building the index mappings, we need to load them 
+            self.doc_idx, self.sample_idx, self.shuffle_idx = _load_index_mappings(
+                self.name,
+                data_prefix,
+                documents,
+                self.indexed_dataset.sizes,
+                num_samples,
+                seq_length,
+                seed,
+                use_shared_fs=use_shared_fs,
+                index_mapping_paths=index_mapping_paths,
+                index_offset=index_offset,
+                reshuffle_when_loading=reshuffle_when_loading,
+            )
 
-            if self.shuffle_idx_len != self.sample_idx_len - 1:
-                print(
-                    f"WARNING: shuffle index length ({self.shuffle_idx_len}) is not equal to sample index length ({self.sample_idx_len})"
-                )
+
+        self.shuffle_idx_len = self.shuffle_idx.shape[0] - 1
+        self.sample_idx_len = self.sample_idx.shape[0] - 1
+
+        if self.shuffle_idx_len != self.sample_idx_len:
+            print(
+                f"WARNING: shuffle index length ({self.shuffle_idx_len}) is not equal to sample index length ({self.sample_idx_len})"
+            )
+
 
     def __len__(self):
         return min(self.shuffle_idx_len, self.sample_idx_len)
@@ -237,6 +261,134 @@ def _build_index_mappings(
         "    loaded indexed file in {:3.3f} seconds".format(time.time() - start_time)
     )
     print_rank_0("    total number of samples: {}".format(sample_idx.shape[0]))
+    print_rank_0("    total number of epochs: {}".format(num_epochs))
+
+    return doc_idx, sample_idx, shuffle_idx
+
+
+# Warning: only implemented with replay in mind, some issues may arise when dealing with more than 1 epoch over the dataset
+def _load_index_mappings(
+    name,
+    data_prefix,
+    documents,
+    sizes,
+    num_samples,
+    seq_length,
+    seed,
+    index_mapping_paths,
+    use_shared_fs=True,
+    index_offset=0,
+    reshuffle_when_loading=True,
+):
+    """Build doc-idx, sample-idx, and shuffle-idx from ones loaded.
+    doc-idx: is an array (ordered) of documents to be used in training.
+    sample-idx: is the start document index and document offset for each
+       training sample.
+    shuffle-idx: maps the sample index into a random index into sample-idx.
+    """
+    # Number of tokens in each epoch and number of required epochs.
+    tokens_per_epoch = _num_tokens(documents, sizes)
+    num_epochs = _num_epochs(tokens_per_epoch, seq_length, num_samples)
+    # rng state
+    np_rng = np.random.RandomState(seed=seed)
+    is_replay = name.split("_")[0] == "replay"
+
+
+    # Filename of the index mappings.
+    _filename = data_prefix
+    _filename += "_{}_indexmap".format(name)
+    _filename += "_{}ns".format(num_samples)
+    _filename += "_{}sl".format(seq_length)
+    _filename += "_{}s".format(seed)
+    doc_idx_filename = _filename + "_doc_idx.npy"
+    sample_idx_filename = _filename + "_sample_idx.npy"
+    shuffle_idx_filename = _filename + "_shuffle_idx.npy"
+
+
+    if not use_shared_fs:
+        should_process_dataset = int(os.environ["LOCAL_RANK"]) == 0
+    else:
+        should_process_dataset = torch.distributed.get_rank() == 0
+
+    # Build the indexed mapping if not exist.
+    if should_process_dataset:
+        start_time = time.time()
+        print_rank_0(" > loading shuffle-idx mapping from {}".format(index_mapping_paths["shuffle_idx_path"]))
+        shuffle_idx = np.load(index_mapping_paths["shuffle_idx_path"], allow_pickle=True, mmap_mode="r")
+        print_rank_0(
+            "    loaded indexed file in {:3.3f} seconds".format(time.time() - start_time)
+        )
+
+        idx_prefix = index_mapping_paths["shuffle_idx_path"].split("_")[:-2]
+
+        ## restrict to samples seen during original pretraining if this is replay
+        ## careful, this is hardcoded based on the number on idx filenames looking like dataset_train_4_indexmap_5781ns_2048sl_1234s_doc_idx.npy
+
+        # remove 1.005 buffer that was added when estimating numbers of samples in get_normalized_weights_and_num_samples(). Note that of course
+        # this may be missing a few of the seen samples.
+        num_samples_originally_seen = np.int64(np.int64(idx_prefix[-3][:-2]) / 1.005)
+        seq_length_originally_seen = int(idx_prefix[-2][:-2])
+        assert seq_length_originally_seen == seq_length, "Current seq len {} does not match seq len the indices were built for ({}).".format(
+            seq_length,
+            seq_length_originally_seen,
+        )
+        # Useful if we want to support extending the idx if more than 1 epoch is necessary, but for now will assert 1 epoch
+        num_epochs_in_replay = _num_epochs(tokens_per_epoch, seq_length, num_samples_originally_seen)
+        assert num_epochs_in_replay == 1, "Enough samples from replay dataset {} for more than one epoch; this is currently\
+            untested.".format(data_prefix)
+        if is_replay:
+            shuffle_idx = shuffle_idx[:num_samples_originally_seen]
+            # get a sufficient length if needed
+
+        # apply offset, but add back the removed elements.
+        # TODO Do we want to shuffle again the shuffle_idx[:index_offset] term ?
+        index_offset = index_offset % len(shuffle_idx)
+        if reshuffle_when_loading:
+            # Numpy can throw errors if the array isn't writeable, which it is not apparently when it is loaded
+            if not shuffle_idx.flags.writeable:
+                try:
+                    shuffle_idx.setflags(write=True)
+                except:
+                    # copy trick if we couldn't set it to writeable
+                    print("Loaded shuffle_idx at {} is not writeable, need to copy it as workaround...".format("_".join(idx_prefix)))
+                    temp = shuffle_idx.copy()
+                    shuffle_idx = temp
+                    assert shuffle_idx.flags.writeable, "Failed to make shuffle_idx writeable, the shuffling will not work."
+                    print("succesfully copied !")
+            # For some reason this is faster than shuffling the copied array directly. I'm sure there is a good reason for it.
+            temp_random_idx = np.array(range(len(shuffle_idx)))
+            np_rng.shuffle(temp_random_idx)
+            shuffle_idx = shuffle_idx[temp_random_idx]
+            del temp_random_idx
+            
+        shuffle_idx = np.concatenate([shuffle_idx[index_offset:], shuffle_idx[:index_offset]])
+        np.save(shuffle_idx_filename, shuffle_idx, allow_pickle=True)
+        print_rank_0(
+            " > elapsed time to build and save shuffle-idx mapping"
+            " (seconds): {:4f}".format(time.time() - start_time)
+        )
+
+    # This should be a barrier but nccl barrier assumes
+    # device_index=rank which is not the case for model
+    # parallel case
+    counts = torch.cuda.LongTensor([1])
+    torch.distributed.all_reduce(counts, group=mpu.get_io_parallel_group())
+    assert counts[0].item() == torch.distributed.get_world_size(
+        group=mpu.get_io_parallel_group()
+    )
+
+    # Load mappings.
+    start_time = time.time()
+    print_rank_0(" > loading doc-idx mapping from {}".format(index_mapping_paths["doc_idx_path"]))
+    doc_idx = np.load(index_mapping_paths["doc_idx_path"], allow_pickle=True, mmap_mode="r")
+    print_rank_0(" > loading sample-idx mapping from {}".format(index_mapping_paths["sample_idx_path"]))
+    sample_idx = np.load(index_mapping_paths["sample_idx_path"], allow_pickle=True, mmap_mode="r")
+    print_rank_0(" > loading shuffle-idx mapping from {}".format(shuffle_idx_filename))
+    shuffle_idx = np.load(shuffle_idx_filename, allow_pickle=True, mmap_mode="r")
+    print_rank_0(
+        "    loaded indexed file in {:3.3f} seconds".format(time.time() - start_time)
+    )
+    print_rank_0("    total number of samples: {}".format(shuffle_idx.shape[0] + 1))
     print_rank_0("    total number of epochs: {}".format(num_epochs))
 
     return doc_idx, sample_idx, shuffle_idx

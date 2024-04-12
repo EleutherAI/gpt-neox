@@ -822,6 +822,31 @@ class NeoXArgs(*BASE_CLASSES):
             f"{train_batch} != {micro_batch} * {grad_acc} * {dp_world_size}"
         )
 
+
+    def generate_data_and_idx_paths_from_idx_paths_prefixes(self, idx_paths_prefixes):
+        # All idx filenames will contain "_indexmap_" followed by info we don't need. The two words separated
+        # by "_" before are the training index and whether it's train/valid/test as seen in build_weighted_datasets().
+        # Therefore the dataset name ranges up to index of "indexmap" - 2 if we split the idx path by "_".
+        data_paths = [None] * len(idx_paths_prefixes)
+        data_to_idx_paths = {}
+        for i, idx_path_prefix in enumerate(idx_paths_prefixes):
+            data_path_prefix_words = idx_path_prefix.split("_")
+            maximum_index = [idx for idx, data_path_prefix_word in enumerate(data_path_prefix_words) 
+                                        if data_path_prefix_word == "indexmap"]
+            assert maximum_index, "Error: idx path prefix {} unsupported; does not contain the word \"indexmap\"".format(idx_path_prefix)
+            maximum_index = maximum_index[-1] - 2
+            data_path = "_".join(data_path_prefix_words[:maximum_index])
+            data_paths[i] = data_path
+
+            data_to_idx_paths[data_path] = {
+                "doc_idx_path": idx_path_prefix + "_doc_idx.npy",
+                "sample_idx_path": idx_path_prefix + "_sample_idx.npy",
+                "shuffle_idx_path": idx_path_prefix + "_shuffle_idx.npy",
+            }
+
+        return data_paths, data_to_idx_paths
+
+
     def calculate_derived(self):
         """
         Derives additional configuration values necessary for training from the current config
@@ -1104,6 +1129,22 @@ class NeoXArgs(*BASE_CLASSES):
                         f"Warning: Flash-Attention version ({str(_flash_version)}) must be >= 2.4.0.post1 to support AliBi. Falling back to flash-attn triton backend, but version 2.4.0.post1 or later will be required in future."
                     )
 
+
+        # Replay config
+        if self.replay_config is not None:
+            self.update_value("is_replay_enabled", self.replay_config.get("enabled", False))
+
+            for k, v in self.replay_config.items():
+                if k == "enabled":
+                    continue
+                self.update_value(k, v)
+
+            # If no idx offsets were provided, set them automatically to 0
+            if self.replay_idx_offsets is None:
+                self.replay_idx_offsets = [0] * len(self.replay_idx_paths_prefixes)
+
+            self.replay_data_paths, self.replay_data_to_idx_paths = self.generate_data_and_idx_paths_from_idx_paths_prefixes(self.replay_idx_paths_prefixes)
+
         # Adding equal dataset weights if none are provided
         if self.train_data_paths and (self.train_data_weights is None):
             self.train_data_weights = [1.0] * len(self.train_data_paths)
@@ -1111,6 +1152,9 @@ class NeoXArgs(*BASE_CLASSES):
             self.valid_data_weights = [1.0] * len(self.valid_data_paths)
         if self.test_data_paths and (self.test_data_weights is None):
             self.test_data_weights = [1.0] * len(self.test_data_paths)
+        if self.is_replay_enabled:
+            if self.replay_idx_paths_prefixes and (self.replay_data_weights is None):
+                self.replay_data_weights = [1.0] * len(self.replay_idx_paths_prefixes)
 
         if self.label_data_paths:
             err_str = (
@@ -1290,6 +1334,37 @@ class NeoXArgs(*BASE_CLASSES):
         if self.test_data_paths is not None:
             assert len(self.test_data_paths) == len(self.test_data_weights)
 
+        # assert that if replay is enabled, replay mandatory args have been passed and we have as many weights as data sources
+        if self.is_replay_enabled:
+            required_replay_args = [
+                "replay_idx_paths_prefixes",
+                "replay_data_paths",
+                "replay_data_to_idx_paths",
+            ]
+            for required_replay_arg in required_replay_args:
+                assert getattr(self, required_replay_arg) is not None, "Missing required replay attribute: {} .".format(required_replay_arg)
+
+            # assert that idx files exist at path specified
+            for replay_data_to_idx_dict in self.replay_data_to_idx_paths.values():
+                for k, v in replay_data_to_idx_dict.items():
+                    assert os.path.exists(v), "No replay {} file found at path {}".format(k, v)
+
+            # assert that the paths prefixes and the weights have equal length
+            assert len(self.replay_idx_paths_prefixes) == len(self.replay_data_weights), "Number of replay datasets and weights does not match."
+
+            # assert that the paths prefixes and idx offsets have equal length
+            assert len(self.replay_idx_paths_prefixes) == len(self.replay_idx_offsets), "Number of replay datasets and offsets does not match."
+
+            # assert that the paths prefixes and replay data paths have equal length
+            assert len(self.replay_idx_paths_prefixes) == len(self.replay_data_paths), "Number of replay datasets and offsets does not match."
+
+            # assert that replay_fraction is between 0 and 1
+            assert 0 <= self.replay_fraction <= 1, "replay_fraction needs to be set to a number in [0, 1], was set to {}".format(self.replay_fraction)
+
+            # replay is only supported when train_data_paths, valid_data_paths and test_data_paths are provided
+            assert all(has_separate_path), "Replay is only currently supported when train_data_paths, valid_data_paths and test_data_paths are provided."
+
+
         return True
 
     def validate_types(self):
@@ -1385,7 +1460,7 @@ class NeoXArgs(*BASE_CLASSES):
                     )
                     return False
 
-        for field_name in ["fp16", "amp", "flops_profiler"]:
+        for field_name in ["fp16", "amp", "flops_profiler", "replay_config"]:
             value = getattr(self, field_name)
             if isinstance(value, dict):
                 if not "enabled" in value:
