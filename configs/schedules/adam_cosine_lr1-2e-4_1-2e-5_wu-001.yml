@@ -1,0 +1,13 @@
+{
+"optimizer": {
+    "type": "Adam",
+    "params": {
+      "lr": 1.2e-4,
+      "betas": [0.9, 0.95],
+      "eps": 1.0e-8,
+    }
+  },
+  "min_lr": 1.2e-5,
+  "lr-decay-style": "cosine",
+  "warmup": 0.01,
+}

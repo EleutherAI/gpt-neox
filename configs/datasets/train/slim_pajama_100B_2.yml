@@ -1,0 +1,24 @@
+{
+  # or for weighted datasets:
+  "train-data-paths": [
+    'data/slim_pajama/tokenized_train_100B-200B/ArXiv/ArXiv',
+    'data/slim_pajama/tokenized_train_100B-200B/Book/Book',
+    'data/slim_pajama/tokenized_train_100B-200B/C4/C4',
+    'data/slim_pajama/tokenized_train_100B-200B/Wikipedia/Wikipedia',
+    'data/slim_pajama/tokenized_train_100B-200B/Github/Github',
+    'data/slim_pajama/tokenized_train_100B-200B/StackExchange/StackExchange',
+    'data/slim_pajama/tokenized_train_100B-200B/CommonCrawl/CommonCrawl',
+  ],
+  "train-data-weights": [
+    4.03666599074094,
+    3.927523855378127,
+    25.467175464208918,
+    3.7984379710376293,
+    4.990226864678155,
+    3.1957646326079723,
+    49.58420522134826,
+    ],
+  "train-iters": 44229,
+  "lr-decay-iters": 44229,
+  "train-dataset-name": 'slim_pajama_100B_2',
+}

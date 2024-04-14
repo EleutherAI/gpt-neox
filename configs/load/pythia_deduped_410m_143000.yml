@@ -1,0 +1,3 @@
+{
+  "load": "checkpoints/neox_converted/mp1_pp1/pythia/410m_deduped_step143000",
+}

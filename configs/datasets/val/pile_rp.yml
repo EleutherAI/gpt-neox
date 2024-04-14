@@ -1,0 +1,40 @@
+{
+  "test-data-paths": ["data/red_pajama_400B/the_pile/test_tokenized_text_document"],
+  "test-data-weights": [
+    1.
+  ],
+  "valid-data-paths": [
+    ["data/red_pajama_400B/the_pile/val_tokenized_text_document"],
+    [
+      "data/red_pajama_400B/arxiv/folder_val/tokenized_text_document",
+      "data/red_pajama_400B/book/folder_val/tokenized_text_document",
+      "data/red_pajama_400B/c4/folder_val/tokenized_text_document",
+      "data/red_pajama_400B/wikipedia/folder_val/tokenized_text_document",
+      "data/red_pajama_400B/github/folder_val/tokenized_text_document",
+      "data/red_pajama_400B/stackexchange/folder_val/tokenized_text_document",
+      "data/red_pajama_400B/common_crawl/2019-30/folder_val/tokenized_text_document",
+      "data/red_pajama_400B/common_crawl/2020-05/folder_val/tokenized_text_document",
+      "data/red_pajama_400B/common_crawl/2021-04/folder_val/tokenized_text_document",
+      "data/red_pajama_400B/common_crawl/2022-05/folder_val/tokenized_text_document",
+      "data/red_pajama_400B/common_crawl/2023-06/folder_val/tokenized_text_document",
+    ],
+    ],
+  "valid-data-weights": [
+    [1.],
+    [
+    2.5,
+    4.5,
+    15.0,
+    4.5,
+    4.5,
+    2.0,
+    13.4,
+    13.4,
+    13.4,
+    13.4,
+    13.4
+    ],
+  ],
+  "val-dataset-name": 'pile_rp',
+
+  }

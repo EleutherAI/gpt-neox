@@ -1,0 +1,45 @@
+{
+  # or for weighted datasets:
+  "train-data-paths": [
+    'data/slim_pajama/tokenized_train_200B-400B/ArXiv/ArXiv',
+    'data/slim_pajama/tokenized_train_200B-400B/Book/Book',
+    'data/slim_pajama/tokenized_train_200B-400B/C4/C4',
+    'data/slim_pajama/tokenized_train_200B-400B/Wikipedia/Wikipedia',
+    'data/slim_pajama/tokenized_train_200B-400B/Github/Github',
+    'data/slim_pajama/tokenized_train_200B-400B/StackExchange/StackExchange',
+    'data/slim_pajama/tokenized_train_200B-400B/CommonCrawl/CommonCrawl',
+
+    'data/pile_replay_shards/replay_10B_1/splits',
+
+    'data/sp_replay_shards/200B_1_shard1/ArXiv/ArXiv',
+    'data/sp_replay_shards/200B_1_shard1/Book/Book',
+    'data/sp_replay_shards/200B_1_shard1/C4/C4',
+    'data/sp_replay_shards/200B_1_shard1/Wikipedia/Wikipedia',
+    'data/sp_replay_shards/200B_1_shard1/Github/Github',
+    'data/sp_replay_shards/200B_1_shard1/StackExchange/StackExchange',
+    'data/sp_replay_shards/200B_1_shard1/CommonCrawl/CommonCrawl',
+  ],
+  "train-data-weights": [
+    4.3217120887898215,
+    4.0000865058486115,
+    25.313223824892418,
+    3.7875979441876595,
+    4.916178735276899,
+    3.205115989375923,
+    49.45608491162867,
+
+    3.8125,
+
+    #total 1.1875
+    0.04337997179394097,
+    0.04880477004015989,
+    0.3205243831725252,
+    0.0475528531698962,
+    0.06249330493660256,
+    0.03976979771580249,
+    0.6249749191710727,
+  ],
+  "train-iters": 88457,
+  "lr-decay-iters": 88457,
+  "train-dataset-name": 'slim_pajama_200B_2_replay5',
+}

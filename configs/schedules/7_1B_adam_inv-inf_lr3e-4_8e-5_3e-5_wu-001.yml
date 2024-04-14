@@ -1,0 +1,16 @@
+{
+"optimizer": {
+    "type": "Adam",
+    "params": {
+      "lr": 0.00012,
+      "betas": [0.9, 0.95],
+      "eps": 1.0e-8,
+    }
+  },
+  "min_lr": 0.000012,
+  "lr-decay-style": "inverse_sqrt_infinite",
+  "num_repeats": 1,
+  "warmup": 0.01,
+  "constant_iters_percent": 0.98,
+  "constant_lr": 0.000017,
+}

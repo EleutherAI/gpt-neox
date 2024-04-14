@@ -1,0 +1,13 @@
+{
+"optimizer": {
+    "type": "Adam",
+    "params": {
+      "lr": 3.0e-5,
+      "betas": [0.9, 0.95],
+      "eps": 1.0e-8,
+    }
+  },
+  "min_lr": 3.0e-5,
+  "lr-decay-style": "constant", # this will coincide with the else in AnnealingLR
+  "warmup": 0.,
+}

@@ -1,0 +1,11 @@
+{
+  # or for weighted datasets:
+  "train-data-paths": [
+    'data/slim_pajama/train_300B/CommonCrawl/CommonCrawl',],
+  "train-data-weights": [
+    1.0,
+  ],
+
+  # 155887114486
+  "train-iters": 68946,
+}

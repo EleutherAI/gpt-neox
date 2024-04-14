@@ -1,0 +1,32 @@
+{
+  # or for weighted datasets:
+  "train-data-paths": [
+    "/gpfs/alpine/csc499/proj-shared/incite_datasets/SlimPajama/tokenized300B/train_splits/arxiv/folder_train/tokenized_text_document",
+    "/gpfs/alpine/csc499/proj-shared/incite_datasets/SlimPajama/tokenized300B/train_splits/book/folder_train/tokenized_text_document",
+    "/gpfs/alpine/csc499/proj-shared/incite_datasets/SlimPajama/tokenized300B/train_splits/c4/folder_train/tokenized_text_document",
+    "/gpfs/alpine/csc499/proj-shared/incite_datasets/SlimPajama/tokenized300B/train_splits/wikipedia/folder_train/tokenized_text_document",
+    "/gpfs/alpine/csc499/proj-shared/incite_datasets/SlimPajama/tokenized300B/train_splits/github/folder_train/tokenized_text_document",
+    "/gpfs/alpine/csc499/proj-shared/incite_datasets/SlimPajama/tokenized300B/train_splits/stackexchange/folder_train/tokenized_text_document",
+    "/gpfs/alpine/csc499/proj-shared/incite_datasets/SlimPajama/tokenized300B/train_splits/common_crawl/2019-30/folder_train/tokenized_text_document",
+    "/gpfs/alpine/csc499/proj-shared/incite_datasets/SlimPajama/tokenized300B/train_splits/common_crawl/2020-05/folder_train/tokenized_text_document",
+    "/gpfs/alpine/csc499/proj-shared/incite_datasets/SlimPajama/tokenized300B/train_splits/common_crawl/2021-04/folder_train/tokenized_text_document",
+    "/gpfs/alpine/csc499/proj-shared/incite_datasets/SlimPajama/tokenized300B/train_splits/common_crawl/2022-05/folder_train/tokenized_text_document",
+    "/gpfs/alpine/csc499/proj-shared/incite_datasets/SlimPajama/tokenized300B/train_splits/common_crawl/2023-06/folder_train/tokenized_text_document",
+  ],
+  "train-data-weights": [
+    2.5,
+    4.5,
+    15.0,
+    4.5,
+    4.5,
+    2.0,
+    13.4,
+    13.4,
+    13.4,
+    13.4,
+    13.4
+  ],
+  "train-dataset-name": 'rp',
+  
+
+}

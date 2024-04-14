@@ -25,6 +25,7 @@ from functools import partial
 import math
 import sys
 from contextlib import nullcontext
+import copy
 
 import torch
 import deepspeed
@@ -45,7 +46,7 @@ from megatron.model import (
     get_params_for_weight_decay_optimization,
 )
 from megatron.checkpointing import load_checkpoint, save_checkpoint
-from megatron.data.data_utils import build_train_valid_test_data_iterators
+from megatron.data.data_utils import build_train_valid_test_data_iterators, build_validation_iterator
 from megatron.initialize import initialize_megatron
 from megatron.learning_rates import AnnealingLR
 from megatron.logging import tb_wandb_log, training_log
@@ -197,6 +198,18 @@ def pretrain(neox_args):
     )
     timers("model and optimizer").stop()
 
+    tensorboard_writer = neox_args.tensorboard_writer
+    neox_args.tensorboard_writer = None
+    neox_args_val = copy.deepcopy(neox_args)
+    neox_args.tensorboard_writer = tensorboard_writer
+    neox_args_val.train_data_paths = [None]
+    neox_args_val.test_data_paths = [None]
+    neox_args.valid_data_paths = neox_args.valid_data_paths[0]
+    neox_args.valid_data_weights = neox_args.valid_data_weights[0]
+
+
+    print(neox_args.is_replay_enabled)
+
     # Data stuff.
     timers("train/valid/test data iterators").start()
     (
@@ -204,6 +217,14 @@ def pretrain(neox_args):
         valid_data_iterator,
         test_data_iterator,
     ) = build_train_valid_test_data_iterators(neox_args=neox_args)
+    val_iters = [valid_data_iterator]
+    if neox_args_val.valid_data_paths is not None and len(neox_args_val.valid_data_paths) > 1:
+        for i in range(1, len(neox_args_val.valid_data_paths)):
+            temp_copy = copy.deepcopy(neox_args_val)
+            temp_copy.valid_data_paths = temp_copy.valid_data_paths[i]
+            temp_copy.valid_data_weights = temp_copy.valid_data_weights[i]
+            temp_copy.num_workers = 0
+            val_iters.append(build_validation_iterator(neox_args=temp_copy))
     timers("train/valid/test data iterators").stop()
 
     if neox_args.use_mup and neox_args.coord_check:
@@ -237,17 +258,20 @@ def pretrain(neox_args):
         )
 
     if neox_args.do_valid:
-        prefix = "the end of training for val data"
-        evaluate_and_print_results(
-            neox_args=neox_args,
-            prefix=prefix,
-            forward_step_func=forward_step,
-            data_iterator=valid_data_iterator,
-            model=model,
-            iteration=iteration,
-            verbose=False,
-            timers=timers,
-        )
+        prefix = "the start of training for val data"
+        for i in range(len(val_iters)):
+            print_rank_0("in if neox_args.do_valid for val_iters[i]",i, val_iters[i])
+            evaluate_and_print_results(
+                neox_args=neox_args,
+                prefix=prefix,
+                forward_step_func=forward_step,
+                data_iterator=val_iters[i],
+                model=model,
+                iteration=iteration,
+                verbose=False,
+                timers=timers,
+                eval_name=f"val_{i}",
+            )
 
     if neox_args.save and iteration != 0:
         save_checkpoint(

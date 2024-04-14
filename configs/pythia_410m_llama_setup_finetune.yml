@@ -1,0 +1,24 @@
+# Suggested data paths when using GPT-NeoX locally
+{
+  # If weight_by_num_documents is True, Builds dataset weights from a multinomial distribution over groups of data according to the number of documents in each group.
+  # WARNING: setting this to True will override any user provided weights
+  # "weight_by_num_documents": false,
+  # "weighted_sampler_alpha": 0.3,
+
+  "tokenizer-type": "HFTokenizer",
+  "vocab-file": "data/20B_tokenizer.json",
+
+  "checkpoint_validation_with_forward_pass": False,
+  "use_wandb": False,
+  # "wandb_host": "https://api.wandb.ai",
+
+  "launcher": "jsrun",
+  "deepspeed_jsrun": true,
+  "num_workers": 1,
+  "finetune": true,
+
+  "save": "checkpoints/cpt_iclr_2",
+  "tensorboard-dir": "tensorboard/cpt_iclr_2",
+  "log-dir": "logs",
+  "wandb_project": "cpt_iclr_2",
+}

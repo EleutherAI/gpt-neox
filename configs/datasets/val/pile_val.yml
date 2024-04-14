@@ -1,0 +1,13 @@
+{
+  "test-data-paths": ["data/pile/test/pile_test_text_document"],
+  "test-data-weights": [
+    1.
+  ],
+  "valid-data-paths": [
+    ["data/pile/val/pile_val_text_document"],
+  ],
+  "valid-data-weights": [
+    [1.],
+  ],
+  "val-dataset-name": 'pile_val',
+}

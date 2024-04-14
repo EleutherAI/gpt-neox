@@ -1,0 +1,62 @@
+{
+  # or for weighted datasets:
+  "train-data-paths": [
+    'data/slim_pajama/tokenized_train_400B-600B/ArXiv/ArXiv',
+    'data/slim_pajama/tokenized_train_400B-600B/Book/Book',
+    'data/slim_pajama/tokenized_train_400B-600B/C4/C4',
+    'data/slim_pajama/tokenized_train_400B-600B/Wikipedia/Wikipedia',
+    'data/slim_pajama/tokenized_train_400B-600B/Github/Github',
+    'data/slim_pajama/tokenized_train_400B-600B/StackExchange/StackExchange',
+    'data/slim_pajama/tokenized_train_400B-600B/CommonCrawl/CommonCrawl',
+
+    'data/pile_replay_shards/replay_10B_3/splits',
+
+    'data/sp_replay_shards/200B_1_shard2/ArXiv/ArXiv',
+    'data/sp_replay_shards/200B_1_shard2/Book/Book',
+    'data/sp_replay_shards/200B_1_shard2/C4/C4',
+    'data/sp_replay_shards/200B_1_shard2/Wikipedia/Wikipedia',
+    'data/sp_replay_shards/200B_1_shard2/Github/Github',
+    'data/sp_replay_shards/200B_1_shard2/StackExchange/StackExchange',
+    'data/sp_replay_shards/200B_1_shard2/CommonCrawl/CommonCrawl',
+
+    'data/sp_replay_shards/200B_2_shard1/ArXiv/ArXiv',
+    'data/sp_replay_shards/200B_2_shard1/Book/Book',
+    'data/sp_replay_shards/200B_2_shard1/C4/C4',
+    'data/sp_replay_shards/200B_2_shard1/Wikipedia/Wikipedia',
+    'data/sp_replay_shards/200B_2_shard1/Github/Github',
+    'data/sp_replay_shards/200B_2_shard1/StackExchange/StackExchange',
+    'data/sp_replay_shards/200B_2_shard1/CommonCrawl/CommonCrawl',
+  ],
+  "train-data-weights": [
+    4.3217120887898215,
+    4.0000865058486115,
+    25.313223824892418,
+    3.7875979441876595,
+    4.916178735276899,
+    3.205115989375923,
+    49.45608491162867,
+
+    3.088125,
+
+    #total: 0.961875,
+    0.03513777715309219,
+    0.03953186373252951,
+    0.2596247503697454,
+    0.03851781106761592,
+    0.05061957699864807,
+    0.03221353614980002,
+    0.506229684528569,
+
+    #total: 0.95,
+    0.043217120887898204,
+    0.0400008650584861,
+    0.2531322382489241,
+    0.03787597944187659,
+    0.04916178735276898,
+    0.03205115989375923,
+    0.49456084911628667,
+  ],
+  "train-iters": 88457,
+  "lr-decay-iters": 88457,
+  "train-dataset-name": 'slim_pajama_200B_3_replay5',
+}

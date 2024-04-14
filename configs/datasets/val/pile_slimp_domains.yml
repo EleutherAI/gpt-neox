@@ -1,0 +1,30 @@
+{
+  "test-data-paths": ["data/pile/test/pile_test_text_document"],
+  "test-data-weights": [
+    1.
+  ],
+  "valid-data-paths": [
+    ["data/pile/val/pile_val_text_document"],
+    ["data/slim_pajama/val/all/sp_val"],
+    ["data/slim_pajama/val/ArXiv/tokenized_arxiv_text_document"],
+    ["data/slim_pajama/val/Book/tokenized_book_text_document"],
+    ["data/slim_pajama/val/C4/tokenized_c4_text_document"],
+    ["data/slim_pajama/val/Wikipedia/tokenized_wikipedia_text_document"],
+    ["data/slim_pajama/val/Github/tokenized_github_text_document"],
+    ["data/slim_pajama/val/StackExchange/tokenized_stackexchange_text_document"],
+    ["data/slim_pajama/val/CommonCrawl/tokenized_commoncrawl_text_document"],
+  ],
+  "valid-data-weights": [
+    [1.],
+    [1.],
+    [1.],
+    [1.],
+    [1.],
+    [1.],
+    [1.],
+    [1.],
+    [1.],
+  ],
+  "val-dataset-name": 'pile_slimp_domains',
+
+}

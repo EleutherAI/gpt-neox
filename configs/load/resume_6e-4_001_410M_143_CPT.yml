@@ -1,0 +1,3 @@
+{
+  "load": "checkpoints/continued_slim_pajama/JOB-3047316_pythia-deduped-410M-iters-131296_warmup-0.01_max-lr-0.0006_min-lr-6e-05_pretrain_slim_pajama_resume",
+}

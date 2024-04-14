@@ -1,0 +1,3 @@
+{
+  "load": "checkpoints/continued_test8/JOB-2966421_pythia-c-410M-iters-181793_warmup-0.01_max-lr-0.0003_min-lr-3e-05_finetune_pile",
+}

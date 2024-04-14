@@ -1,0 +1,14 @@
+{
+"optimizer": {
+    "type": "Adam",
+    "params": {
+      "lr": 6.0e-4,
+      "betas": [0.9, 0.95],
+      "eps": 1.0e-8,
+    }
+  },
+  "min_lr": 6.0e-5,
+  "lr-decay-style": "cosine",
+  "warmup": 0.0,
+  # "load": "/gpfs/alpine/csc499/scratch/btherien/gpt-neox/checkpoints/continued_test8/JOB-2959221_pythia-c-410M-iters-181793_warmup-0.01_max-lr-0.0006_min-lr-6e-05_finetune"
+}

@@ -1,0 +1,23 @@
+{
+  # or for weighted datasets:
+  "train-data-paths": [
+    'data/slim_pajama/train_300B/ArXiv/ArXiv',
+    'data/slim_pajama/train_300B/Book/Book',
+    'data/slim_pajama/train_300B/C4/C4',
+    'data/slim_pajama/train_300B/Wikipedia/Wikipedia',
+    'data/slim_pajama/train_300B/Github/Github',
+    'data/slim_pajama/train_300B/StackExchange/StackExchange',
+    'data/slim_pajama/train_300B/CommonCrawl/CommonCrawl',
+    'data/pile_replay_shards/replay_1-5B/splits',],
+  "train-data-weights": [4.406043717971242,
+    4.182115669537286,
+    26.555056975702207,
+    3.977306659534093,
+    5.198020350927921,
+    3.354223331509169,
+    51.82723329481809,
+    0.5],
+  "train-iters": 132366,
+  "lr-decay-iters": 132366,
+  "train-dataset-name": 'slim_pajama_300B_replay05',
+}

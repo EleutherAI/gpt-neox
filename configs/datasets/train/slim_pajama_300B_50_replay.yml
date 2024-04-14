@@ -1,0 +1,45 @@
+{
+  # or for weighted datasets:
+  "train-data-paths": [
+    'data/slim_pajama/train_300B/ArXiv/ArXiv',
+    'data/slim_pajama/train_300B/Book/Book',
+    'data/slim_pajama/train_300B/C4/C4',
+    'data/slim_pajama/train_300B/Wikipedia/Wikipedia',
+    'data/slim_pajama/train_300B/Github/Github',
+    'data/slim_pajama/train_300B/StackExchange/StackExchange',
+    'data/slim_pajama/train_300B/CommonCrawl/CommonCrawl',],
+  "train-data-weights": [
+    4.428184641, 
+    4.203131326, 
+    26.688499472, 
+    3.997293125, 
+    5.224141056, 
+    3.371078725, 
+    52.087671651
+  ],
+  "train-iters": 132366,
+  "lr-decay-iters": 132366,
+  "train-dataset-name": 'slim_pajama_300B',
+
+  "replay_config": {
+    "enabled": true,
+    # Have to specify idx filenames from original pretraining on tasks, as they contain the num iterations
+    # and seen indices assuming we're using the same (non-replay) seed as during pretraining
+    "replay_idx_paths_prefixes": [
+      "data/pile/train/pile_train_train_0_indexmap_146862725ns_2048sl_1234s",
+    ],
+    "replay_data_weights":[
+      1.00,
+    ],
+    "replay_idx_offsets": [
+      0,
+    ],
+    # Fraction of samples coming from the replay buffer, between 0 and 1.
+    "replay_fraction": 0.5,
+    # Will need to reshuffle the shuffled indices. If you have replay multiple times on the same task, don't
+    # forget to change it every time if not manually managing offsets ! Otherwise you will see the same replay 
+    # buffer in the same order.
+    "replay_seed": 1234,
+    "replay_reshuffle_idx": true,
+  },
+}

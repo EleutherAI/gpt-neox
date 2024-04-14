@@ -1,0 +1,11 @@
+{ 
+  "train-data-paths": [
+    "data/pile/train/pile_train",
+  ],
+  "train-data-weights": [
+    1.,
+  ],
+  "train-dataset-name": 'pile_train',
+  "train-iters": 132366,
+  "lr-decay-iters": 132366,
+}

@@ -1,0 +1,11 @@
+{
+  # or for weighted datasets:
+  "train-data-paths": [
+    'data/slim_pajama/train_300B/StackExchange/StackExchange',
+    ],
+  "train-data-weights": [
+    1.0,
+  ],
+  # 10088908154
+  "train-iters": 4462,
+}

@@ -1,0 +1,12 @@
+{
+  # or for weighted datasets:
+  "train-data-paths": [
+    'data/slim_pajama/train_300B/C4/C4',
+    ],
+  "train-data-weights": [
+    1.0,
+  ],
+
+  # 79872895846
+  "train-iters": 35326,
+}

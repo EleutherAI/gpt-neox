@@ -1,0 +1,101 @@
+# GPT-2 pretraining setup
+{
+   # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
+   # across the node boundaries )
+   "pipe-parallel-size": 1,
+   "model-parallel-size": 6, # one copy of the model per node
+
+   # model settings
+
+
+    "num_layers": 32,
+    "hidden_size": 3072,
+    "num_attention_heads": 24,
+    "seq_length": 2048,
+    "max_position_embeddings": 2048,
+    "pos_emb": "rotary",
+    "rotary_pct": 0.25,
+    "no_weight_tying": true,
+    "gpt_j_residual": true,
+    "output_layer_parallelism": "column",
+
+    "attention_config": [[["global"], 32]],
+
+    "scaled_upper_triang_masked_softmax_fusion": true,
+    "bias_gelu_fusion": true,
+
+   # init methods
+   "init_method": "small_init",
+   "output_layer_init_method": "wang_init",
+
+   #optimizer settings
+    # "optimizer": {
+    #   "type": "Adam",
+    #   "params": {
+    #     "lr": 0.00012,
+    #     "betas": [0.9, 0.95],
+    #     "eps": 1.0e-8,
+    #   }
+
+    # },
+    # "min_lr": 0.000012,
+   # for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
+   "zero_optimization": {
+    "stage": 1,
+    "allgather_partitions": True,
+    "allgather_bucket_size": 500000000,
+    "overlap_comm": True,
+    "reduce_scatter": True,
+    "reduce_bucket_size": 500000000,
+    "contiguous_gradients": True,
+  },
+
+   # batch / data settings
+   #"train_batch_size": 1, # across 1024 nodes... fingers crossed
+    "train_micro_batch_size_per_gpu": 8,
+    #"gradient_accumulation_steps": 2,
+   "gradient_accumulation_steps": 2,
+  #  "gradient_accumulation_steps": 8,
+   "data-impl": "mmap",
+   "split": "949,50,1",
+
+   # activation checkpointing
+   "checkpoint-activations": true,
+   "checkpoint-num-layers": 1,
+   "partition-activations": true,
+   "synchronize-each-layer": true,
+
+   # regularization
+   "gradient_clipping": 1.0,
+   "weight-decay": 0.1,
+   "hidden-dropout": 0.0,
+   "attention-dropout": 0.0,
+
+   # precision settings
+   "fp16": {
+     "enabled": true,
+    #  "type": "bfloat16", # set bf16 as precision
+     "loss_scale": 0,
+     "loss_scale_window": 1000,
+     "hysteresis": 2,
+     "min_loss_scale": 1
+   },
+
+  #  "fp32_allreduce": True, # without a patch to torch, bf16 models have to do the allreduce in fp32
+   # misc. training settings
+  #  "train-iters": 250000,
+  #  "lr-decay-iters": 250000,
+   "distributed-backend": "nccl",
+  #  "lr-decay-style": "cosine",
+  #  "warmup": 0.01,
+   "checkpoint-factor": 1000,
+   "eval-interval": 1000,
+   "eval-iters": 10,
+
+   # logging
+   "log-interval": 1,
+   "steps_per_print": 1,
+   "keep-last-n-checkpoints": 1000,
+   "wall_clock_breakdown": true,
+
+}

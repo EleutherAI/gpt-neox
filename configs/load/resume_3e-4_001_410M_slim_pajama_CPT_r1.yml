@@ -1,0 +1,3 @@
+{
+"load":"checkpoints/cpt_iclr_2/JOB-3200003_410M_it-132366_wu-0.01_mxlr-0.0003_mnlr-3e-05_sch-cosine_tr-slim-pajama-300B-replay1_finetune"
+}

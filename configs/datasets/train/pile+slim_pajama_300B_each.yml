@@ -1,0 +1,25 @@
+{
+  # This will sample with equal likelihood Pile and SlimPajama:
+  "train-data-paths": [
+    "data/pile/train/pile_train",
+    'data/slim_pajama/train_300B/ArXiv/ArXiv',
+    'data/slim_pajama/train_300B/Book/Book',
+    'data/slim_pajama/train_300B/C4/C4',
+    'data/slim_pajama/train_300B/Wikipedia/Wikipedia',
+    'data/slim_pajama/train_300B/Github/Github',
+    'data/slim_pajama/train_300B/StackExchange/StackExchange',
+    'data/slim_pajama/train_300B/CommonCrawl/CommonCrawl',],
+  "train-data-weights": [
+    50.0,
+    2.2140923205,
+    2.101565663,
+    13.344249736,
+    1.9986465625,
+    2.612070528,
+    1.6855393625,
+    26.0438358255
+  ],
+  "train-dataset-name": 'pile+slim_pajama_300B_each',
+  "train-iters": 264732,
+  "lr-decay-iters": 264732,
+}
