@@ -467,16 +467,6 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
     """
 
-    identifier_string: str = ""
-    """
-    an identifier for the model, used for saving checkpoints,logging, etc.
-    """
-
-    warup_eval_interval: int = 50
-    """
-    the evaluation interval to use during warmup
-    """
-
 
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):
@@ -1283,16 +1273,6 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     mup_width_scale: int = 2
     """
     What to scale width by when creating the delta model for mup
-    """
-
-    train_dataset_name: str = "no_train_dataset_name_given"
-    """
-    An identified for the training dataset used for logging
-    """
-
-    val_dataset_name: str = "no_val_dataset_name_given"
-    """
-    An identified for the training dataset used for logging
     """
 
 
