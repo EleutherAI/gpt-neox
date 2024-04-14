@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = defa0a4
+    Default = 6ff3ae6
 
     current git hash of repository
 
@@ -759,6 +759,22 @@ Model Arguments
     Default = column
 
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
+
+
+
+- **identifier_string**: str
+
+    Default = 
+
+    an identifier for the model, used for saving checkpoints,logging, etc.
+
+
+
+- **warup_eval_interval**: int
+
+    Default = 50
+
+    the evaluation interval to use during warmup
 
 
 
@@ -1968,6 +1984,22 @@ Training Arguments
     Default = 2
 
     What to scale width by when creating the delta model for mup
+
+
+
+- **train_dataset_name**: str
+
+    Default = no_train_dataset_name_given
+
+    An identified for the training dataset used for logging
+
+
+
+- **val_dataset_name**: str
+
+    Default = no_val_dataset_name_given
+
+    An identified for the training dataset used for logging
 
 
 
