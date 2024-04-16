@@ -1144,12 +1144,12 @@ class NeoXArgsTraining(NeoXArgsTemplate):
 
     rwkv_pre_ffn: bool = False
     """
-    Use channel mix block as first time mix block
+    Use ffn block as first time mix block
     """
 
     rwkv_mishglu: bool = False
     """
-    mishglu ffn
+    mishglu ffn instead of channel mix
     """
 
 

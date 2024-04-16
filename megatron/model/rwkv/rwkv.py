@@ -4,24 +4,14 @@
 
 import os, math, gc, importlib
 import torch
-# torch._C._jit_set_profiling_executor(True)
-# torch._C._jit_set_profiling_mode(True)
 import torch.nn as nn
 from torch.nn import functional as F
-
-
-########################################################################################################
-# CUDA Kernel
-########################################################################################################
-
 from torch.utils.cpp_extension import load
 
-#HEAD_SIZE = 64
-
-#wkv_cuda = load(name="wkv6", sources=["/weka/home-jacob/gpt-neox/megatron/model/rwkv/cuda/wkv6_op.cpp", f"/weka/home-jacob/gpt-neox/megatron/model/rwkv/cuda/wkv6_cuda.cu"],
-#                verbose=True, extra_cuda_cflags=["-res-usage", "--use_fast_math", "-O3", "-Xptxas -O3", "--extra-device-vectorization", f"-D_N_={HEAD_SIZE}", f"-D_T_={512}"])
-
 class WKV(torch.autograd.Function):
+    """
+    WKV block, using cuda kernel.
+    """
     @staticmethod
     def forward(ctx, B, T, C, H, r, k, v, w, u):
         with torch.no_grad():
@@ -30,7 +20,6 @@ class WKV(torch.autograd.Function):
             assert v.dtype == torch.bfloat16
             assert w.dtype == torch.bfloat16
             assert u.dtype == torch.bfloat16
-            #assert HEAD_SIZE == C // H
             ctx.B = B
             ctx.T = T
             ctx.C = C
@@ -70,6 +59,11 @@ def RUN_CUDA_RWKV(B, T, C, H, r, k, v, w, u):
 
 # RWKV6 time mix
 class RWKV_TimeMix(nn.Module):
+    """
+    Time Mixing Layer
+    The RWKV substitute for attention. 
+    TODO: fix jit compiling.
+    """
     def __init__(self, neox_args, layer_number):
         super().__init__()
         self.neox_args = neox_args
@@ -120,7 +114,6 @@ class RWKV_TimeMix(nn.Module):
         self.gate = nn.Linear(neox_args.hidden_size, neox_args.dim_att, bias=False)
         self.ln_x = nn.GroupNorm(neox_args.num_attention_heads, neox_args.dim_att, eps=(1e-5)*(8**2))
 
-    #@torch.jit.script
     def jit_func(self, x):
         B, T, C = x.size()
 
@@ -147,7 +140,6 @@ class RWKV_TimeMix(nn.Module):
 
         return r, k, v, g, w
 
-    #@torch.jit.script
     def jit_func_2(self, x, g):
         B, T, C = x.size()
         x = x.view(B * T, C)
@@ -165,9 +157,10 @@ class RWKV_TimeMix(nn.Module):
 
         return self.jit_func_2(x, g)
 
-########################################################################################################
-
 class RWKV_ChannelMix(nn.Module):
+    """
+    Channel Mix layer. The ffn in RWKV
+    """
     def __init__(self, neox_args, layer_number):
         super().__init__()
         self.neox_args = neox_args
@@ -186,7 +179,6 @@ class RWKV_ChannelMix(nn.Module):
         self.receptance = nn.Linear(neox_args.hidden_size, neox_args.hidden_size, bias=False)
         self.value = nn.Linear(neox_args.dim_ffn, neox_args.hidden_size, bias=False)
 
-    #@torch.jit.script
     def forward(self, x):
         xx = self.time_shift(x) - x
         xk = x + xx * self.time_maa_k
@@ -197,9 +189,10 @@ class RWKV_ChannelMix(nn.Module):
         kv = self.value(k)
         return torch.sigmoid(self.receptance(xr)) * kv
 
-########################################################################################################
-
 class MishGLU(nn.Module):
+    """
+    MishGLU ffn, used in place of channel mixing if neox_args.rwkv_mishglu
+    """
     def __init__(self, neox_args, layer_number):
         super().__init__()
         self.neox_args = neox_args
@@ -219,7 +212,6 @@ class MishGLU(nn.Module):
             self.bb = nn.Linear(neox_args.hidden_size, neox_args.dim_ffn, bias=False)
             self.value = nn.Linear(neox_args.dim_ffn, neox_args.hidden_size, bias=False)
 
-    #@torch.jit.script
     def forward(self, x):
         xx = self.time_shift(x)
         xa = x * self.time_mix_k + xx * (1 - self.time_mix_k)
@@ -228,11 +220,10 @@ class MishGLU(nn.Module):
         b = self.bb(xb)
         return self.value(a * F.mish(b))
 
-########################################################################################################
-# The RWKV Model with our blocks
-########################################################################################################
-
 class RWKVResidualLayer(nn.Module):
+    """
+    RWKV layer definition
+    """
     def __init__(self, neox_args, layer_number):
         super().__init__()
         self.neox_args = neox_args
@@ -274,6 +265,9 @@ class RWKVResidualLayer(nn.Module):
 
         if layer_number == 0:
             global wkv_cuda
+            """
+            Load cuda kernel at runtime. The kernel uses run time variables to build, ideally it should not.
+            """
             wkv_cuda = load(name="wkv6", sources=["megatron/model/rwkv/cuda/wkv6_op.cpp",
                                               f"megatron/model/rwkv/cuda/wkv6_cuda.cu"],
                                               verbose=True,
@@ -306,6 +300,9 @@ class RWKVResidualLayer(nn.Module):
         return x
 
 class RWKVResidualLayerPipe(RWKVResidualLayer):
+    """
+    RWKV Pipeline Layer
+    """
     def forward(self, args):
         assert len(args) == 2
         hidden_states,  mask = args
