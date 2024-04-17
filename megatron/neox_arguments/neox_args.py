@@ -1142,16 +1142,6 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     What to scale width by when creating the delta model for mup
     """
 
-    rwkv_pre_ffn: bool = False
-    """
-    Use ffn block as first time mix block
-    """
-
-    rwkv_mishglu: bool = False
-    """
-    mishglu ffn instead of channel mix
-    """
-
 
 @dataclass
 class NeoXArgsTextgen(NeoXArgsTemplate):

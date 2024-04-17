@@ -189,36 +189,6 @@ class RWKV_ChannelMix(nn.Module):
         kv = self.value(k)
         return torch.sigmoid(self.receptance(xr)) * kv
 
-class MishGLU(nn.Module):
-    """
-    MishGLU ffn, used in place of channel mixing if neox_args.rwkv_mishglu
-    """
-    def __init__(self, neox_args, layer_number):
-        super().__init__()
-        self.neox_args = neox_args
-        self.layer_number = layer_number
-        self.time_shift = nn.ZeroPad2d((0, 0, 1, -1))
-
-        with torch.no_grad():
-            ratio_1_to_almost0 = 1.0 - (layer_number / neox_args.num_layers)
-
-            x = torch.ones(1, 1, neox_args.hidden_size)
-            for i in range(neox_args.hidden_size):
-                x[0, 0, i] = i / neox_args.hidden_size
-
-            self.time_mix_k = nn.Parameter(torch.pow(x, ratio_1_to_almost0))
-            self.time_mix_r = nn.Parameter(torch.pow(x, ratio_1_to_almost0))
-            self.aa = nn.Linear(neox_args.hidden_size, neox_args.dim_ffn, bias=False)
-            self.bb = nn.Linear(neox_args.hidden_size, neox_args.dim_ffn, bias=False)
-            self.value = nn.Linear(neox_args.dim_ffn, neox_args.hidden_size, bias=False)
-
-    def forward(self, x):
-        xx = self.time_shift(x)
-        xa = x * self.time_mix_k + xx * (1 - self.time_mix_k)
-        xb = x * self.time_mix_r + xx * (1 - self.time_mix_r)
-        a = self.aa(xa)
-        b = self.bb(xb)
-        return self.value(a * F.mish(b))
 
 class RWKVResidualLayer(nn.Module):
     """
@@ -248,15 +218,9 @@ class RWKVResidualLayer(nn.Module):
         self.ln1 = nn.LayerNorm(neox_args.hidden_size)
         self.ln2 = nn.LayerNorm(neox_args.hidden_size)
 
-        if self.layer_number == 0 and self.neox_args.rwkv_pre_ffn > 0:
-            self.ffnPre = RWKV_ChannelMix(neox_args, 0)
-        else:
-            self.att = RWKV_TimeMix(neox_args, layer_number)
+        self.att = RWKV_TimeMix(neox_args, layer_number)
 
-        if neox_args.rwkv_mishglu:
-            self.ffn = MishGLU(neox_args, layer_number)
-        else:
-            self.ffn = RWKV_ChannelMix(neox_args, layer_number)
+        self.ffn = RWKV_ChannelMix(neox_args, layer_number)
 
         if neox_args.attention_dropout > 0:
             self.drop0 = nn.Dropout(p = neox_args.attention_dropout)
@@ -281,21 +245,15 @@ class RWKVResidualLayer(nn.Module):
         if self.layer_number == 0:
             x = self.ln1(x)
 
-        if self.neox_args.attention_dropout == 0 and self.neox_args.hidden_dropout == 0:
-            if self.layer_number == 0 and neox_args.rwkv_pre_ffn > 0:
-                x = x + self.ffnPre(self.ln1(x))
-            else:
-                x = x + self.att(self.ln1(x))
+        if self.neox_args.attention_dropout == 0:
+            x = x + self.att(self.ln1(x))
+        else:
+            x = self.drop0(x + self.att(self.ln1(x)))
+            
+        if self.neox_args.hidden_dropout == 0:
             x = x + self.ffn(self.ln2(x))
         else:
-            if self.layer_number == 0 and neox_args.rwkv_pre_ffn > 0:
-                x = self.drop0(x + self.ffnPre(self.ln1(x)))
-            else:
-                if self.neox_args.attention_dropout > 0:
-                    x = self.drop0(x + self.att(self.ln1(x)))
-                x = self.drop0(x + self.att(self.ln1(x)))
-            if self.neox_args.hidden_dropout > 0:
-                x = self.drop1(x + self.ffn(self.ln2(x)))
+            x = self.drop1(x + self.ffn(self.ln2(x)))
 
         return x
 
