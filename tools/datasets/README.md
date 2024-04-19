@@ -18,7 +18,7 @@ input data:
   --input INPUT         Path to input jsonl files or lmd archive(s) - if using multiple archives, put them in a comma
                         separated list
   --jsonl-keys JSONL_KEYS [JSONL_KEYS ...]
-                        space separate listed of keys to extract from jsonl. Defa
+                        space separate listed of keys to extract from jsonl. Default: text
   --num-docs NUM_DOCS   Optional: Number of documents in the input data (if known) for an accurate progress bar.
 
 tokenizer:

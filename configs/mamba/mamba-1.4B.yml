@@ -1,0 +1,23 @@
+{
+  # Parallelism is not yet supported for Mamba
+  "pipe_parallel_size": 0,
+  "model_parallel_size": 1,
+
+  "num_layers": 48,
+  "hidden_size": 2048,
+  "num_attention_heads": 12, # ignored when using mamba
+  "seq_length": 2048,
+  "max_position_embeddings": 2048,
+  "output_layer_parallelism": "column",
+  "norm": "rmsnorm",
+  "rms_norm_epsilon": 1.0e-5,
+
+  "attention_config": [[["mamba"], 48]],
+
+  "mamba_selective_scan_fusion": true,
+  "mamba_causal_conv_fusion": true,
+  "mamba_inner_func_fusion": true, # supersedes scan or conv fusion
+  "activation": "silu",
+
+  "output_layer_init_method": "single_residual_scaled_normal",
+}

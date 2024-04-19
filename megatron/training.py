@@ -24,6 +24,7 @@ from functools import partial
 
 import math
 import sys
+from contextlib import nullcontext
 
 import torch
 import deepspeed
@@ -387,7 +388,13 @@ def forward_step(
 
     if neox_args.memory_profiling:
         torch.cuda.nvtx.range_push(f"Forward pass")
-    outputs = model((tokens, position_ids, attention_mask), neox_args=neox_args)
+    # Sequential returns moe_losses, but this is not yet supported by pipe parallel
+    maybe_tuple = model((tokens, position_ids, attention_mask), neox_args=neox_args)
+    if type(maybe_tuple) is tuple:
+        outputs, moe_losses = maybe_tuple
+    else:
+        outputs = maybe_tuple
+        moe_losses = []
     if (
         is_train
         and neox_args.curriculum_learning
@@ -395,9 +402,14 @@ def forward_step(
     ):
         loss_mask = loss_mask[:, : neox_args.curriculum_seqlen].contiguous()
         labels = labels[:, : neox_args.curriculum_seqlen].contiguous()
-    loss = cross_entropy(
+    main_loss = cross_entropy(
         outputs, (labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy
     )
+    if neox_args.num_experts > 1:
+        moe_loss = neox_args.moe_loss_coeff * sum(m.item() for m in moe_losses)
+    else:
+        moe_loss = 0.0
+    loss = main_loss + moe_loss
     if neox_args.memory_profiling:
         torch.cuda.nvtx.range_pop()
     if return_logits:
@@ -415,13 +427,17 @@ def get_model(neox_args, use_cache=False):
     # If mup isn't being used anyways, this has no effect.
     old_use_mup = neox_args.use_mup
     neox_args.use_mup = False
-    model = GPT2ModelPipe(
-        neox_args=neox_args,
-        num_tokentypes=0,
-        parallel_output=True,
-        topology=mpu.get_topology(),
-        use_cache=use_cache,
-    )
+
+    with deepspeed.zero.Init(
+        config_dict_or_path=neox_args.deespeed_config
+    ) if neox_args.zero_stage == 3 else nullcontext() as gs:
+        model = GPT2ModelPipe(
+            neox_args=neox_args,
+            num_tokentypes=0,
+            parallel_output=True,
+            topology=mpu.get_topology(),
+            use_cache=use_cache,
+        )
 
     ### soft prompt tuning stuff ###
     if neox_args.soft_prompt_tuning is not None and neox_args.soft_prompt_tuning.get(
@@ -489,6 +505,16 @@ def get_optimizer(model, neox_args):
         f'Configuring Optimizer type: {neox_args.optimizer_type} with params: {neox_args.optimizer["params"]}'
     )
 
+    if neox_args.create_moe_param_group:
+        from deepspeed.moe.utils import (
+            is_moe_param,
+            split_params_into_different_moe_groups_for_optimizer,
+        )
+
+        param_groups = split_params_into_different_moe_groups_for_optimizer(
+            param_groups
+        )
+
     # Add model parallel attribute if it is not set.
     for param_group in param_groups:
         for param in param_group["params"]:
@@ -538,9 +564,18 @@ def get_optimizer(model, neox_args):
             **neox_args.optimizer["params"],
         )
     elif neox_args.optimizer_type.lower() == "lion":
-        from .optimizers import Lion
+        # if we want the deepspeed zero lion...megatron lion will throw DeepSpeed Error
+        if neox_args.zero_optimization["stage"] != 0:
+            from deepspeed.ops.lion import FusedLion
 
-        optimizer = Lion(
+            lion_optimizer = FusedLion
+        # if not zero
+        else:
+            from .optimizers import Lion
+
+            lion_optimizer = Lion
+
+        optimizer = lion_optimizer(
             param_groups,
             weight_decay=neox_args.weight_decay,
             **neox_args.optimizer["params"],
