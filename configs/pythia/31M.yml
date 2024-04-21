@@ -47,7 +47,6 @@
 
   # batch size (trained on 32 gpus)
   "train_micro_batch_size_per_gpu": 32,
-  "gas": 1,
   "data-impl": "mmap",
   "num_workers": 2,
 

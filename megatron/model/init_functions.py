@@ -26,9 +26,17 @@ def init_method_normal(sigma):
     return init_
 
 
-def scaled_init_method_normal(sigma, num_layers):
-    """Init method based on N(0, sigma^2/(2*num_layers)."""
-    std = sigma / math.sqrt(2.0 * num_layers)
+def scaled_init_method_normal(
+    sigma,
+    num_layers,
+    num_residuals_per_layer=2,
+):
+    """Init method based on N(0, sigma/sqrt(2*num_layers).
+
+    Also allows for N(0, sigma/sqrt(x*num_layers)) where
+    x=number of residuals per layer (e.g. 1 for Mamba.)
+    """
+    std = sigma / math.sqrt(num_residuals_per_layer * num_layers)
 
     def init_(tensor):
         return torch.nn.init.normal_(tensor, mean=0.0, std=std)
@@ -177,6 +185,16 @@ def get_init_methods(args):
         elif name == "small_init":
             return small_init_init_method(
                 args.hidden_size, args.mup_width_multiplier if use_mup else 1.0
+            )
+        elif name == "single_residual_scaled_normal":
+            # mamba init uses scaled_normal but no need for 2 * num_layers
+            # since only one residual per layer
+            return scaled_init_method_normal(
+                args.init_method_std,
+                args.num_layers,
+                args.use_mup,
+                args.mup_init_scale,
+                num_residuals_per_layer=1,
             )
         else:
             raise NotImplementedError(f"Unknown init method {name}")

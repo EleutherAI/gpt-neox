@@ -29,17 +29,20 @@ def get_params_for_weight_decay_optimization(module, neox_args):
     """Divide params into with-weight-decay and without-weight-decay groups.
     Layernorms and biases will have no weight decay but the rest will.
     """
-    lr_adjust_weight_decay_params = {"params": [], "lr_adjust": True}
+    
+    lr_adjust_weight_decay_params = {"params": [], "lr_adjust": True, "name": "lr_adjust_weight_decay_params"}
     lr_adjust_no_weight_decay_params = {
         "params": [],
         "lr_adjust": True,
         "weight_decay": 0.0,
+        "name": "lr_adjust_no_weight_decay_params",
     }
-    no_lr_adjust_weight_decay_params = {"params": [], "lr_adjust": False}
+    no_lr_adjust_weight_decay_params = {"params": [], "lr_adjust": False, "name": "no_lr_adjust_weight_decay_params"}
     no_lr_adjust_no_weight_decay_params = {
         "params": [],
         "lr_adjust": False,
         "weight_decay": 0.0,
+        "name": "no_lr_adjust_no_weight_decay_params",
     }
 
     for module_ in module.modules():
@@ -60,14 +63,14 @@ def get_params_for_weight_decay_optimization(module, neox_args):
                     [
                         p
                         for n, p in list(module_._parameters.items())
-                        if p is not None and n == "bias"
+                        if p is not None and (n == "bias" or getattr(p, "_no_weight_decay", False))
                     ]
                 )
                 lr_adjust_no_weight_decay_params["params"].extend(
                     [
                         p
                         for n, p in list(module_._parameters.items())
-                        if p is not None and n != "bias"
+                        if p is not None and (n != "bias" or getattr(p, "_no_weight_decay", False))
                     ]
                 )
         else:
@@ -87,14 +90,14 @@ def get_params_for_weight_decay_optimization(module, neox_args):
                     [
                         p
                         for n, p in list(module_._parameters.items())
-                        if p is not None and n != "bias"
+                        if p is not None and n != "bias" and not getattr(p, "_no_weight_decay", False)
                     ]
                 )
                 no_lr_adjust_no_weight_decay_params["params"].extend(
                     [
                         p
                         for n, p in list(module_._parameters.items())
-                        if p is not None and n == "bias"
+                        if p is not None and (n == "bias" or getattr(p, "_no_weight_decay", False))
                     ]
                 )
             else:
@@ -102,14 +105,14 @@ def get_params_for_weight_decay_optimization(module, neox_args):
                     [
                         p
                         for n, p in list(module_._parameters.items())
-                        if p is not None and n != "bias"
+                        if p is not None and n != "bias" and not getattr(p, "_no_weight_decay", False)
                     ]
                 )
                 lr_adjust_no_weight_decay_params["params"].extend(
                     [
                         p
                         for n, p in list(module_._parameters.items())
-                        if p is not None and n == "bias"
+                        if p is not None and (n == "bias" or getattr(p, "_no_weight_decay", False))
                     ]
                 )
 
@@ -223,6 +226,8 @@ class SequentialWrapper(torch.nn.Module):
                 ].contiguous()
             forward_input = (tokens, input_ids, attention_mask)
 
+        moe_losses = []
+
         def exec_range_func(start, end):
             """Helper function to be used with checkpoint()
             Adapted from torch.utils.checkpoint:checkpoint_sequential()
@@ -234,6 +239,8 @@ class SequentialWrapper(torch.nn.Module):
                     inputs = inputs[0]
                 for idx, layer in enumerate(self.sequential[start:end]):
                     inputs = layer(inputs)
+                    if hasattr(layer, "last_moe_loss"):
+                        moe_losses.append(layer.last_moe_loss)
                 return inputs
 
             return exec_func
@@ -261,7 +268,7 @@ class SequentialWrapper(torch.nn.Module):
                     )
                 else:
                     x = exec_range_func(start_idx, end_idx)(*x)
-        return x
+        return x, moe_losses
 
     def clear_cache(self):
         """
