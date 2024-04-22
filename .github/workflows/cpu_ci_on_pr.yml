@@ -50,20 +50,32 @@ jobs:
             echo "Container already exists, deleting it..."
             docker rm -f $CONTAINER
           fi
+        env:
+          CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
       - name: Create container
         run: |
           export NEOX_DATA_PATH='./data/enwik8'
           export NEOX_CHECKPOINT_PATH='/mnt/sda/checkpoints' #todo: where do I get this?
           docker compose run -d --build --name $CONTAINER gpt-neox tail -f /dev/null
+        env:
+          CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
       - name: Install test requirements
         run: |
           docker exec $CONTAINER pip install -r /workspace/requirements-dev.txt
+        env:
+          CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
       - name: Execute CPU tests 1
         run: |
           docker exec $CONTAINER sh -c "cd gpt-neox && pytest tests -m cpu"
+        env:
+          CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
       - name: Execute CPU tests 2
         run: |
           docker exec $CONTAINER sh -c "cd gpt-neox && PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pytest tests -m cpu"
+        env:
+          CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
       - name: Generate report
         run: |
           docker exec $CONTAINER python -m http.server --directory htmlcov 8000
+        env:
+          CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
