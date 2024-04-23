@@ -75,6 +75,7 @@ runs:
       env:
         CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
     - name: Execute CPU tests 2
+      if: always()
       shell: bash
       run: |
         docker exec $CONTAINER sh -c "cd gpt-neox && PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pytest tests -m cpu"
@@ -82,12 +83,14 @@ runs:
         CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
     - name: Generate report
       shell: bash
+      if: always()
       run: |
         docker exec $CONTAINER python -m http.server --directory htmlcov 8000 # this may not work with AWS - should perhaps pass back as an artifact for Github to use instead.
       env:
         CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
     - name: Remove CPU docker-compose
       shell: bash
+      if: always()
       run: |
         rm docker-compose.yml
         mv .docker-compose.yml docker-compose.yml
