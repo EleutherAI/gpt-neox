@@ -1,0 +1,20 @@
+name: "Workflow Dispatch CPU Tests"
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Target ref / SHA to run tests against'
+        required: true
+        default: 'main'
+
+jobs:
+  run-tests:
+    runs-on: [ 'test', 'self-hosted' ]
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+    - name: Run CPU tests
+      uses: ./tests/cpu_tests
+      with:
+        target_test_ref: ${{ inputs.ref }}

@@ -4,7 +4,6 @@ on:
   pull_request:
     paths: # job only triggers when the PR changes files under megatron directory
       - "megatron/**"
-  workflow_dispatch:
 
 jobs:
   run-tests:
