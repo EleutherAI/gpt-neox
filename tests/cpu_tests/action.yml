@@ -7,7 +7,7 @@ inputs:
 runs:
   using: composite 
   steps:
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
       with:
         ref: ${{ inputs.target_test_ref }}
     - name: Install Python
