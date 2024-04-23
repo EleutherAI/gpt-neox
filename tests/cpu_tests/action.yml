@@ -49,6 +49,7 @@ runs:
         CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
     - name: Create container
       run: |
+        mv docker-compose.yml .docker-compose.yml
         cp tests/cpu_tests/docker-compose.yml .
         export NEOX_DATA_PATH='./data/enwik8'
         export NEOX_CHECKPOINT_PATH='/mnt/sda/checkpoints' #todo: where do I get this?
@@ -75,3 +76,7 @@ runs:
         docker exec $CONTAINER python -m http.server --directory htmlcov 8000 # this may not work with AWS - should perhaps pass back as an artifact for Github to use instead.
       env:
         CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
+    - name: Remove CPU docker-compose
+      run: |
+        rm docker-compose.yml
+        mv .docker-compose.yml docker-compose.yml
