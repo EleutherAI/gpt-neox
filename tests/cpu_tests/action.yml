@@ -17,8 +17,10 @@ runs:
         cache: "pip"
         cache-dependency-path: "**/requirements*.txt"
     - name: Upgrade Pip
+      shell: bash
       run: python -m pip install --upgrade pip
     - name: Set up Docker repository
+      shell: bash
       run: |
         # Add Docker's official GPG key:
         sudo apt-get update -y
@@ -33,13 +35,16 @@ runs:
           sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
         sudo apt-get update
     - name: Docker installation
+      shell: bash
       run: |
         sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
         sudo docker run hello-world
     - name: Prepare data
+      shell: bash
       run: |
         python prepare_data.py -d ./data
     - name: Remove previous container
+      shell: bash
       run: |
         if docker ps -a | grep -q "$CONTAINER"; then
           echo "Container already exists, deleting it..."
@@ -48,6 +53,7 @@ runs:
       env:
         CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
     - name: Create container
+      shell: bash
       run: |
         mv docker-compose.yml .docker-compose.yml
         cp tests/cpu_tests/docker-compose.yml .
@@ -57,26 +63,31 @@ runs:
       env:
         CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
     - name: Install test requirements
+      shell: bash
       run: |
         docker exec $CONTAINER pip install -r /workspace/requirements-dev.txt
       env:
         CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
     - name: Execute CPU tests 1
+      shell: bash
       run: |
         docker exec $CONTAINER sh -c "cd gpt-neox && pytest tests -m cpu"
       env:
         CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
     - name: Execute CPU tests 2
+      shell: bash
       run: |
         docker exec $CONTAINER sh -c "cd gpt-neox && PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pytest tests -m cpu"
       env:
         CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
     - name: Generate report
+      shell: bash
       run: |
         docker exec $CONTAINER python -m http.server --directory htmlcov 8000 # this may not work with AWS - should perhaps pass back as an artifact for Github to use instead.
       env:
         CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
     - name: Remove CPU docker-compose
+      shell: bash
       run: |
         rm docker-compose.yml
         mv .docker-compose.yml docker-compose.yml
