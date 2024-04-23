@@ -28,19 +28,8 @@ scontrol show hostnames "$SLURM_JOB_NODELIST" | while read n; do
     echo "$n slots=$SLURM_GPUS_ON_NODE" >> "$HOSTFILE"
 done
 
-REAL_PWD="$(realpath "$PWD")"
-
 echo "START: $(date)"
 
-srun --label \
-  singularity exec \
-     --pwd "$REAL_PWD" \
-    -B /var/spool/slurmd \
-    -B /opt/cray \
-    -B /usr/lib64/libcxi.so.1 \
-    -B /usr/lib64/libjansson.so.4 \
-    -B "$SING_BIND" \
-    "$CONTAINER" \
-    ./lumi_launch.sh run.py train.py "$CONFIG" --hostfile "$HOSTFILE"
+srun --label lumi_launch.sh run.py train.py "$CONFIG" --hostfile "$HOSTFILE"
 
 echo "END: $(date)"

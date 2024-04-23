@@ -11,6 +11,11 @@ echo "Run on $SLURMD_NODENAME ($SLURM_PROCID/$WORLD_SIZE)," \
      "master $MASTER_ADDR port $MASTER_PORT," \
      "GPUs $SLURM_GPUS_ON_NODE"
 
+CMD="
 source /opt/miniconda3/bin/activate pytorch
+python3 $@
+"
 
-python3 "$@"
+REAL_PWD="$(realpath "$PWD")"
+
+singularity exec --pwd "$REAL_PWD" "$CONTAINER" bash -c "$CMD"
