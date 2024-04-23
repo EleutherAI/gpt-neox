@@ -49,6 +49,7 @@ runs:
         CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
     - name: Create container
       run: |
+        cp tests/cpu_tests/docker-compose.yml .
         export NEOX_DATA_PATH='./data/enwik8'
         export NEOX_CHECKPOINT_PATH='/mnt/sda/checkpoints' #todo: where do I get this?
         docker compose run -d --build --name $CONTAINER gpt-neox tail -f /dev/null
