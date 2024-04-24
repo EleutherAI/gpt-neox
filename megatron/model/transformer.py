@@ -132,8 +132,17 @@ class ParallelMLP(nn.Module):
             MoE_mp_size=MoE_mp_size,
         )
 
+        # TODO: TP,GLU-compat checking
+        self.controller = SparseController(
+            neox_args=neox_args,
+            model_dim=neox_args.hidden_size
+            ff_dim=ff_dim # TODO: each rank takes in full inputs, preds ff_dim // TP worldsize of the mask?
+        )
+
     def forward(self, hidden_states):
 
+        if self.sparse_ffn:
+            mask = self.controller(hidden_states)
         # [s, b, 4hp]
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
 
@@ -147,6 +156,33 @@ class ParallelMLP(nn.Module):
             intermediate_parallel = self.activation_func(
                 intermediate_parallel + bias_parallel
             )
+
+        if self.sparse_ffn:
+            # mask times output, to zero the result. (plus ST and other training tricks)
+            # intermediate_parallel: [s, b, intermediate_dim/TPsize]
+            # mask: [s, b, intdim/TPsize/sparsity, sparsity] ????
+
+            # add gumbel noise (TODO: manage RNG correctly, allow for eval mode, do this in SparseController)
+
+                # logsumexp
+                # subtract logsumexp
+                # exponentiate
+                # get uniform noise $u$ of shape `mask`
+                # get gumbel noise -log(-log(u))
+                # calc gumbel softmax with the given temp (? trax does this weird ?)
+            
+
+            # fwd: argmax (or softmax w/ 30% prob), bwd: softmax
+            
+            # softmax w/ 30% prob
+            
+            # TODO: I think we need to compute mult w/ no grad.
+            # what does https://github.com/google/trax/blob/a6a508e898a69fecbcce8e5b991666632c629cb0/trax/layers/research/sparsity.py#L1346-L1347 mean
+
+            
+            
+            
+            
 
         # [s, b, h]
         output, output_bias = self.dense_4h_to_h(intermediate_parallel)
@@ -227,6 +263,32 @@ class LLaMAParallelMLP(nn.Module):
         w1_out, _ = self.w1(hidden_states)
         w3_out, _ = self.w3(hidden_states)
         return self.w2(self.activation_func(w1_out) * w3_out)
+
+
+class SparseController(nn.Module):
+    """
+    A bottleneck linear layer producing a mask for prediction of zero'ed row/columns in sparse FFN.
+    """
+    def __init__(self, neox_args, model_dim, ff_dim) -> None:
+        super().__init__()
+
+        self.sparsity = neox_args.sparse_ffn_sparsity_factor
+        # rank defaults to 1 / N
+        self.rank = neox_args.sparse_ffn_controller_rank if neox_args.sparse_ffn_controller_rank else model_dim // self.sparsity
+        
+        self.c1 = nn.Linear(model_dim, self.rank, bias=False)
+        self.c2 = nn.Linear(self.rank, ff_dim, bias=False) # TODO: trax uses a bias for c2
+
+        self.model_dim = model_dim
+        self.ff_dim = ff_dim
+        
+    def forward(self, hidden_states):
+        b, s, _ = hidden_states.size()
+
+        x = self.c2(self.c1(x))
+        
+        # TODO: einsum following trax to eliminate a reshape......
+        return torch.reshape(x, (-1, self.sparsity)) # TODO: what format is easiest to work with in returned mask during training?
 
 
 class ParallelLinear(nn.Module):
