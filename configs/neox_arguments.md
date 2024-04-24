@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 11a5537
+    Default = 621ab25
 
     current git hash of repository
 
@@ -1375,6 +1375,122 @@ Training Arguments
 
     List of 'weights' that decide how often to sample from each test dataset when blending datasets. If None, defaults to equal weighting.
     Should be a list the same length as `test_data_paths`
+
+
+
+- **replay_config**: dict
+
+    Default = None
+
+    Dictionary storing the replay config.
+
+
+
+- **is_replay_enabled**: bool
+
+    Default = False
+
+    Triggers the logic for replay. It is important to deal with replay separately from the general "train_data_paths" logic, as replay
+    requires reusing the same idx files to know what data was seen the first time a dataset was originally trained on.
+    If one attempts to do replay by just putting the datasets to be replayed in the train_data_paths instead of the replay params:
+        - If the exact same dataset files are used as during the 1st time it was seen, and the number of iterations on the replay buffer
+        corresponds to as many epochs on a replay dataset as the non-replay training, the data will be seen in exactly the same order as 
+        the first time if the seed and sequence length is the same.
+            - For similar reasons, replaying multiple times on the same dataset (e.g. across multiple tasks) with the same number of epochs
+            on the replay dataset will lead to seeing the same data in the same order.
+        - If a different dataset is used for replay (e.g. different shard of Pile), then the shuffling will lead to completely different
+        indices, which will lead to potentially significant proportions of data being unseen if the original training on the replay dataset
+        did not see all of it, e.g. when training on 300B tokens of the GPT2-tokenised Pile which contains a few dozen billion more tokens,
+        then sharding the full dataset into smaller ones.
+
+
+
+- **replay_idx_paths_prefixes**: list
+
+    Default = None
+
+    List of paths prefixes to retrieve replay dataset idx files. Those idx files should have been generated when originally training on the dataset
+    being used for replay. They contain in the filename the number of samples potentially seen during pretraining, the sequence length and the
+    seed. The exact files (shuffle_idx, sample_idx and doc_idx) will be automatically derived from the prefix. Similarly, the data paths will
+    be generated from the prefixes.
+    The *_idx files are important as it allows one to know what data was seen in the dataset during training. If those files are missing, you can
+    regenerate them by relaunching the same training script (most importantly, config) used originally to pretrain on a given dataset. You 
+    can add an exit(0) statement in training.py in pretrain() after the call to build_train_valid_test_data_iterators(neox_args=neox_args).
+    It is crucial to use the same dataset shard, sequence length, number of iterations, seed, and potentially batch size, or the indices
+    generated may not be the same.
+    For a single replay data source, the value passed looks like ["data/mydataset/train/mydataset_train_4_indexmap_456789ns_2048sl_1234s"] and
+    the files at the following paths (the paths will be constructed during execution from the prefix), must exist:
+        "data/mydataset/train/mydataset_train_4_indexmap_456789ns_2048sl_1234s_doc_idx.npy"
+        "data/mydataset/train/mydataset_train_4_indexmap_456789ns_2048sl_1234s_sample_idx.npy"
+        "data/mydataset/train/mydataset_train_4_indexmap_456789ns_2048sl_1234s_shuffle_idx.npy"
+        "data/mydataset/train/mydataset"
+
+
+
+- **replay_data_to_idx_paths**: dict
+
+    Default = None
+
+    As indicated above, gets automatically built from the replay_idx_paths_prefixes by appending to it "_doc_idx.npy", "_sample_idx.npy" and
+    "_shuffle_idx.npy". It generates a dict of dict, with the data paths as keys, and dictionaries mapping each data path to the relevant
+    doc_idx, sample_idx and shuffle_idx file paths. Note that these files must exist at the relevant paths.
+
+
+
+- **replay_data_paths**: list
+
+    Default = None
+
+    As indicated above, gets automatically built from the replay_idx_paths_prefixes by removing the information about the idx files to retain
+    only the path to the dataset itself.
+
+
+
+- **replay_data_weights**: list
+
+    Default = None
+
+    List of 'weights' that decide how often to sample from each replay dataset when building the replay buffer.
+
+
+
+- **replay_idx_offsets**: list
+
+    Default = None
+
+    List of indices that decide where to start in the list of seen indices during pretraining on each replay dataset when building
+    the replay buffer. For example, when training originally on a dataset seeing 10000 samples, this allows to start looking at the
+    RESHUFFLED indices starting from idx replay_idx_offsets[i] for replay dataset i.
+    If not set, this will uniformly sample among all replay datasets.
+
+
+
+- **replay_fraction**: float
+
+    Default = 0.05
+
+    Fraction of a batch dedicated to doing replay. For example, 0.1 means that in a batch of 100, 19 samples will come from the replay
+    buffer. Note that this means that if we train on 100B tokens, we will have only used 90B tokens from the datasets specified in
+    train_data_paths.
+
+
+
+- **replay_reshuffle_idx**: bool
+
+    Default = True
+
+    When index files are loaded from those the dataset was originally pretrained on, they will follow the exact same sequence of samples
+    seen when training on that dataset the first time if this is set to False. If True, the indices are reshuffled to prevent that.
+
+
+
+- **replay_seed**: int
+
+    Default = 1234
+
+    Seed used to reshuffle indices accessed when originally training on a dataset, that are used to do replay. This is useful in the case
+    where replay is done twice on as many passes over the dataset, in which case if the same seed is used, the replay buffers in both case
+    will be exactly the same.
 
 
 
