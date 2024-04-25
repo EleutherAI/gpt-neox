@@ -116,7 +116,7 @@ class AnnealingLR(object):
                     lr = self.constant_lr
                 else:
                     # Go from constant iters to min LR using exponential decay in remaining iters
-                    end_iter_ = self.end_iter - self.warmup_iter - self.constant_iter
+                    end_iter_ = self.end_iter - self.warmup_iter - self.cooldown_iter - self.constant_iter
                     num_iters_ = num_iters_ - self.constant_iter
                     exp_factor = -math.log(self.min_lr/self.constant_lr) / end_iter_
                     lr = self.constant_lr * math.exp(-1* exp_factor * num_iters_)
