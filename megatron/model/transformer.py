@@ -158,6 +158,9 @@ class ParallelMLP(nn.Module):
             )
 
         if self.sparse_ffn:
+            tau = 0.1
+            eps = 1e-6
+            quant_prob = 0.3
             # mask times output, to zero the result. (plus ST and other training tricks)
             # intermediate_parallel: [s, b, intermediate_dim/TPsize]
             # mask: [s, b, intdim/TPsize/sparsity, sparsity] ????
@@ -171,15 +174,43 @@ class ParallelMLP(nn.Module):
                 # get gumbel noise -log(-log(u))
                 # calc gumbel softmax with the given temp (? trax does this weird ?)
             
+            # this fairly closely follows the Trax impl.
+            log_mask = mask - torch.logsumexp(mask, dim=-1, keepdim=True) 
+            mask = torch.exp(log_mask) # mask now equals the softmax.
+            
+            u = torch.rand_like(mask)
+            g = -torch.log(-torch.log(u + eps) + eps)
 
-            # fwd: argmax (or softmax w/ 30% prob), bwd: softmax
-            
-            # softmax w/ 30% prob
-            
-            # TODO: I think we need to compute mult w/ no grad.
-            # what does https://github.com/google/trax/blob/a6a508e898a69fecbcce8e5b991666632c629cb0/trax/layers/research/sparsity.py#L1346-L1347 mean
+            quant_mask = torch.argmax((log_mask + g) / tau, dim=-1)
 
+            # convert quant_mask to one-hot of size (sparsity,)
+            quant_mask = F.one_hot(quant_mask, num_classes=self.controller.sparsity)
+            # [s, b, 4hp / sparsity, sparsity] --> [s, b, 4hp]
+            # TODO: would be nice to phase this out
+            quant_mask = quant_mask.reshape(s, b, -1)
+            mask = mask.reshape(s, b, -1)
+            # Straight-Through Estimator: 
+            # fwd pass gives quant_mask
+            # bwd pass gives mask (--> derivative of mask is softmax)
+            quant_mask = mask + (quant_mask - mask).detach()
+
+            # use softmax / soft decision for the batch, w/ 30% prob in fwd pass
+            select = torch.rand((), device=torch.cuda.current_device())
             
+            # Trax maybe messed up the sign comparison and does 70% softmax.
+            # we're doing it "right"--so quant_prob of 0.3 means more quant_mask decisions than not
+            quant_mask = torch.where(select > quant_prob, quant_mask, mask)
+
+            # multiply by mask.
+            # (for soft masks, this multiplies by softmax
+            # for hard masks, this multiplies by one-hot)
+            intermediate_parallel = intermediate_parallel * quant_mask
+
+            # optionally, multiply quantized decisions by softmax too. without grad...? bc we already have straight-through
+            if False: # if mult_by_controller_softmax_output:
+                with torch.no_grad():
+                    mask_mult = torch.where(select < quant_prob, mask, torch.ones_like(mask))
+                    intermediate_parallel = intermediate_parallel * mask_mult
             
             
             
@@ -283,12 +314,12 @@ class SparseController(nn.Module):
         self.ff_dim = ff_dim
         
     def forward(self, hidden_states):
-        b, s, _ = hidden_states.size()
+        s, b, , _ = hidden_states.size()
 
         x = self.c2(self.c1(x))
         
         # TODO: einsum following trax to eliminate a reshape......
-        return torch.reshape(x, (-1, self.sparsity)) # TODO: what format is easiest to work with in returned mask during training?
+        return torch.reshape(x, (s, b, -1, self.sparsity)) # TODO: what format is easiest to work with in returned mask during training?
 
 
 class ParallelLinear(nn.Module):
