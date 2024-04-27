@@ -132,12 +132,19 @@ class ParallelMLP(nn.Module):
             MoE_mp_size=MoE_mp_size,
         )
 
-        # TODO: TP,GLU-compat checking
-        self.controller = SparseController(
-            neox_args=neox_args,
-            model_dim=neox_args.hidden_size
-            ff_dim=ff_dim # TODO: each rank takes in full inputs, preds ff_dim // TP worldsize of the mask?
-        )
+        self.sparse_ffn = False
+        if neox_args.use_sparse_ffn:
+            self.sparse_ffn = True
+            # TODO: TP,GLU-compat checking
+            self.controller = SparseController(
+                neox_args=neox_args,
+                model_dim=neox_args.hidden_size,
+                ff_dim=ff_dim # TODO: each rank takes in full inputs, preds ff_dim // TP worldsize of the mask?
+            )
+
+            self.quant_prob = neox_args.sparse_ffn_quant_prob
+            self.tau = neox_args.sparse_ffn_gumbel_softmax_temp
+            self.mult_by_controller_output = neox_args.sparse_ffn_mult_by_controller_output
 
     def forward(self, hidden_states):
 
@@ -158,13 +165,13 @@ class ParallelMLP(nn.Module):
             )
 
         if self.sparse_ffn:
-            tau = 0.1
+            tau = self.tau
             eps = 1e-6
-            quant_prob = 0.3
+            quant_prob = self.quant_prob
             # mask times output, to zero the result. (plus ST and other training tricks)
             # intermediate_parallel: [s, b, intermediate_dim/TPsize]
             # mask: [s, b, intdim/TPsize/sparsity, sparsity] ????
-
+            s, b = intermediate_parallel.shape[0], intermediate_parallel.shape[1]
             # add gumbel noise (TODO: manage RNG correctly, allow for eval mode, do this in SparseController)
 
                 # logsumexp
@@ -207,13 +214,10 @@ class ParallelMLP(nn.Module):
             intermediate_parallel = intermediate_parallel * quant_mask
 
             # optionally, multiply quantized decisions by softmax too. without grad...? bc we already have straight-through
-            if False: # if mult_by_controller_softmax_output:
+            if self.mult_by_controller_output:
                 with torch.no_grad():
                     mask_mult = torch.where(select < quant_prob, mask, torch.ones_like(mask))
-                    intermediate_parallel = intermediate_parallel * mask_mult
-            
-            
-            
+                    intermediate_parallel = intermediate_parallel * mask_mult  
 
         # [s, b, h]
         output, output_bias = self.dense_4h_to_h(intermediate_parallel)
@@ -304,7 +308,7 @@ class SparseController(nn.Module):
         super().__init__()
 
         self.sparsity = neox_args.sparse_ffn_sparsity_factor
-        # rank defaults to 1 / N
+        # rank defaults to model_dim / N
         self.rank = neox_args.sparse_ffn_controller_rank if neox_args.sparse_ffn_controller_rank else model_dim // self.sparsity
         
         self.c1 = nn.Linear(model_dim, self.rank, bias=False)
@@ -314,11 +318,11 @@ class SparseController(nn.Module):
         self.ff_dim = ff_dim
         
     def forward(self, hidden_states):
-        s, b, , _ = hidden_states.size()
+        s, b, _ = hidden_states.size()
 
-        x = self.c2(self.c1(x))
+        x = self.c2(self.c1(hidden_states))
         
-        # TODO: einsum following trax to eliminate a reshape......
+        # TODO: einsum following trax to eliminate a reshape......?
         return torch.reshape(x, (s, b, -1, self.sparsity)) # TODO: what format is easiest to work with in returned mask during training?
 
 

@@ -460,6 +460,36 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Enable bias terms in mamba block up- and down- projections (in_proj and out_proj).
     """
 
+    use_sparse_ffn: bool = False
+    """
+    Row-Sparse FFN training from Sparse Is Enough / Scaling Transformer.
+    """
+
+    sparse_ffn_sparsity_factor: int = 64
+    """
+    Sparsity factor N for 1inN-sparse FFN activations.
+    """
+
+    sparse_ffn_controller_rank: int = None
+    """
+    Rank for Sparse FFN row predictor. Defaults to d_model / sparsity factor.
+    """
+
+    sparse_ffn_gumbel_softmax_temp: float = 0.1
+    """
+    Temperature for gumbel softmax in Sparse FFN masking.
+    """
+
+    sparse_ffn_quant_prob: float = 0.3
+    """
+    Probability of using soft prediction (softmax) instead of argmax for row predictor output in the forward pass.
+    """
+
+    sparse_ffn_mult_by_controller_output: bool = False
+    """
+    Whether to multiply argmaxed sparse FFN predictions by the soft mask as well.
+    """
+
     # Output layer parallelism over the hidden dim is currently broken (https://github.com/EleutherAI/gpt-neox/issues/905)
     output_layer_parallelism: Literal["column"] = "column"
 
