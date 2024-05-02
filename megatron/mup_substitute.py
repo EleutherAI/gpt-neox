@@ -32,13 +32,26 @@ def get_coord_data(
         "output_logits_act_abs_std": [],
         "width": [],
     }
+
+    df_mode = "mup" if neox_args.use_mup else "sp"
+    if neox_args.use_mup:
+        print_rank_0("muP Coord Check for mu Parameterization")
+    else:
+        print_rank_0("muP Coord Check for standard Parameterization")
+
+    _df = None
+    df_path = os.path.join(neox_args.mup_save, f"df_{df_mode}.csv")
+    if (neox_args.mup_save is not None) and os.path.exists(df_path):
+        _df = pd.read_csv(df_path)
+
     with torch.no_grad():
         torch.cuda.empty_cache()
 
     for width, model_obj in models.items():
         for i in range(nseeds):
             torch.manual_seed((i + 1) * 100000)
-            print_rank_0(f">>> Running Model with width: {width} on seed: {i}\n")
+            print_rank_0(f">>> muP Coord Check: mup_width_multiplier set to {neox_args.mup_width_multiplier}")
+            print_rank_0(f">>> muP Coord Check: Running Model with width: {width} on seed: {i}\n")
             model, optimizer, lr_scheduler = model_obj()
             model.train()
             neox_args.hidden_size = width
@@ -149,5 +162,8 @@ def get_coord_data(
             gc.collect()
             torch.cuda.empty_cache()
             deepspeed.runtime.utils.empty_cache()
+
+            temp_df = pd.DataFrame(df)
+            temp_df.to_csv(os.path.join(neox_args.mup_save, f"df_{df_mode}.csv"), index=False)
 
     return pd.DataFrame(df)
