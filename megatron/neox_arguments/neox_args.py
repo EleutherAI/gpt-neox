@@ -1098,6 +1098,29 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Whether to use muP
     """
 
+    mup_save: str = None
+    """
+    Path to save results when using muP
+    """
+
+    mup_lr: float = None
+    """
+    An alias parameter for lr,
+    if not None will override lr
+    """
+
+    mup_std: float = None
+    """
+    An alias parameter for init_method_std,
+    if not None will override init_method_std
+    """
+
+    mup_hidden_size: int = None
+    """
+    An alias parameter for hidden_size,
+    if not None will override hidden_size
+    """
+
     coord_check: bool = False
     """
     Whether to generate a "coord check" plot to verify mup's implementation in neox
