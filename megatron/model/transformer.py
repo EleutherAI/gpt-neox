@@ -359,8 +359,7 @@ class ParallelSelfAttention(nn.Module):
 
         coeff = None
         if neox_args.use_mup:
-            # self.norm_factor = self.hidden_size_per_attention_head
-            self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
+            self.norm_factor = self.hidden_size_per_attention_head
         else:
             self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
 
