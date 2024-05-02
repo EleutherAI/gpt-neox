@@ -84,15 +84,16 @@
   "distributed_backend": "nccl",
 
   "coord_check": true,
-  "coord_check_nsteps": 10,
-  "coord_check_nseeds": 3,
+  "coord_check_nsteps": 5,
+  "coord_check_nseeds": 1,
   "use_mup": true,
   # base lr
   "mup_lr": 0.01,
   # base sigma
-  "mup_std": 0.06,
+  "mup_std": 0.08,
   # base size
   "mup_d_model_base": 256,
+  "mup_hidden_size": 256,
 
   "tokenizer_type": "HFTokenizer",
   "vocab-file": "/mnt/ssd-1/lintang/09-mup-neox/20B_tokenizer.json",
