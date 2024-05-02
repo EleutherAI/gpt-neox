@@ -75,8 +75,8 @@
   "warmup": 0.01,
   "checkpoint_factor": 1000,
   # "extra_save_iters": [0,1,2,4,8,16,32,64,128,256,512],
-  "eval_interval": 143000,
-  "eval_iters": 10,
+  "eval_interval": 100,
+  "eval_iters": 50,
 
   "log_interval": 10,
   "steps_per_print": 10,
@@ -86,7 +86,7 @@
   #"load": "/mnt/hdd-0/tiny-pythia/ckpts/pythia-14m",
 
   "use_wandb": true,
-  "wandb_group": "scaled-relu-410m-sparse", 
+  "wandb_group": "64sparsity-sqrelu-410m-sparse-eval", 
   "wandb_team": "schoelkopf",
   "wandb_project": "sparse-is-enough",
 
@@ -94,13 +94,15 @@
   "steps_per_print": 10,
   "wall_clock_breakdown": true,
 
-  "train-data-paths": ["/mnt/ssd-2/pile_deduped/pile_20B_tokenizer_text_document"],
-  "valid-data-paths": ["/mnt/ssd-2/pile_deduped/pile_20B_tokenizer_text_document"],
-  "test-data-paths": ["/mnt/ssd-2/pile_deduped/pile_20B_tokenizer_text_document"],
+  "data_path": "/mnt/ssd-2/pile_deduped/pile_20B_tokenizer_text_document",
+  # "valid-data-paths": ["/mnt/ssd-2/pile_deduped/pile_20B_tokenizer_text_document"],
+  # "test-data-paths": ["/mnt/ssd-2/pile_deduped/pile_20B_tokenizer_text_document"],
 
   "tokenizer-type": "HFTokenizer",
   "vocab-file": "/mnt/ssd-2/pile/20B_tokenizer.json",
 
   "use_sparse_ffn": true,
-  "sparse_ffn_mult_by_controller_output": true
+  "sparse_ffn_mult_by_controller_output": false,
+  "sparse_ffn_sparsity_factor": 64,
+  "sparse_ffn_quant_prob": 0.3
 }

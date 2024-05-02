@@ -165,31 +165,37 @@ class ParallelMLP(nn.Module):
             )
 
         if self.sparse_ffn:
-            tau = self.tau
-            eps = 1e-6
-            quant_prob = self.quant_prob
-            # mask times output, to zero the result. (plus ST and other training tricks)
             # intermediate_parallel: [s, b, intermediate_dim/TPsize]
             # mask: [s, b, intdim/TPsize/sparsity, sparsity] ????
             s, b = intermediate_parallel.shape[0], intermediate_parallel.shape[1]
-            # add gumbel noise (TODO: manage RNG correctly, allow for eval mode, do this in SparseController)
+            if self.training:
+                tau = self.tau
+                eps = 1e-6
+                quant_prob = self.quant_prob
+                # mask times output, to zero the result. (plus ST and other training tricks)
+    
+                # add gumbel noise (TODO: manage RNG correctly, do this in SparseController)
 
-                # logsumexp
-                # subtract logsumexp
-                # exponentiate
-                # get uniform noise $u$ of shape `mask`
-                # get gumbel noise -log(-log(u))
-                # calc gumbel softmax with the given temp (? trax does this weird ?)
-            
-            # this fairly closely follows the Trax impl.
-            log_mask = mask - torch.logsumexp(mask, dim=-1, keepdim=True) 
-            mask = torch.exp(log_mask) # mask now equals the softmax.
-            
-            u = torch.rand_like(mask)
-            g = -torch.log(-torch.log(u + eps) + eps)
+                    # logsumexp
+                    # subtract logsumexp
+                    # exponentiate
+                    # get uniform noise $u$ of shape `mask`
+                    # get gumbel noise -log(-log(u))
+                    # calc gumbel softmax with the given temp (? trax does this weird ?)
+                
+                # this fairly closely follows the Trax impl.
+                log_mask = mask - torch.logsumexp(mask, dim=-1, keepdim=True) 
+                mask = torch.exp(log_mask) # mask now equals the softmax.
+                
+                u = torch.rand_like(mask)
+                g = -torch.log(-torch.log(u + eps) + eps)
 
-            quant_mask = torch.argmax((log_mask + g) / tau, dim=-1)
-
+                quant_mask = torch.argmax((log_mask + g) / tau, dim=-1)
+            else: 
+                # inference mode: always quantize decisions, and take the argmax
+                quant_prob = 1.0
+                quant_mask = torch.argmax(mask, dim=-1)
+        
             # convert quant_mask to one-hot of size (sparsity,)
             quant_mask = F.one_hot(quant_mask, num_classes=self.controller.sparsity)
             # [s, b, 4hp / sparsity, sparsity] --> [s, b, 4hp]
@@ -206,7 +212,7 @@ class ParallelMLP(nn.Module):
             
             # Trax maybe messed up the sign comparison and does 70% softmax.
             # we're doing it "right"--so quant_prob of 0.3 means more quant_mask decisions than not
-            quant_mask = torch.where(select > quant_prob, quant_mask, mask)
+            quant_mask = torch.where(select < quant_prob, quant_mask, mask)
 
             # multiply by mask.
             # (for soft masks, this multiplies by softmax
@@ -318,9 +324,13 @@ class SparseController(nn.Module):
         self.ff_dim = ff_dim
         
     def forward(self, hidden_states):
-        s, b, _ = hidden_states.size()
+        s, b, h = hidden_states.size()
 
         x = self.c2(self.c1(hidden_states))
+        # see if einsum is faster
+        # x = torch.einsum("sbh,rh,fr->sbf", hidden_states, self.c1.weight, self.c2.weight)
+        
+        assert x.shape == (s, b, 4 * h)
         
         # TODO: einsum following trax to eliminate a reshape......?
         return torch.reshape(x, (s, b, -1, self.sparsity)) # TODO: what format is easiest to work with in returned mask during training?

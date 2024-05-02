@@ -39,6 +39,8 @@ def get_activation(neox_args):
             activation_func = F.gelu
     elif neox_args.activation == "relu":
         activation_func = F.relu
+    elif neox_args.activation == "sqrelu":
+        activation_func = sqrelu_impl
     elif neox_args.activation == "softsign":
         activation_func = F.softsign
     elif neox_args.activation == "swish":
@@ -137,3 +139,29 @@ class GEGLU(torch.nn.Module):
             gate = gate + bias_2
         intermediate_parallel = self.activation_func(gate)
         return intermediate_parallel * x
+
+@torch.jit.script
+def sqrelu_fwd(x):
+    r = F.relu(x)
+    return (r * r).to(dtype=x.dtype)
+
+
+@torch.jit.script
+def sqrelu_bwd(g, x):
+    return (2.0 * g * F.relu(x)).to(dtype=x.dtype)
+
+
+class SqReluFunction(torch.autograd.Function):
+    @staticmethod
+    # bias is an optional argument
+    def forward(ctx, input):
+        ctx.save_for_backward(input)
+        return sqrelu_fwd(input)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        (input,) = ctx.saved_tensors
+        tmp = sqrelu_bwd(grad_output, input)
+        return tmp
+
+sqrelu_impl = SqReluFunction.apply
