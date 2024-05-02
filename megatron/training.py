@@ -121,20 +121,26 @@ def coord_check(neox_args, timers, train_data_iterator):
     else:
         os.makedirs(neox_args.mup_save, exist_ok=True)
 
-    def lazy_model(hidden_size, attention_head):
+    def lazy_model(hidden_size, attention_head, d_model_base=2**8):
         def gen():
             old_hidden_size = neox_args.hidden_size
             old_num_attention_heads = neox_args.num_attention_heads
+            old_mup_d_model_base = neox_args.mup_d_model_base
+            old_mup_width_multiplier = neox_args.mup_width_multiplier
+
             neox_args.hidden_size = hidden_size
             neox_args.num_attention_heads = attention_head
-            neox_args.mup_width_multiplier = None
-            neox_args.mup_d_model_base = 2**8
+            neox_args.mup_d_model_base = d_model_base
+            neox_args.mup_width_multiplier = hidden_size / neox_args.mup_d_model_base
+
             model, optimizer, lr_scheduler = setup_model_and_optimizer(
                 neox_args=neox_args, use_cache=False
             )
 
             neox_args.hidden_size = old_hidden_size
             neox_args.num_attention_heads = old_num_attention_heads
+            neox_args.mup_d_model_base = old_mup_d_model_base
+            neox_args.mup_width_multiplier = old_mup_width_multiplier
             return model, optimizer, lr_scheduler
 
         return gen
@@ -147,10 +153,6 @@ def coord_check(neox_args, timers, train_data_iterator):
         )
 
     df_mode = "mup" if neox_args.use_mup else "sp"
-    if neox_args.use_mup:
-        print_rank_0(">>> Coord Check for mu Parameterization")
-    else:
-        print_rank_0(">>> Coord Check for standard Parameterization")
 
     df = get_coord_data(
         neox_args,
@@ -476,8 +478,8 @@ def get_optimizer(model, neox_args):
         )
         exit()
 
-    if neox_args["lr"] is not None:
-        neox_args["optimizer"]["params"]["lr"] = neox_args["lr"]
+    if neox_args.lr is not None:
+        neox_args.optimizer["params"]["lr"] = neox_args.lr
 
     # Build parameter groups for parameters that 
     # are affected by weight decay and non-decay or
@@ -638,25 +640,6 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
         )
 
     """Setup model and optimizer."""
-    if neox_args.use_mup:
-        if neox_args.mup_lr is not None:
-            neox_args.lr = neox_args.mup_lr
-            print_rank_0(f"Overriding neox_args.lr with neox_args.mup_lr: {neox_args.mup_lr}")
-
-        if neox_args.mup_std is not None:
-            neox_args.init_method_std = neox_args.mup_std
-            print_rank_0(f"Overriding neox_args.init_method_std with neox_args.mup_std: {neox_args.mup_std}")
-
-        if neox_args.mup_hidden_size is not None:
-            neox_args.hidden_size = neox_args.mup_hidden_size
-            print_rank_0(f"Overriding neox_args.hidden_size with neox_args.mup_hidden_size: {neox_args.mup_hidden_size}")
-
-        if neox_args.mup_width_multiplier is None:
-            neox_args.mup_width_multiplier = (
-                neox_args.hidden_size / neox_args.mup_d_model_base
-            )
-    print_rank_0(f">>> mup_width_multiplier set to {neox_args.mup_width_multiplier}")
-
     model = get_model(neox_args=neox_args, use_cache=use_cache)
     optimizer, param_groups = get_optimizer(model=model, neox_args=neox_args)
     lr_scheduler = get_learning_rate_scheduler(optimizer=optimizer, neox_args=neox_args)
