@@ -64,7 +64,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 
-def plot_coord_data(df, graph_name_prefix, use_mup=True):
+def plot_coord_data(df, graph_name_prefix, use_mup=True, save_path=None):
     def _plot_data(df, activation, graph_name_prefix):
         df = df.groupby(["step", "width"]).mean().reset_index()
         sns.color_palette("magma")
@@ -84,7 +84,12 @@ def plot_coord_data(df, graph_name_prefix, use_mup=True):
         plt.xlabel("Width")
         plt.ylabel("Activation with {}".format("muP" if use_mup else "SP"))
         plt.title(f"{activation}")
-        plt.savefig(f"{graph_name_prefix}-{activation}.png")
+
+        file_path = f"{graph_name_prefix}-{activation}.png"
+        if save_path is not None:
+            file_path = os.path.join(save_path, file_path)
+
+        plt.savefig(file_path)
         plt.close()
 
         return 0
@@ -110,6 +115,12 @@ def plot_coord_data(df, graph_name_prefix, use_mup=True):
 def coord_check(neox_args, timers, train_data_iterator):
     from megatron.mup_substitute import get_coord_data
 
+    if neox_args.mup_save is None:
+        print_rank_0("Must set mup_save")
+        sys.exit()
+    else:
+        os.makedirs(neox_args.mup_save, exist_ok=True)
+
     def lazy_model(hidden_size, attention_head):
         def gen():
             old_hidden_size = neox_args.hidden_size
@@ -129,8 +140,8 @@ def coord_check(neox_args, timers, train_data_iterator):
         return gen
 
     models = {}
-    # Hidden size needs to be divisible by num attention heads
-    for idx, hidden_size in enumerate([2**p for p in range(8, 12)]):
+    # Hidden size needs to be divisible by num attention heads #14
+    for idx, hidden_size in enumerate([2**p for p in range(8, 11)]):
         models[hidden_size] = lazy_model(
             hidden_size, neox_args.num_attention_heads * (2**idx)
         )
@@ -149,11 +160,13 @@ def coord_check(neox_args, timers, train_data_iterator):
         neox_args.coord_check_nsteps,
         neox_args.coord_check_nseeds,
     )
-    df.to_csv(f"df_{df_mode}.csv", index=False)
-    plot_coord_data(
-        df, graph_name_prefix=f"coord_check_{df_mode}", use_mup=neox_args.use_mup
-    )
-    print_rank_0("Saved coord check plots... exiting")
+
+    if neox_args.mup_save is not None:
+        plot_coord_data(
+            df, graph_name_prefix=f"coord_check_{df_mode}", use_mup=neox_args.use_mup, save_path=neox_args.mup_save
+        )
+        print_rank_0("Saved coord check plots... exiting")
+
     return 0
 
 
@@ -462,7 +475,13 @@ def get_optimizer(model, neox_args):
             f"ERROR: Optimizer is None. Either set the optimizer dict in your config (if training) or set no_load_optim in your config (if inference)"
         )
         exit()
-    # Build parameter groups (weight decay and non-decay).
+
+    if neox_args["lr"] is not None:
+        neox_args["optimizer"]["params"]["lr"] = neox_args["lr"]
+
+    # Build parameter groups for parameters that 
+    # are affected by weight decay and non-decay or
+    # have adjustable and non-adjustable learning rate.
     param_groups = get_params_for_weight_decay_optimization(model, neox_args)
     print_rank_0(
         f'Configuring Optimizer type: {neox_args.optimizer_type} with params: {neox_args.optimizer["params"]}'
@@ -538,7 +557,8 @@ def get_optimizer(model, neox_args):
         else:
             try:
                 # default to apex as it's slightly faster
-                from apex.optimizers import FusedAdam as Adam
+                # from apex.optimizers import FusedAdam as Adam
+                from torch.optim import Adam
             except ImportError:
                 # if apex isn't installed, use deepspeed's FusedAdam
                 print(
@@ -618,10 +638,23 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
         )
 
     """Setup model and optimizer."""
-    if neox_args.mup_width_multiplier is None:
-        neox_args.mup_width_multiplier = (
-            neox_args.hidden_size / neox_args.mup_d_model_base
-        )
+    if neox_args.use_mup:
+        if neox_args.mup_lr is not None:
+            neox_args.lr = neox_args.mup_lr
+            print_rank_0(f"Overriding neox_args.lr with neox_args.mup_lr: {neox_args.mup_lr}")
+
+        if neox_args.mup_std is not None:
+            neox_args.init_method_std = neox_args.mup_std
+            print_rank_0(f"Overriding neox_args.init_method_std with neox_args.mup_std: {neox_args.mup_std}")
+
+        if neox_args.mup_hidden_size is not None:
+            neox_args.hidden_size = neox_args.mup_hidden_size
+            print_rank_0(f"Overriding neox_args.hidden_size with neox_args.mup_hidden_size: {neox_args.mup_hidden_size}")
+
+        if neox_args.mup_width_multiplier is None:
+            neox_args.mup_width_multiplier = (
+                neox_args.hidden_size / neox_args.mup_d_model_base
+            )
     print_rank_0(f">>> mup_width_multiplier set to {neox_args.mup_width_multiplier}")
 
     model = get_model(neox_args=neox_args, use_cache=use_cache)
