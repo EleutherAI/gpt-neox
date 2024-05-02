@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 4f39209
+    Default = b0da27a
 
     current git hash of repository
 
@@ -433,7 +433,7 @@ Model Arguments
     The first item in the list specifies the attention type(s), and should be a list of strings. The second item
     specifies the number of times to repeat those attention types in the full list.
 
-    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird, "gmlp", "amlp", "flash"]
+    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird, "gmlp", "amlp", "flash", "mamba"]
 
     So a 12 layer network with only global attention could be specified like:
         [[[`global`], 12]]
@@ -603,7 +603,19 @@ Model Arguments
 
 
 
-- **init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init']
+- **rotary_save_freqs_buffer**: bool
+
+    Default = False
+
+    Used to control whether the `inv_freqs` buffer in rotary embeddings
+    will be stored in checkpoints (persistent=True) or not.
+
+    Defaults to false, but is left configurable to maintain backward-compatibility
+    with GPT-NeoX checkpoints that were trained with this flag.
+
+
+
+- **init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init', 'single_residual_scaled_normal']
 
     Default = normal
 
@@ -612,7 +624,7 @@ Model Arguments
 
 
 
-- **output_layer_init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init']
+- **output_layer_init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init', 'single_residual_scaled_normal']
 
     Default = scaled_normal
 
@@ -692,6 +704,55 @@ Model Arguments
         'num_tokens': int = 10 # length of the soft prompt in tokens
         'init_string': str = '' # if provided, initialize the soft prompt with the word embeddings of this string
         'init_range': float = 0.5 # if no init string is provided, initialize the soft prompt with a uniform distribution between -init_range and init_rang
+
+
+
+- **mamba_selective_scan_fusion**: bool
+
+    Default = False
+
+    Enable fused kernels for Mamba selective scan.
+
+
+
+- **mamba_causal_conv_fusion**: bool
+
+    Default = False
+
+    Enable fused kernels for Mamba causal Conv1d.
+
+
+
+- **mamba_inner_func_fusion**: bool
+
+    Default = False
+
+    Enable fused inner operator for Mamba. (Supersedes conv. and selective scan fusion flags, requires each of those kernels to be installed.)
+
+
+
+- **mamba_selective_fp32_params**: bool
+
+    Default = True
+
+    Keep selected parameters in fp32 for Mamba (A and D).
+    Requires https://github.com/EleutherAI/DeeperSpeed/pull/61 .
+
+
+
+- **mamba_use_bias_in_conv**: bool
+
+    Default = True
+
+    If false, conv1d in mamba block will not have bias term
+
+
+
+- **mamba_use_bias_in_linears**: bool
+
+    Default = False
+
+    Enable bias terms in mamba block up- and down- projections (in_proj and out_proj).
 
 
 
@@ -998,6 +1059,14 @@ Parallelism Arguments
 
 
 
+- **expert_interval**: int
+
+    Default = 2
+
+    Have one MoE layer every expert_interval layers
+
+
+
 ## NeoXArgsTemplate
 
 NeoXArgsTemplate()
@@ -1061,7 +1130,7 @@ Text Generation arguments
 
 - **prompt_end**: str
 
-    Default =
+    Default = 
 
 
     a single prompt's end. Defaults to newline
@@ -1103,7 +1172,7 @@ Text Generation arguments
 
 - **eval_results_prefix**: str
 
-    Default =
+    Default = 
 
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
 
@@ -1116,6 +1185,94 @@ Text Generation arguments
     Tasks to evaluate on using lm_eval_harness
 
     NOTE: Requires internet connection
+
+
+
+- **moe_top_k**: int
+
+    Default = 1
+
+    Activate top K experts in MoE
+
+
+
+- **use_tutel**: bool
+
+    Default = False
+
+    Use Tutel optimizations in MoE
+
+
+
+- **num_experts**: int
+
+    Default = 1
+
+    Number of MoE experts
+
+
+
+- **moe_loss_coeff**: float
+
+    Default = 0.1
+
+    Coefficient for MoE loss
+
+
+
+- **moe_train_capacity_factor**: float
+
+    Default = 1.0
+
+    The capacity of the expert at train time
+
+
+
+- **moe_eval_capacity_factor**: float
+
+    Default = 1.0
+
+    The capacity of the expert at eval time
+
+
+
+- **moe_min_capacity**: int
+
+    Default = 4
+
+    The minimum capacity per expert regardless of the capacity_factor
+
+
+
+- **moe_token_dropping**: bool
+
+    Default = True
+
+    Whether to drop tokens when exceeding capacity
+
+
+
+- **create_moe_param_group**: bool
+
+    Default = True
+
+    Whether to create a separate parameter group for MoE parameters
+
+
+
+- **moe_use_residual**: bool
+
+    Default = True
+
+    Whether to use residual in MoE
+
+
+
+- **moe_expert_parallel_size**: int
+
+    Default = 1
+
+    Number of parallel experts in MoE
 
 
 
@@ -1640,7 +1797,7 @@ Training Arguments
 
     Default = 10
 
-    
+    Number of steps to do for the coordinate check
 
 
 
@@ -1648,7 +1805,7 @@ Training Arguments
 
     Default = 5
 
-    
+    Number of repetition for each size in coordinate check
 
 
 
@@ -1847,7 +2004,7 @@ Args for deepspeed config
 
     Default = None
 
-
+    
 
 
 
@@ -2147,3 +2304,4 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = None
 
     Adds a `--account` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometimes necessary for cluster rules, or so I've heard.
+

@@ -36,6 +36,7 @@ ATTENTION_TYPE_CHOICES = [
     "gmlp",
     "amlp",
     "flash",
+    "mamba",
 ]
 
 
@@ -81,6 +82,11 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     """
     flag to determine whether pipeline parallelism is on - shouldn't be set by user, is automatically determined
     according to pipeline parallel size.
+    """
+
+    expert_interval: int = 2
+    """
+    Have one MoE layer every expert_interval layers
     """
 
 
@@ -211,7 +217,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     The first item in the list specifies the attention type(s), and should be a list of strings. The second item
     specifies the number of times to repeat those attention types in the full list.
 
-    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird, "gmlp", "amlp", "flash"]
+    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird, "gmlp", "amlp", "flash", "mamba"]
 
     So a 12 layer network with only global attention could be specified like:
         [[[`global`], 12]]
@@ -332,6 +338,15 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Base for rotary positional embedding
     """
 
+    rotary_save_freqs_buffer: bool = False
+    """
+    Used to control whether the `inv_freqs` buffer in rotary embeddings
+    will be stored in checkpoints (persistent=True) or not.
+
+    Defaults to false, but is left configurable to maintain backward-compatibility
+    with GPT-NeoX checkpoints that were trained with this flag.
+    """
+
     init_method: Literal[
         "normal",
         "scaled_normal",
@@ -341,6 +356,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
         "xavier_normal",
         "wang_init",
         "small_init",
+        "single_residual_scaled_normal",
     ] = "normal"
     """
     Init function used on all layers except ff residual outputs - choose from
@@ -356,6 +372,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
         "xavier_normal",
         "wang_init",
         "small_init",
+        "single_residual_scaled_normal",
     ] = "scaled_normal"
     """
     Init function used for ff residual outputs - choose from
@@ -412,6 +429,37 @@ class NeoXArgsModel(NeoXArgsTemplate):
         'num_tokens': int = 10 # length of the soft prompt in tokens
         'init_string': str = '' # if provided, initialize the soft prompt with the word embeddings of this string
         'init_range': float = 0.5 # if no init string is provided, initialize the soft prompt with a uniform distribution between -init_range and init_rang
+    """
+
+    mamba_selective_scan_fusion: bool = False
+    """
+    Enable fused kernels for Mamba selective scan.
+    """
+
+    mamba_causal_conv_fusion: bool = False
+    """
+    Enable fused kernels for Mamba causal Conv1d.
+    """
+
+    mamba_inner_func_fusion: bool = False
+    """
+    Enable fused inner operator for Mamba. (Supersedes conv. and selective scan fusion flags, requires each of those kernels to be installed.)
+    """
+
+    mamba_selective_fp32_params: bool = True
+    """
+    Keep selected parameters in fp32 for Mamba (A and D).
+    Requires https://github.com/EleutherAI/DeeperSpeed/pull/61 .
+    """
+
+    mamba_use_bias_in_conv: bool = True
+    """
+    If false, conv1d in mamba block will not have bias term
+    """
+
+    mamba_use_bias_in_linears: bool = False
+    """
+    Enable bias terms in mamba block up- and down- projections (in_proj and out_proj).
     """
 
     # Output layer parallelism over the hidden dim is currently broken (https://github.com/EleutherAI/gpt-neox/issues/905)
@@ -1241,4 +1289,59 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     Tasks to evaluate on using lm_eval_harness
 
     NOTE: Requires internet connection
+    """
+
+    moe_top_k: int = 1
+    """
+    Activate top K experts in MoE
+    """
+
+    use_tutel: bool = False
+    """
+    Use Tutel optimizations in MoE
+    """
+
+    num_experts: int = 1
+    """
+    Number of MoE experts
+    """
+
+    moe_loss_coeff: float = 0.1
+    """
+    Coefficient for MoE loss
+    """
+
+    moe_train_capacity_factor: float = 1.0
+    """
+    The capacity of the expert at train time
+    """
+
+    moe_eval_capacity_factor: float = 1.0
+    """
+    The capacity of the expert at eval time
+    """
+
+    moe_min_capacity: int = 4
+    """
+    The minimum capacity per expert regardless of the capacity_factor
+    """
+
+    moe_token_dropping: bool = True
+    """
+    Whether to drop tokens when exceeding capacity
+    """
+
+    create_moe_param_group: bool = True
+    """
+    Whether to create a separate parameter group for MoE parameters
+    """
+
+    moe_use_residual: bool = True
+    """
+    Whether to use residual in MoE
+    """
+
+    moe_expert_parallel_size: int = 1
+    """
+    Number of parallel experts in MoE
     """

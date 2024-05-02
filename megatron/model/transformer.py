@@ -21,6 +21,8 @@ import math
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
+from pkg_resources import packaging
+from importlib.metadata import version
 
 from .norms import get_norm
 from megatron import mpu
@@ -43,6 +45,7 @@ from megatron.model.fused_bias_dropout import (
     bias_dropout_add_fused_inference,
 )
 from megatron.model.utils import configure_sparse_attention
+from deepspeed.moe.layer import MoE
 
 # flags required to enable jit fusion kernels
 torch._C._jit_set_profiling_mode(False)
@@ -84,7 +87,13 @@ class ParallelMLP(nn.Module):
     """
 
     def __init__(
-        self, neox_args, init_method, output_layer_init_method, parallel_output=False
+        self,
+        neox_args,
+        init_method,
+        output_layer_init_method,
+        parallel_output=False,
+        MOE=False,
+        MoE_mp_size=1,
     ):
         super().__init__()
 
@@ -106,6 +115,8 @@ class ParallelMLP(nn.Module):
             gather_output=False,
             init_method=init_method,
             skip_bias_add=True,
+            MOE=MOE,
+            MoE_mp_size=MoE_mp_size,
         )
         ff_dim_in = ff_dim // 2 if self.activation_type == "geglu" else ff_dim
         # Project back to h.
@@ -115,8 +126,10 @@ class ParallelMLP(nn.Module):
             output_size=neox_args.hidden_size,
             input_is_parallel=True,
             init_method=output_layer_init_method,
-            skip_bias_add=True,
             parallel_output=parallel_output,
+            skip_bias_add=True,
+            MOE=MOE,
+            MoE_mp_size=MoE_mp_size,
         )
 
     def forward(self, hidden_states):
@@ -158,6 +171,8 @@ class LLaMAParallelMLP(nn.Module):
         output_layer_init_method,
         parallel_output=False,
         multiple_of=256,
+        MOE=False,
+        MoE_mp_size=1,
     ):
         super().__init__()
 
@@ -181,6 +196,8 @@ class LLaMAParallelMLP(nn.Module):
             init_method=init_method,
             skip_bias_add=True,
             bias=False,
+            MOE=MOE,
+            MoE_mp_size=MoE_mp_size,
         )
         self.w3 = mpu.ColumnParallelLinear(
             neox_args=neox_args,
@@ -190,6 +207,8 @@ class LLaMAParallelMLP(nn.Module):
             init_method=init_method,
             skip_bias_add=True,
             bias=False,
+            MOE=MOE,
+            MoE_mp_size=MoE_mp_size,
         )
         self.w2 = mpu.RowParallelLinear(
             neox_args=neox_args,
@@ -200,6 +219,8 @@ class LLaMAParallelMLP(nn.Module):
             skip_bias_add=True,
             parallel_output=parallel_output,
             bias=False,
+            MOE=MOE,
+            MoE_mp_size=MoE_mp_size,
         )
 
     def forward(self, hidden_states):
@@ -395,6 +416,7 @@ class ParallelSelfAttention(nn.Module):
                 base=neox_args.rotary_emb_base,
                 max_seq_len=neox_args.seq_length,
                 precision=neox_args.params_dtype,
+                save_inv_freqs=neox_args.rotary_save_freqs_buffer,
             )
         else:
             self.rotary_emb = None
@@ -402,6 +424,14 @@ class ParallelSelfAttention(nn.Module):
         self.rope_fusion = neox_args.rope_fusion
         self.attention_type = neox_args.attention_config[layer_number]
         self.use_flash_attention = self.attention_type == "flash"
+        self.use_triton = (
+            self.use_flash_attention
+            and self.pos_emb == "alibi"
+            and (
+                not packaging.version.Version(version("flash-attn"))
+                >= packaging.version.Version("2.4.0.post1")
+            )
+        )
         self.sparse = self.attention_type not in ("global", "flash")
 
         if self.gqa:
@@ -568,7 +598,7 @@ class ParallelSelfAttention(nn.Module):
             key_layer.size(0),
         )
 
-        if self.pos_emb != "alibi":
+        if self.use_flash_attention and not self.use_triton:
 
             # [sk, b, np, hn] -> [b, sk, np, hn] -> [b * sk, 1, np, hn]
             key_layer = key_layer.transpose(0, 1).reshape(
@@ -578,35 +608,50 @@ class ParallelSelfAttention(nn.Module):
                 output_size[0], output_size[3], self.num_kv_heads_per_partition, -1
             )
 
-            batch_size = output_size[0]
-            max_seqlen_q = output_size[2]
-            max_seqlen_k = output_size[3]
-
-            cu_seqlens_q = torch.arange(
-                0,
-                (batch_size + 1) * max_seqlen_q,
-                step=max_seqlen_q,
-                dtype=torch.int32,
-                device=query_layer.device,
-            )
-
-            cu_seqlens_k = torch.arange(
-                0,
-                (batch_size + 1) * max_seqlen_k,
-                step=max_seqlen_k,
-                dtype=torch.int32,
-                device=key_layer.device,
-            )
-
             # [sq, b, np, hn] -> [b, sq, np, hn]
             query_layer = query_layer.transpose(0, 1).reshape(
                 output_size[0], output_size[2], output_size[1], -1
             )
 
+            # only pass in window_size or alibi_slopes kwarg
+            # if we use Sliding Window Attention / AliBi.
+            # Flash attn defaults to (-1,-1), or
+            # does not have this kwarg prior to v2.3.0
+            extra_kwargs = (
+                {"window_size": (self.sliding_window_width, -1)}
+                if self.sliding_window_width is not None
+                else {}
+            )
+            if self.pos_emb == "alibi":
+                extra_kwargs["alibi_slopes"] = self.alibi_embed.slopes.to(
+                    query_layer.device
+                ).to(torch.float32)
+
             if not self.training:
+                batch_size = output_size[0]
+                max_seqlen_q = output_size[2]
+                max_seqlen_k = output_size[3]
+
+                cu_seqlens_q = torch.arange(
+                    0,
+                    (batch_size + 1) * max_seqlen_q,
+                    step=max_seqlen_q,
+                    dtype=torch.int32,
+                    device=query_layer.device,
+                )
+
+                cu_seqlens_k = torch.arange(
+                    0,
+                    (batch_size + 1) * max_seqlen_k,
+                    step=max_seqlen_k,
+                    dtype=torch.int32,
+                    device=key_layer.device,
+                )
+
                 q_shape = query_layer.shape
                 k_shape = key_layer.shape
                 v_shape = value_layer.shape
+                is_causal = max_seqlen_q == max_seqlen_k
                 output = self.flash_varlen_qkv_fn(
                     query_layer.reshape(
                         (q_shape[0] * q_shape[1], q_shape[2], q_shape[3])
@@ -622,10 +667,8 @@ class ParallelSelfAttention(nn.Module):
                     max_seqlen_q,
                     max_seqlen_k,
                     softmax_scale=None,
-                    causal=True,
-                    window_size=(self.sliding_window_width, -1)
-                    if self.sliding_window_width is not None
-                    else (-1, -1),
+                    causal=is_causal,
+                    **extra_kwargs,
                 )
                 output = output.reshape(q_shape)
             else:
@@ -636,9 +679,7 @@ class ParallelSelfAttention(nn.Module):
                     self.dropout_p if self.training else 0.0,
                     softmax_scale=None,
                     causal=True,
-                    window_size=(self.sliding_window_width, -1)
-                    if self.sliding_window_width is not None
-                    else (-1, -1),
+                    **extra_kwargs,
                 )
 
             matmul_result = output
@@ -646,6 +687,8 @@ class ParallelSelfAttention(nn.Module):
             matmul_result = matmul_result.transpose(1, 2)
 
         else:
+            # we still use Triton if using AliBi with flash-attn<2.4.0.post1.
+
             # [sq, b, np, hn] -> [b, sq, np, hn]
             sq = query_layer.size(0)
             b = query_layer.size(1)
@@ -960,22 +1003,59 @@ class ParallelTransformerLayer(nn.Module):
         self.post_attention_layernorm = norm(neox_args.hidden_size, eps=eps)
 
         # MLP
-        if neox_args.mlp_type == "regular":
-            self.mlp = ParallelMLP(
-                neox_args=neox_args,
-                init_method=init_method,
-                output_layer_init_method=output_layer_init_method,
-                parallel_output=self.gpt_j_residual,
-            )
-        elif neox_args.mlp_type == "llama":
-            self.mlp = LLaMAParallelMLP(
-                neox_args=neox_args,
-                init_method=init_method,
-                output_layer_init_method=output_layer_init_method,
-                parallel_output=self.gpt_j_residual,
-            )
+        def get_mlp(mlp_type, **kw):
+            if mlp_type == "regular":
+                return ParallelMLP(
+                    neox_args=neox_args,
+                    init_method=init_method,
+                    output_layer_init_method=output_layer_init_method,
+                    parallel_output=self.gpt_j_residual,
+                    **kw,
+                )
+            elif mlp_type == "llama":
+                return LLaMAParallelMLP(
+                    neox_args=neox_args,
+                    init_method=init_method,
+                    output_layer_init_method=output_layer_init_method,
+                    parallel_output=self.gpt_j_residual,
+                    **kw,
+                )
+            else:
+                raise KeyError(mlp_type)
+
+        self.num_experts = (
+            neox_args.num_experts
+            if layer_number % neox_args.expert_interval == 0
+            else 1
+        )
+        args = neox_args
+        if self.num_experts <= 1:
+            self.mlp = get_mlp(neox_args.mlp_type)
         else:
-            raise KeyError(neox_args.mlp_type)
+            from torch import distributed as dist
+
+            if self.num_experts > dist.get_world_size():
+                moe_mp_size = 1
+            else:
+                moe_mp_size = dist.get_world_size() // self.num_experts
+
+            self.mlp = MoE(
+                args.hidden_size,
+                get_mlp(
+                    "regular",
+                    MOE=True,
+                    MoE_mp_size=moe_mp_size,
+                ),
+                num_experts=self.num_experts,
+                ep_size=args.moe_expert_parallel_size,
+                k=args.moe_top_k,
+                use_residual=args.moe_use_residual,
+                capacity_factor=args.moe_train_capacity_factor,
+                eval_capacity_factor=args.moe_eval_capacity_factor,
+                min_capacity=args.moe_min_capacity,
+                drop_tokens=args.moe_token_dropping,
+                use_tutel=args.use_tutel,
+            )
 
         self.layer_past = None  # used to cache k/v pairs in inference
 
@@ -993,6 +1073,7 @@ class ParallelTransformerLayer(nn.Module):
     def forward(self, x, attention_mask, layer_past=None):
         layer_past = layer_past if layer_past is not None else self.layer_past
         bias_dropout_fn = self._get_bias_dropout()
+        moe_loss = torch.tensor(0.0, device=x.device, dtype=x.dtype)
         # x: [b, s, h]
         if self.gpt_j_residual:
             # pseudocode:
@@ -1073,12 +1154,19 @@ class ParallelTransformerLayer(nn.Module):
                     )
 
             # output = x + mlp(ln2(x))
-            mlp_output, mlp_bias = self.mlp(
-                self.post_attention_layernorm(attention_output)
+            layernorm_output = self.post_attention_layernorm(attention_output)
+            mlp_bias = torch.tensor(
+                0.0, device=layernorm_output.device, dtype=layernorm_output.dtype
             )
 
+            if self.num_experts == 1:
+                mlp_output, mlp_bias = self.mlp(layernorm_output)
+            else:
+                mlp_output, moe_loss, _ = self.mlp(layernorm_output)
+                mlp_bias = None  # deepspeed.moe.layer.MoE.forward ignores the bias term
+
             with torch.enable_grad():
-                if self.mlp_type == "llama":
+                if self.mlp_type == "llama" or self.num_experts > 1:
                     # No dropout either
                     assert mlp_bias is None
                     output = mlp_output + attention_output
@@ -1090,7 +1178,7 @@ class ParallelTransformerLayer(nn.Module):
                         prob=self.hidden_dropout,
                     )
 
-        return output
+        return output, moe_loss
 
 
 class ParallelTransformerLayerPipe(ParallelTransformerLayer):
@@ -1102,7 +1190,10 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
         ), "ParallelTransformerLayerPipe expects 2 arguments - hidden_states and attention_mask"
         hidden_states, attention_mask = args
         # we are returning just [hidden_states, mask]
-        return super().forward(hidden_states, attention_mask), attention_mask
+        output, moe_loss = super().forward(hidden_states, attention_mask)
+        # auxiliary output
+        self.last_moe_loss = moe_loss
+        return output, attention_mask
 
 
 class ParallelLinearPipe(ParallelLinear):

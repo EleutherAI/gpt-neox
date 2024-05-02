@@ -1,0 +1,3 @@
+causal_conv1d>=1.1.0
+einops
+mamba_ssm>=1.2.0.post1 # required for untied embedding + unembedding layers
