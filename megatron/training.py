@@ -433,7 +433,7 @@ def get_model(neox_args, use_cache=False):
     print_rank_0("building GPT2 model ...")
 
     with deepspeed.zero.Init(
-        config_dict_or_path=neox_args.deespeed_config
+        config_dict_or_path=neox_args.deepspeed_config
     ) if neox_args.zero_stage == 3 else nullcontext() as gs:
         model = GPT2ModelPipe(
             neox_args=neox_args,
