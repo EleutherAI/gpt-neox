@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 4e37645
+    Default = 6a8ad71
 
     current git hash of repository
 
@@ -1782,6 +1782,41 @@ Training Arguments
     Default = False
 
     Whether to use muP
+
+
+
+- **mup_save**: str
+
+    Default = None
+
+    Path to save results when using muP
+
+
+
+- **mup_lr**: float
+
+    Default = None
+
+    An alias parameter for lr,
+    if not None will override lr
+
+
+
+- **mup_std**: float
+
+    Default = None
+
+    An alias parameter for init_method_std,
+    if not None will override init_method_std
+
+
+
+- **mup_hidden_size**: int
+
+    Default = None
+
+    An alias parameter for hidden_size,
+    if not None will override hidden_size
 
 
 
