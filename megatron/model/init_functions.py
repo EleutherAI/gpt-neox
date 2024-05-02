@@ -115,26 +115,20 @@ def xavier_normal_init_method(mup_width_multiplier=1.0):
 def small_init_init_method(dim, mup_width_multiplier=1.0):
     """Fills the input Tensor with values according to the method described in Transformers without Tears: Improving
     the Normalization of Self-Attention - Nguyen, T. & Salazar, J. (2010), using a normal distribution."""
-    std = math.sqrt(2 / (5 * dim))
+    std = math.sqrt(2 / (5 * dim)) / math.sqrt(args.mup_width_multiplier)
 
     def init_(tensor, mup_width_multiplier=mup_width_multiplier):
         init_weight = torch.nn.init.normal_(tensor, mean=0.0, std=std)
-        if mup_width_multiplier != 1:
-            with torch.no_grad():
-                init_weight.div_(math.sqrt(mup_width_multiplier))
         return init_weight
 
     return init_
 
 
 def wang_init_method(n_layers, dim, mup_width_multiplier=1.0):
-    std = 2 / n_layers / math.sqrt(dim)
+    std = 2 / n_layers / math.sqrt(dim) / math.sqrt(args.mup_width_multiplier)
 
     def init_(tensor, mup_width_multiplier=mup_width_multiplier):
         init_weight = torch.nn.init.normal_(tensor, mean=0.0, std=std)
-        if mup_width_multiplier != 1:
-            with torch.no_grad():
-                init_weight.div_(math.sqrt(mup_width_multiplier))
         return init_weight
 
     return init_

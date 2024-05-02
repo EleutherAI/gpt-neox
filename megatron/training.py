@@ -123,24 +123,16 @@ def coord_check(neox_args, timers, train_data_iterator):
 
     def lazy_model(hidden_size, attention_head, d_model_base=2**8):
         def gen():
-            old_hidden_size = neox_args.hidden_size
-            old_num_attention_heads = neox_args.num_attention_heads
-            old_mup_d_model_base = neox_args.mup_d_model_base
-            old_mup_width_multiplier = neox_args.mup_width_multiplier
 
             neox_args.hidden_size = hidden_size
             neox_args.num_attention_heads = attention_head
             neox_args.mup_d_model_base = d_model_base
-            neox_args.mup_width_multiplier = hidden_size / neox_args.mup_d_model_base
+            neox_args.mup_width_multiplier = hidden_size / d_model_base
 
             model, optimizer, lr_scheduler = setup_model_and_optimizer(
                 neox_args=neox_args, use_cache=False
             )
 
-            neox_args.hidden_size = old_hidden_size
-            neox_args.num_attention_heads = old_num_attention_heads
-            neox_args.mup_d_model_base = old_mup_d_model_base
-            neox_args.mup_width_multiplier = old_mup_width_multiplier
             return model, optimizer, lr_scheduler
 
         return gen
@@ -559,8 +551,7 @@ def get_optimizer(model, neox_args):
         else:
             try:
                 # default to apex as it's slightly faster
-                # from apex.optimizers import FusedAdam as Adam
-                from torch.optim import Adam
+                from apex.optimizers import FusedAdam as Adam
             except ImportError:
                 # if apex isn't installed, use deepspeed's FusedAdam
                 print(
