@@ -4,21 +4,23 @@
   "model_parallel_size": 1,
 
   # model settings
-  "num_layers": 8,
-  "num_attention_heads": 8,
-  "seq_length": 128,
-  "max_position_embeddings": 128,
+  "num_layers": 2,
+  "num_attention_heads": 4,
+  "seq_length": 2048,
+  "max_position_embeddings": 2048,
   "pos_emb": "rotary",
   "rotary_pct": 0.25,
   "no_weight_tying": true,
   "gpt_j_residual": true,
   "output_layer_parallelism": "column",
 
-  # "attention_config": [[["flash"], 8]],
-
   # these should provide some speedup but takes a while to build, set to true if desired
   "scaled_upper_triang_masked_softmax_fusion": true,
   "bias_gelu_fusion": true,
+
+  # # init methods
+  # "init_method": "small_init",
+  # "output_layer_init_method": "wang_init",
 
   # init methods
   "init_method": "normal",
@@ -28,12 +30,12 @@
   "optimizer": {
     "type": "Adam",
     "params": {
-      "lr": 0.006,
       "betas": [0.9, 0.95],
       "eps": 1.0e-8,
     }
   },
-  # "min_lr": 0.006,
+  "lr_decay_style": constant,
+  "warmup": 0,
 
   # for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
    "zero_optimization": {
@@ -48,8 +50,8 @@
   },
 
   # batch / data settings
-  "train_micro_batch_size_per_gpu": 2,
-  "gradient_accumulation_steps": 32,
+  "train_micro_batch_size_per_gpu": 8,
+  "gradient_accumulation_steps": 1,
   "data_impl": "mmap",
   "num_workers": 1,
 
@@ -61,7 +63,7 @@
 
   # regularization
   "gradient_clipping": 1.0,
-  "weight_decay": 0.0,
+  "weight_decay": 0.1,
   "hidden_dropout": 0,
   "attention_dropout": 0,
 
@@ -72,34 +74,29 @@
   #   "enabled": true,
   #   "loss_scale": 0,
   #   "loss_scale_window": 1000,
-  #   "initial_scale_power": 12,
   #   "hysteresis": 2,
-  #   "min_loss_scale": 1,
+  #   "min_loss_scale": 1
   # },
 
   # misc. training settings
   "train_iters": 10,
   "log_interval": 1,
   "distributed_backend": "nccl",
-  "lr_decay_style": "constant",
-  "tokenizer_type": "HFTokenizer",
-  "vocab-file": "/weka/lintangsutawika/09-mup-neox/20B_tokenizer.json",
 
   "coord_check": true,
   "coord_check_nsteps": 10,
   "coord_check_nseeds": 3,
   "use_mup": true,
-  # sigma_base
-  "init_method_std": 0.08,
-  # "mup_embedding_multiplier": 5,
-  # "mup_output_multiplier": 1,
-  # "mup_width_multiplier": 1,
-  "mup_d_model_base": 128,
-  "hidden_size": 128,
+  # base lr
+  "mup_lr": 0.01,
+  # base sigma
+  "mup_std": 0.06,
+  # base size
+  "mup_d_model_base": 256,
 
-  "data-path": "/weka/lintangsutawika/09-mup-neox/data/enwik8/enwik8_text_document",
-
-  # "launcher": "slurm",
-  # "deepspeed_slurm": true,
+  "tokenizer_type": "HFTokenizer",
+  "vocab-file": "/mnt/ssd-1/lintang/09-mup-neox/20B_tokenizer.json",
+  "data-path": "/mnt/ssd-1/lintang/09-mup-neox/data/enwik8/enwik8_text_document",
+  "mup_save": "/mnt/ssd-1/lintang/09-mup-neox/mup_results",
 
 }
