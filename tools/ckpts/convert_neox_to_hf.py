@@ -520,14 +520,6 @@ def convert(
             )
 
         # Just take one
-        if "attention.rotary_emb.inv_freq" in hf_layer.state_dict():
-            state_dict["attention.rotary_emb.inv_freq"] = get_state(
-                loaded_tp_ranks,
-                "attention.rotary_emb.inv_freq",
-                layer_idx=layer_i + 2,
-                sequential=sequential,
-            )[0]
-
         if "attention.bias" in hf_layer.state_dict():
             state_dict["attention.bias"] = hf_layer.state_dict()["attention.bias"]
         if "attention.masked_bias" in hf_layer.state_dict():

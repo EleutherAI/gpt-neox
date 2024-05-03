@@ -390,12 +390,6 @@ class NeoXArgs(*BASE_CLASSES):
 
             neox_args.wandb_group += "_" + wandb.util.generate_id()
 
-        if neox_args.sliding_window_width is not None:
-            _flash_version = packaging.version.Version(version("flash-attn"))
-            assert _flash_version >= packaging.version.Version(
-                "2.0.0"
-            ), f"Flash-Attention version ({str(_flash_version)}) must be >= 2.0.0 to support sliding window attention."
-
         neox_args.print()
 
         return neox_args
@@ -1039,7 +1033,14 @@ class NeoXArgs(*BASE_CLASSES):
         # Update 'is pipe parallel' flag
         # if we set pipe_parallel_size to 0 or 1, GPT2ModelPipe.to_sequential() is called, and we run training with
         # the sequential model without the PipelineModule wrapper to avoid the overhead it incurs
-        self.update_value("is_pipe_parallel", self.pipe_parallel_size >= 1)
+        self.update_value(
+            "is_pipe_parallel", self.pipe_parallel_size > 1 and self.num_experts == 1
+        )
+        if self.num_experts > 1:
+            assert not (
+                self.is_pipe_parallel or self.pipe_parallel_size > 1
+            ), "MoE not supported with pipeline parallelism"
+            assert self.zero_optimization["stage"] != 3, "MoE not compatible with zero3"
 
         # Attention config
         if self.attention_config is None:
@@ -1059,6 +1060,21 @@ class NeoXArgs(*BASE_CLASSES):
             assert (
                 not self.partition_activations
             ), "GMLP Blocks are not compatible with partition activations"
+        if "mamba" in self.attention_config:
+            if isinstance(self.zero_stage, int):
+                assert self.zero_stage <= 2, "Zero stage 3 not compatible with Mamba"
+            assert (
+                self.hidden_dropout == 0.0,
+            ), "Mamba does not yet have dropout implemented"
+        if "rwkv" in self.attention_config:
+            assert (
+                not self.is_pipe_parallel and self.model_parallel_size == 1
+            ), "RWKV not currently compatible with parallelism"
+            if isinstance(self.zero_stage, int):
+                assert self.zero_stage <= 2, "Zero stage 3 not compatible with RWKV"
+            assert (
+                self.hidden_dropout == 0.0,
+            ), "RWKV does not yet have dropout implemented"
 
         # Sparsity config
         if self.sparsity_config is None:
@@ -1080,10 +1096,22 @@ class NeoXArgs(*BASE_CLASSES):
                 assert all(
                     (attn_type == "flash") or (attn_type == "global")
                     for attn_type in self.attention_config
-                ), "GQA / MQA currently only compatible with Flash or standard global Attention"
+                ), "GQA / MQA currently only compatible with Flash or standard global/sliding window Attention"
                 assert (
                     self.num_kv_heads % self.model_parallel_size == 0
                 ), "Number of KV heads must be at least model_parallel_size for now!"
+        # Flash attention version >=2.3.0 required to combine Flash + Sliding Window Attention
+        if "flash" in self.attention_config:
+            _flash_version = packaging.version.Version(version("flash-attn"))
+            if self.sliding_window_width is not None:
+                assert _flash_version >= packaging.version.Version(
+                    "2.3.0"
+                ), f"Flash-Attention version ({str(_flash_version)}) must be >= 2.3.0 to support sliding window attention."
+            if self.pos_emb == "alibi":
+                if not _flash_version >= packaging.version.Version("2.4.0.post1"):
+                    print(
+                        f"Warning: Flash-Attention version ({str(_flash_version)}) must be >= 2.4.0.post1 to support AliBi. Falling back to flash-attn triton backend, but version 2.4.0.post1 or later will be required in future."
+                    )
 
         # Adding equal dataset weights if none are provided
         if self.train_data_paths and (self.train_data_weights is None):

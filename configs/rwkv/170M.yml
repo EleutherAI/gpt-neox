@@ -5,7 +5,7 @@
 
   "num_layers": 12,
   "hidden_size": 768,
-  "num_attention_heads": 12, # head_size = dim_att / num_attention_heads. 
+  "num_attention_heads": 12, # head_size = dim_att / num_attention_heads.
                              # head_size is 64 for all rwkv models
   "seq_length": 512,
   "max_position_embeddings": 2048,
@@ -18,15 +18,12 @@
 
   "activation": "silu",
 
-  "output_layer_init_method": "single_residual_scaled_normal",
-
   # model settings
 
   #"pos_emb": "rotary",
   "rotary_pct": 0.25,
   "no_weight_tying": true,
   "gpt_j_residual": true,
-  "output_layer_parallelism": "column",
 
   # these should provide some speedup but takes a while to build, set to true if desired
   "scaled_upper_triang_masked_softmax_fusion": false,
@@ -62,7 +59,6 @@
   },
 
   # batch / data settings
-  "train_micro_batch_size_per_gpu": 32,
   "data_impl": "mmap",
   "num_workers": 1,
 
