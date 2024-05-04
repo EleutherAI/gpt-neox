@@ -74,9 +74,9 @@ def convert_hf_to_sequential(hf_model, seq_state_dict):
     """
     num_layers = hf_model.config.num_hidden_layers
     # Embedding is layer idx 0
-    seq_state_dict["sequential.0.word_embeddings.weight"] = (
-        hf_model.gpt_neox.embed_in.state_dict()["weight"]
-    )
+    seq_state_dict[
+        "sequential.0.word_embeddings.weight"
+    ] = hf_model.gpt_neox.embed_in.state_dict()["weight"]
 
     for layer_hf in range(num_layers):
         # offset by 2
@@ -94,18 +94,18 @@ def convert_hf_to_sequential(hf_model, seq_state_dict):
 
     # Load final layer norm
     layer_seq = num_layers + 3
-    seq_state_dict[f"sequential.{layer_seq}.norm.weight"] = (
-        hf_model.gpt_neox.final_layer_norm.state_dict()["weight"]
-    )
-    seq_state_dict[f"sequential.{layer_seq}.norm.bias"] = (
-        hf_model.gpt_neox.final_layer_norm.state_dict()["bias"]
-    )
+    seq_state_dict[
+        f"sequential.{layer_seq}.norm.weight"
+    ] = hf_model.gpt_neox.final_layer_norm.state_dict()["weight"]
+    seq_state_dict[
+        f"sequential.{layer_seq}.norm.bias"
+    ] = hf_model.gpt_neox.final_layer_norm.state_dict()["bias"]
 
     # output embedding / LM head
     layer_seq += 1
-    seq_state_dict[f"sequential.{layer_seq}.final_linear.weight"] = (
-        hf_model.embed_out.state_dict()["weight"]
-    )
+    seq_state_dict[
+        f"sequential.{layer_seq}.final_linear.weight"
+    ] = hf_model.embed_out.state_dict()["weight"]
 
 
 def shard_sequential_mp(num_mp_ranks, sequential):

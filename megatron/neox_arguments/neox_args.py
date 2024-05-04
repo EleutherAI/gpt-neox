@@ -181,9 +181,9 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Scalenorm epsilon
     """
 
-    pos_emb: Literal["learned", "rotary", "sinusoidal", "rpe", "alibi", "none"] = (
-        "learned"
-    )
+    pos_emb: Literal[
+        "learned", "rotary", "sinusoidal", "rpe", "alibi", "none"
+    ] = "learned"
     """
     Type of positional embedding to use - choose from 'learned', 'rotary', 'sinusoidal', 'rpe', 'none'
     """
@@ -1337,7 +1337,7 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
 
     moe_jitter_eps: float = None
     """
-    Coefficient for MoE routing jitter. Jitter is 
+    Coefficient for MoE routing jitter. Jitter is
     not used if set to None
     """
 

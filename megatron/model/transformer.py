@@ -1101,6 +1101,7 @@ class ParallelTransformerLayer(nn.Module):
                     enable_expert_tensor_parallelism=args.enable_expert_tensor_parallelism,
                 )
             elif neox_args.moe_type == "megablocks":
+
                 def integrate_megablocks_with_ds_expert_parallelism():
                     # We make megablocks work with DS parallelism.
                     #
@@ -1109,7 +1110,7 @@ class ParallelTransformerLayer(nn.Module):
                     # including TED parallelism.
                     #
                     # Effectively, we want to:
-                    # 
+                    #
                     # - Make DS's data parallel gradient all-reduction skip these params.
                     # - But make these params participate in the expert parallel all-reduction!
                     #
@@ -1152,7 +1153,7 @@ class ParallelTransformerLayer(nn.Module):
 
                     # Next, we trick DS into seeing these as its own MoE params.
                     for param in self.mlp.parameters():
-                        if getattr(param,'expert_model_parallel',None) is not None:
+                        if getattr(param, "expert_model_parallel", None) is not None:
                             # is_moe_param looks for this attr.
                             param.allreduce = False
                             param.group_name = throwaway.expert_group_name
