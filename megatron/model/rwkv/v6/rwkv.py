@@ -278,7 +278,8 @@ class RWKVResidualLayer(nn.Module):
         if not hasattr(neox_args, "dim_att"):
             neox_args.dim_att = neox_args.hidden_size
         if not hasattr(neox_args, "dim_ffn"):
-            neox_args.dim_ffn = neox_args.hidden_size * 4
+            # Make hidden size 3.5x. Round to nearest multiple of 32 until we add hdim rounding logic
+            neox_args.dim_ffn = int((neox_args.hidden_size * 3.5) // 32 * 32)
         assert neox_args.hidden_size % 32 == 0
         assert neox_args.dim_att % 32 == 0
         assert neox_args.dim_ffn % 32 == 0
@@ -310,8 +311,8 @@ class RWKVResidualLayer(nn.Module):
             wkv_cuda = load(
                 name="wkv6",
                 sources=[
-                    "megatron/model/rwkv/cuda/wkv6_op.cpp",
-                    f"megatron/model/rwkv/cuda/wkv6_cuda.cu",
+                    "megatron/model/rwkv/v6/cuda/wkv6_op.cpp",
+                    f"megatron/model/rwkv/v6/cuda/wkv6_cuda.cu",
                 ],
                 verbose=True,
                 extra_cuda_cflags=[
