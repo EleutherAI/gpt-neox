@@ -96,14 +96,14 @@ def get_flops(neox_args, iter_time_s) -> float:
         num_heads = neox_args.num_attention_heads
 
         flops_per_iteration = (
-            batch_size * 
-            seq_len *
-            (
-                78 * hidden_size * hidden_size * num_layers + 
-                84 * hidden_size * num_layers + 
-                16 * hidden_size +
-                12 * hidden_size * vocab_size +
-                18 * hidden_size * hidden_size * num_layers / num_heads
+            batch_size
+            * seq_len
+            * (
+                78 * hidden_size * hidden_size * num_layers
+                + 84 * hidden_size * num_layers
+                + 16 * hidden_size
+                + 12 * hidden_size * vocab_size
+                + 18 * hidden_size * hidden_size * num_layers / num_heads
             )
         )
     else:
