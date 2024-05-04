@@ -277,6 +277,11 @@ def create_config(neox_config, architecture="neox"):
                 ),
                 "use_parallel_residual": get_key(neox_config, "gpt-j-residual", False),
                 "layer_norm_eps": get_key(neox_config, "layernorm-epsilon", 1e-5),
+                "intermediate_size": get_key(
+                    neox_config,
+                    "intermediate-size",
+                    4 * get_key(neox_config, "hidden-size"),
+                ),
             }
         )
         hf_config = GPTNeoXConfig(**args)
