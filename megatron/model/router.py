@@ -107,7 +107,7 @@ class SinkhornRouter(torch.nn.Module):
         # at inference, just top_k it...sinkhorn algorithm doesn't support autoregressive generation
         else:
             logits = _sinkhorn_activation(logits)
-            scores, indices = torch.topk(logits, k=self.topk, dim=1)
+            scores, indices = torch.topk(logits, k=self.top_k, dim=1)
         return scores, indices
 
     def forward(self, x):
