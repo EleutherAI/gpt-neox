@@ -37,7 +37,7 @@ from megatron.model.transformer import (
     ParallelLinear,
 )
 from megatron.model.gmlp import GMLPBlock
-from megatron.model.rwkv import RWKVResidualLayerPipe
+from megatron.model.rwkv.v6 import RWKVResidualLayerPipe
 from megatron.model.mamba import ParallelMambaResidualLayerPipe
 from megatron.model.word_embeddings import EmbeddingPipe, SoftEmbedding
 

@@ -1,6 +1,6 @@
 {
   # Parallelism is not yet supported for rwkv
-  "pipe_parallel_size": 0,
+  "pipe_parallel_size": 1,
   "model_parallel_size": 1,
 
   "num_layers": 12,
@@ -12,7 +12,7 @@
   "output_layer_parallelism": "column",
   "norm": "rmsnorm",
   "rms_norm_epsilon": 1.0e-5,
-  "train_micro_batch_size_per_gpu": 1,
+  "train_micro_batch_size_per_gpu": 32,
 
   "attention_config": [[["rwkv"], 12]],
 
