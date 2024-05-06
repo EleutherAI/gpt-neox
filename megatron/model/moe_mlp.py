@@ -434,13 +434,9 @@ class ParallelGroupedLLaMAMLP(torch.nn.Module):
         #     self.activation_func
         # )
 
-        llama_x_w1T = gg.ops.gmm(
-            x, w1, grouped_gemm_batch_sizes, trans_b=True
-        )
+        llama_x_w1T = gg.ops.gmm(x, w1, grouped_gemm_batch_sizes, trans_b=True)
 
-        llama_x_w3T = gg.ops.gmm(
-            x, w3, grouped_gemm_batch_sizes, trans_b=True
-        )
+        llama_x_w3T = gg.ops.gmm(x, w3, grouped_gemm_batch_sizes, trans_b=True)
 
         llama_act_x_w1T = self.activation_func(llama_x_w1T)
 

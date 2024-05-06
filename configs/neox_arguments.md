@@ -1056,14 +1056,6 @@ Parallelism Arguments
 
 
 
-- **expert_interval**: int
-
-    Default = 2
-
-    Have one MoE layer every expert_interval layers
-
-
-
 ## NeoXArgsTemplate
 
 NeoXArgsTemplate()
@@ -1183,93 +1175,6 @@ Text Generation arguments
 
     NOTE: Requires internet connection
 
-
-
-- **moe_top_k**: int
-
-    Default = 1
-
-    Activate top K experts in MoE
-
-
-
-- **use_tutel**: bool
-
-    Default = False
-
-    Use Tutel optimizations in MoE
-
-
-
-- **num_experts**: int
-
-    Default = 1
-
-    Number of MoE experts
-
-
-
-- **moe_loss_coeff**: float
-
-    Default = 0.1
-
-    Coefficient for MoE loss
-
-
-
-- **moe_train_capacity_factor**: float
-
-    Default = 1.0
-
-    The capacity of the expert at train time
-
-
-
-- **moe_eval_capacity_factor**: float
-
-    Default = 1.0
-
-    The capacity of the expert at eval time
-
-
-
-- **moe_min_capacity**: int
-
-    Default = 4
-
-    The minimum capacity per expert regardless of the capacity_factor
-
-
-
-- **moe_token_dropping**: bool
-
-    Default = True
-
-    Whether to drop tokens when exceeding capacity
-
-
-
-- **create_moe_param_group**: bool
-
-    Default = True
-
-    Whether to create a separate parameter group for MoE parameters
-
-
-
-- **moe_use_residual**: bool
-
-    Default = True
-
-    Whether to use residual in MoE
-
-
-
-- **moe_expert_parallel_size**: int
-
-    Default = 1
-
-    Number of parallel experts in MoE
 
 
 
@@ -2304,3 +2209,55 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
     Adds a `--account` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometimes necessary for cluster rules, or so I've heard.
 
+## NeoXArgsMoE
+
+Args for Mixture of Experts configuration
+
+
+- **moe_num_experts**: int
+
+    Default = 1
+
+    The number of experts in MoE layers. MoE
+    layers not used if set to 1
+
+
+
+- **moe_expert_interval**: int
+
+    Default = 1
+
+    Have one MoE layer every expert_interval layers
+
+
+- **moe_top_k**: int
+
+    Default = 1
+
+    The number of experts each token is routed to
+    in MoE layers.
+
+
+
+- **moe_router_type**: typing.Literal['sinkhorn', 'topk']
+
+    Default = 'sinkhorn'
+
+    What token routing algorithm to use.
+
+
+
+- **moe_lbl_in_fp32**: bool
+
+    Default = 0.1
+
+    Whether to compute the load balancing loss in fp32.
+
+
+
+- **moe_jitter_eps**: float
+
+    Default = None
+
+    Coefficient for MoE routing jitter. Jitter is 
+    not used if set to None
