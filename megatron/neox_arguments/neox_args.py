@@ -36,6 +36,7 @@ ATTENTION_TYPE_CHOICES = [
     "gmlp",
     "amlp",
     "flash",
+    "rwkv",
     "mamba",
 ]
 
@@ -216,7 +217,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     The first item in the list specifies the attention type(s), and should be a list of strings. The second item
     specifies the number of times to repeat those attention types in the full list.
 
-    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird, "gmlp", "amlp", "flash", "mamba"]
+    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird, "gmlp", "amlp", "flash", "mamba", "rwkv"]
 
     So a 12 layer network with only global attention could be specified like:
         [[[`global`], 12]]
@@ -1295,7 +1296,7 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     Use Tutel optimizations in MoE
     """
 
-    num_experts: int = 1
+    moe_num_experts: int = 1
     """
     Number of MoE experts
     """
@@ -1320,7 +1321,7 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     The minimum capacity per expert regardless of the capacity_factor
     """
 
-    moe_token_dropping: bool = True
+    moe_token_dropping: bool = False
     """
     Whether to drop tokens when exceeding capacity
     """
@@ -1338,4 +1339,30 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     moe_expert_parallel_size: int = 1
     """
     Number of parallel experts in MoE
+    """
+
+    moe_type: str = "megablocks"
+    """
+    Either `deepspeed` or `megablocks`
+    """
+
+    moe_glu: bool = False
+    """
+    Use gated linear units in MoE
+    """
+
+    moe_lbl_in_fp32: bool = False
+    """
+    Whether to compute the load balancing loss in fp32.
+    """
+
+    moe_jitter_eps: float = None
+    """
+    Coefficient for MoE routing jitter. Jitter is
+    not used if set to None
+    """
+
+    enable_expert_tensor_parallelism: bool = False
+    """
+    Enable expert tensor parallelism
     """

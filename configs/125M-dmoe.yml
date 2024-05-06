@@ -1,8 +1,8 @@
 # GPT-2 pretraining setup
 {
    # See README for MoE config docs!
-   "moe_type": "deepspeed",
-   "moe_token_dropping": true,
+   "moe_type": "megablocks",
+   "moe_token_dropping": false,
    # Have 4 experts per layer (every 2 layers by default)
    "moe_num_experts": 4,
    # parallelism settings
@@ -46,7 +46,7 @@
 
    # for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
    "zero_optimization": {
-    "stage": 1,
+    "stage": 0,
     "allgather_partitions": True,
     "allgather_bucket_size": 500000000,
     "overlap_comm": True,

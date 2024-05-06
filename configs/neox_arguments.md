@@ -143,7 +143,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = cc9cab2
+    Default = 6fb840e
 
     current git hash of repository
 
@@ -464,7 +464,7 @@ Model Arguments
     The first item in the list specifies the attention type(s), and should be a list of strings. The second item
     specifies the number of times to repeat those attention types in the full list.
 
-    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird, "gmlp", "amlp", "flash", "mamba"]
+    attention type choices:  [global, local, sparse_fixed, sparse_variable, bslongformer, bigbird, "gmlp", "amlp", "flash", "mamba", "rwkv"]
 
     So a 12 layer network with only global attention could be specified like:
         [[[`global`], 12]]
@@ -1997,7 +1997,9 @@ Args for deepspeed config
 
     Default = None
 
-    Configuration for using bfloat16 floating-point format as an alternative to FP16. BFLOAT16 requires hardware support (e.g., NVIDIA A100). Dictionary options as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#bfloat16-training-options
+    Configuration for using bfloat16 floating-point format as an alternative to FP16. BFLOAT16 requires hardware support (e.g., NVIDIA A100).
+
+    Dictionary options as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#bfloat16-training-options
 
 
 
