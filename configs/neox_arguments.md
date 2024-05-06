@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 6fb840e
+    Default = 3388c51
 
     current git hash of repository
 
@@ -244,6 +244,62 @@ Logging Arguments
     Default = 12
 
     Step to stop profiling at.
+
+
+
+## NeoXArgsMoE
+
+Mixture of Expert (MoE) Arguments
+
+
+
+- **moe_num_experts**: int
+
+    Default = 1
+
+    The number of experts in MoE layers. MoE layers not used if set to 1
+
+
+
+- **moe_expert_interval**: int
+
+    Default = 1
+
+    Have one MoE layer every expert_interval layers
+
+
+
+- **moe_top_k**: int
+
+    Default = 1
+
+    The number of experts each token is routed to in MoE layers.
+
+
+
+- **moe_router_type**: typing.Literal['sinkhorn', 'topk']
+
+    Default = sinkhorn
+
+    What token routing algorithm to use. Currently only sinkhorn is supported for training.
+    TopK is only used for inference/eval.
+
+
+
+- **moe_lbl_in_fp32**: bool
+
+    Default = False
+
+    Whether to compute the load balancing loss in fp32.
+
+
+
+- **moe_jitter_eps**: float
+
+    Default = None
+
+    Coefficient for MoE routing jitter. Jitter is
+    not used if set to None
 
 
 
@@ -1174,7 +1230,6 @@ Text Generation arguments
     Tasks to evaluate on using lm_eval_harness
 
     NOTE: Requires internet connection
-
 
 
 
@@ -2209,55 +2264,3 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
     Adds a `--account` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometimes necessary for cluster rules, or so I've heard.
 
-## NeoXArgsMoE
-
-Args for Mixture of Experts configuration
-
-
-- **moe_num_experts**: int
-
-    Default = 1
-
-    The number of experts in MoE layers. MoE
-    layers not used if set to 1
-
-
-
-- **moe_expert_interval**: int
-
-    Default = 1
-
-    Have one MoE layer every expert_interval layers
-
-
-- **moe_top_k**: int
-
-    Default = 1
-
-    The number of experts each token is routed to
-    in MoE layers.
-
-
-
-- **moe_router_type**: typing.Literal['sinkhorn', 'topk']
-
-    Default = 'sinkhorn'
-
-    What token routing algorithm to use.
-
-
-
-- **moe_lbl_in_fp32**: bool
-
-    Default = 0.1
-
-    Whether to compute the load balancing loss in fp32.
-
-
-
-- **moe_jitter_eps**: float
-
-    Default = None
-
-    Coefficient for MoE routing jitter. Jitter is 
-    not used if set to None
