@@ -24,9 +24,10 @@ import torch.nn as nn
 from pkg_resources import packaging
 from importlib.metadata import version
 
+from megatron.model.moe import ParallelDroplessMoE
+
 from .norms import get_norm
 from megatron import mpu
-from megatron.model import megablocks_utils
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
 from megatron.model.activations import get_activation
 from megatron.model.utils import exists, get_fusion_type
@@ -46,7 +47,6 @@ from megatron.model.fused_bias_dropout import (
     bias_dropout_add_fused_inference,
 )
 from megatron.model.utils import configure_sparse_attention
-from deepspeed.moe.layer import MoE
 
 # flags required to enable jit fusion kernels
 torch._C._jit_set_profiling_mode(False)
@@ -93,8 +93,6 @@ class ParallelMLP(nn.Module):
         init_method,
         output_layer_init_method,
         parallel_output=False,
-        MOE=False,
-        MoE_mp_size=1,
     ):
         super().__init__()
 
@@ -116,8 +114,6 @@ class ParallelMLP(nn.Module):
             gather_output=False,
             init_method=init_method,
             skip_bias_add=True,
-            MOE=MOE,
-            MoE_mp_size=MoE_mp_size,
         )
         ff_dim_in = ff_dim // 2 if self.activation_type == "geglu" else ff_dim
         # Project back to h.
@@ -129,8 +125,6 @@ class ParallelMLP(nn.Module):
             init_method=output_layer_init_method,
             parallel_output=parallel_output,
             skip_bias_add=True,
-            MOE=MOE,
-            MoE_mp_size=MoE_mp_size,
         )
 
     def forward(self, hidden_states):
@@ -172,8 +166,6 @@ class LLaMAParallelMLP(nn.Module):
         output_layer_init_method,
         parallel_output=False,
         multiple_of=256,
-        MOE=False,
-        MoE_mp_size=1,
     ):
         super().__init__()
 
@@ -197,8 +189,6 @@ class LLaMAParallelMLP(nn.Module):
             init_method=init_method,
             skip_bias_add=True,
             bias=False,
-            MOE=MOE,
-            MoE_mp_size=MoE_mp_size,
         )
         self.w3 = mpu.ColumnParallelLinear(
             neox_args=neox_args,
@@ -208,8 +198,6 @@ class LLaMAParallelMLP(nn.Module):
             init_method=init_method,
             skip_bias_add=True,
             bias=False,
-            MOE=MOE,
-            MoE_mp_size=MoE_mp_size,
         )
         self.w2 = mpu.RowParallelLinear(
             neox_args=neox_args,
@@ -220,8 +208,6 @@ class LLaMAParallelMLP(nn.Module):
             skip_bias_add=True,
             parallel_output=parallel_output,
             bias=False,
-            MOE=MOE,
-            MoE_mp_size=MoE_mp_size,
         )
 
     def forward(self, hidden_states):
@@ -275,55 +261,6 @@ class ParallelLinear(nn.Module):
 
     def forward(self, hidden_states):
         return self.final_linear(hidden_states)
-
-
-class _MegablocksAdapter(nn.Module):
-    def __init__(
-        self, neox_args, layer_cls, init_method, output_layer_init_method, ep_group
-    ):
-        super().__init__()
-        megablocks_utils.assert_megablocks_is_available()
-        args = megablocks_utils.as_megablocks_args(neox_args)
-        args.device = torch.cuda.current_device()
-        args.init_method = init_method
-        args.output_layer_init_method = output_layer_init_method
-
-        # NOTE: Shard the MoE layers over the data parallel group. Expert
-        # parallel sharding and data parallel sharding could be decoupled
-        # by extending the optimizer to handle data parallel reductions for
-        # MoE and non-MoE parameters separately.
-        if args.moe_expert_model_parallelism:
-            args.expert_parallel_group = ep_group
-
-        if neox_args.moe_glu:
-            args.mlp_type = "glu"
-
-        self.moe = layer_cls(args)
-
-    def forward(self, x):
-        return self.moe.forward(x)
-
-
-class MbMoE(_MegablocksAdapter):
-    def __init__(self, neox_args, init_method, output_layer_init_method, ep_group):
-        super().__init__(
-            neox_args,
-            megablocks_utils.moe.MoE,
-            init_method,
-            output_layer_init_method,
-            ep_group,
-        )
-
-
-class dMoE(_MegablocksAdapter):
-    def __init__(self, neox_args, init_method, output_layer_init_method, ep_group):
-        super().__init__(
-            neox_args,
-            megablocks_utils.dmoe.dMoE,
-            init_method,
-            output_layer_init_method,
-            ep_group,
-        )
 
 
 class ParallelSelfAttention(nn.Module):
@@ -1008,7 +945,6 @@ class ParallelTransformerLayer(nn.Module):
 
         super().__init__()
         self.layer_number = layer_number
-        self.neox_args = neox_args
 
         norm, eps = get_norm(neox_args)
 
@@ -1021,7 +957,11 @@ class ParallelTransformerLayer(nn.Module):
         self.gpt_j_residual = neox_args.gpt_j_residual
         self.gpt_j_tied = neox_args.gpt_j_tied
         self.mlp_type = neox_args.mlp_type
-        self.moe_type = neox_args.moe_type
+        self.num_experts = (
+            neox_args.moe_num_experts
+            if layer_number % neox_args.moe_expert_interval == 0
+            else 1
+        )
 
         if self.gpt_j_residual:
             self.reduce = mpu.mappings.reduce_from_model_parallel_region
@@ -1044,7 +984,7 @@ class ParallelTransformerLayer(nn.Module):
         # leads to cleaner code
         self.post_attention_layernorm = norm(neox_args.hidden_size, eps=eps)
 
-        # MLP
+        # Dense MLP selector
         def get_mlp(mlp_type, **kw):
             if mlp_type == "regular":
                 return ParallelMLP(
@@ -1065,103 +1005,16 @@ class ParallelTransformerLayer(nn.Module):
             else:
                 raise KeyError(mlp_type)
 
-        self.num_experts = (
-            neox_args.moe_num_experts
-            if layer_number % neox_args.expert_interval == 0
-            else 1
-        )
-        args = neox_args
+        # Dense MLP
         if self.num_experts <= 1:
             self.mlp = get_mlp(neox_args.mlp_type)
+        # Dropless MoE MLP
         else:
-            from torch import distributed as dist
-
-            if self.num_experts > dist.get_world_size():
-                moe_mp_size = 1
-            else:
-                moe_mp_size = dist.get_world_size() // self.num_experts
-
-            if neox_args.moe_type == "deepspeed":
-                self.mlp = MoE(
-                    args.hidden_size,
-                    get_mlp(
-                        "regular",
-                        MOE=True,
-                        MoE_mp_size=moe_mp_size,
-                    ),
-                    num_experts=self.num_experts,
-                    ep_size=args.moe_expert_parallel_size,
-                    k=args.moe_top_k,
-                    use_residual=args.moe_use_residual,
-                    capacity_factor=args.moe_train_capacity_factor,
-                    eval_capacity_factor=args.moe_eval_capacity_factor,
-                    min_capacity=args.moe_min_capacity,
-                    drop_tokens=args.moe_token_dropping,
-                    use_tutel=args.use_tutel,
-                    enable_expert_tensor_parallelism=args.enable_expert_tensor_parallelism,
-                )
-            elif neox_args.moe_type == "megablocks":
-
-                def integrate_megablocks_with_ds_expert_parallelism():
-                    # We make megablocks work with DS parallelism.
-                    #
-                    # We fool DS into accepting these MoE parameters as its own DS MoE params,
-                    # which makes things work with the underlying expert parallelism,
-                    # including TED parallelism.
-                    #
-                    # Effectively, we want to:
-                    #
-                    # - Make DS's data parallel gradient all-reduction skip these params.
-                    # - But make these params participate in the expert parallel all-reduction!
-                    #
-                    # Further background:
-                    #
-                    # Normally, with the original megablocks demo codebase, it
-                    # only supports 1 copy of any expert throughout
-                    # the network, since it uses EP group = DP group.
-                    #
-                    # First, we trigger DS initialization of the MoE expert parallel groups and internal state.
-                    throwaway = MoE(
-                        args.hidden_size,
-                        get_mlp(
-                            "regular",
-                            MOE=True,
-                            MoE_mp_size=moe_mp_size,
-                        ),
-                        num_experts=self.num_experts,
-                        ep_size=args.moe_expert_parallel_size,
-                        k=args.moe_top_k,
-                        use_residual=args.moe_use_residual,
-                        capacity_factor=args.moe_train_capacity_factor,
-                        eval_capacity_factor=args.moe_eval_capacity_factor,
-                        min_capacity=args.moe_min_capacity,
-                        drop_tokens=args.moe_token_dropping,
-                        use_tutel=args.use_tutel,
-                        enable_expert_tensor_parallelism=args.enable_expert_tensor_parallelism,
-                    )
-                    throwaway.set_deepspeed_parallelism()
-
-                    ep_group = throwaway.deepspeed_moe.ep_group
-                    if args.moe_token_dropping:
-                        self.mlp = MbMoE(
-                            neox_args, init_method, output_layer_init_method, ep_group
-                        )
-                    else:
-                        self.mlp = dMoE(
-                            neox_args, init_method, output_layer_init_method, ep_group
-                        )
-
-                    # Next, we trick DS into seeing these as its own MoE params.
-                    for param in self.mlp.parameters():
-                        if getattr(param, "expert_model_parallel", None) is not None:
-                            # is_moe_param looks for this attr.
-                            param.allreduce = False
-                            param.group_name = throwaway.expert_group_name
-
-                integrate_megablocks_with_ds_expert_parallelism()
-
-            else:
-                raise KeyError(neox_args.moe_type)
+            self.mlp = ParallelDroplessMoE(
+                neox_args=neox_args,
+                init_method=init_method,
+                output_layer_init_method=output_layer_init_method,
+            )
 
         self.layer_past = None  # used to cache k/v pairs in inference
 
@@ -1179,7 +1032,7 @@ class ParallelTransformerLayer(nn.Module):
     def forward(self, x, attention_mask, layer_past=None):
         layer_past = layer_past if layer_past is not None else self.layer_past
         bias_dropout_fn = self._get_bias_dropout()
-        moe_loss = torch.tensor(0.0, device=x.device, dtype=x.dtype)
+
         # x: [b, s, h]
         if self.gpt_j_residual:
             # pseudocode:
@@ -1261,29 +1114,13 @@ class ParallelTransformerLayer(nn.Module):
 
             # output = x + mlp(ln2(x))
             layernorm_output = self.post_attention_layernorm(attention_output)
-            mlp_bias = torch.tensor(
-                0.0, device=layernorm_output.device, dtype=layernorm_output.dtype
-            )
 
-            if self.num_experts == 1:
-                mlp_output, mlp_bias = self.mlp(layernorm_output)
-            else:
-                if self.moe_type == "deepspeed":
-                    mlp_output, moe_loss, _ = self.mlp(layernorm_output)
-                    mlp_bias = (
-                        None  # deepspeed.moe.layer.MoE.forward ignores the bias term
-                    )
-                elif self.moe_type == "megablocks":
-                    mlp_output, mlp_bias = self.mlp(layernorm_output)
-                else:
-                    raise KeyError(self.moe_type)
+            # call signatures of both dense and MoE are the same
+            mlp_output, mlp_bias = self.mlp(layernorm_output)
 
             with torch.enable_grad():
-                if (
-                    self.mlp_type == "llama"
-                    or self.num_experts > 1
-                    and self.moe_type == "deepspeed"
-                ):
+                # dense llama MLP and MoE don't support bias
+                if self.mlp_type == "llama" or self.num_experts > 1:
                     # No dropout either
                     assert mlp_bias is None
                     output = mlp_output + attention_output
@@ -1295,7 +1132,7 @@ class ParallelTransformerLayer(nn.Module):
                         prob=self.hidden_dropout,
                     )
 
-        return output, moe_loss
+        return output
 
 
 class ParallelTransformerLayerPipe(ParallelTransformerLayer):
@@ -1307,10 +1144,7 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
         ), "ParallelTransformerLayerPipe expects 2 arguments - hidden_states and attention_mask"
         hidden_states, attention_mask = args
         # we are returning just [hidden_states, mask]
-        output, moe_loss = super().forward(hidden_states, attention_mask)
-        # auxiliary output
-        self.last_moe_loss = moe_loss
-        return output, attention_mask
+        return super().forward(hidden_states, attention_mask), attention_mask
 
 
 class ParallelLinearPipe(ParallelLinear):
