@@ -3,6 +3,7 @@
 Tests use pytests with coverage and forked plugins. Install with:
 
 ```bash
+pip install -r requirements/requirements.txt
 pip install -r requirements/requirements-dev.txt
 ```
 
