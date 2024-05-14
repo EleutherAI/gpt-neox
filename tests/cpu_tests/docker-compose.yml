@@ -1,0 +1,21 @@
+version: '3' # slightly different to make sure CPU tests run without nvidia device
+services:
+  gpt-neox:
+    command: nvidia-smi dmon
+    image: gpt-neox
+    build:
+      context: .
+      dockerfile: Dockerfile
+    shm_size: 1g
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    logging:
+      options:
+        max-size: "100m"
+        max-file: "3"
+    volumes:
+      - ${NEOX_DATA_PATH}:/home/mchorse/data
+      - ${NEOX_CHECKPOINT_PATH}:/home/mchorse/chk
+      - .:/home/mchorse/gpt-neox
