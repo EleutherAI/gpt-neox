@@ -93,12 +93,12 @@ class AnnealingLR(object):
             end_iter = self.end_iter - self.warmup_iter
             lr = self.start_lr * math.exp(-0.693 * num_iters_ / end_iter)
         elif self.decay_style == "infinite_cosine" or self.decay_style == "infinite_inv_sqrt":
-            if num_iters_ <= self.cooldown_iter:
+            if num_iters_ <= self.cooldown_iters:
                 if self.decay_style == "infinite_cosine":
                     lr = self.constant_lr + (
                         (self.start_lr-self.constant_lr)
                         / 2.0
-                        * (math.cos(math.pi * num_iters_ / self.cooldown_iter) + 1)
+                        * (math.cos(math.pi * num_iters_ / self.cooldown_iters) + 1)
                     )
                 else:
                     def inv_f(t):
@@ -106,18 +106,18 @@ class AnnealingLR(object):
                     lr = self.start_lr + (
                         (self.constant_lr - self.start_lr)
                         / inv_f(1)
-                        * (inv_f(num_iters_ / self.cooldown_iter))
+                        * (inv_f(num_iters_ / self.cooldown_iters))
                     )
                     return lr
             else:
-                num_iters_ = num_iters_ - self.cooldown_iter
-                if num_iters_ <= self.constant_iter:
+                num_iters_ = num_iters_ - self.cooldown_iters
+                if num_iters_ <= self.constant_iters:
                     # Stay constant for constant_iters
                     lr = self.constant_lr
                 else:
                     # Go from constant iters to min LR using exponential decay in remaining iters
-                    end_iter_ = self.end_iter - self.warmup_iter - self.cooldown_iter - self.constant_iter
-                    num_iters_ = num_iters_ - self.constant_iter
+                    end_iter_ = self.end_iter - self.warmup_iter - self.cooldown_iters - self.constant_iters
+                    num_iters_ = num_iters_ - self.constant_iters
                     exp_factor = -math.log(self.min_lr/self.constant_lr) / end_iter_
                     lr = self.constant_lr * math.exp(-1* exp_factor * num_iters_)
         else:
