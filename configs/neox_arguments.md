@@ -9,6 +9,17 @@ LR Scheduler Arguments
 
 - **lr_decay_style**: typing.Literal['constant', 'linear', 'cosine', 'exponential']
 
+    Default = linear
+
+    Learning rate decay function. Choose from 'constant', 'linear', 'cosine', 'exponential'.
+
+
+
+- **lr_decay_iters**: int
+
+    Default = None
+
+    Number of iterations to decay learning rate over, If None defaults to --train-iters
 
 
 
@@ -100,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 6fb840e
+    Default = 8d175ed
 
     current git hash of repository
 
@@ -1190,7 +1201,7 @@ Text Generation arguments
 
 
 
-- **num_experts**: int
+- **moe_num_experts**: int
 
     Default = 1
 
@@ -1232,7 +1243,7 @@ Text Generation arguments
 
 - **moe_token_dropping**: bool
 
-    Default = True
+    Default = False
 
     Whether to drop tokens when exceeding capacity
 
@@ -1259,6 +1270,47 @@ Text Generation arguments
     Default = 1
 
     Number of parallel experts in MoE
+
+
+
+- **moe_type**: str
+
+    Default = megablocks
+
+    Either `deepspeed` or `megablocks`
+
+
+
+- **moe_glu**: bool
+
+    Default = False
+
+    Use gated linear units in MoE
+
+
+
+- **moe_lbl_in_fp32**: bool
+
+    Default = False
+
+    Whether to compute the load balancing loss in fp32.
+
+
+
+- **moe_jitter_eps**: float
+
+    Default = None
+
+    Coefficient for MoE routing jitter. Jitter is
+    not used if set to None
+
+
+
+- **enable_expert_tensor_parallelism**: bool
+
+    Default = False
+
+    Enable expert tensor parallelism
 
 
 
