@@ -9,17 +9,6 @@ LR Scheduler Arguments
 
 - **lr_decay_style**: typing.Literal['constant', 'linear', 'cosine', 'exponential']
 
-    Default = linear
-
-    Learning rate decay function. Choose from 'constant', 'linear', 'cosine', 'exponential'.
-
-
-
-- **lr_decay_iters**: int
-
-    Default = None
-
-    Number of iterations to decay learning rate over, If None defaults to --train-iters
 
 
 
