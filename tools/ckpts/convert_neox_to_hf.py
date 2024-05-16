@@ -681,7 +681,7 @@ def main(input_args=None, overwrite_values=None):
         print(
             f"Detected 'pipe-parallel-size' of {pipeline_world_size}, assuming model is saved as PipelineModule..."
         )
-
+    sequential = True
     # convert the model to HF.
     hf_model = convert(
         args.input_dir,
