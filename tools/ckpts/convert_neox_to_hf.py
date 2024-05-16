@@ -68,10 +68,8 @@ MODEL_KEYS = {
             "attention.dense.bias": "attention.dense.bias",
         },
         "NORM_KEYS": {
-            "input_layernorm.weight": "input_layernorm.weight",
-            "input_layernorm.bias": "input_layernorm.bias",
-            "post_attention_layernorm.weight": "post_attention_layernorm.weight",
-            "post_attention_layernorm.bias": "post_attention_layernorm.bias",
+            "input_layernorm.scale": "input_layernorm.weight",
+            "post_attention_layernorm.scale": "post_attention_layernorm.weight",
         },
         "FINAL_NORM_KEYS": {
             "norm.weight": "weight",
