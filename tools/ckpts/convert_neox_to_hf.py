@@ -113,10 +113,7 @@ def load_partitions(
 ) -> List[torch.Tensor]:
     """Returns a list containing all states from a model (across MP partitions)"""
 
-    if sequential:
-        filename_format = f"mp_rank_{{i:02}}_model_states.pt"
-    else:
-        filename_format = f"layer_{layer_idx:02}-model_{{i:02}}-model_states.pt"
+    filename_format = f"mp_rank_{{i:02}}_model_states.pt"
 
     loaded_tp_ranks = [
         torch.load(
