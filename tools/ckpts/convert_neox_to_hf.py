@@ -72,8 +72,7 @@ MODEL_KEYS = {
             "post_attention_layernorm.scale": "post_attention_layernorm.weight",
         },
         "FINAL_NORM_KEYS": {
-            "norm.weight": "weight",
-            "norm.bias": "bias",
+            "norm.scale": "weight",
         },
     },
     "llama": {
