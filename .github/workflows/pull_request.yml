@@ -46,4 +46,4 @@ jobs:
       - name: prepare data
         run: python3 prepare_data.py
       - name: Run Tests
-        run: pytest --forked tests
+        run: python3 -m pytest --forked tests
