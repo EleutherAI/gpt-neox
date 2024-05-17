@@ -44,6 +44,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: prepare data
-        run: python prepare_data.py
+        run: python3 prepare_data.py
       - name: Run Tests
         run: pytest --forked tests
