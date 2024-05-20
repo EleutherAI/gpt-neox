@@ -48,12 +48,3 @@ Misc:
     - Tokenizer loading was erroring, until I realised that I needed to set this to the pythia tokenizer. Debugging was a bit tricky b/c that library is written in rust.
 
 
-pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings "--build-option=--cpp_ext" --config-settings "--build-option=--cuda_ext" ./
-
-
-pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings "--build-option=--cuda_ext" ./
-
-
-python setup.py --cpp_ext --cuda_ext
-
-    pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --global-option="--cpp_ext" --global-option="--cuda_ext" ./
