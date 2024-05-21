@@ -96,7 +96,6 @@ To install the remaining basic dependencies, run:
 pip install -r requirements/requirements.txt
 pip install -r requirements/requirements-wandb.txt # optional, if logging using WandB
 pip install -r requirements/requirements-tensorboard.txt # optional, if logging via tensorboard
-python ./megatron/fused_kernels/setup.py install # optional, if using fused kernels
 ```
 
 from the repository root.
@@ -105,6 +104,16 @@ from the repository root.
 > Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), our fork of the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library with some added changes. We strongly recommend using Anaconda, a virtual machine, or some other form of environment isolation before continuing. Failure to do so may cause other repositories that rely on DeepSpeed to break.
 
 </aside>
+
+### Fused Kernels
+We now support AMD GPUs (MI100, MI250X) through JIT fused-kernel compilation. Fused kernels will be built and loaded as needed. To avoid waiting during job launching, you can also do the following for manual pre-build:
+
+```python
+python
+from megatron.fused_kernels import load
+load()
+```
+This will automatically adapts building process over different GPU vendors (AMD, NVIDIA) without platform specific code changes. To further test fused kernels using `pytest`, use `pytest tests/model/test_fused_kernels.py`
 
 ### Flash Attention
 
@@ -640,7 +649,7 @@ If you need to supply a hostfile for use with the MPI-based DeepSpeed launcher, 
 
 # Profiling
 
-We support profiling with Nsight Systems and PyTorch Memory Profiling.
+We support profiling with Nsight Systems, the PyTorch Profiler, and PyTorch Memory Profiling.
 
 ## Nsight Systems Profiling
 
@@ -655,6 +664,15 @@ $TRAIN_PATH/train.py --conf_dir configs <config files>
 The generated output file can then by viewed with the Nsight Systems GUI:
 
 ![Alt text](images/nsight_profiling.png)
+
+## PyTorch Profiling
+
+To use the built-in PyTorch profiler, set config options `profile`, `profile_step_start`, and `profile_step_stop`.
+
+The PyTorch profiler will save traces to your `tensorboard` log directory.  You can view these traces within
+TensorBoard by following the steps [here](https://pytorch.org/tutorials/intermediate/tensorboard_profiler_tutorial.html).
+
+![Alt text](images/pytorch_profiling.png)
 
 ## PyTorch Memory Profiling
 
