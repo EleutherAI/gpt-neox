@@ -640,7 +640,7 @@ If you need to supply a hostfile for use with the MPI-based DeepSpeed launcher, 
 
 # Profiling
 
-We support profiling with Nsight Systems and PyTorch Memory Profiling.
+We support profiling with Nsight Systems, the PyTorch Profiler, and PyTorch Memory Profiling.
 
 ## Nsight Systems Profiling
 
@@ -655,6 +655,15 @@ $TRAIN_PATH/train.py --conf_dir configs <config files>
 The generated output file can then by viewed with the Nsight Systems GUI:
 
 ![Alt text](images/nsight_profiling.png)
+
+## PyTorch Profiling
+
+To use the built-in PyTorch profiler, set config options `profile`, `profile_step_start`, and `profile_step_stop`.
+
+The PyTorch profiler will save traces to your `tensorboard` log directory.  You can view these traces within
+TensorBoard by following the steps [here](https://pytorch.org/tutorials/intermediate/tensorboard_profiler_tutorial.html).
+
+![Alt text](images/pytorch_profiling.png)
 
 ## PyTorch Memory Profiling
 
