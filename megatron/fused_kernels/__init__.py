@@ -135,8 +135,8 @@ def load(neox_args=None):
         srcpath / "fused_rotary_positional_embedding.cpp",
         srcpath / "fused_rotary_positional_embedding_cuda.cu",
     ]
-    fused_rotary_positional_embedding_cuda = _cpp_extention_load_helper(
-        "fused_rotary_positional_embedding_cuda",
+    fused_rotary_positional_embedding = _cpp_extention_load_helper(
+        "fused_rotary_positional_embedding",
         sources,
         extra_cuda_flags,
         extra_include_paths,
@@ -174,7 +174,7 @@ def load_fused_kernels():
         print(e)
         print("=" * 100)
         print(
-            f"ERROR: Fused kernels configured but not properly installed. Please run `pip install {str(srcpath)}` to install them"
+            f"ERROR: Fused kernels configured but not properly installed. Please run `from megatron.fused_kernels import load()` then `load()` to load them correctly"
         )
         print("=" * 100)
         exit()
