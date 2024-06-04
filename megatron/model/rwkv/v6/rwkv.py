@@ -350,9 +350,7 @@ class ParallelRWKV_ChannelMix(nn.Module):
         k = torch.relu(k) ** 2
         kv, _ = self.value(k)
         receptance, _ = self.receptance(xr)
-        retVal = torch.sigmoid(receptance) * kv
-
-        return retVal
+        return torch.sigmoid(receptance) * kv
 
 
 class RWKVResidualLayer(nn.Module):
