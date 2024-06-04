@@ -95,6 +95,24 @@ steps:
 
 Any other software dependencies should be assumed to be missing and installed as part of the CI.
 
+### Using Docker image
+
+Using the Docker image and running tests in a container is recommended to resolve environment issues. There is a modified docker-compose.yml in tests/cpu_tests directory that is recommended to be used for CPU tests:
+
+```bash
+cp tests/cpu_tests/docker-compose.yml .
+# export any env variables here that should be used:
+export NEOX_DATA_PATH='./data/enwik8'
+docker compose run -d --build --name $CONTAINER gpt-neox tail -f /dev/null
+# then can set up and run tests in the container using docker exec
+docker exec $CONTAINER pip install -r /workspace/requirements-dev.txt
+# etc.
+# please clean up the container as part of the CI:
+docker rm $CONTAINER
+```
+
+At the time of writing there is no built-in method to provide an offline-built Docker image to `jobs.<job-id>.container`.
+
 ### Using existing CPU test CI
 
 There is an existing CPU test workflow that can be included in existing CI:
