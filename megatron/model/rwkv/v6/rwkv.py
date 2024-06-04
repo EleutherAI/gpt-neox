@@ -298,9 +298,14 @@ class ParallelRWKV_ChannelMix(nn.Module):
     """
 
     def __init__(self, neox_args, layer_number, init_method):
+    def __init__(self, neox_args, layer_number, init_method):
         super().__init__()
         self.neox_args = neox_args
         self.layer_number = layer_number
+
+        world_size = mpu.get_model_parallel_world_size()
+        self.hidden_size_per_partition = mpu.divide(neox_args.hidden_size, world_size)
+
 
         world_size = mpu.get_model_parallel_world_size()
         self.hidden_size_per_partition = mpu.divide(neox_args.hidden_size, world_size)
@@ -363,7 +368,7 @@ class RWKVResidualLayer(nn.Module):
     """
     RWKV layer definition
     """
-    
+
     def __init__(self, neox_args, init_method, layer_number):
         super().__init__()
         self.neox_args = neox_args
