@@ -305,10 +305,6 @@ class ParallelRWKV_ChannelMix(nn.Module):
         world_size = mpu.get_model_parallel_world_size()
         self.hidden_size_per_partition = mpu.divide(neox_args.hidden_size, world_size)
 
-
-        world_size = mpu.get_model_parallel_world_size()
-        self.hidden_size_per_partition = mpu.divide(neox_args.hidden_size, world_size)
-
         self.time_shift = nn.ZeroPad2d((0, 0, 1, -1))
 
         with torch.no_grad():  # fancy init of time_mix
