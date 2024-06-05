@@ -155,3 +155,6 @@ src/
 # test data files
 tests/data/*.bin
 tests/data/*.idx
+pythonuserbase
+megatron/fused_kernels/*_hip*
+hostfiles
