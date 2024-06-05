@@ -1,6 +1,6 @@
 {
   # finetuning option
-  "finetune": true,
+  "finetune": false,
 
   # init methods
   "init_method": "small_init",
@@ -30,6 +30,7 @@
   },
 
   # batch / data settings
+  "gradient_accumulation_steps": 10,
   "train_micro_batch_size_per_gpu": 4,
   "data_impl": "mmap",
 
@@ -56,18 +57,24 @@
   },
 
   # misc. training settings
-  "train_iters": 320000,
-  "lr_decay_iters": 320000,
+  "train_iters": 1000,
+  "lr_decay_iters": 1000,
   "distributed_backend": "nccl",
   "lr_decay_style": "cosine",
-  "warmup": 0.01,
+  "warmup": 0.1,
   "checkpoint_factor": 10000,
-  "eval_interval": 1000,
+  "eval_interval": 50,
   "eval_iters": 10,
 
   # logging
-  "log_interval": 100,
-  "steps_per_print": 10,
+  "log_interval": 10,
+  "steps_per_print": 5,
   "keep_last_n_checkpoints": 4,
   "wall_clock_breakdown": true,
+  "comms_logger": {
+        "enabled": True,
+        "verbose": False,
+        "prof_all": True,
+        "debug": False
+    }
 }

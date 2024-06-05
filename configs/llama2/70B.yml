@@ -1,5 +1,5 @@
 {
-  "pipe_parallel_size": 1,
+  "pipe_parallel_size": 2,
   "model_parallel_size": 1,
   "make_vocab_size_divisible_by": 1,
 
@@ -20,7 +20,7 @@
   "norm": "rmsnorm",
   "rms_norm_epsilon": 1.0e-5,
 
-  "attention_config": [[["flash"], 48]],
+  "attention_config": [[["flash"], 80]],
 
   "scaled_upper_triang_masked_softmax_fusion": true,
   "bias_gelu_fusion": false,
