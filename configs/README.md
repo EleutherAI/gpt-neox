@@ -9,7 +9,7 @@ Below is an example configuration `.yaml` to train a ~160M parameter GPT model. 
 
 For a detailed list of all the arguments available for neox, see [neox_arguments.md](neox_arguments.md)
 
-Note: yaml arguments may be formatted with either '-' or '_'. The standard separator used is a '_' as shown in the example configurations below. However, the use of '-' as a separator may be deprecated in the future.
+Note: yaml arguments may be formatted with either '-' or '\_'. The standard separator used is a '\_' as shown in the example configurations below. However, the use of '-' as a separator may be deprecated in the future.
 ```yaml
 # GPT-3 pretraining setup
 {

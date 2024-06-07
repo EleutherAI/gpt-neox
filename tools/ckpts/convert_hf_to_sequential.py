@@ -123,12 +123,23 @@ def shard_sequential_mp(num_mp_ranks, sequential):
             [
                 x in k
                 for x in [
+                    "dense_4h_to_h.bias",
+                    "attention.dense.bias",
+                ]
+            ],
+        ):
+            # Divide by tp_size since they get added together
+            for x in range(num_mp_ranks):
+                ranks[x][k] = v / num_mp_ranks
+        elif reduce(
+            np.logical_or,
+            [
+                x in k
+                for x in [
                     "layernorm",
                     "rotary_emb",
-                    "dense_4h_to_h.bias",
                     "norm.weight",
                     "norm.bias",
-                    "attention.dense.bias",
                 ]
             ],
         ):
