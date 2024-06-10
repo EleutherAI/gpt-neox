@@ -43,6 +43,10 @@ jobs:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v2
+      - name: build docker container
+        run: docker compose run gpt-neox bash
+      - name: run docker container
+        run: docker compose up -d
       - name: prepare data
         run: python3 prepare_data.py
       - name: install pytest
