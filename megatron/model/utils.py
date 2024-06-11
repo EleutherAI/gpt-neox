@@ -19,6 +19,7 @@
 
 import torch
 from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
+from megatron.model.transformer_engine import TELayerNorm, TERMSNorm
 from megatron.model.fused_softmax import SoftmaxFusionTypes
 from types import GeneratorType
 import torch.distributed as dist
@@ -39,6 +40,8 @@ def get_params_for_weight_decay_optimization(module, neox_args):
             [
                 isinstance(module_, LayerNorm),
                 isinstance(module_, RMSNorm),
+                isinstance(module_, TELayerNorm),
+                isinstance(module_, TERMSNorm),
                 isinstance(module_, ScaleNorm),
             ]
         ) or (
