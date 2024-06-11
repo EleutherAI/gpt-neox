@@ -21,9 +21,9 @@ except ImportError:
     from template import NeoXArgsTemplate
 
 try:
-    from typing import List, Literal, Union
+    from typing import List, Literal, Union, Optional
 except ImportError:
-    from typing_extensions import List, Literal, Union
+    from typing_extensions import List, Literal, Union, Optional
 
 
 ATTENTION_TYPE_CHOICES = [
@@ -635,7 +635,20 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     use_comet: bool = None
     """Flag indicating if comet is to be used."""
 
+    comet_workspace: Optional[str] = None
+    """
+    Comet workspace name, if not configured Comet Experiments will be created in the user configured default workspace.
+    """
+
+    comet_project: Optional[str] = None
+    """
+    Comet project name, if not configured Comet Experiments will be created in the Uncategorized Experiments project.
+    """
+
     comet_experiment = None
+    """
+    Comet experiment objects to log data
+    """
 
     log_interval: int = 100
     """
