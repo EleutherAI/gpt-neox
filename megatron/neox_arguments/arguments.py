@@ -170,9 +170,11 @@ class NeoXArgs(*BASE_CLASSES):
 
                 # Deactivate output logging to avoid any potential interference with Tee
                 self.comet_experiment = comet_ml.start(
+                    workspace=self.comet_workspace,
+                    project=self.comet_project,
                     experiment_config=comet_ml.ExperimentConfig(
                         auto_output_logging=False
-                    )
+                    ),
                 )
                 # Might be too soon?
                 self.comet_experiment.__internal_api__log_parameters__(
@@ -184,7 +186,7 @@ class NeoXArgs(*BASE_CLASSES):
                 print("> setting comet ...")
             except Exception:
                 print(
-                    "Error setting up Comet",
+                    "Error setting up Comet, logging to Comet is disabled",
                     flush=True,
                 )
                 self.use_comet = False
