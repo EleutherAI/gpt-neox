@@ -163,6 +163,33 @@ class NeoXArgs(*BASE_CLASSES):
                     flush=True,
                 )
 
+    def initialize_comet(self):
+        if self.use_comet and self.rank == 0:
+            try:
+                import comet_ml
+
+                # Deactivate output logging to avoid any potential interference with Tee
+                self.comet_experiment = comet_ml.start(
+                    experiment_config=comet_ml.ExperimentConfig(
+                        auto_output_logging=False
+                    )
+                )
+                # Might be too soon?
+                self.comet_experiment.__internal_api__log_parameters__(
+                    self.all_config,
+                    framework="gpt-neox",
+                    source="manual",
+                    flatten_nested=True,
+                )
+                print("> setting comet ...")
+            except Exception:
+                print(
+                    "Error setting up Comet",
+                    flush=True,
+                )
+                self.use_comet = False
+                self.comet_experiment = None
+
     @classmethod
     def from_ymls(cls, paths_to_yml_files: List[str], overwrite_values: Dict = None):
         """
@@ -794,7 +821,9 @@ class NeoXArgs(*BASE_CLASSES):
 
         # either none of the three parameters are provided or just gradient_accumulation_step is provided
         else:
-            assert False, "Either train_batch_size or train_micro_batch_size_per_gpu needs to be provided"
+            assert (
+                False
+            ), "Either train_batch_size or train_micro_batch_size_per_gpu needs to be provided"
         return int(train_batch), int(micro_batch), int(grad_acc)
 
     @staticmethod
@@ -1098,8 +1127,8 @@ class NeoXArgs(*BASE_CLASSES):
         if "flash" in self.attention_config:
             _flash_version = packaging.version.Version(version("flash-attn"))
             if self.sliding_window_width is not None:
-                assert (
-                    _flash_version >= packaging.version.Version("2.3.0")
+                assert _flash_version >= packaging.version.Version(
+                    "2.3.0"
                 ), f"Flash-Attention version ({str(_flash_version)}) must be >= 2.3.0 to support sliding window attention."
             if self.pos_emb == "alibi":
                 if not _flash_version >= packaging.version.Version("2.4.0.post1"):

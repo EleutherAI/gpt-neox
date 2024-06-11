@@ -605,6 +605,11 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Write TensorBoard logs to this directory.
     """
 
+    use_comet: bool = None
+    """Flag indicating if comet is to be used."""
+
+    comet_experiment = None
+
     log_interval: int = 100
     """
     Interval between logging.

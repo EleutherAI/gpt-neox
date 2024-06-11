@@ -184,7 +184,9 @@ def pretrain(neox_args):
     # setup logging and timers
     init_wandb(neox_args=neox_args)
     timers = Timers(
-        use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer
+        use_wandb=neox_args.use_wandb,
+        tensorboard_writer=neox_args.tensorboard_writer,
+        comet_experiment=neox_args.comet_experiment,
     )
 
     # Initialize and get arguments, timers, and Tensorboard writer.
@@ -1196,6 +1198,7 @@ def evaluate_and_print_results(
                     iteration,
                     use_wandb=neox_args.use_wandb,
                     tensorboard_writer=neox_args.tensorboard_writer,
+                    comet_experiment=neox_args.comet_experiment,
                 )
         else:
             string += f"{k} value: {v:.6E} | "
@@ -1205,6 +1208,7 @@ def evaluate_and_print_results(
                 iteration,
                 use_wandb=neox_args.use_wandb,
                 tensorboard_writer=neox_args.tensorboard_writer,
+                comet_experiment=neox_args.comet_experiment,
             )
 
     length = len(string) + 1

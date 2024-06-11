@@ -275,10 +275,11 @@ class Timer:
 class Timers:
     """Group of timers."""
 
-    def __init__(self, use_wandb, tensorboard_writer):
+    def __init__(self, use_wandb, tensorboard_writer, comet_experiment):
         self.timers = {}
         self.use_wandb = use_wandb
         self.tensorboard_writer = tensorboard_writer
+        self.comet_experiment = comet_experiment
 
     def __call__(self, name):
         if name not in self.timers:
@@ -299,6 +300,14 @@ class Timers:
 
             if self.use_wandb:
                 wandb.log({f"timers/{name}": value}, step=iteration)
+
+            if self.comet_experiment:
+                self.comet_experiment.__internal_api__log_metric__(
+                    f"timers/{name}",
+                    value,
+                    framework="gpt-neox",
+                    step=iteration,
+                )
 
     def log(self, names, normalizer=1.0, reset=True):
         """Log a group of timers."""
