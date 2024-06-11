@@ -5,15 +5,48 @@ from pkg_resources import packaging
 _te_version = packaging.version.Version(version("transformer-engine"))
 
 
-class TERMSNorm:
+class TERMSNorm(torch.nn.Module):
+    def __init__(self, dim, eps=1e-8, **kwargs):
     """
-    A conditional wrapper to initialize an instance of Transformer-Engine's
-    `LayerNorm` or `RMSNorm` based on input
+        A conditional wrapper to initialize an instance of Transformer-Engine's
+        `RMSNorm` based on input
+    :param dim: model size
+    :param eps:  epsilon value, default 1e-8
     """
+    super(TERMSNorm, self).__init__()
 
-    def __new__():
-        return
-        # TODO ???
+        self.d = dim
+        self.eps = eps
+        self.norm = te.pytorch.RMSNorm(
+            hidden_size=self.d,
+            eps=self.eps,
+            **kwargs,
+        )
+
+    def forward(self, x):
+        return self.norm(x)
+
+
+class TELayerNorm(torch.nn.Module):
+    def __init__(self, dim, eps=1.0e-5, **kwargs):
+    """
+        A conditional wrapper to initialize an instance of Transformer-Engine's
+        `LayerNorm` based on input
+    :param dim: model size
+    :param eps:  epsilon value, default 1.0e-5
+    """
+    super(TELayerNorm, self).__init__()
+
+        self.d = dim
+        self.eps = eps
+        self.norm = te.pytorch.LayerNorm(
+            hidden_size=self.d,
+            eps=self.eps,
+            **kwargs,
+        )
+
+    def forward(self, x):
+        return self.norm(x)
 
 
 class TELinear(te.pytorch.Linear):
