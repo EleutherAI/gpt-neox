@@ -425,8 +425,14 @@ class ParallelSelfAttention(nn.Module):
             coeff = max(1, self.layer_number)
             self.norm_factor *= coeff
 
-        if neox_args.use_mup:
-            self.norm_factor = self.hidden_size_per_attention_head
+        # TODO
+        #right now there's no way to correctly set use_mup here, possible options:
+        #- refactor model init (hard)
+        #- do this via another config argument, e.g. "mup_norm_factor" (probably easy)
+        #- ignore, this never changed anything in my experiments
+        #
+        #if neox_args.use_mup:
+        #    self.norm_factor = self.hidden_size_per_attention_head
 
         self.rpe = rpe
 

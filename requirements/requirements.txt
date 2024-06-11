@@ -5,6 +5,7 @@ huggingface_hub>=0.11.0
 jinja2==3.1.4
 lm_eval>=0.4.0,<=0.4.1
 mpi4py>=3.0.3
+git+https://github.com/EleutherAI/mup.git#egg=deepspeed
 numpy>=1.22.0
 pybind11>=2.6.2
 regex

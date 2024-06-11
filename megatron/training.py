@@ -65,13 +65,18 @@ def mup_weights_reinit(neox_args, model):
     def has_method(o, name):
         return callable(getattr(o, name, None))
 
+    # HACK: it uses the mother class name to avoid re-initializing the output layer, highly prone to future bugs
+    # HACK: only works with non-tied input-output layers
+
+    previous = ""
     for layer in model.modules():
         # This normally would happen in set_base_shapes if we actually were able to use the MuReadout class
         if hasattr(layer, "mup_rescale_parameters") and layer.mup_rescale_parameters:
             layer._rescale_parameters()
-
-        if has_method(layer, "mup_reinitialize_weights"):
-            layer.mup_reinitialize_weights(neox_args)
+        if previous != "ParallelLinearPipe":
+            if has_method(layer, "mup_reinitialize_weights"):
+                layer.mup_reinitialize_weights(neox_args)
+        previous = layer.__class__.__name__
 
 
 def save_base_shapes(neox_args, base_shapes, use_cache):
@@ -639,9 +644,9 @@ def get_optimizer(model, neox_args):
         # Use Adam
         if neox_args.use_mup:
             try:
-                from mup import MuAdam
+                from mup import MuAdamW # TODO: was there any particular reason for not using MuAdamW?
 
-                adam_optimizer = MuAdam
+                adam_optimizer = MuAdamW
             except ModuleNotFoundError:
                 print("Please install mup https://github.com/microsoft/mup")
                 raise Exception
