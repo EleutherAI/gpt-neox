@@ -54,6 +54,7 @@ def main(input_args=None, overwrite_values=None):
                         v2,
                         neox_args.iteration,
                         use_wandb=neox_args.use_wandb,
+                        comet_experiment=neox_args.comet_experiment,
                     )
             else:
                 tb_wandb_log(
@@ -61,6 +62,7 @@ def main(input_args=None, overwrite_values=None):
                     v,
                     neox_args.iteration,
                     use_wandb=neox_args.use_wandb,
+                    comet_experiment=neox_args.comet_experiment,
                 )
 
         pprint(results)
