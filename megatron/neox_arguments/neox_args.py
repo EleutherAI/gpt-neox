@@ -152,7 +152,9 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Maximum number of position embeddings to use. This is the size of position embedding.
     """
 
-    norm: Literal["layernorm", "rmsnorm", "scalenorm", "te_rmsnorm", "te_layernorm"] = "layernorm"
+    norm: Literal[
+        "layernorm", "rmsnorm", "scalenorm", "te_rmsnorm", "te_layernorm"
+    ] = "layernorm"
     """
     Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm", "te_rmsnorm", "te_layernorm".
     """
