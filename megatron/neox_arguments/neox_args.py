@@ -650,7 +650,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Custom name for the Comet experiment. If not provided, a random name is used.
     """
 
-    comet_tags: Optional[List[str]] = None
+    comet_tags: Optional[list] = None
     """
     List of tags to attach to the created Comet Experiment.
     """
