@@ -185,7 +185,7 @@ class NeoXArgs(*BASE_CLASSES):
                 )
 
                 if self.comet_experiment_name:
-                    self.comet_experiment.set_name(experiment_name)
+                    self.comet_experiment.set_name(self.experiment_name)
 
                 if self.comet_tags:
                     self.comet_experiment.add_tags(self.comet_tags)
