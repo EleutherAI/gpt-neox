@@ -618,6 +618,21 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Comet project name, if not configured Comet Experiments will be created in the Uncategorized Experiments project.
     """
 
+    comet_experiment_name: Optional[str] = None
+    """
+    Custom name for the Comet experiment. If not provided, a random name is used.
+    """
+
+    comet_tags: Optional[List[str]] = None
+    """
+    List of tags to attach to the created Comet Experiment.
+    """
+
+    comet_others: Optional[dict] = None
+    """
+    Custom metadata to attach to the created Comet Experiment.
+    """
+
     comet_experiment = None
     """
     Comet experiment objects to log data
