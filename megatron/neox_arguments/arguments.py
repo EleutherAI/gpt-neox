@@ -193,11 +193,11 @@ class NeoXArgs(*BASE_CLASSES):
                 if self.comet_others:
                     self.comet_experiment.log_others(self.comet_others)
 
-                print("> setting comet ...")
+                logging.info("> setting comet ...")
             except Exception:
-                print(
+                logging.error(
                     "Error setting up Comet, logging to Comet is disabled",
-                    flush=True,
+                    exc_info=True,
                 )
                 self.use_comet = False
                 self.comet_experiment = None
