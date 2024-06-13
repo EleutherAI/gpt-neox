@@ -183,6 +183,16 @@ class NeoXArgs(*BASE_CLASSES):
                     source="manual",
                     flatten_nested=True,
                 )
+
+                if self.comet_experiment_name:
+                    self.comet_experiment.set_name(experiment_name)
+
+                if self.comet_tags:
+                    self.comet_experiment.add_tags(self.comet_tags)
+
+                if self.comet_others:
+                    self.comet_experiment.log_others(self.comet_others)
+
                 print("> setting comet ...")
             except Exception:
                 print(
