@@ -2,6 +2,8 @@
   "data_path": "data/enwik8/enwik8_text_document",
   "vocab_file": "data/gpt2-vocab.json",
   "merge_file": "data/gpt2-merges.txt",
-  "save": "checkpoints",
+  #"save": "checkpoints",
   "checkpoint_validation_with_forward_pass": false,
+  "tensorboard_dir": "logs/tb",
+  "log_dir": "logs"
 }

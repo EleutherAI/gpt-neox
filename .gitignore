@@ -158,3 +158,4 @@ tests/data/*.idx
 pythonuserbase
 megatron/fused_kernels/*_hip*
 hostfiles
+core

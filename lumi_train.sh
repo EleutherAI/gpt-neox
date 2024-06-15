@@ -15,6 +15,9 @@
 ln -f -s $SLURM_JOB_NAME-$SLURM_JOB_ID.out logs/latest.out
 ln -f -s $SLURM_JOB_NAME-$SLURM_JOB_ID.err logs/latest.err
 
+module purge
+module load LUMI
+module load PyTorch/2.2.2-rocm-5.6.1-python-3.10-singularity-20240404
 source lumi_config.sh
 export PYTHONWARNINGS=ignore
 export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)

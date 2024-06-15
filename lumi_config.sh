@@ -8,6 +8,4 @@ export CPATH="$CPATH:/opt/miniconda3/include/python3.10:$PYTHONUSERBASE/lib/pyth
 
 export CONTAINER="/appl/local/containers/sif-images/lumi-pytorch-rocm-5.6.1-python-3.10-pytorch-v2.2.0.sif"
 
-REAL_PWD="$(realpath "$PWD")"
-
-export SINGULARITY_BIND="$REAL_PWD"
+#export SINGULARITY_BIND="$REAL_PWD"
