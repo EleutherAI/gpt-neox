@@ -73,7 +73,7 @@ def initialize_megatron(neox_args, allow_no_cuda=False):
     else:
         # Megatron's MPU is the master. Complete initialization right away.
         finish_mpu_init()
-
+        torch.distributed.barrier()
         # Compile dataset C++ code.
         if neox_args.local_rank == 0:
             from megatron.data.data_utils import compile_helper

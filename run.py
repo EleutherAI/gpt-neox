@@ -20,8 +20,8 @@ def strip_launcher_args(args):
     launcher_args, remaining_args = args[:idx], args[idx:]
     assert '--megatron_config' in remaining_args    # sanity
 
-    if launcher_args:
-        warning(f'dropping launcher args: {launcher_args}')
+    #if launcher_args:
+    #    warning(f'dropping launcher args: {launcher_args}')
 
     return remaining_args
 

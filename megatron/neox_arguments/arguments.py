@@ -173,7 +173,7 @@ class NeoXArgs(*BASE_CLASSES):
         overwrite_values: If provided, overwrite any values in the yamls with these values
         """
 
-        print(cls.__name__ + ".from_ymls() " + str(paths_to_yml_files), flush=True)
+        #print(cls.__name__ + ".from_ymls() " + str(paths_to_yml_files), flush=True)
 
         # initialize an empty config dictionary to be filled by yamls
         config = dict()
@@ -390,7 +390,7 @@ class NeoXArgs(*BASE_CLASSES):
 
             neox_args.wandb_group += "_" + wandb.util.generate_id()
 
-        neox_args.print()
+        #neox_args.print()
 
         return neox_args
 
