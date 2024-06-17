@@ -54,6 +54,6 @@ jobs:
       - name: install torch
         run: python3 -m pip install torch 
       - name: install requirements
-        run: pip install -r requirements/*.txt
+        run: pip install -r requirements/requirements.txt
       - name: Run Tests
         run: pytest --forked tests
