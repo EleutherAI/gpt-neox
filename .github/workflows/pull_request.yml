@@ -51,7 +51,7 @@ jobs:
         run: python3 prepare_data.py
       - name: install pytest
         run: python3 -m pip install pytest
-      -name: install requirements
+      - name: install requirements
         run: python3 -m pip install torch 
       - name: Run Tests
         run: pytest --forked tests
