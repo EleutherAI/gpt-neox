@@ -51,8 +51,9 @@ jobs:
         run: python3 prepare_data.py
       - name: install pytest
         run: python3 -m pip install pytest pytest-forked pyyaml requests
-      - name: install requirements
+      - name: install torch
         run: python3 -m pip install torch 
+      - name: install requirements
         run: python3 -m pip install -r requirements*.txt
       - name: Run Tests
         run: pytest --forked tests
