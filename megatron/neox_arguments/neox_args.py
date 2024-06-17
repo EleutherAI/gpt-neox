@@ -490,6 +490,23 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Whether to multiply argmaxed sparse FFN predictions by the soft mask as well.
     """
 
+    use_topk_ffn: bool = False
+    """
+    Whether to use an additional top-K activation function with 
+    """
+
+    topk_ffn_k: int = None
+    """
+    value for K in top-K activation. NOTE: has different semantics to sparse_ffn_sparsity_factor. consider unifying the 2
+    """
+
+    topk_ffn_kernels: bool = True
+    """
+    Whether to use Triton sparse kernels for MLP down-projection in Top-K. NOTE: currently not hooked up anywhere.
+    """
+
+    # TODO: add a flag for MLP biases?
+
     # Output layer parallelism over the hidden dim is currently broken (https://github.com/EleutherAI/gpt-neox/issues/905)
     output_layer_parallelism: Literal["column"] = "column"
 

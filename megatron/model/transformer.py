@@ -47,6 +47,8 @@ from megatron.model.fused_bias_dropout import (
 from megatron.model.utils import configure_sparse_attention
 from deepspeed.moe.layer import MoE
 
+from megatron.model.topk import topk_down_proj 
+
 # flags required to enable jit fusion kernels
 torch._C._jit_set_profiling_mode(False)
 torch._C._jit_set_profiling_executor(False)
@@ -115,6 +117,7 @@ class ParallelMLP(nn.Module):
             gather_output=False,
             init_method=init_method,
             skip_bias_add=True,
+            bias=False,
             MOE=MOE,
             MoE_mp_size=MoE_mp_size,
         )
@@ -128,11 +131,12 @@ class ParallelMLP(nn.Module):
             init_method=output_layer_init_method,
             parallel_output=parallel_output,
             skip_bias_add=True,
+            bias=False,
             MOE=MOE,
             MoE_mp_size=MoE_mp_size,
         )
 
-        self.sparse_ffn = False
+        self.sparse_ffn, self.topk_ffn = False, False
         if neox_args.use_sparse_ffn:
             self.sparse_ffn = True
             # TODO: TP,GLU-compat checking
@@ -146,8 +150,23 @@ class ParallelMLP(nn.Module):
             self.tau = neox_args.sparse_ffn_gumbel_softmax_temp
             self.mult_by_controller_output = neox_args.sparse_ffn_mult_by_controller_output
 
+        if neox_args.use_topk_ffn:
+            self.topk_ffn = True
+            # TODO: check TP and GLU compat
+            
+            # TODO: assert we don't have biases in linear layers
+            
+            # TODO: any configurations/topK-specific hparams?
+            self.topk_k = neox_args.topk_ffn_k
+
+            self.w2t = self.dense_4h_to_h.weight.T.contiguous()
+
     def forward(self, hidden_states):
 
+        if self.topk_ffn:
+            return self.topk_forward(hidden_states)
+
+        # TODO: create sparse_forward(hidden_states) method
         if self.sparse_ffn:
             mask = self.controller(hidden_states)
         # [s, b, 4hp]
@@ -161,7 +180,7 @@ class ParallelMLP(nn.Module):
             )
         else:
             intermediate_parallel = self.activation_func(
-                intermediate_parallel + bias_parallel
+                intermediate_parallel + bias_parallel if bias_parallel is not None else intermediate_parallel
             )
 
         if self.sparse_ffn:
@@ -200,24 +219,27 @@ class ParallelMLP(nn.Module):
             quant_mask = F.one_hot(quant_mask, num_classes=self.controller.sparsity)
             # [s, b, 4hp / sparsity, sparsity] --> [s, b, 4hp]
             # TODO: would be nice to phase this out
-            quant_mask = quant_mask.reshape(s, b, -1)
-            mask = mask.reshape(s, b, -1)
-            # Straight-Through Estimator: 
-            # fwd pass gives quant_mask
-            # bwd pass gives mask (--> derivative of mask is softmax)
-            quant_mask = mask + (quant_mask - mask).detach()
+            quant_mask = quant_mask.reshape(s, b, -1).contiguous()
+            mask = mask.reshape(s, b, -1).contiguous()
 
-            # use softmax / soft decision for the batch, w/ 30% prob in fwd pass
-            select = torch.rand((), device=torch.cuda.current_device())
-            
-            # Trax maybe messed up the sign comparison and does 70% softmax.
-            # we're doing it "right"--so quant_prob of 0.3 means more quant_mask decisions than not
-            quant_mask = torch.where(select < quant_prob, quant_mask, mask)
+            if self.training:
+                # Straight-Through Estimator: 
+                # fwd pass gives quant_mask
+                # bwd pass gives mask (--> derivative of mask is softmax)
+                quant_mask = mask + (quant_mask - mask).detach()
+
+                if quant_prob < 1.0:
+                    # use softmax / soft decision for the batch, w/ 30% prob in fwd pass
+                    select = torch.rand((), device=torch.cuda.current_device())
+                    
+                    # Trax maybe messed up the sign comparison and does 70% softmax.
+                    # we're doing it "right"--so quant_prob of 0.3 means more quant_mask decisions than not
+                    quant_mask = torch.where(select < quant_prob, quant_mask, mask)
 
             # multiply by mask.
             # (for soft masks, this multiplies by softmax
             # for hard masks, this multiplies by one-hot)
-            intermediate_parallel = intermediate_parallel * quant_mask
+            intermediate_parallel = intermediate_parallel * quant_mask.contiguous()
 
             # optionally, multiply quantized decisions by softmax too. without grad...? bc we already have straight-through
             if self.mult_by_controller_output:
@@ -228,6 +250,45 @@ class ParallelMLP(nn.Module):
         # [s, b, h]
         output, output_bias = self.dense_4h_to_h(intermediate_parallel)
         return output, output_bias
+
+    def topk_forward(self, hidden_states):
+        """Forward pass for top-K activation / sparse down-proj MLP."""
+
+        s, b, h = hidden_states.shape
+        hidden_states = hidden_states.reshape(s * b, h).contiguous()
+
+         # [sb, 4hp]
+        intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
+
+        if (
+            self.activation_type == "gelu" and self.bias_gelu_fusion
+        ) or self.activation_type == "geglu":
+            intermediate_parallel = self.activation_func(
+                intermediate_parallel, bias_parallel
+            )
+        else:
+            intermediate_parallel = self.activation_func(
+                intermediate_parallel #+ bias_parallel
+            )
+
+
+        ### Top-K "extra" activation fn
+
+        if self.topk_k == -1:
+            top_k = torch.max(torch.count_nonzero(intermediate_parallel, dim=-1), dim=0) # TODO: can k be a tensor when passed to topk?
+        else:
+            top_k = self.topk_k
+
+        topk_acts, topk_indices = intermediate_parallel.topk(k=top_k, sorted=False)
+
+        # topk_acts: [sb, k]
+        # topk_indices: [sb, k]
+
+        # TODO: store down-proj weight transposed
+        output = topk_down_proj(topk_indices, topk_acts, self.w2t.T)
+
+        # [sb, h] --> [s, b, h]
+        return output.reshape(s, b, h).contiguous(), None
 
 
 class LLaMAParallelMLP(nn.Module):
@@ -1207,12 +1268,23 @@ class ParallelTransformerLayer(nn.Module):
             # mlp operator
             mlp_output, mlp_bias = self.mlp(x2)
             with torch.enable_grad():
-                output = bias_dropout_fn(
-                    mlp_output,
-                    bias=mlp_bias.expand_as(mlp_output),
-                    residual=attention_output,
-                    prob=self.hidden_dropout,
-                )
+                if mlp_bias is not None:
+                    output = bias_dropout_fn(
+                        mlp_output,
+                        bias=mlp_bias.expand_as(mlp_output),
+                        residual=attention_output,
+                        prob=self.hidden_dropout,
+                    )
+                else:
+                    # Otherwise just apply dropout + residual
+                    output = (
+                        torch.nn.functional.dropout(
+                            mlp_output,
+                            p=self.hidden_dropout,
+                            training=self.training,
+                        )
+                        + attention_output
+                    )
 
             # output = (x + attn(ln(x)) + mlp(ln(x))
             output = residual + self.reduce(output)
