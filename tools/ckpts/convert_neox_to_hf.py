@@ -580,30 +580,59 @@ def convert(
 
     # Load output embedding
     if not sequential:
-        loaded_tp_ranks = load_partitions(
-            input_checkpoint_path,
-            mp_partitions,
-            get_key(loaded_config, "num-layers") + 4,
-            sequential=sequential,
-        )
+        if get_key(loaded_config, "no-weight-tying", False):
+            # if we have trained input + output embedding layers without tied weights
+            loaded_tp_ranks = load_partitions(
+                input_checkpoint_path,
+                mp_partitions,
+                get_key(loaded_config, "num-layers") + 4,
+                sequential=sequential,
+            )
+        else:
+            # in this case, output embedding layer and input embedding layer are tied.
+            # load + save the input embed weights into the output embedding layer's place.
+            loaded_tp_ranks = load_partitions(
+                input_checkpoint_path,
+                mp_partitions,
+                layer_idx=0,
+                sequential=sequential,
+            )
     # output embedding / LM head
     if architecture == "neox":  # name of lm head / final linear proj varies
         lm_head = hf_model.embed_out
     else:
         lm_head = hf_model.lm_head
-    lm_head.load_state_dict(
-        {
-            "weight": torch.cat(
-                get_state(
-                    loaded_tp_ranks,
-                    "final_linear.weight",
-                    layer_idx=get_key(loaded_config, "num-layers") + 4,
-                    sequential=sequential,
+
+    if get_key(loaded_config, "no-weight-tying", False):
+        # save the (untied) final linear into LM head for HF
+        lm_head.load_state_dict(
+            {
+                "weight": torch.cat(
+                    get_state(
+                        loaded_tp_ranks,
+                        "final_linear.weight",
+                        layer_idx=get_key(loaded_config, "num-layers") + 4,
+                        sequential=sequential,
+                    ),
+                    dim=0,
                 ),
-                dim=0,
-            ),
-        }
-    )
+            }
+        )
+    else:
+        # embedding layers are tied. transpose input layer and save
+        lm_head.load_state_dict(
+            {
+                "weight": torch.cat(
+                    get_state(
+                        loaded_tp_ranks,
+                        "word_embeddings.weight",
+                        layer_idx=0,
+                        sequential=sequential,
+                    ),
+                    dim=0,
+                ),
+            }
+        )
 
     del loaded_tp_ranks
 
