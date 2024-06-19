@@ -50,6 +50,10 @@ class ParallelMambaBlock(nn.Module):
         self.d_state = 16  # state dimensions per channel
         self.d_conv = 4  # convolution width
         self.expand = 2  # linear projection expansion factors
+        if neox_args.intermediate_size == None:
+            neox_args.d_inner = self.expand * self.d_model
+        else:
+            neox_args.d_inner = neox_args.intermediate_size
         self.d_inner = int(self.expand * self.d_model)
         self.dt_rank = math.ceil(self.d_model / 16)  # rank of dt / Delta parameter
         self.dt_scale = 1.0
