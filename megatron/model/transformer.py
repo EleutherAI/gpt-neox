@@ -102,7 +102,7 @@ class ParallelMLP(nn.Module):
         self.activation_type = neox_args.activation
         self.bias_gelu_fusion = neox_args.bias_gelu_fusion
 
-        
+        #TODO: revisit this when we add swiglu to make sure ff_dim is initialized correctly.
         if neox_args.intermediate_size:
             ff_dim = neox_args.intermediate_size
 
