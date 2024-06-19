@@ -223,6 +223,7 @@ class RWKV_TimeMix(nn.Module):
         H = self.neox_args.num_attention_heads
 
         r, k, v, g, w = self.jit_func(x)
+        print(f"shape of r: {r.size()}, k: {k.size()}, v: {v.size()}, g: {g.size()}, w: {w.size()}, H: {H}, B: {B}, T: {T}, C: {C}, time_faaaa: {self.time_faaaa.size()},  \n")
         x = RUN_CUDA_RWKV(B, T, C, H, r, k, v, w, u=self.time_faaaa)
 
         return self.jit_func_2(x, g)
