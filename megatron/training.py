@@ -277,16 +277,19 @@ def pretrain(neox_args):
 def _get_batch(neox_args, tokenizer, keys, data, datatype):
     """Support function for get_batch / get_batch pipe (to avoid code repetition)"""
     data_b = mpu.broadcast_data(keys, data, datatype)
-
+    token_key = keys[0]
+    label_key = keys[1] if len(keys) > 1 else None
     # Unpack.
-    tokens_ = data_b["text"].long()
+    tokens_ = data_b[token_key].long()
     if "label" in data_b:
+        label_mask = (data_b[label_key].long() >= 0)[:, 1:].contiguous()
         labels = torch.where(
-            data_b["label"].long() >= 0,
-            data_b["label"].long(),
+            data_b[label_key].long() >= 0,
+            data_b[label_key].long(),
             torch.zeros_like(data_b["label"].long()),
         )[:, 1:].contiguous()
     else:
+        label_mask = (tokens_.long() >= 0)[:, 1:].contiguous()
         labels = tokens_[:, 1:].contiguous()
     tokens = tokens_[:, :-1].contiguous()
 
@@ -297,9 +300,9 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
         eod_mask_loss=neox_args.eod_mask_loss,
         sliding_window_width=neox_args.sliding_window_width,
     )
-    # If `label` is present, any token < 0 (e.g., -100, the default for torch) skips the loss computation
-    if "label" in data_b:
-        loss_mask = (data_b["label"][:, 1:] >= 0).to(loss_mask.dtype)
+
+    # combine loss masks from get_ltor_masks_and_position_ids with loss masks from data
+    loss_mask = label_mask.to(loss_mask.dtype) * loss_mask
     return tokens, labels, loss_mask, attention_mask, position_ids
 
 
@@ -307,7 +310,7 @@ def get_batch(neox_args, data_iterator):
     """Generate a batch"""
 
     # Items and their type.
-    keys = ["text", "label"] if neox_args.label_data_paths else ["text"]
+    keys = ["text", "label"] if neox_args.train_label_data_paths else ["text"]
     datatype = torch.int64
 
     # Broadcast data.
@@ -327,7 +330,7 @@ def get_batch(neox_args, data_iterator):
 def get_batch_pipe(data, neox_args, curr_scheduler=None):
     """A modification of get_batch() to work with the latest batch instead of an iterator."""
     # Items and their type.
-    keys = ["text", "label"] if neox_args.label_data_paths else ["text"]
+    keys = ["text", "label"] if neox_args.train_label_data_paths else ["text"]
     datatype = torch.int64
 
     tokens, labels, loss_mask, attention_mask, position_ids = _get_batch(
