@@ -113,6 +113,9 @@ def build_chat(
             mask.extend([-100] * len(chat_tokens))
         else:
             mask.extend(chat_tokens)
+    if tokenizer.eos_token_id is not None:
+        mask.append(tokenizer.eos_token_id if mask[-1] != -100 else -100)
+        tokens.append(tokenizer.eos_token_id)
     return tokens, mask
 
 
