@@ -59,7 +59,10 @@ def build_the_dataset(
     name,
     data_impl,
     pack_impl,
+<<<<<<< HEAD
     dataset_impl,
+=======
+>>>>>>> 9ee4a8f6 (- add different packing impl (Unpacked, packing until overflow))
     allow_chopped,
     num_samples,
     seq_length,
