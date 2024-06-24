@@ -832,6 +832,19 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Training Arguments
     """
 
+    dataset_type: Literal[
+        "default",
+        "pause",
+        ] = "default"
+    """
+    Dataset type that will be loaded.
+    """
+
+    dataset_cfg: dict = None
+    """
+    Auxilary dataset configs for specific dataset_obj.
+    """
+
     data_path: str = None
     """
     Path to combined dataset to split.
