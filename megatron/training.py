@@ -285,12 +285,12 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
     label_key = keys[1] if len(keys) > 1 else None
     # Unpack.
     tokens_ = data_b[token_key].long()
-    if "label" in data_b:
+    if label_key in data_b:
         label_mask = (data_b[label_key].long() >= 0)[:, 1:].contiguous()
         labels = torch.where(
             data_b[label_key].long() >= 0,
             data_b[label_key].long(),
-            torch.zeros_like(data_b["label"].long()),
+            torch.zeros_like(data_b[label_key].long()),
         )[:, 1:].contiguous()
     else:
         label_mask = (tokens_.long() >= 0)[:, 1:].contiguous()
@@ -319,7 +319,7 @@ def get_batch(neox_args, data_iterator):
     elif neox_args.train_impl == "dpo":
         keys = (
             [["pos", "pos_label"], ["neg", "neg_label"]]
-            if neox_args.pos_label_data_paths
+            if neox_args.pos_train_label_data_paths
             else [["pos"], ["neg"]]
         )
     datatype = torch.int64
@@ -329,7 +329,7 @@ def get_batch(neox_args, data_iterator):
         data = next(data_iterator)
     else:
         data = None
-    if neox_args.train_type == "normal":
+    if neox_args.train_impl == "normal":
         return _get_batch(
             neox_args=neox_args,
             tokenizer=neox_args.tokenizer,
@@ -337,7 +337,7 @@ def get_batch(neox_args, data_iterator):
             data=data,
             datatype=datatype,
         )
-    elif neox_args.train_type == "dpo":
+    elif neox_args.train_impl == "dpo":
         pos_tup = _get_batch(
             neox_args=neox_args,
             tokenizer=neox_args.tokenizer,
@@ -516,7 +516,7 @@ def forward_step(
         else:
             moe_loss = 0.0
         loss = main_loss + moe_loss
-    elif neox_args.train_type == "dpo":
+    elif neox_args.train_impl == "dpo":
         # Based on https://github.com/eric-mitchell/direct-preference-optimization/blob/main/trainers.py#L90
         with torch.no_grad():
             # So we can gather token logps...
@@ -853,7 +853,7 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
         )
 
     """Setup model and optimizer."""
-    needs_reference_model = neox_args.train_type == "dpo"
+    needs_reference_model = neox_args.train_impl == "dpo"
     model = get_model(neox_args=neox_args, use_cache=use_cache)
     if needs_reference_model:
         reference_model = get_model(neox_args=neox_args, use_cache=use_cache)
@@ -933,7 +933,6 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
         neox_args.iteration = load_checkpoint(
             neox_args=neox_args,
             model=model,
-            reference_model=reference_model,
             optimizer=optimizer,
             lr_scheduler=lr_scheduler,
             iteration=iteration,
@@ -1071,8 +1070,7 @@ def train_step(
                 save_snapshot(neox_args)
         # reduces metrics across machines for logging
         reduce_metrics = {
-            key: reduce_losses([metric_dicts[key]]).mean()
-            for key in metric_dicts.keys()
+            key: reduce_losses(metric_dicts[key]).mean() for key in metric_dicts.keys()
         }
         reduce_metrics["lm_loss"] = reduce_losses(losses).mean()
 

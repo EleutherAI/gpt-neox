@@ -100,7 +100,10 @@ def build_the_dataset(
             neg_label_dataset = make_indexed_dataset(
                 neg_label_prefix, data_impl, skip_warmup
             )
-        if pos_ref_prefix is not None:
+        if pos_ref_prefix is None:
+            pos_ref_dataset = None
+            neg_ref_dataset = None
+        else:
             pos_ref_dataset = make_indexed_dataset(
                 pos_ref_prefix, data_impl, skip_warmup
             )
@@ -303,7 +306,7 @@ def build_weighted_datasets(
             neox_args.valid_label_data_paths
             if neox_args.valid_label_data_paths
             else [],
-            neox_args.test_data_paths if neox_args.pos_train_data_paths else [],
+            neox_args.test_data_paths if neox_args.test_data_paths else [],
             neox_args.test_label_data_paths if neox_args.test_label_data_paths else [],
             neox_args.pos_train_data_paths if neox_args.pos_train_data_paths else [],
             neox_args.neg_train_data_paths if neox_args.neg_train_data_paths else [],
@@ -331,7 +334,7 @@ def build_weighted_datasets(
             else [],
         )
     ):
-        if train_path:
+        if train_path or pos_train_path:
             train_datasets.append(
                 build_the_dataset(
                     data_prefix=train_path,
@@ -353,7 +356,7 @@ def build_weighted_datasets(
                 )
             )
 
-        if valid_path:
+        if valid_path or pos_valid_path:
             valid_datasets.append(
                 build_the_dataset(
                     data_prefix=valid_path,
@@ -375,7 +378,7 @@ def build_weighted_datasets(
                 )
             )
 
-        if test_path:
+        if test_path or pos_test_path:
             test_datasets.append(
                 build_the_dataset(
                     data_prefix=test_path,
@@ -465,7 +468,7 @@ def build_train_valid_test_data_iterators(neox_args):
             test_iters * neox_args.train_batch_size,
         ]
 
-        if neox_args.train_data_paths:
+        if (neox_args.train_data_paths) or (neox_args.pos_train_data_paths):
             # when individual train / valid / test data paths are provided
             # normalize weight values and get num samples for each dataset
             train_weights, train_num_samples = get_normalized_weights_and_num_samples(
