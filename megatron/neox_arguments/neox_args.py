@@ -873,6 +873,42 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     List of paths to validation label datasets (not shifted by 1 yet!).
     """
 
+    pos_train_data_paths: list = None
+    neg_train_data_paths: list = None
+    """
+    List of paths to positive and negative training datasets.
+    """
+
+    pos_train_label_data_paths: list = None
+    neg_train_label_data_paths: list = None
+    """
+    List of paths to positive and negative training label datasets (not shifted by 1 yet!).
+    """
+
+    pos_valid_data_paths: list = None
+    neg_valid_data_paths: list = None
+    """
+    List of paths to positive and negative validation datasets.
+    """
+
+    pos_valid_label_data_paths: list = None
+    neg_valid_label_data_paths: list = None
+    """
+    List of paths to positive and negative validation label datasets (not shifted by 1 yet!).
+    """
+
+    pos_test_data_paths: list = None
+    neg_test_data_paths: list = None
+    """
+    List of paths to positive and negative test datasets.
+    """
+
+    pos_test_label_data_paths: list = None
+    neg_test_label_data_paths: list = None
+    """
+    List of paths to positive and negative test label datasets (not shifted by 1 yet!).
+    """
+
     train_data_weights: list = None
     """
     List of 'weights' that decide how often to sample from each training dataset when blending datasets. If None, defaults to equal weighting.
@@ -927,6 +963,26 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Packing implementation, can be one of "packed", "pack_until_overflow", or "unpacked".
 
     warning: pack_until_overflow is very naive and will likely have issues with pretraining scale datasets
+    """
+
+    dataset_impl: Literal["gpt2", "pairwise"] = "gpt2"
+    """
+    Dataset implementation, can be one of "gpt2" or "pairwise"
+    """
+
+    train_impl: Literal["normal", "dpo"] = "normal"
+    """
+    Training implementation, can be one of "normal" or "dpo"
+    """
+
+    dpo_fp32: bool = True
+    """
+    Whether to cast logits to fp32 for DPO loss calculation.
+    """
+
+    dpo_beta: float = 0.1
+    """
+    Beta value for DPO
     """
 
     allow_chopped: bool = True
