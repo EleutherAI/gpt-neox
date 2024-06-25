@@ -59,10 +59,7 @@ def build_the_dataset(
     name,
     data_impl,
     pack_impl,
-<<<<<<< HEAD
     dataset_impl,
-=======
->>>>>>> 9ee4a8f6 (- add different packing impl (Unpacked, packing until overflow))
     allow_chopped,
     num_samples,
     seq_length,
@@ -130,7 +127,6 @@ def build_the_dataset(
     print_rank_0("     no. of documents:{}".format(total_num_of_documents))
     dataset = None
     documents = np.arange(start=0, stop=total_num_of_documents, step=1, dtype=np.int32)
-
     if dataset_impl == "gpt2":
         dataset = GPT2Dataset(
             name,
@@ -163,7 +159,6 @@ def build_the_dataset(
             pos_ref_dataset=pos_ref_dataset,
             neg_ref_dataset=neg_ref_dataset,
         )
-
     return dataset
 
 
