@@ -794,7 +794,9 @@ class NeoXArgs(*BASE_CLASSES):
 
         # either none of the three parameters are provided or just gradient_accumulation_step is provided
         else:
-            assert False, "Either train_batch_size or train_micro_batch_size_per_gpu needs to be provided"
+            assert (
+                False
+            ), "Either train_batch_size or train_micro_batch_size_per_gpu needs to be provided"
         return int(train_batch), int(micro_batch), int(grad_acc)
 
     @staticmethod
@@ -1098,8 +1100,8 @@ class NeoXArgs(*BASE_CLASSES):
         if "flash" in self.attention_config:
             _flash_version = packaging.version.Version(version("flash-attn"))
             if self.sliding_window_width is not None:
-                assert (
-                    _flash_version >= packaging.version.Version("2.3.0")
+                assert _flash_version >= packaging.version.Version(
+                    "2.3.0"
                 ), f"Flash-Attention version ({str(_flash_version)}) must be >= 2.3.0 to support sliding window attention."
             if self.pos_emb == "alibi":
                 if not _flash_version >= packaging.version.Version("2.4.0.post1"):

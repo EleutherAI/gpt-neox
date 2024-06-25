@@ -52,7 +52,7 @@ jobs:
       - name: install pytest
         run: python3 -m pip install pytest pytest-forked pyyaml requests wandb
       - name: install torch
-        run: python3 -m pip install torch 
+        run: python3 -m pip install torch
       - name: install requirements
         run: pip install -r requirements/requirements.txt
       - name: Run Tests
