@@ -1118,9 +1118,7 @@ class NeoXArgs(*BASE_CLASSES):
             self.test_data_weights = [1.0] * len(self.test_data_paths)
 
         if self.train_label_data_paths:
-            err_str = (
-                "Must use `train_label_data_paths` with `train_data_paths`, not `data_path`"
-            )
+            err_str = "Must use `train_label_data_paths` with `train_data_paths`, not `data_path`"
             assert self.train_data_paths and not self.data_path, err_str
 
         # if a sample input file is provided, default text_gen_type type to input-file
