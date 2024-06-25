@@ -1281,7 +1281,12 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     text_gen_type: str = None
     """
     How to generate text/sample the model.
-    Options: `unconditional`, `input-file`, `interactive`
+    Options: `unconditional`, `input-file`, `interactive`, `precompute`
+    """
+
+    precompute_model_name: str = None
+    """
+    Model name to use for saving precomputed logprobs
     """
 
     temperature: float = 0.0

@@ -654,7 +654,12 @@ def get_model(neox_args, use_cache=False):
 
 def get_optimizer(model, neox_args, dummy=False):
     """Set up the optimizer."""
-    if neox_args.no_load_optim:
+    if neox_args.no_load_optim and neox_args.deepspeed:
+        # Required to have something so...
+        dummy = True
+        neox_args.optimizer = {"params": {"lr": 0.0}}
+        neox_args.optimizer_type = "adam"
+    elif neox_args.no_load_optim:
         return None, None
 
     if neox_args.optimizer is None:
@@ -808,7 +813,7 @@ def get_optimizer(model, neox_args, dummy=False):
 
 def get_learning_rate_scheduler(optimizer, neox_args):
     """Build the learning rate scheduler."""
-    if neox_args.no_load_optim:
+    if (neox_args.no_load_optim) and not neox_args.deepspeed:
         # TODO: this should be configured as a separate arg
         return None
     if neox_args.deepspeed and neox_args.optimizer_type.lower() == "onebitadam":
@@ -873,13 +878,8 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
         ref_optimizer, ref_param_groups, ref_lr_scheduler = None, None, None
     if neox_args.deepspeed:
         print_rank_0("DeepSpeed is enabled.")
-        if neox_args.no_load_optim:
-            assert optimizer is None
-            _model_params = None
-            _lr_scheduler = None
-        else:
-            _model_params = param_groups if optimizer is None else None
-            _lr_scheduler = lr_scheduler
+        _model_params = param_groups if optimizer is None else None
+        _lr_scheduler = lr_scheduler
 
         model, optimizer, _, lr_scheduler = deepspeed.initialize(
             model=model,
