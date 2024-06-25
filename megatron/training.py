@@ -1000,7 +1000,6 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
         neox_args.iteration = load_checkpoint(
             neox_args=neox_args,
             model=model,
-            reference_model=reference_model,
             optimizer=optimizer,
             lr_scheduler=lr_scheduler,
             iteration=iteration,
