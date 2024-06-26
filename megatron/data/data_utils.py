@@ -69,8 +69,7 @@ def build_the_dataset(
     label_prefix=None,
     pos_label_prefix=None,
     neg_label_prefix=None,
-    pos_ref_prefix=None,
-    neg_ref_prefix=None,
+    precompute_model_name=None,
 ):
     """Build train/valid/test datasets."""
     if dataset_impl == "gpt2":
@@ -79,6 +78,12 @@ def build_the_dataset(
             label_dataset = None
         else:
             label_dataset = make_indexed_dataset(label_prefix, data_impl, skip_warmup)
+        if precompute_model_name is not None:
+            # If we have the name, assume it exists. If it doesn't, it will just be None which is fine.
+            precompute_indexed_dataset = make_indexed_dataset(
+                data_prefix + "_" + precompute_model_name, data_impl, skip_warmup
+            )
+            precompute_indexed_dataset = precompute_indexed_dataset
     elif dataset_impl == "pairwise":
         pos_indexed_dataset = make_indexed_dataset(
             pos_data_prefix, data_impl, skip_warmup
@@ -100,17 +105,15 @@ def build_the_dataset(
             neg_label_dataset = make_indexed_dataset(
                 neg_label_prefix, data_impl, skip_warmup
             )
-        if pos_ref_prefix is None:
+        if precompute_model_name is None:
             pos_ref_dataset = None
             neg_ref_dataset = None
         else:
             pos_ref_dataset = make_indexed_dataset(
-                pos_ref_prefix, data_impl, skip_warmup
+                pos_data_prefix + "_" + precompute_model_name, data_impl, skip_warmup
             )
-            # Also do neg here since they both must be the same
-            assert neg_ref_prefix is not None
             neg_ref_dataset = make_indexed_dataset(
-                neg_ref_prefix, data_impl, skip_warmup
+                neg_data_prefix + "_" + precompute_model_name, data_impl, skip_warmup
             )
     else:
         raise NotImplementedError(f"dataset_impl={dataset_impl} not implemented")
@@ -353,6 +356,7 @@ def build_weighted_datasets(
                     neg_data_prefix=neg_train_path,
                     pos_label_prefix=pos_train_label_path,
                     neg_label_prefix=neg_train_label_path,
+                    precompute_model_name=neox_args.precompute_model_name,
                 )
             )
 
@@ -375,6 +379,7 @@ def build_weighted_datasets(
                     neg_data_prefix=neg_valid_path,
                     pos_label_prefix=pos_valid_label_path,
                     neg_label_prefix=neg_valid_label_path,
+                    precompute_model_name=neox_args.precompute_model_name,
                 )
             )
 
@@ -397,6 +402,7 @@ def build_weighted_datasets(
                     neg_data_prefix=neg_test_path,
                     pos_label_prefix=pos_test_label_path,
                     neg_label_prefix=neg_test_label_path,
+                    precompute_model_name=neox_args.precompute_model_name,
                 )
             )
     return train_datasets, valid_datasets, test_datasets

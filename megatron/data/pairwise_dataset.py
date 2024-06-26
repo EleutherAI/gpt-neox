@@ -105,16 +105,18 @@ class PairwiseDataset(torch.utils.data.Dataset):
             offset_f = self.sample_idx[idx][1]
             offset_l = self.sample_idx[idx + 1][1]
             # Labels and texts are supposed to be fully in sync.
-            datasets = (
-                [self.pos_indexed_dataset, self.neg_indexed_dataset]
-                if self.pos_label_dataset is None
-                else [
-                    self.pos_indexed_dataset,
-                    self.neg_indexed_dataset,
+            datasets = [self.pos_indexed_dataset, self.neg_indexed_dataset]
+
+            if self.pos_label_dataset is not None:
+                datasets += [
                     self.pos_label_dataset,
                     self.neg_label_dataset,
                 ]
-            )
+            if self.pos_ref_dataset is not None:
+                datasets += [
+                    self.pos_ref_dataset,
+                    self.neg_ref_dataset,
+                ]
             samples = []
             pos_ref_samples = []
             neg_ref_samples = []
@@ -128,184 +130,54 @@ class PairwiseDataset(torch.utils.data.Dataset):
                             length=offset_l - offset_f + 1,
                         )
                     )
-                    if n == 0:
-                        if self.pos_ref_dataset is not None:
-                            pos_ref_samples.append(
-                                self.pos_ref_dataset.get(
-                                    self.doc_idx[doc_index_f],
-                                    offset=offset_f,
-                                    length=offset_l - offset_f + 1,
-                                )
-                            )
-                            neg_ref_samples.append(
-                                self.neg_ref_dataset.get(
-                                    self.doc_idx[doc_index_f],
-                                    offset=offset_f,
-                                    length=offset_l - offset_f + 1,
-                                )
-                            )
-
                 else:
                     # Otherwise, get the rest of the initial document.
                     sample_list = [
                         dataset.get(self.doc_idx[doc_index_f], offset=offset_f)
                     ]
-
-                    if n == 0:
-                        if self.pos_ref_dataset is not None:
-                            pos_ref_sample_list = [
-                                self.pos_ref_dataset.get(
-                                    self.doc_idx[doc_index_f],
-                                    offset=offset_f,
-                                )
-                            ]
-                            neg_ref_sample_list = [
-                                self.neg_ref_dataset.get(
-                                    self.doc_idx[doc_index_f],
-                                    offset=offset_f,
-                                )
-                            ]
                     # Loop over all in between documents and add the entire document.
                     for i in range(doc_index_f + 1, doc_index_l):
                         sample_list.append(dataset.get(self.doc_idx[i]))
-                        if n == 0:
-                            if self.pos_ref_dataset is not None:
-                                pos_ref_sample_list.append(
-                                    self.pos_ref_dataset.get(
-                                        self.doc_idx[i],
-                                    )
-                                )
-                                neg_ref_sample_list.append(
-                                    self.neg_ref_dataset.get(
-                                        self.doc_idx[i],
-                                    )
-                                )
                     # And finally add the relevant portion of last document.
                     sample_list.append(
                         dataset.get(self.doc_idx[doc_index_l], length=offset_l + 1)
                     )
                     samples.append(np.concatenate(sample_list))
-                    if n == 0:
-                        if self.pos_ref_dataset is not None:
-                            pos_ref_sample_list.append(
-                                self.pos_ref_dataset.get(
-                                    self.doc_idx[doc_index_l], length=offset_l + 1
-                                )
-                            )
-                            pos_ref_samples.append(np.concatenate(pos_ref_sample_list))
-                            neg_ref_sample_list.append(
-                                self.neg_ref_dataset.get(
-                                    self.doc_idx[doc_index_l], length=offset_l + 1
-                                )
-                            )
-                            neg_ref_samples.append(np.concatenate(neg_ref_sample_list))
-            if self.pos_ref_dataset is not None:
-                if len(pos_ref_samples[0]) < (self.seq_length):
-                    # Pad with 0s
-                    pos_ref_samples[0] = np.pad(
-                        pos_ref_samples[0],
-                        (0, (self.seq_length) - len(pos_ref_samples[0])),
-                        mode="constant",
-                        constant_values=0,
-                    )
-                elif len(pos_ref_samples[0]) > (self.seq_length):
+            for i in range(len(samples)):
+                if len(samples[i]) < (self.seq_length + 1):
+                    if ((i == 2) or (i == 3)) and self.pos_label_dataset is not None:
+                        # Labels... So pad with -100
+                        samples[i] = np.pad(
+                            samples[i],
+                            (0, (self.seq_length + 1) - len(samples[i])),
+                            mode="constant",
+                            constant_values=-100,
+                        )
+                    else:
+                        # Pad with 0s, can use any number since it's masked.
+                        samples[i] = np.pad(
+                            samples[i],
+                            (0, (self.seq_length + 1) - len(samples[i])),
+                            mode="constant",
+                            constant_values=0,
+                        )
+                elif len(samples[i]) > (self.seq_length + 1):
                     # Check for overflow and truncate.
-                    pos_ref_samples[0] = pos_ref_samples[0][: (self.seq_length)]
-                if len(neg_ref_samples[0]) < (self.seq_length):
-                    # Pad with 0s
-                    neg_ref_samples[0] = np.pad(
-                        neg_ref_samples[0],
-                        (0, (self.seq_length) - len(neg_ref_samples[0])),
-                        mode="constant",
-                        constant_values=0,
-                    )
-                elif len(neg_ref_samples[0]) > (self.seq_length):
-                    # Check for overflow and truncate.
-                    neg_ref_samples[0] = neg_ref_samples[0][: (self.seq_length)]
-            if len(datasets) == 2:
-                # pos
-                if len(samples[0]) < (self.seq_length + 1):
-                    # Pad with -100s so the masking function can ignore these.
-                    samples[0] = np.pad(
-                        samples[0],
-                        (0, (self.seq_length + 1) - len(samples[0])),
-                        mode="constant",
-                        constant_values=-100,
-                    )
-                elif len(samples[0]) > (self.seq_length + 1):
-                    # Check for overflow and truncate.
-                    samples[0] = samples[0][: (self.seq_length + 1)]
-                # neg
-                if len(samples[1]) < (self.seq_length + 1):
-                    # Pad with -100s so the masking function can ignore these.
-                    samples[1] = np.pad(
-                        samples[1],
-                        (0, (self.seq_length + 1) - len(samples[1])),
-                        mode="constant",
-                        constant_values=-100,
-                    )
-                elif len(samples[1]) > (self.seq_length + 1):
-                    # Check for overflow and truncate.
-                    samples[1] = samples[1][: (self.seq_length + 1)]
-                ret = {
-                    "pos": np.array(samples[0], dtype=np.int64),
-                    "neg": np.array(samples[1], dtype=np.int64),
-                }
+                    samples[i] = samples[i][: (self.seq_length + 1)]
+            ret = {}
+            ret["pos"] = np.array(samples[0], dtype=np.int64)
+            ret["neg"] = np.array(samples[1], dtype=np.int64)
+            if self.pos_label_dataset is not None:
+                ret["pos_label"] = np.array(samples[2], dtype=np.int64)
+                ret["neg_label"] = np.array(samples[3], dtype=np.int64)
                 if self.pos_ref_dataset is not None:
-                    ret["pos_ref"] = np.array(pos_ref_samples[0], dtype=np.float32)
-                    ret["neg_ref"] = np.array(neg_ref_samples[0], dtype=np.float32)
-                return ret
-            else:
-                # pos
-                if len(samples[0]) < (self.seq_length + 1):
-                    # Pad with 0s, can use any number since it's masked.
-                    samples[0] = np.pad(
-                        samples[0],
-                        (0, (self.seq_length + 1) - len(samples[0])),
-                        mode="constant",
-                        constant_values=0,
-                    )
-                    # pad with -100s so we can mask it out
-                    samples[2] = np.pad(
-                        samples[2],
-                        (0, (self.seq_length + 1) - len(samples[2])),
-                        mode="constant",
-                        constant_values=-100,
-                    )
-                elif len(samples[0]) > (self.seq_length + 1):
-                    # Check for overflow and truncate.
-                    samples[0] = samples[0][: (self.seq_length + 1)]
-                    samples[2] = samples[2][: (self.seq_length + 1)]
-                # neg
-                if len(samples[1]) < (self.seq_length + 1):
-                    # Pad with 0s, can use any number since it's masked.
-                    samples[1] = np.pad(
-                        samples[1],
-                        (0, (self.seq_length + 1) - len(samples[1])),
-                        mode="constant",
-                        constant_values=0,
-                    )
-                    # pad with -100s so we can mask it out
-                    samples[3] = np.pad(
-                        samples[3],
-                        (0, (self.seq_length + 1) - len(samples[3])),
-                        mode="constant",
-                        constant_values=-100,
-                    )
-                elif len(samples[1]) > (self.seq_length + 1):
-                    # Check for overflow and truncate.
-                    samples[1] = samples[1][: (self.seq_length + 1)]
-                    samples[3] = samples[3][: (self.seq_length + 1)]
-                ret = {
-                    "pos": np.array(samples[0], dtype=np.int64),
-                    "neg": np.array(samples[1], dtype=np.int64),
-                    "pos_label": np.array(samples[2], dtype=np.int64),
-                    "neg_label": np.array(samples[3], dtype=np.int64),
-                }
-                if self.pos_ref_dataset is not None:
-                    ret["pos_ref"] = np.array(pos_ref_samples[0], dtype=np.float32)
-                    ret["neg_ref"] = np.array(neg_ref_samples[0], dtype=np.float32)
-                return ret
+                    ret["pos_ref"] = np.array(samples[4], dtype=np.float32)
+                    ret["neg_ref"] = np.array(samples[5], dtype=np.float32)
+            elif self.pos_ref_dataset is not None:
+                # Don't have labels...
+                ret["pos_ref"] = np.array(samples[2], dtype=np.float32)
+                ret["neg_ref"] = np.array(samples[3], dtype=np.float32)
+            return ret
         except IndexError:
             new_idx = idx % len(self)
             print(

@@ -352,9 +352,19 @@ def get_batch(neox_args, data_iterator):
             data=data,
             datatype=datatype,
         )
+        if neox_args.precompute_model_name:
+            ref_data = mpu.broadcast_data(["pos_ref", "neg_ref"], data, torch.float)
+        else:
+            ref_data = {"pos_ref": None}
         return [
             torch.cat((pos_item, neg_item), dim=0)
             for pos_item, neg_item in zip(pos_tup, neg_tup)
+        ] + [
+            torch.cat((ref_data["pos_ref"], ref_data["neg_ref"]), dim=0)[
+                :, :-1
+            ].contiguous()
+            if ref_data["pos_ref"] is not None
+            else None
         ]
 
 
@@ -476,9 +486,14 @@ def forward_step(
         torch.cuda.nvtx.range_push(f"Get batch")
     if timers is not None:
         timers("batch generator").start()
-    tokens, labels, loss_mask, attention_mask, position_ids = get_batch(
-        neox_args=neox_args, data_iterator=data_iterator
-    )
+    if neox_args.train_impl == "normal":
+        tokens, labels, loss_mask, attention_mask, position_ids = get_batch(
+            neox_args=neox_args, data_iterator=data_iterator
+        )
+    if neox_args.train_impl == "dpo":
+        tokens, labels, loss_mask, attention_mask, position_ids, ref_logp = get_batch(
+            neox_args=neox_args, data_iterator=data_iterator
+        )
 
     if timers is not None:
         timers("batch generator").stop()
@@ -523,19 +538,22 @@ def forward_step(
             token_logp_labels = labels.clone()
             token_logp_labels[token_logp_labels == -100] = 0
             pos_loss_mask, neg_loss_mask = torch.chunk(loss_mask, 2, 0)
-            ref_maybe_tuple = reference_model(
-                (tokens, position_ids, attention_mask), neox_args=neox_args
-            )
-            if type(ref_maybe_tuple) is tuple:
-                # We should ignore MoE losses yeah?
-                ref_outputs, _ = ref_maybe_tuple
+            if ref_logp is None:
+                ref_maybe_tuple = reference_model(
+                    (tokens, position_ids, attention_mask), neox_args=neox_args
+                )
+                if type(ref_maybe_tuple) is tuple:
+                    # We should ignore MoE losses yeah?
+                    ref_outputs, _ = ref_maybe_tuple
+                else:
+                    ref_outputs = ref_maybe_tuple
+                # gather across tensor parallel group
+                ref_outputs = gather_from_model_parallel_region(ref_outputs)
+                ref_pos, ref_neg = get_pos_neg_logp(
+                    ref_outputs, token_logp_labels, neox_args.dpo_fp32
+                )
             else:
-                ref_outputs = ref_maybe_tuple
-            # gather across tensor parallel group
-            ref_outputs = gather_from_model_parallel_region(ref_outputs)
-            ref_pos, ref_neg = get_pos_neg_logp(
-                ref_outputs, token_logp_labels, neox_args.dpo_fp32
-            )
+                ref_pos, ref_neg = torch.chunk(ref_logp, 2, 0)
             ref_pos = (ref_pos * pos_loss_mask).sum(-1)
             ref_neg = (ref_neg * neg_loss_mask).sum(-1)
         chosen_maybe_tuple = model(
@@ -858,7 +876,9 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
         )
 
     """Setup model and optimizer."""
-    needs_reference_model = neox_args.train_impl == "dpo"
+    needs_reference_model = (neox_args.train_impl == "dpo") and (
+        neox_args.precompute_model_name is None
+    )
     model = get_model(neox_args=neox_args, use_cache=use_cache)
     if needs_reference_model:
         reference_model = get_model(neox_args=neox_args, use_cache=use_cache)
