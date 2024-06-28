@@ -1,3 +1,5 @@
+# This file is hidden (.cpu_cpi_on_pr.yml) to minimize the number of runner minutes consumed.
+
 name: "Pull Request CPU Tests"
 
 on:
@@ -7,7 +9,7 @@ on:
 
 jobs:
   run-tests:
-    runs-on: [ 'test', 'self-hosted' ]
+    runs-on: ubuntu-22.04 # ubuntu-latest currently points to ubuntu-22.04 but 24.04 is in beta - recommend testing on 24.04 and then changing instead of using ubuntu-latest
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
