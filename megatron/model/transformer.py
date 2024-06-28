@@ -243,7 +243,8 @@ class ParallelLinear(nn.Module):
         is_last_layer=False,
     ):
         super().__init__()
-        parallelism = neox_args.output_layer_parallelism
+        self.is_rm = neox_args.train_impl == "rm"
+        parallelism = neox_args.output_layer_parallelism if not self.is_rm else "row"
         if parallelism == "column":
             self.final_linear = mpu.ColumnParallelLinear(
                 neox_args=neox_args,
@@ -255,26 +256,41 @@ class ParallelLinear(nn.Module):
                 skip_bias_add=False,
                 mup_rescale_parameters=is_last_layer,  # rescale params only called if neox_args.use_mup = True, despite it not being included here
             )
-
-    #        else:
-    #            print(
-    #                'ERROR: Output layer parallelism over the hidden dim is currently broken (https://github.com/EleutherAI/gpt-neox/issues/905). Please run with output_layer_parallelism = "column" until this issue is fixed.'
-    #            )
-    #            exit()
-    #            self.final_linear = mpu.RowParallelLinear(
-    #                neox_args=neox_args,
-    #                input_size=neox_args.hidden_size,
-    #                output_size=neox_args.padded_vocab_size,
-    #                bias=False,
-    #                input_is_parallel=False,
-    #                init_method=init_method,
-    #                parallel_output=parallel_output,
-    #                skip_bias_add=False,
-    #                mup_rescale_parameters=is_last_layer,  # only called if neox_args.use_mup = True, despite it not being included here
-    #            )
+        else:
+            if not self.is_rm:
+                print(
+                    'ERROR: Output layer parallelism over the hidden dim is currently broken (https://github.com/EleutherAI/gpt-neox/issues/905). Please run with output_layer_parallelism = "column" until this issue is fixed.'
+                )
+                exit()
+                # self.final_linear = mpu.RowParallelLinear(
+                #     neox_args=neox_args,
+                #     input_size=neox_args.hidden_size,
+                #     output_size=neox_args.padded_vocab_size,
+                #     bias=False,
+                #     input_is_parallel=False,
+                #     init_method=init_method,
+                #     parallel_output=parallel_output,
+                #     skip_bias_add=False,
+                #     mup_rescale_parameters=is_last_layer,  # only called if neox_args.use_mup = True, despite it not being included here
+                # )
+            else:
+                self.rm_linear = mpu.RowParallelLinear(
+                    neox_args=neox_args,
+                    input_size=neox_args.hidden_size,
+                    output_size=1,
+                    bias=False,
+                    input_is_parallel=False,
+                    init_method=init_method,
+                    parallel_output=False,
+                    skip_bias_add=False,
+                    mup_rescale_parameters=is_last_layer,  # only called if neox_args.use_mup = True, despite it not being included here
+                )
 
     def forward(self, hidden_states):
-        return self.final_linear(hidden_states)
+        if not self.is_rm:
+            return self.final_linear(hidden_states)
+        else:
+            return self.rm_linear(hidden_states)
 
 
 class _MegablocksAdapter(nn.Module):
