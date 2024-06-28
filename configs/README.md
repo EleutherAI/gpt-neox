@@ -235,6 +235,33 @@ Additional DeepSpeed settings besides those mentioned above should be wrapped in
    "eval_iters": 10,
 ```
 
+However, if you want to use DPO style training you'll need to set pos/neg data paths instead of a single one, e.g.
+
+```yaml
+   "dataset_impl": "pairwise",
+   "train_impl": "dpo",
+   "pack_impl": "unpacked",
+   "dpo_beta": 0.1,
+   "dpo_fp32": true,
+   "pos_train_data_path": "data/enwik8/enwik8_text_pos_document",
+   "pos_valid_data_path": "data/enwik8/enwik8_text_pos_document",
+   "pos_test_data_path": "data/enwik8/enwik8_text_pos_document",
+   "neg_train_data_path": "data/enwik8/enwik8_text_neg_document",
+   "neg_valid_data_path": "data/enwik8/enwik8_text_neg_document",
+   "neg_test_data_path": "data/enwik8/enwik8_text_neg_document",
+   ## If you have labels... (likely to mask out user turns)
+   "pos_train_label_data_path": "data/enwik8/enwik8_text_pos_label_document",
+   "pos_valid_label_data_path": "data/enwik8/enwik8_text_pos_label_document",
+   "pos_test_label_data_path": "data/enwik8/enwik8_text_pos_label_document",
+   "neg_train_label_data_path": "data/enwik8/enwik8_text_neg_label_document",
+   "neg_valid_label_data_path": "data/enwik8/enwik8_text_neg_label_document",
+   "neg_test_label_data_path": "data/enwik8/enwik8_text_neg_label_document",
+   ## If you want to precompute the logits over your dataset...
+   "precompute_model_name": "gpt2",
+   ## Needed for the generation.py step, if precomputing
+   "text_gen_type": "precompute"
+```
+
 ### LR Scheduler settings
 
 ```yaml

@@ -848,9 +848,9 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     List of paths to train datasets.
     """
 
-    label_data_paths: list = None
+    train_label_data_paths: list = None
     """
-    List of paths to label datasets (not shifted by 1 yet!).
+    List of paths to train label datasets (not shifted by 1 yet!).
     """
 
     test_data_paths: list = None
@@ -858,9 +858,55 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     List of paths to test datasets.
     """
 
+    test_label_data_paths: list = None
+    """
+    List of paths to test label datasets (not shifted by 1 yet!).
+    """
+
     valid_data_paths: list = None
     """
     List of paths to validation datasets.
+    """
+
+    valid_label_data_paths: list = None
+    """
+    List of paths to validation label datasets (not shifted by 1 yet!).
+    """
+
+    pos_train_data_paths: list = None
+    neg_train_data_paths: list = None
+    """
+    List of paths to positive and negative training datasets.
+    """
+
+    pos_train_label_data_paths: list = None
+    neg_train_label_data_paths: list = None
+    """
+    List of paths to positive and negative training label datasets (not shifted by 1 yet!).
+    """
+
+    pos_valid_data_paths: list = None
+    neg_valid_data_paths: list = None
+    """
+    List of paths to positive and negative validation datasets.
+    """
+
+    pos_valid_label_data_paths: list = None
+    neg_valid_label_data_paths: list = None
+    """
+    List of paths to positive and negative validation label datasets (not shifted by 1 yet!).
+    """
+
+    pos_test_data_paths: list = None
+    neg_test_data_paths: list = None
+    """
+    List of paths to positive and negative test datasets.
+    """
+
+    pos_test_label_data_paths: list = None
+    neg_test_label_data_paths: list = None
+    """
+    List of paths to positive and negative test label datasets (not shifted by 1 yet!).
     """
 
     train_data_weights: list = None
@@ -910,6 +956,41 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     data_impl: Literal["infer", "mmap", "cached"] = "infer"
     """
     Implementation of indexed datasets, can be one of "infer", "cached", or "mmap"
+    """
+
+    pack_impl: Literal["packed", "pack_until_overflow", "unpacked"] = "packed"
+    """
+    Packing implementation, can be one of "packed", "pack_until_overflow", or "unpacked".
+
+    warning: pack_until_overflow is very naive and will likely have issues with pretraining scale datasets
+    """
+
+    dataset_impl: Literal["gpt2", "pairwise"] = "gpt2"
+    """
+    Dataset implementation, can be one of "gpt2" or "pairwise"
+    """
+
+    train_impl: Literal["normal", "dpo"] = "normal"
+    """
+    Training implementation, can be one of "normal" or "dpo"
+    """
+
+    dpo_fp32: bool = True
+    """
+    Whether to cast logits to fp32 for DPO loss calculation.
+    """
+
+    dpo_beta: float = 0.1
+    """
+    Beta value for DPO
+    """
+
+    allow_chopped: bool = True
+    """
+    WARNING: if your packing impl is packed, this is ignored.
+
+    Allow chopped samples in the dataset.
+    (e.g if your sequence length is 1024 and you have a sample of length 1026, it will be chopped to 1024)
     """
 
     mmap_warmup: bool = False
@@ -1200,7 +1281,12 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     text_gen_type: str = None
     """
     How to generate text/sample the model.
-    Options: `unconditional`, `input-file`, `interactive`
+    Options: `unconditional`, `input-file`, `interactive`, `precompute`
+    """
+
+    precompute_model_name: str = None
+    """
+    Model name to use for saving precomputed logprobs
     """
 
     temperature: float = 0.0

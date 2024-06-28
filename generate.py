@@ -23,6 +23,7 @@ from megatron.text_generation_utils import (
     generate_samples_from_prompt,
     generate_samples_unconditional,
     generate_samples_interactive,
+    precompute_logits,
 )
 
 
@@ -83,6 +84,8 @@ def main(input_args=None, overwrite_values=None):
             top_p=neox_args.top_p,
         )
 
+    elif neox_args.text_gen_type == "precompute":
+        precompute_logits(neox_args=neox_args, model=model)
     else:
         raise ValueError(
             f"`text_gen_type` either not specified or not recognised: {neox_args.text_gen_type}"
