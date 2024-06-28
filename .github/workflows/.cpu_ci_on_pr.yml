@@ -1,3 +1,5 @@
+# This file is hidden (.cpu_cpi_on_pr.yml) to minimize the number of runner minutes consumed.
+
 name: "Pull Request CPU Tests"
 
 on:
