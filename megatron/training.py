@@ -314,8 +314,8 @@ def get_batch(neox_args, data_iterator):
     """Generate a batch"""
 
     # Items and their type.
-    if neox_args.train_impl == "normal":
-        keys = ["text", "label"] if neox_args.label_data_paths else ["text"]
+    if neox_args.train_impl in ["normal", "kto"]:
+        keys = ["text", "label"] if neox_args.train_label_data_paths else ["text"]
     elif neox_args.train_impl == "dpo":
         keys = (
             [["pos", "pos_label"], ["neg", "neg_label"]]
@@ -337,6 +337,25 @@ def get_batch(neox_args, data_iterator):
             data=data,
             datatype=datatype,
         )
+    elif neox_args.train_impl == "kto":
+        tup = _get_batch(
+            neox_args=neox_args,
+            tokenizer=neox_args.tokenizer,
+            keys=keys,
+            data=data,
+            datatype=datatype,
+        )
+        # Remove the last token from the reward since we predict the next token, so
+        # Reward of <current prediction> will be based on the label of <next token>
+        rw_data = mpu.broadcast_data(["reward"], data, torch.float)["reward"][
+            :, :-1
+        ].contiguous()
+        ref_data = (
+            mpu.broadcast_data(["ref"], data, torch.float)["ref"][:, :-1].contiguous()
+            if neox_args.precompute_model_name
+            else None
+        )
+        return tup + (rw_data, ref_data)
     elif neox_args.train_impl == "dpo":
         pos_tup = _get_batch(
             neox_args=neox_args,
@@ -459,13 +478,15 @@ def mb_moe_loss_func(args, loss_mask, output_tensor=None):
     return averaged_lbl, loss_dict
 
 
-def get_pos_neg_logp(logits, labels, force_fp32=False):
+def get_logp(logits, labels, force_fp32=False):
     if force_fp32:
         logits = logits.float()
     logp = logits.log_softmax(dim=-1)
-    per_token_logp = torch.gather(logp, dim=2, index=labels.unsqueeze(2)).squeeze(2)
-    # Split to pos/neg...
-    return torch.chunk(per_token_logp, 2, 0)
+    return torch.gather(logp, dim=2, index=labels.unsqueeze(2)).squeeze(2)
+
+
+def get_pos_neg_logp(logits, labels, force_fp32=False):
+    return torch.chunk(get_logp(logits, labels, force_fp32), 2, 0)
 
 
 def forward_step(
@@ -490,7 +511,17 @@ def forward_step(
         tokens, labels, loss_mask, attention_mask, position_ids = get_batch(
             neox_args=neox_args, data_iterator=data_iterator
         )
-    if neox_args.train_impl == "dpo":
+    elif neox_args.train_impl == "kto":
+        (
+            tokens,
+            labels,
+            loss_mask,
+            attention_mask,
+            position_ids,
+            rewards,
+            ref_logp,
+        ) = get_batch(neox_args=neox_args, data_iterator=data_iterator)
+    elif neox_args.train_impl == "dpo":
         tokens, labels, loss_mask, attention_mask, position_ids, ref_logp = get_batch(
             neox_args=neox_args, data_iterator=data_iterator
         )
@@ -591,6 +622,115 @@ def forward_step(
         ref_logrations = ref_pos - ref_neg
         logits = pi_logrations - ref_logrations
         loss = -F.logsigmoid(neox_args.dpo_beta * logits).mean()
+    elif neox_args.train_impl == "kto":
+        # Based on https://github.com/huggingface/trl/blob/main/trl/trainer/kto_trainer.py
+        # Except we don't have an extra input for KL logp, we just split the batch in half
+        with torch.no_grad():
+            # So we can gather token logps...
+            token_logp_labels = labels.clone()
+            token_logp_labels[token_logp_labels == -100] = 0
+            if ref_logp is None:
+                # Did not precompute logits....
+                ref_maybe_tuple = reference_model(
+                    (tokens, position_ids, attention_mask), neox_args=neox_args
+                )
+                if type(ref_maybe_tuple) is tuple:
+                    # We should ignore MoE losses yeah?
+                    ref_outputs, _ = ref_maybe_tuple
+                else:
+                    ref_outputs = ref_maybe_tuple
+                # gather across tensor parallel group
+                ref_outputs = gather_from_model_parallel_region(ref_outputs)
+
+                ref_logp = get_logp(ref_outputs, token_logp_labels, neox_args.kto_fp32)
+            else:
+                print(f"REF LOGP: {ref_logp.clone().detach().mean()}")
+            ref_logp = ref_logp * loss_mask
+            scaling = (rewards.sum(-1) > 0.001).float() * neox_args.kto_desirable_weight
+            scaling += (
+                rewards.sum(-1) < -0.001
+            ).float() * neox_args.kto_undesirable_weight
+            pos_mask = (rewards > 0.001).float()
+            neg_mask = (rewards < -0.001).float()
+        chosen_maybe_tuple = model(
+            (tokens, position_ids, attention_mask), neox_args=neox_args
+        )
+        if type(chosen_maybe_tuple) is tuple:
+            # We should ignore MoE losses yeah?
+            chosen_outputs, _ = chosen_maybe_tuple
+        else:
+            chosen_outputs = chosen_maybe_tuple
+        chosen_outputs = gather_from_model_parallel_region(chosen_outputs)
+        chosen_logp = get_logp(chosen_outputs, token_logp_labels, neox_args.kto_fp32)
+        chosen_logp = chosen_logp * loss_mask
+        with torch.no_grad():
+            # Collect metrics...
+            metrics["ref_logp"] = ref_logp.clone().detach().sum(-1).mean()
+            metrics["policy_logp"] = chosen_logp.clone().detach().sum(-1).mean()
+            metrics["pos_ref_logp"] = (
+                (ref_logp * pos_mask).clone().detach().sum(-1).mean()
+            )
+            metrics["neg_ref_logp"] = (
+                (ref_logp * neg_mask).clone().detach().sum(-1).mean()
+            )
+            metrics["pos_policy_logp"] = (
+                (chosen_logp * pos_mask).clone().detach().sum(-1).mean()
+            )
+            metrics["neg_policy_logp"] = (
+                (chosen_logp * neg_mask).clone().detach().sum(-1).mean()
+            )
+            metrics["kl"] = (
+                chosen_logp.clone().detach() - ref_logp.clone().detach()
+            ).sum() / loss_mask.sum()
+            policy_rewards = (
+                neox_args.kto_beta
+                * rewards
+                * (chosen_logp.clone().detach() - ref_logp.clone().detach())
+            )
+            reward_acc = (policy_rewards.sum(-1) > 0.0).float()
+            metrics["reward_acc"] = reward_acc.mean()
+            metrics["policy_rewards"] = policy_rewards.sum()
+            print(metrics)
+        pol_logp1, pol_logp2 = torch.chunk(chosen_logp, 2, 0)
+        ref_logp1, ref_logp2 = torch.chunk(ref_logp, 2, 0)
+        reward1, reward2 = torch.chunk(rewards, 2, 0)
+        scaling1, scaling2 = torch.chunk(scaling, 2, 0)
+        kl1 = torch.clamp((pol_logp1 - ref_logp1).sum(-1), min=0).mean()
+        kl2 = torch.clamp((pol_logp2 - ref_logp2).sum(-1), min=0).mean()
+        log_ratio1 = pol_logp1 - ref_logp1
+        log_ratio2 = pol_logp2 - ref_logp2
+
+        # TODO: Add pack_until_overflow sequence support
+        loss = (
+            0.5
+            * scaling1.mean(-1)
+            * (
+                1
+                - F.sigmoid(
+                    (
+                        neox_args.kto_beta
+                        * reward1.mean(-1)
+                        * (log_ratio1.sum(-1) - kl2.clone().detach())
+                    )
+                )
+            )
+        ) + (
+            0.5
+            * scaling2.mean(-1)
+            * (
+                1
+                - F.sigmoid(
+                    (
+                        neox_args.kto_beta
+                        * reward2.mean(-1)
+                        * (log_ratio2.sum(-1) - kl1.clone().detach())
+                    )
+                )
+            )
+        )
+        # print(loss.shape)
+        loss = loss.mean()
+        # print(loss.shape)
     if neox_args.memory_profiling:
         torch.cuda.nvtx.range_pop()
     if return_logits:
@@ -876,9 +1016,9 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
         )
 
     """Setup model and optimizer."""
-    needs_reference_model = (neox_args.train_impl == "dpo") and (
-        neox_args.precompute_model_name is None
-    )
+    needs_reference_model = (
+        (neox_args.train_impl == "dpo") and (neox_args.precompute_model_name is None)
+    ) or ((neox_args.train_impl == "kto") and (neox_args.precompute_model_name is None))
     model = get_model(neox_args=neox_args, use_cache=use_cache)
     if needs_reference_model:
         reference_model = get_model(neox_args=neox_args, use_cache=use_cache)

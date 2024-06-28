@@ -853,6 +853,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     List of paths to train label datasets (not shifted by 1 yet!).
     """
 
+    train_reward_data_paths: list = None
+    """
+    List of paths to train reward datasets
+    """
+
     test_data_paths: list = None
     """
     List of paths to test datasets.
@@ -863,6 +868,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     List of paths to test label datasets (not shifted by 1 yet!).
     """
 
+    test_reward_data_paths: list = None
+    """
+    List of paths to test reward datasets
+    """
+
     valid_data_paths: list = None
     """
     List of paths to validation datasets.
@@ -871,6 +881,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     valid_label_data_paths: list = None
     """
     List of paths to validation label datasets (not shifted by 1 yet!).
+    """
+
+    valid_reward_data_paths: list = None
+    """
+    List of paths to validation reward datasets
     """
 
     pos_train_data_paths: list = None
@@ -970,9 +985,9 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Dataset implementation, can be one of "gpt2" or "pairwise"
     """
 
-    train_impl: Literal["normal", "dpo"] = "normal"
+    train_impl: Literal["normal", "dpo", "kto"] = "normal"
     """
-    Training implementation, can be one of "normal" or "dpo"
+    Training implementation, can be one of "normal", "dpo", or "kto"
     """
 
     dpo_fp32: bool = True
@@ -980,9 +995,29 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Whether to cast logits to fp32 for DPO loss calculation.
     """
 
+    kto_fp32: bool = True
+    """
+    Whether to cast logits to fp32 for KTO loss calculation.
+    """
+
+    kto_desirable_weight: float = 1.0
+    """
+    Weight for desirable loss in KTO. Might help if you have unbalanced desirable and undesirable classes.
+    """
+
+    kto_undesirable_weight: float = 1.0
+    """
+    Weight for undesirable loss in KTO. Might help if you have unbalanced desirable and undesirable classes.
+    """
+
     dpo_beta: float = 0.1
     """
     Beta value for DPO
+    """
+
+    kto_beta: float = 0.1
+    """
+    Beta value for KTO
     """
 
     allow_chopped: bool = True
