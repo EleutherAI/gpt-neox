@@ -51,7 +51,8 @@ def convert_model(hf_state_dict, hf_config, tp_ranks):
         q = hf_state_dict[f"model.layers.{layer_num}.self_attn.q_proj.weight"]
         k = hf_state_dict[f"model.layers.{layer_num}.self_attn.k_proj.weight"]
         v = hf_state_dict[f"model.layers.{layer_num}.self_attn.v_proj.weight"]
-        # They're doing something really weird over in the gqa code...
+        # The GQA code splits the heads by the num_q_heads so we also do that
+        # here to ensure it matches...
         q = q.view(num_q_heads, -1, q.shape[-1])
         k = k.view(num_q_heads, -1, q.shape[-1])
         v = v.view(num_q_heads, -1, q.shape[-1])
@@ -100,7 +101,7 @@ def convert_model(hf_state_dict, hf_config, tp_ranks):
             f"sequential.{layer_num+2}.mlp.w1.weight",
             conv_state_dicts[0][f"sequential.{layer_num+2}.mlp.w1.weight"].shape,
         )
-        # w3... (Why is this 3? Why wouldn't the output be 3? Why am I having existential questions?)
+        # w3...
         for i, chunk in enumerate(
             torch.chunk(
                 hf_state_dict[f"model.layers.{layer_num}.mlp.up_proj.weight"],
