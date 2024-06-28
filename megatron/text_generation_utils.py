@@ -19,6 +19,7 @@
 
 import copy
 import json
+import math
 import os
 import time
 from typing import List, Union
@@ -876,7 +877,8 @@ def precompute_logits(neox_args, model):
             out_dataset = make_builder(out_path + ".bin", neox_args.data_impl)
             out_dataset._dtype = np.float32
         i = 0
-        while i < len(dataset):
+        # Not sure why this requires a multiple of 8 but...
+        while i < int(math.ceil(len(dataset) / 8.0) * 8):
             start = time.time()
             model.module.clear_cache()  # clear kv cache between batches
             if is_mp_rank_0():
