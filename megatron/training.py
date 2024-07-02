@@ -75,7 +75,6 @@ def mup_weights_reinit(neox_args, model):
 
 
 def save_base_shapes(neox_args, base_shapes, use_cache):
-
     # Instantiation of the base model fails in the init function (init_functions.py) because we haven't called set_base_shapes on it at this point, so disable it temporarily here
     neox_args.use_mup = False
 
@@ -92,9 +91,9 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
 
     try:
         import mup
-    except ModuleNotFoundError:
+    except ModuleNotFoundError as exc:
         print("Please install mup https://github.com/microsoft/mup")
-        raise Exception
+        raise Exception from exc
 
     base_shapes = mup.get_shapes(base_model)
 
@@ -523,9 +522,9 @@ def get_model(neox_args, use_cache=False):
     if neox_args.use_mup:
         try:
             import mup
-        except ModuleNotFoundError:
+        except ModuleNotFoundError as exc:
             print("Please install mup https://github.com/microsoft/mup")
-            raise Exception
+            raise Exception from exc
 
         base_shapes = f"{neox_args.base_shapes_file}.{torch.distributed.get_rank()}"
 
@@ -642,20 +641,20 @@ def get_optimizer(model, neox_args):
                 from mup import MuAdam
 
                 adam_optimizer = MuAdam
-            except ModuleNotFoundError:
+            except ModuleNotFoundError as exc:
                 print("Please install mup https://github.com/microsoft/mup")
-                raise Exception
+                raise Exception from exc
         else:
             if neox_args.use_bnb_optimizer:
                 try:
                     import bitsandbytes as bnb
 
                     adam_optimizer = bnb.optim.Adam8bit
-                except ModuleNotFoundError:
+                except ModuleNotFoundError as exc:
                     print(
                         "Please install bitsandbytes following https://github.com/facebookresearch/bitsandbytes."
                     )
-                    raise Exception
+                    raise Exception from exc
             else:
                 try:
                     # default to apex as it's slightly faster
@@ -675,14 +674,15 @@ def get_optimizer(model, neox_args):
     elif neox_args.optimizer_type.lower() == "sgd":
         try:
             from mup import MuSGD
-        except ModuleNotFoundError:
+
+            optimizer = MuSGD(
+                param_groups,
+                weight_decay=neox_args.weight_decay,
+                **neox_args.optimizer["params"],
+            )
+        except ModuleNotFoundError as exc:
             print("Please install mup https://github.com/microsoft/mup")
-            raise Exception
-        optimizer = MuSGD(
-            param_groups,
-            weight_decay=neox_args.weight_decay,
-            **neox_args.optimizer["params"],
-        )
+            raise Exception from exc
     else:
         raise ValueError(f"Optimizer type {neox_args.optimizer_type} not recognized")
 

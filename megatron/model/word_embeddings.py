@@ -68,11 +68,11 @@ class Embedding(torch.nn.Module):
                 import bitsandbytes as bnb
 
                 self.embedding_module = bnb.nn.StableEmbedding
-            except ModuleNotFoundError:
+            except ModuleNotFoundError as exc:
                 print(
                     "Please install bitsandbytes following https://github.com/facebookresearch/bitsandbytes."
                 )
-                raise Exception
+                raise Exception from exc
         else:
             self.embedding_module = torch.nn.Embedding
 
