@@ -352,18 +352,18 @@ class TiktokenTokenizer(AbstractTokenizer):
     """Tokenizer from OpenAI's tiktoken implementation"""
 
     def __init__(self, vocab_file):
-        try:
-            import tiktoken
-        except ModuleNotFoundError:
-            print("Please install tiktoken: (https://github.com/openai/tiktoken)")
-            raise Exception
+            try:
+                import tiktoken
+            except ModuleNotFoundError as exc:
+                print("Please install tiktoken: (https://github.com/openai/tiktoken)")
+                raise Exception from exc
 
-        name = "TiktokenTokenizer"
-        super().__init__(name)
+            name = "TiktokenTokenizer"
+            super().__init__(name)
 
-        self.tokenizer = tiktoken.get_encoding(vocab_file)
-        self.eod_id = self.tokenizer.eot_token
-        self.pad_id = None
+            self.tokenizer = tiktoken.get_encoding(vocab_file)
+            self.eod_id = self.tokenizer.eot_token
+            self.pad_id = None
 
     @property
     def vocab_size(self):
