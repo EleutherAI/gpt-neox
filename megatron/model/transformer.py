@@ -93,29 +93,37 @@ class ParallelMLP(nn.Module):
         init_method,
         output_layer_init_method,
         parallel_output=False,
+        multiple_of=256,
         MOE=False,
         MoE_mp_size=1,
     ):
         super().__init__()
+        assert neox_args.intermediate_size == None or neox_args.expansion_factor == None
 
-        self.activation_func = get_activation(neox_args)
+        self.activation_func, self.is_gated = get_activation(neox_args)
         self.activation_type = neox_args.activation
         self.bias_gelu_fusion = neox_args.bias_gelu_fusion
+        self.multiple_of = multiple_of
 
-        #TODO: revisit this when we add swiglu to make sure ff_dim is initialized correctly.
         if neox_args.intermediate_size:
             ff_dim = neox_args.intermediate_size
-
+        elif neox_args.expansion_factor:
+            ff_dim = int(neox_args.expansion_factor * neox_args.hidden_size)
         else:
-            # auto scale so geglu has equal parameters
-            ff_mult = int(4 * 2 / 3) if self.activation_type == "geglu" else 4
-            ff_dim = (
-                int(ff_mult * neox_args.hidden_size) * 2
-                if self.activation_type == "geglu"
-                else int(ff_mult * neox_args.hidden_size)
-            )
+            # 4h is default for ff_dim
+            ff_dim = 4 * neox_args.hidden_size
+        ff_dim_in = ff_dim
+        if self.is_gated:
+            # set activation function to be gated implementation
+            self.activation_func = Gated_Activation(self.activation_func)
+            # auto scale so gated activations has equal parameters
+            ff_dim = int(ff_dim * 2 / 3)
+            ff_dim_in = ff_dim // 2
+        # set multiple
+        ff_dim = int((2 * self.multiple_of) * ((ff_dim + (2 * multiple_of) - 1) // (2 * multiple_of)))
+        ff_dim_in = int(self.multiple_of * ((ff_dim_in + multiple_of - 1) // multiple_of))
 
-        self.dense_h_to_4h = mpu.ColumnParallelLinear(
+        self.linear1 = mpu.ColumnParallelLinear(
             neox_args=neox_args,
             input_size=neox_args.hidden_size,
             output_size=ff_dim,
@@ -125,9 +133,8 @@ class ParallelMLP(nn.Module):
             MOE=MOE,
             MoE_mp_size=MoE_mp_size,
         )
-        ff_dim_in = ff_dim // 2 if self.activation_type == "geglu" else ff_dim
         # Project back to h.
-        self.dense_4h_to_h = mpu.RowParallelLinear(
+        self.linear2 = mpu.RowParallelLinear(
             neox_args=neox_args,
             input_size=ff_dim_in,
             output_size=neox_args.hidden_size,
@@ -140,13 +147,10 @@ class ParallelMLP(nn.Module):
         )
 
     def forward(self, hidden_states):
+        # [s, b, intermediate_size]
+        intermediate_parallel, bias_parallel = self.linear1(hidden_states)
 
-        # [s, b, 4hp]
-        intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
-
-        if (
-            self.activation_type == "gelu" and self.bias_gelu_fusion
-        ) or self.activation_type == "geglu":
+        if self.is_gated: 
             intermediate_parallel = self.activation_func(
                 intermediate_parallel, bias_parallel
             )
@@ -156,85 +160,22 @@ class ParallelMLP(nn.Module):
             )
 
         # [s, b, h]
-        output, output_bias = self.dense_4h_to_h(intermediate_parallel)
+        output, output_bias = self.linear2(intermediate_parallel)
         return output, output_bias
 
-
-class LLaMAParallelMLP(nn.Module):
-    """LLaMA's MLP.
-
-    MLP will take the input with h hidden state, project it to 4*h
-    hidden dimension, perform nonlinear transformation, and project the
-    state back into h hidden dimension. At the end, dropout is also
-    applied.
-
-    Note: multiple_of is used to compute the hidden dimension of the MLP
-    """
-
-    def __init__(
-        self,
-        neox_args,
-        init_method,
-        output_layer_init_method,
-        parallel_output=False,
-        multiple_of=256,
-        MOE=False,
-        MoE_mp_size=1,
-    ):
+class Gated_Activation(torch.nn.Module):
+    def __init__(self, activation_func):
         super().__init__()
+        self.activation_func = activation_func
 
-        self.activation_func = get_activation(neox_args)
-        self.activation_type = neox_args.activation
-
-        self.multiple_of = multiple_of
-
-        # Allow custom intermediate size, e.g. for Mistral
-        if neox_args.intermediate_size is not None:
-            ff_dim = neox_args.intermediate_size
-        else:
-            ff_dim = int(2 * neox_args.hidden_size * 4 / 3)
-            ff_dim = self.multiple_of * ((ff_dim + multiple_of - 1) // multiple_of)
-
-        self.w1 = mpu.ColumnParallelLinear(
-            neox_args=neox_args,
-            input_size=neox_args.hidden_size,
-            output_size=ff_dim,
-            gather_output=False,
-            init_method=init_method,
-            skip_bias_add=True,
-            bias=False,
-            MOE=MOE,
-            MoE_mp_size=MoE_mp_size,
-        )
-        self.w3 = mpu.ColumnParallelLinear(
-            neox_args=neox_args,
-            input_size=neox_args.hidden_size,
-            output_size=ff_dim,
-            gather_output=False,
-            init_method=init_method,
-            skip_bias_add=True,
-            bias=False,
-            MOE=MOE,
-            MoE_mp_size=MoE_mp_size,
-        )
-        self.w2 = mpu.RowParallelLinear(
-            neox_args=neox_args,
-            input_size=ff_dim,
-            output_size=neox_args.hidden_size,
-            input_is_parallel=True,
-            init_method=output_layer_init_method,
-            skip_bias_add=True,
-            parallel_output=parallel_output,
-            bias=False,
-            MOE=MOE,
-            MoE_mp_size=MoE_mp_size,
-        )
-
-    def forward(self, hidden_states):
-        w1_out, _ = self.w1(hidden_states)
-        w3_out, _ = self.w3(hidden_states)
-        return self.w2(self.activation_func(w1_out) * w3_out)
-
+    def forward(self, x, bias=None):
+        x, gate = x.chunk(2, dim=-1)
+        if bias is not None:
+            bias_1, bias_2 = bias.chunk(2, dim=-1)
+            x = x + bias_1
+            gate = gate + bias_2
+        intermediate_parallel = self.activation_func(gate)
+        return intermediate_parallel * x
 
 class ParallelLinear(nn.Module):
     """
@@ -1052,24 +993,13 @@ class ParallelTransformerLayer(nn.Module):
 
         # MLP
         def get_mlp(mlp_type, **kw):
-            if mlp_type == "regular":
-                return ParallelMLP(
-                    neox_args=neox_args,
-                    init_method=init_method,
-                    output_layer_init_method=output_layer_init_method,
-                    parallel_output=self.gpt_j_residual,
-                    **kw,
-                )
-            elif mlp_type == "llama":
-                return LLaMAParallelMLP(
-                    neox_args=neox_args,
-                    init_method=init_method,
-                    output_layer_init_method=output_layer_init_method,
-                    parallel_output=self.gpt_j_residual,
-                    **kw,
-                )
-            else:
-                raise KeyError(mlp_type)
+            return ParallelMLP(
+                neox_args=neox_args,
+                init_method=init_method,
+                output_layer_init_method=output_layer_init_method,
+                parallel_output=self.gpt_j_residual,
+                **kw,
+            )
 
         self.num_experts = (
             neox_args.moe_num_experts
@@ -1286,8 +1216,7 @@ class ParallelTransformerLayer(nn.Module):
 
             with torch.enable_grad():
                 if (
-                    self.mlp_type == "llama"
-                    or self.num_experts > 1
+                    self.num_experts > 1
                     and self.moe_type == "deepspeed"
                 ):
                     # No dropout either
