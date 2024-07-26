@@ -150,7 +150,7 @@ class ParallelMLP(nn.Module):
         # [s, b, intermediate_size]
         intermediate_parallel, bias_parallel = self.linear1(hidden_states)
 
-        if self.is_gated: 
+        if self.is_gated or (self.activation_type == "gelu" and self.bias_gelu_fusion):
             intermediate_parallel = self.activation_func(
                 intermediate_parallel, bias_parallel
             )

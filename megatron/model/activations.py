@@ -48,7 +48,6 @@ def get_activation(neox_args):
         if neox_args.onnx_safe:
             activation_func = erf_gelu
         elif neox_args.bias_gelu_fusion:
-            is_gated = True
             activation_func = bias_gelu_impl
         else:
             activation_func = F.gelu
