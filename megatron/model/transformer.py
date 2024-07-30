@@ -113,7 +113,7 @@ class ParallelMLP(nn.Module):
             neox_args=neox_args,
             input_size=neox_args.hidden_size,
             output_size=ff_dim,
-            gather_output=False,
+            gather_output=False, # TODO: add a parallel-input check? need to AG in fwd pass to reshard, here?
             init_method=init_method,
             skip_bias_add=True,
             MOE=MOE,
@@ -127,7 +127,7 @@ class ParallelMLP(nn.Module):
             output_size=neox_args.hidden_size,
             input_is_parallel=True,
             init_method=output_layer_init_method,
-            parallel_output=parallel_output,
+            parallel_output=parallel_output, # seqpar should do parallel_output?
             skip_bias_add=True,
             MOE=MOE,
             MoE_mp_size=MoE_mp_size,

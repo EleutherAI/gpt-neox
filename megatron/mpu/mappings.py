@@ -98,6 +98,67 @@ def _gather(input_):
     return output
 
 
+def _reduce_scatter_along_first_dim(input_):
+    # TODO: fixup and ensure consistency with other comm helpers
+    """Reduce-scatter the input tensor across model parallel group."""
+    world_size = get_model_parallel_world_size()
+    # Bypass the function if we are using only 1 GPU.
+    if world_size == 1:
+        return input_
+
+    # Bf16 convert
+    dt = input_.dtype
+    if dt == torch.bfloat16 and get_fp32_allreduce():
+        input_ = input_.float()
+
+    dim_size = list(input_.size())
+    assert (
+        dim_size[0] % world_size == 0
+    ), "First dimension of the tensor should be divisible by tensor parallel size"
+
+    dim_size[0] = dim_size[0] // world_size
+
+    output = torch.empty(dim_size, dtype=input_.dtype, device=torch.cuda.current_device())
+    torch.distributed._reduce_scatter_base(
+        output, input_.contiguous(), group=get_model_parallel_group()
+    )
+
+    # Bf16 convert
+    if dt == torch.bfloat16 and get_fp32_allreduce():
+        output = output.bfloat16() # TODO: this might screw up if we wanna do async comms w/ this
+
+    return output
+
+
+def _gather_along_first_dim(input_):
+    """Gather tensors and concatinate along the first dimension."""
+
+    world_size = get_model_parallel_world_size()
+    # Bypass the function if we are using only 1 GPU.
+    if world_size == 1:
+        return input_
+
+        # Bf16 convert
+    dt = input_.dtype
+    if dt == torch.bfloat16 and get_fp32_allreduce():
+        input_ = input_.float()
+
+    dim_size = list(input_.size())
+    dim_size[0] = dim_size[0] * world_size
+
+    output = torch.empty(dim_size, dtype=input_.dtype, device=torch.cuda.current_device())
+    torch.distributed._all_gather_base(
+        output, input_.contiguous(), group=get_model_parallel_group()
+    )
+
+    # Bf16 convert
+    if dt == torch.bfloat16 and get_fp32_allreduce():
+        output = output.bfloat16() # TODO: this might screw up if we wanna do async comms w/ this
+
+
+    return output
+
+
 class _CopyToModelParallelRegion(torch.autograd.Function):
     """Pass the input to the model parallel region."""
 
@@ -162,6 +223,42 @@ class _GatherFromModelParallelRegion(torch.autograd.Function):
         return _split(grad_output)
 
 
+class _ReduceScatterToSequenceParallelRegion(torch.autograd.Function):
+    """Reduce-Scatter across sequence parallel region (same as model parallel region.) 
+    TODO: rename to use ModelParallelRegion? There is not really a separate "SequenceParallelRegion" vs. "ModelParallelRegion"
+    """
+
+    @staticmethod
+    def symbolic(graph, input_):
+        return _reduce_scatter_along_first_dim(input_)
+
+    @staticmethod
+    def forward(ctx, input_):
+        return _reduce_scatter_along_first_dim(input_)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        return _gather_along_first_dim(grad_output)
+
+
+class _GatherFromSequenceParallelRegion(torch.autograd.Function):
+    """All-Gather across sequence parallel region (same as model parallel region.)
+    TODO: rename this to make that fact more clear?
+    """
+
+    @staticmethod
+    def symbolic(graph, input_):
+        return _gather_along_first_dim(input_)
+
+    @staticmethod
+    def forward(ctx, input_):
+        return _gather_along_first_dim(input_) # TODO: check this
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        return _reduce_scatter_along_first_dim(input_)
+
+
 # -----------------
 # Helper functions.
 # -----------------
@@ -181,3 +278,11 @@ def scatter_to_model_parallel_region(input_):
 
 def gather_from_model_parallel_region(input_):
     return _GatherFromModelParallelRegion.apply(input_)
+
+
+def reduce_scatter_to_sequence_parallel_region(input_):
+    return _ReduceScatterToSequenceParallelRegion.apply(input_)
+
+
+def gather_from_sequence_parallel_region(input_):
+    return _GatherFromSequenceParallelRegion.apply(input_)
