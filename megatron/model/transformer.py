@@ -254,6 +254,7 @@ class ParallelLinear(nn.Module):
                 gather_output=not parallel_output,
                 skip_bias_add=False,
                 mup_rescale_parameters=is_last_layer,  # rescale params only called if neox_args.use_mup = True, despite it not being included here
+                seq_dim=1, # important: must mark that this layer receives shape [b, s, h] not [s, b, h] and so Seq. Parallel comms must gather along dim=1
             )
 
     #        else:

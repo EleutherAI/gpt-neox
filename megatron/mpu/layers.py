@@ -418,6 +418,7 @@ class ColumnParallelLinear(torch.nn.Module):
         MOE=False,
         MoE_mp_size=1,
         mup_rescale_parameters=False,
+        seq_dim=0, # Dimension which is the seq_len dimension. ParallelLinear overrides this to be 1 ; otherwise, the default is used throughout.
     ):
         super(ColumnParallelLinear, self).__init__()
 
@@ -431,6 +432,7 @@ class ColumnParallelLinear(torch.nn.Module):
         self.skip_bias_add = skip_bias_add
         
         self.sequence_parallel = neox_args.sequence_parallel
+        self.seq_dim = seq_dim
         
         self.init_method = init_method
         self.stride = stride
@@ -566,7 +568,9 @@ class ColumnParallelLinear(torch.nn.Module):
 
         if self.sequence_parallel:
             # do an AG in the fwd pass, RS in bwd pass.
-            input_parallel = gather_from_sequence_parallel_region(input_parallel)
+            # gather / scatter portion happens across the sequence dim (self.seq_dim)--
+            # almost always is [s, b, h] and so dim 0, but for output ParallelLinear it is seq_dim=1 and [b, s, h]
+            input_parallel = gather_from_sequence_parallel_region(input_parallel, seq_dim=self.seq_dim)
 
         bias = self.bias if not self.skip_bias_add else None
         output_parallel = F.linear(input_parallel, self.weight, bias)
