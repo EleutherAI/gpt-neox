@@ -570,7 +570,9 @@ class ColumnParallelLinear(torch.nn.Module):
             # do an AG in the fwd pass, RS in bwd pass.
             # gather / scatter portion happens across the sequence dim (self.seq_dim)--
             # almost always is [s, b, h] and so dim 0, but for output ParallelLinear it is seq_dim=1 and [b, s, h]
-            input_parallel = gather_from_sequence_parallel_region(input_parallel, seq_dim=self.seq_dim)
+            print("Col. Parallel input shape:", input_parallel.shape)
+            # input_parallel = gather_from_sequence_parallel_region(input_parallel, seq_dim=self.seq_dim)
+            # print("Post-Gather Col. Parallel input shape:", input_parallel.shape)
 
         bias = self.bias if not self.skip_bias_add else None
         output_parallel = F.linear(input_parallel, self.weight, bias)
@@ -772,9 +774,16 @@ class RowParallelLinear(torch.nn.Module):
         # Matrix multiply.
         output_parallel = F.linear(input_parallel, self.weight)
         # All-reduce across all the partitions.
-        if self.sequence_parallel: # TODO: name this arg differently?
+        if self.sequence_parallel and not self.parallel_output:
             # do an RS in the fwd pass, AG in bwd pass.
+            # skip if parallel_output (user responsible for calling reduce-scatter)
+            # TODO: this is what we want for the gpt-j case (user responsible for calling reduce-scatter)
+            # but slightly unsure if there are other parallel_output cases to handle
+            print("Pre-reducescatter Row Parallel input shape:", output_parallel.shape)
             output_ = reduce_scatter_to_sequence_parallel_region(output_parallel)
+            print("Post-reducescatter Row Par. input shape:", output_.shape)
+            output_ = gather_from_sequence_parallel_region(output_)
+            print("Post-allreduce Row Par. input shape:", output_.shape)
         elif not self.parallel_output:
             output_ = reduce_from_model_parallel_region(output_parallel)
         else:

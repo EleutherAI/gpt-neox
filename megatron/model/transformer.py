@@ -1025,7 +1025,10 @@ class ParallelTransformerLayer(nn.Module):
         self.moe_type = neox_args.moe_type
 
         if self.gpt_j_residual:
-            self.reduce = mpu.mappings.reduce_from_model_parallel_region
+            # GPT-J style layers allow us to defer the reduction of results across TP ranks until the end of the two sublayers.
+            # the reduction we use is a simple allreduce for pure Tensor Parallel,
+            # but needs to be a reduce-scatter when using sequence parallel (LN sharding.)
+            self.reduce = mpu.mappings.reduce_from_model_parallel_region if not neox_args.sequence_parallel else mpu.mappings.reduce_scatter_to_sequence_parallel_region
 
         # Self attention.
         self.attention = ParallelSelfAttention(

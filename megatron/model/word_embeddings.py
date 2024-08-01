@@ -165,7 +165,8 @@ class Embedding(torch.nn.Module):
         if self.sequence_parallel:
             # TODO: megatron-lm does dropout using the scattered embs. This'd save a tiny bit of time, perhaps?
             # Not a priority since we don't often use dropout
-            embeddings = mpu.scatter_to_sequence_parallel_region(embeddings)
+            # embeddings = mpu.scatter_to_sequence_parallel_region(embeddings)
+            pass
 
         return embeddings
 

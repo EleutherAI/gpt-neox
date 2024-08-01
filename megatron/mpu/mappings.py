@@ -120,7 +120,7 @@ def _reduce_scatter_along_seq_dim(input_, seq_dim):
     dim_size[seq_dim] = dim_size[seq_dim] // world_size
 
     output = torch.empty(dim_size, dtype=input_.dtype, device=torch.cuda.current_device())
-    torch.distributed._reduce_scatter_base(
+    torch.distributed.reduce_scatter_tensor(
         output, input_.contiguous(), group=get_model_parallel_group()
     )
 
@@ -139,7 +139,7 @@ def _gather_along_seq_dim(input_, seq_dim):
     if world_size == 1:
         return input_
 
-        # Bf16 convert
+    # Bf16 convert
     dt = input_.dtype
     if dt == torch.bfloat16 and get_fp32_allreduce():
         input_ = input_.float()
@@ -149,7 +149,7 @@ def _gather_along_seq_dim(input_, seq_dim):
     dim_size[seq_dim] = dim_size[seq_dim] * world_size
 
     output = torch.empty(dim_size, dtype=input_.dtype, device=torch.cuda.current_device())
-    torch.distributed._all_gather_base(
+    torch.distributed.all_gather_into_tensor(
         output, input_.contiguous(), group=get_model_parallel_group()
     )
 
