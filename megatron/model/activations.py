@@ -35,7 +35,7 @@ def get_activation(neox_args):
         activation_func = F.relu
     elif neox_args.activation == "bilinear":
         is_gated = True
-        activation_func = lambda x : x
+        activation_func = lambda x: x
     elif neox_args.activation == "swiglu":
         is_gated = True
         activation_func = swish

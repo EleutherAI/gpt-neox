@@ -120,8 +120,13 @@ class ParallelMLP(nn.Module):
             ff_dim = int(ff_dim * 2 / 3)
             ff_dim_in = ff_dim // 2
         # set multiple
-        ff_dim = int((2 * self.multiple_of) * ((ff_dim + (2 * multiple_of) - 1) // (2 * multiple_of)))
-        ff_dim_in = int(self.multiple_of * ((ff_dim_in + multiple_of - 1) // multiple_of))
+        ff_dim = int(
+            (2 * self.multiple_of)
+            * ((ff_dim + (2 * multiple_of) - 1) // (2 * multiple_of))
+        )
+        ff_dim_in = int(
+            self.multiple_of * ((ff_dim_in + multiple_of - 1) // multiple_of)
+        )
 
         self.linear1 = mpu.ColumnParallelLinear(
             neox_args=neox_args,
@@ -163,6 +168,7 @@ class ParallelMLP(nn.Module):
         output, output_bias = self.linear2(intermediate_parallel)
         return output, output_bias
 
+
 class Gated_Activation(torch.nn.Module):
     def __init__(self, activation_func):
         super().__init__()
@@ -176,6 +182,7 @@ class Gated_Activation(torch.nn.Module):
             gate = gate + bias_2
         intermediate_parallel = self.activation_func(gate)
         return intermediate_parallel * x
+
 
 class ParallelLinear(nn.Module):
     """
@@ -1215,10 +1222,7 @@ class ParallelTransformerLayer(nn.Module):
                     raise KeyError(self.moe_type)
 
             with torch.enable_grad():
-                if (
-                    self.num_experts > 1
-                    and self.moe_type == "deepspeed"
-                ):
+                if self.num_experts > 1 and self.moe_type == "deepspeed":
                     # No dropout either
                     assert mlp_bias is None
                     output = mlp_output + attention_output

@@ -117,7 +117,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Transformer intermediate size. Default = 4h
     """
 
-    expansion_factor: float = None 
+    expansion_factor: float = None
     """
     Transformer intermediate size. Default = 4
     """
@@ -274,7 +274,17 @@ class NeoXArgsModel(NeoXArgsTemplate):
     """
 
     activation: Literal[
-        "gelu", "geglu", "relu", "softsign", "swish", "mish", "silu", "reglu", "swiglu", "bilinear", "glu"
+        "gelu",
+        "geglu",
+        "relu",
+        "softsign",
+        "swish",
+        "mish",
+        "silu",
+        "reglu",
+        "swiglu",
+        "bilinear",
+        "glu",
     ] = "gelu"
     """
     Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish", "silu", "reglu", "swiglu", "bilinear", "glu"]
