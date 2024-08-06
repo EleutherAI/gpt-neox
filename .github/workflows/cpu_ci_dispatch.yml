@@ -10,7 +10,7 @@ on:
 
 jobs:
   run-tests:
-    runs-on: [ 'test', 'self-hosted' ]
+    runs-on: ubuntu-22.04
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
