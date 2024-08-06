@@ -428,9 +428,9 @@ py::array build_mapping_impl(const py::array_t<int64_t>& docs_,
                         }
 
                     }  // for (auto sent_index=sent_index_first; ...
-                }  // if (num_remain_sent > 1) {
-            }  // for (int doc=0; doc < num_docs; ++doc) {
-        }  // for (int epoch=0; epoch < num_epochs; ++epoch) {
+                }      // if (num_remain_sent > 1) {
+            }          // for (int doc=0; doc < num_docs; ++doc) {
+        }              // for (int epoch=0; epoch < num_epochs; ++epoch) {
 
         if (!second) {
             if (verbose) {
@@ -660,9 +660,9 @@ py::array build_blocks_mapping_impl(const py::array_t<int64_t>& docs_,
                             num_sent = 0;
                         }
                     }  // for (auto sent_index=sent_index_first; ...
-                }  // if (num_remain_sent > 1) {
-            }  // for (int doc=0; doc < num_docs; ++doc) {
-        }  // for (int epoch=0; epoch < num_epochs; ++epoch) {
+                }      // if (num_remain_sent > 1) {
+            }          // for (int doc=0; doc < num_docs; ++doc) {
+        }              // for (int epoch=0; epoch < num_epochs; ++epoch) {
 
         if (!second) {
             if (verbose) {

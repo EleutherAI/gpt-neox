@@ -45,12 +45,18 @@ class ParallelMambaBlock(nn.Module):
             neox_args.mamba_use_bias_in_linears and neox_args.mamba_inner_func_fusion
         ), "Mamba fused inner fn and bias in x_proj not compatible!"
 
+        assert neox_args.intermediate_size == None or neox_args.expansion_factor == None, "Must pass either the absolute intermediate size or the relative expansion factor for the mamba projections"
+
         # set variables, mostly following mamba defaults
         self.d_model = neox_args.hidden_size
         self.d_state = 16  # state dimensions per channel
         self.d_conv = 4  # convolution width
         self.expand = 2  # linear projection expansion factors
-        self.d_inner = int(self.expand * self.d_model)
+        if neox_args.intermediate_size == None:
+            neox_args.d_inner = neox_args.intermediate_size
+        if neox_args.expansion_factor:
+            self.expand = neox_args.expansion_factor
+        neox_args.d_inner = neox_args.intermediate_size
         self.dt_rank = math.ceil(self.d_model / 16)  # rank of dt / Delta parameter
         self.dt_scale = 1.0
 
