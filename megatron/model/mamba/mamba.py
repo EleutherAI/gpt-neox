@@ -45,7 +45,7 @@ class ParallelMambaBlock(nn.Module):
             neox_args.mamba_use_bias_in_linears and neox_args.mamba_inner_func_fusion
         ), "Mamba fused inner fn and bias in x_proj not compatible!"
 
-        assert neox_args.intermediate_size == None or neox_args.expansion_factor == None
+        assert neox_args.intermediate_size == None or neox_args.expansion_factor == None, "Must pass either the absolute intermediate size or the relative expansion factor for the mamba projections"
 
         # set variables, mostly following mamba defaults
         self.d_model = neox_args.hidden_size
