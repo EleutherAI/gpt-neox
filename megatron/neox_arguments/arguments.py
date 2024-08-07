@@ -182,7 +182,7 @@ class NeoXArgs(*BASE_CLASSES):
         for conf_file_name in paths_to_yml_files:
             # load file
             with open(conf_file_name) as conf_file:
-                conf = yaml.load(conf_file, Loader=yaml.FullLoader)
+                conf = yaml.load(conf_file, Loader=yaml.SafeLoader)
 
             # check for key duplicates and load values
             for conf_key, conf_value in conf.items():
