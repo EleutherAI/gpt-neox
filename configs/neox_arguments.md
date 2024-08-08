@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 455446c
+    Default = 3ccd3ba
 
     current git hash of repository
 
@@ -1053,6 +1053,16 @@ Parallelism Arguments
 
     flag to determine whether pipeline parallelism is on - shouldn't be set by user, is automatically determined
     according to pipeline parallel size.
+
+
+
+- **sequence_parallel**: bool
+
+    Default = False
+
+    flag to determine whether Megatron-style (https://arxiv.org/abs/2205.05198) Sequence-Parallelism 
+    (sharding acts along seq. dim among TP group for LNs) will be used. Has no effect when model_parallel_size is 1.
+    **Set by user.**
 
 
 
