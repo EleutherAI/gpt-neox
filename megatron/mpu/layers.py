@@ -419,6 +419,7 @@ class ColumnParallelLinear(torch.nn.Module):
         MoE_mp_size=1,
         mup_rescale_parameters=False,
         seq_dim=0, # Dimension which is the seq_len dimension. ParallelLinear overrides this to be 1 ; otherwise, the default is used throughout.
+        input_is_seq_parallel=True, 
     ):
         super(ColumnParallelLinear, self).__init__()
 
@@ -433,6 +434,7 @@ class ColumnParallelLinear(torch.nn.Module):
         
         self.sequence_parallel = neox_args.sequence_parallel
         self.seq_dim = seq_dim
+        self.input_is_seq_parallel = input_is_seq_parallel # use this so that we do not have to perform a gather for the 0-th layer
         
         self.init_method = init_method
         self.stride = stride
@@ -566,12 +568,15 @@ class ColumnParallelLinear(torch.nn.Module):
             input_parallel = copy_to_model_parallel_region(input_)
         # Matrix multiply.
 
-        if self.sequence_parallel:
+        # print("Col. Parallel input shape:", input_parallel.shape)
+        if self.sequence_parallel and self.input_is_seq_parallel:
             # do an AG in the fwd pass, RS in bwd pass.
             # gather / scatter portion happens across the sequence dim (self.seq_dim)--
             # almost always is [s, b, h] and so dim 0, but for output ParallelLinear it is seq_dim=1 and [b, s, h]
-            print("Col. Parallel input shape:", input_parallel.shape)
-            # input_parallel = gather_from_sequence_parallel_region(input_parallel, seq_dim=self.seq_dim)
+
+            # input_is_parallel allows us to skip the scatter of embeddings followed by gather of first sublayer of layer0 's inputs.
+            # (aka, input to layer0 is not sequence parallel)
+            input_parallel = gather_from_sequence_parallel_region(input_parallel, seq_dim=self.seq_dim)
             # print("Post-Gather Col. Parallel input shape:", input_parallel.shape)
 
         bias = self.bias if not self.skip_bias_add else None
@@ -779,11 +784,11 @@ class RowParallelLinear(torch.nn.Module):
             # skip if parallel_output (user responsible for calling reduce-scatter)
             # TODO: this is what we want for the gpt-j case (user responsible for calling reduce-scatter)
             # but slightly unsure if there are other parallel_output cases to handle
-            print("Pre-reducescatter Row Parallel input shape:", output_parallel.shape)
+            # print("Pre-reducescatter Row Parallel input shape:", output_parallel.shape)
             output_ = reduce_scatter_to_sequence_parallel_region(output_parallel)
-            print("Post-reducescatter Row Par. input shape:", output_.shape)
-            output_ = gather_from_sequence_parallel_region(output_)
-            print("Post-allreduce Row Par. input shape:", output_.shape)
+            # print("Post-reducescatter Row Par. input shape:", output_.shape)
+            # output_ = gather_from_sequence_parallel_region(output_)
+            # print("Post-allreduce Row Par. input shape:", output_.shape)
         elif not self.parallel_output:
             output_ = reduce_from_model_parallel_region(output_parallel)
         else:

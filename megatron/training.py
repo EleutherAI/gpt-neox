@@ -29,6 +29,7 @@ from contextlib import nullcontext
 import torch
 import deepspeed
 from deepspeed.runtime.data_pipeline.curriculum_scheduler import CurriculumScheduler
+from deepspeed.utils import safe_get_full_grad
 import numpy as np
 
 from megatron.utils import (
@@ -499,8 +500,6 @@ def get_model(neox_args, use_cache=False):
             use_cache=use_cache,
         )
 
-        mark_norms_for_sequence_parallel_grad_sync(model, neox_args) # ensure LN param states remain synced across sequence parallel region
-
     ### soft prompt tuning stuff ###
     if neox_args.soft_prompt_tuning is not None and neox_args.soft_prompt_tuning.get(
         "enabled", False
@@ -692,6 +691,8 @@ def get_optimizer(model, neox_args):
         )
     else:
         raise ValueError(f"Optimizer type {neox_args.optimizer_type} not recognized")
+
+    mark_norms_for_sequence_parallel_grad_sync(model, neox_args) # ensure LN param states remain synced across sequence parallel region
 
     if neox_args.deepspeed:
         # fp16 wrapper is not required for DeepSpeed.
@@ -898,6 +899,11 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
                 and neox_args.iteration <= neox_args.profile_step_stop
             ):
                 torch.cuda.nvtx.range_push(f"Optimizer step")
+
+            # for name, param in model.named_parameters():
+            #     print(name, safe_get_full_grad(param))
+            # raise ValueError
+
             timers("optimizer").start()
             if neox_args.deepspeed:
                 model.step()
