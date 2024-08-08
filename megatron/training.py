@@ -29,6 +29,7 @@ from contextlib import nullcontext
 import torch
 import deepspeed
 from deepspeed.runtime.data_pipeline.curriculum_scheduler import CurriculumScheduler
+from deepspeed.utils import safe_get_full_grad
 import numpy as np
 
 from megatron.utils import (
@@ -43,6 +44,7 @@ from megatron.model import (
     GPT2ModelPipe,
     SoftEmbedding,
     get_params_for_weight_decay_optimization,
+    mark_norms_for_sequence_parallel_grad_sync,
 )
 from megatron.checkpointing import load_checkpoint, save_checkpoint
 from megatron.data.data_utils import build_train_valid_test_data_iterators
@@ -87,6 +89,8 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
         use_cache=use_cache,
     )
 
+    mark_norms_for_sequence_parallel_grad_sync(model, neox_args) # ensure LN param states remain synced across sequence parallel region
+
     if not neox_args.is_pipe_parallel:
         base_model = base_model.to_sequential()
 
@@ -110,6 +114,8 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
         topology=mpu.get_topology(),
         use_cache=use_cache,
     )
+ 
+    mark_norms_for_sequence_parallel_grad_sync(model, neox_args) # ensure LN param states remain synced across sequence parallel region
 
     if not neox_args.is_pipe_parallel:
         delta_model = delta_model.to_sequential()
@@ -686,6 +692,8 @@ def get_optimizer(model, neox_args):
     else:
         raise ValueError(f"Optimizer type {neox_args.optimizer_type} not recognized")
 
+    mark_norms_for_sequence_parallel_grad_sync(model, neox_args) # ensure LN param states remain synced across sequence parallel region
+
     if neox_args.deepspeed:
         # fp16 wrapper is not required for DeepSpeed.
         return optimizer, param_groups
@@ -891,6 +899,11 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
                 and neox_args.iteration <= neox_args.profile_step_stop
             ):
                 torch.cuda.nvtx.range_push(f"Optimizer step")
+
+            # for name, param in model.named_parameters():
+            #     print(name, safe_get_full_grad(param))
+            # raise ValueError
+
             timers("optimizer").start()
             if neox_args.deepspeed:
                 model.step()

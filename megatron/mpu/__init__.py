@@ -47,6 +47,9 @@ from .mappings import copy_to_model_parallel_region
 from .mappings import gather_from_model_parallel_region
 from .mappings import reduce_from_model_parallel_region
 from .mappings import scatter_to_model_parallel_region
+from .mappings import reduce_scatter_to_sequence_parallel_region
+from .mappings import gather_from_sequence_parallel_region
+from .mappings import scatter_to_sequence_parallel_region
 
 from .random import checkpoint
 from .random import get_cuda_rng_tracker
