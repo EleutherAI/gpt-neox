@@ -355,18 +355,13 @@ def get_fusion_type(neox_args):
 
 
 def reduce_weight_grads_from_model_parallel_region(input_):
-    """A hook that can be applied to any weight tensor via .register_hook(). 
+    """A hook that can be applied to any weight tensor via .register_hook().
     Allreduces grads for e.g. LN weights, across the model parallel group.
     Needed to keep LNs in sync, despite them getting diff data -> diff gradients when using sequence parallel.
     """
-    print("TRIPPED")
-
     # Bypass the function if no TP -> no comm needed.
     if mpu.get_model_parallel_world_size() == 1:
         return input_
-
-    print("TRIPPED HOOK") # these never get printed. We *should* see them go off if we actually ever trigger these hooks.... 
-    # a print in mark_norms_... confirms that that function runs and initially adds these hooks, oddly.
 
     # Bf16 convert
     dt = input_.dtype
@@ -374,9 +369,9 @@ def reduce_weight_grads_from_model_parallel_region(input_):
         input_ = input_.float()
 
     # All-reduce.
-    torch.distributed.all_reduce(input_, group=mpu.get_model_parallel_group()) 
+    torch.distributed.all_reduce(input_, group=mpu.get_model_parallel_group())
     # average grads
-    input_ = (input_ / mpu.get_model_parallel_world_size())
+    input_ = input_ / mpu.get_model_parallel_world_size()
 
     # Bf16 convert
     if dt == torch.bfloat16 and mpu.get_fp32_allreduce():
@@ -386,8 +381,8 @@ def reduce_weight_grads_from_model_parallel_region(input_):
 
 
 def mark_norms_for_sequence_parallel_grad_sync(module, neox_args):
-    """Iterate through the modules in our model, and for any "...Norm" classnames, 
-    register a hook on each parameter which will allreduce norms' weights' grads across 
+    """Iterate through the modules in our model, and for any "...Norm" classnames,
+    register a hook on each parameter which will allreduce norms' weights' grads across
     the model (sequence) parallel region.
     """
 
@@ -399,20 +394,5 @@ def mark_norms_for_sequence_parallel_grad_sync(module, neox_args):
         if "norm" in type(module_).__name__.lower():
             # this is a norm, we want to allreduce its grads across sequence parallel region
             for name, param in module_.named_parameters():
-
                 if param.requires_grad:
-                    
-                    # copying the helper fn that DeepSpeed uses to add hooks, to see if that fixes our issues. 
-                    # it did not seem to.
-                    def wrapper(param):
-                        param_tmp = param.expand_as(param)
-                        grad_acc = param_tmp.grad_fn.next_functions[0][0]                 
-
-                        grad_acc.register_hook(lambda grad: reduce_weight_grads_from_model_parallel_region(grad))
-
-                    wrapper(param)
-
-                # hook which will allreduce weight grads across model parallel (seq. parallel) region
-                # param.register_hook(reduce_weight_grads_from_model_parallel_region)
-    
-    return
+                    param.register_hook(reduce_weight_grads_from_model_parallel_region)
