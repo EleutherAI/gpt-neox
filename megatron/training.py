@@ -89,8 +89,6 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
         use_cache=use_cache,
     )
 
-    mark_norms_for_sequence_parallel_grad_sync(model, neox_args) # ensure LN param states remain synced across sequence parallel region
-
     if not neox_args.is_pipe_parallel:
         base_model = base_model.to_sequential()
 
@@ -114,8 +112,6 @@ def save_base_shapes(neox_args, base_shapes, use_cache):
         topology=mpu.get_topology(),
         use_cache=use_cache,
     )
- 
-    mark_norms_for_sequence_parallel_grad_sync(model, neox_args) # ensure LN param states remain synced across sequence parallel region
 
     if not neox_args.is_pipe_parallel:
         delta_model = delta_model.to_sequential()
@@ -692,8 +688,6 @@ def get_optimizer(model, neox_args):
     else:
         raise ValueError(f"Optimizer type {neox_args.optimizer_type} not recognized")
 
-    mark_norms_for_sequence_parallel_grad_sync(model, neox_args) # ensure LN param states remain synced across sequence parallel region
-
     if neox_args.deepspeed:
         # fp16 wrapper is not required for DeepSpeed.
         return optimizer, param_groups
@@ -773,6 +767,7 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
             # config_params=neox_args.deepspeed_config,
             mpu=mpu if not neox_args.is_pipe_parallel else None,
         )
+        mark_norms_for_sequence_parallel_grad_sync(model, neox_args)
         if neox_args.moe_num_experts > 1 and neox_args.moe_type == "megablocks":
             # We need to additionally set this flag to ensure DS parallelism properly handles this foreign MoE.
             model.has_moe_layers = True
@@ -843,6 +838,8 @@ def backward_step(neox_args, timers, optimizer, model, loss):
 
 def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler):
     """Single training step."""
+    # FIXME: Layer norm weights are stuck at 1.0 when sequence_parallel=True
+    modules_dict = dict(model.named_modules())
 
     # Pipeline parallelism schedules forward/backward/step
     if neox_args.is_pipe_parallel:
