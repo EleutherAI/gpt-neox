@@ -370,8 +370,6 @@ def reduce_weight_grads_from_model_parallel_region(input_):
 
     # All-reduce.
     torch.distributed.all_reduce(input_, group=mpu.get_model_parallel_group())
-    # average grads
-    input_ = input_ / mpu.get_model_parallel_world_size()
 
     # Bf16 convert
     if dt == torch.bfloat16 and mpu.get_fp32_allreduce():
