@@ -17,9 +17,10 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      COV_USER: ${{ secrets.COV_USER }}
+      COV_USER: ${{ secrets.COV_USER }} # needs to be an email with access to the Coverity stream - add to secrets/actions
       COVERITY_PROJECT: ${{ secrets.COVERITY_PROJECT }}
-      COVERITY_TOKEN: ${{ secrets.COVERITY_TOKEN }}
+      COVERITY_TOKEN: ${{ secrets.COVERITY_TOKEN }} # you can get this token from Coverity stream dashboard:
+        # https://scan.coverity.com/projects/<project>?tab=project_settings
 
     steps:
     - uses: actions/checkout@v2
