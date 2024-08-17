@@ -111,22 +111,18 @@ def _reduce_scatter_along_seq_dim(input_, seq_dim):
     if dt == torch.bfloat16 and get_fp32_allreduce():
         input_ = input_.float()
 
-
-    dim_size = list(input_.size())
-    assert isinstance(seq_dim, int) and seq_dim < len(dim_size) and seq_dim >= 0, "seq_dim must be a valid tensor dim"
-    assert (
-        dim_size[seq_dim] % world_size == 0
-    ), "First dimension of the tensor should be divisible by tensor parallel size"
-    dim_size[seq_dim] = dim_size[seq_dim] // world_size
-
-    output = torch.empty(dim_size, dtype=input_.dtype, device=torch.cuda.current_device())
-    torch.distributed.reduce_scatter_tensor(
-        output, input_.contiguous(), group=get_model_parallel_group()
+    assert input_.shape[seq_dim] % world_size == 0
+    tensor_list = list(
+        torch.split(input_, input_.shape[seq_dim] // world_size, seq_dim)
     )
+    output = torch.empty_like(tensor_list[0])
+    torch.distributed.reduce_scatter(output, tensor_list)
 
     # Bf16 convert
     if dt == torch.bfloat16 and get_fp32_allreduce():
-        output = output.bfloat16() # TODO: this might screw up if we wanna do async comms w/ this
+        output = (
+            output.bfloat16()
+        )  # TODO: this might screw up if we wanna do async comms w/ this
 
     return output
 
@@ -144,18 +140,18 @@ def _gather_along_seq_dim(input_, seq_dim):
     if dt == torch.bfloat16 and get_fp32_allreduce():
         input_ = input_.float()
 
-    dim_size = list(input_.size())
-    assert isinstance(seq_dim, int) and seq_dim < len(dim_size) and seq_dim >= 0, "seq_dim must be a valid tensor dim"
-    dim_size[seq_dim] = dim_size[seq_dim] * world_size
-
-    output = torch.empty(dim_size, dtype=input_.dtype, device=torch.cuda.current_device())
-    torch.distributed.all_gather_into_tensor(
-        output, input_.contiguous(), group=get_model_parallel_group()
-    )
+    input_ = input_.contiguous()
+    rank = get_model_parallel_rank()
+    tensor_list = [torch.empty_like(input_) for _ in range(world_size)]
+    tensor_list[rank] = input_
+    torch.distributed.all_gather(tensor_list, input_, group=get_model_parallel_group())
+    output = torch.cat(tensor_list, dim=seq_dim)
 
     # Bf16 convert
     if dt == torch.bfloat16 and get_fp32_allreduce():
-        output = output.bfloat16() # TODO: this might screw up if we wanna do async comms w/ this
+        output = (
+            output.bfloat16()
+        )  # TODO: this might screw up if we wanna do async comms w/ this
 
     return output
 
@@ -244,7 +240,7 @@ class _GatherFromModelParallelRegion(torch.autograd.Function):
 
 
 class _ReduceScatterToSequenceParallelRegion(torch.autograd.Function):
-    """Reduce-Scatter across sequence parallel region (same as model parallel region.) 
+    """Reduce-Scatter across sequence parallel region (same as model parallel region.)
     TODO: rename to use ModelParallelRegion? There is not really a separate "SequenceParallelRegion" vs. "ModelParallelRegion"
     """
 
@@ -275,7 +271,7 @@ class _GatherFromSequenceParallelRegion(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input_, seq_dim):
         ctx.seq_dim = seq_dim
-        return _gather_along_seq_dim(input_, seq_dim=seq_dim) # TODO: check this
+        return _gather_along_seq_dim(input_, seq_dim=seq_dim)  # TODO: check this
 
     @staticmethod
     def backward(ctx, grad_output):
@@ -298,7 +294,10 @@ class _ScatterToSequenceParallelRegion(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output):
         seq_dim = ctx.seq_dim
-        return _gather_along_seq_dim(grad_output, seq_dim=seq_dim), None # TODO: triple-check this is the right bwd
+        return (
+            _gather_along_seq_dim(grad_output, seq_dim=seq_dim),
+            None,
+        )  # TODO: triple-check this is the right bwd
 
 
 # -----------------
@@ -330,5 +329,7 @@ def gather_from_sequence_parallel_region(input_, seq_dim=0):
     return _GatherFromSequenceParallelRegion.apply(input_, seq_dim)
 
 
-def scatter_to_sequence_parallel_region(input_, seq_dim=1): # use this fn in scattering input embeds across TP ranks. There, shape of inps is [b, s, h]
+def scatter_to_sequence_parallel_region(
+    input_, seq_dim=1
+):  # use this fn in scattering input embeds across TP ranks. There, shape of inps is [b, s, h]
     return _ScatterToSequenceParallelRegion.apply(input_, seq_dim)
