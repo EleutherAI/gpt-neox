@@ -21,7 +21,6 @@ import torch
 from .initialize import get_model_parallel_group
 from .initialize import get_model_parallel_rank
 from .initialize import get_model_parallel_world_size
-from .mappings import gather_from_sequence_parallel_region
 from .utils import VocabUtility
 
 
@@ -115,11 +114,4 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
 
 def vocab_parallel_cross_entropy(vocab_parallel_logits, target):
     """Helper function for the cross entropy."""
-
-    # print(vocab_parallel_logits.shape, target.shape)
-
-    # vocab_parallel_logits = gather_from_sequence_parallel_region(vocab_parallel_logits, seq_dim=1)
-
-    # print(vocab_parallel_logits.shape, target.shape)
-
     return _VocabParallelCrossEntropy.apply(vocab_parallel_logits, target)

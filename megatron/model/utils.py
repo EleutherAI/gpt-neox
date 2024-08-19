@@ -35,6 +35,7 @@ def get_params_for_weight_decay_optimization(module, neox_args):
         "name": "no_weight_decay_params",
     }
     for module_ in module.modules():
+        # apply weight decay to any "...Norm" modules.
         if "norm" in type(module_).__name__.lower() or neox_args.weight_decay == 0.0:
             # also include all parameters here if no weight decay is being done
             no_weight_decay_params["params"].extend(
@@ -356,7 +357,7 @@ def get_fusion_type(neox_args):
 
 def reduce_weight_grads_from_model_parallel_region(input_):
     """A hook that can be applied to any weight tensor via .register_hook().
-    Allreduces grads for e.g. LN weights, across the model parallel group.
+    Allreduces grads for e.g. LN weights across the model parallel group.
     Needed to keep LNs in sync, despite them getting diff data -> diff gradients when using sequence parallel.
     """
     # Bypass the function if no TP -> no comm needed.
@@ -380,7 +381,7 @@ def reduce_weight_grads_from_model_parallel_region(input_):
 
 def mark_norms_for_sequence_parallel_grad_sync(module, neox_args):
     """Iterate through the modules in our model, and for any "...Norm" classnames,
-    register a hook on each parameter which will allreduce norms' weights' grads across
+    register a hook on each of that module's parameters which will allreduce norms' weights' grads across
     the model (sequence) parallel region.
     """
 
@@ -390,7 +391,7 @@ def mark_norms_for_sequence_parallel_grad_sync(module, neox_args):
 
     for module_ in module.modules():
         if "norm" in type(module_).__name__.lower():
-            # this is a norm, we want to allreduce its grads across sequence parallel region
+            # this is a norm, we want to allreduce its weight grads across sequence parallel region
             for name, param in module_.named_parameters():
                 if param.requires_grad:
                     param.register_hook(reduce_weight_grads_from_model_parallel_region)

@@ -99,7 +99,6 @@ def _gather(input_):
 
 
 def _reduce_scatter_along_seq_dim(input_, seq_dim):
-    # TODO: fixup and ensure consistency with other comm helpers
     """Reduce-scatter the input tensor across model parallel group, scattering across sequence dim."""
     world_size = get_model_parallel_world_size()
     # Bypass the function if we are using only 1 GPU.
@@ -122,7 +121,7 @@ def _reduce_scatter_along_seq_dim(input_, seq_dim):
     if dt == torch.bfloat16 and get_fp32_allreduce():
         output = (
             output.bfloat16()
-        )  # TODO: this might screw up if we wanna do async comms w/ this
+        )
 
     return output
 
@@ -151,7 +150,7 @@ def _gather_along_seq_dim(input_, seq_dim):
     if dt == torch.bfloat16 and get_fp32_allreduce():
         output = (
             output.bfloat16()
-        )  # TODO: this might screw up if we wanna do async comms w/ this
+        )
 
     return output
 
@@ -241,7 +240,7 @@ class _GatherFromModelParallelRegion(torch.autograd.Function):
 
 class _ReduceScatterToSequenceParallelRegion(torch.autograd.Function):
     """Reduce-Scatter across sequence parallel region (same as model parallel region.)
-    TODO: rename to use ModelParallelRegion? There is not really a separate "SequenceParallelRegion" vs. "ModelParallelRegion"
+    Note: same region as model parallel region
     """
 
     @staticmethod
@@ -260,8 +259,7 @@ class _ReduceScatterToSequenceParallelRegion(torch.autograd.Function):
 
 
 class _GatherFromSequenceParallelRegion(torch.autograd.Function):
-    """All-Gather across sequence parallel region (same as model parallel region.)
-    TODO: rename this to make that fact more clear?
+    """All-Gather across sequence parallel region (same region as model parallel region.)
     """
 
     @staticmethod
@@ -271,7 +269,7 @@ class _GatherFromSequenceParallelRegion(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input_, seq_dim):
         ctx.seq_dim = seq_dim
-        return _gather_along_seq_dim(input_, seq_dim=seq_dim)  # TODO: check this
+        return _gather_along_seq_dim(input_, seq_dim=seq_dim)
 
     @staticmethod
     def backward(ctx, grad_output):
@@ -297,8 +295,7 @@ class _ScatterToSequenceParallelRegion(torch.autograd.Function):
         return (
             _gather_along_seq_dim(grad_output, seq_dim=seq_dim),
             None,
-        )  # TODO: triple-check this is the right bwd
-
+        )
 
 # -----------------
 # Helper functions.
@@ -331,5 +328,5 @@ def gather_from_sequence_parallel_region(input_, seq_dim=0):
 
 def scatter_to_sequence_parallel_region(
     input_, seq_dim=1
-):  # use this fn in scattering input embeds across TP ranks. There, shape of inps is [b, s, h]
+):  # use this fn in scattering input embeds across TP ranks. There, shape of inps is [b, s, h] instead of the usual [s, b, h]
     return _ScatterToSequenceParallelRegion.apply(input_, seq_dim)
