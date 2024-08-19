@@ -85,7 +85,7 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     according to pipeline parallel size.
     """
 
-    sequence_parallel: bool = False # TODO: default to True?
+    sequence_parallel: bool = False
     """
     flag to determine whether Megatron-style Sequence Parallelism (https://arxiv.org/abs/2205.05198)
     (Layernorm inputs and activations are sharded across model parallel group) will be used. Has no effect when model_parallel_size is 1.
