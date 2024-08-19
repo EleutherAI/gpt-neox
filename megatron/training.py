@@ -838,7 +838,6 @@ def backward_step(neox_args, timers, optimizer, model, loss):
 
 def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler):
     """Single training step."""
-    modules_dict = dict(model.named_modules())
 
     # Pipeline parallelism schedules forward/backward/step
     if neox_args.is_pipe_parallel:
