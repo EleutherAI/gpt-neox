@@ -53,7 +53,9 @@ def split_tensor_along_last_dim(tensor, num_partitions, contiguous_split_chunks=
     return tensor_list
 
 
-def split_tensor_along_any_dim(tensor, num_partitions, seq_dim, contiguous_split_chunks=False):
+def split_tensor_along_any_dim(
+    tensor, num_partitions, seq_dim, contiguous_split_chunks=False
+):
     """Split a tensor along a user-specified dimension.
     Arguments:
         tensor: input tensor.

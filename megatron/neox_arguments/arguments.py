@@ -1038,7 +1038,9 @@ class NeoXArgs(*BASE_CLASSES):
             assert self.zero_optimization["stage"] != 3, "MoE not compatible with zero3"
             assert self.mlp_type == "regular", "MoE not compatible with LLaMA"
 
-            assert self.sequence_parallel is False, "MoE not compatible with Sequence Parallel" 
+            assert (
+                self.sequence_parallel is False
+            ), "MoE not compatible with Sequence Parallel"
 
         # Attention config
         if self.attention_config is None:
