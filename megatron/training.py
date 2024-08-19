@@ -838,7 +838,6 @@ def backward_step(neox_args, timers, optimizer, model, loss):
 
 def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler):
     """Single training step."""
-    # FIXME: Layer norm weights are stuck at 1.0 when sequence_parallel=True
     modules_dict = dict(model.named_modules())
 
     # Pipeline parallelism schedules forward/backward/step
