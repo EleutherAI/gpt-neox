@@ -29,7 +29,6 @@ from contextlib import nullcontext
 import torch
 import deepspeed
 from deepspeed.runtime.data_pipeline.curriculum_scheduler import CurriculumScheduler
-from deepspeed.utils import safe_get_full_grad
 import numpy as np
 
 from megatron.utils import (
@@ -894,10 +893,6 @@ def train_step(neox_args, timers, data_iterator, model, optimizer, lr_scheduler)
                 and neox_args.iteration <= neox_args.profile_step_stop
             ):
                 torch.cuda.nvtx.range_push(f"Optimizer step")
-
-            # for name, param in model.named_parameters():
-            #     print(name, safe_get_full_grad(param))
-            # raise ValueError
 
             timers("optimizer").start()
             if neox_args.deepspeed:
