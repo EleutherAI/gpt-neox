@@ -34,6 +34,8 @@ from .initialize import get_pipe_parallel_world_size
 from .initialize import get_tensor_model_parallel_group
 from .initialize import get_tensor_model_parallel_rank
 from .initialize import get_tensor_model_parallel_world_size
+from .initialize import get_sequence_data_parallel_group, get_sequence_data_parallel_rank, get_sequence_data_parallel_world_size
+from .initialize import get_sequence_parallel_group, get_sequence_parallel_rank, get_sequence_parallel_world_size
 from .initialize import get_io_parallel_group
 from .initialize import initialize_model_parallel
 from .initialize import model_parallel_is_initialized
