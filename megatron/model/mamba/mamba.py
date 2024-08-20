@@ -3,6 +3,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 try:
     from mamba_ssm.ops.selective_scan_interface import (
         selective_scan_ref,
