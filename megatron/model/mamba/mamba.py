@@ -3,7 +3,6 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 try:
     from mamba_ssm.ops.selective_scan_interface import (
         selective_scan_ref,
@@ -13,10 +12,8 @@ try:
     from causal_conv1d import causal_conv1d_fn
     import einops
 except ModuleNotFoundError:
-    print(
-        "Unable to import Mamba kernels. Install them from our requirements/requirements-mamba.txt, or directly from https://github.com/state-spaces/mamba"
-    )
-    pass
+    assert False, "Unable to import Mamba kernels. Install them from our requirements/requirements-mamba.txt, \
+    or directly from https://github.com/state-spaces/mamba"
 
 from megatron.model.norms import get_norm
 from megatron import mpu
