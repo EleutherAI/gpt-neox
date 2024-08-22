@@ -108,6 +108,7 @@ def _reduce_scatter_along_seq_dim(input_, seq_dim):
     assert dim_size[seq_dim] % world_size == 0
 
     if seq_dim == 0:
+        # reduce_scatter_tensor is faster but only works correctly on dimension 0
         dim_size[seq_dim] = dim_size[seq_dim] // world_size
         output = torch.empty(
             dim_size, dtype=input_.dtype, device=torch.cuda.current_device()
@@ -144,6 +145,7 @@ def _gather_along_seq_dim(input_, seq_dim):
     dim_size[seq_dim] = dim_size[seq_dim] * world_size
 
     if seq_dim == 0:
+        # reduce_gather_tensor is faster but only works correctly on dimension 0
         output = torch.empty(
             dim_size, dtype=input_.dtype, device=torch.cuda.current_device()
         )
