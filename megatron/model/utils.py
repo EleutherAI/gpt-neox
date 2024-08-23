@@ -18,8 +18,8 @@
 """Utilities for models."""
 
 import torch
-from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
 from megatron.model.fused_softmax import SoftmaxFusionTypes
+from megatron import mpu
 from types import GeneratorType
 import torch.distributed as dist
 
@@ -35,15 +35,9 @@ def get_params_for_weight_decay_optimization(module, neox_args):
         "name": "no_weight_decay_params",
     }
     for module_ in module.modules():
-        if any(
-            [
-                isinstance(module_, LayerNorm),
-                isinstance(module_, RMSNorm),
-                isinstance(module_, ScaleNorm),
-            ]
-        ) or (
-            neox_args.weight_decay == 0.0
-        ):  # also include all parameters here if no weight decay is being done
+        # apply weight decay to any "...Norm" modules.
+        if "norm" in type(module_).__name__.lower() or neox_args.weight_decay == 0.0:
+            # also include all parameters here if no weight decay is being done
             no_weight_decay_params["params"].extend(
                 [p for p in list(module_._parameters.values()) if p is not None]
             )
@@ -359,3 +353,45 @@ def get_fusion_type(neox_args):
     elif neox_args.scaled_masked_softmax_fusion:
         fusion_type = SoftmaxFusionTypes.general
     return fusion_type
+
+
+def reduce_weight_grads_from_model_parallel_region(input_):
+    """A hook that can be applied to any weight tensor via .register_hook().
+    Allreduces grads for e.g. LN weights across the model parallel group.
+    Needed to keep LNs in sync, despite them getting diff data -> diff gradients when using sequence parallel.
+    """
+    # Bypass the function if no TP -> no comm needed.
+    if mpu.get_model_parallel_world_size() == 1:
+        return input_
+
+    # Bf16 convert
+    dt = input_.dtype
+    if dt == torch.bfloat16 and mpu.get_fp32_allreduce():
+        input_ = input_.float()
+
+    # All-reduce.
+    torch.distributed.all_reduce(input_, group=mpu.get_model_parallel_group())
+
+    # Bf16 convert
+    if dt == torch.bfloat16 and mpu.get_fp32_allreduce():
+        input_ = input_.bfloat16()
+
+    return input_
+
+
+def mark_norms_for_sequence_parallel_grad_sync(module, neox_args):
+    """Iterate through the modules in our model, and for any "...Norm" classnames,
+    register a hook on each of that module's parameters which will allreduce norms' weights' grads across
+    the model (sequence) parallel region.
+    """
+
+    if not neox_args.sequence_parallel:
+        # if we aren't using sequence parallelism, this is a no-op
+        return
+
+    for module_ in module.modules():
+        if "norm" in type(module_).__name__.lower():
+            # this is a norm, we want to allreduce its weight grads across sequence parallel region
+            for name, param in module_.named_parameters():
+                if param.requires_grad:
+                    param.register_hook(reduce_weight_grads_from_model_parallel_region)

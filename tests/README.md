@@ -57,6 +57,8 @@ Tests can be run against physical CPUs through GitHub Actions. To have tests run
 
 ### runs-on
 
+#### NOTE: These BKMs were written to work with CI infrastructure that is no longer in place. To use the Github runners (ubuntu-22.04 / ubuntu-latest), skip the 'runs-on' section.
+
 The CI needs to be written to target the CPU Github Action runner. The jobs that need to run on CPU should use the hardware runner's labels:
 ```yaml
 jobs:

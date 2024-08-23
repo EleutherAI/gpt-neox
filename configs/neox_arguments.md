@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = e060977
+    Default = 53d0ae8
 
     current git hash of repository
 
@@ -1053,6 +1053,16 @@ Parallelism Arguments
 
     flag to determine whether pipeline parallelism is on - shouldn't be set by user, is automatically determined
     according to pipeline parallel size.
+
+
+
+- **sequence_parallel**: bool
+
+    Default = False
+
+    flag to determine whether Megatron-style Sequence Parallelism (https://arxiv.org/abs/2205.05198)
+    (Layernorm inputs and activations are sharded across model parallel group) will be used. Has no effect when model_parallel_size is 1.
+    **Set by user, in contrast to neox_args.is_pipe_parallel.**
 
 
 
