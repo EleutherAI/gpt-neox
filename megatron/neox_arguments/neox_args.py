@@ -85,6 +85,13 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     according to pipeline parallel size.
     """
 
+    sequence_parallel: bool = False
+    """
+    flag to determine whether Megatron-style Sequence Parallelism (https://arxiv.org/abs/2205.05198)
+    (Layernorm inputs and activations are sharded across model parallel group) will be used. Has no effect when model_parallel_size is 1.
+    **Set by user, in contrast to neox_args.is_pipe_parallel.**
+    """
+
     expert_interval: int = 2
     """
     Have one MoE layer every expert_interval layers
