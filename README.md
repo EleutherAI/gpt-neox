@@ -1,3 +1,62 @@
+# ORNL Frontier Instructions
+
+# Frontier setup
+
+## setup.sh 
+```
+ROCM_VERSION=6.1 # any rocm above 6.0 will work fine
+module reset
+module load rocm/$ROCM_VERSION
+module load gcc/12.2.0
+CONDA_HOME=/path/to/miniconda3
+
+export PATH=$CONDA_HOME/bin:$PATH
+export LD_LIBRARY_PATH=$CONDA_HOME/lib:$LD_LIBRARY_PATH
+export CPATH=$CONDA_HOME/include:$CPATH
+```
+
+## install miniconda
+```
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh -b -p $PWD/miniconda3
+```
+
+## install torch
+```
+pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/rocm6.0
+```
+
+## build mpi4py
+```
+git clone https://github.com/mpi4py/mpi4py.git
+cd mpi4py
+CC=$(which mpicc) CXX=$(which mpicxx) python setup.py build --mpicc=$(which mpicc)
+CC=$(which mpicc) CXX=$(which mpicxx) python setup.py install
+```
+
+## install apex
+```
+git clone https://github.com/ROCm/apex.git
+cd apex
+pip install -r requirements.txt
+pip install -v --no-build-isolation --config-settings "--build-option=--cpp_ext" --config-settings "--build-option=--cuda_ext" ./
+```
+## gpt-neox
+```
+git clone https://github.com/EleutherAI/gpt-neox.git
+cd gpt-neox
+pip install -r requirements/requirements.txt
+```
+
+## build dataset and run
+```
+python prepare_data.py -d ./data
+python ./deepy.py train.py -d configs mamba/mamba-130M.yml local_setup.yml
+```
+
+
+
+
 [![GitHub issues](https://img.shields.io/github/issues/EleutherAI/gpt-neox)](https://github.com/EleutherAI/gpt-neox/issues)
 [<img src="https://raw.githubusercontent.com/wandb/assets/main/wandb-github-badge-28.svg" alt="Weights & Biases monitoring" height=20>](https://wandb.ai/eleutherai/neox)
 
