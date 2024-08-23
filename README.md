@@ -41,6 +41,15 @@ cd apex
 pip install -r requirements.txt
 pip install -v --no-build-isolation --config-settings "--build-option=--cpp_ext" --config-settings "--build-option=--cuda_ext" ./
 ```
+
+## Install mamba
+```
+git clone https://github.com/state-spaces/mamba.git
+cd mamba
+pip install causal-conv1d>=1.4.0
+python setup.py install
+```
+
 ## gpt-neox
 ```
 git clone https://github.com/EleutherAI/gpt-neox.git
