@@ -13,8 +13,9 @@ try:
     from causal_conv1d import causal_conv1d_fn
     import einops
 except ModuleNotFoundError:
-    assert False, "Unable to import Mamba kernels. Install them from our requirements/requirements-mamba.txt, \
-    or directly from https://github.com/state-spaces/mamba"
+    print( "Unable to import Mamba kernels. Install them from our requirements/requirements-mamba.txt, \
+    or directly from https://github.com/state-spaces/mamba")
+    pass
 
 from megatron.model.norms import get_norm
 from megatron import mpu
