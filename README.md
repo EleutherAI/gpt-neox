@@ -4,10 +4,16 @@
 
 ## setup.sh 
 ```
-ROCM_VERSION=6.1 # any rocm above 6.0 will work fine
+ROCM_VERSION=6.1.3
 module reset
 module load rocm/$ROCM_VERSION
+module load ums/default  ums012/default
 module load gcc/12.2.0
+
+export ROCM_HOME=/opt/rocm-6.1.3
+export ROCM_ROOT=/opt/rocm-6.1.3
+export ROCM_PATH=/opt/rocm-6.1.3
+
 CONDA_HOME=/path/to/miniconda3
 
 export PATH=$CONDA_HOME/bin:$PATH
@@ -44,9 +50,12 @@ pip install -v --no-build-isolation --config-settings "--build-option=--cpp_ext"
 
 ## Install mamba
 ```
+git clone https://github.com/Dao-AILab/causal-conv1d.git
+cd causal-conv1d
+python setup.py install
+cd ..
 git clone https://github.com/state-spaces/mamba.git
 cd mamba
-pip install causal-conv1d>=1.4.0
 python setup.py install
 ```
 
