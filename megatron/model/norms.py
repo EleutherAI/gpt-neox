@@ -20,8 +20,12 @@ from .fused_layer_norm import MixedFusedLayerNorm
 
 def get_norm(neox_args):
     if neox_args.norm == "rmsnorm":
-        norm = RMSNorm
         eps = neox_args.rms_norm_epsilon
+        norm = RMSNorm
+        if neox_args.rmsnorm_fusion:
+            from .fused_layer_norm import MixedFusedRMSNorm
+
+            norm = MixedFusedRMSNorm
     elif neox_args.norm == "layernorm":
         eps = neox_args.layernorm_epsilon
         if neox_args.layernorm_fusion:
