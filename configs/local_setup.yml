@@ -26,5 +26,6 @@
   "log_dir": "logs",
   "use_wandb": True,
   "wandb_host": "https://api.wandb.ai",
-  "wandb_project": "neox"
+  "wandb_project": "neox",
+  "use_comet": True,
 }
