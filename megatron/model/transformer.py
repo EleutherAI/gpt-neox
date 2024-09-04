@@ -98,7 +98,7 @@ class ParallelMLP(nn.Module):
         MoE_mp_size=1,
     ):
         super().__init__()
-        assert neox_args.intermediate_size == None or neox_args.expansion_factor == None
+        assert neox_args.intermediate_size == None or neox_args.expansion_factor == None, "Must pass either the absolute intermediate size or the relative expansion factor for the mamba projections"
 
         self.activation_func, self.is_gated = get_activation(neox_args)
         self.activation_type = neox_args.activation
@@ -106,32 +106,32 @@ class ParallelMLP(nn.Module):
         self.multiple_of = multiple_of
 
         if neox_args.intermediate_size:
-            ff_dim = neox_args.intermediate_size
+            ffn_dim = neox_args.intermediate_size
         elif neox_args.expansion_factor:
-            ff_dim = int(neox_args.expansion_factor * neox_args.hidden_size)
+            ffn_dim = int(neox_args.expansion_factor * neox_args.hidden_size)
         else:
-            # 4h is default for ff_dim
-            ff_dim = 4 * neox_args.hidden_size
-        ff_dim_in = ff_dim
+            # 4h is default for ffn_dim
+            ffn_dim = 4 * neox_args.hidden_size
+        ffn_dim_in = ffn_dim
         if self.is_gated:
             # set activation function to be gated implementation
             self.activation_func = Gated_Activation(self.activation_func)
             # auto scale so gated activations has equal parameters
-            ff_dim = int(ff_dim * 2 / 3)
-            ff_dim_in = ff_dim // 2
+            ffn_dim = int(ffn_dim * 2 / 3)
+            ffn_dim_in = ffn_dim // 2
         # set multiple
-        ff_dim = int(
+        ffn_dim = int(
             (2 * self.multiple_of)
-            * ((ff_dim + (2 * multiple_of) - 1) // (2 * multiple_of))
+            * ((ffn_dim + (2 * multiple_of) - 1) // (2 * multiple_of))
         )
-        ff_dim_in = int(
-            self.multiple_of * ((ff_dim_in + multiple_of - 1) // multiple_of)
+        ffn_dim_in = int(
+            self.multiple_of * ((ffn_dim_in + multiple_of - 1) // multiple_of)
         )
 
         self.linear1 = mpu.ColumnParallelLinear(
             neox_args=neox_args,
             input_size=neox_args.hidden_size,
-            output_size=ff_dim,
+            output_size=ffn_dim,
             gather_output=False,
             init_method=init_method,
             skip_bias_add=True,
@@ -141,7 +141,7 @@ class ParallelMLP(nn.Module):
         # Project back to h.
         self.linear2 = mpu.RowParallelLinear(
             neox_args=neox_args,
-            input_size=ff_dim_in,
+            input_size=ffn_dim_in,
             output_size=neox_args.hidden_size,
             input_is_parallel=True,
             init_method=output_layer_init_method,
