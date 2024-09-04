@@ -48,7 +48,6 @@
     "reduce_bucket_size": 500000000,
     "contiguous_gradients": True,
   },
-  "expansion_factor": 8,
 
    # batch / data settings
    "train_micro_batch_size_per_gpu": 4,
@@ -77,8 +76,8 @@
    },
 
    # misc. training settings
-   "train_iters": 10,
-   "lr_decay_iters": 10,
+   "train_iters": 320000,
+   "lr_decay_iters": 320000,
    "distributed_backend": "nccl",
    "lr_decay_style": "cosine",
    "warmup": 0.01,
