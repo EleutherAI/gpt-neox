@@ -30,9 +30,7 @@ transformers.logging.set_verbosity(
 )
 
 
-@pytest.mark.xfail(
-    reason="ModuleNotFoundError: No module named 'scaled_masked_softmax_cuda'"
-)
+@pytest.mark.xfail(reason="SystemExit: None")
 def test_load_fused_kernels():
     load()
     try:

@@ -1,6 +1,6 @@
 name: Pull Request
 
-on: [pull_request]
+on: [pull_request, workflow_dispatch]
 
 jobs:
   pre-commit:
@@ -9,7 +9,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-python@v4
         with:
-          python-version: 3.10
+          python-version: "3.10.14"
           cache: "pip"
           cache-dependency-path: "**/requirements*.txt"
       # Need the right version of clang-format
@@ -43,7 +43,17 @@ jobs:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.10.13"
+          cache-dependency-path: "**/requirements*.txt"
       - name: prepare data
-        run: python prepare_data.py
+        run: python3 prepare_data.py
+      - name: install pytest
+        run: python3 -m pip install pytest pytest-forked pyyaml requests wandb
+      - name: install torch
+        run: python3 -m pip install torch 
+      - name: install requirements
+        run: pip install -r requirements/requirements.txt
       - name: Run Tests
         run: pytest --forked tests

@@ -164,6 +164,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Use fused layer norm kernel (if `norm` is `layernorm`).
     """
 
+    rmsnorm_fusion: bool = False
+    """
+    Use fused RMS norm kernel (if `norm` is `rmsnorm`).
+    """
+
     use_qk_layernorm: bool = False
     """
     Use QK Normalization
