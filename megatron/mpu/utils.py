@@ -53,6 +53,36 @@ def split_tensor_along_last_dim(tensor, num_partitions, contiguous_split_chunks=
     return tensor_list
 
 
+def split_tensor_along_seq_dim(
+    tensor, num_partitions, contiguous_split_chunks=False, zigzag=True
+):
+    """Split a tensor along its seq dimension.
+    Arguments:
+        tensor: input tensor.
+        num_partitions: number of partitions to split the tensor
+        contiguous_split_chunks: If True, make each chunk contiguous
+                                 in memory.
+    """
+    # Get the size and dimension.
+    seq_dim = 1
+
+    if zigzag:
+        # Split.
+        tensor_list = torch.chunk(tensor, 2 * num_partitions, dim=seq_dim)
+        # zigzag
+        tensor_list = [
+            torch.cat((tensor_list[i], tensor_list[-(i + 1)]), dim=seq_dim)
+            for i in range(num_partitions)
+        ]
+        # Note: torch.split does not create contiguous tensors by default.
+    else:
+        tensor_list = torch.chunk(tensor, num_partitions, dim=seq_dim)
+    if contiguous_split_chunks:
+        return tuple(chunk.contiguous() for chunk in tensor_list)
+
+    return tensor_list
+
+
 class VocabUtility:
     """Split the vocabulary into `world_size` chunks amd return the
     first and last index of the vocabulary belonging to the `rank`

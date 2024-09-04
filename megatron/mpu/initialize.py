@@ -28,6 +28,8 @@ _MODEL_PARALLEL_GROUP = None
 _DATA_PARALLEL_GROUP = None
 # Pipeline parallel group that the current rank belongs to.
 _PIPE_PARALLEL_GROUP = None
+# Sequence parallel group that the current rank belongs to.
+_SEQUENCE_PARALLEL_GROUP = None
 
 # A group used to sync during the IO process. Usually this is data_parallel_group(),
 # but with pipeline parallelism it must also involve the last stage (which is not in the
@@ -38,7 +40,7 @@ _IO_PARALLEL_GROUP = None
 _MPU_WORLD_SIZE = None
 _MPU_RANK = None
 
-# Used to query 3D topology
+# Used to query 4D topology
 _MPU_TOPOLOGY = None
 
 # Get fp32_allreduce flag
@@ -50,7 +52,13 @@ def is_unitialized():
     return _DATA_PARALLEL_GROUP is None
 
 
-def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce=False):
+def initialize_model_parallel(
+    model_parallel_size,
+    pipe_parallel_size,
+    sequence_parallel_size,
+    topology=None,
+    fp32_allreduce=False,
+):
     """
     Initialize model data parallel groups.
 
@@ -74,9 +82,11 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
     # Get world size and rank. Ensure some consistencies.
     assert torch.distributed.is_initialized()
     world_size = torch.distributed.get_world_size()
-    if world_size < model_parallel_size:
-        raise ValueError("world size cannot be smaller than model parallel size")
-    ensure_divisibility(world_size, model_parallel_size)
+    if world_size < model_parallel_size * sequence_parallel_size:
+        raise ValueError(
+            "world size cannot be smaller than (model parallel size) * (sequence parallel size)"
+        )
+    ensure_divisibility(world_size, model_parallel_size * sequence_parallel_size)
     rank = torch.distributed.get_rank()
 
     global _MPU_TOPOLOGY
@@ -125,7 +135,35 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
     else:
         _IO_PARALLEL_GROUP = get_data_parallel_group()
 
-    # Build the model parallel groups.
+    # Build the sequence parallel groups.
+    global _SEQUENCE_PARALLEL_GROUP
+    assert (
+        _SEQUENCE_PARALLEL_GROUP is None
+    ), "sequence parallel group is already initialized"
+    if topology:
+        # short circuit case without sequence parallelism
+        if sequence_parallel_size == 1:
+            for group_rank in range(world_size):
+                group = torch.distributed.new_group(ranks=[group_rank])
+                if rank == 0:
+                    print(f"MPU SP:", [group_rank])
+                if rank == group_rank:
+                    _SEQUENCE_PARALLEL_GROUP = group
+        else:
+            for sp_group in topology.get_axis_comm_lists("seq"):
+                group = torch.distributed.new_group(ranks=sp_group)
+                if rank == 0:
+                    print(f"MPU SP:", sp_group)
+                if rank in sp_group:
+                    _SEQUENCE_PARALLEL_GROUP = group
+    else:
+        for i in range(world_size // sequence_parallel_size):
+            ranks = range(i * sequence_parallel_size, (i + 1) * sequence_parallel_size)
+            group = torch.distributed.new_group(ranks)
+            if i == (rank // sequence_parallel_size):
+                _SEQUENCE_PARALLEL_GROUP = group
+
+    # Build the model parallel groups, per sequence parallel group
     global _MODEL_PARALLEL_GROUP
     assert _MODEL_PARALLEL_GROUP is None, "model parallel group is already initialized"
     if topology:
@@ -138,21 +176,36 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
                     print(f"MPU MP:", [group_rank])
                 if rank == group_rank:
                     _MODEL_PARALLEL_GROUP = group
-            return
-
-        for mp_group in topology.get_axis_comm_lists("model"):
-            group = torch.distributed.new_group(ranks=mp_group)
-            if rank == 0:
-                print(f"MPU MP:", mp_group)
-            if rank in mp_group:
-                _MODEL_PARALLEL_GROUP = group
-
+        else:
+            for mp_group in topology.get_axis_comm_lists("model"):
+                group = torch.distributed.new_group(ranks=mp_group)
+                if rank == 0:
+                    print(f"MPU MP:", mp_group)
+                if rank in mp_group:
+                    _MODEL_PARALLEL_GROUP = group
     else:
-        for i in range(world_size // model_parallel_size):
-            ranks = range(i * model_parallel_size, (i + 1) * model_parallel_size)
-            group = torch.distributed.new_group(ranks)
-            if i == (rank // model_parallel_size):
-                _MODEL_PARALLEL_GROUP = group
+        if model_parallel_size == 1:
+            for i in range(world_size):
+                group = torch.distributed.new_group([i])
+                if i == rank:
+                    _MODEL_PARALLEL_GROUP = group
+        else:
+            for i in range(
+                world_size // (model_parallel_size * sequence_parallel_size)
+            ):
+                sp_mp_groups = [[] for _ in range(sequence_parallel_size)]
+                for j in range(model_parallel_size):
+                    for k in range(sequence_parallel_size):
+                        rank_ = (
+                            i * model_parallel_size * sequence_parallel_size
+                            + j * sequence_parallel_size
+                            + k
+                        )
+                        sp_mp_groups[k].append(rank_)
+                for sp_mp_group in sp_mp_groups:
+                    group = torch.distributed.new_group(ranks=sp_mp_group)
+                    if i in sp_mp_group:
+                        _MODEL_PARALLEL_GROUP = group
 
     global _FP32_ALLREDUCE
     assert _FP32_ALLREDUCE is None, "fp32_allreduce is already initialized"
@@ -182,6 +235,14 @@ def get_io_parallel_group():
     """Get the IO parallel group the caller rank belongs to."""
     assert _IO_PARALLEL_GROUP is not None, "IO parallel group is not initialized"
     return _IO_PARALLEL_GROUP
+
+
+def get_seq_parallel_group():
+    """Get the sequence parallel group the caller rank belongs to."""
+    assert (
+        _SEQUENCE_PARALLEL_GROUP is not None
+    ), "sequence parallel group is not initialized"
+    return _SEQUENCE_PARALLEL_GROUP
 
 
 def set_model_parallel_world_size(world_size):
@@ -216,7 +277,28 @@ def get_model_parallel_src_rank():
     """Calculate the global rank corresponding to a local rank zero
     in the model parallel group."""
     global_rank = torch.distributed.get_rank()
-    local_world_size = get_model_parallel_world_size()
+    local_world_size = get_model_parallel_world_size() * get_seq_parallel_world_size()
+    sp_rank = global_rank % get_seq_parallel_world_size()
+    return (
+        global_rank // local_world_size
+    ) * local_world_size + sp_rank  # src is per seq parallel group
+
+
+def get_seq_parallel_world_size():
+    """Return world size for the sequence parallel group."""
+    return torch.distributed.get_world_size(group=get_seq_parallel_group())
+
+
+def get_seq_parallel_rank():
+    """Return my rank for the sequence parallel group."""
+    return torch.distributed.get_rank(group=get_seq_parallel_group())
+
+
+def get_seq_parallel_src_rank():
+    """Calculate the global rank corresponding to a local rank zero
+    in the sequence parallel group."""
+    global_rank = torch.distributed.get_rank()
+    local_world_size = get_seq_parallel_world_size()
     return (global_rank // local_world_size) * local_world_size
 
 
@@ -316,9 +398,27 @@ def destroy_model_parallel():
     _MPU_TOPOLOGY = None
     global _FP32_ALLREDUCE
     _FP32_ALLREDUCE = None
+    global _SEQUENCE_PARALLEL_GROUP
+    _SEQUENCE_PARALLEL_GROUP = None
 
 
 def get_fp32_allreduce():
     """Get the fp32 allreduce flag"""
     assert _FP32_ALLREDUCE is not None, "fp32_allreduce is not Initialized"
     return _FP32_ALLREDUCE
+
+
+def get_sequence_data_parallel_group():
+    return get_seq_parallel_group()
+
+
+def get_sequence_data_parallel_world_size():
+    return get_seq_parallel_world_size()
+
+
+def get_sequence_data_parallel_rank():
+    return get_seq_parallel_rank()
+
+
+def get_sequence_data_parallel_src_rank():
+    return get_seq_parallel_src_rank()

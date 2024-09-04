@@ -22,6 +22,16 @@ from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
 from megatron.model.fused_softmax import SoftmaxFusionTypes
 from types import GeneratorType
 import torch.distributed as dist
+from megatron.mpu import (
+    get_seq_parallel_group,
+    get_seq_parallel_src_rank,
+    get_seq_parallel_rank,
+    get_seq_parallel_world_size,
+)
+from megatron.mpu.mappings import (
+    _GatherFromSeqParallelRegion,
+    _ScatterToSeqParallelRegion,
+)
 
 
 def get_params_for_weight_decay_optimization(module, neox_args):

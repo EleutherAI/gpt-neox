@@ -22,8 +22,11 @@ from .initialize import (
     get_model_parallel_world_size,
     get_model_parallel_rank,
     get_fp32_allreduce,
+    get_seq_parallel_rank,
+    get_seq_parallel_world_size,
+    get_seq_parallel_group,
 )
-from .utils import split_tensor_along_last_dim
+from .utils import split_tensor_along_last_dim, split_tensor_along_seq_dim
 
 
 def _reduce(input_):
@@ -40,6 +43,30 @@ def _reduce(input_):
 
     # All-reduce.
     torch.distributed.all_reduce(input_, group=get_model_parallel_group())
+
+    # Bf16 convert
+    if dt == torch.bfloat16 and get_fp32_allreduce():
+        input_ = input_.bfloat16()
+
+    return input_
+
+
+def _sum_seq(input_):
+    """All-reduce the the input tensor across seq parallel group."""
+
+    # Bypass the function if we are using only 1 GPU.
+    if get_seq_parallel_world_size() == 1:
+        return input_
+
+    # Bf16 convert
+    dt = input_.dtype
+    if dt == torch.bfloat16 and get_fp32_allreduce():
+        input_ = input_.float()
+
+    # All-reduce.
+    torch.distributed.all_reduce(
+        input_, group=get_seq_parallel_group(), op=torch.distributed.ReduceOp.SUM
+    )
 
     # Bf16 convert
     if dt == torch.bfloat16 and get_fp32_allreduce():
@@ -98,6 +125,68 @@ def _gather(input_):
     return output
 
 
+def _split_seq(input_):
+    """Split the tensor along its seq dimension and keep the
+    corresponding slice."""
+
+    world_size = get_seq_parallel_world_size()
+    # Bypass the function if we are using only 1 GPU.
+    if world_size == 1:
+        return input_
+
+    # Split along last dimension.
+    input_list = split_tensor_along_seq_dim(input_, world_size)
+
+    # Note: torch.split does not create contiguous tensors by default.
+    rank = get_seq_parallel_rank()
+    output = input_list[rank].contiguous()
+
+    return output
+
+
+def _gather_seq(input_):
+    """Gather tensors and concatinate along the second dimension."""
+
+    world_size = get_seq_parallel_world_size()
+    # Bypass the function if we are using only 1 GPU.
+    if world_size == 1:
+        return input_
+
+    # Bf16 convert
+    dt = input_.dtype
+    if dt == torch.bfloat16 and get_fp32_allreduce():
+        input_ = input_.float()
+
+    # Size and dimension.
+    seq_dim = 1
+    rank = get_seq_parallel_rank()
+
+    tensor_list = [torch.empty_like(input_) for _ in range(world_size)]
+    tensor_list[rank] = input_
+    torch.distributed.all_gather(tensor_list, input_, group=get_seq_parallel_group())
+    # unzigzag by concatenating the first half with the second half in reverse order
+    tensor_list = [torch.chunk(tensor_list[i], 2, seq_dim) for i in range(world_size)]
+    # Note: torch.cat already creates a contiguous tensor.
+    output = torch.cat(
+        (
+            torch.cat([item[0] for item in tensor_list], dim=seq_dim),  # first half...
+            torch.cat(
+                [item[1] for item in tensor_list[::-1]], dim=seq_dim
+            ),  # ...and second half
+        ),
+        dim=seq_dim,
+    ).contiguous()
+
+    # # regular ring attention
+    # output = torch.cat(tensor_list, dim=seq_dim).contiguous()
+
+    # Bf16 convert
+    if dt == torch.bfloat16 and get_fp32_allreduce():
+        output = output.bfloat16()
+
+    return output
+
+
 class _CopyToModelParallelRegion(torch.autograd.Function):
     """Pass the input to the model parallel region."""
 
@@ -146,6 +235,22 @@ class _ScatterToModelParallelRegion(torch.autograd.Function):
         return _gather(grad_output)
 
 
+class _ScatterToSeqParallelRegion(torch.autograd.Function):
+    """Split the input and keep only the corresponding chuck to the rank."""
+
+    @staticmethod
+    def symbolic(graph, input_):
+        return _split_seq(input_)
+
+    @staticmethod
+    def forward(ctx, input_):
+        return _split_seq(input_)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        return _gather_seq(grad_output)
+
+
 class _GatherFromModelParallelRegion(torch.autograd.Function):
     """Gather the input from model parallel region and concatinate."""
 
@@ -160,6 +265,39 @@ class _GatherFromModelParallelRegion(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output):
         return _split(grad_output)
+
+
+class _GatherFromSeqParallelRegion(torch.autograd.Function):
+    """Gather the input from model parallel region and concatinate."""
+
+    @staticmethod
+    def symbolic(graph, input_):
+        return _gather_seq(input_)
+
+    @staticmethod
+    def forward(ctx, input_):
+        return _gather_seq(input_)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        return _split_seq(grad_output)
+
+
+class _SumFromSeqParallelRegion(torch.autograd.Function):
+    """All-reduce the input from the model parallel region."""
+
+    @staticmethod
+    def symbolic(graph, input_):
+        return _sum_seq(input_)
+
+    @staticmethod
+    def forward(ctx, input_):
+        return _sum_seq(input_)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        print("sum_grad: ", grad_output, flush=True)
+        return grad_output
 
 
 # -----------------
@@ -181,3 +319,20 @@ def scatter_to_model_parallel_region(input_):
 
 def gather_from_model_parallel_region(input_):
     return _GatherFromModelParallelRegion.apply(input_)
+
+
+def gather_from_seq_parallel_region(input_):
+    return _GatherFromSeqParallelRegion.apply(input_)
+
+
+def sum_from_seq_parallel_region(input_):
+    return _SumFromSeqParallelRegion.apply(input_)
+
+
+def max_from_seq_parallel_region(input_):
+    if get_seq_parallel_world_size() > 1:
+        torch.distributed.all_reduce(
+            input_,
+            op=torch.distributed.ReduceOp.MAX,
+            group=get_seq_parallel_group(),
+        )

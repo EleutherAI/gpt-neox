@@ -158,16 +158,18 @@ def _initialize_distributed(neox_args):
     # Setup 3D topology.
     pp = neox_args.pipe_parallel_size if neox_args.pipe_parallel_size >= 1 else 1
     mp = neox_args.model_parallel_size if neox_args.model_parallel_size >= 1 else 1
+    sp = (
+        neox_args.sequence_parallel_size if neox_args.sequence_parallel_size >= 1 else 1
+    )
     assert (
-        neox_args.world_size % (pp * mp) == 0
-    ), f"world_size={neox_args.world_size}, pp={pp}, mp={mp}"
-    dp = neox_args.world_size // (pp * mp)
+        neox_args.world_size % (pp * mp * sp) == 0
+    ), f"world_size={neox_args.world_size}, pp={pp}, mp={mp}, sp={sp}"
+    dp = neox_args.world_size // (pp * mp * sp)
+    from deepspeed.runtime.pipe.topology import ProcessTopology
 
-    from deepspeed.runtime.pipe.topology import PipeModelDataParallelTopology
-
-    # this does pipe on the most outside, then data, then model.
-    # PipeModelDataParallelTopology is just a wrapper over ProcessTopology that predefines this order.
-    topo = PipeModelDataParallelTopology(num_pp=pp, num_mp=mp, num_dp=dp)
+    # With 4D parallelism, we have 4 dimensions: pipe, data, model, sequence
+    # So we need to define it manually...
+    topo = ProcessTopology(axes=["pipe", "data", "model", "seq"], dims=[pp, dp, mp, sp])
 
     # Offset base seeds for the interior pipeline stages.
     # TODO: adjust last stage too once IO is improved.
@@ -186,6 +188,8 @@ def _initialize_distributed(neox_args):
         else:
             mpu.initialize_model_parallel(
                 neox_args.model_parallel_size,
+                neox_args.pipe_parallel_size,
+                neox_args.sequence_parallel_size,
                 topology=topo,
                 fp32_allreduce=neox_args.fp32_allreduce,
             )

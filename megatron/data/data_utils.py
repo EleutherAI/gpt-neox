@@ -311,8 +311,12 @@ def build_train_valid_test_data_iterators(neox_args):
     else:
         pipe_load = True
 
-    # Data loader only on rank 0 of each model parallel group.
-    if mpu.get_model_parallel_rank() == 0 and pipe_load:
+    # Data loader only on rank 0 of each model/sequence parallel group.
+    if (
+        mpu.get_model_parallel_rank() == 0
+        and pipe_load
+        and mpu.get_seq_parallel_rank() == 0
+    ):
         # Number of train/valid/test samples.
         train_iters = neox_args.train_iters
         eval_iters = (train_iters // neox_args.eval_interval + 1) * neox_args.eval_iters
@@ -440,6 +444,11 @@ def build_train_valid_test_data_iterators(neox_args):
             flags,
             mpu.get_model_parallel_src_rank(),
             group=mpu.get_model_parallel_group(),
+        )
+        torch.distributed.broadcast(
+            flags,
+            mpu.get_seq_parallel_src_rank(),
+            group=mpu.get_seq_parallel_group(),
         )
     neox_args.do_train = flags[0].item()
     neox_args.do_valid = flags[1].item()

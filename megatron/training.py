@@ -21,6 +21,7 @@
 """Pretrain utilities."""
 from datetime import datetime
 from functools import partial
+from megatron.monkeypatcher import replace_engine_get_global_norm
 
 import math
 import sys
@@ -296,11 +297,20 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
         eod_token=neox_args.tokenizer.eod,
         eod_mask_loss=neox_args.eod_mask_loss,
         sliding_window_width=neox_args.sliding_window_width,
+        requires_mask=neox_args.requires_attention_mask,
     )
     # If `label` is present, any token < 0 (e.g., -100, the default for torch) skips the loss computation
     if "label" in data_b:
         loss_mask = (data_b["label"][:, 1:] >= 0).to(loss_mask.dtype)
-    return tokens, labels, loss_mask, attention_mask, position_ids
+    return (
+        mpu.zigzag_data(tokens),
+        mpu.zigzag_data(labels),
+        mpu.zigzag_data(loss_mask),
+        mpu.zigzag_data(attention_mask, -2)
+        if neox_args.requires_attention_mask
+        else None,
+        mpu.zigzag_data(position_ids),
+    )
 
 
 def get_batch(neox_args, data_iterator):
@@ -361,6 +371,7 @@ def get_batch_sequential(forward_input, neox_args):
         data=forward_input[0],
         eod_token=neox_args.tokenizer.eod,
         eod_mask_loss=neox_args.eod_mask_loss,
+        requires_mask=neox_args.requires_attention_mask,
     )
     return (forward_input[0], forward_input[1], attention_mask)
 
@@ -970,7 +981,7 @@ def train(
 
     # to monitor if we've skipped many iterations in a row and trigger an early exit
     overflow_monitor = OverflowMonitor(optimizer)
-
+    replace_engine_get_global_norm(model)
     if neox_args.profile:
         schedule = torch.profiler.schedule(
             wait=neox_args.profile_step_start,

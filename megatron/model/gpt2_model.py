@@ -74,7 +74,21 @@ def cross_entropy(output, labels, _fp16=False):
     else:
         losses = mpu.vocab_parallel_cross_entropy(output.float().contiguous(), labels)
     loss_mask = loss_mask.view(-1)
-    loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
+    loss_mask_sum = loss_mask.sum()
+    if mpu.get_seq_parallel_world_size() > 1:
+        torch.distributed.all_reduce(
+            loss_mask_sum,
+            op=torch.distributed.ReduceOp.SUM,
+            group=mpu.get_seq_parallel_group(),
+        )
+        loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask_sum
+        torch.distributed.all_reduce(
+            loss,
+            op=torch.distributed.ReduceOp.SUM,
+            group=mpu.get_seq_parallel_group(),
+        )
+    else:
+        loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask_sum
     return loss
 
 
