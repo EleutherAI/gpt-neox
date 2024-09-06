@@ -2,18 +2,18 @@ import transformer_engine as te
 import torch
 from pkg_resources import packaging
 
-_te_version = packaging.version.Version(version("transformer-engine"))
+_te_version = te.__version__
 
 
 class TERMSNorm(torch.nn.Module):
     def __init__(self, dim, eps=1e-8, **kwargs):
-    """
-        A conditional wrapper to initialize an instance of Transformer-Engine's
-        `RMSNorm` based on input
-    :param dim: model size
-    :param eps:  epsilon value, default 1e-8
-    """
-    super(TERMSNorm, self).__init__()
+        """
+            A conditional wrapper to initialize an instance of Transformer-Engine's
+            `RMSNorm` based on input
+        :param dim: model size
+        :param eps:  epsilon value, default 1e-8
+        """
+        super(TERMSNorm, self).__init__()
 
         self.d = dim
         self.eps = eps
@@ -29,13 +29,13 @@ class TERMSNorm(torch.nn.Module):
 
 class TELayerNorm(torch.nn.Module):
     def __init__(self, dim, eps=1.0e-5, **kwargs):
-    """
-        A conditional wrapper to initialize an instance of Transformer-Engine's
-        `LayerNorm` based on input
-    :param dim: model size
-    :param eps:  epsilon value, default 1.0e-5
-    """
-    super(TELayerNorm, self).__init__()
+        """
+            A conditional wrapper to initialize an instance of Transformer-Engine's
+            `LayerNorm` based on input
+        :param dim: model size
+        :param eps:  epsilon value, default 1.0e-5
+        """
+        super(TELayerNorm, self).__init__()
 
         self.d = dim
         self.eps = eps
