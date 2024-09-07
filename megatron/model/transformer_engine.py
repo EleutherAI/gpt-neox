@@ -1,8 +1,15 @@
-import transformer_engine as te
 import torch
-from pkg_resources import packaging
 
-_te_version = te.__version__
+try:
+    import transformer_engine as te
+except ImportError:
+    raise ImportError(
+        """
+        TransformerEngine not found. Please refer to 
+        https://github.com/NVIDIA/TransformerEngine for installation instructions.
+        """
+        )
+
 
 
 class TERMSNorm(torch.nn.Module):
