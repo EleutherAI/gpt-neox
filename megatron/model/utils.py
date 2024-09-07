@@ -19,7 +19,6 @@
 
 import torch
 from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
-from megatron.model.transformer_engine import TELayerNorm, TERMSNorm
 from megatron.model.fused_softmax import SoftmaxFusionTypes
 from megatron import mpu
 from types import GeneratorType
