@@ -1222,7 +1222,7 @@ class ParallelTransformerLayer(nn.Module):
                     raise KeyError(self.moe_type)
 
             with torch.enable_grad():
-                if self.num_experts > 1 and self.moe_type == "deepspeed":
+                if self.activation == "swiglu" or self.num_experts > 1 and self.moe_type == "deepspeed":
                     # No dropout either
                     assert mlp_bias is None
                     output = mlp_output + attention_output
