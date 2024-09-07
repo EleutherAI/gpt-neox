@@ -85,6 +85,13 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     according to pipeline parallel size.
     """
 
+    sequence_parallel: bool = False
+    """
+    flag to determine whether Megatron-style Sequence Parallelism (https://arxiv.org/abs/2205.05198)
+    (Layernorm inputs and activations are sharded across model parallel group) will be used. Has no effect when model_parallel_size is 1.
+    **Set by user, in contrast to neox_args.is_pipe_parallel.**
+    """
+
     expert_interval: int = 2
     """
     Have one MoE layer every expert_interval layers
@@ -868,9 +875,9 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     List of paths to train datasets.
     """
 
-    label_data_paths: list = None
+    train_label_data_paths: list = None
     """
-    List of paths to label datasets (not shifted by 1 yet!).
+    List of paths to train label datasets (not shifted by 1 yet!).
     """
 
     test_data_paths: list = None
@@ -878,9 +885,19 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     List of paths to test datasets.
     """
 
+    test_label_data_paths: list = None
+    """
+    List of paths to test label datasets (not shifted by 1 yet!).
+    """
+
     valid_data_paths: list = None
     """
     List of paths to validation datasets.
+    """
+
+    valid_label_data_paths: list = None
+    """
+    List of paths to validation label datasets (not shifted by 1 yet!).
     """
 
     train_data_weights: list = None
@@ -930,6 +947,21 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     data_impl: Literal["infer", "mmap", "cached"] = "infer"
     """
     Implementation of indexed datasets, can be one of "infer", "cached", or "mmap"
+    """
+
+    pack_impl: Literal["packed", "pack_until_overflow", "unpacked"] = "packed"
+    """
+    Packing implementation, can be one of "packed", "pack_until_overflow", or "unpacked".
+
+    warning: pack_until_overflow is very naive and will likely have issues with pretraining scale datasets
+    """
+
+    allow_chopped: bool = True
+    """
+    WARNING: if your packing impl is packed, this is ignored.
+
+    Allow chopped samples in the dataset.
+    (e.g if your sequence length is 1024 and you have a sample of length 1026, it will be chopped to 1024)
     """
 
     mmap_warmup: bool = False

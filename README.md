@@ -96,7 +96,6 @@ To install the remaining basic dependencies, run:
 pip install -r requirements/requirements.txt
 pip install -r requirements/requirements-wandb.txt # optional, if logging using WandB
 pip install -r requirements/requirements-tensorboard.txt # optional, if logging via tensorboard
-python ./megatron/fused_kernels/setup.py install # optional, if using fused kernels
 ```
 
 from the repository root.
@@ -105,6 +104,16 @@ from the repository root.
 > Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), our fork of the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library with some added changes. We strongly recommend using Anaconda, a virtual machine, or some other form of environment isolation before continuing. Failure to do so may cause other repositories that rely on DeepSpeed to break.
 
 </aside>
+
+### Fused Kernels
+We now support AMD GPUs (MI100, MI250X) through JIT fused-kernel compilation. Fused kernels will be built and loaded as needed. To avoid waiting during job launching, you can also do the following for manual pre-build:
+
+```python
+python
+from megatron.fused_kernels import load
+load()
+```
+This will automatically adapts building process over different GPU vendors (AMD, NVIDIA) without platform specific code changes. To further test fused kernels using `pytest`, use `pytest tests/model/test_fused_kernels.py`
 
 ### Flash Attention
 
@@ -640,7 +649,7 @@ If you need to supply a hostfile for use with the MPI-based DeepSpeed launcher, 
 
 # Profiling
 
-We support profiling with Nsight Systems and PyTorch Memory Profiling.
+We support profiling with Nsight Systems, the PyTorch Profiler, and PyTorch Memory Profiling.
 
 ## Nsight Systems Profiling
 
@@ -655,6 +664,15 @@ $TRAIN_PATH/train.py --conf_dir configs <config files>
 The generated output file can then by viewed with the Nsight Systems GUI:
 
 ![Alt text](images/nsight_profiling.png)
+
+## PyTorch Profiling
+
+To use the built-in PyTorch profiler, set config options `profile`, `profile_step_start`, and `profile_step_stop`.
+
+The PyTorch profiler will save traces to your `tensorboard` log directory.  You can view these traces within
+TensorBoard by following the steps [here](https://pytorch.org/tutorials/intermediate/tensorboard_profiler_tutorial.html).
+
+![Alt text](images/pytorch_profiling.png)
 
 ## PyTorch Memory Profiling
 
@@ -718,7 +736,7 @@ The following publications by other research groups use this library:
 The following models were trained using this library:
 
 ### English LLMs
-- EleutherAI's [GPT-NeoX-20B](https://huggingface.co/EleutherAI/gpt-neox-20b), [Pythia (70M through 13B)](https://github.com/EleutherAI/pythia), and [LLeMMA (34B)](https://arxiv.org/abs/2310.10631)
+- EleutherAI's [GPT-NeoX-20B](https://huggingface.co/EleutherAI/gpt-neox-20b) and [Pythia (70M through 13B)](https://github.com/EleutherAI/pythia)
 - CarperAI's [FIM-NeoX-1.3B](https://huggingface.co/CarperAI/FIM-NeoX-1.3B)
 - StabilityAI's [StableLM (3B and 7B)](https://github.com/Stability-AI/StableLM)
 - Together.ai's [RedPajama-INCITE (3B and 7B)](https://together.ai/blog/redpajama-models-v1)
@@ -729,13 +747,15 @@ The following models were trained using this library:
 ### Non-English LLMs
 - EleutherAI's [Polyglot-Ko (1.3B through 12.8B)](https://github.com/EleutherAI/polyglot) (Korean)
 - Korea University's [KULLM-Polyglot (5.8B and 12.8B)](https://github.com/nlpai-lab/KULLM) (Korean)
-- Stability AI's [Japanese Stable LM (7B)](https://huggingface.co/stabilityai/japanese-stablelm-base-alpha-7b)
+- Stability AI's [Japanese Stable LM (7B)](https://huggingface.co/stabilityai/japanese-stablelm-base-alpha-7b) (Japanese)
 - LearnItAnyway's [LLaVA-Polyglot-Ko (1.3B)](https://huggingface.co/LearnItAnyway/llava-polyglot-ko-1.3b-hf) (Korean)
 - Rinna Co.'s [japanese-gpt-neox-3.6b](https://huggingface.co/rinna/japanese-gpt-neox-3.6b) (Japanese) and [bilingual-gpt-neox-4b](https://huggingface.co/rinna/bilingual-gpt-neox-4b) (English / Japanese)
 - CyberAgent's [Open-CLM (125M through 7B)](https://huggingface.co/cyberagent/open-calm-7b) (Japanese)
 - The Hungarian Research Centre for Linguistics's [PULI GPTrio (6.7B)](https://huggingface.co/NYTK/PULI-GPTrio) (Hungarian / English / Chinese)
 - The University of Tokyo's [weblab-10b](https://huggingface.co/Kojima777/weblab-10b) and [weblab-10b-instruct](https://huggingface.co/Kojima777/weblab-10b-instruction-sft) (Japanese)
 - nolando.ai's [Hi-NOLIN (9B)](https://blog.nolano.ai/Hi-NOLIN/) (English, Hindi)
+- Renmin University of China's [YuLan (12B)](https://huggingface.co/yulan-team/YuLan-Base-12b) (English, Chinese)
+- The Basque Center for Language Technology's [Latixna (70B)](https://huggingface.co/HiTZ/latxa-70b-v1.2) (Basque)
 
 ### Code Models
 - Carnegie Mellon University's [PolyCoder (160M through 2.7B)](https://github.com/VHellendoorn/Code-LMs) and [CAT-LM (2.7B)](https://huggingface.co/nikitharao/catlm)
@@ -743,11 +763,13 @@ The following models were trained using this library:
 - CodeFuse AI's [CodeFuse (13B)](https://huggingface.co/codefuse-ai/CodeFuse-13B)
 
 ### AI for Science
+- EleutherAI's [LLeMMA (34B)](https://arxiv.org/abs/2310.10631)
 - Oak Ridge National Lab's [FORGE (26B)](https://github.com/at-aaims/forge)
-- Oak Ridge National Lab and EleutherAI's [Unnamed Material Science Domain Models (7B)](https://github.com/at-aaims/forge)
+- Oak Ridge National Lab's [Unnamed Material Science Domain Models (7B)](https://arxiv.org/abs/2402.00691)
 - Pacific Northwest National Lab's [MolJet (undisclosed size)](https://openreview.net/pdf?id=7UudBVsIrr)
 
 ### Other Modalities
+-  Rinna Co.'s [PSLM (7B)](https://arxiv.org/abs/2406.12428) (speech / text)
 -  University College London's [ChessGPT-3B](https://huggingface.co/Waterhorse/chessgpt-base-v1)
 -  Gretel's [Text-to-Table (3B)](https://huggingface.co/gretelai/text2table)
 
