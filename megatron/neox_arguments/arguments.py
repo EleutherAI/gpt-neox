@@ -794,7 +794,9 @@ class NeoXArgs(*BASE_CLASSES):
 
         # either none of the three parameters are provided or just gradient_accumulation_step is provided
         else:
-            assert False, "Either train_batch_size or train_micro_batch_size_per_gpu needs to be provided"
+            assert (
+                False
+            ), "Either train_batch_size or train_micro_batch_size_per_gpu needs to be provided"
         return int(train_batch), int(micro_batch), int(grad_acc)
 
     @staticmethod
@@ -1036,6 +1038,10 @@ class NeoXArgs(*BASE_CLASSES):
             assert self.zero_optimization["stage"] != 3, "MoE not compatible with zero3"
             assert self.mlp_type == "regular", "MoE not compatible with LLaMA"
 
+            assert (
+                self.sequence_parallel is False
+            ), "MoE not compatible with Sequence Parallel"
+
         # Attention config
         if self.attention_config is None:
             self.update_value("attention_config", [[["global"], self.num_layers]])
@@ -1098,8 +1104,8 @@ class NeoXArgs(*BASE_CLASSES):
         if "flash" in self.attention_config:
             _flash_version = packaging.version.Version(version("flash-attn"))
             if self.sliding_window_width is not None:
-                assert (
-                    _flash_version >= packaging.version.Version("2.3.0")
+                assert _flash_version >= packaging.version.Version(
+                    "2.3.0"
                 ), f"Flash-Attention version ({str(_flash_version)}) must be >= 2.3.0 to support sliding window attention."
             if self.pos_emb == "alibi":
                 if not _flash_version >= packaging.version.Version("2.4.0.post1"):
@@ -1115,10 +1121,8 @@ class NeoXArgs(*BASE_CLASSES):
         if self.test_data_paths and (self.test_data_weights is None):
             self.test_data_weights = [1.0] * len(self.test_data_paths)
 
-        if self.label_data_paths:
-            err_str = (
-                "Must use `label_data_paths` with `train_data_paths`, not `data_path`"
-            )
+        if self.train_label_data_paths:
+            err_str = "Must use `train_label_data_paths` with `train_data_paths`, not `data_path`"
             assert self.train_data_paths and not self.data_path, err_str
 
         # if a sample input file is provided, default text_gen_type type to input-file
@@ -1183,7 +1187,7 @@ class NeoXArgs(*BASE_CLASSES):
                 return False
 
         # Checks.
-        if self.hidden_size % self.num_attention_heads != 0:
+        if self.hidden_size % self.num_attention_heads != 0 and not ("mamba" in self.attention_config):
             error_message = (
                 self.__class__.__name__
                 + ".validate_values() hidden_size must be divisible by num_attention_heads"
