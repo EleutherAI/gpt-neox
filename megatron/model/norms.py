@@ -14,8 +14,6 @@
 
 import torch
 from torch.nn import LayerNorm as LayerNorm
-from .transformer_engine import TERMSNorm, TELayerNorm
-from .fused_layer_norm import MixedFusedLayerNorm
 
 
 def get_norm(neox_args):
@@ -31,7 +29,6 @@ def get_norm(neox_args):
         eps = neox_args.layernorm_epsilon
         if neox_args.layernorm_fusion:
             from .fused_layer_norm import MixedFusedLayerNorm
-
             norm = MixedFusedLayerNorm
         else:
             norm = LayerNorm
@@ -39,9 +36,11 @@ def get_norm(neox_args):
         eps = neox_args.scalenorm_epsilon
         norm = ScaleNorm
     elif neox_args.norm == "te_rmsnorm":
+        from .transformer_engine import TERMSNorm
         norm = TERMSNorm
         eps = neox_args.rms_norm_epsilon
     elif neox_args.norm == "te_layernorm":
+        from .transformer_engine import TELayerNorm
         norm = TELayerNorm
         eps = neox_args.layernorm_epsilon
     else:
