@@ -121,9 +121,12 @@ class NeoXArgsModel(NeoXArgsTemplate):
 
     intermediate_size: int = None
     """
-    Transformer intermediate size. Currently only used for "mlp_type": "llama".
+    Transformer intermediate size. Default = 4h
+    """
 
-    If not passed, will be set to a reasonable default.
+    expansion_factor: float = None
+    """
+    Transformer intermediate size. Default = 4
     """
 
     num_attention_heads: int = None
@@ -278,10 +281,20 @@ class NeoXArgsModel(NeoXArgsTemplate):
     """
 
     activation: Literal[
-        "gelu", "geglu", "relu", "softsign", "swish", "mish", "silu"
+        "gelu",
+        "geglu",
+        "relu",
+        "softsign",
+        "swish",
+        "mish",
+        "silu",
+        "reglu",
+        "swiglu",
+        "bilinear",
+        "glu",
     ] = "gelu"
     """
-    Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish", "silu"]
+    Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish", "silu", "reglu", "swiglu", "bilinear", "glu"]
     """
 
     scaled_upper_triang_masked_softmax_fusion: bool = False
@@ -421,9 +434,9 @@ class NeoXArgsModel(NeoXArgsTemplate):
 
     mlp_type: str = "regular"
     """
+    Currently, the only mlp_type is "regular." This behavior is currently deprecated.
     Types:
         regular: Megatron implementation
-        llama: LLaMA MLP (SiLU-gated MLP)
     """
 
     soft_prompt_tuning: dict = None
