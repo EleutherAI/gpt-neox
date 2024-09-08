@@ -98,7 +98,9 @@ class ParallelMLP(nn.Module):
         MoE_mp_size=1,
     ):
         super().__init__()
-        assert neox_args.intermediate_size == None or neox_args.expansion_factor == None, "Must pass either the absolute intermediate size or the relative expansion factor for the mamba projections"
+        assert (
+            neox_args.intermediate_size == None or neox_args.expansion_factor == None
+        ), "Must pass either the absolute intermediate size or the relative expansion factor for the mamba projections"
 
         self.activation_func, self.is_gated = get_activation(neox_args)
         self.activation_type = neox_args.activation
@@ -1230,7 +1232,11 @@ class ParallelTransformerLayer(nn.Module):
                     raise KeyError(self.moe_type)
 
             with torch.enable_grad():
-                if self.activation == "swiglu" or self.num_experts > 1 and self.moe_type == "deepspeed":
+                if (
+                    self.activation == "swiglu"
+                    or self.num_experts > 1
+                    and self.moe_type == "deepspeed"
+                ):
                     # No dropout either
                     assert mlp_bias is None
                     output = mlp_output + attention_output
