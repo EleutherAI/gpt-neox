@@ -1016,7 +1016,7 @@ def train_step(
         reduced_loss = train_step_pipe(
             neox_args=neox_args, timers=timers, model=model, data_iterator=data_iterator
         )
-        reduced_metrics = {"lm_loss": reduced_loss}
+        reduce_metrics = {"lm_loss": reduced_loss}
         if (
             neox_args.memory_profiling
             and neox_args.iteration >= neox_args.profile_step_start
