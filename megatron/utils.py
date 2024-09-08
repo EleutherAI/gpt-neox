@@ -449,7 +449,7 @@ def setup_for_inference_or_eval(use_cache=True, overwrite_values=None, input_arg
     initialize_megatron(neox_args)
 
     # set up model and load checkpoint.
-    model, _, _ = setup_model_and_optimizer(
+    model, _, _, _ = setup_model_and_optimizer(
         neox_args=neox_args,
         use_cache=use_cache,
         iteration=neox_args.iteration,
