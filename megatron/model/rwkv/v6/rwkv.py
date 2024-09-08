@@ -275,13 +275,17 @@ class RWKVResidualLayer(nn.Module):
         self.layer_number = layer_number
         self.fp16 = neox_args.precision == "fp16"
         self.bf16 = neox_args.precision == "bfloat16"
-        assert neox_args.intermediate_size == None or neox_args.expansion_factor == None, "Must pass either the absolute intermediate size or the relative expansion factor for the mamba projections"
+        assert (
+            neox_args.intermediate_size == None or neox_args.expansion_factor == None
+        ), "Must pass either the absolute intermediate size or the relative expansion factor for the mamba projections"
         if not hasattr(neox_args, "dim_att"):
             neox_args.dim_att = neox_args.hidden_size
         if neox_args.intermediate_size:
             neox_args.ffn_dim = neox_args.intermediate_size
         else:
-            self.expand = neox_args.expansion_factor if neox_args.expansion_factor else 3.5
+            self.expand = (
+                neox_args.expansion_factor if neox_args.expansion_factor else 3.5
+            )
             neox_args.ffn_dim = int(self.expand * neox_args.hidden_size)
             # Make hidden size 3.5x by default. Round to nearest multiple of 32 until we add hdim rounding logic
         neox_args.ffn_dim = int(neox_args.ffn_dim // 32 * 32)

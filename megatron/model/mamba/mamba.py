@@ -13,8 +13,10 @@ try:
     from causal_conv1d import causal_conv1d_fn
     import einops
 except ModuleNotFoundError:
-    print( "Unable to import Mamba kernels. Install them from our requirements/requirements-mamba.txt, \
-    or directly from https://github.com/state-spaces/mamba")
+    print(
+        "Unable to import Mamba kernels. Install them from our requirements/requirements-mamba.txt, \
+    or directly from https://github.com/state-spaces/mamba"
+    )
     pass
 
 from megatron.model.norms import get_norm
@@ -44,7 +46,9 @@ class ParallelMambaBlock(nn.Module):
             neox_args.mamba_use_bias_in_linears and neox_args.mamba_inner_func_fusion
         ), "Mamba fused inner fn and bias in x_proj not compatible!"
 
-        assert neox_args.intermediate_size == None or neox_args.expansion_factor == None, "Must pass either the absolute intermediate size or the relative expansion factor for the mamba projections"
+        assert (
+            neox_args.intermediate_size == None or neox_args.expansion_factor == None
+        ), "Must pass either the absolute intermediate size or the relative expansion factor for the mamba projections"
 
         # set variables, mostly following mamba defaults
         self.d_model = neox_args.hidden_size
@@ -53,7 +57,9 @@ class ParallelMambaBlock(nn.Module):
         if neox_args.intermediate_size:
             self.d_inner = neox_args.intermediate_size
         else:
-            self.expand = neox_args.expansion_factor if neox_args.expansion_factor else 2 
+            self.expand = (
+                neox_args.expansion_factor if neox_args.expansion_factor else 2
+            )
             self.d_inner = int(self.expand * self.d_model)
         self.dt_rank = math.ceil(self.d_model / 16)  # rank of dt / Delta parameter
         self.dt_scale = 1.0
