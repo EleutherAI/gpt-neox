@@ -18,8 +18,6 @@
 """Utilities for models."""
 
 import torch
-from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
-from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
 from megatron.model.fused_softmax import SoftmaxFusionTypes
 from megatron import mpu
 from types import GeneratorType
@@ -42,20 +40,12 @@ def get_params_for_weight_decay_optimization(module: Any, neox_args: Any):
     }
 
     def is_no_weight_decay_module(module_: Any) -> bool:
-        if neox_args.norm in ["te_layernorm", "te_rmsnorm"]:
-            try:
-                te = importlib.import_module("megatron.model.transformer_engine")
-                return isinstance(module_, (te.TELayerNorm, te.TERMSNorm))
-            except ImportError:
-                raise ImportError(
-                    "Unable to import transformer-engine. Please refer to "
-                    "https://github.com/NVIDIA/TransformerEngine for installation instructions."
-                )
         return (
-            isinstance(module_, (LayerNorm, RMSNorm, ScaleNorm))
+            type(module_).__name__ in ["LayerNorm","RMSNorm","ScaleNorm","TELayerNorm",
+            "TERMSNorm", "MixedFusedLayerNorm", "MixedFusedRMSNorm"]
             or neox_args.weight_decay == 0.0
         )
-
+    counter = 0
     for module_ in module.modules():
         if is_no_weight_decay_module(module_):
             no_weight_decay_params["params"].extend(
