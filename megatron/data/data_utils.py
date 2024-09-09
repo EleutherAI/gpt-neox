@@ -127,6 +127,7 @@ def build_the_dataset(
     print_rank_0("     no. of documents:{}".format(total_num_of_documents))
     dataset = None
     documents = np.arange(start=0, stop=total_num_of_documents, step=1, dtype=np.int32)
+
     if dataset_impl == "gpt2":
         dataset = GPT2Dataset(
             name,
@@ -159,6 +160,7 @@ def build_the_dataset(
             pos_ref_dataset=pos_ref_dataset,
             neg_ref_dataset=neg_ref_dataset,
         )
+
     return dataset
 
 

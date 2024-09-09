@@ -85,6 +85,13 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     according to pipeline parallel size.
     """
 
+    sequence_parallel: bool = False
+    """
+    flag to determine whether Megatron-style Sequence Parallelism (https://arxiv.org/abs/2205.05198)
+    (Layernorm inputs and activations are sharded across model parallel group) will be used. Has no effect when model_parallel_size is 1.
+    **Set by user, in contrast to neox_args.is_pipe_parallel.**
+    """
+
     expert_interval: int = 2
     """
     Have one MoE layer every expert_interval layers
@@ -114,9 +121,12 @@ class NeoXArgsModel(NeoXArgsTemplate):
 
     intermediate_size: int = None
     """
-    Transformer intermediate size. Currently only used for "mlp_type": "llama".
+    Transformer intermediate size. Default = 4h
+    """
 
-    If not passed, will be set to a reasonable default.
+    expansion_factor: float = None
+    """
+    Transformer intermediate size. Default = 4
     """
 
     num_attention_heads: int = None
@@ -152,14 +162,21 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Maximum number of position embeddings to use. This is the size of position embedding.
     """
 
-    norm: Literal["layernorm", "rmsnorm", "scalenorm"] = "layernorm"
+    norm: Literal[
+        "layernorm", "rmsnorm", "scalenorm", "te_rmsnorm", "te_layernorm"
+    ] = "layernorm"
     """
-    Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm".
+    Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm", "te_rmsnorm", "te_layernorm".
     """
 
     layernorm_fusion: bool = False
     """
     Use fused layer norm kernel (if `norm` is `layernorm`).
+    """
+
+    rmsnorm_fusion: bool = False
+    """
+    Use fused RMS norm kernel (if `norm` is `rmsnorm`).
     """
 
     use_qk_layernorm: bool = False
@@ -271,10 +288,20 @@ class NeoXArgsModel(NeoXArgsTemplate):
     """
 
     activation: Literal[
-        "gelu", "geglu", "relu", "softsign", "swish", "mish", "silu"
+        "gelu",
+        "geglu",
+        "relu",
+        "softsign",
+        "swish",
+        "mish",
+        "silu",
+        "reglu",
+        "swiglu",
+        "bilinear",
+        "glu",
     ] = "gelu"
     """
-    Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish", "silu"]
+    Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish", "silu", "reglu", "swiglu", "bilinear", "glu"]
     """
 
     scaled_upper_triang_masked_softmax_fusion: bool = False
@@ -414,9 +441,9 @@ class NeoXArgsModel(NeoXArgsTemplate):
 
     mlp_type: str = "regular"
     """
+    Currently, the only mlp_type is "regular." This behavior is currently deprecated.
     Types:
         regular: Megatron implementation
-        llama: LLaMA MLP (SiLU-gated MLP)
     """
 
     soft_prompt_tuning: dict = None

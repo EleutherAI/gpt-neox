@@ -1038,6 +1038,10 @@ class NeoXArgs(*BASE_CLASSES):
             assert self.zero_optimization["stage"] != 3, "MoE not compatible with zero3"
             assert self.mlp_type == "regular", "MoE not compatible with LLaMA"
 
+            assert (
+                self.sequence_parallel is False
+            ), "MoE not compatible with Sequence Parallel"
+
         # Attention config
         if self.attention_config is None:
             self.update_value("attention_config", [[["global"], self.num_layers]])
@@ -1189,7 +1193,9 @@ class NeoXArgs(*BASE_CLASSES):
                 return False
 
         # Checks.
-        if self.hidden_size % self.num_attention_heads != 0:
+        if self.hidden_size % self.num_attention_heads != 0 and not (
+            "mamba" in self.attention_config
+        ):
             error_message = (
                 self.__class__.__name__
                 + ".validate_values() hidden_size must be divisible by num_attention_heads"
