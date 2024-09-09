@@ -104,8 +104,7 @@ def build_chat(
         )
         chat_tokens = tokenizer.apply_chat_template(
             chat[: i + 1], add_generation_prompt=add_gen
-        )[len(tokens) :]
-
+        )
         # remove previous stuff...
         tokens.extend(chat_tokens)
         if only_last_turn and (i != len(chat) - 1):
