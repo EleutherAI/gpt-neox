@@ -51,15 +51,15 @@ from .neox_args import (
 )
 
 ### Logging colors ###
-GREEN = '\033[92m'
-RED = '\033[91m'
-YELLOW = '\033[93m'
-END = '\033[0m'
+GREEN = "\033[92m"
+RED = "\033[91m"
+YELLOW = "\033[93m"
+END = "\033[0m"
 SUCCESS = f"{GREEN} [SUCCESS] {END}"
 OKAY = f"{GREEN}[OKAY]{END}"
 WARNING = f"{YELLOW}[WARNING]{END}"
-FAIL = f'{RED}[FAIL]{END}'
-INFO = '[INFO]'
+FAIL = f"{RED}[FAIL]{END}"
+INFO = "[INFO]"
 
 # ZERO defaults by deespeed
 # These values should not be changed unless defaults in deepspeed are changed
@@ -205,11 +205,13 @@ class NeoXArgs(*BASE_CLASSES):
 
                 logging.info("> setting up comet ...")
             except ImportError as e:
-                logging.error(f"{FAIL} importing comet. Comet can be installed with \"pip install comet_llm\". See https://github.com/comet-ml/comet-llm for more info. Full error is:")
+                logging.error(
+                    f'{FAIL} importing comet. Comet can be installed with "pip install comet_llm". See https://github.com/comet-ml/comet-llm for more info. Full error is:'
+                )
                 raise e
             except Exception as e:
                 logging.error(
-                        f"{FAIL} Error setting up Comet. Either set \"use_comet: False\" in your configuration file, or resolve the issue with Comet. Full error is:",
+                    f'{FAIL} Error setting up Comet. Either set "use_comet: False" in your configuration file, or resolve the issue with Comet. Full error is:',
                 )
                 raise e
 
@@ -1219,7 +1221,9 @@ class NeoXArgs(*BASE_CLASSES):
 
         # learning rate
         if self.lr is None:
-            error_message = f"{FAIL} " + self.__class__.__name__ + ".validate_values() lr is None"
+            error_message = (
+                f"{FAIL} " + self.__class__.__name__ + ".validate_values() lr is None"
+            )
             logging.error(error_message)
             raise ValueError(error_message)
             return False
