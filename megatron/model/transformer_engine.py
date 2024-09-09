@@ -3,10 +3,10 @@ import torch
 try:
     import transformer_engine as te
 except ImportError:
-    raise ImportError("Unable to import transformer-engine. Please refer to "
-    "https://github.com/NVIDIA/TransformerEngine for installation instructions."
+    raise ImportError(
+        "Unable to import transformer-engine. Please refer to "
+        "https://github.com/NVIDIA/TransformerEngine for installation instructions."
     )
-
 
 
 class TERMSNorm(torch.nn.Module):
