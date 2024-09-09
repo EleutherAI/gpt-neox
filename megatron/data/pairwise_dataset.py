@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""GPT2 style dataset."""
+"""Pairwise style dataset."""
 
 import os
 import time
@@ -26,48 +26,63 @@ import torch
 from megatron import mpu, print_rank_0
 
 
-class GPT2Dataset(torch.utils.data.Dataset):
+class PairwiseDataset(torch.utils.data.Dataset):
     def __init__(
         self,
         name,
-        data_prefix,
+        pos_data_prefix,  # Don't need neg since it's assumed you have paired the data already.
         documents,
-        indexed_dataset,
+        pos_indexed_dataset,
+        neg_indexed_dataset,
         num_samples,
         seq_length,
         seed,
-        pack_impl="packed",
-        allow_chopped=True,
+        pack_impl="unpacked",
         build_index_mappings=True,
         use_shared_fs=True,
-        label_dataset=None,
+        pos_label_dataset=None,
+        pos_ref_dataset=None,
+        neg_label_dataset=None,
+        neg_ref_dataset=None,
+        allow_chopped=True,
     ):
 
         self.name = name
+        self.pos_indexed_dataset = pos_indexed_dataset
+        self.pos_label_dataset = pos_label_dataset
+        self.pos_ref_dataset = pos_ref_dataset
+        self.neg_indexed_dataset = neg_indexed_dataset
+        self.neg_label_dataset = neg_label_dataset
+        self.neg_ref_dataset = neg_ref_dataset
         self.pack_impl = pack_impl
-        self.allow_chopped = allow_chopped
-        self.indexed_dataset = indexed_dataset
-        self.label_dataset = label_dataset
         self.seq_length = seq_length
-
         # Checks
         assert np.min(documents) >= 0
-        assert np.max(documents) < indexed_dataset.sizes.shape[0]
+        assert (neg_label_dataset is not None and pos_label_dataset is not None) or (
+            neg_label_dataset is None and pos_label_dataset is None
+        ), "Label datasets must be both None or both not None"
+        assert np.max(documents) < pos_indexed_dataset.sizes.shape[0]
+        assert pos_indexed_dataset.sizes.shape[0] == neg_indexed_dataset.sizes.shape[0]
+        assert (
+            pack_impl != "packed"
+        ), "Packed implementation not supported for pairwise dataset"
 
         if build_index_mappings:
             # Build index mappings.
             self.doc_idx, self.sample_idx, self.shuffle_idx = _build_index_mappings(
                 self.name,
-                data_prefix,
+                pos_data_prefix,
                 documents,
-                self.indexed_dataset.sizes,
-                self.label_dataset,
+                self.pos_indexed_dataset.sizes,
+                self.neg_indexed_dataset.sizes,
+                self.pos_label_dataset,
+                self.neg_label_dataset,
                 num_samples,
                 seq_length,
                 seed,
-                self.pack_impl,
+                pack_impl,
                 use_shared_fs=use_shared_fs,
-                allow_chopped=self.allow_chopped,
+                allow_chopped=allow_chopped,
             )
             self.shuffle_idx_len = self.shuffle_idx.shape[0] - 1
             self.sample_idx_len = self.sample_idx.shape[0] - 1
@@ -90,12 +105,21 @@ class GPT2Dataset(torch.utils.data.Dataset):
             offset_f = self.sample_idx[idx][1]
             offset_l = self.sample_idx[idx + 1][1]
             # Labels and texts are supposed to be fully in sync.
-            datasets = (
-                [self.indexed_dataset]
-                if self.label_dataset is None
-                else [self.indexed_dataset, self.label_dataset]
-            )
+            datasets = [self.pos_indexed_dataset, self.neg_indexed_dataset]
+
+            if self.pos_label_dataset is not None:
+                datasets += [
+                    self.pos_label_dataset,
+                    self.neg_label_dataset,
+                ]
+            if self.pos_ref_dataset is not None:
+                datasets += [
+                    self.pos_ref_dataset,
+                    self.neg_ref_dataset,
+                ]
             samples = []
+            pos_ref_samples = []
+            neg_ref_samples = []
             # If we are within the same document, just extract the chunk.
             for n, dataset in enumerate(datasets):
                 if doc_index_f == doc_index_l:
@@ -119,44 +143,41 @@ class GPT2Dataset(torch.utils.data.Dataset):
                         dataset.get(self.doc_idx[doc_index_l], length=offset_l + 1)
                     )
                     samples.append(np.concatenate(sample_list))
-
-            if len(datasets) == 1:
-                if len(samples[0]) < (self.seq_length + 1):
-                    # Pad with -100s so the masking function can ignore these.
-                    samples[0] = np.pad(
-                        samples[0],
-                        (0, (self.seq_length + 1) - len(samples[0])),
-                        mode="constant",
-                        constant_values=-100,
-                    )
-                elif len(samples[0]) > (self.seq_length + 1):
+            for i in range(len(samples)):
+                if len(samples[i]) < (self.seq_length + 1):
+                    if ((i == 2) or (i == 3)) and self.pos_label_dataset is not None:
+                        # Labels... So pad with -100
+                        samples[i] = np.pad(
+                            samples[i],
+                            (0, (self.seq_length + 1) - len(samples[i])),
+                            mode="constant",
+                            constant_values=-100,
+                        )
+                    else:
+                        # Pad with 0s, can use any number since it's masked.
+                        samples[i] = np.pad(
+                            samples[i],
+                            (0, (self.seq_length + 1) - len(samples[i])),
+                            mode="constant",
+                            constant_values=0,
+                        )
+                elif len(samples[i]) > (self.seq_length + 1):
                     # Check for overflow and truncate.
-                    samples[0] = samples[0][: (self.seq_length + 1)]
-                return {"text": np.array(samples[0], dtype=np.int64)}
-            else:
-                if len(samples[0]) < (self.seq_length + 1):
-                    # Pad with 0s, can use any number since it's masked.
-                    samples[0] = np.pad(
-                        samples[0],
-                        (0, (self.seq_length + 1) - len(samples[0])),
-                        mode="constant",
-                        constant_values=0,
-                    )
-                    # pad with -100s so we can mask it out
-                    samples[1] = np.pad(
-                        samples[1],
-                        (0, (self.seq_length + 1) - len(samples[1])),
-                        mode="constant",
-                        constant_values=-100,
-                    )
-                elif len(samples[0]) > (self.seq_length + 1):
-                    # Check for overflow and truncate.
-                    samples[0] = samples[0][: (self.seq_length + 1)]
-                    samples[1] = samples[1][: (self.seq_length + 1)]
-                return {
-                    "text": np.array(samples[0], dtype=np.int64),
-                    "label": np.array(samples[1], dtype=np.int64),
-                }
+                    samples[i] = samples[i][: (self.seq_length + 1)]
+            ret = {}
+            ret["pos"] = np.array(samples[0], dtype=np.int64)
+            ret["neg"] = np.array(samples[1], dtype=np.int64)
+            if self.pos_label_dataset is not None:
+                ret["pos_label"] = np.array(samples[2], dtype=np.int64)
+                ret["neg_label"] = np.array(samples[3], dtype=np.int64)
+                if self.pos_ref_dataset is not None:
+                    ret["pos_ref"] = np.array(samples[4], dtype=np.float32)
+                    ret["neg_ref"] = np.array(samples[5], dtype=np.float32)
+            elif self.pos_ref_dataset is not None:
+                # Don't have labels...
+                ret["pos_ref"] = np.array(samples[2], dtype=np.float32)
+                ret["neg_ref"] = np.array(samples[3], dtype=np.float32)
+            return ret
         except IndexError:
             new_idx = idx % len(self)
             print(
@@ -167,10 +188,12 @@ class GPT2Dataset(torch.utils.data.Dataset):
 
 def _build_index_mappings(
     name,
-    data_prefix,
+    pos_data_prefix,
     documents,
-    sizes,
-    label_dataset,
+    pos_sizes,
+    neg_sizes,
+    pos_label_dataset,
+    neg_label_dataset,
     num_samples,
     seq_length,
     seed,
@@ -185,20 +208,18 @@ def _build_index_mappings(
     shuffle-idx: maps the sample index into a random index into sample-idx.
     """
     # Number of tokens in each epoch and number of required epochs.
-    tokens_per_epoch = _num_tokens(documents, sizes)
+    tokens_per_epoch = _num_tokens(documents, pos_sizes)
     num_epochs = _num_epochs(tokens_per_epoch, seq_length, num_samples)
     # rng state
     np_rng = np.random.RandomState(seed=seed)
 
     # Filename of the index mappings.
-    _filename = data_prefix
+    _filename = pos_data_prefix
     _filename += "_{}_indexmap".format(name)
     _filename += "_{}ns".format(num_samples)
     _filename += "_{}sl".format(seq_length)
     _filename += "_{}s".format(seed)
     _filename += "_{}pi".format(packing_impl)
-    if allow_chopped:
-        _filename += "_ac"
     doc_idx_filename = _filename + "_doc_idx.npy"
     sample_idx_filename = _filename + "_sample_idx.npy"
     shuffle_idx_filename = _filename + "_shuffle_idx.npy"
@@ -221,46 +242,7 @@ def _build_index_mappings(
             )
             # doc-idx.
             start_time = time.time()
-            if packing_impl == "packed":
-                doc_idx = _build_doc_idx(documents, num_epochs, np_rng)
-                np.save(doc_idx_filename, doc_idx, allow_pickle=True)
-                print_rank_0(
-                    " > elapsed time to build and save doc-idx mapping "
-                    "(seconds): {:4f}".format(time.time() - start_time)
-                )
-                # sample-idx.
-                start_time = time.time()
-                # Use C++ implementation for speed.
-                from megatron.data import helpers
-
-                assert doc_idx.dtype == np.int32
-                assert sizes.dtype == np.int32
-
-                num_samples = (num_epochs * tokens_per_epoch - 1) / seq_length
-                if 2 * (num_samples + 1) < np.iinfo(np.int32).max:
-                    sample_idx = helpers.build_sample_idx_int32(
-                        sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch
-                    )
-                else:
-                    sample_idx = helpers.build_sample_idx_int64(
-                        sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch
-                    )
-                np.save(sample_idx_filename, sample_idx, allow_pickle=True)
-                print_rank_0(
-                    " > elapsed time to build and save sample-idx mapping "
-                    "(seconds): {:4f}".format(time.time() - start_time)
-                )
-                # shuffle-idx.
-                start_time = time.time()
-                # -1 is due to data structure used to retrieve the index:
-                #    sample i --> [sample_idx[i], sample_idx[i+1])
-                shuffle_idx = _build_shuffle_idx(sample_idx.shape[0] - 1, np_rng)
-                np.save(shuffle_idx_filename, shuffle_idx, allow_pickle=True)
-                print_rank_0(
-                    " > elapsed time to build and save shuffle-idx mapping"
-                    " (seconds): {:4f}".format(time.time() - start_time)
-                )
-            elif packing_impl == "pack_until_overflow":
+            if packing_impl == "pack_until_overflow":
                 # Naively pack data until it overflows, then roll it over to a new one instead.
                 shuffle_idx = np.arange(num_samples)  # Shuffle index around epochs
                 np_rng.shuffle(shuffle_idx)
@@ -272,22 +254,42 @@ def _build_index_mappings(
                 running_length = 0
                 curr_shuffle_idx = 0
                 while len(sample_idx) < num_samples:
+                    # If not allow_chopped, skip this item if it's chopped.
                     if not allow_chopped:
-                        # +1 since we shift left/right by 1
-                        if sizes[temp_shuffle_idx[curr_shuffle_idx]] > seq_length + 1:
+                        if (
+                            pos_sizes[temp_shuffle_idx[curr_shuffle_idx]]
+                            < seq_length + 1
+                        ):
                             curr_shuffle_idx += 1
                             continue
-                    # First, check if we need to skip this item...
-                    if label_dataset is not None:
+                        if (
+                            neg_sizes[temp_shuffle_idx[curr_shuffle_idx]]
+                            < seq_length + 1
+                        ):
+                            curr_shuffle_idx += 1
+                            continue
+                    # Then, check if we need to skip this item...
+                    if pos_label_dataset is not None:
                         if np.all(
-                            label_dataset.get(temp_shuffle_idx[curr_shuffle_idx])[
+                            pos_label_dataset.get(temp_shuffle_idx[curr_shuffle_idx])[
                                 : seq_length + 1
                             ]
                             == -100
                         ):
                             curr_shuffle_idx += 1
                             continue
-                    doc_length = sizes[temp_shuffle_idx[curr_shuffle_idx]]
+                        if np.all(
+                            neg_label_dataset.get(temp_shuffle_idx[curr_shuffle_idx])[
+                                : seq_length + 1
+                            ]
+                            == -100
+                        ):
+                            curr_shuffle_idx += 1
+                            continue
+                    doc_length = max(
+                        pos_sizes[temp_shuffle_idx[curr_shuffle_idx]],
+                        neg_sizes[temp_shuffle_idx[curr_shuffle_idx]],
+                    )
                     if running_length == 0:
                         sample_idx.append(np.array([len(doc_idx), 0]))
                         doc_idx.append(temp_shuffle_idx[curr_shuffle_idx])
@@ -309,7 +311,7 @@ def _build_index_mappings(
                 np.save(shuffle_idx_filename, shuffle_idx, allow_pickle=True)
             elif packing_impl == "unpacked":
                 # Unpacked data, one sample per document.
-                shuffle_idx = np.arange(num_samples)  # Shuffle index around epochs
+                shuffle_idx = np.array([i % len(documents) for i in range(num_samples)])
                 np_rng.shuffle(shuffle_idx)
                 sample_idx = np.zeros((num_samples + 1, 2), dtype=np.int64)
                 sample_idx[:, 0] = np.array([i for i in range(num_samples + 1)])
@@ -317,13 +319,21 @@ def _build_index_mappings(
                 doc_idx = list()
                 doc_i = 0
                 while len(doc_idx) <= num_samples:
+                    # Check if we need to skip this item...
                     if not allow_chopped:
                         # +1 since we shift left/right by 1
-                        if sizes[doc_i] > seq_length + 1:
+                        if pos_sizes[doc_i] > seq_length + 1:
                             doc_i = (doc_i + 1) % len(documents)
                             continue
-                    # Just in case we have bad data in the loop...
-                    if np.all(label_dataset.get(doc_i)[:seq_length] == -100):
+                        if neg_sizes[doc_i] > seq_length + 1:
+                            doc_i = (doc_i + 1) % len(documents)
+                            continue
+                    # In theory if we don't allow chopped we should be able to skip it, but the warm fuzzies I get
+                    # from this are worth the extra bool check
+                    if np.all(pos_label_dataset.get(doc_i)[:seq_length] == -100):
+                        doc_i = (doc_i + 1) % len(documents)
+                        continue
+                    if np.all(neg_label_dataset.get(doc_i)[:seq_length] == -100):
                         doc_i = (doc_i + 1) % len(documents)
                         continue
                     doc_idx.append(doc_i)

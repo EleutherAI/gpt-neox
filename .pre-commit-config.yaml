@@ -33,7 +33,7 @@ repos:
       hooks:
       - id: codespell
         args: [
-              '--ignore-words-list=reord,dout',  # Word used in error messages that need rewording
+              '--ignore-words-list=reord,dout,te',  # Word used in error messages that need rewording. te --> transformerengine
               --check-filenames,
               --check-hidden,
           ]

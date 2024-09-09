@@ -33,6 +33,8 @@ from .mappings import copy_to_model_parallel_region
 from .mappings import gather_from_model_parallel_region
 from .mappings import reduce_from_model_parallel_region
 from .mappings import scatter_to_model_parallel_region
+from .mappings import reduce_scatter_to_sequence_parallel_region
+from .mappings import gather_from_sequence_parallel_region
 from .random import get_cuda_rng_tracker
 from .utils import divide
 from .utils import VocabUtility
@@ -416,6 +418,7 @@ class ColumnParallelLinear(torch.nn.Module):
         MOE=False,
         MoE_mp_size=1,
         mup_rescale_parameters=False,
+        seq_dim=0,  # Dimension which is the seq_len dimension. final ParallelLinear overrides this to be 1 ; otherwise, the default is used throughout.
     ):
         super(ColumnParallelLinear, self).__init__()
 
@@ -427,6 +430,10 @@ class ColumnParallelLinear(torch.nn.Module):
         world_size = MoE_mp_size if MOE else get_model_parallel_world_size()
         self.output_size_per_partition = divide(output_size, world_size)
         self.skip_bias_add = skip_bias_add
+
+        self.sequence_parallel = neox_args.sequence_parallel
+        self.seq_dim = seq_dim
+
         self.init_method = init_method
         self.stride = stride
         self.mup_rescale_parameters = mup_rescale_parameters
@@ -551,14 +558,29 @@ class ColumnParallelLinear(torch.nn.Module):
     def forward(self, input_):
         if self.use_mup and self.mup_rescale_parameters:
             input_ /= self.width_mult()
-        # Set up backprop all-reduce.
-        input_parallel = copy_to_model_parallel_region(input_)
+
+        if self.sequence_parallel:
+            input_parallel = input_
+        else:
+            # Set up backprop all-reduce.
+            input_parallel = copy_to_model_parallel_region(input_)
         # Matrix multiply.
+
+        if self.sequence_parallel:
+            # do an AG in the fwd pass, RS in bwd pass.
+            # gather / scatter portion happens across the sequence dim (self.seq_dim)--
+            # almost always is [s, b, h] and so dim 0, but for lm_head ParallelLinear it is seq_dim=1 and [b, s, h]
+            input_parallel = gather_from_sequence_parallel_region(
+                input_parallel, seq_dim=self.seq_dim
+            )
 
         bias = self.bias if not self.skip_bias_add else None
         output_parallel = F.linear(input_parallel, self.weight, bias)
         if self.gather_output:
             # All-gather across the partitions.
+            assert (
+                not self.sequence_parallel
+            ), "sequence_parallel=True and gather_output=True are incompatible!"
             output = gather_from_model_parallel_region(output_parallel)
         else:
             output = output_parallel
@@ -623,6 +645,12 @@ class RowParallelLinear(torch.nn.Module):
         self.input_size_per_partition = divide(input_size, world_size)
         self.skip_bias_add = skip_bias_add
         self.parallel_output = parallel_output
+
+        self.sequence_parallel = neox_args.sequence_parallel
+        assert not (
+            self.sequence_parallel and not self.input_is_parallel
+        ), "Cannot have self.input_is_parallel=False and self.sequence_parallel=True."
+
         self.init_method = init_method
         self.stride = stride
         self.keep_master_weight_for_test = keep_master_weight_for_test
@@ -748,7 +776,12 @@ class RowParallelLinear(torch.nn.Module):
         # Matrix multiply.
         output_parallel = F.linear(input_parallel, self.weight)
         # All-reduce across all the partitions.
-        if not self.parallel_output:
+        if self.sequence_parallel and not self.parallel_output:
+            # do an RS in the fwd pass, AG in bwd pass.
+            # skip in the gpt-j parallel sublayer case (self.parallel_output=True)
+            # (user responsible for calling reduce-scatter)
+            output_ = reduce_scatter_to_sequence_parallel_region(output_parallel)
+        elif not self.parallel_output:
             output_ = reduce_from_model_parallel_region(output_parallel)
         else:
             output_ = output_parallel

@@ -1,19 +1,56 @@
-import transformer_engine as te
 import torch
-from pkg_resources import packaging
 
-_te_version = packaging.version.Version(version("transformer-engine"))
+try:
+    import transformer_engine as te
+except ImportError:
+    raise ImportError(
+        "Unable to import transformer-engine. Please refer to "
+        "https://github.com/NVIDIA/TransformerEngine for installation instructions."
+    )
 
 
-class TENorm:
-    """
-    A conditional wrapper to initialize an instance of Transformer-Engine's
-    `LayerNorm` or `RMSNorm` based on input
-    """
+class TERMSNorm(torch.nn.Module):
+    def __init__(self, dim, eps=1e-8, **kwargs):
+        """
+            A conditional wrapper to initialize an instance of Transformer-Engine's
+            `RMSNorm` based on input
+        :param dim: model size
+        :param eps:  epsilon value, default 1e-8
+        """
+        super(TERMSNorm, self).__init__()
 
-    def __new__():
-        return
-        # TODO ???
+        self.d = dim
+        self.eps = eps
+        self.norm = te.pytorch.RMSNorm(
+            hidden_size=self.d,
+            eps=self.eps,
+            **kwargs,
+        )
+
+    def forward(self, x):
+        return self.norm(x)
+
+
+class TELayerNorm(torch.nn.Module):
+    def __init__(self, dim, eps=1.0e-5, **kwargs):
+        """
+            A conditional wrapper to initialize an instance of Transformer-Engine's
+            `LayerNorm` based on input
+        :param dim: model size
+        :param eps:  epsilon value, default 1.0e-5
+        """
+        super(TELayerNorm, self).__init__()
+
+        self.d = dim
+        self.eps = eps
+        self.norm = te.pytorch.LayerNorm(
+            hidden_size=self.d,
+            eps=self.eps,
+            **kwargs,
+        )
+
+    def forward(self, x):
+        return self.norm(x)
 
 
 class TELinear(te.pytorch.Linear):
@@ -22,12 +59,12 @@ class TELinear(te.pytorch.Linear):
     """
 
     def __init__(self):
+        # TODO
         return
-        # TODO: Nick
 
     def forward(self, x):
+        # TODO
         return
-        # TODO: Nick
 
 
 class TELayerNormColumnParallelLinear(te.pytorch.LayerNormLinear):
@@ -37,12 +74,12 @@ class TELayerNormColumnParallelLinear(te.pytorch.LayerNormLinear):
     """
 
     def __init__(self):
+        # TODO
         return
-        # TODO: Nick
 
     def forward(self, x):
+        # TODO
         return
-        # TODO: Nick
 
 
 class TEColumnParallelLinear(TELinear):
@@ -52,12 +89,12 @@ class TEColumnParallelLinear(TELinear):
     """
 
     def __init__(self):
-        # TODO: Nick
+        # TODO
         return
 
     def forward(self, x):
+        # TODO
         return
-        # TODO: Nick
 
 
 class TERowParallelLinear(TELinear):
@@ -67,11 +104,11 @@ class TERowParallelLinear(TELinear):
     """
 
     def __init__(self):
-        # TODO: Nick
+        # TODO
         return
 
     def forward(self, x):
-        # TODO: Nick
+        # TODO
         return
 
 
@@ -82,11 +119,11 @@ class TEDotProductAttention(te.pytorch.DotProductAttention):
     """
 
     def __init__(self):
-        # TODO: tfidia
+        # TODO
         return
 
     def forward(self, x):
-        # TODO: tfidia
+        # TODO
         return
 
 
@@ -96,5 +133,5 @@ class TEDelayedScaling(te.common.recipe.DelayedScaling):
     """
 
     def __init__(self):
-        # TODO: ???
+        # TODO
         return

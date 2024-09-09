@@ -180,7 +180,6 @@ class NeoXArgs(*BASE_CLASSES):
         config_files = dict()
         # iterate of all to be loaded yaml files
         for conf_file_name in paths_to_yml_files:
-
             # load file
             with open(conf_file_name) as conf_file:
                 conf = yaml.load(conf_file, Loader=yaml.FullLoader)
@@ -477,7 +476,6 @@ class NeoXArgs(*BASE_CLASSES):
         return extra_ds_args
 
     def get_deepspeed_main_args(self):
-
         args_list = list()
 
         if self.autotuning_run is not None:
@@ -803,7 +801,6 @@ class NeoXArgs(*BASE_CLASSES):
 
     @staticmethod
     def check_batch_parameters(dp_world_size, train_batch, micro_batch, grad_acc):
-
         assert (
             train_batch > 0
         ), f"Train batch size: {train_batch} has to be greater than 0"
@@ -1033,16 +1030,17 @@ class NeoXArgs(*BASE_CLASSES):
         # Update 'is pipe parallel' flag
         # if we set pipe_parallel_size to 0 or 1, GPT2ModelPipe.to_sequential() is called, and we run training with
         # the sequential model without the PipelineModule wrapper to avoid the overhead it incurs
-        self.update_value(
-            "is_pipe_parallel",
-            self.pipe_parallel_size > 1 and self.moe_num_experts == 1,
-        )
+        self.update_value("is_pipe_parallel", self.pipe_parallel_size >= 1)
         if self.moe_num_experts > 1:
             assert not (
                 self.is_pipe_parallel or self.pipe_parallel_size > 1
             ), "MoE not supported with pipeline parallelism"
             assert self.zero_optimization["stage"] != 3, "MoE not compatible with zero3"
             assert self.mlp_type == "regular", "MoE not compatible with LLaMA"
+
+            assert (
+                self.sequence_parallel is False
+            ), "MoE not compatible with Sequence Parallel"
 
         # Attention config
         if self.attention_config is None:
@@ -1070,8 +1068,8 @@ class NeoXArgs(*BASE_CLASSES):
             ), "Mamba does not yet have dropout implemented"
         if "rwkv" in self.attention_config:
             assert (
-                not self.is_pipe_parallel and self.model_parallel_size == 1
-            ), "RWKV not currently compatible with parallelism"
+                self.model_parallel_size == 1
+            ), "RWKV not currently compatible with model parallelism"
             if isinstance(self.zero_stage, int):
                 assert self.zero_stage <= 2, "Zero stage 3 not compatible with RWKV"
             assert (
@@ -1118,15 +1116,19 @@ class NeoXArgs(*BASE_CLASSES):
         # Adding equal dataset weights if none are provided
         if self.train_data_paths and (self.train_data_weights is None):
             self.train_data_weights = [1.0] * len(self.train_data_paths)
+        elif self.pos_train_data_paths and (self.train_data_weights is None):
+            self.train_data_weights = [1.0] * len(self.pos_train_data_paths)
         if self.valid_data_paths and (self.valid_data_weights is None):
             self.valid_data_weights = [1.0] * len(self.valid_data_paths)
+        elif self.pos_valid_data_paths and (self.valid_data_weights is None):
+            self.valid_data_weights = [1.0] * len(self.pos_valid_data_paths)
         if self.test_data_paths and (self.test_data_weights is None):
             self.test_data_weights = [1.0] * len(self.test_data_paths)
+        elif self.pos_test_data_paths and (self.test_data_weights is None):
+            self.test_data_weights = [1.0] * len(self.pos_test_data_paths)
 
-        if self.label_data_paths:
-            err_str = (
-                "Must use `label_data_paths` with `train_data_paths`, not `data_path`"
-            )
+        if self.train_label_data_paths:
+            err_str = "Must use `train_label_data_paths` with `train_data_paths`, not `data_path`"
             assert self.train_data_paths and not self.data_path, err_str
 
         # if a sample input file is provided, default text_gen_type type to input-file
@@ -1191,7 +1193,9 @@ class NeoXArgs(*BASE_CLASSES):
                 return False
 
         # Checks.
-        if self.hidden_size % self.num_attention_heads != 0:
+        if self.hidden_size % self.num_attention_heads != 0 and not (
+            "mamba" in self.attention_config
+        ):
             error_message = (
                 self.__class__.__name__
                 + ".validate_values() hidden_size must be divisible by num_attention_heads"
@@ -1234,7 +1238,6 @@ class NeoXArgs(*BASE_CLASSES):
 
         # Parameters sharing does not work with torch DDP.
         if (self.num_unique_layers is not None) and (self.num_layers is not None):
-
             if not (self.num_unique_layers <= self.num_layers):
                 error_message = (
                     self.__class__.__name__
