@@ -27,6 +27,7 @@ def main(input_args=None, overwrite_values=None):
     neox_args.configure_distributed_args()
     neox_args.build_tokenizer()  # tokenizer needs to be build in training in order to set the padding vocab
     neox_args.initialize_tensorboard_writer()  # is initialized if tensorboard directory is defined
+    neox_args.initialize_comet()  # is initialized if comet directory is defined
     pretrain(neox_args=neox_args)
 
 

@@ -230,7 +230,7 @@ class ParallelLinear(nn.Module):
                 #     skip_bias_add=False,
                 #     mup_rescale_parameters=is_last_layer,  # only called if neox_args.use_mup = True, despite it not being included here
                 # )
-            else: # Not using cross entropy loss for RMs
+            else:  # Not using cross entropy loss for RMs
                 self.rm_linear = mpu.RowParallelLinear(
                     neox_args=neox_args,
                     input_size=neox_args.hidden_size,

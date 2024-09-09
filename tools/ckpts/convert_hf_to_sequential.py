@@ -515,6 +515,7 @@ if __name__ == "__main__":
     neox_args.configure_distributed_args()
     neox_args.build_tokenizer()
     neox_args.initialize_tensorboard_writer()
+    neox_args.comet()
 
     # setup logging and timers
     # init_wandb(neox_args=neox_args)
