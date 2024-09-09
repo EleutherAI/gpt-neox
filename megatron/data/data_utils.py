@@ -524,7 +524,6 @@ def build_train_valid_test_data_iterators(neox_args):
             )
 
             if neox_args.weight_by_num_documents:
-
                 # gets the number of documents in each datapath
                 get_num_docs_list = lambda datasets: [
                     dataset.indexed_dataset.sizes.shape[0] for dataset in datasets
