@@ -53,6 +53,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
         self.reward_dataset = reward_dataset
         self.ref_dataset = ref_dataset
         self.seq_length = seq_length
+
         # Checks
         assert self.reward_dataset is None or (
             pack_impl == "unpacked"
