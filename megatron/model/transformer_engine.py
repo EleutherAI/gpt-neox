@@ -5,7 +5,7 @@ from pkg_resources import packaging
 _te_version = packaging.version.Version(version("transformer-engine"))
 
 
-class TENorm:
+class TERMSNorm:
     """
     A conditional wrapper to initialize an instance of Transformer-Engine's
     `LayerNorm` or `RMSNorm` based on input
