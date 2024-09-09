@@ -89,6 +89,8 @@ def build_the_dataset(
             precompute_indexed_dataset = None
         if reward_prefix is not None:
             reward_dataset = make_indexed_dataset(reward_prefix, data_impl, skip_warmup)
+        else:
+            reward_dataset = None
     elif dataset_impl == "pairwise":
         pos_indexed_dataset = make_indexed_dataset(
             pos_data_prefix, data_impl, skip_warmup

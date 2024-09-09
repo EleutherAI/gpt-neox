@@ -124,6 +124,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Transformer intermediate size. Default = 4h
     """
 
+    mlp_multiple_of: int = 256
+    """
+    force mlp size to be a multiple of this value
+    """
+
     expansion_factor: float = None
     """
     Transformer intermediate size. Default = 4
@@ -437,6 +442,10 @@ class NeoXArgsModel(NeoXArgsTemplate):
     use_bias_in_attn_linear: bool = True
     """
     If false, attn_linear (e.g. QKVO) will not have bias terms
+    """
+    use_bias_in_mlp: bool = True
+    """
+    If false, mlps will not have bias terms
     """
 
     mlp_type: str = "regular"

@@ -139,6 +139,7 @@ class ParallelMLP(nn.Module):
             skip_bias_add=True,
             MOE=MOE,
             MoE_mp_size=MoE_mp_size,
+            bias=neox_args.use_bias_in_mlp,
         )
         # Project back to h.
         self.linear2 = mpu.RowParallelLinear(
@@ -151,6 +152,7 @@ class ParallelMLP(nn.Module):
             skip_bias_add=True,
             MOE=MOE,
             MoE_mp_size=MoE_mp_size,
+            bias=neox_args.use_bias_in_mlp,
         )
 
     def forward(self, hidden_states):
@@ -230,7 +232,7 @@ class ParallelLinear(nn.Module):
                 #     skip_bias_add=False,
                 #     mup_rescale_parameters=is_last_layer,  # only called if neox_args.use_mup = True, despite it not being included here
                 # )
-            else: # Not using cross entropy loss for RMs
+            else:  # Not using cross entropy loss for RMs
                 self.rm_linear = mpu.RowParallelLinear(
                     neox_args=neox_args,
                     input_size=neox_args.hidden_size,
@@ -1032,6 +1034,7 @@ class ParallelTransformerLayer(nn.Module):
                 init_method=init_method,
                 output_layer_init_method=output_layer_init_method,
                 parallel_output=self.gpt_j_residual,
+                multiple_of=neox_args.mlp_multiple_of,
                 **kw,
             )
 

@@ -85,38 +85,30 @@ def convert_model(hf_state_dict, hf_config, tp_ranks):
         # --- mlp ---
         # Do SwiGLU weights...
         # w1...
-        for i, chunk in enumerate(
-            torch.chunk(
-                hf_state_dict[f"model.layers.{layer_num}.mlp.gate_proj.weight"],
-                tp_ranks,
-                dim=0,
+        for i, (w1, w3) in enumerate(
+            zip(
+                torch.chunk(
+                    hf_state_dict[f"model.layers.{layer_num}.mlp.gate_proj.weight"],
+                    tp_ranks,
+                    dim=0,
+                ),
+                torch.chunk(
+                    hf_state_dict[f"model.layers.{layer_num}.mlp.up_proj.weight"],
+                    tp_ranks,
+                    dim=0,
+                ),
             )
         ):
             conv_state_dicts[i][
-                f"sequential.{layer_num+2}.mlp.w1.weight"
-            ] = chunk.clone().detach()
+                f"sequential.{layer_num+2}.mlp.linear1.weight"
+            ] = torch.cat([w3.clone().detach(), w1.clone().detach()], dim=0)
         print(
             f"model.layers.{layer_num}.mlp.gate_proj.weight",
             hf_state_dict[f"model.layers.{layer_num}.mlp.gate_proj.weight"].shape,
-            f"sequential.{layer_num+2}.mlp.w1.weight",
-            conv_state_dicts[0][f"sequential.{layer_num+2}.mlp.w1.weight"].shape,
-        )
-        # w3...
-        for i, chunk in enumerate(
-            torch.chunk(
-                hf_state_dict[f"model.layers.{layer_num}.mlp.up_proj.weight"],
-                tp_ranks,
-                dim=0,
-            )
-        ):
-            conv_state_dicts[i][
-                f"sequential.{layer_num+2}.mlp.w3.weight"
-            ] = chunk.clone().detach()
-        print(
             f"model.layers.{layer_num}.mlp.up_proj.weight",
             hf_state_dict[f"model.layers.{layer_num}.mlp.up_proj.weight"].shape,
             f"sequential.{layer_num+2}.mlp.w3.weight",
-            conv_state_dicts[0][f"sequential.{layer_num+2}.mlp.w3.weight"].shape,
+            conv_state_dicts[0][f"sequential.{layer_num+2}.mlp.linear1.weight"].shape,
         )
         # w2 (output)...
         for i, chunk in enumerate(
@@ -127,13 +119,13 @@ def convert_model(hf_state_dict, hf_config, tp_ranks):
             )
         ):
             conv_state_dicts[i][
-                f"sequential.{layer_num+2}.mlp.w2.weight"
+                f"sequential.{layer_num+2}.mlp.linear2.weight"
             ] = chunk.clone().detach()
         print(
             f"model.layers.{layer_num}.mlp.down_proj.weight",
             hf_state_dict[f"model.layers.{layer_num}.mlp.down_proj.weight"].shape,
-            f"sequential.{layer_num+2}.mlp.w2.weight",
-            conv_state_dicts[0][f"sequential.{layer_num+2}.mlp.w2.weight"].shape,
+            f"sequential.{layer_num+2}.mlp.linear2.weight",
+            conv_state_dicts[0][f"sequential.{layer_num+2}.mlp.linear2.weight"].shape,
         )
         # --- norm ---
         for i in range(tp_ranks):
