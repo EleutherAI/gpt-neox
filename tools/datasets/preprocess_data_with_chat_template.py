@@ -81,7 +81,6 @@ def build_chat(
     apply_mask: bool,
     tokenizer: PreTrainedTokenizer,
     only_last_turn: bool = False,
-    for_rm: bool = False,
 ) -> Tuple[List[int], List[int]]:
     """
     Build a chat from a list of dictionaries. Each dictionary should have a "role" and "content" key, this follows the
@@ -92,28 +91,12 @@ def build_chat(
     :param apply_mask: Whether to apply a loss mask to the chat, if False, all tokens will be included in the loss
     :param tokenizer: A HF tokenizer
     :param only_last_turn: Whether to only include the last turn in the chat, needed for some fine-tuning tasks
-    :param for_rm: Whether this is for a reward model or not, this will mask everything except EOS token.
-                   If you need a more complicated setup, you can modify this function to suit your needs.
     """
     tokens = []
     mask = []
     if apply_mask is False:
         tokens = tokenizer.apply_chat_template(chat)
         mask = tokens
-        if tokenizer.eos_token_id is not None:
-            mask.append(tokenizer.eos_token_id)
-            tokens.append(tokenizer.eos_token_id)
-        return tokens, mask
-    elif for_rm:
-        tokens = tokenizer.apply_chat_template(chat)
-        mask = [-100] * len(tokens)
-        if tokenizer.eos_token_id is not None:
-            mask.append(tokenizer.eos_token_id)
-            tokens.append(tokenizer.eos_token_id)
-        else:
-            raise ValueError(
-                "Tokenizer does not have an EOS token, unable to determine good mask, please edit and make your own."
-            )
         return tokens, mask
     for i, turn in enumerate(chat):
         add_gen = (
@@ -121,8 +104,7 @@ def build_chat(
         )
         chat_tokens = tokenizer.apply_chat_template(
             chat[: i + 1], add_generation_prompt=add_gen
-        )[len(tokens) :]
-  
+        )
         # remove previous stuff...
         tokens.extend(chat_tokens)
         if only_last_turn and (i != len(chat) - 1):
@@ -154,9 +136,16 @@ class Encoder(object):
                 not self.args.no_mask,
                 Encoder.tokenizer,
                 self.args.only_last,
-                self.args.for_rm,
             )
-            ids[key] = (text_ids, label_ids)
+            if self.args.reward_key is not None:
+                reward = text[self.args.reward_key]
+                if self.args.binary_reward:
+                    reward = [1] if reward else [-1]
+                elif type(reward) == float:
+                    reward = [reward]
+                ids[key] = (text_ids, label_ids, reward)
+            else:
+                ids[key] = (text_ids, label_ids, None)
         return ids, len(text)
 
 
@@ -182,11 +171,6 @@ def get_args():
         action="store_true",
     )
     group.add_argument(
-        "--for-rm",
-        help="If set, this will mask everything except the last token in the chat.",
-        action="store_true",
-    )
-    group.add_argument(
         "--generation-role",
         type=str,
         default="assistant",
@@ -195,6 +179,17 @@ def get_args():
     group.add_argument(
         "--only-last",
         help="If set, this will mask everything except the last turn in the chat.",
+        action="store_true",
+    )
+    group.add_argument(
+        "--reward-key",
+        type=str,
+        default=None,
+        help="Optional: key to use for reward data in the input data.",
+    )
+    group.add_argument(
+        "--binary-reward",
+        help="If set, this will treat the reward data as a boolean.",
         action="store_true",
     )
     group.add_argument(
@@ -311,19 +306,36 @@ def main():
             assert (
                 key + "_label" not in args.jsonl_keys
             ), "label should not be included as it will be generated according to the mask."
-            key += "_label"
-            output_bin_files[key] = "{}_{}_{}.bin".format(
-                args.output_prefix, key, "document"
+            label_key = key + "_label"
+            output_bin_files[label_key] = "{}_{}_{}.bin".format(
+                args.output_prefix, label_key, "document"
             )
-            output_idx_files[key] = "{}_{}_{}.idx".format(
-                args.output_prefix, key, "document"
+            output_idx_files[label_key] = "{}_{}_{}.idx".format(
+                args.output_prefix, label_key, "document"
             )
-            builders[key] = indexed_dataset.make_builder(
-                output_bin_files[key],
+            builders[label_key] = indexed_dataset.make_builder(
+                output_bin_files[label_key],
                 impl=args.dataset_impl,
                 vocab_size=tokenizer.vocab_size,
             )
-            builders[key]._dtype = np.int32
+            builders[label_key]._dtype = np.int32
+        if args.reward_key is not None:
+            assert (
+                key + "_reward" not in args.jsonl_keys
+            ), "reward should not be included as it will be generated from the data."
+            reward_key = key + "_reward"
+            output_bin_files[reward_key] = "{}_{}_{}.bin".format(
+                args.output_prefix, reward_key, "document"
+            )
+            output_idx_files[reward_key] = "{}_{}_{}.idx".format(
+                args.output_prefix, reward_key, "document"
+            )
+            builders[reward_key] = indexed_dataset.make_builder(
+                output_bin_files[reward_key],
+                impl=args.dataset_impl,
+                vocab_size=tokenizer.vocab_size,
+            )
+            builders[reward_key]._dtype = np.int32
 
     # actually do tokenization
     proc_start = time.time()
@@ -339,17 +351,25 @@ def main():
         for key, conv in doc.items():
             tokens = conv[0]
             token_mask = conv[1]
+            reward = conv[2]
             builders[key].add_item(np.array(tokens, dtype=builders[key].dtype))
             builders[key + "_label"].add_item(
                 np.array(token_mask, dtype=builders[key + "_label"].dtype)
             )
+            if args.reward_key is not None:
+                builders[key + "_reward"].add_item(
+                    np.array(reward, dtype=builders[key + "_reward"].dtype)
+                )
             # add indx...
             builders[key].end_document()
             builders[key + "_label"].end_document()
+            if args.reward_key is not None:
+                builders[key + "_reward"].end_document()
             if i == 1:
                 print("key: ", key)
                 print("tokens: ", tokens)
                 print("token_mask: ", token_mask)
+                print("Reward: ", reward)
         # log progress
         if i % args.log_interval == 0:
             current = time.time()
