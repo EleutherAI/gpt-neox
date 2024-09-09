@@ -36,12 +36,27 @@ def get_params_for_weight_decay_optimization(module, neox_args):
         "name": "no_weight_decay_params",
     }
     for module_ in module.modules():
-        if any(
+        if neox_args.norm == "te_layernorm" or neox_args.norm == "te_rmsnorm":
+            try:
+                from megatron.model.transformer_engine import TELayerNorm, TERMSNorm
+            except ImportError:
+                raise ImportError(
+                    """Unable to import transformer-engine. Please refer to
+                https://github.com/NVIDIA/TransformerEngine for installation instructions."""
+                )
+            if any(
+                [
+                    isinstance(module_, TELayerNorm),
+                    isinstance(module_, TERMSNorm),
+                ]
+            ):
+                no_weight_decay_params["params"].extend(
+                    [p for p in list(module_._parameters.values()) if p is not None]
+                )
+        elif any(
             [
                 isinstance(module_, LayerNorm),
                 isinstance(module_, RMSNorm),
-                isinstance(module_, TELayerNorm),
-                isinstance(module_, TERMSNorm),
                 isinstance(module_, ScaleNorm),
             ]
         ) or (
