@@ -24,14 +24,11 @@ from megatron import mpu
 from types import GeneratorType
 import torch.distributed as dist
 
-
 import importlib
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Any
 
 
-def get_params_for_weight_decay_optimization(
-    module: Any, neox_args: Any
-) -> List[Dict[str, Any]]:
+def get_params_for_weight_decay_optimization(module: Any, neox_args: Any):
     """
     Divide params into with-weight-decay and without-weight-decay groups.
     Layernorms and biases will have no weight decay but the rest will.
@@ -381,7 +378,7 @@ def reduce_weight_grads_from_model_parallel_region(input_):
         input_ = input_.float()
 
     # All-reduce.
-    torch.distributed.all_reduce(input_, group=mpu.get_model_parallel_group())
+    dist.all_reduce(input_, group=mpu.get_model_parallel_group())
 
     # Bf16 convert
     if dt == torch.bfloat16 and mpu.get_fp32_allreduce():
