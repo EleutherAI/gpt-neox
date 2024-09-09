@@ -81,6 +81,7 @@ def build_chat(
     apply_mask: bool,
     tokenizer: PreTrainedTokenizer,
     only_last_turn: bool = False,
+    for_rm: bool = False,
 ) -> Tuple[List[int], List[int]]:
     """
     Build a chat from a list of dictionaries. Each dictionary should have a "role" and "content" key, this follows the
@@ -98,13 +99,24 @@ def build_chat(
         tokens = tokenizer.apply_chat_template(chat)
         mask = tokens
         return tokens, mask
+    elif for_rm:
+        tokens = tokenizer.apply_chat_template(chat)
+        mask = [-100] * len(tokens)
+        if tokenizer.eos_token_id is not None:
+            mask.append(tokenizer.eos_token_id)
+            tokens.append(tokenizer.eos_token_id)
+        else:
+            raise ValueError(
+                "Tokenizer does not have an EOS token, unable to determine good mask, please edit and make your own."
+            )
+        return tokens, mask
     for i, turn in enumerate(chat):
         add_gen = (
             False if i == len(chat) - 1 else chat[i + 1]["role"] == generation_role
         )
         chat_tokens = tokenizer.apply_chat_template(
             chat[: i + 1], add_generation_prompt=add_gen
-        )
+        )[len(tokens) :]
         # remove previous stuff...
         tokens.extend(chat_tokens)
         if only_last_turn and (i != len(chat) - 1):
@@ -136,6 +148,7 @@ class Encoder(object):
                 not self.args.no_mask,
                 Encoder.tokenizer,
                 self.args.only_last,
+                self.args.for_rm,
             )
             if self.args.reward_key is not None:
                 reward = text[self.args.reward_key]
@@ -168,6 +181,11 @@ def get_args():
     group.add_argument(
         "--no-mask",
         help="If set, this will not mask any tokens in the input data.",
+        action="store_true",
+    )
+    group.add_argument(
+        "--for-rm",
+        help="If set, this will mask everything except the last token in the chat.",
         action="store_true",
     )
     group.add_argument(
