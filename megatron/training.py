@@ -637,7 +637,10 @@ def get_model(neox_args, use_cache=False):
     neox_args.use_mup = False
 
     if neox_args.zero_stage in [2,3]:
-        if neox_args.is_pipe_parallel:
+        if neox_args.pipe_parallel_size == 1:
+            print_rank_0("ZeRO stage 2/3 and the PipelineModule are incompatible, please set 'pipe_parallel_size' to 0 instead")
+            exit()
+        if neox_args.pipe_parallel_size > 1:
             print_rank_0("ZeRO stage 2/3 and pipeline paralleism are not supported simultaneously")
             exit()
         if neox_args.model_parallel_size > 1:
