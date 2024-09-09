@@ -18,6 +18,7 @@
 """Utilities for models."""
 
 import torch
+from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
 from megatron.model.fused_softmax import SoftmaxFusionTypes
 from megatron import mpu
 from types import GeneratorType
@@ -35,9 +36,17 @@ def get_params_for_weight_decay_optimization(module, neox_args):
         "name": "no_weight_decay_params",
     }
     for module_ in module.modules():
-        # apply weight decay to any "...Norm" modules.
-        if "norm" in type(module_).__name__.lower() or neox_args.weight_decay == 0.0:
-            # also include all parameters here if no weight decay is being done
+        if any(
+            [
+                isinstance(module_, LayerNorm),
+                isinstance(module_, RMSNorm),
+                isinstance(module_, TELayerNorm),
+                isinstance(module_, TERMSNorm),
+                isinstance(module_, ScaleNorm),
+            ]
+        ) or (
+            neox_args.weight_decay == 0.0
+        ):  # also include all parameters here if no weight decay is being done
             no_weight_decay_params["params"].extend(
                 [p for p in list(module_._parameters.values()) if p is not None]
             )
