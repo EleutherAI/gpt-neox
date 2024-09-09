@@ -662,7 +662,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
 
     comet_experiment = None
     """
-    Comet experiment objects to log data
+    Initialized comet experiment object used to log data
     """
 
     log_interval: int = 100

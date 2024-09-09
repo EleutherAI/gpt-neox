@@ -18,6 +18,18 @@ GPT-NeoX leverages many of the same features and technologies as the popular Meg
 * Easy connections with the open source ecosystem, including Hugging Face's [tokenizers](https://github.com/huggingface/tokenizers) and [transformers](https://github.com/huggingface/transformers/) libraries, logging via [WandB](https://wandb.ai/site), and evaluation via our [Language Model Evaluation Harness](https://github.com/EleutherAI/lm-evaluation-harness).
 
 ## News
+**[9/9/2024]** We now support preference learning via [DPO](https://arxiv.org/abs/2305.18290), [KTO](https://arxiv.org/abs/2402.01306), and reward modeling
+
+**[9/9/2024]** We now support integration with [Comet ML](https://www.comet.com/site/), a machine learning monitoring platform
+
+**[5/21/2024]** We now support [RWKV](https://www.rwkv.com/) with pipeline parallelism!. See the PRs for [RWKV](https://github.com/EleutherAI/gpt-neox/pull/1198) and [RWKV+pipeline](https://github.com/EleutherAI/gpt-neox/pull/1221)
+
+**[3/21/2024]** We now support Mixture-of-Experts (MoE)
+
+**[3/17/2024]** We now support AMD MI250X GPUs
+
+**[3/15/2024]** We now support [Mamba](https://github.com/state-spaces/mamba) with tensor parallelism! See [the PR](https://github.com/EleutherAI/gpt-neox/pull/1184)
+
 **[8/10/2023]** We now support checkpointing with AWS S3! Activate with the `s3_path` config option (for more detail, see [the PR](https://github.com/EleutherAI/gpt-neox/pull/1010))
 
 **[9/20/2023]** As of https://github.com/EleutherAI/gpt-neox/pull/1035, we have deprecated Flash Attention 0.x and 1.x, and migrated support to Flash Attention 2.x. We don't believe this will cause problems, but if you have a specific use-case that requires old flash support using the latest GPT-NeoX, please raise an issue.
@@ -642,6 +654,15 @@ EleutherAI is currently using [Weights & Biases to record our experiments](https
 ## TensorBoard
 
 We also support using TensorBoard via the <code><var>tensorboard-dir</var></code> field. Dependencies required for TensorBoard monitoring can be found in and installed from  `./requirements/requirements-tensorboard.txt`.
+
+## Comet ML
+
+[Comet ML](https://www.comet.com/) is a machine learning monitoring platform. To use comet to monitor your gpt-neox experiments:
+1. Create an account at https://www.comet.com/login to generate your API key. Either create a workspace or pass your default workspace in your gpt-neox config under the `comet_workspace` config arg.
+2. Once generated, link your API key at runtime by passing `export COMET_API_KEY=<your-key-here>`
+3. Install `comet_ml` and any dependency libraries via `pip install -r requirements/requirements-comet.txt`
+4. Pass `use_comet: True` and your workspace name under `comet)wor in your config. A full example config with comet enabled is provided in `configs/local_setup_comet.yml`
+5. Run your experiment, and monitor in comet workspace that you passed!
 
 # Running on multi-node
 
