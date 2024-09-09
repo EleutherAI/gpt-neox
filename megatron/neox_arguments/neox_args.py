@@ -997,9 +997,9 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Dataset implementation, can be one of "gpt2" or "pairwise"
     """
 
-    train_impl: Literal["normal", "dpo"] = "normal"
+    train_impl: Literal["normal", "dpo", "rm"] = "normal"
     """
-    Training implementation, can be one of "normal" or "dpo"
+    Training implementation, can be one of "normal", "dpo", or "rm"
     """
 
     dpo_fp32: bool = True
@@ -1010,6 +1010,13 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     dpo_beta: float = 0.1
     """
     Beta value for DPO
+    """
+
+    z_loss: float = 0.0
+    """
+    Z-loss parameter, only implemented for RM training currently.
+    https://arxiv.org/pdf/2204.02311
+    https://arxiv.org/pdf/2309.10305
     """
 
     allow_chopped: bool = True
