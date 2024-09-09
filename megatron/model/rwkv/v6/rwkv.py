@@ -247,11 +247,11 @@ class RWKV_ChannelMix(nn.Module):
             self.time_maa_k = nn.Parameter(1.0 - torch.pow(ddd, ratio_1_to_almost0))
             self.time_maa_r = nn.Parameter(1.0 - torch.pow(ddd, ratio_1_to_almost0))
 
-        self.key = nn.Linear(neox_args.hidden_size, neox_args.dim_ffn, bias=False)
+        self.key = nn.Linear(neox_args.hidden_size, neox_args.ffn_dim, bias=False)
         self.receptance = nn.Linear(
             neox_args.hidden_size, neox_args.hidden_size, bias=False
         )
-        self.value = nn.Linear(neox_args.dim_ffn, neox_args.hidden_size, bias=False)
+        self.value = nn.Linear(neox_args.ffn_dim, neox_args.hidden_size, bias=False)
 
     def forward(self, x):
         xx = self.time_shift(x) - x
@@ -275,14 +275,23 @@ class RWKVResidualLayer(nn.Module):
         self.layer_number = layer_number
         self.fp16 = neox_args.precision == "fp16"
         self.bf16 = neox_args.precision == "bfloat16"
+        assert (
+            neox_args.intermediate_size == None or neox_args.expansion_factor == None
+        ), "Must pass either the absolute intermediate size or the relative expansion factor for the mamba projections"
         if not hasattr(neox_args, "dim_att"):
             neox_args.dim_att = neox_args.hidden_size
-        if not hasattr(neox_args, "dim_ffn"):
-            # Make hidden size 3.5x. Round to nearest multiple of 32 until we add hdim rounding logic
-            neox_args.dim_ffn = int((neox_args.hidden_size * 3.5) // 32 * 32)
+        if neox_args.intermediate_size:
+            neox_args.ffn_dim = neox_args.intermediate_size
+        else:
+            self.expand = (
+                neox_args.expansion_factor if neox_args.expansion_factor else 3.5
+            )
+            neox_args.ffn_dim = int(self.expand * neox_args.hidden_size)
+            # Make hidden size 3.5x by default. Round to nearest multiple of 32 until we add hdim rounding logic
+        neox_args.ffn_dim = int(neox_args.ffn_dim // 32 * 32)
         assert neox_args.hidden_size % 32 == 0
         assert neox_args.dim_att % 32 == 0
-        assert neox_args.dim_ffn % 32 == 0
+        assert neox_args.ffn_dim % 32 == 0
         self.neox_args.head_size = neox_args.dim_att // neox_args.num_attention_heads
         self.head_size = self.neox_args.head_size
         self.num_attention_heads = neox_args.num_attention_heads

@@ -145,7 +145,7 @@ def xavier_normal_init_method(use_mup_outer=False, mup_init_scale=1.0):
 
 def small_init_init_method(dim, use_mup_outer=False, mup_init_scale=1.0):
     """Fills the input Tensor with values according to the method described in Transformers without Tears: Improving
-    the Normalization of Self-Attention - Nguyen, T. & Salazar, J. (2010), using a normal distribution."""
+    the Normalization of Self-Attention - Nguyen, T. & Salazar, J. (2019), using a normal distribution."""
     std = math.sqrt(2 / (5 * dim))
 
     def init_(tensor, use_mup=use_mup_outer):

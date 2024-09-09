@@ -25,9 +25,23 @@ torch._C._jit_override_can_fuse_on_gpu(True)
 
 
 def get_activation(neox_args):
-    """retrieves the activation function specified in neox_args"""
+    """retrieves the activation function specified in neox_args and whether or not the activation is gated"""
+    is_gated = False
     if neox_args.activation == "geglu":
-        activation_func = GEGLU(neox_args=neox_args)
+        is_gated = True
+        activation_func = F.gelu
+    elif neox_args.activation == "reglu":
+        is_gated = True
+        activation_func = F.relu
+    elif neox_args.activation == "bilinear":
+        is_gated = True
+        activation_func = lambda x: x
+    elif neox_args.activation == "swiglu":
+        is_gated = True
+        activation_func = swish
+    elif neox_args.activation == "glu":
+        is_gated = True
+        activation_func = F.sigmoid
     elif neox_args.activation == "gelu":
         if neox_args.onnx_safe and neox_args.bias_gelu_fusion:
             raise ValueError("onnx_safe + bias_gelu_fusion not compatible")
@@ -49,7 +63,7 @@ def get_activation(neox_args):
         activation_func = F.silu
     else:
         raise ValueError(f"Activation function {neox_args.activation} not recognized")
-    return activation_func
+    return activation_func, is_gated
 
 
 ###### BIAS GELU FUSION/ NO AUTOGRAD ################
@@ -119,21 +133,3 @@ def swish(x, beta: float = 1.0):
 @torch.jit.script
 def mish(x):
     return x * torch.tanh(F.softplus(x))
-
-
-class GEGLU(torch.nn.Module):
-    def __init__(self, neox_args):
-        super(GEGLU, self).__init__()
-        if neox_args.onnx_safe:
-            self.activation_func = erf_gelu
-        else:
-            self.activation_func = F.gelu
-
-    def forward(self, x, bias=None):
-        x, gate = x.chunk(2, dim=-1)
-        if bias is not None:
-            bias_1, bias_2 = bias.chunk(2, dim=-1)
-            x = x + bias_1
-            gate = gate + bias_2
-        intermediate_parallel = self.activation_func(gate)
-        return intermediate_parallel * x
