@@ -139,6 +139,7 @@ class ParallelMLP(nn.Module):
             skip_bias_add=True,
             MOE=MOE,
             MoE_mp_size=MoE_mp_size,
+            bias=neox_args.use_bias_in_mlp,
         )
         # Project back to h.
         self.linear2 = mpu.RowParallelLinear(
@@ -151,6 +152,7 @@ class ParallelMLP(nn.Module):
             skip_bias_add=True,
             MOE=MOE,
             MoE_mp_size=MoE_mp_size,
+            bias=neox_args.use_bias_in_mlp,
         )
 
     def forward(self, hidden_states):
@@ -1032,6 +1034,7 @@ class ParallelTransformerLayer(nn.Module):
                 init_method=init_method,
                 output_layer_init_method=output_layer_init_method,
                 parallel_output=self.gpt_j_residual,
+                multiple_of=neox_args.mlp_multiple_of,
                 **kw,
             )
 
