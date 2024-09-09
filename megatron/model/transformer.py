@@ -979,6 +979,7 @@ class ParallelTransformerLayer(nn.Module):
         self.gpt_j_tied = neox_args.gpt_j_tied
         self.mlp_type = neox_args.mlp_type
         self.moe_type = neox_args.moe_type
+        self.activation = neox_args.activation
 
         if self.gpt_j_residual:
             # GPT-J style layers allow us to defer the reduction of results across TP ranks until the end of the two sublayers.
