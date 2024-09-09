@@ -92,12 +92,17 @@ def build_chat(
     :param apply_mask: Whether to apply a loss mask to the chat, if False, all tokens will be included in the loss
     :param tokenizer: A HF tokenizer
     :param only_last_turn: Whether to only include the last turn in the chat, needed for some fine-tuning tasks
+    :param for_rm: Whether this is for a reward model or not, this will mask everything except EOS token.
+                   If you need a more complicated setup, you can modify this function to suit your needs.
     """
     tokens = []
     mask = []
     if apply_mask is False:
         tokens = tokenizer.apply_chat_template(chat)
         mask = tokens
+        if tokenizer.eos_token_id is not None:
+            mask.append(tokenizer.eos_token_id)
+            tokens.append(tokenizer.eos_token_id)
         return tokens, mask
     elif for_rm:
         tokens = tokenizer.apply_chat_template(chat)
@@ -117,6 +122,7 @@ def build_chat(
         chat_tokens = tokenizer.apply_chat_template(
             chat[: i + 1], add_generation_prompt=add_gen
         )[len(tokens) :]
+
         # remove previous stuff...
         tokens.extend(chat_tokens)
         if only_last_turn and (i != len(chat) - 1):
@@ -188,7 +194,6 @@ def get_args():
         help="If set, this will mask everything except the last token in the chat.",
         action="store_true",
     )
-
     group.add_argument(
         "--generation-role",
         type=str,

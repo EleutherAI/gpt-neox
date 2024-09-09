@@ -188,7 +188,9 @@ def pretrain(neox_args):
     # setup logging and timers
     init_wandb(neox_args=neox_args)
     timers = Timers(
-        use_wandb=neox_args.use_wandb, tensorboard_writer=neox_args.tensorboard_writer
+        use_wandb=neox_args.use_wandb,
+        tensorboard_writer=neox_args.tensorboard_writer,
+        comet_experiment=neox_args.comet_experiment,
     )
 
     # Initialize and get arguments, timers, and Tensorboard writer.
@@ -749,6 +751,23 @@ def get_model(neox_args, use_cache=False):
     # If mup isn't being used anyways, this has no effect.
     old_use_mup = neox_args.use_mup
     neox_args.use_mup = False
+
+    if neox_args.zero_stage in [2, 3]:
+        if neox_args.pipe_parallel_size == 1:
+            print_rank_0(
+                "ZeRO stage 2/3 and the PipelineModule are incompatible, please set 'pipe_parallel_size' to 0 instead"
+            )
+            exit()
+        if neox_args.pipe_parallel_size > 1:
+            print_rank_0(
+                "ZeRO stage 2/3 and pipeline paralleism are not supported simultaneously"
+            )
+            exit()
+        if neox_args.model_parallel_size > 1:
+            print_rank_0(
+                "ZeRO stage 2/3 and model paralleism are not currently supported simultaneously"
+            )
+            exit()
 
     with deepspeed.zero.Init(
         config_dict_or_path=neox_args.deepspeed_config
@@ -1525,6 +1544,7 @@ def evaluate_and_print_results(
                     iteration,
                     use_wandb=neox_args.use_wandb,
                     tensorboard_writer=neox_args.tensorboard_writer,
+                    comet_experiment=neox_args.comet_experiment,
                 )
         else:
             string += f"{k} value: {v:.6E} | "
@@ -1534,6 +1554,7 @@ def evaluate_and_print_results(
                 iteration,
                 use_wandb=neox_args.use_wandb,
                 tensorboard_writer=neox_args.tensorboard_writer,
+                comet_experiment=neox_args.comet_experiment,
             )
 
     length = len(string) + 1
