@@ -148,7 +148,6 @@ class GPT2Dataset(torch.utils.data.Dataset):
                             sample_list.append(dataset.get(self.doc_idx[i]))
                             sample_lengths.append(len(sample_list[-1]))
                     # And finally add the relevant portion of last document.
-
                     if n == rw_indx:
                         rw = dataset.get(self.doc_idx[doc_index_l])
                         sample_list.append(

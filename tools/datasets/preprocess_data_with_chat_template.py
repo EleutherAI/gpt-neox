@@ -81,7 +81,6 @@ def build_chat(
     apply_mask: bool,
     tokenizer: PreTrainedTokenizer,
     only_last_turn: bool = False,
-    for_rm: bool = False,
 ) -> Tuple[List[int], List[int]]:
     """
     Build a chat from a list of dictionaries. Each dictionary should have a "role" and "content" key, this follows the
@@ -92,28 +91,12 @@ def build_chat(
     :param apply_mask: Whether to apply a loss mask to the chat, if False, all tokens will be included in the loss
     :param tokenizer: A HF tokenizer
     :param only_last_turn: Whether to only include the last turn in the chat, needed for some fine-tuning tasks
-    :param for_rm: Whether this is for a reward model or not, this will mask everything except EOS token.
-                   If you need a more complicated setup, you can modify this function to suit your needs.
     """
     tokens = []
     mask = []
     if apply_mask is False:
         tokens = tokenizer.apply_chat_template(chat)
         mask = tokens
-        if tokenizer.eos_token_id is not None:
-            mask.append(tokenizer.eos_token_id)
-            tokens.append(tokenizer.eos_token_id)
-        return tokens, mask
-    elif for_rm:
-        tokens = tokenizer.apply_chat_template(chat)
-        mask = [-100] * len(tokens)
-        if tokenizer.eos_token_id is not None:
-            mask.append(tokenizer.eos_token_id)
-            tokens.append(tokenizer.eos_token_id)
-        else:
-            raise ValueError(
-                "Tokenizer does not have an EOS token, unable to determine good mask, please edit and make your own."
-            )
         return tokens, mask
     for i, turn in enumerate(chat):
         add_gen = (
@@ -154,7 +137,6 @@ class Encoder(object):
                 not self.args.no_mask,
                 Encoder.tokenizer,
                 self.args.only_last,
-                self.args.for_rm,
             )
             if self.args.reward_key is not None:
                 reward = text[self.args.reward_key]
@@ -187,11 +169,6 @@ def get_args():
     group.add_argument(
         "--no-mask",
         help="If set, this will not mask any tokens in the input data.",
-        action="store_true",
-    )
-    group.add_argument(
-        "--for-rm",
-        help="If set, this will mask everything except the last token in the chat.",
         action="store_true",
     )
     group.add_argument(
