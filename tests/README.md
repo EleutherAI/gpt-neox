@@ -3,6 +3,7 @@
 Tests use pytests with coverage and forked plugins. Install with:
 
 ```bash
+pip install -r requirements/requirements.txt
 pip install -r requirements/requirements-dev.txt
 ```
 
@@ -56,6 +57,8 @@ It usually means that you used some pytorch.cuda function before the test create
 Tests can be run against physical CPUs through GitHub Actions. To have tests run on the physical CPU test, here is generally how the CI should be written:
 
 ### runs-on
+
+#### NOTE: These BKMs were written to work with CI infrastructure that is no longer in place. To use the Github runners (ubuntu-22.04 / ubuntu-latest), skip the 'runs-on' section.
 
 The CI needs to be written to target the CPU Github Action runner. The jobs that need to run on CPU should use the hardware runner's labels:
 ```yaml

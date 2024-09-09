@@ -45,6 +45,7 @@ from megatron.model import (
     GPT2ModelPipe,
     SoftEmbedding,
     get_params_for_weight_decay_optimization,
+    mark_norms_for_sequence_parallel_grad_sync,
 )
 from megatron.mpu.mappings import gather_from_model_parallel_region
 from megatron.checkpointing import load_checkpoint, save_checkpoint
@@ -948,6 +949,7 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
                 model_parameters=ref_param_groups,
                 mpu=mpu if not neox_args.is_pipe_parallel else None,
             )
+        mark_norms_for_sequence_parallel_grad_sync(model, neox_args)
         if neox_args.moe_num_experts > 1 and neox_args.moe_type == "megablocks":
             # We need to additionally set this flag to ensure DS parallelism properly handles this foreign MoE.
             model.has_moe_layers = True
@@ -1040,7 +1042,7 @@ def train_step(
         reduced_loss = train_step_pipe(
             neox_args=neox_args, timers=timers, model=model, data_iterator=data_iterator
         )
-        reduced_metrics = {"lm_loss": reduced_loss}
+        reduce_metrics = reduced_loss
         if (
             neox_args.memory_profiling
             and neox_args.iteration >= neox_args.profile_step_start
@@ -1095,6 +1097,7 @@ def train_step(
                 and neox_args.iteration <= neox_args.profile_step_stop
             ):
                 torch.cuda.nvtx.range_push(f"Optimizer step")
+
             timers("optimizer").start()
             if neox_args.deepspeed:
                 model.step()

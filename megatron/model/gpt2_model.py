@@ -308,7 +308,10 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                 )
 
             logits = parallel_lm_logits(
-                lm_output, embedding.word_embeddings_weight, self.parallel_output
+                lm_output,
+                embedding.word_embeddings_weight,
+                self.parallel_output,
+                seq_parallel=self.neox_args.sequence_parallel,
             )
             return logits
 
