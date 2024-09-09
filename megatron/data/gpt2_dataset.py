@@ -103,6 +103,8 @@ class GPT2Dataset(torch.utils.data.Dataset):
                 datasets.append(self.label_dataset)
             if self.reward_dataset is not None:
                 datasets.append(self.reward_dataset)
+            else:
+                rw_indx = -1
             if self.ref_dataset is not None:
                 datasets.append(self.ref_dataset)
             samples = []
@@ -112,15 +114,17 @@ class GPT2Dataset(torch.utils.data.Dataset):
                 if doc_index_f == doc_index_l:
                     if rw_indx == n:
                         # If we are in the reward dataset, we only need the last token.
-                        samples.append(
-                            dataset.get(
-                                self.doc_idx[doc_index_f], offset=offset_l, length=1
-                            )
-                        )
-                    else:
                         rw = dataset.get(self.doc_idx[doc_index_f])
                         samples.append(
                             np.array([rw[0] for _ in range(len(samples[-1]))])
+                        )
+                    else:
+                        samples.append(
+                            dataset.get(
+                                self.doc_idx[doc_index_f],
+                                offset=offset_l,
+                                length=offset_l - offset_f + 1,
+                            )
                         )
                 else:
                     if n != rw_indx:
@@ -130,7 +134,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
                     if n == rw_indx:
                         rw = dataset.get(self.doc_idx[doc_index_f])
                         sample_list = [
-                            np.array([rw[0] for _ in range(sample_lengths[0])])
+                            np.array([rw[0] for _ in range(sample_lengths.pop(0))])
                         ]
                     else:
                         sample_list = [
@@ -142,7 +146,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
                         if n == rw_indx:
                             rw = dataset.get(self.doc_idx[i])
                             sample_list.append(
-                                np.array([rw[0] for _ in range(sample_lengths[1 + i])])
+                                np.array([rw[0] for _ in range(sample_lengths.pop(0))])
                             )
                         else:
                             sample_list.append(dataset.get(self.doc_idx[i]))
@@ -151,7 +155,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
                     if n == rw_indx:
                         rw = dataset.get(self.doc_idx[doc_index_l])
                         sample_list.append(
-                            np.array([rw[0] for _ in range(sample_lengths[-1])])
+                            np.array([rw[0] for _ in range(sample_lengths.pop(0))])
                         )
                     else:
                         sample_list.append(
