@@ -316,7 +316,7 @@ def get_batch(neox_args, data_iterator):
 
     # Items and their type.
     if neox_args.train_impl == "normal":
-        keys = ["text", "label"] if neox_args.label_data_paths else ["text"]
+        keys = ["text", "label"] if neox_args.train_label_data_paths else ["text"]
     elif neox_args.train_impl in ["dpo", "rm"]:
         keys = (
             [["pos", "pos_label"], ["neg", "neg_label"]]
