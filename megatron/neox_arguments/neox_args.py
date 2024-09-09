@@ -21,9 +21,9 @@ except ImportError:
     from template import NeoXArgsTemplate
 
 try:
-    from typing import List, Literal, Union, Optional
+    from typing import List, Literal, Union
 except ImportError:
-    from typing_extensions import List, Literal, Union, Optional
+    from typing_extensions import List, Literal, Union
 
 
 ATTENTION_TYPE_CHOICES = [
@@ -122,6 +122,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     intermediate_size: int = None
     """
     Transformer intermediate size. Default = 4h
+    """
+
+    mlp_multiple_of: int = 256
+    """
+    force mlp size to be a multiple of this value
     """
 
     expansion_factor: float = None
@@ -438,6 +443,10 @@ class NeoXArgsModel(NeoXArgsTemplate):
     """
     If false, attn_linear (e.g. QKVO) will not have bias terms
     """
+    use_bias_in_mlp: bool = True
+    """
+    If false, mlps will not have bias terms
+    """
 
     mlp_type: str = "regular"
     """
@@ -630,39 +639,6 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     tensorboard_dir: str = None
     """
     Write TensorBoard logs to this directory.
-    """
-
-    use_comet: bool = None
-    """Flag indicating if comet is to be used."""
-
-    comet_workspace: Optional[str] = None
-    """
-    Comet workspace name, if not configured Comet Experiments will be created in the user configured default workspace.
-    """
-
-    comet_project: Optional[str] = None
-    """
-    Comet project name, if not configured Comet Experiments will be created in the Uncategorized Experiments project.
-    """
-
-    comet_experiment_name: Optional[str] = None
-    """
-    Custom name for the Comet experiment. If not provided, a random name is used.
-    """
-
-    comet_tags: Optional[list] = None
-    """
-    List of tags to attach to the created Comet Experiment.
-    """
-
-    comet_others: Optional[dict] = None
-    """
-    Custom metadata to attach to the created Comet Experiment.
-    """
-
-    comet_experiment = None
-    """
-    Initialized comet experiment object used to log data
     """
 
     log_interval: int = 100
@@ -913,6 +889,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     List of paths to train label datasets (not shifted by 1 yet!).
     """
 
+    train_reward_data_paths: list = None
+    """
+    List of paths to train reward datasets
+    """
+
     test_data_paths: list = None
     """
     List of paths to test datasets.
@@ -923,6 +904,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     List of paths to test label datasets (not shifted by 1 yet!).
     """
 
+    test_reward_data_paths: list = None
+    """
+    List of paths to test reward datasets
+    """
+
     valid_data_paths: list = None
     """
     List of paths to validation datasets.
@@ -931,6 +917,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     valid_label_data_paths: list = None
     """
     List of paths to validation label datasets (not shifted by 1 yet!).
+    """
+
+    valid_reward_data_paths: list = None
+    """
+    List of paths to validation reward datasets
     """
 
     pos_train_data_paths: list = None
@@ -1030,9 +1021,9 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Dataset implementation, can be one of "gpt2" or "pairwise"
     """
 
-    train_impl: Literal["normal", "dpo", "rm"] = "normal"
+    train_impl: Literal["normal", "dpo", "kto"] = "normal"
     """
-    Training implementation, can be one of "normal", "dpo", or "rm"
+    Training implementation, can be one of "normal", "dpo", or "kto"
     """
 
     dpo_fp32: bool = True
@@ -1040,16 +1031,29 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Whether to cast logits to fp32 for DPO loss calculation.
     """
 
+    kto_fp32: bool = True
+    """
+    Whether to cast logits to fp32 for KTO loss calculation.
+    """
+
+    kto_desirable_weight: float = 1.0
+    """
+    Weight for desirable loss in KTO. Might help if you have unbalanced desirable and undesirable classes.
+    """
+
+    kto_undesirable_weight: float = 1.0
+    """
+    Weight for undesirable loss in KTO. Might help if you have unbalanced desirable and undesirable classes.
+    """
+
     dpo_beta: float = 0.1
     """
     Beta value for DPO
     """
 
-    z_loss: float = 0.0
+    kto_beta: float = 0.1
     """
-    Z-loss parameter, only implemented for RM training currently.
-    https://arxiv.org/pdf/2204.02311
-    https://arxiv.org/pdf/2309.10305
+    Beta value for KTO
     """
 
     allow_chopped: bool = True
