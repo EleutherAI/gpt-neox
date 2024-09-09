@@ -188,6 +188,7 @@ def get_args():
         help="If set, this will mask everything except the last token in the chat.",
         action="store_true",
     )
+
     group.add_argument(
         "--generation-role",
         type=str,
