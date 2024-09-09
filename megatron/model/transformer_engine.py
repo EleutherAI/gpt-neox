@@ -59,12 +59,12 @@ class TELinear(te.pytorch.Linear):
     """
 
     def __init__(self):
+        # TODO
         return
-        # TODO: Nick
 
     def forward(self, x):
+        # TODO
         return
-        # TODO: Nick
 
 
 class TELayerNormColumnParallelLinear(te.pytorch.LayerNormLinear):
@@ -74,12 +74,12 @@ class TELayerNormColumnParallelLinear(te.pytorch.LayerNormLinear):
     """
 
     def __init__(self):
+        # TODO
         return
-        # TODO: Nick
 
     def forward(self, x):
+        # TODO
         return
-        # TODO: Nick
 
 
 class TEColumnParallelLinear(TELinear):
@@ -89,12 +89,12 @@ class TEColumnParallelLinear(TELinear):
     """
 
     def __init__(self):
-        # TODO: Nick
+        # TODO
         return
 
     def forward(self, x):
+        # TODO
         return
-        # TODO: Nick
 
 
 class TERowParallelLinear(TELinear):
@@ -104,11 +104,11 @@ class TERowParallelLinear(TELinear):
     """
 
     def __init__(self):
-        # TODO: Nick
+        # TODO
         return
 
     def forward(self, x):
-        # TODO: Nick
+        # TODO
         return
 
 
@@ -119,11 +119,11 @@ class TEDotProductAttention(te.pytorch.DotProductAttention):
     """
 
     def __init__(self):
-        # TODO: tfidia
+        # TODO
         return
 
     def forward(self, x):
-        # TODO: tfidia
+        # TODO
         return
 
 
@@ -133,5 +133,5 @@ class TEDelayedScaling(te.common.recipe.DelayedScaling):
     """
 
     def __init__(self):
-        # TODO: ???
+        # TODO
         return
