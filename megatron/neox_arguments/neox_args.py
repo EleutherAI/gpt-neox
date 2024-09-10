@@ -124,7 +124,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Transformer intermediate size. Default = 4h
     """
 
-    mlp_multiple_of: int = 256
+    mlp_multiple_of: int = 1
     """
     force mlp size to be a multiple of this value
     """
