@@ -1174,23 +1174,27 @@ class ParallelTransformerLayer(nn.Module):
                 attention_output, presents = attention_output
                 self.layer_past = presents
 
-            with torch.enable_grad():
-                attention_output = bias_dropout_fn(
-                    attention_output,
-                    bias=attention_bias.expand_as(attention_output),
-                    residual=None,
-                    prob=self.hidden_dropout,
-                )
+            if attention_bias is not None:
+                with torch.enable_grad():
+                    attention_output = bias_dropout_fn(
+                        attention_output,
+                        bias=attention_bias.expand_as(attention_output),
+                        residual=None,
+                        prob=self.hidden_dropout,
+                    )
 
             # mlp operator
             mlp_output, mlp_bias = self.mlp(x2)
-            with torch.enable_grad():
-                output = bias_dropout_fn(
-                    mlp_output,
-                    bias=mlp_bias.expand_as(mlp_output),
-                    residual=attention_output,
-                    prob=self.hidden_dropout,
-                )
+            if mlp_bias is not None:
+                with torch.enable_grad():
+                    output = bias_dropout_fn(
+                        mlp_output,
+                        bias=mlp_bias.expand_as(mlp_output),
+                        residual=attention_output,
+                        prob=self.hidden_dropout,
+                    )
+            else:
+                output = mlp_output
 
             # output = (x + attn(ln(x)) + mlp(ln(x))
             output = residual + self.reduce(output)
