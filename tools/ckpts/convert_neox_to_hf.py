@@ -80,12 +80,11 @@ MODEL_KEYS = {
     },
     "llama": {
         "COLUMN_PARALLEL_LINEAR_KEYS": {
-            "mlp.w1.weight": "mlp.gate_proj.weight",
-            "mlp.w3.weight": "mlp.up_proj.weight",
+            "mlp.linear1.weight": ["mlp.up_proj.weight", "mlp.gate_proj.weight"]
         },
         "ROW_PARALLEL_LINEAR_KEYS": {
             "attention.dense.weight": "self_attn.o_proj.weight",
-            "mlp.w2.weight": "mlp.down_proj.weight",
+            "mlp.linear2.weight": "mlp.down_proj.weight",
         },
         "ROW_PARALLEL_BIAS_KEYS": {},  # No biases in RowParallelLinear layers
         "NORM_KEYS": {
@@ -238,7 +237,7 @@ def create_config(neox_config, architecture="neox"):
                     "num-kv-heads",
                     get_key(neox_config, "num-attention-heads"),
                 ),
-                "hidden_act": get_key(neox_config, "activation", default="silu"),
+                "hidden_act": get_key(neox_config, "activation", default="silu").replace("swiglu", "silu"),
                 "rms_norm_eps": get_key(neox_config, "rms-norm-epsilon", 1.0e-6),
                 "bos_token_id": tokenizer.eod,
                 "eos_token_id": tokenizer.eod,
@@ -509,12 +508,22 @@ def convert(
 
         # LinearWithTPMerge
         for key, hf_key in ARCH["COLUMN_PARALLEL_LINEAR_KEYS"].items():
-            state_dict[hf_key] = torch.cat(
-                get_state(
+            if type(hf_key) == list:
+                # Llama magic - split the weight into two parts for the gate and up proj
+                states = [torch.chunk(state, chunks=2, dim=0) for state in get_state(
                     loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential
-                ),
-                dim=0,
-            )
+                )]
+                # Set up proj...
+                state_dict[hf_key[0]] = torch.cat([state[0] for state in states], dim=0)
+                # Set gate proj...
+                state_dict[hf_key[1]] = torch.cat([state[1] for state in states], dim=0)
+            else:
+                state_dict[hf_key] = torch.cat(
+                    get_state(
+                        loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential
+                    ),
+                    dim=0,
+                )
 
         # LinearWithTPSplitBias
         for key, hf_key in ARCH["ROW_PARALLEL_BIAS_KEYS"].items():
