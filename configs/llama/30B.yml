@@ -21,6 +21,5 @@
   "bias_gelu_fusion": false,
   "use_bias_in_norms": false,
   "use_bias_in_attn_linear": false,
-  "mlp_type": "llama",
   "activation": "swiglu",
 }

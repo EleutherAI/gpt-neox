@@ -448,13 +448,6 @@ class NeoXArgsModel(NeoXArgsTemplate):
     If false, mlps will not have bias terms
     """
 
-    mlp_type: str = "regular"
-    """
-    Currently, the only mlp_type is "regular." This behavior is currently deprecated.
-    Types:
-        regular: Megatron implementation
-    """
-
     soft_prompt_tuning: dict = None
     """
     Dictionary configuring the soft prompt tuning parameters.
