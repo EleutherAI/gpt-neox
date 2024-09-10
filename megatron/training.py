@@ -322,7 +322,7 @@ def get_batch(neox_args, data_iterator):
     """Generate a batch"""
 
     # Items and their type.
-    if neox_args.train_impl in ["normal", "kto"]:
+    if neox_args.train_impl == "normal":
         keys = ["text", "label"] if neox_args.train_label_data_paths else ["text"]
     elif neox_args.train_impl in ["dpo", "rm"]:
         keys = (
@@ -345,25 +345,6 @@ def get_batch(neox_args, data_iterator):
             data=data,
             datatype=datatype,
         )
-    elif neox_args.train_impl == "kto":
-        tup = _get_batch(
-            neox_args=neox_args,
-            tokenizer=neox_args.tokenizer,
-            keys=keys,
-            data=data,
-            datatype=datatype,
-        )
-        # Remove the last token from the reward since we predict the next token, so
-        # Reward of <current prediction> will be based on the label of <next token>
-        rw_data = mpu.broadcast_data(["reward"], data, torch.float)["reward"][
-            :, :-1
-        ].contiguous()
-        ref_data = (
-            mpu.broadcast_data(["ref"], data, torch.float)["ref"][:, :-1].contiguous()
-            if neox_args.precompute_model_name
-            else None
-        )
-        return tup + (rw_data, ref_data)
     elif neox_args.train_impl in ["dpo", "rm"]:
         pos_tup = _get_batch(
             neox_args=neox_args,
