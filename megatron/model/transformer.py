@@ -139,6 +139,7 @@ class ParallelMLP(nn.Module):
             skip_bias_add=True,
             MOE=MOE,
             MoE_mp_size=MoE_mp_size,
+            bias=neox_args.use_bias_in_mlp,
         )
         # Project back to h.
         self.linear2 = mpu.RowParallelLinear(
@@ -151,6 +152,7 @@ class ParallelMLP(nn.Module):
             skip_bias_add=True,
             MOE=MOE,
             MoE_mp_size=MoE_mp_size,
+            bias=neox_args.use_bias_in_mlp,
         )
 
     def forward(self, hidden_states):
@@ -267,9 +269,6 @@ class _MegablocksAdapter(nn.Module):
         # MoE and non-MoE parameters separately.
         if args.moe_expert_model_parallelism:
             args.expert_parallel_group = ep_group
-
-        if neox_args.moe_glu:
-            args.mlp_type = "glu"
 
         self.moe = layer_cls(args)
 
@@ -993,7 +992,6 @@ class ParallelTransformerLayer(nn.Module):
         self.bias_dropout_fusion = neox_args.bias_dropout_fusion
         self.gpt_j_residual = neox_args.gpt_j_residual
         self.gpt_j_tied = neox_args.gpt_j_tied
-        self.mlp_type = neox_args.mlp_type
         self.moe_type = neox_args.moe_type
         self.activation = neox_args.activation
 
@@ -1026,12 +1024,13 @@ class ParallelTransformerLayer(nn.Module):
         self.post_attention_layernorm = norm(neox_args.hidden_size, eps=eps)
 
         # MLP
-        def get_mlp(mlp_type, **kw):
+        def get_mlp(**kw):
             return ParallelMLP(
                 neox_args=neox_args,
                 init_method=init_method,
                 output_layer_init_method=output_layer_init_method,
                 parallel_output=self.gpt_j_residual,
+                multiple_of=neox_args.mlp_multiple_of,
                 **kw,
             )
 
@@ -1042,7 +1041,7 @@ class ParallelTransformerLayer(nn.Module):
         )
         args = neox_args
         if self.num_experts <= 1:
-            self.mlp = get_mlp(neox_args.mlp_type)
+            self.mlp = get_mlp()
         else:
             from torch import distributed as dist
 

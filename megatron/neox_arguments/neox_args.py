@@ -21,9 +21,9 @@ except ImportError:
     from template import NeoXArgsTemplate
 
 try:
-    from typing import List, Literal, Union, Optional
+    from typing import List, Literal, Union
 except ImportError:
-    from typing_extensions import List, Literal, Union, Optional
+    from typing_extensions import List, Literal, Union
 
 
 ATTENTION_TYPE_CHOICES = [
@@ -122,6 +122,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     intermediate_size: int = None
     """
     Transformer intermediate size. Default = 4h
+    """
+
+    mlp_multiple_of: int = 1
+    """
+    force mlp size to be a multiple of this value
     """
 
     expansion_factor: float = None
@@ -438,12 +443,9 @@ class NeoXArgsModel(NeoXArgsTemplate):
     """
     If false, attn_linear (e.g. QKVO) will not have bias terms
     """
-
-    mlp_type: str = "regular"
+    use_bias_in_mlp: bool = True
     """
-    Currently, the only mlp_type is "regular." This behavior is currently deprecated.
-    Types:
-        regular: Megatron implementation
+    If false, mlps will not have bias terms
     """
 
     soft_prompt_tuning: dict = None
@@ -913,6 +915,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     List of paths to train label datasets (not shifted by 1 yet!).
     """
 
+    train_reward_data_paths: list = None
+    """
+    List of paths to train reward datasets
+    """
+
     test_data_paths: list = None
     """
     List of paths to test datasets.
@@ -923,6 +930,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     List of paths to test label datasets (not shifted by 1 yet!).
     """
 
+    test_reward_data_paths: list = None
+    """
+    List of paths to test reward datasets
+    """
+
     valid_data_paths: list = None
     """
     List of paths to validation datasets.
@@ -931,6 +943,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     valid_label_data_paths: list = None
     """
     List of paths to validation label datasets (not shifted by 1 yet!).
+    """
+
+    valid_reward_data_paths: list = None
+    """
+    List of paths to validation reward datasets
     """
 
     pos_train_data_paths: list = None
