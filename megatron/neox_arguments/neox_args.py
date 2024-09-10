@@ -21,9 +21,9 @@ except ImportError:
     from template import NeoXArgsTemplate
 
 try:
-    from typing import List, Literal, Union, Optional
+    from typing import List, Literal, Union
 except ImportError:
-    from typing_extensions import List, Literal, Union, Optional
+    from typing_extensions import List, Literal, Union
 
 
 ATTENTION_TYPE_CHOICES = [
@@ -124,7 +124,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Transformer intermediate size. Default = 4h
     """
 
-    mlp_multiple_of: int = 256
+    mlp_multiple_of: int = 1
     """
     force mlp size to be a multiple of this value
     """
@@ -446,13 +446,6 @@ class NeoXArgsModel(NeoXArgsTemplate):
     use_bias_in_mlp: bool = True
     """
     If false, mlps will not have bias terms
-    """
-
-    mlp_type: str = "regular"
-    """
-    Currently, the only mlp_type is "regular." This behavior is currently deprecated.
-    Types:
-        regular: Megatron implementation
     """
 
     soft_prompt_tuning: dict = None

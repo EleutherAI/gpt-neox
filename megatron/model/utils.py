@@ -41,10 +41,19 @@ def get_params_for_weight_decay_optimization(module: Any, neox_args: Any):
 
     def is_no_weight_decay_module(module_: Any) -> bool:
         return (
-            type(module_).__name__ in ["LayerNorm","RMSNorm","ScaleNorm","TELayerNorm",
-            "TERMSNorm", "MixedFusedLayerNorm", "MixedFusedRMSNorm"]
+            type(module_).__name__
+            in [
+                "LayerNorm",
+                "RMSNorm",
+                "ScaleNorm",
+                "TELayerNorm",
+                "TERMSNorm",
+                "MixedFusedLayerNorm",
+                "MixedFusedRMSNorm",
+            ]
             or neox_args.weight_decay == 0.0
         )
+
     for module_ in module.modules():
         if is_no_weight_decay_module(module_):
             no_weight_decay_params["params"].extend(
