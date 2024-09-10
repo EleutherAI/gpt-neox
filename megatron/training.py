@@ -626,9 +626,9 @@ def forward_step(
                 )
                 metrics["chosen_rewards"] = chosen_rewards.mean()
                 metrics["rejected_rewards"] = rejected_rewards.mean()
-            reward_acc = (chosen_rewards > rejected_rewards).float()
-            metrics["reward_acc"] = reward_acc.mean()
-            metrics["margins"] = (chosen_rewards - rejected_rewards).mean()
+                reward_acc = (chosen_rewards > rejected_rewards).float()
+                metrics["reward_acc"] = reward_acc.mean()
+                metrics["margins"] = (chosen_rewards - rejected_rewards).mean()
         pi_logrations = chosen_pos - chosen_neg
         ref_logrations = ref_pos - ref_neg
         logits = pi_logrations - ref_logrations

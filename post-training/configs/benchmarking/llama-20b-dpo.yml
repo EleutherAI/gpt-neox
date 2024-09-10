@@ -19,6 +19,7 @@
   "output_layer_parallelism": "column",
   "norm": "rmsnorm",
   "rms_norm_epsilon": 1.0e-5,
+  "rmsnorm_fusion": true,
 
   "attention_config": [[["flash"], 22]],
 
@@ -55,25 +56,28 @@
 
   "train_impl": "dpo",
   "dataset_impl": "pairwise",
-  "dpo_fp32": true,
+  "dpo_reference_free": false,
+  "dpo_fp32": false,
   "dpo_beta": 0.01,
   "allow_chopped": false,
-  "pos_train_data_paths": [ "data/pairwise/llama3_dpo_train_chosen_document" ],
-  "pos_train_label_data_paths": [ "data/pairwise/llama3_dpo_train_chosen_label_document" ],
-  "neg_train_data_paths": [ "data/pairwise/llama3_dpo_train_rejected_document" ],
-  "neg_train_label_data_paths": [ "data/pairwise/llama3_dpo_train_rejected_label_document" ],
-  "pos_valid_data_paths": [ "data/pairwise/llama3_dpo_val_chosen_document" ],
-  "pos_valid_label_data_paths": [ "data/pairwise/llama3_dpo_val_chosen_label_document" ],
-  "neg_valid_data_paths": [ "data/pairwise/llama3_dpo_val_rejected_document" ],
-  "neg_valid_label_data_paths": [ "data/pairwise/llama3_dpo_val_rejected_label_document" ],
-  "pos_test_data_paths": [ "data/pairwise/llama3_dpo_val_chosen_document" ],
-  "pos_test_label_data_paths": [ "data/pairwise/llama3_dpo_val_chosen_label_document" ],
-  "neg_test_data_paths": [ "data/pairwise/llama3_dpo_val_rejected_document" ],
-  "neg_test_label_data_paths": [ "data/pairwise/llama3_dpo_val_rejected_label_document" ],
+
+  "pos_train_data_paths": [ "data/pairwise/dpo_train_chosen_document" ],
+  "pos_train_label_data_paths": [ "data/pairwise/dpo_train_chosen_label_document" ],
+  "neg_train_data_paths": [ "data/pairwise/dpo_train_rejected_document" ],
+  "neg_train_label_data_paths": [ "data/pairwise/dpo_train_rejected_label_document" ],
+  "pos_valid_data_paths": [ "data/pairwise/dpo_val_chosen_document" ],
+  "pos_valid_label_data_paths": [ "data/pairwise/dpo_val_chosen_label_document" ],
+  "neg_valid_data_paths": [ "data/pairwise/dpo_val_rejected_document" ],
+  "neg_valid_label_data_paths": [ "data/pairwise/dpo_val_rejected_label_document" ],
+  "pos_test_data_paths": [ "data/pairwise/dpo_val_chosen_document" ],
+  "pos_test_label_data_paths": [ "data/pairwise/dpo_val_chosen_label_document" ],
+  "neg_test_data_paths": [ "data/pairwise/dpo_val_rejected_document" ],
+  "neg_test_label_data_paths": [ "data/pairwise/dpo_val_rejected_label_document" ],
 
 
-  "train_micro_batch_size_per_gpu": 1,
-  "gradient_accumulation_steps": 128,
+
+  "train_micro_batch_size_per_gpu": 4,
+  "gradient_accumulation_steps": 32,
   "data_impl": "mmap",
   "pack_impl": "unpacked",
   "num_workers": 1,
@@ -110,12 +114,11 @@
   "steps_per_print": 1,
   "wall_clock_breakdown": true,
 
-
   "save": "checkpoints/pairwise/llama-20b-instruct-dpo",
-  "vocab-file": "checkpoints/neox_converted/llama3-8b-instruct/tokenizer/tokenizer.json", # use tokenizer from llama 3
+  "vocab-file": "checkpoints/neox_converted/zephyr-sft/tokenizer/tokenizer.json", # use tokenizer from llama 3
   "use_wandb": true,
   "finetune": true, # set to false once resuming from intermediate finetuning step
   "tokenizer_type": "HFTokenizer",
-  "wandb_group": "llama-20b-referncefree-dpo",
+  "wandb_group": "llama-20b-dpo",
   "wandb_project": "llama-dpo",
 }
