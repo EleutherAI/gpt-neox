@@ -52,7 +52,7 @@ Please investigate carefully whether your model is compatible with all architect
 # in format : {model arch: {param type: {param in neox: param in HF}}}
 MODEL_KEYS = {
     "neox": {
-        "new":{
+        "new": {
             "COLUMN_PARALLEL_LINEAR_KEYS": {
                 "mlp.linear1.weight": "mlp.dense_h_to_4h.weight",
                 "mlp.linear1.bias": "mlp.dense_h_to_4h.bias",
@@ -106,7 +106,7 @@ MODEL_KEYS = {
         },
     },
     "llama": {
-        "new":{
+        "new": {
             "COLUMN_PARALLEL_LINEAR_KEYS": {
                 "mlp.linear1.weight": ["mlp.up_proj.weight", "mlp.gate_proj.weight"]
             },
@@ -130,15 +130,14 @@ MODEL_KEYS = {
                 ],
             },
         },
-        "legacy":{
-            
+        "legacy": {
             "COLUMN_PARALLEL_LINEAR_KEYS": {
-             "mlp.w1.weight": "mlp.gate_proj.weight",
-             "mlp.w3.weight": "mlp.up_proj.weight",
+                "mlp.w1.weight": "mlp.gate_proj.weight",
+                "mlp.w3.weight": "mlp.up_proj.weight",
             },
             "ROW_PARALLEL_LINEAR_KEYS": {
-             "attention.dense.weight": "self_attn.o_proj.weight",
-             "mlp.w2.weight": "mlp.down_proj.weight",
+                "attention.dense.weight": "self_attn.o_proj.weight",
+                "mlp.w2.weight": "mlp.down_proj.weight",
             },
             "ROW_PARALLEL_BIAS_KEYS": {},  # No biases in RowParallelLinear layers
             "NORM_KEYS": {
@@ -292,7 +291,9 @@ def create_config(neox_config, architecture="neox"):
                     "num-kv-heads",
                     get_key(neox_config, "num-attention-heads"),
                 ),
-                "hidden_act": get_key(neox_config, "activation", default="silu").replace("swiglu", "silu"),
+                "hidden_act": get_key(
+                    neox_config, "activation", default="silu"
+                ).replace("swiglu", "silu"),
                 "rms_norm_eps": get_key(neox_config, "rms-norm-epsilon", 1.0e-6),
                 "bos_token_id": tokenizer.eod,
                 "eos_token_id": tokenizer.eod,
@@ -436,16 +437,18 @@ def reshard_and_split_qkv(
             state_dict[hf_key] = proj.clone()
         return state_dict
 
+
 def get_mlp_naming_convention(loaded_tp_ranks, layer_idx, sequential):
     """Determine whether the checkpoint uses the legacy or new MLP naming convention."""
-    for state_dict in loaded_tp_ranks:
-        print(f'STATE_DICT: {state_dict.keys()}')
     if any("mlp.linear1.weight" in state_dict for state_dict in loaded_tp_ranks):
         return "new"
-    elif any("mlp.dense_h_to_4h.weight" in state_dict for state_dict in loaded_tp_ranks):
+    elif any(
+        "mlp.dense_h_to_4h.weight" in state_dict for state_dict in loaded_tp_ranks
+    ):
         return "legacy"
     else:
         raise ValueError("Unable to determine MLP naming convention in checkpoint")
+
 
 def convert(
     input_checkpoint_path,
@@ -539,12 +542,16 @@ def convert(
     ### End Embedding Layer ###
 
     # grab from 3rd layer to pass embeddings
-    mlp_naming = get_mlp_naming_convention(load_partitions(
-                input_checkpoint_path,
-                mp_partitions,
-                layer_idx=3,
-                sequential=sequential,
-            ), 0, sequential)
+    mlp_naming = get_mlp_naming_convention(
+        load_partitions(
+            input_checkpoint_path,
+            mp_partitions,
+            layer_idx=3,
+            sequential=sequential,
+        ),
+        0,
+        sequential,
+    )
     print(f"Detected MLP naming convention: {mlp_naming}")
     ARCH = ARCH[mlp_naming]
 
@@ -585,9 +592,15 @@ def convert(
         for key, hf_key in ARCH["COLUMN_PARALLEL_LINEAR_KEYS"].items():
             if type(hf_key) == list:
                 # Llama magic - split the weight into two parts for the gate and up proj
-                states = [torch.chunk(state, chunks=2, dim=0) for state in get_state(
-                    loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential
-                )]
+                states = [
+                    torch.chunk(state, chunks=2, dim=0)
+                    for state in get_state(
+                        loaded_tp_ranks,
+                        key,
+                        layer_idx=layer_i + 2,
+                        sequential=sequential,
+                    )
+                ]
                 # Set up proj...
                 state_dict[hf_key[0]] = torch.cat([state[0] for state in states], dim=0)
                 # Set gate proj...
@@ -595,7 +608,10 @@ def convert(
             else:
                 state_dict[hf_key] = torch.cat(
                     get_state(
-                        loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential
+                        loaded_tp_ranks,
+                        key,
+                        layer_idx=layer_i + 2,
+                        sequential=sequential,
                     ),
                     dim=0,
                 )
