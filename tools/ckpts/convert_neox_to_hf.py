@@ -54,17 +54,17 @@ Please investigate carefully whether your model is compatible with all architect
 MODEL_KEYS = {
     "neox": {
         "COLUMN_PARALLEL_LINEAR_KEYS": {
-            "mlp.dense_h_to_4h.weight": "mlp.dense_h_to_4h.weight",
-            "mlp.dense_h_to_4h.bias": "mlp.dense_h_to_4h.bias",
+            "mlp.linear1.weight": "mlp.linear1.weight",
+            "mlp.linear1.bias": "mlp.linear1.bias",
             "attention.query_key_value.weight": "attention.query_key_value.weight",
             "attention.query_key_value.bias": "attention.query_key_value.bias",  # TODO: handle GQA separately?
         },
         "ROW_PARALLEL_LINEAR_KEYS": {
             "attention.dense.weight": "attention.dense.weight",
-            "mlp.dense_4h_to_h.weight": "mlp.dense_4h_to_h.weight",
+            "mlp.linear2.weight": "mlp.linear2.weight",
         },
         "ROW_PARALLEL_BIAS_KEYS": {
-            "mlp.dense_4h_to_h.bias": "mlp.dense_4h_to_h.bias",
+            "mlp.linear2.bias": "mlp.linear2.bias",
             "attention.dense.bias": "attention.dense.bias",
         },
         "NORM_KEYS": {
