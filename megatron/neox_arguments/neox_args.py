@@ -21,9 +21,9 @@ except ImportError:
     from template import NeoXArgsTemplate
 
 try:
-    from typing import List, Literal, Union
+    from typing import List, Literal, Union, Optional
 except ImportError:
-    from typing_extensions import List, Literal, Union
+    from typing_extensions import List, Literal, Union, Optional
 
 
 ATTENTION_TYPE_CHOICES = [
