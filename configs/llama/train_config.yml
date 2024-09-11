@@ -70,4 +70,5 @@
   "steps_per_print": 10,
   "keep_last_n_checkpoints": 4,
   "wall_clock_breakdown": true,
+  "mlp_multiple_of": 256,
 }
