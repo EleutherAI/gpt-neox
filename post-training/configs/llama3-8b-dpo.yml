@@ -27,6 +27,7 @@
   "bias_gelu_fusion": false,
   "use_bias_in_norms": false,
   "use_bias_in_attn_linear": false,
+  "use_bias_in_mlp: false,
   "activation": "swiglu",
   "intermediate_size": 14336,
   "mlp_multiple_of": 14336,
