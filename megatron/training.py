@@ -574,7 +574,7 @@ def forward_step(
         )
     elif neox_args.train_impl == "dpo":
         # Based on https://github.com/eric-mitchell/direct-preference-optimization/blob/main/trainers.py#L90
-        with torch.no_grad():
+        with torch.inference_mode():
             # So we can gather token logps...
             token_logp_labels = labels.clone()
             pos_loss_mask, neg_loss_mask = torch.chunk(loss_mask, 2, 0)
@@ -1027,6 +1027,7 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
                 lr_scheduler=ref_lr_scheduler,
                 iteration=iteration,
             )
+            reference_model.eval()
         print_rank_0(
             f"Loading checkpoint and starting from iteration {neox_args.iteration}"
         )

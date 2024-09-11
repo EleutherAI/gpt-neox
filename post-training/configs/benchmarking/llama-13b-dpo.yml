@@ -1,19 +1,20 @@
 {
   "pipe_parallel_size": 0,
-  "model_parallel_size": 8,
-  "make_vocab_size_divisible_by": 1,
+  "model_parallel_size": 2,
+  "make_vocab_size_divisible_by": 64,
 
   # model settings
-  "num_layers": 22,
-  "hidden_size": 8192,
-  "num_attention_heads": 64,
-  "num_kv_heads": 8,
+  "num_layers": 40,
+  "hidden_size": 5120,
+  "num_attention_heads": 40,
+  "num_kv_heads": 40,
   # following along with zephyr's max length...
   "seq_length": 1024,
   "max_position_embeddings": 1024,
   "pos_emb": "rotary",
   "rotary_pct": 1,
   "rotary_emb_base": 500000,
+  "rope_fusion": true,
   "no_weight_tying": true,
   "gpt_j_residual": false,
   "output_layer_parallelism": "column",
@@ -21,16 +22,17 @@
   "rms_norm_epsilon": 1.0e-5,
   "rmsnorm_fusion": true,
 
-  "attention_config": [[["flash"], 22]],
+  "attention_config": [[["flash"], 40]],
 
   "scaled_upper_triang_masked_softmax_fusion": true,
   "bias_gelu_fusion": false,
   "use_bias_in_norms": false,
   "use_bias_in_attn_linear": false,
   "use_bias_in_mlp": false,
+  "use_flashattn_swiglu": true,
   "activation": "swiglu",
-  "intermediate_size": 28672,
-  "mlp_multiple_of": 28672,
+  "intermediate_size": 13824,
+  "mlp_multiple_of": 13824,
 
 
   "optimizer": {
@@ -43,13 +45,13 @@
    },
   "min_lr": 0.0,
 
-   "zero_optimization": {
+  "zero_optimization": {
     "stage": 1,
     "allgather_partitions": true,
-    "allgather_bucket_size": 1260000000,
+    "allgather_bucket_size": 1000000000,
     "overlap_comm": true,
     "reduce_scatter": true,
-    "reduce_bucket_size": 1260000000,
+    "reduce_bucket_size": 1000000000,
     "contiguous_gradients": true,
     "cpu_offload": false
   },
@@ -60,7 +62,6 @@
   "dpo_fp32": false,
   "dpo_beta": 0.01,
   "allow_chopped": false,
-
   "pos_train_data_paths": [ "data/pairwise/dpo_train_chosen_document" ],
   "pos_train_label_data_paths": [ "data/pairwise/dpo_train_chosen_label_document" ],
   "neg_train_data_paths": [ "data/pairwise/dpo_train_rejected_document" ],
@@ -75,17 +76,16 @@
   "neg_test_label_data_paths": [ "data/pairwise/dpo_val_rejected_label_document" ],
 
 
-
-  "train_micro_batch_size_per_gpu": 4,
-  "gradient_accumulation_steps": 32,
+  "train_micro_batch_size_per_gpu": 2,
+  "gradient_accumulation_steps": 16,
   "data_impl": "mmap",
   "pack_impl": "unpacked",
-  "num_workers": 1,
+  "num_workers": 4,
 
-  "checkpoint_activations": true,
+  "checkpoint_activations": false,
   "checkpoint_num_layers": 1,
-  "partition_activations": true,
-  "synchronize_each_layer": true,
+  "partition_activations": false,
+  "synchronize_each_layer": false,
 
   "gradient_clipping": 1.0,
   "weight_decay": 0.1,
@@ -114,11 +114,14 @@
   "steps_per_print": 1,
   "wall_clock_breakdown": true,
 
-  "save": "checkpoints/pairwise/llama-20b-instruct-dpo",
-  "vocab-file": "checkpoints/neox_converted/zephyr-sft/tokenizer/tokenizer.json", # use tokenizer from llama 3
+
+  "save": "checkpoints/pairwise/llama-13b-dpo",
+  #"load": "", # once run is started, to restart from intermediate ckpt use "load" = "save"
+  # use the same mistral tokenizer just for performance testing
+  "vocab-file": "checkpoints/neox_converted/zephyr-sft/tokenizer/tokenizer.json",
   "use_wandb": true,
   "finetune": true, # set to false once resuming from intermediate finetuning step
   "tokenizer_type": "HFTokenizer",
-  "wandb_group": "llama-20b-dpo",
-  "wandb_project": "llama-dpo",
+  "wandb_group": "llama-13b",
+  "wandb_project": "llama-13b-perf-test",
 }

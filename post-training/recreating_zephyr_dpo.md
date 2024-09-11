@@ -1,7 +1,7 @@
 # Initial setup
 
 ```bash
-python tools/ckpts/convert_hf_llama_to_neox.py --tp 4 --model HuggingFaceH4/mistral-7b-sft-beta --model_path chekpoints/neox_converted/zephyr-sft
+python tools/ckpts/convert_hf_llama_to_neox.py --tp 2 --model HuggingFaceH4/mistral-7b-sft-beta --model_path checkpoints/neox_converted/zephyr-sft_tp2
 ```
 
 
