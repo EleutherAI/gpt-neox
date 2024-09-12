@@ -880,7 +880,7 @@ def main(input_args=None, overwrite_values=None):
             print("loaded tokenizer: ", tokenizer)
             tokenizer.save_pretrained(args.output_dir)
             print("tokenizer saved!")
-        if tokenizer_type == "HFTokenizer":  # TODO: handle sentencepiece tokenizers?
+        elif tokenizer_type == "HFTokenizer":  # TODO: handle sentencepiece tokenizers?
             print(f"saving tokenizer from file {get_key(loaded_config, 'vocab-file')}")
             print(
                 "Warning: please check that your model config and tokenizer end with the correct special tokens (EOS, BOS)."
