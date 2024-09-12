@@ -46,7 +46,7 @@ def get_git_commit_hash():
     try:
         git_hash = subprocess.check_output(["git", "describe", "--always"]).strip()
         git_hash = git_hash.decode()
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         git_hash = None
     return git_hash
 
