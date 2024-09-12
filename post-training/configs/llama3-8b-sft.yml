@@ -54,7 +54,7 @@
     "cpu_offload": false
   },
 
-  "label_data_paths": [ "data/sft/llama3_train_messages_label_document" ],
+  "train_label_data_paths": [ "data/sft/llama3_train_messages_label_document" ],
   "test_label_data_paths": [ "data/sft/llama3_test_messages_label_document" ],
   "valid_label_data_paths": [ "data/sft/llama3_train_messages_label_document" ],
   "train_data_paths": [ "data/sft/llama3_train_messages_document" ],

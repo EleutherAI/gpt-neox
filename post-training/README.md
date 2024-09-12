@@ -10,7 +10,7 @@ python tools/ckpts/convert_hf_llama_to_neox.py --tp 4 --model meta-llama/Meta-Ll
 First, grab the jsonl file...
 
 ```bash
-python post-training/llama_dpo_data.py
+python post-training/llama_data.py
 ```
 ## DPO data
 ```bash
