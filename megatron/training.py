@@ -1048,7 +1048,9 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
 
     """Setup model and optimizer."""
     needs_reference_model = (
-        (neox_args.train_impl == "dpo") and (neox_args.precompute_model_name is None) and (not neox_args.dpo_reference_free)
+        (neox_args.train_impl == "dpo")
+        and (neox_args.precompute_model_name is None)
+        and (not neox_args.dpo_reference_free)
     ) or ((neox_args.train_impl == "kto") and (neox_args.precompute_model_name is None))
     model = get_model(neox_args=neox_args, use_cache=use_cache)
     if needs_reference_model:

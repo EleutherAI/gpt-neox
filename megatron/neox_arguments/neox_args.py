@@ -1061,7 +1061,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     """
     Whether to cast logits to fp32 for DPO loss calculation.
     """
-    
+
     dpo_reference_free: bool = False
     """
     Whether to use reference-free DPO.
