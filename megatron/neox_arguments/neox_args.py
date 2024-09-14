@@ -309,6 +309,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish", "silu", "reglu", "swiglu", "bilinear", "glu"]
     """
 
+    use_flashattn_swiglu: bool = False
+    """
+    Use flash attention's version of swiglu
+    """
+
     scaled_upper_triang_masked_softmax_fusion: bool = False
     """
     Enable fusion of query_key_value_scaling time (upper diagonal) masking and softmax.
@@ -1056,6 +1061,16 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     """
     Whether to cast logits to fp32 for DPO loss calculation.
     """
+    
+    dpo_reference_free: bool = False
+    """
+    Whether to use reference-free DPO.
+    """
+
+    dpo_beta: float = 0.1
+    """
+    Beta value for DPO
+    """
 
     kto_fp32: bool = True
     """
@@ -1070,11 +1085,6 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     kto_undesirable_weight: float = 1.0
     """
     Weight for undesirable loss in KTO. Might help if you have unbalanced desirable and undesirable classes.
-    """
-
-    dpo_beta: float = 0.1
-    """
-    Beta value for DPO
     """
 
     kto_beta: float = 0.1
