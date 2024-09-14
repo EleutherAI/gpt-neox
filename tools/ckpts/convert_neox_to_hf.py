@@ -26,6 +26,7 @@ from transformers import (
     GPTNeoXConfig,
     AutoModelForCausalLM,
     AutoConfig,
+    AutoModelForSequenceClassification,
 )
 
 from typing import List, Literal
@@ -218,7 +219,7 @@ def get_key(loaded_config, key, default=None):
             return default
 
 
-def create_config(neox_config, architecture="neox"):
+def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1):
     """take in a loaded yaml from NeoX and assign relevant values to HF config.
     Returns: GPTNeoXConfig() object
     """
@@ -340,6 +341,9 @@ def create_config(neox_config, architecture="neox"):
             }
         )
         hf_config = GPTNeoXConfig(**args)
+    if is_rm:
+        hf_config.num_labels = 1
+        hf_config.pad_token_id = pad_token_id
 
     return hf_config
 
@@ -440,10 +444,22 @@ def reshard_and_split_qkv(
 
 def get_mlp_naming_convention(loaded_tp_ranks, layer_idx, sequential):
     """Determine whether the checkpoint uses the legacy or new MLP naming convention."""
-    if any("mlp.linear1.weight" in state_dict for state_dict in loaded_tp_ranks):
+    print(list(loaded_tp_ranks[0]["module"].keys()))
+    if any(
+        [
+            ["mlp.linear1.weight" in key for key in list(state_dict["module"].keys())]
+            for state_dict in loaded_tp_ranks
+        ]
+    ):
         return "new"
     elif any(
-        "mlp.dense_h_to_4h.weight" in state_dict for state_dict in loaded_tp_ranks
+        [
+            [
+                "mlp.dense_h_to_4h.weight" in key
+                for key in list(state_dict["module"].keys())
+            ]
+            for state_dict in loaded_tp_ranks
+        ]
     ):
         return "legacy"
     else:
@@ -457,6 +473,8 @@ def convert(
     sequential: bool = True,
     precision: Literal["auto", "fp16", "bf16", "fp32"] = "auto",
     architecture: Literal["neox", "llama", "mistral"] = "neox",
+    is_rm: bool = False,
+    pad_token_id: int = -1,
 ):
     """convert a NeoX checkpoint to a HF model format.
     should perform model-parallel merging correctly
@@ -465,9 +483,14 @@ def convert(
 
     ARCH = MODEL_KEYS[architecture]
 
-    hf_config = create_config(loaded_config, architecture=architecture)
+    hf_config = create_config(
+        loaded_config, architecture=architecture, is_rm=is_rm, pad_token_id=pad_token_id
+    )
 
-    hf_model = AutoModelForCausalLM.from_config(hf_config)
+    if not is_rm:
+        hf_model = AutoModelForCausalLM.from_config(hf_config)
+    else:
+        hf_model = AutoModelForSequenceClassification.from_config(hf_config)
 
     if architecture == "neox":
         hf_transformer = hf_model.gpt_neox
@@ -656,10 +679,6 @@ def convert(
             sequential=sequential,
         )
     # Load final layer norm
-    if architecture == "neox":
-        lm_head = hf_model.embed_out
-    else:
-        lm_head = hf_model.lm_head
     norm_state_dict = {}
     for key, hf_key in ARCH["FINAL_NORM_KEYS"].items():
         norm_state_dict[hf_key] = sum(
@@ -698,10 +717,13 @@ def convert(
                 sequential=sequential,
             )
     # output embedding / LM head
-    if architecture == "neox":  # name of lm head / final linear proj varies
-        lm_head = hf_model.embed_out
+    if not is_rm:
+        if architecture == "neox":  # name of lm head / final linear proj varies
+            lm_head = hf_model.embed_out
+        else:
+            lm_head = hf_model.lm_head
     else:
-        lm_head = hf_model.lm_head
+        lm_head = hf_model.score
 
     if get_key(loaded_config, "no-weight-tying", False):
         # save the (untied) final linear into LM head for HF
@@ -710,15 +732,17 @@ def convert(
                 "weight": torch.cat(
                     get_state(
                         loaded_tp_ranks,
-                        "final_linear.weight",
+                        "final_linear.weight" if not is_rm else "rm_linear.weight",
                         layer_idx=get_key(loaded_config, "num-layers") + 4,
                         sequential=sequential,
                     ),
-                    dim=0,
+                    dim=0 if not is_rm else 1,
                 ),
             }
         )
     else:
+        # don't need to worry about rm here since you can't really tie them...
+
         # embedding layers are tied. transpose input layer and save
         lm_head.load_state_dict(
             {
@@ -772,6 +796,17 @@ def main(input_args=None, overwrite_values=None):
         help="Whether to skip saving the tokenizer alongside a model.",
     )
     parser.add_argument(
+        "--vocab-is-hf-tokenizer",
+        action="store_true",
+        help="Whether the vocab file is in a Huggingface tokenizer path.",
+    )
+    parser.add_argument(
+        "--pad-token-id",
+        type=int,
+        default=-1,
+        help="Pad token id to set in tokenizer. Required for RM style models.",
+    )
+    parser.add_argument(
         "--architecture",
         type=str,
         default="neox",
@@ -803,6 +838,9 @@ def main(input_args=None, overwrite_values=None):
     # while Sequential model state dicts are saved all together in one mp_rank_xx_model_states.pt
     # file per tensor/model parallel shard.
     pipeline_world_size = get_key(loaded_config, "pipe-parallel-size", 1)
+    is_rm = get_key(loaded_config, "train_impl", "normal") == "rm"
+    if is_rm and args.pad_token_id == -1:
+        raise ValueError("RM models require a pad token id to be set.")
     if pipeline_world_size == 0:
         sequential = True
         print(
@@ -821,6 +859,8 @@ def main(input_args=None, overwrite_values=None):
         args.output_dir,
         sequential=sequential,
         architecture=args.architecture,
+        is_rm=is_rm,
+        pad_token_id=args.pad_token_id,
     )
 
     # Save to disk.
@@ -829,8 +869,18 @@ def main(input_args=None, overwrite_values=None):
     if not args.no_save_tokenizer:
         # save tokenizer to directory as well, for easy loading of model as a HF model.
         tokenizer_type = get_key(loaded_config, "tokenizer-type")
+        if args.vocab_is_hf_tokenizer:
+            from transformers import AutoTokenizer
 
-        if tokenizer_type == "HFTokenizer":  # TODO: handle sentencepiece tokenizers?
+            tokenizer = AutoTokenizer.from_pretrained(
+                os.path.dirname(get_key(loaded_config, "vocab-file"))
+            )
+            if args.pad_token_id != -1:
+                tokenizer.pad_token_id = args.pad_token_id
+            print("loaded tokenizer: ", tokenizer)
+            tokenizer.save_pretrained(args.output_dir)
+            print("tokenizer saved!")
+        elif tokenizer_type == "HFTokenizer":  # TODO: handle sentencepiece tokenizers?
             print(f"saving tokenizer from file {get_key(loaded_config, 'vocab-file')}")
             print(
                 "Warning: please check that your model config and tokenizer end with the correct special tokens (EOS, BOS)."
@@ -840,6 +890,8 @@ def main(input_args=None, overwrite_values=None):
             tokenizer = PreTrainedTokenizerFast(
                 tokenizer_file=get_key(loaded_config, "vocab-file")
             )
+            if args.pad_token_id != -1:
+                tokenizer.pad_token_id = args.pad_token_id
             print("loaded tokenizer: ", tokenizer)
             tokenizer.save_pretrained(args.output_dir)
             print("tokenizer saved!")

@@ -18,6 +18,8 @@
 """Transformer."""
 
 import math
+from contextlib import nullcontext
+
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
@@ -47,6 +49,11 @@ from megatron.model.fused_bias_dropout import (
 )
 from megatron.model.utils import configure_sparse_attention
 from deepspeed.moe.layer import MoE
+
+try:
+    from flash_attn.ops.activations import swiglu
+except ImportError:
+    swiglu = None
 
 # flags required to enable jit fusion kernels
 torch._C._jit_set_profiling_mode(False)
@@ -117,7 +124,12 @@ class ParallelMLP(nn.Module):
         ffn_dim_in = ffn_dim
         if self.is_gated:
             # set activation function to be gated implementation
-            self.activation_func = Gated_Activation(self.activation_func)
+            self.activation_func = Gated_Activation(
+                self.activation_func,
+                (swiglu is not None)
+                and (neox_args.activation == "swiglu")
+                and neox_args.use_flashattn_swiglu,
+            )
             # auto scale so gated activations has equal parameters
             ffn_dim = int(ffn_dim * 2 / 3)
             ffn_dim_in = ffn_dim // 2
@@ -174,9 +186,10 @@ class ParallelMLP(nn.Module):
 
 
 class Gated_Activation(torch.nn.Module):
-    def __init__(self, activation_func):
+    def __init__(self, activation_func, use_swiglu=False):
         super().__init__()
         self.activation_func = activation_func
+        self.use_swiglu = use_swiglu
 
     def forward(self, x, bias=None):
         x, gate = x.chunk(2, dim=-1)
@@ -184,8 +197,11 @@ class Gated_Activation(torch.nn.Module):
             bias_1, bias_2 = bias.chunk(2, dim=-1)
             x = x + bias_1
             gate = gate + bias_2
-        intermediate_parallel = self.activation_func(gate)
-        return intermediate_parallel * x
+        if not self.use_swiglu:
+            intermediate_parallel = self.activation_func(gate)
+            return intermediate_parallel * x
+        else:
+            return swiglu(gate, x)
 
 
 class ParallelLinear(nn.Module):
@@ -1175,7 +1191,7 @@ class ParallelTransformerLayer(nn.Module):
                 self.layer_past = presents
 
             if attention_bias is not None:
-                with torch.enable_grad():
+                with torch.enable_grad() if not self.eval else nullcontext():
                     attention_output = bias_dropout_fn(
                         attention_output,
                         bias=attention_bias.expand_as(attention_output),
@@ -1186,7 +1202,7 @@ class ParallelTransformerLayer(nn.Module):
             # mlp operator
             mlp_output, mlp_bias = self.mlp(x2)
             if mlp_bias is not None:
-                with torch.enable_grad():
+                with torch.enable_grad() if not self.eval else nullcontext():
                     output = bias_dropout_fn(
                         mlp_output,
                         bias=mlp_bias.expand_as(mlp_output),
@@ -1212,7 +1228,7 @@ class ParallelTransformerLayer(nn.Module):
             if self.use_cache:
                 attention_output, presents = attention_output
                 self.layer_past = presents
-            with torch.enable_grad():
+            with torch.enable_grad() if not self.eval else nullcontext():
                 if attention_bias is not None:
                     # Use special bias_dropout_fn if we have a bias term from the above attention layer
                     attention_output = bias_dropout_fn(
@@ -1251,7 +1267,7 @@ class ParallelTransformerLayer(nn.Module):
                 else:
                     raise KeyError(self.moe_type)
 
-            with torch.enable_grad():
+            with torch.enable_grad() if not self.eval else nullcontext():
                 if (
                     self.activation == "swiglu"
                     or self.num_experts > 1

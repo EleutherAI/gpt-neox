@@ -60,6 +60,7 @@ from megatron.utils import (
     CharCounter,
 )
 from megatron.model.gpt2_model import cross_entropy
+from megatron.mpu import vocab_parallel_cross_entropy
 
 from pickle import dump
 import os
@@ -254,6 +255,7 @@ def pretrain(neox_args):
             iteration=iteration,
             verbose=False,
             timers=timers,
+            reference_model=reference_model,
         )
 
     if neox_args.save and iteration != 0:
@@ -278,10 +280,11 @@ def pretrain(neox_args):
             verbose=True,
             timers=timers,
             chart_name="test",
+            reference_model=reference_model,
         )
 
 
-def _get_batch(neox_args, tokenizer, keys, data, datatype):
+def _get_batch(neox_args, tokenizer, keys, data, datatype, label_mask_zero=False):
     """Support function for get_batch / get_batch pipe (to avoid code repetition)"""
     data_b = mpu.broadcast_data(keys, data, datatype)
     token_key = keys[0]
@@ -298,6 +301,8 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
     else:
         label_mask = (tokens_.long() >= 0)[:, 1:].contiguous()
         labels = tokens_[:, 1:].contiguous()
+        if label_mask_zero:
+            labels = labels * label_mask
     tokens = tokens_[:, :-1].contiguous()
 
     # Get the masks and position ids.
@@ -347,6 +352,7 @@ def get_batch(neox_args, data_iterator):
             keys=keys[0],
             data=data,
             datatype=datatype,
+            label_mask_zero=True,
         )
         neg_tup = _get_batch(
             neox_args=neox_args,
@@ -354,6 +360,7 @@ def get_batch(neox_args, data_iterator):
             keys=keys[1],
             data=data,
             datatype=datatype,
+            label_mask_zero=True,
         )
         if (neox_args.precompute_model_name) and (neox_args.train_impl == "dpo"):
             ref_data = mpu.broadcast_data(["pos_ref", "neg_ref"], data, torch.float)
@@ -462,13 +469,18 @@ def mb_moe_loss_func(args, loss_mask, output_tensor=None):
     return averaged_lbl, loss_dict
 
 
-def get_pos_neg_logp(logits, labels, force_fp32=False):
+def get_logp(logits, labels, force_fp32=False):
+    # Rather than reimplementing logp, cross entropy loss is actually logp, just inverted.
     if force_fp32:
         logits = logits.float()
-    logp = logits.log_softmax(dim=-1)
-    per_token_logp = torch.gather(logp, dim=2, index=labels.unsqueeze(2)).squeeze(2)
-    # Split to pos/neg...
-    return torch.chunk(per_token_logp, 2, 0)
+    return -vocab_parallel_cross_entropy(logits, labels)
+
+
+def get_pos_neg_logp(logits, labels, force_fp32=False):
+    # Rather than reimplementing logp, cross entropy loss is actually logp, just inverted.
+    if force_fp32:
+        logits = logits.float()
+    return torch.chunk(-vocab_parallel_cross_entropy(logits, labels), 2, 0)
 
 
 def forward_step(
@@ -562,12 +574,14 @@ def forward_step(
         )
     elif neox_args.train_impl == "dpo":
         # Based on https://github.com/eric-mitchell/direct-preference-optimization/blob/main/trainers.py#L90
-        with torch.no_grad():
+        with torch.inference_mode():
             # So we can gather token logps...
             token_logp_labels = labels.clone()
-            token_logp_labels[token_logp_labels == -100] = 0
             pos_loss_mask, neg_loss_mask = torch.chunk(loss_mask, 2, 0)
-            if ref_logp is None:
+            if neox_args.dpo_reference_free:
+                ref_pos = 0
+                ref_neg = 0
+            elif ref_logp is None:
                 ref_maybe_tuple = reference_model(
                     (tokens, position_ids, attention_mask), neox_args=neox_args
                 )
@@ -576,8 +590,6 @@ def forward_step(
                     ref_outputs, _ = ref_maybe_tuple
                 else:
                     ref_outputs = ref_maybe_tuple
-                # gather across tensor parallel group
-                ref_outputs = gather_from_model_parallel_region(ref_outputs)
                 ref_pos, ref_neg = get_pos_neg_logp(
                     ref_outputs, token_logp_labels, neox_args.dpo_fp32
                 )
@@ -593,7 +605,6 @@ def forward_step(
             chosen_outputs, _ = chosen_maybe_tuple
         else:
             chosen_outputs = chosen_maybe_tuple
-        chosen_outputs = gather_from_model_parallel_region(chosen_outputs)
         chosen_pos, chosen_neg = get_pos_neg_logp(
             chosen_outputs, token_logp_labels, neox_args.dpo_fp32
         )
@@ -601,21 +612,23 @@ def forward_step(
         chosen_neg = (chosen_neg * neg_loss_mask).sum(-1)
         with torch.no_grad():
             # Collect metrics...
-            metrics["ref_neg"] = ref_neg.clone().detach().mean()
-            metrics["ref_pos"] = ref_pos.clone().detach().mean()
+            if not neox_args.dpo_reference_free:
+                metrics["ref_neg"] = ref_neg.clone().detach().mean()
+                metrics["ref_pos"] = ref_pos.clone().detach().mean()
             metrics["chosen_neg"] = chosen_neg.clone().detach().mean()
             metrics["chosen_pos"] = chosen_pos.clone().detach().mean()
-            chosen_rewards = neox_args.dpo_beta * (
-                chosen_pos.clone().detach() - ref_pos.clone().detach()
-            )
-            rejected_rewards = neox_args.dpo_beta * (
-                chosen_neg.clone().detach() - ref_neg.clone().detach()
-            )
-            reward_acc = (chosen_rewards > rejected_rewards).float()
-            metrics["reward_acc"] = reward_acc.mean()
-            metrics["chosen_rewards"] = chosen_rewards.mean()
-            metrics["rejected_rewards"] = rejected_rewards.mean()
-            metrics["margins"] = (chosen_rewards - rejected_rewards).mean()
+            if not neox_args.dpo_reference_free:
+                chosen_rewards = neox_args.dpo_beta * (
+                    chosen_pos.clone().detach() - ref_pos.clone().detach()
+                )
+                rejected_rewards = neox_args.dpo_beta * (
+                    chosen_neg.clone().detach() - ref_neg.clone().detach()
+                )
+                metrics["chosen_rewards"] = chosen_rewards.mean()
+                metrics["rejected_rewards"] = rejected_rewards.mean()
+                reward_acc = (chosen_rewards > rejected_rewards).float()
+                metrics["reward_acc"] = reward_acc.mean()
+                metrics["margins"] = (chosen_rewards - rejected_rewards).mean()
         pi_logrations = chosen_pos - chosen_neg
         ref_logrations = ref_pos - ref_neg
         logits = pi_logrations - ref_logrations
@@ -922,8 +935,10 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
         )
 
     """Setup model and optimizer."""
-    needs_reference_model = (neox_args.train_impl == "dpo") and (
-        neox_args.precompute_model_name is None
+    needs_reference_model = (
+        (neox_args.train_impl == "dpo")
+        and (neox_args.precompute_model_name is None)
+        and (not neox_args.dpo_reference_free)
     )
     model = get_model(neox_args=neox_args, use_cache=use_cache)
     if needs_reference_model:
@@ -1012,6 +1027,7 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
                 lr_scheduler=ref_lr_scheduler,
                 iteration=iteration,
             )
+            reference_model.eval()
         print_rank_0(
             f"Loading checkpoint and starting from iteration {neox_args.iteration}"
         )
@@ -1290,6 +1306,7 @@ def train(
                 iteration=iteration,
                 verbose=False,
                 timers=timers,
+                reference_model=reference_model,
             )
 
         if neox_args.exit_interval and iteration % neox_args.exit_interval == 0:
@@ -1307,7 +1324,13 @@ def train(
 
 
 def evaluate(
-    neox_args, forward_step_fn, data_iterator, model, verbose=False, timers=None
+    neox_args,
+    forward_step_fn,
+    data_iterator,
+    model,
+    verbose=False,
+    timers=None,
+    reference_model=None,
 ):
     """Evaluation.
     neox_args: NeoX Arguments
@@ -1348,6 +1371,7 @@ def evaluate(
                     data_iterator=data_iterator,
                     neox_args=neox_args,
                     timers=timers,
+                    reference_model=reference_model,
                 )
                 losses.append(loss)
                 for key in metric_dict.keys():
@@ -1405,6 +1429,7 @@ def evaluate_and_print_results(
     verbose=False,
     timers=None,
     chart_name="validation",
+    reference_model=None,
 ):
     """Helper function to evaluate and dump results on screen."""
     total_loss_dict = evaluate(
@@ -1414,6 +1439,7 @@ def evaluate_and_print_results(
         model=model,
         verbose=verbose,
         timers=timers,
+        reference_model=reference_model,
     )
     string = f" {chart_name} results at {prefix} | "
     for k, v in total_loss_dict.items():
