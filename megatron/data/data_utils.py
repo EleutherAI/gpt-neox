@@ -70,6 +70,7 @@ def build_the_dataset(
     pos_label_prefix=None,
     neg_label_prefix=None,
     precompute_model_name=None,
+    reward_prefix=None,
 ):
     """Build train/valid/test datasets."""
     if dataset_impl == "gpt2":
@@ -84,6 +85,12 @@ def build_the_dataset(
                 data_prefix + "_" + precompute_model_name, data_impl, skip_warmup
             )
             precompute_indexed_dataset = precompute_indexed_dataset
+        else:
+            precompute_indexed_dataset = None
+        if reward_prefix is not None:
+            reward_dataset = make_indexed_dataset(reward_prefix, data_impl, skip_warmup)
+        else:
+            reward_dataset = None
     elif dataset_impl == "pairwise":
         pos_indexed_dataset = make_indexed_dataset(
             pos_data_prefix, data_impl, skip_warmup
@@ -127,7 +134,6 @@ def build_the_dataset(
     print_rank_0("     no. of documents:{}".format(total_num_of_documents))
     dataset = None
     documents = np.arange(start=0, stop=total_num_of_documents, step=1, dtype=np.int32)
-
     if dataset_impl == "gpt2":
         dataset = GPT2Dataset(
             name,
@@ -141,6 +147,8 @@ def build_the_dataset(
             allow_chopped=allow_chopped,
             build_index_mappings=build_index_mappings,
             label_dataset=label_dataset,
+            reward_dataset=reward_dataset,
+            ref_dataset=precompute_indexed_dataset,
         )
     elif dataset_impl == "pairwise":
         dataset = PairwiseDataset(
@@ -160,7 +168,6 @@ def build_the_dataset(
             pos_ref_dataset=pos_ref_dataset,
             neg_ref_dataset=neg_ref_dataset,
         )
-
     return dataset
 
 
@@ -285,10 +292,13 @@ def build_weighted_datasets(
     for i, (
         train_path,
         train_label_path,
+        train_reward_path,
         valid_path,
         valid_label_path,
+        valid_reward_path,
         test_path,
         test_label_path,
+        test_reward_path,
         pos_train_path,
         neg_train_path,
         pos_train_label_path,
@@ -307,12 +317,21 @@ def build_weighted_datasets(
             neox_args.train_label_data_paths
             if neox_args.train_label_data_paths
             else [],
+            neox_args.train_reward_data_paths
+            if neox_args.train_reward_data_paths
+            else [],
             neox_args.valid_data_paths if neox_args.valid_data_paths else [],
             neox_args.valid_label_data_paths
             if neox_args.valid_label_data_paths
             else [],
+            neox_args.valid_reward_data_paths
+            if neox_args.valid_reward_data_paths
+            else [],
             neox_args.test_data_paths if neox_args.test_data_paths else [],
             neox_args.test_label_data_paths if neox_args.test_label_data_paths else [],
+            neox_args.test_reward_data_paths
+            if neox_args.test_reward_data_paths
+            else [],
             neox_args.pos_train_data_paths if neox_args.pos_train_data_paths else [],
             neox_args.neg_train_data_paths if neox_args.neg_train_data_paths else [],
             neox_args.pos_train_label_data_paths
@@ -359,6 +378,7 @@ def build_weighted_datasets(
                     pos_label_prefix=pos_train_label_path,
                     neg_label_prefix=neg_train_label_path,
                     precompute_model_name=neox_args.precompute_model_name,
+                    reward_prefix=train_reward_path,
                 )
             )
 
@@ -382,6 +402,7 @@ def build_weighted_datasets(
                     pos_label_prefix=pos_valid_label_path,
                     neg_label_prefix=neg_valid_label_path,
                     precompute_model_name=neox_args.precompute_model_name,
+                    reward_prefix=valid_reward_path,
                 )
             )
 
@@ -405,6 +426,7 @@ def build_weighted_datasets(
                     pos_label_prefix=pos_test_label_path,
                     neg_label_prefix=neg_test_label_path,
                     precompute_model_name=neox_args.precompute_model_name,
+                    reward_prefix=test_reward_path,
                 )
             )
     return train_datasets, valid_datasets, test_datasets
@@ -502,7 +524,6 @@ def build_train_valid_test_data_iterators(neox_args):
             )
 
             if neox_args.weight_by_num_documents:
-
                 # gets the number of documents in each datapath
                 get_num_docs_list = lambda datasets: [
                     dataset.indexed_dataset.sizes.shape[0] for dataset in datasets

@@ -235,7 +235,32 @@ Additional DeepSpeed settings besides those mentioned above should be wrapped in
    "eval_iters": 10,
 ```
 
-However, if you want to use DPO style training you'll need to set pos/neg data paths instead of a single one, e.g.
+For KTO style training, you'll need to add the reward & label data path, e.g.:
+
+```yaml
+   "data_impl": "mmap",
+   # Suggested data paths when using GPT-NeoX locally
+   "train_data_path": "data/enwik8/enwik8_text_document",
+   "train_label_data_path": "data/enwik8/enwik8_text_label_document",
+   "train_reward_data_path": "data/enwik8/enwik8_text_reward_document",
+   "test_data_path": "data/enwik8/enwik8_text_document",
+   "test_label_data_path": "data/enwik8/enwik8_text_label_document",
+   "test_reward_data_path": "data/enwik8/enwik8_text_reward_document",
+   "valid_data_path": "data/enwik8/enwik8_text_document",
+   "valid_label_data_path": "data/enwik8/enwik8_text_label_document",
+   "valid_reward_data_path": "data/enwik8/enwik8_text_reward_document",
+   "vocab_file": "data/gpt2-vocab.json",
+   "merge_file": "data/gpt2-merges.txt",
+   "save": "checkpoints",
+   "load": "checkpoints",
+   "tensorboard_dir": "tensorboard",
+   "log_dir": "logs",
+   "checkpoint_factor": 10000,
+   "eval_interval": 1000,
+   "eval_iters": 10,
+```
+
+For DPO style training, you'll need to set pos/neg data paths instead of a single one, e.g.
 
 ```yaml
    "dataset_impl": "pairwise",

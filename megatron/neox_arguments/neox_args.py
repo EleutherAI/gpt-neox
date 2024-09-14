@@ -1052,9 +1052,9 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Dataset implementation, can be one of "gpt2" or "pairwise"
     """
 
-    train_impl: Literal["normal", "dpo", "rm"] = "normal"
+    train_impl: Literal["normal", "dpo", "rm", "kto"] = "normal"
     """
-    Training implementation, can be one of "normal", "dpo", or "rm"
+    Training implementation, can be one of "normal", "dpo", "kto", or "rm"
     """
 
     dpo_fp32: bool = True
@@ -1072,11 +1072,24 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Beta value for DPO
     """
 
-    z_loss: float = 0.0
+    kto_fp32: bool = True
     """
-    Z-loss parameter, only implemented for RM training currently.
-    https://arxiv.org/pdf/2204.02311
-    https://arxiv.org/pdf/2309.10305
+    Whether to cast logits to fp32 for KTO loss calculation.
+    """
+
+    kto_desirable_weight: float = 1.0
+    """
+    Weight for desirable loss in KTO. Might help if you have unbalanced desirable and undesirable classes.
+    """
+
+    kto_undesirable_weight: float = 1.0
+    """
+    Weight for undesirable loss in KTO. Might help if you have unbalanced desirable and undesirable classes.
+    """
+
+    kto_beta: float = 0.1
+    """
+    Beta value for KTO
     """
 
     allow_chopped: bool = True
