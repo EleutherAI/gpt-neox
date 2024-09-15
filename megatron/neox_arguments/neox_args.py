@@ -507,9 +507,9 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Use TransformerEngine for ColumnParallelLinear layer.
     """
 
-    te_attention: bool = False
+    te_layernorm_mlp: bool = False
     """
-    Use TransformerEngine for attention layers.
+    Use TransformerEngine for LayerNormMLP layer.
     """
 
 @dataclass

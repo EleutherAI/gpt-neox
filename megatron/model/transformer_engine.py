@@ -5,6 +5,8 @@ import torch.nn.functional as F
 import torch.nn.init as init
 from torch.nn.parameter import Parameter
 
+from megatron.model.transformer import Gated_Activation
+from megatron.model.activations import get_activation
 from megatron.mpu.initialize import get_model_parallel_rank
 from megatron.mpu.initialize import get_model_parallel_world_size
 from megatron.mpu.initialize import get_tensor_model_parallel_group
@@ -88,19 +90,84 @@ class TELinear(te.pytorch.Linear):
     #     return self.linear(x)
 
 
-class TELayerNormColumnParallelLinear(te.pytorch.LayerNormLinear):
+class TELayerNormMLP(te.pytorch.LayerNormMLP):
     """
-    Wrapper for the Transformer-Engine's `LayerNormLinear` layer that combines
-    layernorm and linear layers
+    Wrapper for the Transformer-Engine's `LayerNormMLP` layer that combines
+    layernorm and followed by the MLP module, consisting of 2 successive 
+    linear transformations, separated by the GeLU activation.
     """
 
-    def __init__(self):
-        # TODO
-        return
+    def __init__(
+        self,
+        neox_args,
+        init_method,
+        output_layer_init_method,
+        parallel_output=False,
+        multiple_of=256,
+        MOE=False,
+        MoE_mp_size=1,
+        bias=True
+    ):
+        self.activation_func, self.is_gated = get_activation(neox_args)
+        self.activation_type = neox_args.activation
+        self.bias_gelu_fusion = neox_args.bias_gelu_fusion
+        self.multiple_of = multiple_of
+        self.bias = bias
+        self.init_method = init_method
+        self.output_layer_init_method = output_layer_init_method
 
-    def forward(self, x):
-        # TODO
-        return
+        world_size = MoE_mp_size if MOE else get_model_parallel_world_size()
+        self.world_size = world_size
+        self.tp_group = get_tensor_model_parallel_group()
+        self.sequence_parallel = neox_args.sequence_parallel
+        self.seq_len = neox_args.seq_length
+        self.batch_size = neox_args.train_micro_batch_size_per_gpu
+        self.params_dtype=neox_args.params_dtype
+        self.set_parallel_mode=False
+        if world_size > 1:
+            self.set_parallel_mode=True
+
+        if neox_args.intermediate_size:
+            ffn_dim = neox_args.intermediate_size
+        elif neox_args.expansion_factor:
+            ffn_dim = int(neox_args.expansion_factor * neox_args.hidden_size)
+        else:
+            # 4h is default for ffn_dim
+            ffn_dim = 4 * neox_args.hidden_size
+        ffn_dim_in = ffn_dim
+        if self.is_gated:
+            # set activation function to be gated implementation
+            self.activation_func = Gated_Activation(self.activation_func)
+            # auto scale so gated activations has equal parameters
+            ffn_dim = int(ffn_dim * 2 / 3)
+            ffn_dim_in = ffn_dim // 2
+        # set multiple
+        ffn_dim = int(
+            (2 * self.multiple_of)
+            * ((ffn_dim + (2 * multiple_of) - 1) // (2 * multiple_of))
+        )
+        ffn_dim_in = int(
+            self.multiple_of * ((ffn_dim_in + multiple_of - 1) // multiple_of)
+        )
+
+        if neox_args.norm in ['layernorm','te_layernorm']:
+            self.eps=1.0e-5
+            self.normalization = 'LayerNorm'
+        elif neox_args.norm == ['rmsnorm','te_rmsnorm']:
+            self.eps=1.0e-8
+            self.normalization = 'RMSNorm'
+        #TODO handle case if norm is not rmsnorm or layernorm
+        #TODO check if activation in list ‘gelu’, ‘geglu’, ‘relu’, ‘reglu’, ‘squared_relu’,
+        #‘swiglu’, ‘qgelu’, ‘srelu’
+        #TODO handle MOE and mup
+
+        super(TELayerNormMLP, self).__init__(hidden_size=neox_args.hidden_size, ffn_hidden_size=ffn_dim,
+        eps=self.eps, bias=self.bias, normalization=self.normalization, activation=neox_args.activation,
+        init_method=self.init_method, output_layer_init_method=self.output_layer_init_method,
+        device=torch.cuda.current_device(), set_parallel_mode=self.set_parallel_mode,
+        sequence_parallel=self.sequence_parallel, tp_group=self.tp_group, tp_size=self.world_size,
+        return_bias=neox_args.use_bias_in_mlp, params_dtype=self.params_dtype, seq_length=self.seq_len,
+        micro_batch_size=self.batch_size)
 
 
 class TEColumnParallelLinear(te.pytorch.Linear):
@@ -234,15 +301,6 @@ class TEColumnParallelLinear(te.pytorch.Linear):
         
         output = super(TEColumnParallelLinear, self).forward(inp, **kwargs)
 
-        if self.gather_output:
-            # All-gather across the partitions.
-            assert (
-                not self.sequence_parallel
-            ), "sequence_parallel=True and gather_output=True are incompatible!"
-            output = gather_from_model_parallel_region(output_parallel)
-        else:
-            output = output_parallel
-
         if self.skip_bias_add:
             return output
         else:
@@ -305,9 +363,6 @@ class TERowParallelLinear(te.pytorch.Linear):
         self.use_mup = neox_args.use_mup
         self.params_dtype=neox_args.params_dtype
         self.parallel_mode="row"
-        
-        # if self.input_is_parallel:
-        #     self.input_size = divide(self.input_size, self.world_size)
 
         super(TERowParallelLinear, self).__init__(in_features=self.input_size, out_features=self.output_size,
         bias= self.use_bias, init_method=self.init_method, get_rng_state_tracker=get_cuda_rng_tracker,
