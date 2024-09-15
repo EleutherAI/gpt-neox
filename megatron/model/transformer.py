@@ -18,8 +18,6 @@
 """Transformer."""
 
 import math
-from contextlib import nullcontext
-
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
@@ -49,11 +47,6 @@ from megatron.model.fused_bias_dropout import (
 )
 from megatron.model.utils import configure_sparse_attention
 from deepspeed.moe.layer import MoE
-
-try:
-    from flash_attn.ops.activations import swiglu
-except ImportError:
-    swiglu = None
 
 # flags required to enable jit fusion kernels
 torch._C._jit_set_profiling_mode(False)
@@ -114,6 +107,11 @@ class ParallelMLP(nn.Module):
         self.bias_gelu_fusion = neox_args.bias_gelu_fusion
         self.multiple_of = multiple_of
 
+        if neox_args.te_linear:
+            from megatron.model.transformer_engine import TEColumnParallelLinear as ColumnParallelLinear
+        else:
+            from megatron.mpu import ColumnParallelLinear
+
         if neox_args.intermediate_size:
             ffn_dim = neox_args.intermediate_size
         elif neox_args.expansion_factor:
@@ -124,12 +122,7 @@ class ParallelMLP(nn.Module):
         ffn_dim_in = ffn_dim
         if self.is_gated:
             # set activation function to be gated implementation
-            self.activation_func = Gated_Activation(
-                self.activation_func,
-                (swiglu is not None)
-                and (neox_args.activation == "swiglu")
-                and neox_args.use_flashattn_swiglu,
-            )
+            self.activation_func = Gated_Activation(self.activation_func)
             # auto scale so gated activations has equal parameters
             ffn_dim = int(ffn_dim * 2 / 3)
             ffn_dim_in = ffn_dim // 2
@@ -142,7 +135,7 @@ class ParallelMLP(nn.Module):
             self.multiple_of * ((ffn_dim_in + multiple_of - 1) // multiple_of)
         )
 
-        self.linear1 = mpu.ColumnParallelLinear(
+        self.linear1 = ColumnParallelLinear(
             neox_args=neox_args,
             input_size=neox_args.hidden_size,
             output_size=ffn_dim,
@@ -170,7 +163,10 @@ class ParallelMLP(nn.Module):
     def forward(self, hidden_states):
         # [s, b, intermediate_size]
         intermediate_parallel, bias_parallel = self.linear1(hidden_states)
-
+        # output = self.linear1(hidden_states)
+        # print(output)
+        # import sys
+        # sys.exit()
         if self.is_gated or (self.activation_type == "gelu" and self.bias_gelu_fusion):
             intermediate_parallel = self.activation_func(
                 intermediate_parallel, bias_parallel
@@ -186,10 +182,9 @@ class ParallelMLP(nn.Module):
 
 
 class Gated_Activation(torch.nn.Module):
-    def __init__(self, activation_func, use_swiglu=False):
+    def __init__(self, activation_func):
         super().__init__()
         self.activation_func = activation_func
-        self.use_swiglu = use_swiglu
 
     def forward(self, x, bias=None):
         x, gate = x.chunk(2, dim=-1)
@@ -197,11 +192,8 @@ class Gated_Activation(torch.nn.Module):
             bias_1, bias_2 = bias.chunk(2, dim=-1)
             x = x + bias_1
             gate = gate + bias_2
-        if not self.use_swiglu:
-            intermediate_parallel = self.activation_func(gate)
-            return intermediate_parallel * x
-        else:
-            return swiglu(gate, x)
+        intermediate_parallel = self.activation_func(gate)
+        return intermediate_parallel * x
 
 
 class ParallelLinear(nn.Module):
@@ -217,10 +209,16 @@ class ParallelLinear(nn.Module):
         is_last_layer=False,
     ):
         super().__init__()
+
+        if neox_args.te_linear:
+            from megatron.model.transformer_engine import TEColumnParallelLinear as ColumnParallelLinear
+        else:
+            from megatron.mpu import ColumnParallelLinear
+
         self.is_rm = neox_args.train_impl == "rm"
         parallelism = neox_args.output_layer_parallelism if not self.is_rm else "row"
         if parallelism == "column":
-            self.final_linear = mpu.ColumnParallelLinear(
+            self.final_linear = ColumnParallelLinear(
                 neox_args=neox_args,
                 input_size=neox_args.hidden_size,
                 output_size=neox_args.padded_vocab_size,
@@ -335,6 +333,11 @@ class ParallelSelfAttention(nn.Module):
     ):
         super().__init__()
 
+        if neox_args.te_linear:
+            from megatron.model.transformer_engine import TEColumnParallelLinear as ColumnParallelLinear
+        else:
+            from megatron.mpu import ColumnParallelLinear
+
         self.fp16 = neox_args.precision == "fp16"
         self.bf16 = neox_args.precision == "bfloat16"
         self.attention_mask_func = attention_mask_func
@@ -388,7 +391,7 @@ class ParallelSelfAttention(nn.Module):
 
         if not self.gqa:
             # Strided linear layer.
-            self.query_key_value = mpu.ColumnParallelLinear(
+            self.query_key_value = ColumnParallelLinear(
                 neox_args=neox_args,
                 input_size=neox_args.hidden_size,
                 output_size=3 * neox_args.hidden_size,
@@ -398,7 +401,7 @@ class ParallelSelfAttention(nn.Module):
             )
         else:
             # QKV proj is smaller if we are using GQA / MQA
-            self.query_key_value = mpu.ColumnParallelLinear(
+            self.query_key_value = ColumnParallelLinear(
                 neox_args=neox_args,
                 input_size=neox_args.hidden_size,
                 output_size=neox_args.hidden_size + 2 * self.kv_hidden_size,
@@ -1191,7 +1194,7 @@ class ParallelTransformerLayer(nn.Module):
                 self.layer_past = presents
 
             if attention_bias is not None:
-                with torch.enable_grad() if not self.eval else nullcontext():
+                with torch.enable_grad():
                     attention_output = bias_dropout_fn(
                         attention_output,
                         bias=attention_bias.expand_as(attention_output),
@@ -1202,7 +1205,7 @@ class ParallelTransformerLayer(nn.Module):
             # mlp operator
             mlp_output, mlp_bias = self.mlp(x2)
             if mlp_bias is not None:
-                with torch.enable_grad() if not self.eval else nullcontext():
+                with torch.enable_grad():
                     output = bias_dropout_fn(
                         mlp_output,
                         bias=mlp_bias.expand_as(mlp_output),
@@ -1228,7 +1231,7 @@ class ParallelTransformerLayer(nn.Module):
             if self.use_cache:
                 attention_output, presents = attention_output
                 self.layer_past = presents
-            with torch.enable_grad() if not self.eval else nullcontext():
+            with torch.enable_grad():
                 if attention_bias is not None:
                     # Use special bias_dropout_fn if we have a bias term from the above attention layer
                     attention_output = bias_dropout_fn(
@@ -1267,7 +1270,7 @@ class ParallelTransformerLayer(nn.Module):
                 else:
                     raise KeyError(self.moe_type)
 
-            with torch.enable_grad() if not self.eval else nullcontext():
+            with torch.enable_grad():
                 if (
                     self.activation == "swiglu"
                     or self.num_experts > 1
