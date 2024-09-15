@@ -497,9 +497,14 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
     """
     
-    te_linear: bool = False
+    te_columnparallel: bool = False
     """
-    Use TransformerEngine for Linear, ColumnParallelLinear, and RowParallelLinear layers.
+    Use TransformerEngine for RowParallelLinear layer.
+    """
+
+    te_rowparallel: bool = False
+    """
+    Use TransformerEngine for ColumnParallelLinear layer.
     """
 
     te_attention: bool = False
