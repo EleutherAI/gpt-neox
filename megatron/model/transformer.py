@@ -47,6 +47,7 @@ from megatron.model.fused_bias_dropout import (
 )
 from megatron.model.utils import configure_sparse_attention
 from deepspeed.moe.layer import MoE
+from .utils import linear_implementation_router
 
 # flags required to enable jit fusion kernels
 torch._C._jit_set_profiling_mode(False)
@@ -107,10 +108,7 @@ class ParallelMLP(nn.Module):
         self.bias_gelu_fusion = neox_args.bias_gelu_fusion
         self.multiple_of = multiple_of
 
-        if neox_args.te_linear:
-            from megatron.model.transformer_engine import TEColumnParallelLinear as ColumnParallelLinear
-        else:
-            from megatron.mpu import ColumnParallelLinear
+        ColumnParallelLinear, RowParallelLinear = linear_implementation_router(neox_args)
 
         if neox_args.intermediate_size:
             ffn_dim = neox_args.intermediate_size
@@ -147,7 +145,7 @@ class ParallelMLP(nn.Module):
             bias=neox_args.use_bias_in_mlp,
         )
         # Project back to h.
-        self.linear2 = mpu.RowParallelLinear(
+        self.linear2 = RowParallelLinear(
             neox_args=neox_args,
             input_size=ffn_dim_in,
             output_size=neox_args.hidden_size,
@@ -210,10 +208,7 @@ class ParallelLinear(nn.Module):
     ):
         super().__init__()
 
-        if neox_args.te_linear:
-            from megatron.model.transformer_engine import TEColumnParallelLinear as ColumnParallelLinear
-        else:
-            from megatron.mpu import ColumnParallelLinear
+        ColumnParallelLinear, RowParallelLinear = linear_implementation_router(neox_args)
 
         self.is_rm = neox_args.train_impl == "rm"
         parallelism = neox_args.output_layer_parallelism if not self.is_rm else "row"
@@ -247,7 +242,7 @@ class ParallelLinear(nn.Module):
                 #     mup_rescale_parameters=is_last_layer,  # only called if neox_args.use_mup = True, despite it not being included here
                 # )
             else:  # Not using cross entropy loss for RMs
-                self.rm_linear = mpu.RowParallelLinear(
+                self.rm_linear = RowParallelLinear(
                     neox_args=neox_args,
                     input_size=neox_args.hidden_size,
                     output_size=1,
@@ -333,10 +328,7 @@ class ParallelSelfAttention(nn.Module):
     ):
         super().__init__()
 
-        if neox_args.te_linear:
-            from megatron.model.transformer_engine import TEColumnParallelLinear as ColumnParallelLinear
-        else:
-            from megatron.mpu import ColumnParallelLinear
+        ColumnParallelLinear, RowParallelLinear = linear_implementation_router(neox_args)
 
         self.fp16 = neox_args.precision == "fp16"
         self.bf16 = neox_args.precision == "bfloat16"
@@ -509,7 +501,7 @@ class ParallelSelfAttention(nn.Module):
             self.attention_dropout = nn.Dropout(self.dropout_p)
 
         # Output.
-        self.dense = mpu.RowParallelLinear(
+        self.dense = RowParallelLinear(
             neox_args=neox_args,
             input_size=neox_args.hidden_size,
             output_size=neox_args.hidden_size,

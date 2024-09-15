@@ -107,11 +107,6 @@ class TEColumnParallelLinear(te.pytorch.Linear):
     """
     Wrapper for the Transformer-Engine's `Linear` layer but specialized similar
     to megatron's `ColumnParallelLinear` layer.
-    """
-    """Linear layer with column parallelism.
-
-    The linear layer is defined as Y = XA + b. A is parallelized along
-    its second dimension as A = [A_1, ..., A_p].
 
     Arguments:
         input_size: first dimension of matrix A.
@@ -145,7 +140,7 @@ class TEColumnParallelLinear(te.pytorch.Linear):
         MOE=False,
         MoE_mp_size=1,
         mup_rescale_parameters=False,
-        seq_dim=0,  # Dimension which is the seq_len dimension. final ParallelLinear overrides this to be 1 ; otherwise, the default is used throughout.
+        seq_dim=0, 
     ):
         # Keep input parameters
         self.input_size = input_size
@@ -185,6 +180,12 @@ class TEColumnParallelLinear(te.pytorch.Linear):
             "torch.nn.parallel.DistributedDataParallel instead"
         )
         return self.weight.infshape.width_mult()
+
+    def set_parallel_output(self, value: bool):
+        assert isinstance(value, bool)
+        self.gather_output = (
+            not value
+        )  # if gather_output is True, parallel output is False, so we set the opposite
 
     # Copied from Mup
     def _rescale_parameters(self):
@@ -227,8 +228,21 @@ class TEColumnParallelLinear(te.pytorch.Linear):
                 stride=self.stride,
             )
     
-    def forward(self, inp):
-        output = super(TEColumnParallelLinear, self).forward(inp)
+    def forward(self, inp, **kwargs):
+        if self.use_mup and self.mup_rescale_parameters:
+            input_ /= self.width_mult()
+        
+        output = super(TEColumnParallelLinear, self).forward(inp, **kwargs)
+
+        if self.gather_output:
+            # All-gather across the partitions.
+            assert (
+                not self.sequence_parallel
+            ), "sequence_parallel=True and gather_output=True are incompatible!"
+            output = gather_from_model_parallel_region(output_parallel)
+        else:
+            output = output_parallel
+
         if self.skip_bias_add:
             return output
         else:
@@ -238,15 +252,132 @@ class TERowParallelLinear(te.pytorch.Linear):
     """
     Wrapper for the Transformer-Engine's `Linear` layer but specialized similar
     to megatron's `RowParallelLinear` layer.
+
+    Arguments:
+        input_size: first dimension of matrix A.
+        output_size: second dimension of matrix A.
+        bias: If true, add bias. Note that bias is not parallelized.
+        input_is_parallel: If true, we assume that the input is already
+                           split across the GPUs and we do not split
+                           again.
+        init_method: method to initialize weights. Note that bias is always set
+                     to zero.
+        stride: For the strided linear layers.
+        keep_master_weight_for_test: This was added for testing and should be
+                                     set to False. It returns the master weights
+                                     used for initialization.
+        skip_bias_add: This was added to enable performance optimations where bias
+                       can be fused with other elementwise operations. we skip
+                       adding bias but instead return it.
     """
+    def __init__(
+        self,
+        neox_args,
+        input_size,
+        output_size,
+        bias=True,
+        input_is_parallel=False,
+        init_method=init.xavier_normal_,
+        stride=1,
+        keep_master_weight_for_test=False,
+        skip_bias_add=False,
+        MOE=False,
+        MoE_mp_size=1,
+        parallel_output=False,
+        mup_rescale_parameters=False,
+    ):
+        # Keep input parameters
+        self.input_size = input_size
+        self.output_size = output_size
+        # Divide the weight matrix along the last dimension.
+        world_size = MoE_mp_size if MOE else get_model_parallel_world_size()
+        self.world_size = world_size
+        self.tp_group = get_tensor_model_parallel_group()
+        self.output_size_per_partition = divide(output_size, world_size)
+        self.skip_bias_add = skip_bias_add
+        self.use_bias = bias
+        self.input_is_parallel = input_is_parallel
+        self.sequence_parallel = neox_args.sequence_parallel
 
-    def __init__(self):
-        # TODO
-        return
+        self.init_method = init_method
+        self.stride = stride
+        self.mup_rescale_parameters = mup_rescale_parameters
+        self.use_mup = neox_args.use_mup
+        self.params_dtype=neox_args.params_dtype
+        self.parallel_mode="row"
+        
+        # if self.input_is_parallel:
+        #     self.input_size = divide(self.input_size, self.world_size)
 
-    def forward(self, x):
-        # TODO
-        return
+        super(TERowParallelLinear, self).__init__(in_features=self.input_size, out_features=self.output_size,
+        bias= self.use_bias, init_method=self.init_method, get_rng_state_tracker=get_cuda_rng_tracker,
+        device=torch.cuda.current_device(), sequence_parallel=self.sequence_parallel, tp_group=self.tp_group,
+        tp_size=self.world_size, parallel_mode=self.parallel_mode, return_bias=self.skip_bias_add,
+        params_dtype=self.params_dtype)
+
+    # Copied from Mup
+    def width_mult(self):
+        assert hasattr(self.weight, "infshape"), (
+            "Please call set_base_shapes(...). If using torch.nn.DataParallel, "
+            "switch to distributed training with "
+            "torch.nn.parallel.DistributedDataParallel instead"
+        )
+        return self.weight.infshape.width_mult()
+
+    # Copied from Mup
+    def _rescale_parameters(self):
+        """Rescale parameters to convert SP initialization to μP initialization.
+        Warning: This method is NOT idempotent and should be called only once
+        unless you know what you are doing.
+        """
+        if hasattr(self, "_has_rescaled_params") and self._has_rescaled_params:
+            raise RuntimeError(
+                "`_rescale_parameters` has been called once before already. "
+                "Unless you know what you are doing, usually you should not be calling `_rescale_parameters` more than once.\n"
+                "If you called `set_base_shapes` on a model loaded from a checkpoint, "
+                "or just want to re-set the base shapes of an existing model, "
+                "make sure to set the flag `rescale_params=False`.\n"
+                "To bypass this error and *still rescale parameters*, set `self._has_rescaled_params=False` before this call."
+            )
+        if self.bias is not None:
+            self.bias.data *= self.width_mult() ** 0.5
+        self.weight.data *= self.width_mult() ** 0.5
+        self._has_rescaled_params = True
+
+    def mup_reinitialize_weights(self, neox_args):
+        if neox_args.use_cpu_initialization:
+            self.master_weight = _initialize_affine_weight_cpu(
+                neox_args,
+                self.weight,
+                self.output_size,
+                self.input_size,
+                self.input_size_per_partition,
+                1,
+                partial(self.init_method, use_mup=True),
+                stride=self.stride,
+                return_master_weight=self.keep_master_weight_for_test,
+            )
+        else:
+            _initialize_affine_weight_gpu(
+                self.weight,
+                partial(self.init_method, use_mup=True),
+                partition_dim=1,
+                stride=self.stride,
+            )
+
+    def set_parallel_output(self, parallel_output: bool):
+        assert isinstance(parallel_output, bool)
+        self.parallel_output = parallel_output
+    
+    def forward(self, inp, **kwargs):
+        # if not self.input_is_parallel:
+        #     inp = scatter_to_model_parallel_region(inp)
+        
+        output = super(TERowParallelLinear, self).forward(inp, **kwargs)
+        if self.skip_bias_add:
+            return output
+        else:
+            return output, None
 
 
 class TEDotProductAttention(te.pytorch.DotProductAttention):
