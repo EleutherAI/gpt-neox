@@ -132,7 +132,6 @@ class ParallelMLP(nn.Module):
         ffn_dim_in = int(
             self.multiple_of * ((ffn_dim_in + multiple_of - 1) // multiple_of)
         )
-
         self.linear1 = ColumnParallelLinear(
             neox_args=neox_args,
             input_size=neox_args.hidden_size,
@@ -383,7 +382,7 @@ class ParallelSelfAttention(nn.Module):
 
         if not self.gqa:
             # Strided linear layer.
-            self.query_key_value = ColumnParallelLinear(
+            self.query_key_value = mpu.ColumnParallelLinear(
                 neox_args=neox_args,
                 input_size=neox_args.hidden_size,
                 output_size=3 * neox_args.hidden_size,
@@ -393,7 +392,7 @@ class ParallelSelfAttention(nn.Module):
             )
         else:
             # QKV proj is smaller if we are using GQA / MQA
-            self.query_key_value = ColumnParallelLinear(
+            self.query_key_value = mpu.ColumnParallelLinear(
                 neox_args=neox_args,
                 input_size=neox_args.hidden_size,
                 output_size=neox_args.hidden_size + 2 * self.kv_hidden_size,
@@ -1045,6 +1044,17 @@ class ParallelTransformerLayer(nn.Module):
                 **kw,
             )
 
+        def get_te_lnmlp(**kw):
+            from megatron.model.transformer_engine import TELayerNormMLP
+            return TELayerNormMLP(
+                neox_args=neox_args,
+                init_method=init_method,
+                output_layer_init_method=output_layer_init_method,
+                parallel_output=self.gpt_j_residual,
+                multiple_of=neox_args.mlp_multiple_of,
+                **kw,
+            )
+
         self.num_experts = (
             neox_args.moe_num_experts
             if layer_number % neox_args.expert_interval == 0
@@ -1052,7 +1062,10 @@ class ParallelTransformerLayer(nn.Module):
         )
         args = neox_args
         if self.num_experts <= 1:
-            self.mlp = get_mlp()
+            if neox_args.te_layernorm_mlp:
+                self.mlp = get_te_lnmlp()
+            else:
+                self.mlp = get_mlp()
         else:
             from torch import distributed as dist
 
@@ -1171,9 +1184,15 @@ class ParallelTransformerLayer(nn.Module):
 
             residual = x
             # applies the correct normalization depending on if the norms are tied
-            if self.gpt_j_tied:
+            if self.gpt_j_tied and not neox_args.te_layernorm_mlp:
                 x = self.input_layernorm(x)
                 x1, x2 = x, x
+            elif self.gpt_j_tied and neox_args.te_layernorm_mlp:
+                x2 = x
+                x = self.input_layernorm(x)
+                x1 = x
+            elif neox_args.te_layernorm_mlp:
+                x1, x2 = self.input_layernorm(x), x
             else:
                 x1, x2 = self.input_layernorm(x), self.post_attention_layernorm(x)
 
