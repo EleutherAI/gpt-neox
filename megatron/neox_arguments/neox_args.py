@@ -309,11 +309,6 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish", "silu", "reglu", "swiglu", "bilinear", "glu"]
     """
 
-    use_flashattn_swiglu: bool = False
-    """
-    Use flash attention's version of swiglu
-    """
-
     scaled_upper_triang_masked_softmax_fusion: bool = False
     """
     Enable fusion of query_key_value_scaling time (upper diagonal) masking and softmax.
@@ -501,7 +496,16 @@ class NeoXArgsModel(NeoXArgsTemplate):
     """
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
     """
+    
+    te_linear: bool = False
+    """
+    Use TransformerEngine for Linear, ColumnParallelLinear, and RowParallelLinear layers.
+    """
 
+    te_attention: bool = False
+    """
+    Use TransformerEngine for attention layers.
+    """
 
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):
@@ -1052,9 +1056,9 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Dataset implementation, can be one of "gpt2" or "pairwise"
     """
 
-    train_impl: Literal["normal", "dpo", "rm", "kto"] = "normal"
+    train_impl: Literal["normal", "dpo", "rm"] = "normal"
     """
-    Training implementation, can be one of "normal", "dpo", "kto", or "rm"
+    Training implementation, can be one of "normal", "dpo", or "rm"
     """
 
     dpo_fp32: bool = True
@@ -1062,16 +1066,12 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Whether to cast logits to fp32 for DPO loss calculation.
     """
 
-    dpo_reference_free: bool = False
-    """
-    Whether to use reference-free DPO.
-    """
-
     dpo_beta: float = 0.1
     """
     Beta value for DPO
     """
 
+<<<<<<< HEAD
     kto_fp32: bool = True
     """
     Whether to cast logits to fp32 for KTO loss calculation.
@@ -1095,8 +1095,13 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     """
 
     kto_beta: float = 0.1
+=======
+    z_loss: float = 0.0
+>>>>>>> Implemented ColumnParallelLinear with Transformer-Engine
     """
-    Beta value for KTO
+    Z-loss parameter, only implemented for RM training currently.
+    https://arxiv.org/pdf/2204.02311
+    https://arxiv.org/pdf/2309.10305
     """
 
     allow_chopped: bool = True
