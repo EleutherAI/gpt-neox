@@ -18,6 +18,8 @@
 """Transformer."""
 
 import math
+from contextlib import nullcontext
+
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
@@ -47,6 +49,12 @@ from megatron.model.fused_bias_dropout import (
 )
 from megatron.model.utils import configure_sparse_attention
 from deepspeed.moe.layer import MoE
+
+try:
+    from flash_attn.ops.activations import swiglu
+except ImportError:
+    swiglu = None
+
 from .utils import linear_implementation_router
 
 # flags required to enable jit fusion kernels
@@ -120,7 +128,12 @@ class ParallelMLP(nn.Module):
         ffn_dim_in = ffn_dim
         if self.is_gated:
             # set activation function to be gated implementation
-            self.activation_func = Gated_Activation(self.activation_func)
+            self.activation_func = Gated_Activation(
+                self.activation_func,
+                (swiglu is not None)
+                and (neox_args.activation == "swiglu")
+                and neox_args.use_flashattn_swiglu,
+            )
             # auto scale so gated activations has equal parameters
             ffn_dim = int(ffn_dim * 2 / 3)
             ffn_dim_in = ffn_dim // 2
@@ -160,10 +173,6 @@ class ParallelMLP(nn.Module):
     def forward(self, hidden_states):
         # [s, b, intermediate_size]
         intermediate_parallel, bias_parallel = self.linear1(hidden_states)
-        # output = self.linear1(hidden_states)
-        # print(output)
-        # import sys
-        # sys.exit()
         if self.is_gated or (self.activation_type == "gelu" and self.bias_gelu_fusion):
             intermediate_parallel = self.activation_func(
                 intermediate_parallel, bias_parallel
@@ -179,9 +188,10 @@ class ParallelMLP(nn.Module):
 
 
 class Gated_Activation(torch.nn.Module):
-    def __init__(self, activation_func):
+    def __init__(self, activation_func, use_swiglu=False):
         super().__init__()
         self.activation_func = activation_func
+        self.use_swiglu = use_swiglu
 
     def forward(self, x, bias=None):
         x, gate = x.chunk(2, dim=-1)
@@ -189,8 +199,11 @@ class Gated_Activation(torch.nn.Module):
             bias_1, bias_2 = bias.chunk(2, dim=-1)
             x = x + bias_1
             gate = gate + bias_2
-        intermediate_parallel = self.activation_func(gate)
-        return intermediate_parallel * x
+        if not self.use_swiglu:
+            intermediate_parallel = self.activation_func(gate)
+            return intermediate_parallel * x
+        else:
+            return swiglu(gate, x)
 
 
 class ParallelLinear(nn.Module):
@@ -746,106 +759,6 @@ class ParallelSelfAttention(nn.Module):
             query_layer, key_layer, value_layer, attn_mask=attn_mask, rpe=rpe
         )
 
-    def te_attention(
-        self, query_layer, key_layer, value_layer, layer_past, attention_mask
-    ):
-        # ===================================
-        # Raw attention scores. [b, np, s, s]
-        # ===================================
-
-        # [b, np, sq, sk]
-        output_size = (
-            query_layer.size(1),
-            query_layer.size(2),
-            query_layer.size(0),
-            key_layer.size(0),
-        )
-        # [sq, b, np, hn] -> [sq, b * np, hn]
-        query_layer = query_layer.view(
-            output_size[2], output_size[0] * output_size[1], -1
-        )
-        key_layer = key_layer.view(output_size[3], output_size[0] * output_size[1], -1)
-        # preallocating result tensor: [b * np, sq, sk]
-        matmul_result = torch.empty(
-            output_size[0] * output_size[1],
-            output_size[2],
-            output_size[3],
-            dtype=query_layer.dtype,
-            device=torch.cuda.current_device(),
-        )
-
-        # Raw attention scores. [b * np, sq, sk]
-        matmul_result = torch.baddbmm(
-            matmul_result,
-            query_layer.transpose(0, 1),  # [b * np, sq, hn]
-            key_layer.transpose(0, 1).transpose(1, 2),  # [b * np, hn, sk]
-            beta=0.0,
-            alpha=(1.0 / self.norm_factor),
-        )
-
-        # change view to [b, np, sq, sk]
-        attention_scores = matmul_result.view(*output_size)
-        # ==================================================
-        # Update attention mask for inference. [b, np, sq, sk]
-        # ==================================================
-
-        if self.use_cache:
-            with torch.no_grad():
-                attention_mask = attention_mask[
-                    ..., : attention_scores.size(3), : attention_scores.size(3)
-                ]
-
-        # ===========================
-        # Attention probs and dropout
-        # ===========================
-
-        if exists(self.rpe):
-            rpe = self.rpe(query_layer.size(0), key_layer.size(0))
-            attention_scores += rpe  # [1, np, sq, sk]
-
-        if self.pos_emb == "alibi":
-            attention_scores = self.alibi_embed(attention_scores)
-
-        # attention scores and attention mask [b, np, sq, sk]
-        attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
-
-        # This is actually dropping out entire tokens to attend to, which might
-        # seem a bit unusual, but is taken from the original Transformer paper.
-        with mpu.get_cuda_rng_tracker().fork():
-            attention_probs = self.attention_dropout(attention_probs)
-
-        # =========================
-        # Context layer. [sq, b, hp]
-        # =========================
-
-        # value_layer -> context layer.
-        # [sk, b, np, hn] --> [b, np, sq, hn]
-
-        # context layer shape: [b, np, sq, hn]
-        output_size = (
-            value_layer.size(1),
-            value_layer.size(2),
-            query_layer.size(0),
-            value_layer.size(3),
-        )
-
-        # change view [sk, b * np, hn]
-        value_layer = value_layer.view(
-            value_layer.size(0), output_size[0] * output_size[1], -1
-        )
-
-        # change view [b * np, sq, sk]
-        attention_probs = attention_probs.view(
-            output_size[0] * output_size[1], output_size[2], -1
-        )
-
-        # matmul: [b * np, sq, hn]
-        context_layer = torch.bmm(attention_probs, value_layer.transpose(0, 1))
-
-        # change view [b, np, sq, hn]
-        context_layer = context_layer.view(*output_size)
-        return context_layer
-
     def gqa_project(self, hidden_states, attention_mask, layer_past=None):
         # QKV projection and separation into separate Q/K/V layers for GQA,
         # where KV projections may be smaller than Q projection.
@@ -1318,7 +1231,7 @@ class ParallelTransformerLayer(nn.Module):
                 self.layer_past = presents
 
             if attention_bias is not None:
-                with torch.enable_grad():
+                with torch.enable_grad() if not self.eval else nullcontext():
                     attention_output = bias_dropout_fn(
                         attention_output,
                         bias=attention_bias.expand_as(attention_output),
@@ -1329,7 +1242,7 @@ class ParallelTransformerLayer(nn.Module):
             # mlp operator
             mlp_output, mlp_bias = self.mlp(x2)
             if mlp_bias is not None:
-                with torch.enable_grad():
+                with torch.enable_grad() if not self.eval else nullcontext():
                     output = bias_dropout_fn(
                         mlp_output,
                         bias=mlp_bias.expand_as(mlp_output),
@@ -1355,7 +1268,7 @@ class ParallelTransformerLayer(nn.Module):
             if self.use_cache:
                 attention_output, presents = attention_output
                 self.layer_past = presents
-            with torch.enable_grad():
+            with torch.enable_grad() if not self.eval else nullcontext():
                 if attention_bias is not None:
                     # Use special bias_dropout_fn if we have a bias term from the above attention layer
                     attention_output = bias_dropout_fn(
@@ -1397,7 +1310,7 @@ class ParallelTransformerLayer(nn.Module):
                 else:
                     raise KeyError(self.moe_type)
 
-            with torch.enable_grad():
+            with torch.enable_grad() if not self.eval else nullcontext():
                 if (
                     self.activation == "swiglu"
                     or self.num_experts > 1
