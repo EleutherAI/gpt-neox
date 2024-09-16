@@ -78,16 +78,51 @@ class TELinear(te.pytorch.Linear):
     """
     Wrapper for the Transformer-Engine's `Linear` layer.
     """
-    def __init__(self, in_features, out_features, bias=True):
+    def __init__(
+        self,
+        neox_args,
+        input_size,
+        output_size,
+        bias=True,
+        init_method=init.xavier_normal_,
+        stride=1,
+        skip_bias_add=False,
+        mup_rescale_parameters=False,
+        seq_dim=0, 
+    ):
+        # Keep input parameters
+        self.input_size = input_size
+        self.output_size = output_size
 
-        super(TELinear, self).__init__(in_features,out_features,bias)
+        self.skip_bias_add = skip_bias_add
+        self.use_bias = bias
+
+        self.sequence_parallel = neox_args.sequence_parallel
+        self.seq_dim = seq_dim
+
+        self.init_method = init_method
+        self.stride = stride
+        self.mup_rescale_parameters = mup_rescale_parameters
+        self.use_mup = neox_args.use_mup
+        self.params_dtype=neox_args.params_dtype
+
+        # print("##########################")
+        # print(self.return_bias)
+
+        super(TELinear, self).__init__(in_features=self.input_size, out_features=self.output_size,
+        bias= self.use_bias, init_method=self.init_method, get_rng_state_tracker=get_cuda_rng_tracker,
+        device=torch.cuda.current_device(), return_bias=self.skip_bias_add, params_dtype=self.params_dtype)
+    
+    def forward(self, inp, **kwargs):
+        if self.use_mup and self.mup_rescale_parameters:
+            input_ /= self.width_mult()
         
+        output = super(TELinear, self).forward(inp, **kwargs)
 
-    #     self.linear = te.pytorch.Linear(in_features, out_features, bias=use_bias, init_method=weight, **kwargs)
-
-
-    # def forward(self, x):
-    #     return self.linear(x)
+        if self.skip_bias_add:
+            return output
+        else:
+            return output, None
 
 
 class TELayerNormMLP(te.pytorch.LayerNormMLP):
@@ -121,7 +156,7 @@ class TELayerNormMLP(te.pytorch.LayerNormMLP):
         self.tp_group = get_tensor_model_parallel_group()
         self.sequence_parallel = neox_args.sequence_parallel
         self.seq_len = neox_args.seq_length
-        self.batch_size = neox_args.train_micro_batch_size_per_gpu
+        self.micro_batch_size = neox_args.train_micro_batch_size_per_gpu
         self.params_dtype=neox_args.params_dtype
         self.set_parallel_mode=False
         if world_size > 1:
@@ -166,8 +201,8 @@ class TELayerNormMLP(te.pytorch.LayerNormMLP):
         init_method=self.init_method, output_layer_init_method=self.output_layer_init_method,
         device=torch.cuda.current_device(), set_parallel_mode=self.set_parallel_mode,
         sequence_parallel=self.sequence_parallel, tp_group=self.tp_group, tp_size=self.world_size,
-        return_bias=neox_args.use_bias_in_mlp, params_dtype=self.params_dtype, seq_length=self.seq_len,
-        micro_batch_size=self.batch_size)
+        return_bias=True, params_dtype=self.params_dtype, seq_length=self.seq_len,
+        micro_batch_size=self.micro_batch_size)
 
 
 class TEColumnParallelLinear(te.pytorch.Linear):
@@ -435,19 +470,67 @@ class TERowParallelLinear(te.pytorch.Linear):
             return output, None
 
 
-class TEDotProductAttention(te.pytorch.DotProductAttention):
+class TEMultiheadAttention(te.pytorch.MultiheadAttention):
     """
-    Wrapper for the Transformer-Engine's `DotProductAttention` layer that also
+    Wrapper for the Transformer-Engine's `MultiheadAttention` layer that also
     has "flash attention" enabled.
     """
 
-    def __init__(self):
-        # TODO
-        return
+    def __init__(self,
+        neox_args,
+        attention_mask_func,
+        init_method,
+        output_layer_init_method,
+        layer_number,
+        rpe=None,
+        rotary=False,
+        use_cache=False,
+        parallel_output=False):
 
-    def forward(self, x):
-        # TODO
-        return
+        self.attention_mask_func = attention_mask_func
+        self.init_method = init_method
+        self.output_layer_init_method = output_layer_init_method
+        self.layer_number = layer_number + 1
+        
+        world_size = get_model_parallel_world_size()
+        self.world_size = world_size
+        self.tp_group = get_tensor_model_parallel_group()
+        self.sequence_parallel = neox_args.sequence_parallel
+        self.seq_len = neox_args.seq_length
+        self.micro_batch_size = neox_args.train_micro_batch_size_per_gpu
+        self.params_dtype=neox_args.params_dtype
+        self.set_parallel_mode=False
+        if world_size > 1:
+            self.set_parallel_mode=True
+
+        if neox_args.norm in ['layernorm','te_layernorm']:
+            self.eps=1.0e-5
+            self.normalization = 'LayerNorm'
+        elif neox_args.norm == ['rmsnorm','te_rmsnorm']:
+            self.eps=1.0e-8
+            self.normalization = 'RMSNorm'
+
+        if (
+            not neox_args.num_kv_heads
+            or neox_args.num_kv_heads == neox_args.num_attention_heads
+        ):
+            self.gqa = False
+            self.num_kv_heads = None
+        else:
+            self.gqa = True
+            self.num_kv_heads = neox_args.num_kv_heads
+
+        super(TEMultiheadAttention, self).__init__(hidden_size=neox_args.hidden_size, num_attention_heads=neox_args.num_attention_heads,
+        attention_dropout=neox_args.attention_dropout, layernorm_epsilon=self.eps, init_method=self.init_method,
+        output_layer_init_method=self.output_layer_init_method, layer_number=self.layer_number,
+        window_size=neox_args.sliding_window_width, num_gqa_groups=self.num_kv_heads, input_layernorm=False,
+        normalization=self.normalization, bias=True, device=torch.cuda.current_device(),
+        set_parallel_mode=self.set_parallel_mode, sequence_parallel=self.sequence_parallel, tp_group=self.tp_group,
+        tp_size=self.world_size, params_dtype=self.params_dtype, return_bias=True)
+
+    def forward(self, hidden_states, attention_mask, layer_past=None, **kwargs):
+        output = super(TEMultiheadAttention, self).forward(hidden_states, attention_mask, **kwargs)
+        return output
 
 
 class TEDelayedScaling(te.common.recipe.DelayedScaling):
