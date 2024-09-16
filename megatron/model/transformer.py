@@ -327,8 +327,6 @@ class ParallelSelfAttention(nn.Module):
     ):
         super().__init__()
 
-        ColumnParallelLinear, RowParallelLinear = linear_implementation_router(neox_args)
-
         self.fp16 = neox_args.precision == "fp16"
         self.bf16 = neox_args.precision == "bfloat16"
         self.attention_mask_func = attention_mask_func
@@ -748,6 +746,106 @@ class ParallelSelfAttention(nn.Module):
             query_layer, key_layer, value_layer, attn_mask=attn_mask, rpe=rpe
         )
 
+    def te_attention(
+        self, query_layer, key_layer, value_layer, layer_past, attention_mask
+    ):
+        # ===================================
+        # Raw attention scores. [b, np, s, s]
+        # ===================================
+
+        # [b, np, sq, sk]
+        output_size = (
+            query_layer.size(1),
+            query_layer.size(2),
+            query_layer.size(0),
+            key_layer.size(0),
+        )
+        # [sq, b, np, hn] -> [sq, b * np, hn]
+        query_layer = query_layer.view(
+            output_size[2], output_size[0] * output_size[1], -1
+        )
+        key_layer = key_layer.view(output_size[3], output_size[0] * output_size[1], -1)
+        # preallocating result tensor: [b * np, sq, sk]
+        matmul_result = torch.empty(
+            output_size[0] * output_size[1],
+            output_size[2],
+            output_size[3],
+            dtype=query_layer.dtype,
+            device=torch.cuda.current_device(),
+        )
+
+        # Raw attention scores. [b * np, sq, sk]
+        matmul_result = torch.baddbmm(
+            matmul_result,
+            query_layer.transpose(0, 1),  # [b * np, sq, hn]
+            key_layer.transpose(0, 1).transpose(1, 2),  # [b * np, hn, sk]
+            beta=0.0,
+            alpha=(1.0 / self.norm_factor),
+        )
+
+        # change view to [b, np, sq, sk]
+        attention_scores = matmul_result.view(*output_size)
+        # ==================================================
+        # Update attention mask for inference. [b, np, sq, sk]
+        # ==================================================
+
+        if self.use_cache:
+            with torch.no_grad():
+                attention_mask = attention_mask[
+                    ..., : attention_scores.size(3), : attention_scores.size(3)
+                ]
+
+        # ===========================
+        # Attention probs and dropout
+        # ===========================
+
+        if exists(self.rpe):
+            rpe = self.rpe(query_layer.size(0), key_layer.size(0))
+            attention_scores += rpe  # [1, np, sq, sk]
+
+        if self.pos_emb == "alibi":
+            attention_scores = self.alibi_embed(attention_scores)
+
+        # attention scores and attention mask [b, np, sq, sk]
+        attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
+
+        # This is actually dropping out entire tokens to attend to, which might
+        # seem a bit unusual, but is taken from the original Transformer paper.
+        with mpu.get_cuda_rng_tracker().fork():
+            attention_probs = self.attention_dropout(attention_probs)
+
+        # =========================
+        # Context layer. [sq, b, hp]
+        # =========================
+
+        # value_layer -> context layer.
+        # [sk, b, np, hn] --> [b, np, sq, hn]
+
+        # context layer shape: [b, np, sq, hn]
+        output_size = (
+            value_layer.size(1),
+            value_layer.size(2),
+            query_layer.size(0),
+            value_layer.size(3),
+        )
+
+        # change view [sk, b * np, hn]
+        value_layer = value_layer.view(
+            value_layer.size(0), output_size[0] * output_size[1], -1
+        )
+
+        # change view [b * np, sq, sk]
+        attention_probs = attention_probs.view(
+            output_size[0] * output_size[1], output_size[2], -1
+        )
+
+        # matmul: [b * np, sq, hn]
+        context_layer = torch.bmm(attention_probs, value_layer.transpose(0, 1))
+
+        # change view [b, np, sq, hn]
+        context_layer = context_layer.view(*output_size)
+        return context_layer
+
     def gqa_project(self, hidden_states, attention_mask, layer_past=None):
         # QKV projection and separation into separate Q/K/V layers for GQA,
         # where KV projections may be smaller than Q projection.
@@ -1016,7 +1114,9 @@ class ParallelTransformerLayer(nn.Module):
             )
 
         # Self attention.
-        self.attention = ParallelSelfAttention(
+        if neox_args.te_mha:
+            from megatron.model.transformer_engine import TEMultiheadAttention
+            self.attention = TEMultiheadAttention(
             neox_args=neox_args,
             attention_mask_func=attention_mask_func,
             init_method=init_method,
@@ -1026,7 +1126,20 @@ class ParallelTransformerLayer(nn.Module):
             use_cache=self.use_cache,
             rotary=rotary,
             parallel_output=self.gpt_j_residual,
-        )
+            )
+
+        else:
+            self.attention = ParallelSelfAttention(
+                neox_args=neox_args,
+                attention_mask_func=attention_mask_func,
+                init_method=init_method,
+                output_layer_init_method=output_layer_init_method,
+                layer_number=layer_number,
+                rpe=rpe,
+                use_cache=self.use_cache,
+                rotary=rotary,
+                parallel_output=self.gpt_j_residual,
+            )
 
         # Layernorm on the output of the attention layer.
         # If GPT-J residuals are used, this is surpurfulous but leaving it in
@@ -1184,14 +1297,14 @@ class ParallelTransformerLayer(nn.Module):
 
             residual = x
             # applies the correct normalization depending on if the norms are tied
-            if self.gpt_j_tied and not neox_args.te_layernorm_mlp:
+            if self.gpt_j_tied and not self.neox_args.te_layernorm_mlp:
                 x = self.input_layernorm(x)
                 x1, x2 = x, x
-            elif self.gpt_j_tied and neox_args.te_layernorm_mlp:
+            elif self.gpt_j_tied and self.neox_args.te_layernorm_mlp:
                 x2 = x
                 x = self.input_layernorm(x)
                 x1 = x
-            elif neox_args.te_layernorm_mlp:
+            elif self.neox_args.te_layernorm_mlp:
                 x1, x2 = self.input_layernorm(x), x
             else:
                 x1, x2 = self.input_layernorm(x), self.post_attention_layernorm(x)
@@ -1263,7 +1376,10 @@ class ParallelTransformerLayer(nn.Module):
                     )
 
             # output = x + mlp(ln2(x))
-            layernorm_output = self.post_attention_layernorm(attention_output)
+            if self.neox_args.te_layernorm_mlp:
+                layernorm_output = attention_output
+            else:
+                layernorm_output = self.post_attention_layernorm(attention_output)
             mlp_bias = torch.tensor(
                 0.0, device=layernorm_output.device, dtype=layernorm_output.dtype
             )

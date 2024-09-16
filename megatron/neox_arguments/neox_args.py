@@ -512,6 +512,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Use TransformerEngine for LayerNormMLP layer.
     """
 
+    te_mha: bool = False
+    """
+    Use TransformerEngine for MultiheadAttention layer.
+    """
+
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):
     """
