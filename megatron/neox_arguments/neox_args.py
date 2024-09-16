@@ -846,8 +846,8 @@ class NeoXArgsOther(NeoXArgsTemplate):
     """
     Set during training
     """
-
-    save_iters: list = None
+    
+    is_save_iter: list = None
     """
     Set during training
     """
@@ -1170,6 +1170,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     train_iters: int = None
     """
     Number of iterations to run for training.
+    """
+    
+    train_epochs: int = None
+    """
+    Number of epochs to run for training. Do not specify both train_epochs and train_iters.
     """
 
     eval_iters: int = 100
