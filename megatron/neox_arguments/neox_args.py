@@ -846,11 +846,6 @@ class NeoXArgsOther(NeoXArgsTemplate):
     """
     Set during training
     """
-    
-    is_save_iter: list = None
-    """
-    Set during training
-    """
 
     global_num_gpus: int = None
     """

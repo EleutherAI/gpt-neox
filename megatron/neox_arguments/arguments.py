@@ -951,34 +951,7 @@ class NeoXArgs(*BASE_CLASSES):
                 "clip_grad": self.gradient_clipping,
             }
         )
-
-        # derive steps where checkpoint should be saved
-        if self.checkpoint_factor or self.extra_save_iters:
-            def is_save_iter(iteration):
-                if self.extra_save_iters and iteration in self.extra_save_iters:
-                    return True
-                
-                if self.checkpoint_factor:
-                    if self.checkpoint_scale == "linear":
-                        return iteration % self.checkpoint_factor == 0
-                    elif self.checkpoint_scale == "log":
-                        # Check if iteration is a power of checkpoint_factor
-                        assert self.checkpoint_factor > 1
-                        power = 1
-                        while power < iteration:
-                            power *= self.checkpoint_factor
-                        return power == iteration
-                
-                return False
-
-            self.update_values({
-                "is_save_iter": is_save_iter,
-            })
-        else:
-            self.update_values({
-                "is_save_iter": lambda _: False,
-            })
-
+        
         # derive precision
         fp16_conflict = "DeepSpeed fp16 field was set but precision conflicts"
         if self.fp16 and self.fp16.get("enabled", False):

@@ -447,7 +447,7 @@ def weights_by_num_docs(l: list, alpha=0.3):
     return weights
 
 
-def build_train_valid_test_data_iterators(neox_args):
+def build_train_valid_test_data_loaders(neox_args):
     """XXX"""
 
     (train_dataloader, valid_dataloader, test_dataloader) = (None, None, None)
@@ -599,9 +599,22 @@ def build_train_valid_test_data_iterators(neox_args):
     neox_args.do_train = flags[0].item()
     neox_args.do_valid = flags[1].item()
     neox_args.do_test = flags[2].item()
+    data_loaders = {
+        "train":train_dataloader,
+        "valid":valid_dataloader, 
+        "test":test_dataloader
+    }
+    return data_loaders
+
+def shift_and_wrap_data_loaders(neox_args, data_loaders):
+    """Shift start iteration and wrap data_loaders in iterators"""
+    train_dataloader = data_loaders["train"]
+    valid_dataloader = data_loaders["valid"]
+    test_dataloader = data_loaders["test"]
 
     # Shift the start iterations.
     if train_dataloader is not None:
+        print_rank_0(neox_args.iteration, neox_args.gradient_accumulation_steps)
         train_dataloader.batch_sampler.start_iter = (
             neox_args.iteration * neox_args.gradient_accumulation_steps
         ) % len(train_dataloader)
@@ -639,14 +652,8 @@ def build_train_valid_test_data_iterators(neox_args):
         test_data_iterator = iter(test_dataloader)
     else:
         test_data_iterator = None
-    
-    data_loaders = {
-        "train":train_dataloader,
-        "valid":valid_dataloader, 
-        "test":test_dataloader
-    }
 
-    return train_data_iterator, valid_data_iterator, test_data_iterator, data_loaders
+    return train_data_iterator, valid_data_iterator, test_data_iterator
 
 
 def compile_helper():
