@@ -1107,8 +1107,6 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     """
 
     kto_beta: float = 0.1
-
-    z_loss: float = 0.0
     """
     Beta value for KTO
     """
