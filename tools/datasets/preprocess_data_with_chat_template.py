@@ -103,6 +103,9 @@ def build_chat(
         tokens = tokenizer.apply_chat_template(chat)
         mask = [-100] * len(tokens)
         if tokenizer.eos_token_id is not None:
+            # since this is processed in a causal format (input[:-1], mask[1:], we need to put two here...
+            mask.append(-100)
+            tokens.append(tokenizer.eos_token_id)
             mask.append(tokenizer.eos_token_id)
             tokens.append(tokenizer.eos_token_id)
         else:
