@@ -108,6 +108,7 @@ To install the remaining basic dependencies, run:
 pip install -r requirements/requirements.txt
 pip install -r requirements/requirements-wandb.txt # optional, if logging using WandB
 pip install -r requirements/requirements-tensorboard.txt # optional, if logging via tensorboard
+pip install -r requirements/requirements-comet.txt # optional, if logging via Comet
 ```
 
 from the repository root.
@@ -306,7 +307,7 @@ You can then run any job you want from inside the container.
 Concerns when running for a long time or in detached mode include
  - You will have to terminate the container manually when you are no longer using it
  - If you want processes to continue running when your shell session ends, you will need to background them.
- - If you then want logging, you will have to make sure to pipe logs to disk or set up wandb.
+ - If you then want logging, you will have to make sure to pipe logs to disk, set up wandb or set up Comet logging.
 
 If you prefer to run the prebuilt container image from dockerhub, you can run the docker compose commands with ```-f docker-compose-dockerhub.yml``` instead, e.g.,
 
@@ -645,7 +646,7 @@ To convert from a Hugging Face model into a NeoX-loadable, run `tools/ckpts/conv
 
 # Monitoring
 
-In addition to storing logs locally, we provide built-in support for two popular experiment monitoring frameworks: [Weights & Biases](https://wandb.ai/site) and [TensorBoard](https://www.tensorflow.org/tensorboard/)
+In addition to storing logs locally, we provide built-in support for two popular experiment monitoring frameworks: [Weights & Biases](https://wandb.ai/site), [TensorBoard](https://www.tensorflow.org/tensorboard/) and [Comet](https://www.comet.com/site)
 
 ## Weights and Biases
 
@@ -655,14 +656,14 @@ EleutherAI is currently using [Weights & Biases to record our experiments](https
 
 We also support using TensorBoard via the <code><var>tensorboard-dir</var></code> field. Dependencies required for TensorBoard monitoring can be found in and installed from  `./requirements/requirements-tensorboard.txt`.
 
-## Comet ML
+## Comet
 
-[Comet ML](https://www.comet.com/) is a machine learning monitoring platform. To use comet to monitor your gpt-neox experiments:
-1. Create an account at https://www.comet.com/login to generate your API key. Either create a workspace or pass your default workspace in your gpt-neox config under the `comet_workspace` config arg.
-2. Once generated, link your API key at runtime by passing `export COMET_API_KEY=<your-key-here>`
+[Comet](https://www.comet.com/site) is a machine learning monitoring platform. To use comet to monitor your gpt-neox experiments:
+1. Create an account at https://www.comet.com/login to generate your API key.
+2. Once generated, link your API key at runtime by running `comet login` or passing `export COMET_API_KEY=<your-key-here>`
 3. Install `comet_ml` and any dependency libraries via `pip install -r requirements/requirements-comet.txt`
-4. Pass `use_comet: True` and your workspace name under `comet)wor in your config. A full example config with comet enabled is provided in `configs/local_setup_comet.yml`
-5. Run your experiment, and monitor in comet workspace that you passed!
+4. Enable Comet with. `use_comet: True`. You can also customize where data is being logged with `comet_workspace` and `comet_project`. A full example config with comet enabled is provided in `configs/local_setup_comet.yml`.
+5. Run your experiment, and monitor in Comet workspace that you passed!
 
 # Running on multi-node
 

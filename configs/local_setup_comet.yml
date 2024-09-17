@@ -25,7 +25,7 @@
   "tensorboard_dir": "tensorboard",
   "log_dir": "logs",
   "use_comet": True,
-  "comet_workspace": "test_workspace", # CHANGE ME
+  # "comet_workspace": "test_workspace", # CHANGE ME
   "comet_project": "test_project",
   "comet_experiment_name": "test_experiment",
   "comet_tags": ["test_tag1", "test_tag2"],
