@@ -15,7 +15,7 @@ GPT-NeoX leverages many of the same features and technologies as the popular Meg
 * Cutting edge architectural innovations including rotary and alibi positional embeddings, parallel feedforward attention layers, and flash attention.
 * Predefined configurations for popular architectures including Pythia, PaLM, Falcon, and LLaMA 1 \& 2
 * Curriculum Learning
-* Easy connections with the open source ecosystem, including Hugging Face's [tokenizers](https://github.com/huggingface/tokenizers) and [transformers](https://github.com/huggingface/transformers/) libraries, logging via [WandB](https://wandb.ai/site), and evaluation via our [Language Model Evaluation Harness](https://github.com/EleutherAI/lm-evaluation-harness).
+* Easy connections with the open source ecosystem, including Hugging Face's [tokenizers](https://github.com/huggingface/tokenizers) and [transformers](https://github.com/huggingface/transformers/) libraries, monitor experiments via [WandB](https://wandb.ai/site)/[Comet](https://www.comet.com/site/)/TensorBoard, and evaluation via our [Language Model Evaluation Harness](https://github.com/EleutherAI/lm-evaluation-harness).
 
 ## News
 **[9/9/2024]** We now support preference learning via [DPO](https://arxiv.org/abs/2305.18290), [KTO](https://arxiv.org/abs/2402.01306), and reward modeling
@@ -307,7 +307,7 @@ You can then run any job you want from inside the container.
 Concerns when running for a long time or in detached mode include
  - You will have to terminate the container manually when you are no longer using it
  - If you want processes to continue running when your shell session ends, you will need to background them.
- - If you then want logging, you will have to make sure to pipe logs to disk, set up wandb, or set up Comet logging.
+ - If you then want logging, you will have to make sure to pipe logs to disk, and set up wandb and/or Comet logging.
 
 If you prefer to run the prebuilt container image from dockerhub, you can run the docker compose commands with ```-f docker-compose-dockerhub.yml``` instead, e.g.,
 
@@ -529,7 +529,7 @@ You can pass in an arbitrary number of configs which will all be merged at runti
 
 You can also optionally pass in a config prefix, which will assume all your configs are in the same folder and append that prefix to their path.
 
-E.G:
+For example:
 
 ```bash
 python ./deepy.py train.py -d configs 125M.yml local_setup.yml
@@ -650,11 +650,15 @@ In addition to storing logs locally, we provide built-in support for two popular
 
 ## Weights and Biases
 
-EleutherAI is currently using [Weights & Biases to record our experiments](https://wandb.ai/eleutherai/neox). If you are logged into Weights & Biases on your machine&mdash;you can do this by executing `wandb login`&mdash;your runs will automatically be recorded. There are two optional fields associated with Weights & Biases: <code><var>wandb_group</var></code> allows you to name the run group and <code><var>wandb_team</var></code> allows you to assign your runs to an organization or team account.
+[Weights & Biases to record our experiments](https://wandb.ai/eleutherai/neox) is a machine learning monitoring platform. To use wandb to monitor your gpt-neox experiments:
+1. Create an account at https://wandb.ai/site to generate your API key
+2. Log into Weights & Biases on your machine&mdash;you can do this by executing `wandb login`&mdash;your runs will automatically be recorded.
+3. Dependencies required for wandb monitoring can be found in and installed from `./requirements/requirements-wandb.txt`. An example config is provided in `./configs/local_setup_wandb.yml`.
+4. There are two optional fields associated with Weights & Biases: <code><var>wandb_group</var></code> allows you to name the run group and <code><var>wandb_team</var></code> allows you to assign your runs to an organization or team account. An example config is provided in `./configs/local_setup_wandb.yml`.
 
 ## TensorBoard
 
-We also support using TensorBoard via the <code><var>tensorboard-dir</var></code> field. Dependencies required for TensorBoard monitoring can be found in and installed from  `./requirements/requirements-tensorboard.txt`.
+We support using TensorBoard via the <code><var>tensorboard-dir</var></code> field. Dependencies required for TensorBoard monitoring can be found in and installed from  `./requirements/requirements-tensorboard.txt`.
 
 ## Comet
 
