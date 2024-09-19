@@ -59,6 +59,7 @@ from megatron.utils import (
     get_total_params,
     CharCounter,
 )
+from megatron.model.weight_server import start_server
 from megatron.model.gpt2_model import cross_entropy
 from megatron.mpu import vocab_parallel_cross_entropy
 
@@ -204,6 +205,11 @@ def pretrain(neox_args):
     )
     timers("model and optimizer").stop()
 
+    if neox_args.serve_weights:
+        start_server(model)
+        # sync...
+        torch.distributed.barrier()
+
     # Data stuff.
     timers("train/valid/test data iterators").start()
     (
@@ -322,7 +328,7 @@ def get_batch(neox_args, data_iterator):
     """Generate a batch"""
 
     # Items and their type.
-    if neox_args.train_impl in ["normal", "kto"]:
+    if neox_args.train_impl in ["normal", "kto", "reinforce"]:
         keys = ["text", "label"] if neox_args.train_label_data_paths else ["text"]
     elif neox_args.train_impl == "dpo":
         keys = (
@@ -364,6 +370,20 @@ def get_batch(neox_args, data_iterator):
             else None
         )
         return tup + (rw_data, ref_data)
+    elif neox_args.train_impl == "reinforce":
+
+        tup = _get_batch(
+            neox_args=neox_args,
+            tokenizer=neox_args.tokenizer,
+            keys=keys,
+            data=data,
+            datatype=datatype,
+        )
+        rw_data = mpu.broadcast_data(["reward"], data, torch.float)["reward"]
+        raw_rw_data = mpu.broadcast_data(["raw_reward"], data, torch.float)[
+            "raw_reward"
+        ]
+        return tup + (rw_data, raw_rw_data)
     elif neox_args.train_impl in ["dpo", "rm"]:
         pos_tup = _get_batch(
             neox_args=neox_args,
@@ -533,6 +553,16 @@ def forward_step(
             position_ids,
             rewards,
             ref_logp,
+        ) = get_batch(neox_args=neox_args, data_iterator=data_iterator)
+    elif neox_args.train_impl == "reinforce":
+        (
+            tokens,
+            labels,
+            loss_mask,
+            attention_mask,
+            position_ids,
+            rewards,
+            raw_rewards,
         ) = get_batch(neox_args=neox_args, data_iterator=data_iterator)
     if neox_args.train_impl in ["dpo", "rm"]:
         tokens, labels, loss_mask, attention_mask, position_ids, ref_logp = get_batch(
@@ -745,6 +775,64 @@ def forward_step(
         # print(loss.shape)
         loss = loss.mean()
         # print(loss.shape)
+    elif neox_args.train_impl == "reinforce":
+        if reference_model is not None:
+            with torch.no_grad():
+                ref_outputs = reference_model(
+                    (tokens, position_ids, attention_mask), neox_args=neox_args
+                )
+                if type(ref_outputs) is tuple:
+                    ref_outputs, _ = ref_outputs
+                ref_outputs = ref_outputs
+                if neox_args.use_full_kl:
+                    # Have to do the loss over all tokens...
+                    ref_outputs = gather_from_model_parallel_region(ref_outputs)
+                    if neox_args.fp32_reinforce:
+                        ref_outputs = ref_outputs.float()
+                    ref_logp = ref_outputs.log_softmax(dim=-1).detach()
+                    ref_per_token_logp = torch.gather(
+                        ref_logp.clone(), dim=2, index=labels.unsqueeze(2)
+                    ).squeeze(2)
+                else:
+                    ref_per_token_logp = get_logp(
+                        ref_outputs, labels, neox_args.fp32_reinforce
+                    )
+                metrics["ref_logp"] = ref_per_token_logp.clone().detach().mean()
+        outputs = model((tokens, position_ids, attention_mask), neox_args=neox_args)
+        if type(outputs) is tuple:
+            outputs, _ = outputs
+        if neox_args.use_full_kl:
+            # Have to do the loss over all tokens...
+            outputs = gather_from_model_parallel_region(outputs)
+            if neox_args.fp32_reinforce:
+                outputs = outputs.float()
+            logp = outputs.log_softmax(dim=-1)
+            per_token_logp = torch.gather(
+                logp.clone(), dim=2, index=labels.unsqueeze(2)
+            ).squeeze(2)
+        else:
+            per_token_logp = get_logp(outputs, labels, neox_args.fp32_reinforce)
+        with torch.no_grad():
+            metrics["logp"] = per_token_logp.clone().detach().mean()
+            metrics["reward"] = raw_rewards.clone().detach().mean()
+            metrics["reward_std"] = raw_rewards.clone().detach().std()
+        loss_mask_sum = loss_mask.sum()
+        if reference_model is not None:
+            if neox_args.use_full_kl:
+                # Following along with
+                # https://github.com/huggingface/trl/blob/104a02d207b63a4a062882aaff68f2d275493399/trl/trainer/ppo_trainer.py#L1120
+                kl = F.kl_div(ref_logp, logp, log_target=True, reduction="none").sum(-1)
+                metrics["kl"] = kl.clone().detach().mean()
+            else:
+                kl = (per_token_logp - ref_per_token_logp).sum(-1)
+                metrics["kl"] = kl.clone().detach()
+            loss = (-per_token_logp * rewards) + (neox_args.kl_div_beta * kl)
+            loss = (loss * loss_mask).sum(-1) / loss_mask_sum
+            loss = loss.mean()
+        else:
+            loss = -(rewards * per_token_logp)
+            loss = (loss * loss_mask).sum(-1) / loss_mask_sum
+            loss = loss.mean()
     if neox_args.memory_profiling:
         torch.cuda.nvtx.range_pop()
     if return_logits:
@@ -1048,10 +1136,17 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
 
     """Setup model and optimizer."""
     needs_reference_model = (
-        (neox_args.train_impl == "dpo")
-        and (neox_args.precompute_model_name is None)
-        and (not neox_args.dpo_reference_free)
-    ) or ((neox_args.train_impl == "kto") and (neox_args.precompute_model_name is None))
+        (
+            (neox_args.train_impl == "dpo")
+            and (neox_args.precompute_model_name is None)
+            and (not neox_args.dpo_reference_free)
+        )
+        or (
+            (neox_args.train_impl == "kto")
+            and (neox_args.precompute_model_name is None)
+        )
+        or ((neox_args.train_type == "reinforce") and (neox_args.kl_div_beta > 0.0))
+    )
     model = get_model(neox_args=neox_args, use_cache=use_cache)
     if needs_reference_model:
         reference_model = get_model(neox_args=neox_args, use_cache=use_cache)
