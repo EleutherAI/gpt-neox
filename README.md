@@ -830,6 +830,8 @@ To cite the 20 billion parameter model named `GPT-NeoX-20B`, please use
 ```
 
 ## Contributing
+[![Open in DevZero](https://assets.devzero.io/open-in-devzero.svg)](https://www.devzero.io/dashboard/recipes/new?repo-url=https://github.com/EleutherAI/gpt-neox)
+
 GPT-NeoX is built by the open-source AI community, and relies on our amazing contributors! Please see our
 [contributing](CONTRIBUTING.md) guide for more details on our CLA, code formatting, testing,
 etc.
