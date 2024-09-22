@@ -174,6 +174,7 @@ def _build_index_mappings(
     sizes,
     label_dataset,
     num_samples,
+    num_epochs,
     seq_length,
     seed,
     packing_impl,
