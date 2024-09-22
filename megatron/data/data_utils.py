@@ -62,6 +62,7 @@ def build_the_dataset(
     dataset_impl,
     allow_chopped,
     num_samples,
+    num_epochs,
     seq_length,
     seed,
     skip_warmup,
@@ -135,6 +136,7 @@ def build_the_dataset(
             documents,
             indexed_dataset,
             num_samples,
+            num_epochs,
             seq_length,
             seed,
             pack_impl=pack_impl,
@@ -172,6 +174,7 @@ def build_train_valid_test_datasets(
     allow_chopped,
     splits_string,
     train_valid_test_num_samples,
+    train_valid_test_epochs,
     seq_length,
     seed,
     skip_warmup,
@@ -212,6 +215,7 @@ def build_train_valid_test_datasets(
                 documents,
                 indexed_dataset,
                 train_valid_test_num_samples[index],
+                train_valid_test_epochs[index],
                 seq_length,
                 seed,
                 pack_impl=pack_impl,
@@ -275,9 +279,9 @@ def build_weighted_datasets(
     train_num_samples,
     valid_num_samples,
     test_num_samples,
-    train_weights,
-    valid_weights,
-    test_weights,
+    train_epochs,
+    valid_epochs,
+    test_epochs,
     build_index_mappings=True,
 ):
     # build individual datasets
@@ -348,6 +352,7 @@ def build_weighted_datasets(
                     pack_impl=neox_args.pack_impl,
                     allow_chopped=neox_args.allow_chopped,
                     num_samples=train_num_samples[i],
+                    num_epochs=train_epochs
                     seq_length=neox_args.seq_length,
                     seed=neox_args.seed,
                     skip_warmup=(not neox_args.mmap_warmup),
@@ -371,6 +376,7 @@ def build_weighted_datasets(
                     pack_impl=neox_args.pack_impl,
                     allow_chopped=neox_args.allow_chopped,
                     num_samples=valid_num_samples[i],
+                    num_epochs=valid_epochs
                     seq_length=neox_args.seq_length,
                     seed=neox_args.seed,
                     skip_warmup=(not neox_args.mmap_warmup),
@@ -394,6 +400,7 @@ def build_weighted_datasets(
                     pack_impl=neox_args.pack_impl,
                     allow_chopped=neox_args.allow_chopped,
                     num_samples=test_num_samples[i],
+                    num_epochs=test_epochs
                     seq_length=neox_args.seq_length,
                     seed=neox_args.seed,
                     skip_warmup=(not neox_args.mmap_warmup),
@@ -446,9 +453,28 @@ def weights_by_num_docs(l: list, alpha=0.3):
 
     return weights
 
+def validate_train_epochs(neox_args):
+    """Check for unsupported neox_args when using train_epochs instead of train_iters"""
+    if neox_args.train_epochs is None:
+        return
+    
+    if neox_args.train_epochs and neox_args.train_iters:
+        raise ValueError("Cannot specify both train epochs and train iters simultaneously")
+    
+    if neox_args.pack_impl != "packed":
+        raise ValueError("Packing implementations other than 'packed' are currently unsupported with train_epochs")
+    
+    if neox_args.weight_by_num_documents:
+        raise ValueError("Weighting by number of documents is currently unsupported with train_epochs")
+    
+    if not all(weight == 1.0 for weight in neox_args.train_data_weights):
+        raise ValueError("train_data_weights != None is currently unsupported with train_epochs")
+
 
 def build_train_valid_test_data_loaders(neox_args):
     """XXX"""
+
+    validate_train_epochs(neox_args)
 
     (train_dataloader, valid_dataloader, test_dataloader) = (None, None, None)
 
@@ -467,14 +493,19 @@ def build_train_valid_test_data_loaders(neox_args):
     # Data loader only on rank 0 of each model parallel group.
     if mpu.get_model_parallel_rank() == 0 and pipe_load:
         # Number of train/valid/test samples.
-        train_iters = neox_args.train_iters
-        eval_iters = (train_iters // neox_args.eval_interval + 1) * neox_args.eval_iters
-        test_iters = neox_args.eval_iters
-        train_val_test_num_samples = [
-            train_iters * neox_args.train_batch_size,
-            eval_iters * neox_args.train_batch_size,
-            test_iters * neox_args.train_batch_size,
-        ]
+        if neox_args.train_iters is not None:
+            train_iters = neox_args.train_iters
+            eval_iters = (train_iters // neox_args.eval_interval + 1) * neox_args.eval_iters
+            test_iters = neox_args.eval_iters
+            train_val_test_num_samples = [
+                train_iters * neox_args.train_batch_size,
+                eval_iters * neox_args.train_batch_size,
+                test_iters * neox_args.train_batch_size,
+            ]
+            train_val_test_epochs = [None, None, None]
+        elif neox_args.train_epochs is not None:
+            train_val_test_num_samples = [None, None, None]
+            train_val_test_epochs = [1,1,1]
 
         if (neox_args.train_data_paths) or (neox_args.pos_train_data_paths):
             # when individual train / valid / test data paths are provided
@@ -495,9 +526,9 @@ def build_train_valid_test_data_loaders(neox_args):
                 train_num_samples,
                 valid_num_samples,
                 test_num_samples,
-                train_weights,
-                valid_weights,
-                test_weights,
+                train_val_test_epochs[0],
+                train_val_test_epochs[1],
+                train_val_test_epochs[2],
                 build_index_mappings=not neox_args.weight_by_num_documents,
             )
 
@@ -544,9 +575,9 @@ def build_train_valid_test_data_loaders(neox_args):
                     train_num_samples,
                     valid_num_samples,
                     test_num_samples,
-                    train_weights,
-                    valid_weights,
-                    test_weights,
+                    train_val_test_epochs[0],
+                    train_val_test_epochs[1],
+                    train_val_test_epochs[2],
                 )
 
             if train_datasets:
@@ -564,6 +595,7 @@ def build_train_valid_test_data_loaders(neox_args):
                 data_impl=neox_args.data_impl,
                 splits_string=neox_args.split,
                 train_valid_test_num_samples=train_val_test_num_samples,
+                train_valid_test_epochs=train_val_test_epochs,
                 seq_length=neox_args.seq_length,
                 seed=neox_args.seed,
                 skip_warmup=(not neox_args.mmap_warmup),
@@ -577,7 +609,8 @@ def build_train_valid_test_data_loaders(neox_args):
         test_dataloader = make_data_loader(test_ds, neox_args=neox_args)
 
         # Flags to know if we need to do training/validation/testing.
-        do_train = train_dataloader is not None and neox_args.train_iters > 0
+        #TODO: Figure out how to update these/why they matter, do not approve PR if this comment is still here 
+        do_train = train_dataloader is not None and neox_args.train_iters > 0 
         do_valid = valid_dataloader is not None and neox_args.eval_iters > 0
         do_test = test_dataloader is not None and neox_args.eval_iters > 0
         # Need to broadcast num_tokens and num_type_tokens.

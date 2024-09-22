@@ -190,6 +190,7 @@ def update_iterations(neox_args, data_loaders):
         train_iterations = (len(train_dataloader)*train_epochs) // train_micro_batch_size_per_gpu
 
         neox_args.train_iters = train_iterations
+        print_rank_0(f"Training for a total of {train_iterations} iterations, corresponding to  {train_epochs} epochs.")
 
 
 
@@ -198,9 +199,10 @@ def pretrain(neox_args):
 
     This function will run the following in the order provided:
         1) initialize Megatron.
-        2) call train_val_test_data_provider to get train/val/test datasets.
+        2) get train/val/test datasets.
         3) setup model, optimizer and lr schedule.
-        4) train the model.
+        4) configure data loading
+        5) train the model.
 
     Arguments:
         neox_args: an instance of NeoXArgs containing the configuration for pretrain
@@ -245,7 +247,7 @@ def pretrain(neox_args):
 
     # Print setup timing.
     print_rank_0("done with setups ...")
-    timers.log(["model and optimizer", "train/valid/test data iterators"])
+    timers.log(["train/valid/test data loaders", "model and optimizer", "train/valid/test data iterators"])
     print_rank_0("training ...")
 
     iteration = neox_args.iteration
@@ -1206,6 +1208,7 @@ def is_save_iter(neox_args, iteration):
     
     if neox_args.checkpoint_factor:
         if neox_args.checkpoint_scale == "linear":
+            assert float(neox_args.checkpoint_factor).is_integer(), "checkpoint_factor must be a whole number when using linear checkpoint_scale"
             return iteration % neox_args.checkpoint_factor == 0
         elif neox_args.checkpoint_scale == "log":
             # Check if iteration is a power of checkpoint_factor

@@ -1113,7 +1113,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     while "log" implies that the number of steps between each checkpoint will be multiplied by `checkpoint-factor` at each step, starting from step 1.
     """
 
-    checkpoint_factor: int = None
+    checkpoint_factor: Union[int, float] = None
     """
     Acts as a multiplier on either the "log" or "linear" checkpoint spacing.
 
