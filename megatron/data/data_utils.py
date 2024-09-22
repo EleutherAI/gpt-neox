@@ -609,10 +609,13 @@ def build_train_valid_test_data_loaders(neox_args):
         test_dataloader = make_data_loader(test_ds, neox_args=neox_args)
 
         # Flags to know if we need to do training/validation/testing.
-        #TODO: Figure out how to update these/why they matter, do not approve PR if this comment is still here 
-        do_train = train_dataloader is not None and neox_args.train_iters > 0 
-        do_valid = valid_dataloader is not None and neox_args.eval_iters > 0
-        do_test = test_dataloader is not None and neox_args.eval_iters > 0
+        if neox.train_epochs:
+            do_train,do_valid, do_test = train_dataloader, valid_dataloader, test_dataloader
+        else:
+            do_train = train_dataloader is not None and neox_args.train_iters > 0 
+            do_valid = valid_dataloader is not None and neox_args.eval_iters > 0
+            do_test = test_dataloader is not None and neox_args.eval_iters > 0
+
         # Need to broadcast num_tokens and num_type_tokens.
         flags = torch.cuda.LongTensor([int(do_train), int(do_valid), int(do_test)])
     else:
