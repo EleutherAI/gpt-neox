@@ -50,6 +50,17 @@ from .neox_args import (
     ATTENTION_TYPE_CHOICES,
 )
 
+### Logging colors ###
+GREEN = "\033[92m"
+RED = "\033[91m"
+YELLOW = "\033[93m"
+END = "\033[0m"
+SUCCESS = f"{GREEN} [SUCCESS] {END}"
+OKAY = f"{GREEN}[OKAY]{END}"
+WARNING = f"{YELLOW}[WARNING]{END}"
+FAIL = f"{RED}[FAIL]{END}"
+INFO = "[INFO]"
+
 # ZERO defaults by deespeed
 # These values should not be changed unless defaults in deepspeed are changed
 # for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
@@ -153,7 +164,7 @@ class NeoXArgs(*BASE_CLASSES):
             try:
                 from torch.utils.tensorboard import SummaryWriter
 
-                print("> setting tensorboard ...")
+                print("> setting up tensorboard ...")
                 self.tensorboard_writer = SummaryWriter(log_dir=self.tensorboard_dir)
             except (ModuleNotFoundError, ImportError):
                 print(
@@ -162,6 +173,47 @@ class NeoXArgs(*BASE_CLASSES):
                     "no TensorBoard logs will be written.",
                     flush=True,
                 )
+
+    def initialize_comet(self):
+        if self.use_comet and self.rank == 0:
+            try:
+                import comet_ml
+
+                # Deactivate output logging to avoid any potential interference with Tee
+                self.comet_experiment = comet_ml.start(
+                    workspace=self.comet_workspace,
+                    project=self.comet_project,
+                    experiment_config=comet_ml.ExperimentConfig(
+                        auto_output_logging=False
+                    ),
+                )
+                self.comet_experiment.__internal_api__log_parameters__(
+                    self.all_config,
+                    framework="gpt-neox",
+                    source="manual",
+                    flatten_nested=True,
+                )
+
+                if self.comet_experiment_name:
+                    self.comet_experiment.set_name(self.comet_experiment_name)
+
+                if self.comet_tags:
+                    self.comet_experiment.add_tags(self.comet_tags)
+
+                if self.comet_others:
+                    self.comet_experiment.log_others(self.comet_others)
+
+                logging.info("> setting up comet ...")
+            except ImportError as e:
+                logging.error(
+                    f'{FAIL} importing comet. Comet can be installed with "pip install comet_llm". See https://github.com/comet-ml/comet-llm for more info. Full error is:'
+                )
+                raise e
+            except Exception as e:
+                logging.error(
+                    f'{FAIL} Error setting up Comet. Either set "use_comet: False" in your configuration file, or resolve the issue with Comet. Full error is:',
+                )
+                raise e
 
     @classmethod
     def from_ymls(cls, paths_to_yml_files: List[str], overwrite_values: Dict = None):
@@ -180,7 +232,6 @@ class NeoXArgs(*BASE_CLASSES):
         config_files = dict()
         # iterate of all to be loaded yaml files
         for conf_file_name in paths_to_yml_files:
-
             # load file
             with open(conf_file_name) as conf_file:
                 conf = yaml.load(conf_file, Loader=yaml.FullLoader)
@@ -477,7 +528,6 @@ class NeoXArgs(*BASE_CLASSES):
         return extra_ds_args
 
     def get_deepspeed_main_args(self):
-
         args_list = list()
 
         if self.autotuning_run is not None:
@@ -803,7 +853,6 @@ class NeoXArgs(*BASE_CLASSES):
 
     @staticmethod
     def check_batch_parameters(dp_world_size, train_batch, micro_batch, grad_acc):
-
         assert (
             train_batch > 0
         ), f"Train batch size: {train_batch} has to be greater than 0"
@@ -866,7 +915,8 @@ class NeoXArgs(*BASE_CLASSES):
         dp_world_size = (global_num_gpus / pp_size) / mp_size
         if not (dp_world_size % 1 == 0):
             error_message = (
-                self.__class__.__name__
+                f"{ERROR}"
+                + self.__class__.__name__
                 + ".calculate_derived() "
                 + f"(global_num_gpus / pp_size) / mp_size [({global_num_gpus} / {pp_size}) / {mp_size}] must be a whole number"
             )
@@ -1031,16 +1081,18 @@ class NeoXArgs(*BASE_CLASSES):
         self.update_value("dynamic_loss_scale", self.loss_scale is None)
 
         # Update 'is pipe parallel' flag
-        # if we set pipe_parallel_size to 0 or 1, GPT2ModelPipe.to_sequential() is called, and we run training with
+        # if we set pipe_parallel_size to 0, GPT2ModelPipe.to_sequential() is called, and we run training with
         # the sequential model without the PipelineModule wrapper to avoid the overhead it incurs
-        self.update_value(
-            "is_pipe_parallel", self.pipe_parallel_size > 1 and self.num_experts == 1
-        )
-        if self.num_experts > 1:
+        self.update_value("is_pipe_parallel", self.pipe_parallel_size >= 1)
+        if self.moe_num_experts > 1:
             assert not (
                 self.is_pipe_parallel or self.pipe_parallel_size > 1
             ), "MoE not supported with pipeline parallelism"
             assert self.zero_optimization["stage"] != 3, "MoE not compatible with zero3"
+
+            assert (
+                self.sequence_parallel is False
+            ), "MoE not compatible with Sequence Parallel"
 
         # Attention config
         if self.attention_config is None:
@@ -1066,6 +1118,15 @@ class NeoXArgs(*BASE_CLASSES):
             assert (
                 self.hidden_dropout == 0.0,
             ), "Mamba does not yet have dropout implemented"
+        if "rwkv" in self.attention_config:
+            assert (
+                self.model_parallel_size == 1
+            ), "RWKV not currently compatible with model parallelism"
+            if isinstance(self.zero_stage, int):
+                assert self.zero_stage <= 2, "Zero stage 3 not compatible with RWKV"
+            assert (
+                self.hidden_dropout == 0.0,
+            ), "RWKV does not yet have dropout implemented"
 
         # Sparsity config
         if self.sparsity_config is None:
@@ -1107,15 +1168,19 @@ class NeoXArgs(*BASE_CLASSES):
         # Adding equal dataset weights if none are provided
         if self.train_data_paths and (self.train_data_weights is None):
             self.train_data_weights = [1.0] * len(self.train_data_paths)
+        elif self.pos_train_data_paths and (self.train_data_weights is None):
+            self.train_data_weights = [1.0] * len(self.pos_train_data_paths)
         if self.valid_data_paths and (self.valid_data_weights is None):
             self.valid_data_weights = [1.0] * len(self.valid_data_paths)
+        elif self.pos_valid_data_paths and (self.valid_data_weights is None):
+            self.valid_data_weights = [1.0] * len(self.pos_valid_data_paths)
         if self.test_data_paths and (self.test_data_weights is None):
             self.test_data_weights = [1.0] * len(self.test_data_paths)
+        elif self.pos_test_data_paths and (self.test_data_weights is None):
+            self.test_data_weights = [1.0] * len(self.pos_test_data_paths)
 
-        if self.label_data_paths:
-            err_str = (
-                "Must use `label_data_paths` with `train_data_paths`, not `data_path`"
-            )
+        if self.train_label_data_paths:
+            err_str = "Must use `train_label_data_paths` with `train_data_paths`, not `data_path`"
             assert self.train_data_paths and not self.data_path, err_str
 
         # if a sample input file is provided, default text_gen_type type to input-file
@@ -1176,7 +1241,9 @@ class NeoXArgs(*BASE_CLASSES):
 
         # learning rate
         if self.lr is None:
-            error_message = self.__class__.__name__ + ".validate_values() lr is None"
+            error_message = (
+                f"{FAIL} " + self.__class__.__name__ + ".validate_values() lr is None"
+            )
             logging.error(error_message)
             raise ValueError(error_message)
             return False
@@ -1191,7 +1258,8 @@ class NeoXArgs(*BASE_CLASSES):
         for req_arg in required_args:
             if getattr(self, req_arg) is None:
                 error_message = (
-                    self.__class__.__name__
+                    f"{FAIL}"
+                    + self.__class__.__name__
                     + ".validate_values() "
                     + req_arg
                     + " is None."
@@ -1201,9 +1269,12 @@ class NeoXArgs(*BASE_CLASSES):
                 return False
 
         # Checks.
-        if self.hidden_size % self.num_attention_heads != 0:
+        if self.hidden_size % self.num_attention_heads != 0 and not (
+            "mamba" in self.attention_config
+        ):
             error_message = (
-                self.__class__.__name__
+                f"{FAIL}"
+                + self.__class__.__name__
                 + ".validate_values() hidden_size must be divisible by num_attention_heads"
             )
             logging.error(error_message)
@@ -1213,7 +1284,8 @@ class NeoXArgs(*BASE_CLASSES):
         if self.seq_length is not None:
             if not (self.max_position_embeddings >= self.seq_length):
                 error_message = (
-                    self.__class__.__name__
+                    f"{FAIL}"
+                    + self.__class__.__name__
                     + ".validate_values() max_position_embeddings must be bigger or equal seq_length"
                 )
                 logging.error(error_message)
@@ -1222,7 +1294,8 @@ class NeoXArgs(*BASE_CLASSES):
 
         if not (self.min_lr <= self.lr):
             error_message = (
-                self.__class__.__name__
+                "{FAIL}"
+                + self.__class__.__name__
                 + ".validate_values() min_lr must be smaller or equal lr"
             )
             logging.error(error_message)
@@ -1235,7 +1308,8 @@ class NeoXArgs(*BASE_CLASSES):
             and self.extra_save_iters is None
         ):
             error_message = (
-                self.__class__.__name__
+                f"{FAIL}"
+                + self.__class__.__name__
                 + ".validate_values() checkpoint_factor or extra_save_iters must be defined if save is defined"
             )
             logging.error(error_message)
@@ -1244,10 +1318,10 @@ class NeoXArgs(*BASE_CLASSES):
 
         # Parameters sharing does not work with torch DDP.
         if (self.num_unique_layers is not None) and (self.num_layers is not None):
-
             if not (self.num_unique_layers <= self.num_layers):
                 error_message = (
-                    self.__class__.__name__
+                    f"{FAIL}"
+                    + self.__class__.__name__
                     + ".validate_values() num-unique-layers must be smaller or equal num_layers"
                 )
                 logging.error(error_message)
@@ -1256,7 +1330,8 @@ class NeoXArgs(*BASE_CLASSES):
 
             if not (self.num_layers % self.num_unique_layers == 0):
                 error_message = (
-                    self.__class__.__name__
+                    f"{FAIL}"
+                    + self.__class__.__name__
                     + ".validate_values() num-layers should be divisible by num-unique-layers"
                 )
                 logging.error(error_message)
@@ -1265,7 +1340,8 @@ class NeoXArgs(*BASE_CLASSES):
 
         if self.fp16_lm_cross_entropy and self.precision != "fp16":
             error_message = (
-                self.__class__.__name__
+                f"{FAIL}"
+                + self.__class__.__name__
                 + ".validate_values() lm cross entropy in fp16 only support in fp16 mode."
             )
             logging.error(error_message)
@@ -1283,13 +1359,13 @@ class NeoXArgs(*BASE_CLASSES):
         ]
         if all(has_separate_path):
             assert self.data_path is None, (
-                "Please provide *either* `data_path` or `train/valid/test_data_path` "
+                f"{FAIL} Please provide *either* `data_path` or `train/valid/test_data_path` "
                 "in args "
             )
 
         # assert that if one of train/test/valid_data_path are provided, all should be
         assert_error_mess = (
-            "One or more of train/valid/test data_path are not provided:\n\t"
+            f"{FAIL} One or more of train/valid/test data_path are not provided:\n\t"
         )
         assert_error_mess += "\n\t".join(
             [
@@ -1345,7 +1421,8 @@ class NeoXArgs(*BASE_CLASSES):
                         if actual_value.lower() in lowercase_accepted_values:
                             continue
                     logging.error(
-                        self.__class__.__name__
+                        f"{FAIL}"
+                        + self.__class__.__name__
                         + ".validate_types() "
                         + f"{field_name}: '{actual_value}' Not in accepted values: '{accepted_values}'"
                     )
@@ -1356,14 +1433,16 @@ class NeoXArgs(*BASE_CLASSES):
                         continue
                     else:
                         logging.error(
-                            self.__class__.__name__
+                            f"{FAIL}"
+                            + self.__class__.__name__
                             + ".validate_types() "
                             + f"{field_name}: '{actual_type}' not in {accepted_types}"
                         )
                         return False
 
                 logging.error(
-                    self.__class__.__name__
+                    f"{FAIL}"
+                    + self.__class__.__name__
                     + ".validate_types() "
                     + f"{field_name}: '{actual_type}' instead of '{field_def.type}'"
                 )
@@ -1385,7 +1464,8 @@ class NeoXArgs(*BASE_CLASSES):
                         return False
                 else:
                     logging.error(
-                        self.__class__.__name__
+                        f"{FAIL}"
+                        + self.__class__.__name__
                         + ".validate_types() "
                         + f"{field_name}: must contain key 'type'"
                     )
@@ -1393,14 +1473,16 @@ class NeoXArgs(*BASE_CLASSES):
                 if "params" in value:
                     if not isinstance(value["params"], dict):
                         logging.error(
-                            self.__class__.__name__
+                            f"{FAIL}"
+                            + self.__class__.__name__
                             + ".validate_types() "
                             + f"{field_name}: key 'params' must be a dict"
                         )
                         return False
                 else:
                     logging.error(
-                        self.__class__.__name__
+                        f"{FAIL}"
+                        + self.__class__.__name__
                         + ".validate_types() "
                         + f"{field_name}: must contain key 'params'"
                     )
@@ -1411,7 +1493,8 @@ class NeoXArgs(*BASE_CLASSES):
             if isinstance(value, dict):
                 if not "enabled" in value:
                     error_message = (
-                        self.__class__.__name__
+                        f"{FAIL}"
+                        + self.__class__.__name__
                         + ".validate_types() "
                         + f"{field_name}: must contain key 'enabled'"
                     )

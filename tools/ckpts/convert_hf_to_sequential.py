@@ -123,12 +123,23 @@ def shard_sequential_mp(num_mp_ranks, sequential):
             [
                 x in k
                 for x in [
+                    "dense_4h_to_h.bias",
+                    "attention.dense.bias",
+                ]
+            ],
+        ):
+            # Divide by tp_size since they get added together
+            for x in range(num_mp_ranks):
+                ranks[x][k] = v / num_mp_ranks
+        elif reduce(
+            np.logical_or,
+            [
+                x in k
+                for x in [
                     "layernorm",
                     "rotary_emb",
-                    "dense_4h_to_h.bias",
                     "norm.weight",
                     "norm.bias",
-                    "attention.dense.bias",
                 ]
             ],
         ):
@@ -504,6 +515,7 @@ if __name__ == "__main__":
     neox_args.configure_distributed_args()
     neox_args.build_tokenizer()
     neox_args.initialize_tensorboard_writer()
+    neox_args.comet()
 
     # setup logging and timers
     # init_wandb(neox_args=neox_args)
@@ -526,7 +538,7 @@ if __name__ == "__main__":
         dist_init_required=False,
         model_parameters=None,
         config_params=neox_args.deepspeed_config,
-        mpu=mpu if not neox_args.is_pipe_parallel else None,
+        mpu=mpu,
     )
 
     if os.environ.get("OMPI_COMM_WORLD_RANK", "1") == "0":

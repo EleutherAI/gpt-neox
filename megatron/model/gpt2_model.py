@@ -37,6 +37,7 @@ from megatron.model.transformer import (
     ParallelLinear,
 )
 from megatron.model.gmlp import GMLPBlock
+from megatron.model.rwkv.v6 import RWKVResidualLayerPipe
 from megatron.model.mamba import ParallelMambaResidualLayerPipe
 from megatron.model.word_embeddings import EmbeddingPipe, SoftEmbedding
 
@@ -176,6 +177,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                 "GMLPBlock",
                 "ParallelTransformerLayerPipe",
                 "ParallelMambaResidualLayerPipe",
+                "RWKVResidualLayerPipe",
             ],
         )
 
@@ -253,6 +255,14 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                         mask_fn=gpt2_attention_mask_func,
                     )
                 )
+            elif layer_type == "rwkv":
+                self.specs.append(
+                    LayerSpec(
+                        RWKVResidualLayerPipe,
+                        neox_args=self.neox_args,
+                        layer_number=i,
+                    )
+                )
             elif layer_type in ["mamba"]:
                 self.specs.append(
                     LayerSpec(
@@ -296,7 +306,8 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                 lm_output,
                 embedding.word_embeddings_weight,
                 self.parallel_output,
-                self.neox_args,
+                seq_parallel=self.neox_args.sequence_parallel,
+                args=self.neox_args,
             )
             return logits
 

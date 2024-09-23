@@ -1,15 +1,13 @@
 # GPT-2 pretraining setup
 {
+   # See README for MoE config docs!
+   "moe_type": "deepspeed",
+   "moe_token_dropping": true,
    # Have 4 experts per layer (every 2 layers by default)
-   # So with 12 layers total:
-   # 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11
-   # Experts would be in layers:
-   # 0, 2, 4, 6, 8, 10
-   "num_experts": 4,
-
-   # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
-   # across the node boundaries )
-   "pipe_parallel_size": 1,
+   "moe_num_experts": 4,
+   # parallelism settings
+   "enable_expert_tensor_parallelism": true,
+   "pipe_parallel_size": 1, # not yet supported for MoE
    "model_parallel_size": 1,
    "moe_expert_parallel_size": 1,
 

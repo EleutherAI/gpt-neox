@@ -6,7 +6,4 @@
   "checkpoint_validation_with_forward_pass": false,
   "tensorboard_dir": "tensorboard",
   "log_dir": "logs",
-  "use_wandb": true,
-  "wandb_host": "https://api.wandb.ai",
-  "wandb_project": "neox"
 }

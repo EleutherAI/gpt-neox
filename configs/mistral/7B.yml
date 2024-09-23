@@ -33,8 +33,7 @@
   "bias_gelu_fusion": false,
   "use_bias_in_norms": false,
   "use_bias_in_attn_linear": false,
-  "mlp_type": "llama",
-  "activation": "silu",
+  "activation": "swiglu",
 
   "tokenizer_type": "SPMTokenizer",
   #"vocab-file": ".../mistral-7B-v0.1/tokenizer.model", # use tokenizer.model from Mistral-7B-v0.1 direct download

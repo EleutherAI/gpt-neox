@@ -50,6 +50,10 @@ class Embedding(torch.nn.Module):
         self.hidden_size = hidden_size
         self.init_method = init_method
         self.num_tokentypes = num_tokentypes
+        self.sequence_parallel = (
+            neox_args.sequence_parallel
+        )  # if we are using sequence parallelism, then we'll want to scatter our inputs across the seqlen dim across TP ranks
+
         self.mup_embedding_multiplier = (
             float(neox_args.mup_embedding_multiplier) if neox_args.use_mup else 1.0
         )
@@ -155,6 +159,11 @@ class Embedding(torch.nn.Module):
         embeddings = self.embedding_dropout(embeddings)
         # Y_emb = m_emb * embed(X)
         embeddings = torch.mul(embeddings, self.mup_embedding_multiplier)
+
+        if self.sequence_parallel:
+            # TODO: megatron-lm does dropout using the scattered embs. This would save a tiny bit of time, perhaps?
+            # Not a priority since we don't often use dropout
+            embeddings = mpu.scatter_to_sequence_parallel_region(embeddings)
 
         return embeddings
 

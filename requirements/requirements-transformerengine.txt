@@ -1,0 +1,1 @@
+pip install git+https://github.com/NVIDIA/TransformerEngine.git@stable
