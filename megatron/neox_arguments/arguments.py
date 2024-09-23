@@ -1041,6 +1041,8 @@ class NeoXArgs(*BASE_CLASSES):
         )
 
         if self.optimizer_type.lower() == "onebitadam":
+            assert self.train_iters is not None, "OneBitAdam requires train_iters to be specified"
+
             # onebitadam needs to instantiated by deepspeed, and so we need to pass deepspeed scheduler args
             # for all other optimizers, the scheduling is handled by megatron
             self.scheduler = {

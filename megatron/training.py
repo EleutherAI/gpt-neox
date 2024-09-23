@@ -175,7 +175,7 @@ def update_iterations(neox_args, data_loaders):
     """
     Compute the number of train iterations if not specified and num_epochs, updates the neox_args object.
     Note that if len(train_dataloader) % train_micro_batch_size_per_gpu != 0, this will configure neox
-    to do as many iterations as possible while ensuring that each example is seen at most train_epochs 
+    to do as many iterations as possible while ensuring that each example is seen *at most* train_epochs 
     times.
     """
     if neox_args.train_iters is not None:

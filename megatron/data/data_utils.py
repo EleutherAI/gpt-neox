@@ -265,12 +265,15 @@ def get_normalized_weights_and_num_samples(
     weight_sum = sum(weights)
     assert weight_sum > 0.0
     weights = [weight / weight_sum for weight in weights]
-    # Add 0.5% (the 1.005 factor) so in case the blending dataset does
-    # not uniformly distribute the number of samples, we still have
-    # samples left to feed to the network.
-    weighted_num_samples = []
-    for weight in weights:
-        weighted_num_samples.append(int(math.ceil(num_samples * weight * 1.005)))
+    if num_samples is not None:
+        # Add 0.5% (the 1.005 factor) so in case the blending dataset does
+        # not uniformly distribute the number of samples, we still have
+        # samples left to feed to the network.
+        weighted_num_samples = []
+        for weight in weights:
+            weighted_num_samples.append(int(math.ceil(num_samples * weight * 1.005)))
+    else:
+        weighted_num_samples = [None for _ in weights]
     return weights, weighted_num_samples
 
 
@@ -467,7 +470,7 @@ def validate_train_epochs(neox_args):
     if neox_args.weight_by_num_documents:
         raise ValueError("Weighting by number of documents is currently unsupported with train_epochs")
     
-    if not all(weight == 1.0 for weight in neox_args.train_data_weights):
+    if neox_args.train_data_weights and (not all(weight == 1.0 for weight in neox_args.train_data_weights)):
         raise ValueError("train_data_weights != None is currently unsupported with train_epochs")
 
 
@@ -610,7 +613,9 @@ def build_train_valid_test_data_loaders(neox_args):
 
         # Flags to know if we need to do training/validation/testing.
         if neox_args.train_epochs:
-            do_train,do_valid, do_test = train_dataloader, valid_dataloader, test_dataloader
+            do_train = train_dataloader is not None
+            do_valid = valid_dataloader is not None
+            do_test = test_dataloader is not None
         else:
             do_train = train_dataloader is not None and neox_args.train_iters > 0 
             do_valid = valid_dataloader is not None and neox_args.eval_iters > 0
