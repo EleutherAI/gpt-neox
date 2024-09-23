@@ -1,0 +1,14 @@
+# GPT-2 pretraining setup
+{
+   "split": "949,50,1",
+   #"data_path": "data/enwik8/enwik8_text_document",
+   "train_data_paths": ["data/enwik8/enwik8_text_document"],
+   "test_data_paths": ["data/enwik8/enwik8_text_document"],
+   "valid_data_paths": ["data/enwik8/enwik8_text_document"],
+   "vocab_file": "data/gpt2-vocab.json",
+   "merge_file": "data/gpt2-merges.txt",
+   "save": "checkpoints",
+   "load": "checkpoints",
+   "tensorboard_dir": "tensorboard",
+   "log_dir": "logs",
+}

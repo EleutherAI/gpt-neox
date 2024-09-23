@@ -16,7 +16,7 @@ import math
 import torch
 import numpy as np
 from typing import List, Tuple
-from itertools import zip_longest
+from itertools import zip_longest, cycle
 from functools import partial
 
 from megatron import mpu, print_rank_0
@@ -647,7 +647,7 @@ def build_train_valid_test_data_loaders(neox_args):
     }
     return data_loaders
 
-def shift_and_wrap_data_loaders(neox_args, data_loaders):
+def shift_and_wrap_data_loaders(neox_args, data_loaders, loop=True):
     """Shift start iteration and wrap data_loaders in iterators"""
     train_dataloader = data_loaders["train"]
     valid_dataloader = data_loaders["valid"]
@@ -677,20 +677,35 @@ def shift_and_wrap_data_loaders(neox_args, data_loaders):
                 valid_dataloader.batch_sampler.start_iter
             )
         )
+    
+    def loop_iterator(data_loader):
+        while True:
+            for x in data_loader:
+                yield x
+            data_loader.start_iter = 0
 
     # Build iterators.
     if train_dataloader is not None:
-        train_data_iterator = iter(train_dataloader)
+        if loop:
+            train_data_iterator = cycle(train_dataloader)
+        else:
+            train_data_iterator = iter(train_dataloader)
     else:
         train_data_iterator = None
 
     if valid_dataloader is not None:
-        valid_data_iterator = iter(valid_dataloader)
+        if loop:
+            valid_data_iterator = cycle(valid_dataloader)
+        else:
+            valid_data_iterator = iter(valid_dataloader)
     else:
         valid_data_iterator = None
 
     if test_dataloader is not None:
-        test_data_iterator = iter(test_dataloader)
+        if loop:
+            test_data_iterator = cycle(test_dataloader)
+        else:
+            test_data_iterator = iter(test_dataloader)
     else:
         test_data_iterator = None
 

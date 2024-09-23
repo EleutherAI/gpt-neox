@@ -174,7 +174,7 @@ def mup_coord_check(neox_args, timers, lr_scheduler, train_data_iterator):
 def update_iterations(neox_args, data_loaders):
     """
     Compute the number of train iterations if not specified and num_epochs, updates the neox_args object.
-    Note that if len(train_dataloader) % train_micro_batch_size_per_gpu != 0, this will configure neox
+    Note that if len(train_dataloader) % gradient_accumulation_steps != 0, this will configure neox
     to do as many iterations as possible while ensuring that each example is seen *at most* train_epochs 
     times.
     """
@@ -185,9 +185,9 @@ def update_iterations(neox_args, data_loaders):
     else:
         train_dataloader = data_loaders["train"]
         train_epochs = neox_args.train_epochs
-        train_micro_batch_size_per_gpu = neox_args.train_micro_batch_size_per_gpu
+        gradient_accumulation_steps = neox_args.gradient_accumulation_steps
 
-        train_iterations = (len(train_dataloader)*train_epochs) // train_micro_batch_size_per_gpu
+        train_iterations = (len(train_dataloader)*train_epochs) // gradient_accumulation_steps
 
         neox_args.train_iters = train_iterations
         print_rank_0(f"Training for a total of {train_iterations} iterations, corresponding to  {train_epochs} epochs.")
@@ -240,7 +240,6 @@ def pretrain(neox_args):
         test_data_iterator,
     ) = shift_and_wrap_data_loaders(neox_args=neox_args, data_loaders=data_loaders)
     timers("train/valid/test data iterators").stop()
-
 
     if neox_args.use_mup and neox_args.coord_check:
         mup_coord_check(neox_args, timers, lr_scheduler, train_data_iterator)
