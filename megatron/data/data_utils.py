@@ -679,7 +679,6 @@ def shift_and_wrap_data_loaders(neox_args, data_loaders, loop=True):
 
     # Shift the start iterations.
     if train_dataloader is not None:
-        print_rank_0(neox_args.iteration, neox_args.gradient_accumulation_steps)
         train_dataloader.batch_sampler.start_iter = (
             neox_args.iteration * neox_args.gradient_accumulation_steps
         ) % len(train_dataloader)
