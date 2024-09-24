@@ -123,7 +123,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
                         samples.append(
                             dataset.get(
                                 self.doc_idx[doc_index_f],
-                                offset=offset_l,
+                                offset=offset_f,
                                 length=offset_l - offset_f + 1,
                             )
                         )
