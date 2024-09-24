@@ -1119,9 +1119,9 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Whether to cast logits to fp32 for Reinforce loss calculation.
     """
 
-    use_full_kl: bool = True
+    kl_impl: Literal["abs", "mse", "kl", "full"] = "mse"
     """
-    Use full KL divergence in Reinforce loss calculation.
+    KL divergence implementation, can be one of "abs", "mse", "kl", or "full"
     """
 
     kl_div_beta: float = 0.1

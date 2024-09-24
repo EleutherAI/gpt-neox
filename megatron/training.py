@@ -205,7 +205,7 @@ def pretrain(neox_args):
     )
     timers("model and optimizer").stop()
 
-    if neox_args.serve_weights:
+    if neox_args.serve_model_weights:
         start_server(model)
         # sync...
         torch.distributed.barrier()
@@ -784,7 +784,7 @@ def forward_step(
                 if type(ref_outputs) is tuple:
                     ref_outputs, _ = ref_outputs
                 ref_outputs = ref_outputs
-                if neox_args.use_full_kl:
+                if neox_args.kl_impl == "full":
                     # Have to do the loss over all tokens...
                     ref_outputs = gather_from_model_parallel_region(ref_outputs)
                     if neox_args.fp32_reinforce:
@@ -801,7 +801,7 @@ def forward_step(
         outputs = model((tokens, position_ids, attention_mask), neox_args=neox_args)
         if type(outputs) is tuple:
             outputs, _ = outputs
-        if neox_args.use_full_kl:
+        if neox_args.kl_impl == "full":
             # Have to do the loss over all tokens...
             outputs = gather_from_model_parallel_region(outputs)
             if neox_args.fp32_reinforce:
@@ -818,14 +818,20 @@ def forward_step(
             metrics["reward_std"] = raw_rewards.clone().detach().std()
         loss_mask_sum = loss_mask.sum()
         if reference_model is not None:
-            if neox_args.use_full_kl:
+            if neox_args.kl_impl == "full":
                 # Following along with
-                # https://github.com/huggingface/trl/blob/104a02d207b63a4a062882aaff68f2d275493399/trl/trainer/ppo_trainer.py#L1120
+                # https://github.com/huggingface/trl/blob/104a02d207b63a4a062882aaff68f2d275493399/trl/trainer/ppo_trainer.py#L1109
                 kl = F.kl_div(ref_logp, logp, log_target=True, reduction="none").sum(-1)
-                metrics["kl"] = kl.clone().detach().mean()
             else:
-                kl = (per_token_logp - ref_per_token_logp).sum(-1)
-                metrics["kl"] = kl.clone().detach()
+                kl = per_token_logp - ref_per_token_logp
+                if neox_args.kl_impl == "abs":
+                    kl = kl.abs()
+                elif neox_args.kl_impl == "mse":
+                    kl = 0.5 * (kl).square()
+                elif neox_args.kl_impl == "kl":
+                    pass
+            with torch.no_grad():
+                metrics["kl"] = kl.clone().detach().mean()
             loss = (-per_token_logp * rewards) + (neox_args.kl_div_beta * kl)
             loss = (loss * loss_mask).sum(-1) / loss_mask_sum
             loss = loss.mean()
@@ -1145,7 +1151,7 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
             (neox_args.train_impl == "kto")
             and (neox_args.precompute_model_name is None)
         )
-        or ((neox_args.train_type == "reinforce") and (neox_args.kl_div_beta > 0.0))
+        or ((neox_args.train_impl == "reinforce") and (neox_args.kl_div_beta > 0.0))
     )
     model = get_model(neox_args=neox_args, use_cache=use_cache)
     if needs_reference_model:
@@ -1278,7 +1284,6 @@ def train_step(
     reference_model=None,
 ):
     """Single training step."""
-
     # Pipeline parallelism schedules forward/backward/step
     if neox_args.is_pipe_parallel:
         reduced_loss = train_step_pipe(

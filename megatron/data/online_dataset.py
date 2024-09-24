@@ -23,7 +23,7 @@ import torch
 import torch.utils.data
 import socket
 import pickle
-from megatron.mpu.initialize import get_data_parallel_src_rank
+from megatron.mpu.initialize import get_data_parallel_rank
 
 
 class OnlineDataset(torch.utils.data.Dataset):
@@ -37,7 +37,7 @@ class OnlineDataset(torch.utils.data.Dataset):
         dataserver_ports: Union[int, List[int]] = 10000,
     ):
         self.num_samples = num_samples
-        self.global_rank = get_data_parallel_src_rank()
+        self.global_rank = get_data_parallel_rank()
         self.leave_one_out = leave_one_out
         self.reward_buffer = []
         self.online_batching_data = []
@@ -62,6 +62,7 @@ class OnlineDataset(torch.utils.data.Dataset):
         else:
             # in case we want to use different ports for different ranks, e.g. per machine sampling
             port = self.dataserver_ports[self.global_rank]
+        print(f"Connecting to {ipaddr}:{port}")
         s.connect((ipaddr, port))
         s.send(self.data_split.encode())
         data = b""
