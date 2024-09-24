@@ -494,6 +494,9 @@ def validate_train_epochs(neox_args):
     
     if neox_args.train_data_weights and (not all(weight == 1.0 for weight in neox_args.train_data_weights)):
         raise ValueError("train_data_weights != None is currently unsupported with train_epochs")
+    
+    if neox_args.dataset_impl !=  "gpt2":
+        raise ValueError("non gpt2 datasets are not currently unsupported with train_epochs")
 
 
 def build_train_valid_test_data_loaders(neox_args):

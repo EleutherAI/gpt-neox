@@ -1193,6 +1193,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     train_epochs: int = None
     """
     Number of epochs to run for training. Do not specify both train_epochs and train_iters.
+    Not currently compatible with data reweighing, pairwise datasets, and packing other than 'packed'
     """
 
     eval_iters: int = 100

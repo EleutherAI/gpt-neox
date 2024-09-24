@@ -1928,6 +1928,15 @@ Training Arguments
 
 
 
+- **train_epochs**: int
+
+    Default = None
+
+    Number of epochs to run for training. Do not specify both train_epochs and train_iters.
+    Not currently compatible with data reweighing, pairwise datasets, and packing other than 'packed'
+
+
+
 - **eval_iters**: int
 
     Default = 100
