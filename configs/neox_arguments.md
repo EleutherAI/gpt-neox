@@ -111,7 +111,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 217b4c5
+    Default = 62c9738a
 
     current git hash of repository
 
@@ -130,6 +130,54 @@ Logging Arguments
     Default = None
 
     Write TensorBoard logs to this directory.
+
+
+
+- **use_comet**: bool
+
+    Default = None
+
+    Flag indicating if comet is to be used.
+
+
+
+- **comet_workspace**: Optional
+
+    Default = None
+
+    Comet workspace name, if not configured Comet Experiments will be created in the user configured default workspace.
+
+
+
+- **comet_project**: Optional
+
+    Default = None
+
+    Comet project name, if not configured Comet Experiments will be created in the Uncategorized Experiments project.
+
+
+
+- **comet_experiment_name**: Optional
+
+    Default = None
+
+    Custom name for the Comet experiment. If not provided, a random name is used.
+
+
+
+- **comet_tags**: Optional
+
+    Default = None
+
+    List of tags to attach to the created Comet Experiment.
+
+
+
+- **comet_others**: Optional
+
+    Default = None
+
+    Custom metadata to attach to the created Comet Experiment.
 
 
 
@@ -281,9 +329,23 @@ Model Arguments
 
     Default = None
 
-    Transformer intermediate size. Currently only used for "mlp_type": "llama".
+    Transformer intermediate size. Default = 4h
 
-    If not passed, will be set to a reasonable default.
+
+
+- **mlp_multiple_of**: int
+
+    Default = 1
+
+    force mlp size to be a multiple of this value
+
+
+
+- **expansion_factor**: float
+
+    Default = None
+
+    Transformer intermediate size. Default = 4
 
 
 
@@ -348,6 +410,14 @@ Model Arguments
     Default = False
 
     Use fused layer norm kernel (if `norm` is `layernorm`).
+
+
+
+- **rmsnorm_fusion**: bool
+
+    Default = False
+
+    Use fused RMS norm kernel (if `norm` is `rmsnorm`).
 
 
 
@@ -497,11 +567,19 @@ Model Arguments
 
 
 
-- **activation**: typing.Literal['gelu', 'geglu', 'relu', 'softsign', 'swish', 'mish', 'silu']
+- **activation**: typing.Literal['gelu', 'geglu', 'relu', 'softsign', 'swish', 'mish', 'silu', 'reglu', 'swiglu', 'bilinear', 'glu']
 
     Default = gelu
 
-    Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish", "silu"]
+    Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish", "silu", "reglu", "swiglu", "bilinear", "glu"]
+
+
+
+- **use_flashattn_swiglu**: bool
+
+    Default = False
+
+    Use flash attention's version of swiglu
 
 
 
@@ -681,13 +759,11 @@ Model Arguments
 
 
 
-- **mlp_type**: str
+- **use_bias_in_mlp**: bool
 
-    Default = regular
+    Default = True
 
-    Types:
-        regular: Megatron implementation
-        llama: LLaMA MLP (SiLU-gated MLP)
+    If false, mlps will not have bias terms
 
 
 
@@ -1091,7 +1167,15 @@ Text Generation arguments
     Default = None
 
     How to generate text/sample the model.
-    Options: `unconditional`, `input-file`, `interactive`
+    Options: `unconditional`, `input-file`, `interactive`, `precompute`
+
+
+
+- **precompute_model_name**: str
+
+    Default = None
+
+    Model name to use for saving precomputed logprobs
 
 
 
@@ -1378,11 +1462,19 @@ Training Arguments
 
 
 
-- **label_data_paths**: list
+- **train_label_data_paths**: list
 
     Default = None
 
-    List of paths to label datasets (not shifted by 1 yet!).
+    List of paths to train label datasets (not shifted by 1 yet!).
+
+
+
+- **train_reward_data_paths**: list
+
+    Default = None
+
+    List of paths to train reward datasets
 
 
 
@@ -1394,11 +1486,139 @@ Training Arguments
 
 
 
+- **test_label_data_paths**: list
+
+    Default = None
+
+    List of paths to test label datasets (not shifted by 1 yet!).
+
+
+
+- **test_reward_data_paths**: list
+
+    Default = None
+
+    List of paths to test reward datasets
+
+
+
 - **valid_data_paths**: list
 
     Default = None
 
     List of paths to validation datasets.
+
+
+
+- **valid_label_data_paths**: list
+
+    Default = None
+
+    List of paths to validation label datasets (not shifted by 1 yet!).
+
+
+
+- **valid_reward_data_paths**: list
+
+    Default = None
+
+    List of paths to validation reward datasets
+
+
+
+- **pos_train_data_paths**: list
+
+    Default = None
+
+    
+
+
+
+- **neg_train_data_paths**: list
+
+    Default = None
+
+    List of paths to positive and negative training datasets.
+
+
+
+- **pos_train_label_data_paths**: list
+
+    Default = None
+
+    
+
+
+
+- **neg_train_label_data_paths**: list
+
+    Default = None
+
+    List of paths to positive and negative training label datasets (not shifted by 1 yet!).
+
+
+
+- **pos_valid_data_paths**: list
+
+    Default = None
+
+    
+
+
+
+- **neg_valid_data_paths**: list
+
+    Default = None
+
+    List of paths to positive and negative validation datasets.
+
+
+
+- **pos_valid_label_data_paths**: list
+
+    Default = None
+
+    
+
+
+
+- **neg_valid_label_data_paths**: list
+
+    Default = None
+
+    List of paths to positive and negative validation label datasets (not shifted by 1 yet!).
+
+
+
+- **pos_test_data_paths**: list
+
+    Default = None
+
+    
+
+
+
+- **neg_test_data_paths**: list
+
+    Default = None
+
+    List of paths to positive and negative test datasets.
+
+
+
+- **pos_test_label_data_paths**: list
+
+    Default = None
+
+    
+
+
+
+- **neg_test_label_data_paths**: list
+
+    Default = None
+
+    List of paths to positive and negative test label datasets (not shifted by 1 yet!).
 
 
 
@@ -1466,6 +1686,99 @@ Training Arguments
     Default = infer
 
     Implementation of indexed datasets, can be one of "infer", "cached", or "mmap"
+
+
+
+- **pack_impl**: typing.Literal['packed', 'pack_until_overflow', 'unpacked']
+
+    Default = packed
+
+    Packing implementation, can be one of "packed", "pack_until_overflow", or "unpacked".
+
+    warning: pack_until_overflow is very naive and will likely have issues with pretraining scale datasets
+
+
+
+- **dataset_impl**: typing.Literal['gpt2', 'pairwise']
+
+    Default = gpt2
+
+    Dataset implementation, can be one of "gpt2" or "pairwise"
+
+
+
+- **train_impl**: typing.Literal['normal', 'dpo', 'rm', 'kto']
+
+    Default = normal
+
+    Training implementation, can be one of "normal", "dpo", "kto", or "rm"
+
+
+
+- **dpo_fp32**: bool
+
+    Default = True
+
+    Whether to cast logits to fp32 for DPO loss calculation.
+
+
+
+- **dpo_reference_free**: bool
+
+    Default = False
+
+    Whether to use reference-free DPO.
+
+
+
+- **dpo_beta**: float
+
+    Default = 0.1
+
+    Beta value for DPO
+
+
+
+- **kto_fp32**: bool
+
+    Default = True
+
+    Whether to cast logits to fp32 for KTO loss calculation.
+
+
+
+- **kto_desirable_weight**: float
+
+    Default = 1.0
+
+    Weight for desirable loss in KTO. Might help if you have unbalanced desirable and undesirable classes.
+
+
+
+- **kto_undesirable_weight**: float
+
+    Default = 1.0
+
+    Weight for undesirable loss in KTO. Might help if you have unbalanced desirable and undesirable classes.
+
+
+
+- **kto_beta**: float
+
+    Default = 0.1
+
+    Beta value for KTO
+
+
+
+- **allow_chopped**: bool
+
+    Default = True
+
+    WARNING: if your packing impl is packed, this is ignored.
+
+    Allow chopped samples in the dataset.
+    (e.g if your sequence length is 1024 and you have a sample of length 1026, it will be chopped to 1024)
 
 
 

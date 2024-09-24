@@ -60,6 +60,7 @@ from megatron.utils import (
     CharCounter,
 )
 from megatron.model.gpt2_model import cross_entropy
+from megatron.mpu import vocab_parallel_cross_entropy
 
 from pickle import dump
 import os
@@ -286,6 +287,7 @@ def pretrain(neox_args):
             iteration=iteration,
             verbose=False,
             timers=timers,
+            reference_model=reference_model,
         )
 
     if neox_args.save and iteration != 0:
@@ -310,10 +312,11 @@ def pretrain(neox_args):
             verbose=True,
             timers=timers,
             chart_name="test",
+            reference_model=reference_model,
         )
 
 
-def _get_batch(neox_args, tokenizer, keys, data, datatype):
+def _get_batch(neox_args, tokenizer, keys, data, datatype, label_mask_zero=False):
     """Support function for get_batch / get_batch pipe (to avoid code repetition)"""
     data_b = mpu.broadcast_data(keys, data, datatype)
     token_key = keys[0]
@@ -330,6 +333,8 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype):
     else:
         label_mask = (tokens_.long() >= 0)[:, 1:].contiguous()
         labels = tokens_[:, 1:].contiguous()
+        if label_mask_zero:
+            labels = labels * label_mask
     tokens = tokens_[:, :-1].contiguous()
 
     # Get the masks and position ids.
@@ -349,9 +354,9 @@ def get_batch(neox_args, data_iterator):
     """Generate a batch"""
 
     # Items and their type.
-    if neox_args.train_impl == "normal":
+    if neox_args.train_impl in ["normal", "kto"]:
         keys = ["text", "label"] if neox_args.train_label_data_paths else ["text"]
-    elif neox_args.train_impl in ["dpo", "rm"]:
+    elif neox_args.train_impl == "dpo":
         keys = (
             [["pos", "pos_label"], ["neg", "neg_label"]]
             if neox_args.pos_train_label_data_paths
@@ -372,6 +377,25 @@ def get_batch(neox_args, data_iterator):
             data=data,
             datatype=datatype,
         )
+    elif neox_args.train_impl == "kto":
+        tup = _get_batch(
+            neox_args=neox_args,
+            tokenizer=neox_args.tokenizer,
+            keys=keys,
+            data=data,
+            datatype=datatype,
+        )
+        # Remove the last token from the reward since we predict the next token, so
+        # Reward of <current prediction> will be based on the label of <next token>
+        rw_data = mpu.broadcast_data(["reward"], data, torch.float)["reward"][
+            :, :-1
+        ].contiguous()
+        ref_data = (
+            mpu.broadcast_data(["ref"], data, torch.float)["ref"][:, :-1].contiguous()
+            if neox_args.precompute_model_name
+            else None
+        )
+        return tup + (rw_data, ref_data)
     elif neox_args.train_impl in ["dpo", "rm"]:
         pos_tup = _get_batch(
             neox_args=neox_args,
@@ -379,6 +403,7 @@ def get_batch(neox_args, data_iterator):
             keys=keys[0],
             data=data,
             datatype=datatype,
+            label_mask_zero=True,
         )
         neg_tup = _get_batch(
             neox_args=neox_args,
@@ -386,8 +411,9 @@ def get_batch(neox_args, data_iterator):
             keys=keys[1],
             data=data,
             datatype=datatype,
+            label_mask_zero=True,
         )
-        if (neox_args.precompute_model_name) and (neox_args.train_impl == "dpo"):
+        if neox_args.precompute_model_name:
             ref_data = mpu.broadcast_data(["pos_ref", "neg_ref"], data, torch.float)
         else:
             ref_data = {"pos_ref": None}
@@ -494,13 +520,18 @@ def mb_moe_loss_func(args, loss_mask, output_tensor=None):
     return averaged_lbl, loss_dict
 
 
-def get_pos_neg_logp(logits, labels, force_fp32=False):
+def get_logp(logits, labels, force_fp32=False):
+    # Rather than reimplementing logp, cross entropy loss is actually logp, just inverted.
     if force_fp32:
         logits = logits.float()
-    logp = logits.log_softmax(dim=-1)
-    per_token_logp = torch.gather(logp, dim=2, index=labels.unsqueeze(2)).squeeze(2)
-    # Split to pos/neg...
-    return torch.chunk(per_token_logp, 2, 0)
+    return -vocab_parallel_cross_entropy(logits, labels)
+
+
+def get_pos_neg_logp(logits, labels, force_fp32=False):
+    # Rather than reimplementing logp, cross entropy loss is actually logp, just inverted.
+    if force_fp32:
+        logits = logits.float()
+    return torch.chunk(-vocab_parallel_cross_entropy(logits, labels), 2, 0)
 
 
 def forward_step(
@@ -525,6 +556,16 @@ def forward_step(
         tokens, labels, loss_mask, attention_mask, position_ids = get_batch(
             neox_args=neox_args, data_iterator=data_iterator
         )
+    elif neox_args.train_impl == "kto":
+        (
+            tokens,
+            labels,
+            loss_mask,
+            attention_mask,
+            position_ids,
+            rewards,
+            ref_logp,
+        ) = get_batch(neox_args=neox_args, data_iterator=data_iterator)
     if neox_args.train_impl in ["dpo", "rm"]:
         tokens, labels, loss_mask, attention_mask, position_ids, ref_logp = get_batch(
             neox_args=neox_args, data_iterator=data_iterator
@@ -566,40 +607,16 @@ def forward_step(
         else:
             moe_loss = 0.0
         loss = main_loss + moe_loss
-    elif neox_args.train_impl == "rm":
-        maybe_tuple = model((tokens, position_ids, attention_mask), neox_args=neox_args)
-        if type(maybe_tuple) is tuple:
-            outputs, _ = maybe_tuple
-        else:
-            outputs = maybe_tuple
-        pos, neg = torch.chunk(outputs, 2, 0)
-        pos_loss_mask, neg_loss_mask = torch.chunk(loss_mask, 2, 0)
-        # We assume that each pos, neg pair occur in the same order
-        # e.g. second nonzero pos is the corresponding second nonzero neg
-        # and that there are also an equal number of pos and neg in each sequence.
-        pos_indx = pos_loss_mask.nonzero()
-        neg_indx = neg_loss_mask.nonzero()
-        # indx[:, 0] is the batch index, indx[:, 1] is the token index, we only care about the token index.
-        pos_indx = pos_indx[:, 1].unsqueeze(1)
-        neg_indx = neg_indx[:, 1].unsqueeze(1)
-        pos = torch.gather(pos.squeeze(), dim=1, index=pos_indx)
-        neg = torch.gather(neg.squeeze(), dim=1, index=neg_indx)
-        with torch.no_grad():
-            metrics["pos_values"] = pos.clone().detach().mean()
-            metrics["neg_values"] = neg.clone().detach().mean()
-            metrics["margin"] = (pos - neg).clone().detach().mean()
-            metrics["accuracy"] = ((pos - neg) > 0).clone().detach().float().mean()
-        loss = (-F.logsigmoid(pos - neg).mean()) + (
-            (neox_args.z_loss * (pos**2 + neg**2)).mean()
-        )
     elif neox_args.train_impl == "dpo":
         # Based on https://github.com/eric-mitchell/direct-preference-optimization/blob/main/trainers.py#L90
-        with torch.no_grad():
+        with torch.inference_mode():
             # So we can gather token logps...
             token_logp_labels = labels.clone()
-            token_logp_labels[token_logp_labels == -100] = 0
             pos_loss_mask, neg_loss_mask = torch.chunk(loss_mask, 2, 0)
-            if ref_logp is None:
+            if neox_args.dpo_reference_free:
+                ref_pos = 0
+                ref_neg = 0
+            elif ref_logp is None:
                 ref_maybe_tuple = reference_model(
                     (tokens, position_ids, attention_mask), neox_args=neox_args
                 )
@@ -608,8 +625,6 @@ def forward_step(
                     ref_outputs, _ = ref_maybe_tuple
                 else:
                     ref_outputs = ref_maybe_tuple
-                # gather across tensor parallel group
-                ref_outputs = gather_from_model_parallel_region(ref_outputs)
                 ref_pos, ref_neg = get_pos_neg_logp(
                     ref_outputs, token_logp_labels, neox_args.dpo_fp32
                 )
@@ -625,7 +640,6 @@ def forward_step(
             chosen_outputs, _ = chosen_maybe_tuple
         else:
             chosen_outputs = chosen_maybe_tuple
-        chosen_outputs = gather_from_model_parallel_region(chosen_outputs)
         chosen_pos, chosen_neg = get_pos_neg_logp(
             chosen_outputs, token_logp_labels, neox_args.dpo_fp32
         )
@@ -633,25 +647,136 @@ def forward_step(
         chosen_neg = (chosen_neg * neg_loss_mask).sum(-1)
         with torch.no_grad():
             # Collect metrics...
-            metrics["ref_neg"] = ref_neg.clone().detach().mean()
-            metrics["ref_pos"] = ref_pos.clone().detach().mean()
+            if not neox_args.dpo_reference_free:
+                metrics["ref_neg"] = ref_neg.clone().detach().mean()
+                metrics["ref_pos"] = ref_pos.clone().detach().mean()
             metrics["chosen_neg"] = chosen_neg.clone().detach().mean()
             metrics["chosen_pos"] = chosen_pos.clone().detach().mean()
-            chosen_rewards = neox_args.dpo_beta * (
-                chosen_pos.clone().detach() - ref_pos.clone().detach()
-            )
-            rejected_rewards = neox_args.dpo_beta * (
-                chosen_neg.clone().detach() - ref_neg.clone().detach()
-            )
-            reward_acc = (chosen_rewards > rejected_rewards).float()
-            metrics["reward_acc"] = reward_acc.mean()
-            metrics["chosen_rewards"] = chosen_rewards.mean()
-            metrics["rejected_rewards"] = rejected_rewards.mean()
-            metrics["margins"] = (chosen_rewards - rejected_rewards).mean()
+            if not neox_args.dpo_reference_free:
+                chosen_rewards = neox_args.dpo_beta * (
+                    chosen_pos.clone().detach() - ref_pos.clone().detach()
+                )
+                rejected_rewards = neox_args.dpo_beta * (
+                    chosen_neg.clone().detach() - ref_neg.clone().detach()
+                )
+                metrics["chosen_rewards"] = chosen_rewards.mean()
+                metrics["rejected_rewards"] = rejected_rewards.mean()
+                reward_acc = (chosen_rewards > rejected_rewards).float()
+                metrics["reward_acc"] = reward_acc.mean()
+                metrics["margins"] = (chosen_rewards - rejected_rewards).mean()
         pi_logrations = chosen_pos - chosen_neg
         ref_logrations = ref_pos - ref_neg
         logits = pi_logrations - ref_logrations
         loss = -F.logsigmoid(neox_args.dpo_beta * logits).mean()
+    elif neox_args.train_impl == "kto":
+        # Based on https://github.com/huggingface/trl/blob/main/trl/trainer/kto_trainer.py
+        # Except we don't have an extra input for KL logp, we just split the batch in half
+        with torch.no_grad():
+            # So we can gather token logps...
+            token_logp_labels = labels.clone()
+            token_logp_labels[token_logp_labels == -100] = 0
+            if ref_logp is None:
+                # Did not precompute logits....
+                ref_maybe_tuple = reference_model(
+                    (tokens, position_ids, attention_mask), neox_args=neox_args
+                )
+                if type(ref_maybe_tuple) is tuple:
+                    # We should ignore MoE losses yeah?
+                    ref_outputs, _ = ref_maybe_tuple
+                else:
+                    ref_outputs = ref_maybe_tuple
+                # gather across tensor parallel group
+                ref_outputs = gather_from_model_parallel_region(ref_outputs)
+
+                ref_logp = get_logp(ref_outputs, token_logp_labels, neox_args.kto_fp32)
+            else:
+                print(f"REF LOGP: {ref_logp.clone().detach().mean()}")
+            ref_logp = ref_logp * loss_mask
+            scaling = (rewards.sum(-1) > 0.001).float() * neox_args.kto_desirable_weight
+            scaling += (
+                rewards.sum(-1) < -0.001
+            ).float() * neox_args.kto_undesirable_weight
+            pos_mask = (rewards > 0.001).float()
+            neg_mask = (rewards < -0.001).float()
+        chosen_maybe_tuple = model(
+            (tokens, position_ids, attention_mask), neox_args=neox_args
+        )
+        if type(chosen_maybe_tuple) is tuple:
+            # We should ignore MoE losses yeah?
+            chosen_outputs, _ = chosen_maybe_tuple
+        else:
+            chosen_outputs = chosen_maybe_tuple
+        chosen_outputs = gather_from_model_parallel_region(chosen_outputs)
+        chosen_logp = get_logp(chosen_outputs, token_logp_labels, neox_args.kto_fp32)
+        chosen_logp = chosen_logp * loss_mask
+        with torch.no_grad():
+            # Collect metrics...
+            metrics["ref_logp"] = ref_logp.clone().detach().sum(-1).mean()
+            metrics["policy_logp"] = chosen_logp.clone().detach().sum(-1).mean()
+            metrics["pos_ref_logp"] = (
+                (ref_logp * pos_mask).clone().detach().sum(-1).mean()
+            )
+            metrics["neg_ref_logp"] = (
+                (ref_logp * neg_mask).clone().detach().sum(-1).mean()
+            )
+            metrics["pos_policy_logp"] = (
+                (chosen_logp * pos_mask).clone().detach().sum(-1).mean()
+            )
+            metrics["neg_policy_logp"] = (
+                (chosen_logp * neg_mask).clone().detach().sum(-1).mean()
+            )
+            metrics["kl"] = (
+                chosen_logp.clone().detach() - ref_logp.clone().detach()
+            ).sum() / loss_mask.sum()
+            policy_rewards = (
+                neox_args.kto_beta
+                * rewards
+                * (chosen_logp.clone().detach() - ref_logp.clone().detach())
+            )
+            reward_acc = (policy_rewards.sum(-1) > 0.0).float()
+            metrics["reward_acc"] = reward_acc.mean()
+            metrics["policy_rewards"] = policy_rewards.sum()
+            print(metrics)
+        pol_logp1, pol_logp2 = torch.chunk(chosen_logp, 2, 0)
+        ref_logp1, ref_logp2 = torch.chunk(ref_logp, 2, 0)
+        reward1, reward2 = torch.chunk(rewards, 2, 0)
+        scaling1, scaling2 = torch.chunk(scaling, 2, 0)
+        kl1 = torch.clamp((pol_logp1 - ref_logp1).sum(-1), min=0).mean()
+        kl2 = torch.clamp((pol_logp2 - ref_logp2).sum(-1), min=0).mean()
+        log_ratio1 = pol_logp1 - ref_logp1
+        log_ratio2 = pol_logp2 - ref_logp2
+
+        # TODO: Add pack_until_overflow sequence support
+        loss = (
+            0.5
+            * scaling1.mean(-1)
+            * (
+                1
+                - F.sigmoid(
+                    (
+                        neox_args.kto_beta
+                        * reward1.mean(-1)
+                        * (log_ratio1.sum(-1) - kl2.clone().detach())
+                    )
+                )
+            )
+        ) + (
+            0.5
+            * scaling2.mean(-1)
+            * (
+                1
+                - F.sigmoid(
+                    (
+                        neox_args.kto_beta
+                        * reward2.mean(-1)
+                        * (log_ratio2.sum(-1) - kl1.clone().detach())
+                    )
+                )
+            )
+        )
+        # print(loss.shape)
+        loss = loss.mean()
+        # print(loss.shape)
     if neox_args.memory_profiling:
         torch.cuda.nvtx.range_pop()
     if return_logits:
@@ -693,7 +818,7 @@ def get_model(neox_args, use_cache=False):
         model = GPT2ModelPipe(
             neox_args=neox_args,
             num_tokentypes=0,
-            parallel_output=True if neox_args.train_impl != "rm" else False,
+            parallel_output=True,
             topology=mpu.get_topology(),
             use_cache=use_cache,
         )
@@ -954,9 +1079,11 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
         )
 
     """Setup model and optimizer."""
-    needs_reference_model = (neox_args.train_impl == "dpo") and (
-        neox_args.precompute_model_name is None
-    )
+    needs_reference_model = (
+        (neox_args.train_impl == "dpo")
+        and (neox_args.precompute_model_name is None)
+        and (not neox_args.dpo_reference_free)
+    ) or ((neox_args.train_impl == "kto") and (neox_args.precompute_model_name is None))
     model = get_model(neox_args=neox_args, use_cache=use_cache)
     if needs_reference_model:
         reference_model = get_model(neox_args=neox_args, use_cache=use_cache)
@@ -1044,6 +1171,7 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
                 lr_scheduler=ref_lr_scheduler,
                 iteration=iteration,
             )
+            reference_model.eval()
         print_rank_0(
             f"Loading checkpoint and starting from iteration {neox_args.iteration}"
         )
@@ -1341,6 +1469,7 @@ def train(
                 iteration=iteration,
                 verbose=False,
                 timers=timers,
+                reference_model=reference_model,
             )
 
         if neox_args.exit_interval and iteration % neox_args.exit_interval == 0:
@@ -1358,7 +1487,13 @@ def train(
 
 
 def evaluate(
-    neox_args, forward_step_fn, data_iterator, model, verbose=False, timers=None
+    neox_args,
+    forward_step_fn,
+    data_iterator,
+    model,
+    verbose=False,
+    timers=None,
+    reference_model=None,
 ):
     """Evaluation.
     neox_args: NeoX Arguments
@@ -1399,6 +1534,7 @@ def evaluate(
                     data_iterator=data_iterator,
                     neox_args=neox_args,
                     timers=timers,
+                    reference_model=reference_model,
                 )
                 losses.append(loss)
                 for key in metric_dict.keys():
@@ -1456,6 +1592,7 @@ def evaluate_and_print_results(
     verbose=False,
     timers=None,
     chart_name="validation",
+    reference_model=None,
 ):
     """Helper function to evaluate and dump results on screen."""
     total_loss_dict = evaluate(
@@ -1465,6 +1602,7 @@ def evaluate_and_print_results(
         model=model,
         verbose=verbose,
         timers=timers,
+        reference_model=reference_model,
     )
     string = f" {chart_name} results at {prefix} | "
     for k, v in total_loss_dict.items():

@@ -42,6 +42,8 @@ class GPT2Dataset(torch.utils.data.Dataset):
         build_index_mappings=True,
         use_shared_fs=True,
         label_dataset=None,
+        reward_dataset=None,
+        ref_dataset=None,
     ):
 
         self.name = name
@@ -49,9 +51,14 @@ class GPT2Dataset(torch.utils.data.Dataset):
         self.allow_chopped = allow_chopped
         self.indexed_dataset = indexed_dataset
         self.label_dataset = label_dataset
+        self.reward_dataset = reward_dataset
+        self.ref_dataset = ref_dataset
         self.seq_length = seq_length
 
         # Checks
+        assert self.reward_dataset is None or (
+            pack_impl == "unpacked"
+        ), "Reward dataset only supported with unpacked data."
         assert np.min(documents) >= 0
         assert np.max(documents) < indexed_dataset.sizes.shape[0]
 
@@ -92,77 +99,101 @@ class GPT2Dataset(torch.utils.data.Dataset):
             offset_f = self.sample_idx[idx][1]
             offset_l = self.sample_idx[idx + 1][1]
             # Labels and texts are supposed to be fully in sync.
-            datasets = (
-                [self.indexed_dataset]
-                if self.label_dataset is None
-                else [self.indexed_dataset, self.label_dataset]
-            )
+            datasets = [self.indexed_dataset]
+            rw_indx = 1
+            if self.label_dataset is not None:
+                rw_indx += 1
+                datasets.append(self.label_dataset)
+            if self.reward_dataset is not None:
+                datasets.append(self.reward_dataset)
+            else:
+                rw_indx = -1
+            if self.ref_dataset is not None:
+                datasets.append(self.ref_dataset)
             samples = []
+            sample_lengths = []
             # If we are within the same document, just extract the chunk.
             for n, dataset in enumerate(datasets):
                 if doc_index_f == doc_index_l:
-                    samples.append(
-                        dataset.get(
-                            self.doc_idx[doc_index_f],
-                            offset=offset_f,
-                            length=offset_l - offset_f + 1,
+                    if rw_indx == n:
+                        # If we are in the reward dataset, we only need the last token.
+                        rw = dataset.get(self.doc_idx[doc_index_f])
+                        samples.append(
+                            np.array([rw[0] for _ in range(len(samples[-1]))])
                         )
-                    )
+                    else:
+                        samples.append(
+                            dataset.get(
+                                self.doc_idx[doc_index_f],
+                                offset=offset_f,
+                                length=offset_l - offset_f + 1,
+                            )
+                        )
                 else:
+                    if n != rw_indx:
+                        # reset
+                        sample_lengths = []
                     # Otherwise, get the rest of the initial document.
-                    sample_list = [
-                        dataset.get(self.doc_idx[doc_index_f], offset=offset_f)
-                    ]
+                    if n == rw_indx:
+                        rw = dataset.get(self.doc_idx[doc_index_f])
+                        sample_list = [
+                            np.array([rw[0] for _ in range(sample_lengths.pop(0))])
+                        ]
+                    else:
+                        sample_list = [
+                            dataset.get(self.doc_idx[doc_index_f], offset=offset_f)
+                        ]
+                        sample_lengths.append(len(sample_list[-1]))
                     # Loop over all in between documents and add the entire document.
                     for i in range(doc_index_f + 1, doc_index_l):
-                        sample_list.append(dataset.get(self.doc_idx[i]))
+                        if n == rw_indx:
+                            rw = dataset.get(self.doc_idx[i])
+                            sample_list.append(
+                                np.array([rw[0] for _ in range(sample_lengths.pop(0))])
+                            )
+                        else:
+                            sample_list.append(dataset.get(self.doc_idx[i]))
+                            sample_lengths.append(len(sample_list[-1]))
                     # And finally add the relevant portion of last document.
-                    sample_list.append(
-                        dataset.get(self.doc_idx[doc_index_l], length=offset_l + 1)
-                    )
+                    if n == rw_indx:
+                        rw = dataset.get(self.doc_idx[doc_index_l])
+                        sample_list.append(
+                            np.array([rw[0] for _ in range(sample_lengths.pop(0))])
+                        )
+                    else:
+                        sample_list.append(
+                            dataset.get(self.doc_idx[doc_index_l], length=offset_l + 1)
+                        )
+                        sample_lengths.append(len(sample_list[-1]))
                     samples.append(np.concatenate(sample_list))
-
-            if len(datasets) == 1:
-                if len(samples[0]) < (self.seq_length + 1):
-                    # Pad with -100s so the masking function can ignore these.
-                    samples[0] = np.pad(
-                        samples[0],
-                        (0, (self.seq_length + 1) - len(samples[0])),
+            for i in range(len(samples)):
+                mask = (self.label_dataset is not None) and (i == 1)
+                if len(samples[i]) < (self.seq_length + 1):
+                    # Pad
+                    samples[i] = np.pad(
+                        samples[i],
+                        (0, (self.seq_length + 1) - len(samples[i])),
                         mode="constant",
-                        constant_values=-100,
+                        constant_values=-100 if mask else 0,
                     )
-                elif len(samples[0]) > (self.seq_length + 1):
-                    # Check for overflow and truncate.
-                    samples[0] = samples[0][: (self.seq_length + 1)]
-                return {"text": np.array(samples[0], dtype=np.int64)}
-            else:
-                if len(samples[0]) < (self.seq_length + 1):
-                    # Pad with 0s, can use any number since it's masked.
-                    samples[0] = np.pad(
-                        samples[0],
-                        (0, (self.seq_length + 1) - len(samples[0])),
-                        mode="constant",
-                        constant_values=0,
-                    )
-                    # pad with -100s so we can mask it out
-                    samples[1] = np.pad(
-                        samples[1],
-                        (0, (self.seq_length + 1) - len(samples[1])),
-                        mode="constant",
-                        constant_values=-100,
-                    )
-                elif len(samples[0]) > (self.seq_length + 1):
-                    # Check for overflow and truncate.
-                    samples[0] = samples[0][: (self.seq_length + 1)]
-                    samples[1] = samples[1][: (self.seq_length + 1)]
-                return {
-                    "text": np.array(samples[0], dtype=np.int64),
-                    "label": np.array(samples[1], dtype=np.int64),
-                }
-        except IndexError:
+                elif len(samples[i]) > (self.seq_length + 1):
+                    # Truncate
+                    samples[i] = samples[i][: (self.seq_length + 1)]
+            ret = {"text": np.array(samples[0], dtype=np.int64)}
+            next_idx = 1
+            if self.label_dataset is not None:
+                ret["label"] = np.array(samples[next_idx], dtype=np.int64)
+                next_idx += 1
+            if self.reward_dataset is not None:
+                ret["reward"] = np.array(samples[next_idx], dtype=np.float32)
+                next_idx += 1
+            if self.ref_dataset is not None:
+                ret["ref"] = np.array(samples[next_idx], dtype=np.float32)
+            return ret
+        except IndexError as err:
             new_idx = idx % len(self)
             print(
-                f"WARNING: Got index out of bounds error with index {idx} - taking modulo of index instead ({new_idx})"
+                f"WARNING: Got index out of bounds error with index {idx} - taking modulo of index instead ({new_idx}), error: {err}"
             )
             return self[new_idx]
 
