@@ -408,6 +408,8 @@ def main():
     for key in update_keys:
         builders[key].finalize(output_idx_files[key])
         builders[key + "_label"].finalize(output_idx_files[key + "_label"])
+        if args.reward_key is not None:
+            builders[key + "_reward"].finalize(output_idx_files[key + "_reward"])
 
 
 if __name__ == "__main__":
