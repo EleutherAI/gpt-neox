@@ -478,25 +478,38 @@ def weights_by_num_docs(l: list, alpha=0.3):
 
     return weights
 
+
 def validate_train_epochs(neox_args):
     """Check for unsupported neox_args when using train_epochs instead of train_iters"""
     if neox_args.train_epochs is None:
         return
-    
+
     if neox_args.train_epochs and neox_args.train_iters:
-        raise ValueError("Cannot specify both train epochs and train iters simultaneously")
-    
+        raise ValueError(
+            "Cannot specify both train epochs and train iters simultaneously"
+        )
+
     if neox_args.pack_impl != "packed":
-        raise ValueError("Packing implementations other than 'packed' are currently unsupported with train_epochs")
-    
+        raise ValueError(
+            "Packing implementations other than 'packed' are currently unsupported with train_epochs"
+        )
+
     if neox_args.weight_by_num_documents:
-        raise ValueError("Weighting by number of documents is currently unsupported with train_epochs")
-    
-    if neox_args.train_data_weights and (not all(weight == 1.0 for weight in neox_args.train_data_weights)):
-        raise ValueError("train_data_weights != None is currently unsupported with train_epochs")
-    
-    if neox_args.dataset_impl !=  "gpt2":
-        raise ValueError("non gpt2 datasets are not currently unsupported with train_epochs")
+        raise ValueError(
+            "Weighting by number of documents is currently unsupported with train_epochs"
+        )
+
+    if neox_args.train_data_weights and (
+        not all(weight == 1.0 for weight in neox_args.train_data_weights)
+    ):
+        raise ValueError(
+            "train_data_weights != None is currently unsupported with train_epochs"
+        )
+
+    if neox_args.dataset_impl != "gpt2":
+        raise ValueError(
+            "non gpt2 datasets are not currently unsupported with train_epochs"
+        )
 
 
 def build_train_valid_test_data_loaders(neox_args):
@@ -523,7 +536,9 @@ def build_train_valid_test_data_loaders(neox_args):
         # Number of train/valid/test samples.
         if neox_args.train_iters is not None:
             train_iters = neox_args.train_iters
-            eval_iters = (train_iters // neox_args.eval_interval + 1) * neox_args.eval_iters
+            eval_iters = (
+                train_iters // neox_args.eval_interval + 1
+            ) * neox_args.eval_iters
             test_iters = neox_args.eval_iters
             train_val_test_num_samples = [
                 train_iters * neox_args.train_batch_size,
@@ -533,7 +548,7 @@ def build_train_valid_test_data_loaders(neox_args):
             train_val_test_epochs = [None, None, None]
         elif neox_args.train_epochs is not None:
             train_val_test_num_samples = [None, None, None]
-            train_val_test_epochs = [1,1,1]
+            train_val_test_epochs = [1, 1, 1]
 
         if (neox_args.train_data_paths) or (neox_args.pos_train_data_paths):
             # when individual train / valid / test data paths are provided
@@ -641,7 +656,7 @@ def build_train_valid_test_data_loaders(neox_args):
             do_valid = valid_dataloader is not None
             do_test = test_dataloader is not None
         else:
-            do_train = train_dataloader is not None and neox_args.train_iters > 0 
+            do_train = train_dataloader is not None and neox_args.train_iters > 0
             do_valid = valid_dataloader is not None and neox_args.eval_iters > 0
             do_test = test_dataloader is not None and neox_args.eval_iters > 0
 
@@ -665,11 +680,12 @@ def build_train_valid_test_data_loaders(neox_args):
     neox_args.do_valid = flags[1].item()
     neox_args.do_test = flags[2].item()
     data_loaders = {
-        "train":train_dataloader,
-        "valid":valid_dataloader, 
-        "test":test_dataloader
+        "train": train_dataloader,
+        "valid": valid_dataloader,
+        "test": test_dataloader,
     }
     return data_loaders
+
 
 def shift_and_wrap_data_loaders(neox_args, data_loaders, loop=True):
     """Shift start iteration and wrap data_loaders in iterators"""
@@ -701,7 +717,7 @@ def shift_and_wrap_data_loaders(neox_args, data_loaders, loop=True):
                 valid_dataloader.batch_sampler.start_iter
             )
         )
-    
+
     def loop_iterator(data_loader):
         while True:
             for x in data_loader:
