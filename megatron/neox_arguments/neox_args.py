@@ -522,6 +522,46 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Use TransformerEngine for MultiheadAttention layer.
     """
 
+    fp8_format: Literal["e4m3", "hybrid"] = "hybrid"
+    """
+    Controls the FP8 data format used during forward and backward pass by TransformerEngine.
+    Hybrid uses E4M3 during forward pass, E5M2 during backward pass.
+    """
+
+    fp8_wgrad: bool = True
+    """
+    When set to False, override FP8 config options and do the wgrad computation
+    in higher precision.
+    """
+
+    fp8_amax_history_len: int = 1
+    """
+    The length of the amax history window used for scaling factor computation.
+    """
+
+    fp8_amax_compute_algo: str = "most_recent"
+    """
+    Algorithm used for choosing the `amax` value for the scaling factor computation. There are 2
+    predefined choices: `max` chooses the largest `amax` in the history window, while `most_recent`
+    always chooses the most recently seen value.
+    """
+
+    fp8_wgrad: bool = True
+    """
+    When set to False, override FP8 config options and do the wgrad computation
+    in higher precision.
+    """
+
+    fp8_margin: int = 0
+    """
+    Margin for the scaling factor computation.
+    """
+
+    fp8_mha: bool = False
+    """
+    When set to True, use the FP8 implementation of Multi Head Attention.
+    """
+
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):
     """

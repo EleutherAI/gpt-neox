@@ -340,6 +340,8 @@ class ParallelSelfAttention(nn.Module):
     ):
         super().__init__()
 
+        ColumnParallelLinear, RowParallelLinear = linear_implementation_router(neox_args)
+
         self.fp16 = neox_args.precision == "fp16"
         self.bf16 = neox_args.precision == "bfloat16"
         self.attention_mask_func = attention_mask_func
@@ -393,7 +395,7 @@ class ParallelSelfAttention(nn.Module):
 
         if not self.gqa:
             # Strided linear layer.
-            self.query_key_value = mpu.ColumnParallelLinear(
+            self.query_key_value = ColumnParallelLinear(
                 neox_args=neox_args,
                 input_size=neox_args.hidden_size,
                 output_size=3 * neox_args.hidden_size,
@@ -403,7 +405,7 @@ class ParallelSelfAttention(nn.Module):
             )
         else:
             # QKV proj is smaller if we are using GQA / MQA
-            self.query_key_value = mpu.ColumnParallelLinear(
+            self.query_key_value = ColumnParallelLinear(
                 neox_args=neox_args,
                 input_size=neox_args.hidden_size,
                 output_size=neox_args.hidden_size + 2 * self.kv_hidden_size,
@@ -411,6 +413,7 @@ class ParallelSelfAttention(nn.Module):
                 init_method=init_method,
                 bias=neox_args.use_bias_in_attn_linear,
             )
+
 
         coeff = None
         self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
@@ -857,19 +860,17 @@ class ParallelSelfAttention(nn.Module):
         return query_layer, key_layer, value_layer
 
     def forward(self, hidden_states, attention_mask, layer_past=None):
-
+        
         # hidden_states: [sq, b, h]
 
         # =====================
         # Query, Key, and Value
         # =====================
-
         if not self.gqa:
             # QKV projection for MHA.
 
             # Attention heads [sq, b, h] --> [sq, b, (np * 3 * hn)]
             mixed_x_layer, _ = self.query_key_value(hidden_states)
-
             # [sq, b, (np * 3 * hn)] --> [sq, b, np, 3 * hn]
             new_tensor_shape = mixed_x_layer.size()[:-1] + (
                 self.num_attention_heads_per_partition,
@@ -889,7 +890,6 @@ class ParallelSelfAttention(nn.Module):
             query_layer, key_layer, value_layer = self.gqa_project(
                 hidden_states, attention_mask, layer_past=layer_past
             )
-
         # QK Normalization https://arxiv.org/abs/2302.05442
         if self.use_qk_layernorm:
             query_layer = self.qk_layernorm(query_layer)
@@ -933,6 +933,7 @@ class ParallelSelfAttention(nn.Module):
             if exists(self.rotary_ndims):
                 query_layer = torch.cat((query_layer, query_pass), dim=-1)
                 key_layer = torch.cat((key_layer, key_pass), dim=-1)
+
 
         # ==================================
         # Cache key and value for inference
@@ -1027,7 +1028,7 @@ class ParallelTransformerLayer(nn.Module):
             )
 
         # Self attention.
-        if neox_args.te_mha:
+        if neox_args.te_mha or neox_args.fp8_mha:
             from megatron.model.transformer_engine import TEMultiheadAttention
             self.attention = TEMultiheadAttention(
             neox_args=neox_args,
@@ -1200,134 +1201,149 @@ class ParallelTransformerLayer(nn.Module):
         bias_dropout_fn = self._get_bias_dropout()
         moe_loss = torch.tensor(0.0, device=x.device, dtype=x.dtype)
         # x: [b, s, h]
-        if self.gpt_j_residual:
-            # pseudocode:
-            # x = x + attn(ln(x)) + mlp(ln(x))
-            # this means we can avoid doing the allreduce in the attn / mlp outputs
-            # to save communication time (we can do a single allreduce after we add mlp / attn outputs).
-            # due to a bug, the two layernorms are not tied in GPT-NeoX-20B. This is non-desirable, but
-            # we preserve the functionality for backwards compatibility
+        
+        
+        #Enable delayedscaling if TransformerEngine's FP8 is used for MHA layer.
+        if self.neox_args.fp8_mha:
+            from megatron.model.transformer_engine import TEDelayedScaling
 
-            residual = x
-            # applies the correct normalization depending on if the norms are tied
-            if self.gpt_j_tied and not self.neox_args.te_layernorm_mlp:
-                x = self.input_layernorm(x)
-                x1, x2 = x, x
-            elif self.gpt_j_tied and self.neox_args.te_layernorm_mlp:
-                x2 = x
-                x = self.input_layernorm(x)
-                x1 = x
-            elif self.neox_args.te_layernorm_mlp:
-                x1, x2 = self.input_layernorm(x), x
-            else:
-                x1, x2 = self.input_layernorm(x), self.post_attention_layernorm(x)
-
-            # attention operator
-            attention_output, attention_bias = self.attention(
-                x1, attention_mask, layer_past=layer_past
+            fp8_recipe = TEDelayedScaling(
+                neox_args=self.neox_args
             )
-            if self.use_cache:
-                attention_output, presents = attention_output
-                self.layer_past = presents
-
-            if attention_bias is not None:
-                with torch.enable_grad() if not self.eval else nullcontext():
-                    attention_output = bias_dropout_fn(
-                        attention_output,
-                        bias=attention_bias.expand_as(attention_output),
-                        residual=None,
-                        prob=self.hidden_dropout,
-                    )
-
-            # mlp operator
-            mlp_output, mlp_bias = self.mlp(x2)
-            if mlp_bias is not None:
-                with torch.enable_grad() if not self.eval else nullcontext():
-                    output = bias_dropout_fn(
-                        mlp_output,
-                        bias=mlp_bias.expand_as(mlp_output),
-                        residual=attention_output,
-                        prob=self.hidden_dropout,
-                    )
-            else:
-                output = mlp_output
-
-            # output = (x + attn(ln(x)) + mlp(ln(x))
-            output = residual + self.reduce(output)
+            fp8_context = fp8_recipe.get_context()
         else:
-            # pseudocode:
-            # x = x + attn(ln1(x))
-            # x = x + mlp(ln2(x))
+            from contextlib import nullcontext
+            fp8_context = nullcontext()
 
-            residual = x
+        with fp8_context:
+            if self.gpt_j_residual:
+                # pseudocode:
+                # x = x + attn(ln(x)) + mlp(ln(x))
+                # this means we can avoid doing the allreduce in the attn / mlp outputs
+                # to save communication time (we can do a single allreduce after we add mlp / attn outputs).
+                # due to a bug, the two layernorms are not tied in GPT-NeoX-20B. This is non-desirable, but
+                # we preserve the functionality for backwards compatibility
 
-            # x = x + attn(ln1(x))
-            attention_output, attention_bias = self.attention(
-                self.input_layernorm(x), attention_mask, layer_past=layer_past
-            )
-            if self.use_cache:
-                attention_output, presents = attention_output
-                self.layer_past = presents
-            with torch.enable_grad() if not self.eval else nullcontext():
-                if attention_bias is not None:
-                    # Use special bias_dropout_fn if we have a bias term from the above attention layer
-                    attention_output = bias_dropout_fn(
-                        attention_output,
-                        bias=attention_bias.expand_as(residual),
-                        residual=residual,
-                        prob=self.hidden_dropout,
-                    )
+                residual = x
+                # applies the correct normalization depending on if the norms are tied
+                if self.gpt_j_tied and not self.neox_args.te_layernorm_mlp:
+                    x = self.input_layernorm(x)
+                    x1, x2 = x, x
+                elif self.gpt_j_tied and self.neox_args.te_layernorm_mlp:
+                    x2 = x
+                    x = self.input_layernorm(x)
+                    x1 = x
+                elif self.neox_args.te_layernorm_mlp:
+                    x1, x2 = self.input_layernorm(x), x
                 else:
-                    # Otherwise just apply dropout + residual
-                    attention_output = (
-                        torch.nn.functional.dropout(
+                    x1, x2 = self.input_layernorm(x), self.post_attention_layernorm(x)
+
+                # attention operator
+                attention_output, attention_bias = self.attention(
+                    x1, attention_mask, layer_past=layer_past
+                )
+                if self.use_cache:
+                    attention_output, presents = attention_output
+                    self.layer_past = presents
+
+                if attention_bias is not None:
+                    with torch.enable_grad() if not self.eval else nullcontext():
+                        attention_output = bias_dropout_fn(
                             attention_output,
-                            p=self.hidden_dropout,
-                            training=self.training,
+                            bias=attention_bias.expand_as(attention_output),
+                            residual=None,
+                            prob=self.hidden_dropout,
                         )
-                        + residual
-                    )
 
-            # output = x + mlp(ln2(x))
-            if self.neox_args.te_layernorm_mlp:
-                layernorm_output = attention_output
-            else:
-                layernorm_output = self.post_attention_layernorm(attention_output)
-            mlp_bias = torch.tensor(
-                0.0, device=layernorm_output.device, dtype=layernorm_output.dtype
-            )
+                # mlp operator
+                mlp_output, mlp_bias = self.mlp(x2)
+                if mlp_bias is not None:
+                    with torch.enable_grad() if not self.eval else nullcontext():
+                        output = bias_dropout_fn(
+                            mlp_output,
+                            bias=mlp_bias.expand_as(mlp_output),
+                            residual=attention_output,
+                            prob=self.hidden_dropout,
+                        )
+                else:
+                    output = mlp_output
 
-            if self.num_experts == 1:
-                mlp_output, mlp_bias = self.mlp(layernorm_output)
+                # output = (x + attn(ln(x)) + mlp(ln(x))
+                output = residual + self.reduce(output)
             else:
-                if self.moe_type == "deepspeed":
-                    mlp_output, moe_loss, _ = self.mlp(layernorm_output)
-                    mlp_bias = (
-                        None  # deepspeed.moe.layer.MoE.forward ignores the bias term
-                    )
-                elif self.moe_type == "megablocks":
+                # pseudocode:
+                # x = x + attn(ln1(x))
+                # x = x + mlp(ln2(x))
+
+                residual = x
+
+                # x = x + attn(ln1(x))
+                attention_output, attention_bias = self.attention(
+                    self.input_layernorm(x), attention_mask, layer_past=layer_past
+                )
+                if self.use_cache:
+                    attention_output, presents = attention_output
+                    self.layer_past = presents
+                with torch.enable_grad() if not self.eval else nullcontext():
+                    if attention_bias is not None:
+                        # Use special bias_dropout_fn if we have a bias term from the above attention layer
+                        attention_output = bias_dropout_fn(
+                            attention_output,
+                            bias=attention_bias.expand_as(residual),
+                            residual=residual,
+                            prob=self.hidden_dropout,
+                        )
+                    else:
+                        # Otherwise just apply dropout + residual
+                        attention_output = (
+                            torch.nn.functional.dropout(
+                                attention_output,
+                                p=self.hidden_dropout,
+                                training=self.training,
+                            )
+                            + residual
+                        )
+
+                # output = x + mlp(ln2(x))
+                if self.neox_args.te_layernorm_mlp:
+                    layernorm_output = attention_output
+                else:
+                    layernorm_output = self.post_attention_layernorm(attention_output)
+                mlp_bias = torch.tensor(
+                    0.0, device=layernorm_output.device, dtype=layernorm_output.dtype
+                )
+
+                if self.num_experts == 1:
                     mlp_output, mlp_bias = self.mlp(layernorm_output)
                 else:
-                    raise KeyError(self.moe_type)
+                    if self.moe_type == "deepspeed":
+                        mlp_output, moe_loss, _ = self.mlp(layernorm_output)
+                        mlp_bias = (
+                            None  # deepspeed.moe.layer.MoE.forward ignores the bias term
+                        )
+                    elif self.moe_type == "megablocks":
+                        mlp_output, mlp_bias = self.mlp(layernorm_output)
+                    else:
+                        raise KeyError(self.moe_type)
 
-            with torch.enable_grad() if not self.eval else nullcontext():
-                if (
-                    self.activation == "swiglu"
-                    or self.num_experts > 1
-                    and self.moe_type == "deepspeed"
-                ):
-                    # No dropout either
-                    assert mlp_bias is None
-                    output = mlp_output + attention_output
-                else:
-                    output = bias_dropout_fn(
-                        mlp_output,
-                        bias=mlp_bias.expand_as(attention_output),
-                        residual=attention_output,
-                        prob=self.hidden_dropout,
-                    )
+                with torch.enable_grad() if not self.eval else nullcontext():
+                    if (
+                        self.activation == "swiglu"
+                        or self.num_experts > 1
+                        and self.moe_type == "deepspeed"
+                    ):
+                        # No dropout either
+                        assert mlp_bias is None
+                        output = mlp_output + attention_output
+                    else:
+                        output = bias_dropout_fn(
+                            mlp_output,
+                            bias=mlp_bias.expand_as(attention_output),
+                            residual=attention_output,
+                            prob=self.hidden_dropout,
+                        )
 
-        return output, moe_loss
+            return output, moe_loss
 
 
 class ParallelTransformerLayerPipe(ParallelTransformerLayer):
