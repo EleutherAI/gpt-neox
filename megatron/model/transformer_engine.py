@@ -16,10 +16,13 @@ from megatron.mpu.mappings import reduce_from_model_parallel_region
 from megatron.mpu.mappings import scatter_to_model_parallel_region
 from megatron.mpu.mappings import reduce_scatter_to_sequence_parallel_region
 from megatron.mpu.mappings import gather_from_sequence_parallel_region
+from megatron.mpu.layers import _initialize_affine_weight_gpu, _initialize_affine_weight_cpu
 from megatron.mpu.random import get_cuda_rng_tracker
 from megatron.mpu.utils import divide
 from megatron.mpu.utils import VocabUtility
 from functools import partial
+from megatron.model.positional_embeddings import RotaryEmbedding
+from megatron import mpu
 
 try:
     import transformer_engine as te
@@ -90,7 +93,6 @@ class TELinear(te.pytorch.Linear):
         mup_rescale_parameters=False,
         seq_dim=0, 
     ):
-        # Keep input parameters
         self.input_size = input_size
         self.output_size = output_size
 
@@ -105,9 +107,6 @@ class TELinear(te.pytorch.Linear):
         self.mup_rescale_parameters = mup_rescale_parameters
         self.use_mup = neox_args.use_mup
         self.params_dtype=neox_args.params_dtype
-
-        # print("##########################")
-        # print(self.return_bias)
 
         super(TELinear, self).__init__(in_features=self.input_size, out_features=self.output_size,
         bias= self.use_bias, init_method=self.init_method, get_rng_state_tracker=get_cuda_rng_tracker,
@@ -145,7 +144,6 @@ class TELayerNormMLP(te.pytorch.LayerNormMLP):
     ):
         self.activation_func, self.is_gated = get_activation(neox_args)
         self.activation_type = neox_args.activation
-        self.bias_gelu_fusion = neox_args.bias_gelu_fusion
         self.multiple_of = multiple_of
         self.bias = bias
         self.init_method = init_method
@@ -188,16 +186,17 @@ class TELayerNormMLP(te.pytorch.LayerNormMLP):
         if neox_args.norm in ['layernorm','te_layernorm']:
             self.eps=1.0e-5
             self.normalization = 'LayerNorm'
-        elif neox_args.norm == ['rmsnorm','te_rmsnorm']:
+        elif neox_args.norm in ['rmsnorm','te_rmsnorm']:
             self.eps=1.0e-8
             self.normalization = 'RMSNorm'
-        #TODO handle case if norm is not rmsnorm or layernorm
-        #TODO check if activation in list ‘gelu’, ‘geglu’, ‘relu’, ‘reglu’, ‘squared_relu’,
-        #‘swiglu’, ‘qgelu’, ‘srelu’
-        #TODO handle MOE and mup
+        else:
+            raise ValueError("Only LayerNorm and RMSNorm are supported with TransformerEngine")
+        
+        if self.activation_type not in ["gelu", "geglu", "relu", "reglu", "squared_relu","swiglu", "qgelu", "srelu"]:
+            raise ValueError("Only gelu, geglu, relu, reglu, squared_relu, swiglu, qgelu, and srelu are supported with TransformerEngine")
 
         super(TELayerNormMLP, self).__init__(hidden_size=neox_args.hidden_size, ffn_hidden_size=ffn_dim,
-        eps=self.eps, bias=self.bias, normalization=self.normalization, activation=neox_args.activation,
+        eps=self.eps, bias=self.bias, normalization=self.normalization, activation=self.activation_type,
         init_method=self.init_method, output_layer_init_method=self.output_layer_init_method,
         device=torch.cuda.current_device(), set_parallel_mode=self.set_parallel_mode,
         sequence_parallel=self.sequence_parallel, tp_group=self.tp_group, tp_size=self.world_size,
@@ -265,8 +264,6 @@ class TEColumnParallelLinear(te.pytorch.Linear):
         self.use_mup = neox_args.use_mup
         self.params_dtype=neox_args.params_dtype
         self.parallel_mode="column"
-        # print("##########################")
-        # print(self.return_bias)
 
         super(TEColumnParallelLinear, self).__init__(in_features=self.input_size, out_features=self.output_size,
         bias= self.use_bias, init_method=self.init_method, get_rng_state_tracker=get_cuda_rng_tracker,
@@ -282,12 +279,6 @@ class TEColumnParallelLinear(te.pytorch.Linear):
             "torch.nn.parallel.DistributedDataParallel instead"
         )
         return self.weight.infshape.width_mult()
-
-    def set_parallel_output(self, value: bool):
-        assert isinstance(value, bool)
-        self.gather_output = (
-            not value
-        )  # if gather_output is True, parallel output is False, so we set the opposite
 
     # Copied from Mup
     def _rescale_parameters(self):
@@ -308,7 +299,7 @@ class TEColumnParallelLinear(te.pytorch.Linear):
             self.bias.data *= self.width_mult() ** 0.5
         self.weight.data *= self.width_mult() ** 0.5
         self._has_rescaled_params = True
-
+    
     def mup_reinitialize_weights(self, neox_args):
         if neox_args.use_cpu_initialization:
             self.master_weight = _initialize_affine_weight_cpu(
@@ -316,26 +307,25 @@ class TEColumnParallelLinear(te.pytorch.Linear):
                 self.weight,
                 self.output_size,
                 self.input_size,
-                self.output_size_per_partition,
-                0,
+                self.input_size_per_partition,
+                1,
                 partial(self.init_method, use_mup=True),
                 stride=self.stride,
-                return_master_weight=keep_master_weight_for_test,
+                return_master_weight=self.keep_master_weight_for_test,
             )
         else:
             _initialize_affine_weight_gpu(
                 self.weight,
                 partial(self.init_method, use_mup=True),
-                partition_dim=0,
+                partition_dim=1,
                 stride=self.stride,
             )
-    
+
     def forward(self, inp, **kwargs):
         if self.use_mup and self.mup_rescale_parameters:
             input_ /= self.width_mult()
         
         output = super(TEColumnParallelLinear, self).forward(inp, **kwargs)
-
         if self.skip_bias_add:
             return output
         else:
@@ -455,20 +445,16 @@ class TERowParallelLinear(te.pytorch.Linear):
                 stride=self.stride,
             )
 
-    def set_parallel_output(self, parallel_output: bool):
-        assert isinstance(parallel_output, bool)
-        self.parallel_output = parallel_output
-    
     def forward(self, inp, **kwargs):
-        # if not self.input_is_parallel:
-        #     inp = scatter_to_model_parallel_region(inp)
+        if self.use_mup and self.mup_rescale_parameters:
+            input_ /= self.width_mult()
         
         output = super(TERowParallelLinear, self).forward(inp, **kwargs)
+
         if self.skip_bias_add:
             return output
         else:
             return output, None
-
 
 class TEMultiheadAttention(te.pytorch.MultiheadAttention):
     """
@@ -487,6 +473,7 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
         use_cache=False,
         parallel_output=False):
 
+        self.neox_args = neox_args
         self.attention_mask_func = attention_mask_func
         self.init_method = init_method
         self.output_layer_init_method = output_layer_init_method
@@ -524,12 +511,43 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
         attention_dropout=neox_args.attention_dropout, layernorm_epsilon=self.eps, init_method=self.init_method,
         output_layer_init_method=self.output_layer_init_method, layer_number=self.layer_number,
         window_size=neox_args.sliding_window_width, num_gqa_groups=self.num_kv_heads, input_layernorm=False,
-        normalization=self.normalization, bias=True, device=torch.cuda.current_device(),
+        normalization=self.normalization, bias=True, device=torch.cuda.current_device(),get_rng_state_tracker=get_cuda_rng_tracker,
         set_parallel_mode=self.set_parallel_mode, sequence_parallel=self.sequence_parallel, tp_group=self.tp_group,
-        tp_size=self.world_size, params_dtype=self.params_dtype, return_bias=True)
+        tp_size=self.world_size, params_dtype=self.params_dtype, return_bias=True, qkv_format="sbhd", fuse_qkv_params=True)
 
-    def forward(self, hidden_states, attention_mask, layer_past=None, **kwargs):
-        output = super(TEMultiheadAttention, self).forward(hidden_states, attention_mask, **kwargs)
+        
+
+        if neox_args.pos_emb == "rotary":
+            self.hidden_size_per_attention_head = mpu.divide(
+            neox_args.hidden_size, neox_args.num_attention_heads)
+            
+            if neox_args.rotary_pct == 1:
+                self.rotary_ndims = None
+            else:
+                assert neox_args.rotary_pct < 1
+                self.rotary_ndims = int(
+                    self.hidden_size_per_attention_head * neox_args.rotary_pct
+                )
+            dim = (
+                self.rotary_ndims
+                if self.rotary_ndims is not None
+                else self.hidden_size_per_attention_head
+            )
+            self.rotary_embeddings = RotaryEmbedding(
+                dim,
+                base=neox_args.rotary_emb_base,
+                max_seq_len=neox_args.seq_length,
+                precision=neox_args.params_dtype,
+                save_inv_freqs=neox_args.rotary_save_freqs_buffer,
+                return_embeddings=True
+            )
+
+    def forward(self, hidden_states, attention_mask, layer_past=None, rope_emb=None, **kwargs):
+        if self.neox_args.pos_emb == "rotary":
+            rope_emb=self.rotary_embeddings(hidden_states)
+
+        output = super(TEMultiheadAttention, self).forward(hidden_states, attention_mask, rotary_pos_emb=rope_emb, **kwargs)
+
         return output
 
 
@@ -537,7 +555,36 @@ class TEDelayedScaling(te.common.recipe.DelayedScaling):
     """
     Wrapper for the Transformer-Engine's `DelayedScaling` layer.
     """
+    ##TODO Test with H100
+    def __init__(
+        self,
+        neox_args):
 
-    def __init__(self):
-        # TODO
-        return
+        self.neox_args = neox_args
+        self.tp_group = get_tensor_model_parallel_group()
+        
+        if neox_args.fp8_format == "e4m3":
+            fp8_format = te.common.recipe.Format.E4M3
+        elif neox_args.fp8_format == "hybrid":
+            fp8_format = te.common.recipe.Format.HYBRID
+        else:
+            raise ValueError("E4M3 and HYBRID are the only supported FP8 formats.")
+
+        override_linear_precision = (False, False, not neox_args.fp8_wgrad)
+
+        super().__init__(
+            margin=neox_args.fp8_margin,
+            fp8_format=fp8_format,
+            amax_compute_algo=neox_args.fp8_amax_compute_algo,
+            amax_history_len=neox_args.fp8_amax_history_len,
+            override_linear_precision=override_linear_precision,
+            fp8_mha=neox_args.fp8_mha,
+        )
+
+    def fp8_context(self):
+        fp8_group = None
+        if self.tp_group:
+            fp8_group = self.tp_group
+        fp8_context = te.pytorch.fp8_autocast(enabled=True, fp8_recipe=self, fp8_group=fp8_group)
+        
+        return get_context
