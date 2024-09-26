@@ -22,7 +22,6 @@ for split in ["train", "test"]:
     ) as f:
         writer = jsonlines.Writer(f)
         for item in raw_datasets[split]:
-            # add empty system messages
             item["chosen"] = item["chosen"]
             item["rejected"] = item["rejected"]
             writer.write(item)
@@ -33,6 +32,18 @@ for split in ["train", "test"]:
     ) as f:
         writer = jsonlines.Writer(f)
         for item in raw_datasets[split]:
-            # add empty system messages
             item["messages"] = item["chosen"]
+            writer.write(item)
+os.makedirs(os.path.join("data", "kto"), exist_ok=True)
+for split in ["train", "test"]:
+    with open(
+        os.path.join("data", "kto", f"llama3_kto_{split}_filtered.jsonl"), "w"
+    ) as f:
+        writer = jsonlines.Writer(f)
+        for item in raw_datasets[split]:
+            item["messages"] = item["chosen"]
+            item["reward"] = 1
+            writer.write(item)
+            item["messages"] = item["rejected"]
+            item["reward"] = -1
             writer.write(item)
