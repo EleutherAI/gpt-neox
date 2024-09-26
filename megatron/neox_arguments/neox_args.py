@@ -46,7 +46,7 @@ def get_git_commit_hash():
     try:
         git_hash = subprocess.check_output(["git", "describe", "--always"]).strip()
         git_hash = git_hash.decode()
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         git_hash = None
     return git_hash
 
@@ -1080,6 +1080,13 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     kto_undesirable_weight: float = 1.0
     """
     Weight for undesirable loss in KTO. Might help if you have unbalanced desirable and undesirable classes.
+    """
+
+    z_loss: float = 0.0
+    """
+    Z-loss parameter, only implemented for RM training currently.
+    https://arxiv.org/pdf/2204.02311
+    https://arxiv.org/pdf/2309.10305
     """
 
     kto_beta: float = 0.1
