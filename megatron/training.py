@@ -1090,6 +1090,8 @@ def get_learning_rate_scheduler(optimizer, neox_args):
     # Add linear learning rate scheduler.
     if neox_args.lr_decay_iters is not None:
         num_iters = neox_args.lr_decay_iters
+    elif neox_args.lr_decay_fraction is not None:
+        num_iters = math.floor(neox_args.train_iters * neox_args.lr_decay_fraction)
     else:
         num_iters = neox_args.train_iters
     num_iters = max(1, num_iters)
