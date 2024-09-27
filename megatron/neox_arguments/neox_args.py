@@ -1196,7 +1196,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     """
     Number of iterations to run for training.
     """
-    
+
     train_epochs: int = None
     """
     Number of epochs to run for training. Do not specify both train_epochs and train_iters.

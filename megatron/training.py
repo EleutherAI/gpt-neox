@@ -49,7 +49,10 @@ from megatron.model import (
 )
 from megatron.mpu.mappings import gather_from_model_parallel_region
 from megatron.checkpointing import load_checkpoint, save_checkpoint
-from megatron.data.data_utils import  build_train_valid_test_data_loaders, shift_and_wrap_data_loaders
+from megatron.data.data_utils import (
+    build_train_valid_test_data_loaders,
+    shift_and_wrap_data_loaders,
+)
 from megatron.initialize import initialize_megatron
 from megatron.learning_rates import AnnealingLR
 from megatron.logging import tb_wandb_log, training_log
@@ -172,27 +175,33 @@ def mup_coord_check(neox_args, timers, lr_scheduler, train_data_iterator):
     print_rank_0("Saved coord check plots... exiting")
     sys.exit(1)
 
+
 def update_iterations(neox_args, data_loaders):
     """
     Compute the number of train iterations if not specified and num_epochs, updates the neox_args object.
     Note that if len(train_dataloader) % gradient_accumulation_steps != 0, this will configure neox
-    to do as many iterations as possible while ensuring that each example is seen *at most* train_epochs 
+    to do as many iterations as possible while ensuring that each example is seen *at most* train_epochs
     times.
     """
     if neox_args.train_iters is not None:
         pass
     elif neox_args.train_iters is None and neox_args.train_epochs is None:
-        print_rank_0("ERROR:Failed to specify either train_epochs or train_iters in config file")
+        print_rank_0(
+            "ERROR:Failed to specify either train_epochs or train_iters in config file"
+        )
     else:
         train_dataloader = data_loaders["train"]
         train_epochs = neox_args.train_epochs
         gradient_accumulation_steps = neox_args.gradient_accumulation_steps
 
-        train_iterations = (len(train_dataloader)*train_epochs) // gradient_accumulation_steps
+        train_iterations = (
+            len(train_dataloader) * train_epochs
+        ) // gradient_accumulation_steps
 
         neox_args.train_iters = train_iterations
-        print_rank_0(f"Training for a total of {train_iterations} iterations, corresponding to  {train_epochs} epochs.")
-
+        print_rank_0(
+            f"Training for a total of {train_iterations} iterations, corresponding to  {train_epochs} epochs."
+        )
 
 
 def pretrain(neox_args):
@@ -219,7 +228,7 @@ def pretrain(neox_args):
 
     # Initialize and get arguments, timers, and Tensorboard writer.
     initialize_megatron(neox_args=neox_args)
-    
+
     # Create data loaders
     timers("train/valid/test data loaders").start()
     data_loaders = build_train_valid_test_data_loaders(neox_args=neox_args)
@@ -233,7 +242,7 @@ def pretrain(neox_args):
     )
     timers("model and optimizer").stop()
 
-    #Make and configure iterators
+    # Make and configure iterators
     timers("train/valid/test data iterators").start()
     (
         train_data_iterator,
@@ -247,15 +256,23 @@ def pretrain(neox_args):
 
     # Print setup timing.
     print_rank_0("done with setups ...")
-    timers.log(["train/valid/test data loaders", "model and optimizer", "train/valid/test data iterators"])
+    timers.log(
+        [
+            "train/valid/test data loaders",
+            "model and optimizer",
+            "train/valid/test data iterators",
+        ]
+    )
     print_rank_0("training ...")
 
     iteration = neox_args.iteration
     # edge case: save step 0 checkpoint if requested and we're starting from step 0
-    if (neox_args.save and 
-        neox_args.extra_save_iters and 
-        0 in neox_args.extra_save_iters and
-        iteration == 0):
+    if (
+        neox_args.save
+        and neox_args.extra_save_iters
+        and 0 in neox_args.extra_save_iters
+        and iteration == 0
+    ):
         save_checkpoint(
             neox_args=neox_args,
             iteration=iteration,
@@ -1355,25 +1372,29 @@ def train_step_pipe(neox_args, timers, model, data_iterator):
         timers(t).reset()
     return loss_dict
 
+
 def is_save_iter(neox_args, iteration):
     if neox_args.extra_save_iters and iteration in neox_args.extra_save_iters:
         return True
-    
+
     if neox_args.checkpoint_factor:
         if neox_args.checkpoint_scale == "linear":
-            assert float(neox_args.checkpoint_factor).is_integer(), "checkpoint_factor must be a whole number when using linear checkpoint_scale"
+            assert float(
+                neox_args.checkpoint_factor
+            ).is_integer(), "checkpoint_factor must be a whole number when using linear checkpoint_scale"
             return iteration % neox_args.checkpoint_factor == 0
         elif neox_args.checkpoint_scale == "log":
             # Check if iteration is a power of checkpoint_factor
             assert neox_args.checkpoint_factor > 1
             power = 1
-            while power < iteration+1:
+            while power < iteration + 1:
                 if int(power) == iteration:
                     return True
                 power *= neox_args.checkpoint_factor
             return False
-    
+
     return False
+
 
 def train(
     neox_args,

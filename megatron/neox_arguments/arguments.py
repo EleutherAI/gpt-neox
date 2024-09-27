@@ -951,7 +951,7 @@ class NeoXArgs(*BASE_CLASSES):
                 "clip_grad": self.gradient_clipping,
             }
         )
-        
+
         # derive precision
         fp16_conflict = "DeepSpeed fp16 field was set but precision conflicts"
         if self.fp16 and self.fp16.get("enabled", False):
@@ -1041,7 +1041,9 @@ class NeoXArgs(*BASE_CLASSES):
         )
 
         if self.optimizer_type.lower() == "onebitadam":
-            assert self.train_iters is not None, "OneBitAdam requires train_iters to be specified"
+            assert (
+                self.train_iters is not None
+            ), "OneBitAdam requires train_iters to be specified"
 
             # onebitadam needs to instantiated by deepspeed, and so we need to pass deepspeed scheduler args
             # for all other optimizers, the scheduling is handled by megatron

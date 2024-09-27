@@ -101,9 +101,9 @@ class DistributedBatchSampler(data.sampler.BatchSampler):
         GPU0: [0,2,4,6] GPU1: [1,3,5,7]
     specifying False will result in the following samples:
         GPU0: [0,1,2,3] GPU1: [4,5,6,7]
-        
+
     The `infinite_loop` parameter allows the sampler to yield batches indefinitely,
-    restarting from the beginning of the dataset when all samples have been iterated over. 
+    restarting from the beginning of the dataset when all samples have been iterated over.
     """
 
     def __init__(
