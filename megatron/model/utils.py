@@ -404,7 +404,7 @@ def mark_norms_for_sequence_parallel_grad_sync(module, neox_args):
                     param.register_hook(reduce_weight_grads_from_model_parallel_region)
 
 
-def linear_implementation_router(neox_args):
+def get_parallel_linear(neox_args):
     if neox_args.te_columnparallel:
         from megatron.model.transformer_engine import TEColumnParallelLinear as ColumnParallelLinear
     else:

@@ -55,7 +55,7 @@ try:
 except ImportError:
     swiglu = None
 
-from .utils import linear_implementation_router
+from .utils import get_parallel_linear
 
 # flags required to enable jit fusion kernels
 torch._C._jit_set_profiling_mode(False)
@@ -116,7 +116,7 @@ class ParallelMLP(nn.Module):
         self.bias_gelu_fusion = neox_args.bias_gelu_fusion
         self.multiple_of = multiple_of
 
-        ColumnParallelLinear, RowParallelLinear = linear_implementation_router(neox_args)
+        ColumnParallelLinear, RowParallelLinear = get_parallel_linear(neox_args)
 
         if neox_args.intermediate_size:
             ffn_dim = neox_args.intermediate_size
@@ -220,7 +220,7 @@ class ParallelLinear(nn.Module):
     ):
         super().__init__()
 
-        ColumnParallelLinear, RowParallelLinear = linear_implementation_router(neox_args)
+        ColumnParallelLinear, RowParallelLinear = get_parallel_linear(neox_args)
 
         self.is_rm = neox_args.train_impl == "rm"
         parallelism = neox_args.output_layer_parallelism if not self.is_rm else "row"
@@ -340,7 +340,7 @@ class ParallelSelfAttention(nn.Module):
     ):
         super().__init__()
 
-        ColumnParallelLinear, RowParallelLinear = linear_implementation_router(neox_args)
+        ColumnParallelLinear, RowParallelLinear = get_parallel_linear(neox_args)
 
         self.fp16 = neox_args.precision == "fp16"
         self.bf16 = neox_args.precision == "bfloat16"
@@ -1281,6 +1281,7 @@ class ParallelTransformerLayer(nn.Module):
                 attention_output, attention_bias = self.attention(
                     self.input_layernorm(x), attention_mask, layer_past=layer_past
                 )
+
                 if self.use_cache:
                     attention_output, presents = attention_output
                     self.layer_past = presents
