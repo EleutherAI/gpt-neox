@@ -1109,6 +1109,13 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Weight for undesirable loss in KTO. Might help if you have unbalanced desirable and undesirable classes.
     """
 
+    z_loss: float = 0.0
+    """
+    Z-loss parameter, only implemented for RM training currently.
+    https://arxiv.org/pdf/2204.02311
+    https://arxiv.org/pdf/2309.10305
+    """
+
     kto_beta: float = 0.1
     """
     Beta value for KTO
