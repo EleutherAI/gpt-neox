@@ -573,13 +573,7 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
 
     lr_decay_iters: int = None
     """
-    Number of iterations to decay learning rate over, If None defaults to
-    --train-iters or the equivalent inferred valued from train_epochs.
-    """
-
-    lr_decay_fraction: float = None
-    """
-    Effective fraction of training over which to decay lr, overrides lr_decay_iters, useful when specifying train_epochs
+    Number of iterations to decay learning rate over, If None defaults to --train-iters
     """
 
     min_lr: float = 0.0
@@ -854,6 +848,11 @@ class NeoXArgsOther(NeoXArgsTemplate):
     """
 
     do_test: bool = None
+    """
+    Set during training
+    """
+
+    save_iters: list = None
     """
     Set during training
     """
@@ -1149,7 +1148,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     while "log" implies that the number of steps between each checkpoint will be multiplied by `checkpoint-factor` at each step, starting from step 1.
     """
 
-    checkpoint_factor: Union[int, float] = None
+    checkpoint_factor: int = None
     """
     Acts as a multiplier on either the "log" or "linear" checkpoint spacing.
 
@@ -1201,12 +1200,6 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     train_iters: int = None
     """
     Number of iterations to run for training.
-    """
-
-    train_epochs: int = None
-    """
-    Number of epochs to run for training. Do not specify both train_epochs and train_iters.
-    Not currently compatible with data reweighing, pairwise datasets, and packing other than 'packed'
     """
 
     eval_iters: int = 100

@@ -952,6 +952,30 @@ class NeoXArgs(*BASE_CLASSES):
             }
         )
 
+        # derive steps where checkpoint should be saved
+        if self.checkpoint_factor or self.extra_save_iters:
+            if self.extra_save_iters:
+                save_iters = set(self.extra_save_iters)
+            else:
+                save_iters = set()
+
+            step = self.checkpoint_factor  # don't save step 0 or 1
+            while step < self.train_iters:
+                save_iters.add(step)
+                if self.checkpoint_scale == "log":
+                    step *= self.checkpoint_factor
+                elif self.checkpoint_scale == "linear":
+                    step += self.checkpoint_factor
+
+            save_iters = list(save_iters)
+            save_iters.sort()
+
+            self.update_values(
+                {
+                    "save_iters": save_iters,
+                }
+            )
+
         # derive precision
         fp16_conflict = "DeepSpeed fp16 field was set but precision conflicts"
         if self.fp16 and self.fp16.get("enabled", False):
@@ -1041,10 +1065,6 @@ class NeoXArgs(*BASE_CLASSES):
         )
 
         if self.optimizer_type.lower() == "onebitadam":
-            assert (
-                self.train_iters is not None
-            ), "OneBitAdam requires train_iters to be specified"
-
             # onebitadam needs to instantiated by deepspeed, and so we need to pass deepspeed scheduler args
             # for all other optimizers, the scheduling is handled by megatron
             self.scheduler = {

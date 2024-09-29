@@ -34,7 +34,6 @@ class GPT2Dataset(torch.utils.data.Dataset):
         documents,
         indexed_dataset,
         num_samples,
-        num_epochs,
         seq_length,
         seed,
         pack_impl="packed",
@@ -71,7 +70,6 @@ class GPT2Dataset(torch.utils.data.Dataset):
                 self.indexed_dataset.sizes,
                 self.label_dataset,
                 num_samples,
-                num_epochs,
                 seq_length,
                 seed,
                 self.pack_impl,
@@ -205,7 +203,6 @@ def _build_index_mappings(
     sizes,
     label_dataset,
     num_samples,
-    num_epochs,
     seq_length,
     seed,
     packing_impl,
@@ -220,8 +217,7 @@ def _build_index_mappings(
     """
     # Number of tokens in each epoch and number of required epochs.
     tokens_per_epoch = _num_tokens(documents, sizes)
-    if not num_epochs:
-        num_epochs = _num_epochs(tokens_per_epoch, seq_length, num_samples)
+    num_epochs = _num_epochs(tokens_per_epoch, seq_length, num_samples)
     # rng state
     np_rng = np.random.RandomState(seed=seed)
 
