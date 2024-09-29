@@ -2,7 +2,7 @@
 
 Examples for running post-training with ultrafeedback data for SFT/DPO/RM training.
 
-For REINFORCE style training, see [Online Training](OnlineTraining.MD).
+For [REINFORCE](https://arxiv.org/abs/2402.14740) style training, see [Online Training](OnlineTraining.MD).
 
 ```bash
 python tools/ckpts/convert_hf_llama_to_neox.py --tp 4 --model meta-llama/Meta-Llama-3-8B-Instruct --model_path checkpoints/neox_converted/llama3-8b-instruct
