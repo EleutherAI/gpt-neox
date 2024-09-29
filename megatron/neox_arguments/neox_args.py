@@ -574,7 +574,7 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
     lr_decay_iters: int = None
     """
     Number of iterations to decay learning rate over, If None defaults to
-    --train-iters or the equivalent infered valued from train_epochs.
+    --train-iters or the equivalent inferred valued from train_epochs.
     """
 
     lr_decay_fraction: float = None
