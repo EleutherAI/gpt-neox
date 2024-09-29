@@ -124,6 +124,8 @@ These can be set to any integer between `0` and `num_gpus`, and `num_gpus` must 
     # this should provide some speedup but takes a while to build, set to true if desired
    "scaled_upper_triang_masked_softmax_fusion": false,
    "train_iters": 320000,
+    # alternatively, use train_epochs to automatically determine the number of training iterations
+    #"train_epochs": 1,
 ```
 An example of some basic settings used to configure your model's architecture and number of training steps.
 
