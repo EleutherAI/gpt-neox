@@ -1,0 +1,17 @@
+# Sample profiling config
+{
+  # Turns on nsys and pytorch profiling
+  "profile": true,
+
+  # pytorch profiler options
+  "profile_step_start": 10,
+  "profile_step_stop": 12,
+
+  # pytorch memory profiler options
+  "memory_profiling": true,
+  "memory_profiling_path": tensorboard,
+
+
+  # All trace files (pytorch, nsys, tensorboard, etc) will be written here
+  "tensorboard_dir": "tensorboard",
+}
