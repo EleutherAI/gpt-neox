@@ -360,11 +360,19 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype, label_mask_zero=False
         eod_token=neox_args.tokenizer.eod,
         eod_mask_loss=neox_args.eod_mask_loss,
         sliding_window_width=neox_args.sliding_window_width,
+        requires_mask=neox_args.requires_attention_mask,
     )
-
     # combine loss masks from get_ltor_masks_and_position_ids with loss masks from data
     loss_mask = label_mask.to(loss_mask.dtype) * loss_mask
-    return tokens, labels, loss_mask, attention_mask, position_ids
+    return (
+        mpu.zigzag_data(tokens),
+        mpu.zigzag_data(labels),
+        mpu.zigzag_data(loss_mask),
+        mpu.zigzag_data(attention_mask, -2)
+        if neox_args.requires_attention_mask
+        else None,
+        mpu.zigzag_data(position_ids),
+    )
 
 
 def get_batch(neox_args, data_iterator):
@@ -483,6 +491,7 @@ def get_batch_sequential(forward_input, neox_args):
         data=forward_input[0],
         eod_token=neox_args.tokenizer.eod,
         eod_mask_loss=neox_args.eod_mask_loss,
+        requires_mask=neox_args.requires_attention_mask,
     )
     return (forward_input[0], forward_input[1], attention_mask)
 
@@ -1250,6 +1259,9 @@ def backward_step(neox_args, timers, optimizer, model, loss):
         raise ValueError("Must be using deepspeed to run neox")
 
 
+train_step_counter = 0
+
+
 def train_step(
     neox_args,
     timers,
@@ -1260,7 +1272,6 @@ def train_step(
     reference_model=None,
 ):
     """Single training step."""
-
     # Pipeline parallelism schedules forward/backward/step
     if neox_args.is_pipe_parallel:
         reduced_loss = train_step_pipe(
@@ -1427,7 +1438,6 @@ def train(
 
     # to monitor if we've skipped many iterations in a row and trigger an early exit
     overflow_monitor = OverflowMonitor(optimizer)
-
     if neox_args.profile:
         schedule = torch.profiler.schedule(
             wait=neox_args.profile_step_start,

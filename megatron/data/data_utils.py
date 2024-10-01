@@ -531,8 +531,12 @@ def build_train_valid_test_data_loaders(neox_args):
     else:
         pipe_load = True
 
-    # Data loader only on rank 0 of each model parallel group.
-    if mpu.get_model_parallel_rank() == 0 and pipe_load:
+    # Data loader only on rank 0 of each model and context parallel group.
+    if (
+        mpu.get_model_parallel_rank() == 0
+        and pipe_load
+        and mpu.get_context_parallel_rank() == 0
+    ):
         # Number of train/valid/test samples.
         if neox_args.train_iters is not None:
             train_iters = neox_args.train_iters
@@ -671,10 +675,16 @@ def build_train_valid_test_data_loaders(neox_args):
         # broadcast globally instead of just the model parallel group.
         torch.distributed.broadcast(flags, src=0)
     else:
+        # The same data should be used for the model parallel and context parallel groups
         torch.distributed.broadcast(
             flags,
             mpu.get_model_parallel_src_rank(),
             group=mpu.get_model_parallel_group(),
+        )
+        torch.distributed.broadcast(
+            flags,
+            mpu.get_context_parallel_src_rank(),
+            group=mpu.get_context_parallel_group(),
         )
     neox_args.do_train = flags[0].item()
     neox_args.do_valid = flags[1].item()
