@@ -207,7 +207,7 @@ def update_iterations(neox_args, data_loaders):
             train_iters_tensor = torch.cuda.LongTensor([0])
 
         torch.distributed.broadcast(train_iters_tensor, src=0)
-        
+
         neox_args.train_iters = train_iters_tensor[0].item()
 
         print_rank_0(
