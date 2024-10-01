@@ -732,8 +732,8 @@ class NeoXArgsLogging(NeoXArgsTemplate):
 
     profile: bool = False
     """
-    Enable nsys profiling. When using this option,
-    nsys options should be specified in commandline.
+    Enable nsys and pytorch profiling. When using this option with nsys,
+    nsys options should be directly specified in commandline.
     An example nsys commandline is
     ```
     nsys profile -s none -t nvtx,cuda -o <path/to/output_file>
