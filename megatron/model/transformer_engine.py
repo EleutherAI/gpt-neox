@@ -559,22 +559,22 @@ class TEDelayedScaling(te.common.recipe.DelayedScaling):
         self.neox_args = neox_args
         self.tp_group = get_tensor_model_parallel_group()
         
-        if neox_args.fp8_format == "e4m3":
+        if neox_args.te_fp8_format == "e4m3":
             fp8_format = te.common.recipe.Format.E4M3
-        elif neox_args.fp8_format == "hybrid":
+        elif neox_args.te_fp8_format == "hybrid":
             fp8_format = te.common.recipe.Format.HYBRID
         else:
             raise ValueError("E4M3 and HYBRID are the only supported FP8 formats.")
 
-        override_linear_precision = (False, False, not neox_args.fp8_wgrad)
+        override_linear_precision = (False, False, not neox_args.te_fp8_wgrad)
 
         super().__init__(
             margin=neox_args.fp8_margin,
-            fp8_format=fp8_format,
-            amax_compute_algo=neox_args.fp8_amax_compute_algo,
-            amax_history_len=neox_args.fp8_amax_history_len,
+            fp8_format=te_fp8_format,
+            amax_compute_algo=neox_args.te_fp8_amax_compute_algo,
+            amax_history_len=neox_args.te_fp8_amax_history_len,
             override_linear_precision=override_linear_precision,
-            fp8_mha=neox_args.fp8_mha,
+            fp8_mha=neox_args.te_fp8_mha,
         )
 
     def fp8_context(self):

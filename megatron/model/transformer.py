@@ -1028,7 +1028,7 @@ class ParallelTransformerLayer(nn.Module):
             )
 
         # Self attention.
-        if neox_args.te_mha or neox_args.fp8_mha:
+        if neox_args.te_mha or neox_args.te_fp8_mha:
             from megatron.model.transformer_engine import TEMultiheadAttention
             self.attention = TEMultiheadAttention(
             neox_args=neox_args,
@@ -1204,7 +1204,7 @@ class ParallelTransformerLayer(nn.Module):
         
         
         #Enable delayedscaling if TransformerEngine's FP8 is used for MHA layer.
-        if self.neox_args.fp8_mha:
+        if self.neox_args.te_fp8_mha:
             from megatron.model.transformer_engine import TEDelayedScaling
 
             fp8_recipe = TEDelayedScaling(
