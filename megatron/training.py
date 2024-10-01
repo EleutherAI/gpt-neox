@@ -183,24 +183,35 @@ def update_iterations(neox_args, data_loaders):
     to do as many iterations as possible while ensuring that each example is seen *at most* train_epochs
     times.
     """
-    if neox_args.train_iters is not None:
+    if (not neox_args.do_train) or (neox_args.train_iters is not None):
         pass
     elif neox_args.train_iters is None and neox_args.train_epochs is None:
         print_rank_0(
             "ERROR:Failed to specify either train_epochs or train_iters in config file"
         )
     else:
-        train_dataloader = data_loaders["train"]
-        train_epochs = neox_args.train_epochs
-        gradient_accumulation_steps = neox_args.gradient_accumulation_steps
+        global_rank = torch.distributed.get_rank()
 
-        train_iterations = (
-            len(train_dataloader) * train_epochs
-        ) // gradient_accumulation_steps
+        if global_rank == 0:
+            train_dataloader = data_loaders["train"]
+            train_epochs = neox_args.train_epochs
+            gradient_accumulation_steps = neox_args.gradient_accumulation_steps
 
-        neox_args.train_iters = train_iterations
+            train_dataloader_len = len(train_dataloader)
+            train_iterations = (
+                train_dataloader_len * train_epochs
+            ) // gradient_accumulation_steps
+
+            train_iters_tensor = torch.cuda.LongTensor([train_iterations])
+        else:
+            train_iters_tensor = torch.cuda.LongTensor([0])
+
+        torch.distributed.broadcast(train_iters_tensor, src=0)
+
+        neox_args.train_iters = train_iters_tensor[0].item()
+
         print_rank_0(
-            f"Training for a total of {train_iterations} iterations, corresponding to  {train_epochs} epochs."
+            f"Training for a total of {neox_args.train_iters} iterations, corresponding to {neox_args.train_epochs} epochs."
         )
 
 
