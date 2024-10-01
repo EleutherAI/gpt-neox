@@ -200,7 +200,7 @@ class TELayerNormMLP(te.pytorch.LayerNormMLP):
         init_method=self.init_method, output_layer_init_method=self.output_layer_init_method,
         device=torch.cuda.current_device(), set_parallel_mode=self.set_parallel_mode,
         sequence_parallel=self.sequence_parallel, tp_group=self.tp_group, tp_size=self.world_size,
-        return_bias=True, params_dtype=self.params_dtype, seq_length=self.seq_len,
+        return_bias=True, params_dtype=self.params_dtype, seq_length=self.seq_len, get_rng_state_tracker=get_cuda_rng_tracker,
         micro_batch_size=self.micro_batch_size)
 
 
@@ -538,16 +538,12 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
                 base=neox_args.rotary_emb_base,
                 max_seq_len=neox_args.seq_length,
                 precision=neox_args.params_dtype,
-                save_inv_freqs=neox_args.rotary_save_freqs_buffer,
-                return_embeddings=True
+                save_inv_freqs=neox_args.rotary_save_freqs_buffer
             )
+            self.rope_emb=self.rotary_embeddings.get_emb()
 
     def forward(self, hidden_states, attention_mask, layer_past=None, rope_emb=None, **kwargs):
-        if self.neox_args.pos_emb == "rotary":
-            rope_emb=self.rotary_embeddings(hidden_states)
-
-        output = super(TEMultiheadAttention, self).forward(hidden_states, attention_mask, rotary_pos_emb=rope_emb, **kwargs)
-
+        output = super(TEMultiheadAttention, self).forward(hidden_states, attention_mask, rotary_pos_emb=self.rope_emb, **kwargs)
         return output
 
 
