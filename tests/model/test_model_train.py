@@ -28,7 +28,6 @@ from tests.common import simulate_deepy_env, BASE_CONFIG
 
 PARAMS_TO_TEST = {
     "gpt_j_residual": [True, False],
-    "mlp_type": ["llama", "regular"],
     "pos_emb": ["learned", "rotary", "sinusoidal", "rpe", "alibi", "none"],
     "attention_config": [
         "global",

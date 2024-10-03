@@ -98,6 +98,57 @@ runtime:
   --log-interval LOG_INTERVAL
                         Interval between progress updates
 ```
+## `preprocess_data_with_chat_template.py`
+Similar, but uses huggingface's [chat templates](https://huggingface.co/docs/transformers/main/en/chat_templating) to
+tokenize the data to support multiturn and more complicated use cases.
+
+N.B. If using this, you  **must** specify your data when training/finetuning with the following configs
+```json
+"train_data_paths": ["train_documents"],
+"test_data_paths": ["test_documents"],
+"valid_data_paths": ["test_documents"],
+"label_data_paths": ["label_documents"]
+```
+
+the `"data_path"` option will not work with `"label_data_paths"`.
+
+
+```
+usage: preprocess_data_with_chat_template.py [-h] --input INPUT [--jsonl-keys JSONL_KEYS [JSONL_KEYS ...]] [--no-mask]
+                                             [--generation-role GENERATION_ROLE] [--only-last] [--num-docs NUM_DOCS]
+                                             --tokenizer-path TOKENIZER_PATH [--ftfy] --output-prefix OUTPUT_PREFIX
+                                             [--dataset-impl {lazy,cached,mmap}] [--workers WORKERS]
+                                             [--log-interval LOG_INTERVAL]
+
+options:
+  -h, --help            show this help message and exit
+
+input data:
+  --input INPUT         Path to input jsonl files or lmd archive(s) - if using multiple archives, put them in a comma separated list
+  --jsonl-keys JSONL_KEYS [JSONL_KEYS ...]
+                        space separate listed of keys to extract from jsonl. Default: text
+  --no-mask             If set, this will not mask any tokens in the input data.
+  --generation-role GENERATION_ROLE
+                        The role of the model generating the chat, usually 'assistant'. Default: assistant
+  --only-last           If set, this will mask everything except the last turn in the chat.
+  --num-docs NUM_DOCS   Optional: Number of documents in the input data (if known) for an accurate progress bar.
+
+tokenizer:
+  --tokenizer-path TOKENIZER_PATH
+                        Path to HF Tokenizer.
+  --ftfy                Use ftfy to clean text
+
+output data:
+  --output-prefix OUTPUT_PREFIX
+                        Path to binary output file without suffix
+  --dataset-impl {lazy,cached,mmap}
+                        Dataset implementation to use. Default: mmap
+
+runtime:
+  --workers WORKERS     Number of worker processes to launch
+  --log-interval LOG_INTERVAL
+                        Interval between progress updates
+```
 ## `multinode_prepare_data.sh`
 Does the same but distributed over multiple nodes.
 

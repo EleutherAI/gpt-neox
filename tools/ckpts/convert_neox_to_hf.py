@@ -26,6 +26,7 @@ from transformers import (
     GPTNeoXConfig,
     AutoModelForCausalLM,
     AutoConfig,
+    AutoModelForSequenceClassification,
 )
 
 from typing import List, Literal
@@ -50,57 +51,110 @@ Please investigate carefully whether your model is compatible with all architect
 
 # Model definitions: a list of keys, and where they fall in terms of handling them in the presence of TP.
 # in format : {model arch: {param type: {param in neox: param in HF}}}
-
 MODEL_KEYS = {
     "neox": {
-        "COLUMN_PARALLEL_LINEAR_KEYS": {
-            "mlp.dense_h_to_4h.weight": "mlp.dense_h_to_4h.weight",
-            "mlp.dense_h_to_4h.bias": "mlp.dense_h_to_4h.bias",
-            "attention.query_key_value.weight": "attention.query_key_value.weight",
-            "attention.query_key_value.bias": "attention.query_key_value.bias",  # TODO: handle GQA separately?
+        "new": {
+            "COLUMN_PARALLEL_LINEAR_KEYS": {
+                "mlp.linear1.weight": "mlp.dense_h_to_4h.weight",
+                "mlp.linear1.bias": "mlp.dense_h_to_4h.bias",
+                "attention.query_key_value.weight": "attention.query_key_value.weight",
+                "attention.query_key_value.bias": "attention.query_key_value.bias",  # TODO: handle GQA separately?
+            },
+            "ROW_PARALLEL_LINEAR_KEYS": {
+                "attention.dense.weight": "attention.dense.weight",
+                "mlp.linear2.weight": "mlp.dense_4h_to_h.weight",
+            },
+            "ROW_PARALLEL_BIAS_KEYS": {
+                "mlp.linear2.bias": "mlp.dense_4h_to_h.bias",
+                "attention.dense.bias": "attention.dense.bias",
+            },
+            "NORM_KEYS": {
+                "input_layernorm.weight": "input_layernorm.weight",
+                "input_layernorm.bias": "input_layernorm.bias",
+                "post_attention_layernorm.weight": "post_attention_layernorm.weight",
+                "post_attention_layernorm.bias": "post_attention_layernorm.bias",
+            },
+            "FINAL_NORM_KEYS": {
+                "norm.weight": "weight",
+                "norm.bias": "bias",
+            },
         },
-        "ROW_PARALLEL_LINEAR_KEYS": {
-            "attention.dense.weight": "attention.dense.weight",
-            "mlp.dense_4h_to_h.weight": "mlp.dense_4h_to_h.weight",
-        },
-        "ROW_PARALLEL_BIAS_KEYS": {
-            "mlp.dense_4h_to_h.bias": "mlp.dense_4h_to_h.bias",
-            "attention.dense.bias": "attention.dense.bias",
-        },
-        "NORM_KEYS": {
-            "input_layernorm.weight": "input_layernorm.weight",
-            "input_layernorm.bias": "input_layernorm.bias",
-            "post_attention_layernorm.weight": "post_attention_layernorm.weight",
-            "post_attention_layernorm.bias": "post_attention_layernorm.bias",
-        },
-        "FINAL_NORM_KEYS": {
-            "norm.weight": "weight",
-            "norm.bias": "bias",
+        "legacy": {
+            "COLUMN_PARALLEL_LINEAR_KEYS": {
+                "mlp.dense_h_to_4h.weight": "mlp.dense_h_to_4h.weight",
+                "mlp.dense_h_to_4h.bias": "mlp.dense_h_to_4h.bias",
+                "attention.query_key_value.weight": "attention.query_key_value.weight",
+                "attention.query_key_value.bias": "attention.query_key_value.bias",  # TODO: handle GQA separately?
+            },
+            "ROW_PARALLEL_LINEAR_KEYS": {
+                "attention.dense.weight": "attention.dense.weight",
+                "mlp.dense_4h_to_h.weight": "mlp.dense_4h_to_h.weight",
+            },
+            "ROW_PARALLEL_BIAS_KEYS": {
+                "mlp.dense_4h_to_h.bias": "mlp.dense_4h_to_h.bias",
+                "attention.dense.bias": "attention.dense.bias",
+            },
+            "NORM_KEYS": {
+                "input_layernorm.weight": "input_layernorm.weight",
+                "input_layernorm.bias": "input_layernorm.bias",
+                "post_attention_layernorm.weight": "post_attention_layernorm.weight",
+                "post_attention_layernorm.bias": "post_attention_layernorm.bias",
+            },
+            "FINAL_NORM_KEYS": {
+                "norm.weight": "weight",
+                "norm.bias": "bias",
+            },
         },
     },
     "llama": {
-        "COLUMN_PARALLEL_LINEAR_KEYS": {
-            "mlp.w1.weight": "mlp.gate_proj.weight",
-            "mlp.w3.weight": "mlp.up_proj.weight",
+        "new": {
+            "COLUMN_PARALLEL_LINEAR_KEYS": {
+                "mlp.linear1.weight": ["mlp.up_proj.weight", "mlp.gate_proj.weight"]
+            },
+            "ROW_PARALLEL_LINEAR_KEYS": {
+                "attention.dense.weight": "self_attn.o_proj.weight",
+                "mlp.linear2.weight": "mlp.down_proj.weight",
+            },
+            "ROW_PARALLEL_BIAS_KEYS": {},  # No biases in RowParallelLinear layers
+            "NORM_KEYS": {
+                "input_layernorm.scale": "input_layernorm.weight",
+                "post_attention_layernorm.scale": "post_attention_layernorm.weight",
+            },
+            "FINAL_NORM_KEYS": {
+                "norm.scale": "weight",
+            },
+            "GQA_QKV_KEYS": {  # because Llama can have Grouped Query Attention and has separate Q, K, and V linear proj params, handle them separately.
+                "attention.query_key_value.weight": [
+                    "self_attn.q_proj.weight",
+                    "self_attn.k_proj.weight",
+                    "self_attn.v_proj.weight",
+                ],
+            },
         },
-        "ROW_PARALLEL_LINEAR_KEYS": {
-            "attention.dense.weight": "self_attn.o_proj.weight",
-            "mlp.w2.weight": "mlp.down_proj.weight",
-        },
-        "ROW_PARALLEL_BIAS_KEYS": {},  # No biases in RowParallelLinear layers
-        "NORM_KEYS": {
-            "input_layernorm.scale": "input_layernorm.weight",
-            "post_attention_layernorm.scale": "post_attention_layernorm.weight",
-        },
-        "FINAL_NORM_KEYS": {
-            "norm.scale": "weight",
-        },
-        "GQA_QKV_KEYS": {  # because Llama can have Grouped Query Attention and has separate Q, K, and V linear proj params, handle them separately.
-            "attention.query_key_value.weight": [
-                "self_attn.q_proj.weight",
-                "self_attn.k_proj.weight",
-                "self_attn.v_proj.weight",
-            ],
+        "legacy": {
+            "COLUMN_PARALLEL_LINEAR_KEYS": {
+                "mlp.w1.weight": "mlp.gate_proj.weight",
+                "mlp.w3.weight": "mlp.up_proj.weight",
+            },
+            "ROW_PARALLEL_LINEAR_KEYS": {
+                "attention.dense.weight": "self_attn.o_proj.weight",
+                "mlp.w2.weight": "mlp.down_proj.weight",
+            },
+            "ROW_PARALLEL_BIAS_KEYS": {},  # No biases in RowParallelLinear layers
+            "NORM_KEYS": {
+                "input_layernorm.scale": "input_layernorm.weight",
+                "post_attention_layernorm.scale": "post_attention_layernorm.weight",
+            },
+            "FINAL_NORM_KEYS": {
+                "norm.scale": "weight",
+            },
+            "GQA_QKV_KEYS": {  # because Llama can have Grouped Query Attention and has separate Q, K, and V linear proj params, handle them separately.
+                "attention.query_key_value.weight": [
+                    "self_attn.q_proj.weight",
+                    "self_attn.k_proj.weight",
+                    "self_attn.v_proj.weight",
+                ],
+            },
         },
     },
 }
@@ -165,7 +219,7 @@ def get_key(loaded_config, key, default=None):
             return default
 
 
-def create_config(neox_config, architecture="neox"):
+def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1):
     """take in a loaded yaml from NeoX and assign relevant values to HF config.
     Returns: GPTNeoXConfig() object
     """
@@ -238,7 +292,9 @@ def create_config(neox_config, architecture="neox"):
                     "num-kv-heads",
                     get_key(neox_config, "num-attention-heads"),
                 ),
-                "hidden_act": get_key(neox_config, "activation", default="silu"),
+                "hidden_act": get_key(
+                    neox_config, "activation", default="silu"
+                ).replace("swiglu", "silu"),
                 "rms_norm_eps": get_key(neox_config, "rms-norm-epsilon", 1.0e-6),
                 "bos_token_id": tokenizer.eod,
                 "eos_token_id": tokenizer.eod,
@@ -285,6 +341,9 @@ def create_config(neox_config, architecture="neox"):
             }
         )
         hf_config = GPTNeoXConfig(**args)
+    if is_rm:
+        hf_config.num_labels = 1
+        hf_config.pad_token_id = pad_token_id
 
     return hf_config
 
@@ -383,6 +442,30 @@ def reshard_and_split_qkv(
         return state_dict
 
 
+def get_mlp_naming_convention(loaded_tp_ranks, layer_idx, sequential):
+    """Determine whether the checkpoint uses the legacy or new MLP naming convention."""
+    print(list(loaded_tp_ranks[0]["module"].keys()))
+    if any(
+        [
+            ["mlp.linear1.weight" in key for key in list(state_dict["module"].keys())]
+            for state_dict in loaded_tp_ranks
+        ]
+    ):
+        return "new"
+    elif any(
+        [
+            [
+                "mlp.dense_h_to_4h.weight" in key
+                for key in list(state_dict["module"].keys())
+            ]
+            for state_dict in loaded_tp_ranks
+        ]
+    ):
+        return "legacy"
+    else:
+        raise ValueError("Unable to determine MLP naming convention in checkpoint")
+
+
 def convert(
     input_checkpoint_path,
     loaded_config,
@@ -390,6 +473,8 @@ def convert(
     sequential: bool = True,
     precision: Literal["auto", "fp16", "bf16", "fp32"] = "auto",
     architecture: Literal["neox", "llama", "mistral"] = "neox",
+    is_rm: bool = False,
+    pad_token_id: int = -1,
 ):
     """convert a NeoX checkpoint to a HF model format.
     should perform model-parallel merging correctly
@@ -398,9 +483,14 @@ def convert(
 
     ARCH = MODEL_KEYS[architecture]
 
-    hf_config = create_config(loaded_config, architecture=architecture)
+    hf_config = create_config(
+        loaded_config, architecture=architecture, is_rm=is_rm, pad_token_id=pad_token_id
+    )
 
-    hf_model = AutoModelForCausalLM.from_config(hf_config)
+    if not is_rm:
+        hf_model = AutoModelForCausalLM.from_config(hf_config)
+    else:
+        hf_model = AutoModelForSequenceClassification.from_config(hf_config)
 
     if architecture == "neox":
         hf_transformer = hf_model.gpt_neox
@@ -474,6 +564,20 @@ def convert(
     ), f"ERROR: calculated vocab size {hf_config.vocab_size} != embed param size {embed_in.shape[0]}"
     ### End Embedding Layer ###
 
+    # grab from 3rd layer to pass embeddings
+    mlp_naming = get_mlp_naming_convention(
+        load_partitions(
+            input_checkpoint_path,
+            mp_partitions,
+            layer_idx=3,
+            sequential=sequential,
+        ),
+        0,
+        sequential,
+    )
+    print(f"Detected MLP naming convention: {mlp_naming}")
+    ARCH = ARCH[mlp_naming]
+
     for layer_i in tqdm(range(get_key(loaded_config, "num-layers"))):
 
         # get layer from hf model
@@ -509,12 +613,31 @@ def convert(
 
         # LinearWithTPMerge
         for key, hf_key in ARCH["COLUMN_PARALLEL_LINEAR_KEYS"].items():
-            state_dict[hf_key] = torch.cat(
-                get_state(
-                    loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential
-                ),
-                dim=0,
-            )
+            if type(hf_key) == list:
+                # Llama magic - split the weight into two parts for the gate and up proj
+                states = [
+                    torch.chunk(state, chunks=2, dim=0)
+                    for state in get_state(
+                        loaded_tp_ranks,
+                        key,
+                        layer_idx=layer_i + 2,
+                        sequential=sequential,
+                    )
+                ]
+                # Set up proj...
+                state_dict[hf_key[0]] = torch.cat([state[0] for state in states], dim=0)
+                # Set gate proj...
+                state_dict[hf_key[1]] = torch.cat([state[1] for state in states], dim=0)
+            else:
+                state_dict[hf_key] = torch.cat(
+                    get_state(
+                        loaded_tp_ranks,
+                        key,
+                        layer_idx=layer_i + 2,
+                        sequential=sequential,
+                    ),
+                    dim=0,
+                )
 
         # LinearWithTPSplitBias
         for key, hf_key in ARCH["ROW_PARALLEL_BIAS_KEYS"].items():
@@ -556,10 +679,6 @@ def convert(
             sequential=sequential,
         )
     # Load final layer norm
-    if architecture == "neox":
-        lm_head = hf_model.embed_out
-    else:
-        lm_head = hf_model.lm_head
     norm_state_dict = {}
     for key, hf_key in ARCH["FINAL_NORM_KEYS"].items():
         norm_state_dict[hf_key] = sum(
@@ -580,30 +699,64 @@ def convert(
 
     # Load output embedding
     if not sequential:
-        loaded_tp_ranks = load_partitions(
-            input_checkpoint_path,
-            mp_partitions,
-            get_key(loaded_config, "num-layers") + 4,
-            sequential=sequential,
-        )
+        if get_key(loaded_config, "no-weight-tying", False):
+            # if we have trained input + output embedding layers without tied weights
+            loaded_tp_ranks = load_partitions(
+                input_checkpoint_path,
+                mp_partitions,
+                get_key(loaded_config, "num-layers") + 4,
+                sequential=sequential,
+            )
+        else:
+            # in this case, output embedding layer and input embedding layer are tied.
+            # load + save the input embed weights into the output embedding layer's place.
+            loaded_tp_ranks = load_partitions(
+                input_checkpoint_path,
+                mp_partitions,
+                layer_idx=0,
+                sequential=sequential,
+            )
     # output embedding / LM head
-    if architecture == "neox":  # name of lm head / final linear proj varies
-        lm_head = hf_model.embed_out
+    if not is_rm:
+        if architecture == "neox":  # name of lm head / final linear proj varies
+            lm_head = hf_model.embed_out
+        else:
+            lm_head = hf_model.lm_head
     else:
-        lm_head = hf_model.lm_head
-    lm_head.load_state_dict(
-        {
-            "weight": torch.cat(
-                get_state(
-                    loaded_tp_ranks,
-                    "final_linear.weight",
-                    layer_idx=get_key(loaded_config, "num-layers") + 4,
-                    sequential=sequential,
+        lm_head = hf_model.score
+
+    if get_key(loaded_config, "no-weight-tying", False):
+        # save the (untied) final linear into LM head for HF
+        lm_head.load_state_dict(
+            {
+                "weight": torch.cat(
+                    get_state(
+                        loaded_tp_ranks,
+                        "final_linear.weight" if not is_rm else "rm_linear.weight",
+                        layer_idx=get_key(loaded_config, "num-layers") + 4,
+                        sequential=sequential,
+                    ),
+                    dim=0 if not is_rm else 1,
                 ),
-                dim=0,
-            ),
-        }
-    )
+            }
+        )
+    else:
+        # don't need to worry about rm here since you can't really tie them...
+
+        # embedding layers are tied. transpose input layer and save
+        lm_head.load_state_dict(
+            {
+                "weight": torch.cat(
+                    get_state(
+                        loaded_tp_ranks,
+                        "word_embeddings.weight",
+                        layer_idx=0,
+                        sequential=sequential,
+                    ),
+                    dim=0,
+                ),
+            }
+        )
 
     del loaded_tp_ranks
 
@@ -643,6 +796,17 @@ def main(input_args=None, overwrite_values=None):
         help="Whether to skip saving the tokenizer alongside a model.",
     )
     parser.add_argument(
+        "--vocab-is-hf-tokenizer",
+        action="store_true",
+        help="Whether the vocab file is in a Huggingface tokenizer path.",
+    )
+    parser.add_argument(
+        "--pad-token-id",
+        type=int,
+        default=-1,
+        help="Pad token id to set in tokenizer. Required for RM style models.",
+    )
+    parser.add_argument(
         "--architecture",
         type=str,
         default="neox",
@@ -674,6 +838,9 @@ def main(input_args=None, overwrite_values=None):
     # while Sequential model state dicts are saved all together in one mp_rank_xx_model_states.pt
     # file per tensor/model parallel shard.
     pipeline_world_size = get_key(loaded_config, "pipe-parallel-size", 1)
+    is_rm = get_key(loaded_config, "train_impl", "normal") == "rm"
+    if is_rm and args.pad_token_id == -1:
+        raise ValueError("RM models require a pad token id to be set.")
     if pipeline_world_size == 0:
         sequential = True
         print(
@@ -692,6 +859,8 @@ def main(input_args=None, overwrite_values=None):
         args.output_dir,
         sequential=sequential,
         architecture=args.architecture,
+        is_rm=is_rm,
+        pad_token_id=args.pad_token_id,
     )
 
     # Save to disk.
@@ -700,8 +869,18 @@ def main(input_args=None, overwrite_values=None):
     if not args.no_save_tokenizer:
         # save tokenizer to directory as well, for easy loading of model as a HF model.
         tokenizer_type = get_key(loaded_config, "tokenizer-type")
+        if args.vocab_is_hf_tokenizer:
+            from transformers import AutoTokenizer
 
-        if tokenizer_type == "HFTokenizer":  # TODO: handle sentencepiece tokenizers?
+            tokenizer = AutoTokenizer.from_pretrained(
+                os.path.dirname(get_key(loaded_config, "vocab-file"))
+            )
+            if args.pad_token_id != -1:
+                tokenizer.pad_token_id = args.pad_token_id
+            print("loaded tokenizer: ", tokenizer)
+            tokenizer.save_pretrained(args.output_dir)
+            print("tokenizer saved!")
+        elif tokenizer_type == "HFTokenizer":  # TODO: handle sentencepiece tokenizers?
             print(f"saving tokenizer from file {get_key(loaded_config, 'vocab-file')}")
             print(
                 "Warning: please check that your model config and tokenizer end with the correct special tokens (EOS, BOS)."
@@ -711,6 +890,8 @@ def main(input_args=None, overwrite_values=None):
             tokenizer = PreTrainedTokenizerFast(
                 tokenizer_file=get_key(loaded_config, "vocab-file")
             )
+            if args.pad_token_id != -1:
+                tokenizer.pad_token_id = args.pad_token_id
             print("loaded tokenizer: ", tokenizer)
             tokenizer.save_pretrained(args.output_dir)
             print("tokenizer saved!")

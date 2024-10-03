@@ -15,9 +15,21 @@ GPT-NeoX leverages many of the same features and technologies as the popular Meg
 * Cutting edge architectural innovations including rotary and alibi positional embeddings, parallel feedforward attention layers, and flash attention.
 * Predefined configurations for popular architectures including Pythia, PaLM, Falcon, and LLaMA 1 \& 2
 * Curriculum Learning
-* Easy connections with the open source ecosystem, including Hugging Face's [tokenizers](https://github.com/huggingface/tokenizers) and [transformers](https://github.com/huggingface/transformers/) libraries, logging via [WandB](https://wandb.ai/site), and evaluation via our [Language Model Evaluation Harness](https://github.com/EleutherAI/lm-evaluation-harness).
+* Easy connections with the open source ecosystem, including Hugging Face's [tokenizers](https://github.com/huggingface/tokenizers) and [transformers](https://github.com/huggingface/transformers/) libraries, monitor experiments via [WandB](https://wandb.ai/site)/[Comet](https://www.comet.com/site/)/TensorBoard, and evaluation via our [Language Model Evaluation Harness](https://github.com/EleutherAI/lm-evaluation-harness).
 
 ## News
+**[9/9/2024]** We now support preference learning via [DPO](https://arxiv.org/abs/2305.18290), [KTO](https://arxiv.org/abs/2402.01306), and reward modeling
+
+**[9/9/2024]** We now support integration with [Comet ML](https://www.comet.com/site/), a machine learning monitoring platform
+
+**[5/21/2024]** We now support [RWKV](https://www.rwkv.com/) with pipeline parallelism!. See the PRs for [RWKV](https://github.com/EleutherAI/gpt-neox/pull/1198) and [RWKV+pipeline](https://github.com/EleutherAI/gpt-neox/pull/1221)
+
+**[3/21/2024]** We now support Mixture-of-Experts (MoE)
+
+**[3/17/2024]** We now support AMD MI250X GPUs
+
+**[3/15/2024]** We now support [Mamba](https://github.com/state-spaces/mamba) with tensor parallelism! See [the PR](https://github.com/EleutherAI/gpt-neox/pull/1184)
+
 **[8/10/2023]** We now support checkpointing with AWS S3! Activate with the `s3_path` config option (for more detail, see [the PR](https://github.com/EleutherAI/gpt-neox/pull/1010))
 
 **[9/20/2023]** As of https://github.com/EleutherAI/gpt-neox/pull/1035, we have deprecated Flash Attention 0.x and 1.x, and migrated support to Flash Attention 2.x. We don't believe this will cause problems, but if you have a specific use-case that requires old flash support using the latest GPT-NeoX, please raise an issue.
@@ -96,7 +108,7 @@ To install the remaining basic dependencies, run:
 pip install -r requirements/requirements.txt
 pip install -r requirements/requirements-wandb.txt # optional, if logging using WandB
 pip install -r requirements/requirements-tensorboard.txt # optional, if logging via tensorboard
-python ./megatron/fused_kernels/setup.py install # optional, if using fused kernels
+pip install -r requirements/requirements-comet.txt # optional, if logging via Comet
 ```
 
 from the repository root.
@@ -105,6 +117,16 @@ from the repository root.
 > Our codebase relies on [DeeperSpeed](https://github.com/EleutherAI/DeeperSpeed), our fork of the [DeepSpeed](https://github.com/microsoft/DeepSpeed) library with some added changes. We strongly recommend using Anaconda, a virtual machine, or some other form of environment isolation before continuing. Failure to do so may cause other repositories that rely on DeepSpeed to break.
 
 </aside>
+
+### Fused Kernels
+We now support AMD GPUs (MI100, MI250X) through JIT fused-kernel compilation. Fused kernels will be built and loaded as needed. To avoid waiting during job launching, you can also do the following for manual pre-build:
+
+```python
+python
+from megatron.fused_kernels import load
+load()
+```
+This will automatically adapts building process over different GPU vendors (AMD, NVIDIA) without platform specific code changes. To further test fused kernels using `pytest`, use `pytest tests/model/test_fused_kernels.py`
 
 ### Flash Attention
 
@@ -285,7 +307,7 @@ You can then run any job you want from inside the container.
 Concerns when running for a long time or in detached mode include
  - You will have to terminate the container manually when you are no longer using it
  - If you want processes to continue running when your shell session ends, you will need to background them.
- - If you then want logging, you will have to make sure to pipe logs to disk or set up wandb.
+ - If you then want logging, you will have to make sure to pipe logs to disk, and set up wandb and/or Comet logging.
 
 If you prefer to run the prebuilt container image from dockerhub, you can run the docker compose commands with ```-f docker-compose-dockerhub.yml``` instead, e.g.,
 
@@ -507,7 +529,7 @@ You can pass in an arbitrary number of configs which will all be merged at runti
 
 You can also optionally pass in a config prefix, which will assume all your configs are in the same folder and append that prefix to their path.
 
-E.G:
+For example:
 
 ```bash
 python ./deepy.py train.py -d configs 125M.yml local_setup.yml
@@ -624,15 +646,28 @@ To convert from a Hugging Face model into a NeoX-loadable, run `tools/ckpts/conv
 
 # Monitoring
 
-In addition to storing logs locally, we provide built-in support for two popular experiment monitoring frameworks: [Weights & Biases](https://wandb.ai/site) and [TensorBoard](https://www.tensorflow.org/tensorboard/)
+In addition to storing logs locally, we provide built-in support for two popular experiment monitoring frameworks: [Weights & Biases](https://wandb.ai/site), [TensorBoard](https://www.tensorflow.org/tensorboard/), and [Comet](https://www.comet.com/site)
 
 ## Weights and Biases
 
-EleutherAI is currently using [Weights & Biases to record our experiments](https://wandb.ai/eleutherai/neox). If you are logged into Weights & Biases on your machine&mdash;you can do this by executing `wandb login`&mdash;your runs will automatically be recorded. There are two optional fields associated with Weights & Biases: <code><var>wandb_group</var></code> allows you to name the run group and <code><var>wandb_team</var></code> allows you to assign your runs to an organization or team account.
+[Weights & Biases to record our experiments](https://wandb.ai/eleutherai/neox) is a machine learning monitoring platform. To use wandb to monitor your gpt-neox experiments:
+1. Create an account at https://wandb.ai/site to generate your API key
+2. Log into Weights & Biases on your machine&mdash;you can do this by executing `wandb login`&mdash;your runs will automatically be recorded.
+3. Dependencies required for wandb monitoring can be found in and installed from `./requirements/requirements-wandb.txt`. An example config is provided in `./configs/local_setup_wandb.yml`.
+4. There are two optional fields associated with Weights & Biases: <code><var>wandb_group</var></code> allows you to name the run group and <code><var>wandb_team</var></code> allows you to assign your runs to an organization or team account. An example config is provided in `./configs/local_setup_wandb.yml`.
 
 ## TensorBoard
 
-We also support using TensorBoard via the <code><var>tensorboard-dir</var></code> field. Dependencies required for TensorBoard monitoring can be found in and installed from  `./requirements/requirements-tensorboard.txt`.
+We support using TensorBoard via the <code><var>tensorboard-dir</var></code> field. Dependencies required for TensorBoard monitoring can be found in and installed from  `./requirements/requirements-tensorboard.txt`.
+
+## Comet
+
+[Comet](https://www.comet.com/site) is a machine learning monitoring platform. To use comet to monitor your gpt-neox experiments:
+1. Create an account at https://www.comet.com/login to generate your API key.
+2. Once generated, link your API key at runtime by running `comet login` or passing `export COMET_API_KEY=<your-key-here>`
+3. Install `comet_ml` and any dependency libraries via `pip install -r requirements/requirements-comet.txt`
+4. Enable Comet with `use_comet: True`. You can also customize where data is being logged with `comet_workspace` and `comet_project`. A full example config with comet enabled is provided in `configs/local_setup_comet.yml`.
+5. Run your experiment, and monitor metrics in the Comet workspace that you passed!
 
 # Running on multi-node
 
@@ -640,11 +675,13 @@ If you need to supply a hostfile for use with the MPI-based DeepSpeed launcher, 
 
 # Profiling
 
-We support profiling with Nsight Systems and PyTorch Memory Profiling.
+We support profiling with Nsight Systems, the PyTorch Profiler, and PyTorch Memory Profiling.
 
 ## Nsight Systems Profiling
 
-To use the Nsight Systems profiling, set config options `profile`, `profile_step_start`, and `profile_step_stop`. Launch training with:
+To use the Nsight Systems profiling, set config options `profile`, `profile_step_start`, and `profile_step_stop` (see [here](https://github.com/EleutherAI/gpt-neox/blob/main/configs/neox_arguments.md) for argument usage, and [here](https://github.com/EleutherAI/gpt-neox/blob/main/configs/prof.yml) for a sample config).
+
+To populate nsys metrics, launch training with:
 
 ```
 nsys profile -s none -t nvtx,cuda -o <path/to/profiling/output> --force-overwrite true \
@@ -654,13 +691,22 @@ $TRAIN_PATH/train.py --conf_dir configs <config files>
 
 The generated output file can then by viewed with the Nsight Systems GUI:
 
-![Alt text](images/nsight_profiling.png)
+![nsight-prof](images/nsight_profiling.png)
+
+## PyTorch Profiling
+
+To use the built-in PyTorch profiler, set config options `profile`, `profile_step_start`, and `profile_step_stop` (see [here](https://github.com/EleutherAI/gpt-neox/blob/main/configs/neox_arguments.md) for argument usage, and [here](https://github.com/EleutherAI/gpt-neox/blob/main/configs/prof.yml) for a sample config).
+
+The PyTorch profiler will save traces to your `tensorboard` log directory.  You can view these traces within
+TensorBoard by following the steps [here](https://pytorch.org/tutorials/intermediate/tensorboard_profiler_tutorial.html).
+
+![torch-prof](images/pytorch_profiling.png)
 
 ## PyTorch Memory Profiling
 
-To use PyTorch Memory Profiling, set config options `memory_profiling` and `memory_profiling_path`.
+To use PyTorch Memory Profiling, set config options `memory_profiling` and `memory_profiling_path` (see [here](https://github.com/EleutherAI/gpt-neox/blob/main/configs/neox_arguments.md) for argument usage, and [here](https://github.com/EleutherAI/gpt-neox/blob/main/configs/prof.yml) for a sample config).
 
-![Alt text](images/memory_profiling.png)
+![mem-prof](images/memory_profiling.png)
 
 View the generated profile with the [memory_viz.py](https://github.com/pytorch/pytorch/blob/main/torch/cuda/_memory_viz.py) script. Run with:
 
@@ -718,7 +764,7 @@ The following publications by other research groups use this library:
 The following models were trained using this library:
 
 ### English LLMs
-- EleutherAI's [GPT-NeoX-20B](https://huggingface.co/EleutherAI/gpt-neox-20b), [Pythia (70M through 13B)](https://github.com/EleutherAI/pythia), and [LLeMMA (34B)](https://arxiv.org/abs/2310.10631)
+- EleutherAI's [GPT-NeoX-20B](https://huggingface.co/EleutherAI/gpt-neox-20b) and [Pythia (70M through 13B)](https://github.com/EleutherAI/pythia)
 - CarperAI's [FIM-NeoX-1.3B](https://huggingface.co/CarperAI/FIM-NeoX-1.3B)
 - StabilityAI's [StableLM (3B and 7B)](https://github.com/Stability-AI/StableLM)
 - Together.ai's [RedPajama-INCITE (3B and 7B)](https://together.ai/blog/redpajama-models-v1)
@@ -729,13 +775,15 @@ The following models were trained using this library:
 ### Non-English LLMs
 - EleutherAI's [Polyglot-Ko (1.3B through 12.8B)](https://github.com/EleutherAI/polyglot) (Korean)
 - Korea University's [KULLM-Polyglot (5.8B and 12.8B)](https://github.com/nlpai-lab/KULLM) (Korean)
-- Stability AI's [Japanese Stable LM (7B)](https://huggingface.co/stabilityai/japanese-stablelm-base-alpha-7b)
+- Stability AI's [Japanese Stable LM (7B)](https://huggingface.co/stabilityai/japanese-stablelm-base-alpha-7b) (Japanese)
 - LearnItAnyway's [LLaVA-Polyglot-Ko (1.3B)](https://huggingface.co/LearnItAnyway/llava-polyglot-ko-1.3b-hf) (Korean)
 - Rinna Co.'s [japanese-gpt-neox-3.6b](https://huggingface.co/rinna/japanese-gpt-neox-3.6b) (Japanese) and [bilingual-gpt-neox-4b](https://huggingface.co/rinna/bilingual-gpt-neox-4b) (English / Japanese)
 - CyberAgent's [Open-CLM (125M through 7B)](https://huggingface.co/cyberagent/open-calm-7b) (Japanese)
 - The Hungarian Research Centre for Linguistics's [PULI GPTrio (6.7B)](https://huggingface.co/NYTK/PULI-GPTrio) (Hungarian / English / Chinese)
 - The University of Tokyo's [weblab-10b](https://huggingface.co/Kojima777/weblab-10b) and [weblab-10b-instruct](https://huggingface.co/Kojima777/weblab-10b-instruction-sft) (Japanese)
 - nolando.ai's [Hi-NOLIN (9B)](https://blog.nolano.ai/Hi-NOLIN/) (English, Hindi)
+- Renmin University of China's [YuLan (12B)](https://huggingface.co/yulan-team/YuLan-Base-12b) (English, Chinese)
+- The Basque Center for Language Technology's [Latixna (70B)](https://huggingface.co/HiTZ/latxa-70b-v1.2) (Basque)
 
 ### Code Models
 - Carnegie Mellon University's [PolyCoder (160M through 2.7B)](https://github.com/VHellendoorn/Code-LMs) and [CAT-LM (2.7B)](https://huggingface.co/nikitharao/catlm)
@@ -743,11 +791,13 @@ The following models were trained using this library:
 - CodeFuse AI's [CodeFuse (13B)](https://huggingface.co/codefuse-ai/CodeFuse-13B)
 
 ### AI for Science
+- EleutherAI's [LLeMMA (34B)](https://arxiv.org/abs/2310.10631)
 - Oak Ridge National Lab's [FORGE (26B)](https://github.com/at-aaims/forge)
-- Oak Ridge National Lab and EleutherAI's [Unnamed Material Science Domain Models (7B)](https://github.com/at-aaims/forge)
+- Oak Ridge National Lab's [Unnamed Material Science Domain Models (7B)](https://arxiv.org/abs/2402.00691)
 - Pacific Northwest National Lab's [MolJet (undisclosed size)](https://openreview.net/pdf?id=7UudBVsIrr)
 
 ### Other Modalities
+-  Rinna Co.'s [PSLM (7B)](https://arxiv.org/abs/2406.12428) (speech / text)
 -  University College London's [ChessGPT-3B](https://huggingface.co/Waterhorse/chessgpt-base-v1)
 -  Gretel's [Text-to-Table (3B)](https://huggingface.co/gretelai/text2table)
 
