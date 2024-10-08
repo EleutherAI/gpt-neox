@@ -679,7 +679,9 @@ We support profiling with Nsight Systems, the PyTorch Profiler, and PyTorch Memo
 
 ## Nsight Systems Profiling
 
-To use the Nsight Systems profiling, set config options `profile`, `profile_step_start`, and `profile_step_stop`. Launch training with:
+To use the Nsight Systems profiling, set config options `profile`, `profile_step_start`, and `profile_step_stop` (see [here](https://github.com/EleutherAI/gpt-neox/blob/main/configs/neox_arguments.md) for argument usage, and [here](https://github.com/EleutherAI/gpt-neox/blob/main/configs/prof.yml) for a sample config).
+
+To populate nsys metrics, launch training with:
 
 ```
 nsys profile -s none -t nvtx,cuda -o <path/to/profiling/output> --force-overwrite true \
@@ -689,22 +691,22 @@ $TRAIN_PATH/train.py --conf_dir configs <config files>
 
 The generated output file can then by viewed with the Nsight Systems GUI:
 
-![Alt text](images/nsight_profiling.png)
+![nsight-prof](images/nsight_profiling.png)
 
 ## PyTorch Profiling
 
-To use the built-in PyTorch profiler, set config options `profile`, `profile_step_start`, and `profile_step_stop`.
+To use the built-in PyTorch profiler, set config options `profile`, `profile_step_start`, and `profile_step_stop` (see [here](https://github.com/EleutherAI/gpt-neox/blob/main/configs/neox_arguments.md) for argument usage, and [here](https://github.com/EleutherAI/gpt-neox/blob/main/configs/prof.yml) for a sample config).
 
 The PyTorch profiler will save traces to your `tensorboard` log directory.  You can view these traces within
 TensorBoard by following the steps [here](https://pytorch.org/tutorials/intermediate/tensorboard_profiler_tutorial.html).
 
-![Alt text](images/pytorch_profiling.png)
+![torch-prof](images/pytorch_profiling.png)
 
 ## PyTorch Memory Profiling
 
-To use PyTorch Memory Profiling, set config options `memory_profiling` and `memory_profiling_path`.
+To use PyTorch Memory Profiling, set config options `memory_profiling` and `memory_profiling_path` (see [here](https://github.com/EleutherAI/gpt-neox/blob/main/configs/neox_arguments.md) for argument usage, and [here](https://github.com/EleutherAI/gpt-neox/blob/main/configs/prof.yml) for a sample config).
 
-![Alt text](images/memory_profiling.png)
+![mem-prof](images/memory_profiling.png)
 
 View the generated profile with the [memory_viz.py](https://github.com/pytorch/pytorch/blob/main/torch/cuda/_memory_viz.py) script. Run with:
 
