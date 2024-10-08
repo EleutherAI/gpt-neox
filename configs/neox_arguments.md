@@ -843,6 +843,29 @@ Model Arguments
 
 
 
+- **dim_att**: int
+
+    Default = None
+
+    Total dimension of the attention mechanism for RWKV. If not set, defaults to hidden_size.
+
+
+
+- **head_size**: int
+
+    Default = None
+
+    Size of each attention head for RWKV. Calculated as dim_att // num_attention_heads.
+
+
+
+- **ffn_dim**: int
+
+    Default = None
+
+    Dimension of the feed-forward network for RWKV. If not set, calculated based on hidden_size and expansion_factor.
+
+
 ## NeoXArgsOptimizer
 
 Optimizer Arguments

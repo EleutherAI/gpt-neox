@@ -21,7 +21,7 @@ except ImportError:
     from template import NeoXArgsTemplate
 
 try:
-    from typing import List, Literal, Union, Optional
+    from typing import List, Literal, Union, Optional, Any
 except ImportError:
     from typing_extensions import List, Literal, Union, Optional
 
@@ -502,6 +502,21 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
     """
 
+    dim_att: int = None
+    """
+    Total dimension of the attention mechanism for RWKV. If not set, defaults to hidden_size.
+    """
+
+    head_size: int = None
+    """
+    Size of each attention head for RWKV. Calculated as dim_att // num_attention_heads.
+    """
+
+    ffn_dim: int = None
+    """
+    Dimension of the feed-forward network for RWKV. If not set, calculated based on hidden_size and expansion_factor.
+    """
+
 
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):
@@ -673,7 +688,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Custom metadata to attach to the created Comet Experiment.
     """
 
-    comet_experiment = None
+    comet_experiment: Any = None
     """
     Initialized comet experiment object used to log data
     """
