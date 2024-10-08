@@ -1,0 +1,14 @@
+[tool.poetry]
+name = "gpt-neox-wandb"
+version = "0.1.0"
+description = "Weights & Biases requirements for GPT-NeoX"
+authors = ["EleutherAI <contact@eleuther.ai>"]
+license = "Apache-2.0"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+wandb = ">=0.10.28"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

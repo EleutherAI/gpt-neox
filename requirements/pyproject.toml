@@ -1,0 +1,33 @@
+[tool.poetry]
+name = "gpt-neox"
+version = "2.0.0"
+description = "An open-source library for training large-scale language models on GPUs"
+authors = ["EleutherAI <contact@eleuther.ai>"]
+license = "Apache-2.0"
+readme = "README.md"
+homepage = "https://www.github.com/eleutherai/gpt-neox"
+repository = "https://www.github.com/eleutherai/gpt-neox"
+documentation = "https://www.github.com/eleutherai/gpt-neox"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+deepspeed = {git = "https://github.com/EleutherAI/DeeperSpeed.git", rev = "02e2ebf7dee6aaab3d89094ed470a4609763c742"}
+ftfy = "^6.0.1"
+huggingface_hub = "^0.11.0"
+jinja2 = "3.1.4"
+lm_dataformat = {git = "https://github.com/EleutherAI/lm_dataformat.git", rev = "4eec05349977071bf67fc072290b95e31c8dd836"}
+lm_eval = ">=0.4.0,<=0.4.1"
+mpi4py = "^3.0.3"
+numpy = "<2.0"
+pybind11 = "^2.6.2"
+regex = "*"
+sentencepiece = "*"
+six = "*"
+tiktoken = "^0.1.2"
+tokenizers = "^0.12.1"
+transformers = "4.38.0"
+toml = "*"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

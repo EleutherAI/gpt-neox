@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "gpt-neox-s3"
+version = "0.1.0"
+description = "S3 requirements for GPT-NeoX"
+authors = ["EleutherAI <contact@eleuther.ai>"]
+license = "Apache-2.0"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+boto3 = "*"
+hf-transfer = ">=0.1.3"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
