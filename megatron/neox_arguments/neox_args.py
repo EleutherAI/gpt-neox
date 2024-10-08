@@ -21,7 +21,7 @@ except ImportError:
     from template import NeoXArgsTemplate
 
 try:
-    from typing import List, Literal, Union, Optional
+    from typing import List, Literal, Union, Optional, Any
 except ImportError:
     from typing_extensions import List, Literal, Union, Optional
 
@@ -555,6 +555,22 @@ class NeoXArgsModel(NeoXArgsTemplate):
     """
     When set to True, use the FP8 implementation of Multi Head Attention.
     """
+    
+    dim_att: int = None
+    """
+    Total dimension of the attention mechanism for RWKV. If not set, defaults to hidden_size.
+    """
+
+    head_size: int = None
+    """
+    Size of each attention head for RWKV. Calculated as dim_att // num_attention_heads.
+    """
+
+    ffn_dim: int = None
+    """
+    Dimension of the feed-forward network for RWKV. If not set, calculated based on hidden_size and expansion_factor.
+    """
+
 
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):
@@ -626,7 +642,13 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
 
     lr_decay_iters: int = None
     """
-    Number of iterations to decay learning rate over, If None defaults to --train-iters
+    Number of iterations to decay learning rate over, If None defaults to
+    --train-iters or the equivalent inferred valued from train_epochs.
+    """
+
+    lr_decay_fraction: float = None
+    """
+    Effective fraction of training over which to decay lr, overrides lr_decay_iters, useful when specifying train_epochs
     """
 
     min_lr: float = 0.0
@@ -720,7 +742,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Custom metadata to attach to the created Comet Experiment.
     """
 
-    comet_experiment = None
+    comet_experiment: Any = None
     """
     Initialized comet experiment object used to log data
     """
@@ -779,8 +801,8 @@ class NeoXArgsLogging(NeoXArgsTemplate):
 
     profile: bool = False
     """
-    Enable nsys profiling. When using this option,
-    nsys options should be specified in commandline.
+    Enable nsys and pytorch profiling. When using this option with nsys,
+    nsys options should be directly specified in commandline.
     An example nsys commandline is
     ```
     nsys profile -s none -t nvtx,cuda -o <path/to/output_file>
@@ -901,11 +923,6 @@ class NeoXArgsOther(NeoXArgsTemplate):
     """
 
     do_test: bool = None
-    """
-    Set during training
-    """
-
-    save_iters: list = None
     """
     Set during training
     """
@@ -1202,7 +1219,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     while "log" implies that the number of steps between each checkpoint will be multiplied by `checkpoint-factor` at each step, starting from step 1.
     """
 
-    checkpoint_factor: int = None
+    checkpoint_factor: Union[int, float] = None
     """
     Acts as a multiplier on either the "log" or "linear" checkpoint spacing.
 
@@ -1254,6 +1271,12 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     train_iters: int = None
     """
     Number of iterations to run for training.
+    """
+
+    train_epochs: int = None
+    """
+    Number of epochs to run for training. Do not specify both train_epochs and train_iters.
+    Not currently compatible with data reweighing, pairwise datasets, and packing other than 'packed'
     """
 
     eval_iters: int = 100

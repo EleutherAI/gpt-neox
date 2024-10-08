@@ -14,14 +14,19 @@ LR Scheduler Arguments
     Learning rate decay function. Choose from 'constant', 'linear', 'cosine', 'exponential'.
 
 
-
 - **lr_decay_iters**: int
 
     Default = None
 
-    Number of iterations to decay learning rate over, If None defaults to --train-iters
+    Number of iterations to decay learning rate over. If None, defaults to 
+    --train-iters or the equivalent inferred value from train_epochs.
 
+- **lr_decay_fraction**: float
 
+    Default = None
+
+    Effective fraction of training over which to decay lr. Overrides lr_decay_iters. 
+    Useful when specifying train_epochs.
 
 - **min_lr**: float
 
@@ -836,6 +841,29 @@ Model Arguments
 
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
 
+
+
+- **dim_att**: int
+
+    Default = None
+
+    Total dimension of the attention mechanism for RWKV. If not set, defaults to hidden_size.
+
+
+
+- **head_size**: int
+
+    Default = None
+
+    Size of each attention head for RWKV. Calculated as dim_att // num_attention_heads.
+
+
+
+- **ffn_dim**: int
+
+    Default = None
+
+    Dimension of the feed-forward network for RWKV. If not set, calculated based on hidden_size and expansion_factor.
 
 
 ## NeoXArgsOptimizer
@@ -1925,6 +1953,15 @@ Training Arguments
     Default = None
 
     Number of iterations to run for training.
+
+
+
+- **train_epochs**: int
+
+    Default = None
+
+    Number of epochs to run for training. Do not specify both train_epochs and train_iters.
+    Not currently compatible with data reweighing, pairwise datasets, and packing other than 'packed'
 
 
 
