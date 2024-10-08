@@ -66,7 +66,9 @@ def test_neoxargs_usage():
 
         # find args matches
         matches = list(
-            re.findall(r"(?<=args\.).{2,}?(?=[\s\n(){}+-/*;:,=,[,\]])", file_contents)
+            re.findall(
+                r"(?<=neox_args\.).{2,}?(?=[\s\n(){}+-/*;:,=,[,\]])", file_contents
+            )
         )
         if len(matches) == 0:
             continue
