@@ -1,0 +1,14 @@
+[tool.poetry]
+name = "gpt-neox-onebitadam"
+version = "0.1.0"
+description = "OneBitAdam requirements for GPT-NeoX"
+authors = ["EleutherAI <contact@eleuther.ai>"]
+license = "Apache-2.0"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+cupy-cuda111 = ">=8.6.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
