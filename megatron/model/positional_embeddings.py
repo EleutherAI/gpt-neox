@@ -37,7 +37,8 @@ class SinusoidalPositionalEmbedding(torch.nn.Module):
 
 class RotaryEmbedding(torch.nn.Module):
     def __init__(
-        self, dim, max_seq_len, base=10000, precision=torch.half, save_inv_freqs=False):
+        self, dim, max_seq_len, base=10000, precision=torch.half, save_inv_freqs=False
+    ):
         super().__init__()
         inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2).float() / dim))
         self.register_buffer("inv_freq", inv_freq, persistent=save_inv_freqs)
@@ -79,7 +80,7 @@ class RotaryEmbedding(torch.nn.Module):
 
     def get_emb(self):
         return self.emb.to(self.precision).cuda()
-        
+
     def forward(self, x, seq_dim=0, seq_len=None):
         if seq_len is None:
             seq_len = x.shape[seq_dim]

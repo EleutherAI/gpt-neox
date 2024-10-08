@@ -406,11 +406,15 @@ def mark_norms_for_sequence_parallel_grad_sync(module, neox_args):
 
 def get_parallel_linear(neox_args):
     if neox_args.te_columnparallel:
-        from megatron.model.transformer_engine import TEColumnParallelLinear as ColumnParallelLinear
+        from megatron.model.transformer_engine import (
+            TEColumnParallelLinear as ColumnParallelLinear,
+        )
     else:
         from megatron.mpu import ColumnParallelLinear
     if neox_args.te_rowparallel:
-        from megatron.model.transformer_engine import TERowParallelLinear as RowParallelLinear
+        from megatron.model.transformer_engine import (
+            TERowParallelLinear as RowParallelLinear,
+        )
     else:
         from megatron.mpu import RowParallelLinear
 

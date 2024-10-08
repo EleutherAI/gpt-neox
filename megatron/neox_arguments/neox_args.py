@@ -501,7 +501,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     """
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
     """
-    
+
     te_columnparallel: bool = False
     """
     Use TransformerEngine for RowParallelLinear layer.
@@ -555,7 +555,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     """
     When set to True, use the FP8 implementation of Multi Head Attention.
     """
-    
+
     dim_att: int = None
     """
     Total dimension of the attention mechanism for RWKV. If not set, defaults to hidden_size.
@@ -1168,7 +1168,6 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     """
     Beta value for KTO
     """
-
 
     allow_chopped: bool = True
     """

@@ -414,7 +414,6 @@ class ParallelSelfAttention(nn.Module):
                 bias=neox_args.use_bias_in_attn_linear,
             )
 
-
         coeff = None
         self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
         if self.apply_query_key_layer_scaling:
@@ -860,7 +859,7 @@ class ParallelSelfAttention(nn.Module):
         return query_layer, key_layer, value_layer
 
     def forward(self, hidden_states, attention_mask, layer_past=None):
-        
+
         # hidden_states: [sq, b, h]
 
         # =====================
@@ -933,7 +932,6 @@ class ParallelSelfAttention(nn.Module):
             if exists(self.rotary_ndims):
                 query_layer = torch.cat((query_layer, query_pass), dim=-1)
                 key_layer = torch.cat((key_layer, key_pass), dim=-1)
-
 
         # ==================================
         # Cache key and value for inference
@@ -1030,16 +1028,17 @@ class ParallelTransformerLayer(nn.Module):
         # Self attention.
         if neox_args.te_mha or neox_args.te_fp8_mha:
             from megatron.model.transformer_engine import TEMultiheadAttention
+
             self.attention = TEMultiheadAttention(
-            neox_args=neox_args,
-            attention_mask_func=attention_mask_func,
-            init_method=init_method,
-            output_layer_init_method=output_layer_init_method,
-            layer_number=layer_number,
-            rpe=rpe,
-            use_cache=self.use_cache,
-            rotary=rotary,
-            parallel_output=self.gpt_j_residual,
+                neox_args=neox_args,
+                attention_mask_func=attention_mask_func,
+                init_method=init_method,
+                output_layer_init_method=output_layer_init_method,
+                layer_number=layer_number,
+                rpe=rpe,
+                use_cache=self.use_cache,
+                rotary=rotary,
+                parallel_output=self.gpt_j_residual,
             )
 
         else:
@@ -1073,6 +1072,7 @@ class ParallelTransformerLayer(nn.Module):
 
         def get_te_lnmlp(**kw):
             from megatron.model.transformer_engine import TELayerNormMLP
+
             return TELayerNormMLP(
                 neox_args=neox_args,
                 init_method=init_method,
@@ -1201,18 +1201,16 @@ class ParallelTransformerLayer(nn.Module):
         bias_dropout_fn = self._get_bias_dropout()
         moe_loss = torch.tensor(0.0, device=x.device, dtype=x.dtype)
         # x: [b, s, h]
-        
-        
-        #Enable delayedscaling if TransformerEngine's FP8 is used for MHA layer.
+
+        # Enable delayedscaling if TransformerEngine's FP8 is used for MHA layer.
         if self.neox_args.te_fp8_mha:
             from megatron.model.transformer_engine import TEDelayedScaling
 
-            fp8_recipe = TEDelayedScaling(
-                neox_args=self.neox_args
-            )
+            fp8_recipe = TEDelayedScaling(neox_args=self.neox_args)
             fp8_context = fp8_recipe.get_context()
         else:
             from contextlib import nullcontext
+
             fp8_context = nullcontext()
 
         with fp8_context:
@@ -1319,9 +1317,7 @@ class ParallelTransformerLayer(nn.Module):
                 else:
                     if self.moe_type == "deepspeed":
                         mlp_output, moe_loss, _ = self.mlp(layernorm_output)
-                        mlp_bias = (
-                            None  # deepspeed.moe.layer.MoE.forward ignores the bias term
-                        )
+                        mlp_bias = None  # deepspeed.moe.layer.MoE.forward ignores the bias term
                     elif self.moe_type == "megablocks":
                         mlp_output, mlp_bias = self.mlp(layernorm_output)
                     else:
