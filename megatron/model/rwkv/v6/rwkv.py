@@ -8,7 +8,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 from torch.utils.cpp_extension import load
 from megatron import mpu
-from megatron.mpu import gather_from_model_parallel_region, reduce_from_model_parallel_region
+from megatron.mpu import gather_from_model_parallel_region, reduce_from_model_parallel_region, scatter_to_model_parallel_region
 
 class WKV(torch.autograd.Function):
     """
@@ -237,6 +237,7 @@ class RWKV_TimeMix(nn.Module):
         B, T, C = x.size()
 
         xx = self.time_shift(x) - x
+        print(x[0,:,1],xx[0,:,1])
 
         xxx = x + xx * self.time_maa_x
         xxx = torch.tanh(xxx @ self.time_maa_w1).view(B * T, 5, -1).transpose(0, 1)
@@ -255,8 +256,10 @@ class RWKV_TimeMix(nn.Module):
         gated, _ = self.gate(xg)
         g = F.silu(gated)
 
+        print(f"size of ww matmuls: {self.time_decay_w1.size()}, {self.time_decay_w2.size()}")
         ww = torch.tanh(xw @ self.time_decay_w1) @ self.time_decay_w2
         w = self.time_decay + ww
+        w = scatter_to_model_parallel_region(w)
 
         return r, k, v, g, w
 
@@ -273,14 +276,18 @@ class RWKV_TimeMix(nn.Module):
     def forward(self, x):
         B, T, C = x.size()
         C_tp = C//mpu.get_model_parallel_world_size()
-        H = self.neox_args.num_attention_heads
+        H = self.neox_args.num_attention_heads//mpu.get_model_parallel_world_size()
         H_tp = H//mpu.get_model_parallel_world_size()
 
+        self.time_faaaa = self.time_faaaa[:self.neox_args.num_attention_heads//2,:]
+        #self.time_faaaa = scatter_to_model_parallel_region(self.time_faaaa)
         r, k, v, g, w = self.jit_func(x)
         print(f"shape of r: {r.size()}, k: {k.size()}, v: {v.size()}, g: {g.size()}, w: {w.size()}, H: {H}, B: {B}, T: {T}, C: {C}, time_faaaa: {self.time_faaaa.size()},  \n")
+
         x = RUN_CUDA_RWKV(B, T, C_tp, H, r, k, v, w, u=self.time_faaaa)
-        x = gather_from_model_parallel_region(x)
         print(f"size of x after kernel: {x.size()}")
+        x = gather_from_model_parallel_region(x)
+        print(f"size of x after allgather: {x.size()}")
 
         return self.jit_func_2(x, g)
 
@@ -347,7 +354,9 @@ class ParallelRWKV_ChannelMix(nn.Module):
         k = torch.relu(k) ** 2
         kv, _ = self.value(k)
         receptance, _ = self.receptance(xr)
-        return torch.sigmoid(receptance) * kv
+        retVal = torch.sigmoid(receptance) * kv
+        print(f"channel mix output size: {retVal.size()}") 
+        return retVal
 
 
 class RWKVResidualLayer(nn.Module):
@@ -452,4 +461,8 @@ class RWKVResidualLayerPipe(RWKVResidualLayer):
         neox_args = self.neox_args
         if self.layer_number == 0:
             hidden_states = hidden_states.transpose(0,1)
-        return super().forward(hidden_states), mask
+        hidden_states = super().forward(hidden_states)
+        if self.layer_number == self.neox_args.num_layers-1:
+            hidden_states = hidden_states.transpose(0,1)
+            print(f"output of model from residual layer pipe: {hidden_states.size()}")
+        return hidden_states, mask
