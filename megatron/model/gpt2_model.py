@@ -74,6 +74,7 @@ def cross_entropy(output, labels, _fp16=False):
     else:
         losses = mpu.vocab_parallel_cross_entropy(output.float().contiguous(), labels)
     loss_mask = loss_mask.view(-1)
+    print(f"model output shape: {output.size()}, loss shape: {losses.size()}")
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
     return loss
 
@@ -258,6 +259,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                     LayerSpec(
                         RWKVResidualLayerPipe,
                         neox_args=self.neox_args,
+                        init_method=self.init_method,
                         layer_number=i,
                     )
                 )
