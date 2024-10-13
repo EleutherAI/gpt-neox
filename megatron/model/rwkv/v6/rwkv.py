@@ -279,7 +279,7 @@ class RWKV_TimeMix(nn.Module):
         H = self.neox_args.num_attention_heads//mpu.get_model_parallel_world_size()
         H_tp = H//mpu.get_model_parallel_world_size()
 
-        self.time_faaaa = self.time_faaaa[:self.neox_args.num_attention_heads//2,:]
+        #self.time_faaaa = self.time_faaaa[:self.neox_args.num_attention_heads//2,:]
         #self.time_faaaa = scatter_to_model_parallel_region(self.time_faaaa)
         r, k, v, g, w = self.jit_func(x)
         print(f"shape of r: {r.size()}, k: {k.size()}, v: {v.size()}, g: {g.size()}, w: {w.size()}, H: {H}, B: {B}, T: {T}, C: {C}, time_faaaa: {self.time_faaaa.size()},  \n")
