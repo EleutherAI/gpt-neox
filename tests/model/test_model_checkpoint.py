@@ -65,7 +65,6 @@ parameters, names = parametrize(
 )
 
 
-@pytest.mark.skip
 @pytest.mark.parametrize("param_dict", parameters, ids=names)
 def test_train(param_dict):
     import tempfile
