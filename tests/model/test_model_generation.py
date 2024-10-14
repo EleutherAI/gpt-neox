@@ -25,6 +25,7 @@ import pytest
 from tests.common import DistributedTest, model_setup, parametrize
 
 PARAMS_TO_TEST = {
+    "include":["localhost:0,1"],
     "pipe_parallel_size,model_parallel_size,world_size": [
         [0, 1, 1],
         [0, 1, 2],
@@ -73,7 +74,7 @@ def test_train(param_dict):
 class run_generate_test_class(DistributedTest):
     world_size = 2
 
-    def run_generate_test(param_dict, prompt):
+    def run_generate_test(self, param_dict, prompt):
         from megatron.text_generation_utils import generate_samples_from_prompt
         from megatron.utils import is_mp_rank_0
 

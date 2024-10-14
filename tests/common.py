@@ -476,7 +476,7 @@ def get_test_path(filename):
 def model_setup(yaml_list=None, param_dict=None, clear_data=True):
     from megatron.neox_arguments import NeoXArgs
     from megatron.mpu import destroy_model_parallel
-    from megatron import initialize_megatron
+    from megatron.initialize import initialize_megatron
     from megatron.training import setup_model_and_optimizer
 
     destroy_model_parallel()  # mpu model parallel contains remaining global vars
