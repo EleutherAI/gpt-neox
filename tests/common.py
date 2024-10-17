@@ -132,8 +132,6 @@ def set_accelerator_visible():
 def count_gpus():
     global _num_gpus
     if _num_gpus is None:
-        import subprocess
-
         nvidia_smi = subprocess.check_output(["nvidia-smi", "--list-gpus"])
         _num_gpus = len(nvidia_smi.decode("utf-8").strip().split("\n"))
     return _num_gpus
@@ -146,8 +144,6 @@ def set_cuda_visibile():
         xdist_worker_id = 0
     if cuda_visible is None:
         # CUDA_VISIBLE_DEVICES is not set, discover it from nvidia-smi instead
-        import subprocess
-
         nvidia_smi = subprocess.check_output(["nvidia-smi", "--list-gpus"])
         num_gpus = len(nvidia_smi.decode("utf-8").strip().split("\n"))
         cuda_visible = ",".join(map(str, range(num_gpus)))
@@ -516,10 +512,11 @@ def model_setup(yaml_list=None, param_dict=None, clear_data=True):
     args_loaded.build_tokenizer()
 
     initialize_megatron(neox_args=args_loaded)
-    model, optimizer, lr_scheduler = setup_model_and_optimizer(
+    print("YAP")
+    model, optimizer, lr_scheduler, reference_model = setup_model_and_optimizer(
         neox_args=args_loaded, use_cache=True
     )
-    return model, optimizer, lr_scheduler, args_loaded
+    return model, optimizer, lr_scheduler, reference_model, args_loaded
 
 
 def simulate_deepy_env(monkeypatch, input_args):

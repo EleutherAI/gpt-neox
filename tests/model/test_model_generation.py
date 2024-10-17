@@ -83,7 +83,7 @@ class TestModelGeneration(DistributedTest):
         }
 
         param_dict.update(fixed_params)
-        model, _, _, args_loaded = model_setup(None, param_dict, clear_data=True)
+        model, _, _, _, args_loaded = model_setup(None, param_dict, clear_data=True)
         model.eval()
 
         prompt = param_dict.pop("prompt")
