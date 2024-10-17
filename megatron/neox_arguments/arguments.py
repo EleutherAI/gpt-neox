@@ -50,7 +50,7 @@ from .neox_args import (
     ATTENTION_TYPE_CHOICES,
 )
 
-### Base logging colors ###
+### ANSI escape codes ###
 END = "\033[0m"
 GREEN = "\033[92m"
 RED = "\033[91m"
