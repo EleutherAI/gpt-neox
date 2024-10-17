@@ -59,6 +59,7 @@ SUCCESS = f"{GREEN} [SUCCESS] {END}"
 OKAY = f"{GREEN}[OKAY]{END}"
 WARNING = f"{YELLOW}[WARNING]{END}"
 FAIL = f"{RED}[FAIL]{END}"
+ERROR = f"{RED}[ERROR]{END}"
 INFO = "[INFO]"
 
 # ZERO defaults by deespeed
@@ -875,7 +876,6 @@ class NeoXArgs(*BASE_CLASSES):
         """
         Derives additional configuration values necessary for training from the current config
         """
-
         # number of gpus
         # Get number of GPUs param or hostfile to determine train_batch_size
         global_num_gpus = getattr(self, "global_num_gpus", None)
@@ -896,6 +896,7 @@ class NeoXArgs(*BASE_CLASSES):
             else:
                 global_num_gpus = torch.cuda.device_count()
             self.update_value("global_num_gpus", global_num_gpus)
+        
 
         logging.info(
             self.__class__.__name__
