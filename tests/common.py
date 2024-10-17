@@ -16,6 +16,8 @@ import os
 import time
 import shutil
 import itertools
+import inspect
+import subprocess
 from pathlib import Path
 from abc import ABC, abstractmethod
 from deepspeed.accelerator import get_accelerator
@@ -48,6 +50,14 @@ TEST_TENSORBOARD_DIR = "test_tensorboard"
 DEEPSPEED_UNIT_WORKER_TIMEOUT = 120
 DEEPSPEED_TEST_TIMEOUT = 600
 
+def is_rocm_pytorch():
+    """
+    Check if the current PyTorch installation is using ROCm.
+    
+    Returns:
+        bool: True if PyTorch is using ROCm, False otherwise.
+    """
+    return hasattr(torch.version, 'hip') and torch.version.hip is not None
 
 def get_xdist_worker_id():
     xdist_worker = os.environ.get("PYTEST_XDIST_WORKER", None)
@@ -66,7 +76,6 @@ def get_master_port():
 
 
 _num_gpus = None
-
 
 def set_accelerator_visible():
     cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES", None)
@@ -428,9 +437,7 @@ class DistributedTest(DistributedExec):
                 assert int(os.environ["WORLD_SIZE"]) == 1
                 assert all(val1, val2, val3, val4)
     """
-
-    def __init__(self):
-        self.is_dist_test = True
+    is_dist_test = True
 
     # Temporary directory that is shared among test methods in a class
     @pytest.fixture(autouse=True, scope="class")

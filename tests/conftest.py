@@ -68,6 +68,11 @@ def check_environment(pytestconfig):
 @pytest.hookimpl(tryfirst=True)
 def pytest_runtest_call(item):
     # We want to use our own launching function for distributed tests
+    print("-------------------------------------------------------------------------")
+    print(type(item))
+    func_name = item.function.__name__ if hasattr(item, 'function') else None
+    print(f"Function name: {func_name}")
+    print("-------------------------------------------------------------------------")
     if getattr(item.cls, "is_dist_test", False):
         dist_test_class = item.cls()
         dist_test_class(item._request)
