@@ -50,16 +50,19 @@ from .neox_args import (
     ATTENTION_TYPE_CHOICES,
 )
 
-### Logging colors ###
+### ANSI escape codes ###
+END = "\033[0m"
 GREEN = "\033[92m"
 RED = "\033[91m"
 YELLOW = "\033[93m"
-END = "\033[0m"
-SUCCESS = f"{GREEN} [SUCCESS] {END}"
-OKAY = f"{GREEN}[OKAY]{END}"
-WARNING = f"{YELLOW}[WARNING]{END}"
+
+### Formatted logging prefixes ###
+ERROR = f"{RED}[ERROR]{END} "
 FAIL = f"{RED}[FAIL]{END}"
 INFO = "[INFO]"
+OKAY = f"{GREEN}[OKAY]{END}"
+SUCCESS = f"{GREEN} [SUCCESS] {END}"
+WARNING = f"{YELLOW}[WARNING]{END}"
 
 # ZERO defaults by deespeed
 # These values should not be changed unless defaults in deepspeed are changed
