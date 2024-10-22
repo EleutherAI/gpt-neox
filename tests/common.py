@@ -512,7 +512,6 @@ def model_setup(yaml_list=None, param_dict=None, clear_data=True):
     args_loaded.build_tokenizer()
 
     initialize_megatron(neox_args=args_loaded)
-    print("YAP")
     model, optimizer, lr_scheduler, reference_model = setup_model_and_optimizer(
         neox_args=args_loaded, use_cache=True
     )

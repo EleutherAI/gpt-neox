@@ -93,6 +93,7 @@ class TestModelCheckpoint(DistributedTest):
             reloaded_model,
             reloaded_optimizer,
             reloaded_lr_scheduler,
+            reloaded_reference_model,
             args_reloaded,
         ) = model_setup(yaml_list=None, param_dict=param_dict, clear_data=False)
         iteration = load_checkpoint(
