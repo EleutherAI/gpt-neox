@@ -6,6 +6,7 @@
   # model settings
   "num_layers": 32,
   "hidden_size": 4096,
+  "intermediate_size": 32768,
   "num_attention_heads": 32,
   "seq_length": 4096,
   "max_position_embeddings": 4096,
