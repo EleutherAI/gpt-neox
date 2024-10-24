@@ -953,12 +953,19 @@ class NeoXArgs(*BASE_CLASSES):
         )
 
         # derive precision
-        fp16_conflict = "DeepSpeed fp16 field was set but precision conflicts"
         if self.fp16 and self.fp16.get("enabled", False):
             if self.precision is None:
                 self.update_value("precision", "fp16")
             else:
+                fp16_conflict = "DeepSpeed fp16 field was set but precision conflicts"
                 assert self.precision == "fp16", fp16_conflict
+        
+        if self.bf16 and self.bf16.get("enabled", False):
+            if self.precision is None:
+                self.update_value("precision", "bfloat16")
+            else:
+                bf16_conflict = "DeepSpeed bf16 field was set but precision conflicts"
+                assert self.precision == "bfloat16", bf16_conflict
 
         if self.precision == "fp16":
             if isinstance(self.fp16, dict) and len(self.fp16) > 0:
@@ -968,14 +975,15 @@ class NeoXArgs(*BASE_CLASSES):
                 fp16_args = {"type": "fp16", "enabled": True}
             self.update_value("fp16", fp16_args)
         elif self.precision == "bfloat16":
-            bf_config = {"bf16": {"enabled": True}}
-            # dt_config = {"grad_accum_dtype": "fp32"}
-            if self.deepspeed_extra_args is None:
-                self.update_value("deepspeed_extra_args", bf_config)
-            else:
-                extra_args = copy.deepcopy(self.deepspeed_extra_args)
-                extra_args.update(bf_config)
-                self.update_value("deepspeed_extra_args", extra_args)
+            if not self.bf16:
+                bf_config = {"bf16": {"enabled": True}}
+                # dt_config = {"grad_accum_dtype": "fp32"}
+                if self.deepspeed_extra_args is None:
+                    self.update_value("deepspeed_extra_args", bf_config)
+                else:
+                    extra_args = copy.deepcopy(self.deepspeed_extra_args)
+                    extra_args.update(bf_config)
+                    self.update_value("deepspeed_extra_args", extra_args)
 
             zero_stage = self.zero_optimization["stage"]
             if self.data_types is None:
