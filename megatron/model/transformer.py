@@ -1269,8 +1269,8 @@ class ParallelTransformerLayer(nn.Module):
 
             with torch.enable_grad() if not self.eval else nullcontext():
                 if (
-                    self.activation == "swiglu"
-                    or self.num_experts > 1
+                    mlp_bias == None,
+                    self.num_experts > 1
                     and self.moe_type == "deepspeed"
                 ):
                     # No dropout either
