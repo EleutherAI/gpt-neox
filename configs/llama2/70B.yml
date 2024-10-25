@@ -6,7 +6,7 @@
   # model settings
   "num_layers": 80,
   "hidden_size": 8192,
-  "intermediate_size": 28672,
+  "intermediate_size": 86016,
   "num_attention_heads": 64,
   "num_kv_heads": 8,
   "seq_length": 4096,
