@@ -100,7 +100,7 @@ Prior to 3/9/2023, GPT-NeoX relied on [DeeperSpeed](https://github.com/EleutherA
 
 ### Host Setup
 
-First make sure you are in an environment with Python 3.8 with an appropriate version of PyTorch 1.8 or later installed. **Note:** Some of the libraries that GPT-NeoX depends on have not been updated to be compatible with Python 3.10+. Python 3.9 appears to work, but this codebase has been developed and tested for Python 3.8.
+First make sure you are in an environment with Python 3.8 with an appropriate version of PyTorch 1.8 or later installed. Python 3.9 and 3.10 appear to work, but this codebase has been developed and tested for Python 3.8.
 
 To install the remaining basic dependencies, run:
 
