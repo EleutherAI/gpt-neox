@@ -12,7 +12,7 @@
   "output_layer_parallelism": "column",
   "norm": "rmsnorm",
   "rms_norm_epsilon": 1.0e-5,
-  "train_micro_batch_size_per_gpu": 4,
+  "train_micro_batch_size_per_gpu": 1,
 
   "attention_config": [[["rwkv"], 24]],
 

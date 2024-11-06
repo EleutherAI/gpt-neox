@@ -258,7 +258,6 @@ class RWKV_TimeMix(nn.Module):
         B, T, C = x.size()
         C_tp = C//mpu.get_model_parallel_world_size()
         H = self.neox_args.num_attention_heads//mpu.get_model_parallel_world_size()
-        H_tp = H//mpu.get_model_parallel_world_size()
 
         r, k, v, g, w = self.jit_func(x)
 
