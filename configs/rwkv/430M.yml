@@ -4,8 +4,8 @@
   "model_parallel_size": 1,
 
   "num_layers": 24,
-  "hidden_size": 2048,
-  "num_attention_heads": 32, # head_size = dim_att / num_attention_heads.
+  "hidden_size": 1024,
+  "num_attention_heads": 16, # head_size = dim_att / num_attention_heads.
                              # head_size is 64 for all rwkv models
   "seq_length": 4096,
   "max_position_embeddings": 4096,

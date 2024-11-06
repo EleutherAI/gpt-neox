@@ -173,9 +173,6 @@ class RWKV_TimeMix(nn.Module):
             )
 
         self.time_shift = nn.ZeroPad2d((0, 0, 1, -1))
-        #self.receptance = nn.Linear(
-        #    neox_args.hidden_size, neox_args.dim_att, bias=False
-        #)
         self.receptance = mpu.ColumnParallelLinear(
              neox_args=neox_args,
              input_size=neox_args.hidden_size,
@@ -184,7 +181,6 @@ class RWKV_TimeMix(nn.Module):
              init_method=init_method,
              bias=False,
          )
-        #self.key = nn.Linear(neox_args.hidden_size, neox_args.dim_att, bias=False)
         self.key = mpu.ColumnParallelLinear(
              neox_args=neox_args,
              input_size=neox_args.hidden_size,
@@ -193,7 +189,6 @@ class RWKV_TimeMix(nn.Module):
              init_method=init_method,
              bias=False,
          )
-        #self.value = nn.Linear(neox_args.hidden_size, neox_args.dim_att, bias=False)
         self.value = mpu.ColumnParallelLinear(
              neox_args=neox_args,
              input_size=neox_args.hidden_size,
@@ -202,7 +197,6 @@ class RWKV_TimeMix(nn.Module):
              init_method=init_method,
              bias=False,
          )
-        #self.output = nn.Linear(neox_args.dim_att, neox_args.hidden_size, bias=False)
         self.output = mpu.ColumnParallelLinear(
              neox_args=neox_args,
              input_size=neox_args.dim_att,
@@ -211,7 +205,6 @@ class RWKV_TimeMix(nn.Module):
              init_method=init_method,
              bias=False,
          )
-        #self.gate = nn.Linear(neox_args.hidden_size, neox_args.dim_att, bias=False) # column
         self.gate = mpu.ColumnParallelLinear(
              neox_args=neox_args,
              input_size=neox_args.hidden_size,
@@ -220,15 +213,6 @@ class RWKV_TimeMix(nn.Module):
              init_method=init_method,
              bias=False,
          )
-        #self.gate = mpu.RowParallelLinear(
-        #     neox_args=neox_args,
-        #     input_size=neox_args.hidden_size,
-        #     output_size=neox_args.dim_att,
-        #     input_is_parallel=True,
-        #     init_method=init_method,
-        #     parallel_output=False,
-        #     bias=False
-        # )
         self.ln_x = nn.GroupNorm(
             neox_args.num_attention_heads, neox_args.dim_att, eps=(1e-5) * (8**2)
         )
@@ -237,7 +221,6 @@ class RWKV_TimeMix(nn.Module):
         B, T, C = x.size()
 
         xx = self.time_shift(x) - x
-        print(x[0,:,1],xx[0,:,1])
 
         xxx = x + xx * self.time_maa_x
         xxx = torch.tanh(xxx @ self.time_maa_w1).view(B * T, 5, -1).transpose(0, 1)
@@ -256,7 +239,6 @@ class RWKV_TimeMix(nn.Module):
         gated, _ = self.gate(xg)
         g = F.silu(gated)
 
-        print(f"size of ww matmuls: {self.time_decay_w1.size()}, {self.time_decay_w2.size()}")
         ww = torch.tanh(xw @ self.time_decay_w1) @ self.time_decay_w2
         w = self.time_decay + ww
         w = scatter_to_model_parallel_region(w)
@@ -268,9 +250,8 @@ class RWKV_TimeMix(nn.Module):
         x = x.view(B * T, C)
 
         x = self.ln_x(x).view(B, T, C)
-        print(f"shape of x: {x.size()}, shape of g: {g.size()}")
         x, _ = self.output(x * g)
-        print(f"new shape of x: {x.size()}")
+
         return x
 
     def forward(self, x):
@@ -279,15 +260,11 @@ class RWKV_TimeMix(nn.Module):
         H = self.neox_args.num_attention_heads//mpu.get_model_parallel_world_size()
         H_tp = H//mpu.get_model_parallel_world_size()
 
-        #self.time_faaaa = self.time_faaaa[:self.neox_args.num_attention_heads//2,:]
-        #self.time_faaaa = scatter_to_model_parallel_region(self.time_faaaa)
         r, k, v, g, w = self.jit_func(x)
-        print(f"shape of r: {r.size()}, k: {k.size()}, v: {v.size()}, g: {g.size()}, w: {w.size()}, H: {H}, B: {B}, T: {T}, C: {C}, time_faaaa: {self.time_faaaa.size()},  \n")
 
         x = RUN_CUDA_RWKV(B, T, C_tp, H, r, k, v, w, u=scatter_to_model_parallel_region(self.time_faaaa.view(-1)).view(H,C_tp//H) )
-        print(f"size of x after kernel: {x.size()}")
+
         x = gather_from_model_parallel_region(x)
-        print(f"size of x after allgather: {x.size()}")
 
         return self.jit_func_2(x, g)
 
@@ -315,7 +292,6 @@ class ParallelRWKV_ChannelMix(nn.Module):
             self.time_maa_k = nn.Parameter(1.0 - torch.pow(ddd, ratio_1_to_almost0))
             self.time_maa_r = nn.Parameter(1.0 - torch.pow(ddd, ratio_1_to_almost0))
 
-        #self.key = nn.Linear(neox_args.hidden_size, neox_args.ffn_dim, bias=False)
         self.key = mpu.ColumnParallelLinear(
              neox_args=neox_args,
              input_size=neox_args.hidden_size,
@@ -324,9 +300,7 @@ class ParallelRWKV_ChannelMix(nn.Module):
              init_method=init_method,
              bias=False,
          )
-        #self.receptance = nn.Linear(
-        #    neox_args.hidden_size, neox_args.hidden_size, bias=False
-        #)
+
         self.receptance = mpu.ColumnParallelLinear(
              neox_args=neox_args,
              input_size=neox_args.hidden_size,
@@ -335,7 +309,6 @@ class ParallelRWKV_ChannelMix(nn.Module):
              init_method=init_method,
              bias=False
          )
-        #self.value = nn.Linear(neox_args.ffn_dim, neox_args.hidden_size, bias=False)
         self.value = mpu.RowParallelLinear(
              neox_args=neox_args,
              input_size=neox_args.ffn_dim,
@@ -345,6 +318,7 @@ class ParallelRWKV_ChannelMix(nn.Module):
              parallel_output=False,
              bias=False
          )
+
     def forward(self, x):
         xx = self.time_shift(x) - x
         xk = x + xx * self.time_maa_k
@@ -355,7 +329,7 @@ class ParallelRWKV_ChannelMix(nn.Module):
         kv, _ = self.value(k)
         receptance, _ = self.receptance(xr)
         retVal = torch.sigmoid(receptance) * kv
-        print(f"channel mix output size: {retVal.size()}") 
+
         return retVal
 
 
@@ -374,7 +348,6 @@ class RWKVResidualLayer(nn.Module):
             neox_args.intermediate_size == None or neox_args.expansion_factor == None
         ), "Must pass either the absolute intermediate size or the relative expansion factor for rwkv"
         if not neox_args.dim_att:
-            print("replacing dim_att")
             neox_args.dim_att = neox_args.hidden_size
         if neox_args.intermediate_size:
             neox_args.ffn_dim = neox_args.intermediate_size
@@ -450,7 +423,6 @@ class RWKVResidualLayer(nn.Module):
 
         return x
 
-
 class RWKVResidualLayerPipe(RWKVResidualLayer):
     """
     RWKV Pipeline Layer
@@ -465,5 +437,4 @@ class RWKVResidualLayerPipe(RWKVResidualLayer):
         hidden_states = super().forward(hidden_states)
         if self.layer_number == self.neox_args.num_layers-1:
             hidden_states = hidden_states.transpose(0,1)
-            print(f"output of model from residual layer pipe: {hidden_states.size()}")
         return hidden_states, mask
