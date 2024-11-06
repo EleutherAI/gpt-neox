@@ -22,10 +22,6 @@
   "load": "checkpoints",
   "checkpoint_validation_with_forward_pass": False,
 
-  
- # "launcher": "openmpi",
-  #"deepspeed_mpi": true,
-
   "tensorboard_dir": "tensorboard",
   "log_dir": "logs",
 }
