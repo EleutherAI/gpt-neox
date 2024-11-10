@@ -9,6 +9,15 @@ from torch.nn import functional as F
 from torch.utils.cpp_extension import load
 from megatron import mpu
 from megatron.mpu import gather_from_model_parallel_region, reduce_from_model_parallel_region, scatter_to_model_parallel_region
+try:
+    from fla.ops.rwkv6 import chunk_rwkv6, fused_recurrent_rwkv6, native_recurrent_rwkv6
+    import einops
+except ModuleNotFoundError:
+    print(
+        "Unable to import RWKV FLA kernels. Install them from our requirements/requirements-rwkv.txt, \
+    or directly from https://github.com/TorchRWKV/flash-linear-attention/tree/stable, or use CUDA kernels."
+    )
+    pass
 
 class WKV(torch.autograd.Function):
     """
@@ -96,6 +105,18 @@ class WKV(torch.autograd.Function):
 def RUN_CUDA_RWKV(B, T, C, H, r, k, v, w, u):
     return WKV.apply(B, T, C, H, r, k, v, w, u)
 
+@torch.compiler.disable(recursive=True) 
+# torch.compiler introduces errors in numerical precision (torch 2.4)
+def RUN_FLA_CHUNK(B, T, C, H, r, k, v, w, u, h=None, scale=1.0, chunk_size=32):
+    r = r.view(B,T,H,-1).transpose(1,2)
+    k = k.view(B,T,H,-1).transpose(1,2)
+    v = v.view(B,T,H,-1).transpose(1,2)
+    # u can be 3d or 2d (B, H, -1) or just (H, -1) to save VRAM
+    w = -torch.exp(w.view(B,T,H,-1).transpose(1,2))
+    # change to scale=-1.0 when using fp16, this will apply scale to r and k.
+    o, final_state = chunk_rwkv6(r, k, v, w, u=u, scale=scale, initial_state=h, 
+        output_final_state=False, chunk_size=chunk_size) #initial_state=None and output_final_state=False for rwkv6
+    return o.transpose(1,2).reshape(B,T,C), final_state
 
 # RWKV6 time mix
 class RWKV_TimeMix(nn.Module):
@@ -260,9 +281,11 @@ class RWKV_TimeMix(nn.Module):
         H = self.neox_args.num_attention_heads//mpu.get_model_parallel_world_size()
 
         r, k, v, g, w = self.jit_func(x)
-
-        x = RUN_CUDA_RWKV(B, T, C_tp, H, r, k, v, w, u=scatter_to_model_parallel_region(self.time_faaaa.view(-1)).view(H,C_tp//H) )
-
+        if self.neox_args.rwkv_fla:
+            x, _ = RUN_FLA_CHUNK(B, T, C_tp, H, r, k, v, w, u=scatter_to_model_parallel_region(self.time_faaaa.view(-1)).view(H,C_tp//H))
+        else:
+            x = RUN_CUDA_RWKV(B, T, C_tp, H, r, k, v, w, u=scatter_to_model_parallel_region(self.time_faaaa.view(-1)).view(H,C_tp//H))
+        
         x = gather_from_model_parallel_region(x)
 
         return self.jit_func_2(x, g)
@@ -382,27 +405,28 @@ class RWKVResidualLayer(nn.Module):
             self.drop1 = nn.Dropout(p=neox_args.hidden_dropout)
 
         if layer_number == 0:
-            global wkv_cuda
-            """
-            Load cuda kernel at runtime. The kernel uses run time variables to build, ideally it should not.
-            """
-            wkv_cuda = load(
-                name="wkv6",
-                sources=[
-                    "megatron/model/rwkv/v6/cuda/wkv6_op.cpp",
-                    f"megatron/model/rwkv/v6/cuda/wkv6_cuda.cu",
-                ],
-                verbose=True,
-                extra_cuda_cflags=[
-                    "-res-usage",
-                    "--use_fast_math",
-                    "-O3",
-                    "-Xptxas -O3",
-                    "--extra-device-vectorization",
-                    f"-D_N_={self.neox_args.head_size}",
-                    f"-D_T_={self.neox_args.seq_length}",
-                ],
-            )
+            if not self.neox_args.rwkv_fla:
+                global wkv_cuda
+                """
+                Load cuda kernel at runtime. The kernel uses run time variables to build, ideally it should not.
+                """
+                wkv_cuda = load(
+                    name="wkv6",
+                    sources=[
+                        "megatron/model/rwkv/v6/cuda/wkv6_op.cpp",
+                        f"megatron/model/rwkv/v6/cuda/wkv6_cuda.cu",
+                    ],
+                    verbose=True,
+                    extra_cuda_cflags=[
+                        "-res-usage",
+                        "--use_fast_math",
+                        "-O3",
+                        "-Xptxas -O3",
+                        "--extra-device-vectorization",
+                        f"-D_N_={self.neox_args.head_size}",
+                        f"-D_T_={self.neox_args.seq_length}",
+                    ],
+                )
 
     def forward(self, x):
         neox_args = self.neox_args
