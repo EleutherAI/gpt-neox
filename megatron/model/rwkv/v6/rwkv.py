@@ -10,12 +10,12 @@ from torch.utils.cpp_extension import load
 from megatron import mpu
 from megatron.mpu import gather_from_model_parallel_region, reduce_from_model_parallel_region, scatter_to_model_parallel_region
 try:
-    from fla.ops.rwkv6 import chunk_rwkv6, fused_recurrent_rwkv6, native_recurrent_rwkv6
+    from fla.ops.rwkv6 import chunk_rwkv6
     import einops
 except ModuleNotFoundError:
     print(
         "Unable to import RWKV FLA kernels. Install them from our requirements/requirements-rwkv.txt, \
-    or directly from https://github.com/TorchRWKV/flash-linear-attention/tree/stable, or use CUDA kernels."
+    or directly from https://github.com/sustcsonglin/flash-linear-attention.git, or use CUDA kernels."
     )
     pass
 
