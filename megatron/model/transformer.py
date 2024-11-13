@@ -1270,8 +1270,7 @@ class ParallelTransformerLayer(nn.Module):
             with torch.enable_grad() if not self.eval else nullcontext():
                 if (
                     mlp_bias == None,
-                    self.num_experts > 1
-                    and self.moe_type == "deepspeed"
+                    self.num_experts > 1 and self.moe_type == "deepspeed",
                 ):
                     # No dropout either
                     assert mlp_bias is None
