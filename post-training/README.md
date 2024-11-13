@@ -53,5 +53,5 @@ python tools/datasets/preprocess_data_with_chat_template.py --input data/kto/lla
 python tools/ckpts/convert_neox_to_hf.py --input_dir eleuther-neox/checkpoints/rm/llama3/llama3-8b-instruct/global_step100 --output_dir checkpoints/rm/llama3_hf --config_file checkpoints/rm/llama3/llama3-8b-instruct/global_step100/configs/llama3-8b-rm.yml --precision bf16 --vocab-is-hf-tokenizer --architecture llama --pad-token-id 128002
 
 # SFT/DPO
-python tools/ckpts/convert_neox_to_hf.py --input_dir eleuther-neox/checkpoints/<dpo/sft>/llama3/llama3-8b-instruct/global_step100 --output_dir checkpoints/<dpo/sft>/llama3_hf --config_file checkpoints/<dpo/sft>/llama3/llama3-8b-instruct/global_step100/configs/llama3-8b-rm.yml --precision bf16 --vocab-is-hf-tokenizer
+python tools/ckpts/convert_neox_to_hf.py --input_dir eleuther-neox/checkpoints/<dpo/sft>/llama3/llama3-8b-instruct/global_step100 --output_dir checkpoints/<dpo/sft>/llama3_hf --config_file checkpoints/<dpo/sft>/llama3/llama3-8b-instruct/global_step100/configs/llama3-8b-rm.yml --precision bf16 --vocab-is-hf-tokenizer --architecture llama
 ```
