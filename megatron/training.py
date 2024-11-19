@@ -184,24 +184,35 @@ def update_iterations(neox_args, data_loaders):
     to do as many iterations as possible while ensuring that each example is seen *at most* train_epochs
     times.
     """
-    if neox_args.train_iters is not None:
+    if (not neox_args.do_train) or (neox_args.train_iters is not None):
         pass
     elif neox_args.train_iters is None and neox_args.train_epochs is None:
         print_rank_0(
             "ERROR:Failed to specify either train_epochs or train_iters in config file"
         )
     else:
-        train_dataloader = data_loaders["train"]
-        train_epochs = neox_args.train_epochs
-        gradient_accumulation_steps = neox_args.gradient_accumulation_steps
+        global_rank = torch.distributed.get_rank()
 
-        train_iterations = (
-            len(train_dataloader) * train_epochs
-        ) // gradient_accumulation_steps
+        if global_rank == 0:
+            train_dataloader = data_loaders["train"]
+            train_epochs = neox_args.train_epochs
+            gradient_accumulation_steps = neox_args.gradient_accumulation_steps
 
-        neox_args.train_iters = train_iterations
+            train_dataloader_len = len(train_dataloader)
+            train_iterations = (
+                train_dataloader_len * train_epochs
+            ) // gradient_accumulation_steps
+
+            train_iters_tensor = torch.cuda.LongTensor([train_iterations])
+        else:
+            train_iters_tensor = torch.cuda.LongTensor([0])
+
+        torch.distributed.broadcast(train_iters_tensor, src=0)
+
+        neox_args.train_iters = train_iters_tensor[0].item()
+
         print_rank_0(
-            f"Training for a total of {train_iterations} iterations, corresponding to  {train_epochs} epochs."
+            f"Training for a total of {neox_args.train_iters} iterations, corresponding to {neox_args.train_epochs} epochs."
         )
 
 
@@ -403,6 +414,9 @@ def get_batch(neox_args, data_iterator):
             datatype=datatype,
         )
     elif neox_args.train_impl == "kto":
+        assert (
+            neox_args.train_micro_batch_size_per_gpu > 1
+        ), "For KTO training, the train_micro_batch_size_per_gpu must be greater than 1."
         tup = _get_batch(
             neox_args=neox_args,
             tokenizer=neox_args.tokenizer,
@@ -470,6 +484,13 @@ def get_batch(neox_args, data_iterator):
 
 def get_batch_pipe(data, neox_args, curr_scheduler=None):
     """A modification of get_batch() to work with the latest batch instead of an iterator."""
+
+    assert neox_args.train_impl not in [
+        "kto",
+        "dpo",
+        "rm",
+    ], "Pipeline parallel is currently unsupported when using any of kto, dpo, rm. Set pipe_parallel_size to 0"
+
     # Items and their type.
     keys = ["text", "label"] if neox_args.train_label_data_paths else ["text"]
     datatype = torch.int64
@@ -587,7 +608,7 @@ def forward_step(
         return model.eval_batch(data_iterator, return_logits=return_logits)
 
     # Get the batch.
-    if neox_args.memory_profiling and neox_args.it:
+    if neox_args.memory_profiling and neox_args.iteration:
         torch.cuda.nvtx.range_push(f"Get batch")
     if timers is not None:
         timers("batch generator").start()
