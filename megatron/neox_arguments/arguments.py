@@ -962,7 +962,7 @@ class NeoXArgs(*BASE_CLASSES):
             else:
                 fp16_conflict = "DeepSpeed fp16 field was set but precision conflicts"
                 assert self.precision == "fp16", fp16_conflict
-        
+
         if self.bf16 and self.bf16.get("enabled", False):
             if self.precision is None:
                 self.update_value("precision", "bfloat16")
