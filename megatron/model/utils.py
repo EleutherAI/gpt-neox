@@ -18,14 +18,18 @@
 """Utilities for models."""
 
 import torch
-from megatron.model.norms import LayerNorm, RMSNorm, ScaleNorm
 from megatron.model.fused_softmax import SoftmaxFusionTypes
+from megatron import mpu
 from types import GeneratorType
 import torch.distributed as dist
 
+import importlib
+from typing import List, Dict, Any
 
-def get_params_for_weight_decay_optimization(module, neox_args):
-    """Divide params into with-weight-decay and without-weight-decay groups.
+
+def get_params_for_weight_decay_optimization(module: Any, neox_args: Any):
+    """
+    Divide params into with-weight-decay and without-weight-decay groups.
     Layernorms and biases will have no weight decay but the rest will.
     """
     weight_decay_params = {"params": [], "name": "weight_decay_params"}
@@ -34,41 +38,38 @@ def get_params_for_weight_decay_optimization(module, neox_args):
         "weight_decay": 0.0,
         "name": "no_weight_decay_params",
     }
-    for module_ in module.modules():
-        if any(
-            [
-                isinstance(module_, LayerNorm),
-                isinstance(module_, RMSNorm),
-                isinstance(module_, ScaleNorm),
+
+    def is_no_weight_decay_module(module_: Any) -> bool:
+        return (
+            type(module_).__name__
+            in [
+                "LayerNorm",
+                "RMSNorm",
+                "ScaleNorm",
+                "TELayerNorm",
+                "TERMSNorm",
+                "MixedFusedLayerNorm",
+                "MixedFusedRMSNorm",
             ]
-        ) or (
-            neox_args.weight_decay == 0.0
-        ):  # also include all parameters here if no weight decay is being done
+            or neox_args.weight_decay == 0.0
+        )
+
+    for module_ in module.modules():
+        if is_no_weight_decay_module(module_):
             no_weight_decay_params["params"].extend(
-                [p for p in list(module_._parameters.values()) if p is not None]
+                [p for p in module_._parameters.values() if p is not None]
             )
         else:
-            weight_decay_params["params"].extend(
-                [
-                    p
-                    for n, p in list(module_._parameters.items())
-                    if p is not None
-                    and n != "bias"
-                    and not getattr(p, "_no_weight_decay", False)
-                ]
-            )
-            no_weight_decay_params["params"].extend(
-                [
-                    p
-                    for n, p in list(module_._parameters.items())
-                    if p is not None
-                    and (n == "bias" or getattr(p, "_no_weight_decay", False))
-                ]
-            )
+            for name, param in module_._parameters.items():
+                if param is None:
+                    continue
+                if name == "bias" or getattr(param, "_no_weight_decay", False):
+                    no_weight_decay_params["params"].append(param)
+                else:
+                    weight_decay_params["params"].append(param)
+
     if neox_args.weight_decay == 0.0:
-        # only return a single param group
-        # with onebitadam, we want to minimize the calls to compressed_allreduce. Every param group calls it once.
-        # to avoid this, only use a single param group when weight decay is off.
+        # Only return a single param group to minimize calls to compressed_allreduce with onebitadam
         return [no_weight_decay_params]
     return weight_decay_params, no_weight_decay_params
 
@@ -359,3 +360,45 @@ def get_fusion_type(neox_args):
     elif neox_args.scaled_masked_softmax_fusion:
         fusion_type = SoftmaxFusionTypes.general
     return fusion_type
+
+
+def reduce_weight_grads_from_model_parallel_region(input_):
+    """A hook that can be applied to any weight tensor via .register_hook().
+    Allreduces grads for e.g. LN weights across the model parallel group.
+    Needed to keep LNs in sync, despite them getting diff data -> diff gradients when using sequence parallel.
+    """
+    # Bypass the function if no TP -> no comm needed.
+    if mpu.get_model_parallel_world_size() == 1:
+        return input_
+
+    # Bf16 convert
+    dt = input_.dtype
+    if dt == torch.bfloat16 and mpu.get_fp32_allreduce():
+        input_ = input_.float()
+
+    # All-reduce.
+    dist.all_reduce(input_, group=mpu.get_model_parallel_group())
+
+    # Bf16 convert
+    if dt == torch.bfloat16 and mpu.get_fp32_allreduce():
+        input_ = input_.bfloat16()
+
+    return input_
+
+
+def mark_norms_for_sequence_parallel_grad_sync(module, neox_args):
+    """Iterate through the modules in our model, and for any "...Norm" classnames,
+    register a hook on each of that module's parameters which will allreduce norms' weights' grads across
+    the model (sequence) parallel region.
+    """
+
+    if not neox_args.sequence_parallel:
+        # if we aren't using sequence parallelism, this is a no-op
+        return
+
+    for module_ in module.modules():
+        if "norm" in type(module_).__name__.lower():
+            # this is a norm, we want to allreduce its weight grads across sequence parallel region
+            for name, param in module_.named_parameters():
+                if param.requires_grad:
+                    param.register_hook(reduce_weight_grads_from_model_parallel_region)

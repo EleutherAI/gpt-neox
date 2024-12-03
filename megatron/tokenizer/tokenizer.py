@@ -32,6 +32,10 @@ def build_tokenizer(args):
     if args.rank == 0:
         print("> building {} tokenizer ...".format(args.tokenizer_type), flush=True)
 
+    assert (
+        args.tokenizer_type is not None
+    ), "tokenizer_type must be specified in the .yml config"
+
     # Select and instantiate the tokenizer.
     if args.tokenizer_type.lower() == "GPT2BPETokenizer".lower():
         assert args.vocab_file is not None

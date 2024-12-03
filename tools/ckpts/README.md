@@ -131,3 +131,20 @@ options:
   --num_output_shards NUM_OUTPUT_SHARDS
   --pipeline_parallel   Only use if PP>1
 ```
+
+### `convert_hf_llama_to_neox.py`
+Takes an HF Llama checkpoint and puts it into a NeoX-compatible format.
+
+Note that this does not support pipeline parallelism!
+
+```
+usage: convert_hf_llama_to_neox.py [-h] [--tp TP] [--pp PP] [--model MODEL] [--model_path MODEL_PATH]
+
+options:
+  -h, --help            show this help message and exit
+  --tp TP               Number of tensor parallelism ranks
+  --pp PP               Number of pipeline parallelism stages
+  --model MODEL         HF model name
+  --model_path MODEL_PATH
+                        Path to save model
+```

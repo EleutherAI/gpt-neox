@@ -23,6 +23,7 @@ except ModuleNotFoundError:
 
 from megatron import mpu, print_rank_0
 from megatron.utils import report_memory
+import math
 
 
 class Tee:
@@ -106,6 +107,38 @@ def get_flops(neox_args, iter_time_s) -> float:
                 + 18 * hidden_size * hidden_size * num_layers / num_heads
             )
         )
+    elif "mamba" in neox_args.attention_config:
+        # from https://github.com/Zyphra/zcookbook/blob/main/calc/calc_mamba_flops.py
+        if neox_args.expansion_factor:
+            d_inner = neox_args.hidden_size * neox_args.expansion_factor
+        elif neox_args.intermediate_size:
+            d_inner = neox_args.intermediate_size
+        else:
+            d_inner = neox_args.hidden_size * 2  # default expansion factor
+        d_state = 16  # TODO make d_state an arg. Currently hardcoded in neox mamba definition and here
+        conv_dimension = 4  # TODO make conv_dimension an arg. Currently hardcoded in neox mamba definition and here
+        dt_rank = math.ceil(neox_args.hidden_size / 16)
+        ssm_flops = (
+            ckpt_activations_factor
+            * d_inner
+            * seq_len
+            * batch_size
+            * (11 * d_state + 4 * dt_rank + 1)
+        )
+        mamba_projectors_flops = (
+            ckpt_activations_factor * seq_len * batch_size * 6 * d_inner * hidden_size
+        )
+        mamba_conv_flops = (
+            ckpt_activations_factor
+            * seq_len
+            * batch_size
+            * 2
+            * d_inner
+            * conv_dimension
+        )
+        mamba_flops = ssm_flops + mamba_projectors_flops + mamba_conv_flops
+        embedding_flops = 6 * seq_len * batch_size * hidden_size * vocab_size
+        flops_per_iteration = mamba_flops * num_layers + embedding_flops
     else:
         flops_per_iteration = (
             24
@@ -201,6 +234,7 @@ def training_log(
                             iteration,
                             use_wandb=neox_args.use_wandb,
                             tensorboard_writer=neox_args.tensorboard_writer,
+                            comet_experiment=neox_args.comet_experiment,
                         )
 
     # write losses, lr, etc. every step
@@ -210,6 +244,7 @@ def training_log(
         iteration,
         use_wandb=neox_args.use_wandb,
         tensorboard_writer=neox_args.tensorboard_writer,
+        comet_experiment=neox_args.comet_experiment,
     )
     for key in loss_dict:
         tb_wandb_log(
@@ -218,6 +253,7 @@ def training_log(
             iteration,
             use_wandb=neox_args.use_wandb,
             tensorboard_writer=neox_args.tensorboard_writer,
+            comet_experiment=neox_args.comet_experiment,
         )
     if neox_args.fp16:
         tb_wandb_log(
@@ -226,6 +262,7 @@ def training_log(
             iteration,
             use_wandb=neox_args.use_wandb,
             tensorboard_writer=neox_args.tensorboard_writer,
+            comet_experiment=neox_args.comet_experiment,
         )
 
     # log gradient noise scale
@@ -237,6 +274,7 @@ def training_log(
                 iteration,
                 use_wandb=neox_args.use_wandb,
                 tensorboard_writer=neox_args.tensorboard_writer,
+                comet_experiment=neox_args.comet_experiment,
             )
 
     # (optional) Log optimizer states to wandb / tb every step
@@ -251,6 +289,7 @@ def training_log(
                         iteration,
                         use_wandb=neox_args.use_wandb,
                         tensorboard_writer=neox_args.tensorboard_writer,
+                        comet_experiment=neox_args.comet_experiment,
                     )
 
     # (optional) Log grad/param norms to wandb / tb every step
@@ -276,6 +315,7 @@ def training_log(
                             iteration,
                             use_wandb=neox_args.use_wandb,
                             tensorboard_writer=neox_args.tensorboard_writer,
+                            comet_experiment=neox_args.comet_experiment,
                             all_ranks=True,
                         )
             if neox_args.log_grad_norm:
@@ -291,6 +331,7 @@ def training_log(
                             iteration,
                             use_wandb=neox_args.use_wandb,
                             tensorboard_writer=neox_args.tensorboard_writer,
+                            comet_experiment=neox_args.comet_experiment,
                             all_ranks=True,
                         )
             if neox_args.log_param_norm:
@@ -300,6 +341,7 @@ def training_log(
                     iteration,
                     use_wandb=neox_args.use_wandb,
                     tensorboard_writer=neox_args.tensorboard_writer,
+                    comet_experiment=neox_args.comet_experiment,
                     all_ranks=True,
                 )
 
@@ -315,6 +357,7 @@ def training_log(
             iteration,
             use_wandb=neox_args.use_wandb,
             tensorboard_writer=neox_args.tensorboard_writer,
+            comet_experiment=neox_args.comet_experiment,
         )
         tb_wandb_log(
             "runtime/iteration_time",
@@ -322,6 +365,7 @@ def training_log(
             iteration,
             use_wandb=neox_args.use_wandb,
             tensorboard_writer=neox_args.tensorboard_writer,
+            comet_experiment=neox_args.comet_experiment,
         )
         log_string += " iteration {:8d}/{:8d} |".format(
             iteration, neox_args.train_iters
@@ -342,6 +386,7 @@ def training_log(
                 iteration,
                 use_wandb=neox_args.use_wandb,
                 tensorboard_writer=neox_args.tensorboard_writer,
+                comet_experiment=neox_args.comet_experiment,
             )
 
         # log tflop / gpu
@@ -356,6 +401,7 @@ def training_log(
             iteration,
             use_wandb=neox_args.use_wandb,
             tensorboard_writer=neox_args.tensorboard_writer,
+            comet_experiment=neox_args.comet_experiment,
         )
 
         for key in total_loss_dict:
@@ -394,6 +440,7 @@ def tb_wandb_log(
     iteration_no: int,
     use_wandb: bool,
     tensorboard_writer=None,
+    comet_experiment=None,
     all_ranks: bool = False,
 ):
     # logs to both tb and wandb (if present) from the zeroth rank
@@ -403,3 +450,7 @@ def tb_wandb_log(
             tensorboard_writer.add_scalar(key, value, iteration_no)
         if use_wandb:
             wandb.log({key: value}, step=iteration_no)
+        if comet_experiment:
+            comet_experiment.__internal_api__log_metric__(
+                key, value, framework="gpt-neox", step=iteration_no
+            )

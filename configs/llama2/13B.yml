@@ -6,6 +6,7 @@
   # model settings
   "num_layers": 40,
   "hidden_size": 5120,
+  "intermediate_size": 41472,
   "num_attention_heads": 40,
   "seq_length": 4096,
   "max_position_embeddings": 4096,
@@ -21,6 +22,6 @@
   "bias_gelu_fusion": false,
   "use_bias_in_norms": false,
   "use_bias_in_attn_linear": false,
-  "mlp_type": "llama",
-  "activation": "silu",
+  "activation": "swiglu",
+  "mlp_multiple_of": 256,
 }
