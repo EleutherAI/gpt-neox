@@ -145,7 +145,7 @@ class ParallelGroupedMLP(torch.nn.Module):
         """
         super(ParallelGroupedMLP, self).__init__()
 
-        self.activation_func = get_activation(neox_args)
+        self.activation_func, self.activation_fn_is_gated = get_activation(neox_args)
         self.activation_type = neox_args.activation
 
         self.multiple_of = multiple_of
@@ -334,7 +334,7 @@ class ParallelGroupedLLaMAMLP(torch.nn.Module):
         """
         super(ParallelGroupedLLaMAMLP, self).__init__()
 
-        self.activation_func = get_activation(neox_args)
+        self.activation_func, self.activation_fn_is_gated = get_activation(neox_args)
         self.activation_type = neox_args.activation
 
         self.multiple_of = multiple_of

@@ -86,11 +86,7 @@ def _gather(input_):
     torch.distributed.all_gather(tensor_list, input_, group=get_model_parallel_group())
 
     # Note: torch.cat already creates a contiguous tensor.
-    output = torch.cat(tensor_list, dim=last_dim)
-
-    # Bf16 convert
-    if dt == torch.bfloat16 and get_fp32_allreduce():
-        output = output.bfloat16()
+    output = torch.cat(tensor_list, dim=last_dim).contiguous()
 
     return output
 
@@ -179,6 +175,10 @@ def _dmoe_gather(input_: torch.Tensor, tokens_per_expert: torch.Tensor):
 
     # Note: torch.cat already creates a contiguous tensor.
     output = torch.cat(tensor_list, dim=gather_dim)
+
+    # Bf16 convert
+    if dt == torch.bfloat16 and get_fp32_allreduce():
+        output = output.bfloat16()
 
     return output
 

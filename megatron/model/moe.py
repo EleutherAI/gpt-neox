@@ -53,20 +53,11 @@ class ParallelDroplessMLP(torch.nn.Module):
         self.sort_end_bit = max(int(np.ceil(np.log2(self.num_experts))), 1)
 
         # decide which parallel grouped MLP implementation to use
-        if neox_args.mlp_type == "regular":
-            self.mlp = ParallelGroupedMLP(
-                neox_args=neox_args,
-                init_method=init_method,
-                output_layer_init_method=output_layer_init_method,
-            )
-        elif neox_args.mlp_type == "llama":
-            self.mlp = ParallelGroupedLLaMAMLP(
-                neox_args=neox_args,
-                init_method=init_method,
-                output_layer_init_method=output_layer_init_method,
-            )
-        else:
-            raise KeyError(neox_args.mlp_type)
+        self.mlp = ParallelGroupedMLP(
+            neox_args=neox_args,
+            init_method=init_method,
+            output_layer_init_method=output_layer_init_method,
+        )
 
     def indices_and_bins(self, top_expert: torch.Tensor):
         # Sort the expert ids to produce the scatter/gather

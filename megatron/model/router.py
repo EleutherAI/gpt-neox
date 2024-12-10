@@ -60,20 +60,22 @@ class SinkhornRouter(torch.nn.Module):
         )
         init_method(self.layer.weight)
 
-    def sinkhorn(self, cost: torch.Tensor, tol: float = 0.0001):
+    def sinkhorn(self, cost: torch.Tensor, tol: float = 0.0001, max_iter=3):
         """Sinkhorn based MoE routing function"""
         cost = torch.exp(cost)
         d0 = torch.ones(cost.size(0), device=cost.device, dtype=cost.dtype)
-        d1 = torch.ones(cost.size(1), device=cost.device, dtype=cost.dtype)
+        d1 = 1 / (cost.size(1) * torch.sum(cost, 0))
 
         eps = 0.00000001
         error = 1e9
         d1_old = d1
-        while error > tol:
+        for iteration in range(max_iter):
             d0 = (1 / d0.size(0)) * 1 / (torch.sum(d1 * cost, 1) + eps)
             d1 = (1 / d1.size(0)) * 1 / (torch.sum(d0.unsqueeze(1) * cost, 0) + eps)
             error = torch.mean(torch.abs(d1_old - d1))
             d1_old = d1
+            if error > tol:
+                break
         return d1 * cost * d0.unsqueeze(1)
 
     def sinkhorn_load_balancing(self, logits: torch.Tensor):
