@@ -282,7 +282,7 @@ class RWKV_TimeMix(nn.Module):
 
         r, k, v, g, w = self.jit_func(x)
         if self.neox_args.rwkv_fla:
-            x, _ = RUN_FLA_CHUNK(B, T, C_tp, H, r, k, v, w, u=scatter_to_model_parallel_region(self.time_faaaa.view(-1)).view(H,C_tp//H))
+            x, _ = RUN_FLA_CHUNK(B, T, C_tp, H, r, k, v, w, u=scatter_to_model_parallel_region(self.time_faaaa.view(-1)).view(H,C_tp//H),chunk_size=256)
         else:
             x = RUN_CUDA_RWKV(B, T, C_tp, H, r, k, v, w, u=scatter_to_model_parallel_region(self.time_faaaa.view(-1)).view(H,C_tp//H))
         
@@ -418,11 +418,9 @@ class RWKVResidualLayer(nn.Module):
                     ],
                     verbose=True,
                     extra_cuda_cflags=[
-                        "-res-usage",
-                        "--use_fast_math",
+                        "-ffast-math",
                         "-O3",
-                        "-Xptxas -O3",
-                        "--extra-device-vectorization",
+                        "-fvectorize",
                         f"-D_N_={self.neox_args.head_size}",
                         f"-D_T_={self.neox_args.seq_length}",
                     ],

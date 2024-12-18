@@ -334,7 +334,8 @@ def reduce_scatter_to_sequence_parallel_region(input_, seq_dim=0):
     return _ReduceScatterToSequenceParallelRegion.apply(input_, seq_dim)
 
 
-def gather_from_sequence_parallel_region(input_, seq_dim=0):
+def gather_from_sequence_parallel_region(input_: torch.Tensor, seq_dim: int = 0):
+#def gather_from_sequence_parallel_region(input_, seq_dim=0):
     return _GatherFromSequenceParallelRegion.apply(input_, seq_dim)
 
 

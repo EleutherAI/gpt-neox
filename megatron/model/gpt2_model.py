@@ -140,6 +140,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                 "GMLPBlock",
                 "ParallelTransformerLayerPipe",
                 "ParallelMambaResidualLayerPipe",
+                "RWKVResidualLayerPipe"
             ],
         )
 
