@@ -24,6 +24,7 @@
   "tensorboard_dir": "/mnt/ssd-1/tensorboard",
   "log_dir": "/mnt/ssd-1/logs",
   "wandb_team": "eleutherai",
+  #"wandb_run_name": "experiment"
   "wandb_project": "neox",
   "wandb_group": "example"
 }
