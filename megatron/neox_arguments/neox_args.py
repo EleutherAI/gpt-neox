@@ -624,6 +624,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Logging Arguments
     """
 
+    ### BEGIN WANDB ARGS ###
     use_wandb: bool = None
     """Flag indicating if wandb is to be used."""
 
@@ -644,6 +645,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
 
     wandb_init_all_ranks: bool = False
     """Initialize wandb on all ranks."""
+    ### END WANDB ARGS ###
 
     git_hash: str = get_git_commit_hash()
     """current git hash of repository"""
@@ -653,6 +655,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Directory to save logs to.
     """
 
+    ### BEGIN TENSORBOARD ARGS ###
     tensorboard_writer = None
     """
     initialized tensorboard writer
@@ -662,7 +665,9 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     """
     Write TensorBoard logs to this directory.
     """
+    ### END TENSORBOARD ARGS ###
 
+    ### BEGIN COMET ARGS ###
     use_comet: bool = None
     """Flag indicating if comet is to be used."""
 
@@ -695,6 +700,12 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     """
     Initialized comet experiment object used to log data
     """
+    ### END COMET ARGS ###
+
+    peak_theoretical_tflops: float = None
+    """
+    The peak hardware flops with which to compute MFU and HFU, in units of teraflops. Automatic detection is more trouble than it's worth, so this is left to the user. Helpful table listed at https://github.com/stas00/ml-engineering/tree/master/compute/accelerator#tflops-comparison-table
+    """
 
     log_interval: int = 100
     """
@@ -714,8 +725,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     log_grad_norm: bool = False
     """
     Log the frob norm of the gradients to wandb / tensorboard (useful for debugging).
-    (N.B - this will only work with pp = 0 for now, as we don't have access to the gradients of the model because
-    deepspeed.)
+    (N.B - this will only work with pp = 0 for now, as we don't have access to the gradients of the model because deepspeed.)
     """
 
     log_optimizer_states: bool = False
@@ -738,6 +748,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Whether to offload the buffered gradients to cpu when measuring gradient noise scale.
     """
 
+    ### BEGIN PROFILING ARGS
     memory_profiling: bool = False
     """
     Whether to take a memory snapshot of the model. Useful for debugging memory issues.
@@ -770,6 +781,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     """
     Step to stop profiling at.
     """
+    ### END PROFILING ARGS ###
 
 
 @dataclass
