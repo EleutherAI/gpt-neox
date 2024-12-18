@@ -630,6 +630,9 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     wandb_group: str = None
     """Weights and Biases group name - used to group together "runs"."""
 
+    wandb_run_name: str = None
+    """Weights and Biases run name for the current experiment"""
+
     wandb_team: str = None
     """Team name for Weights and Biases."""
 
