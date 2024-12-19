@@ -502,6 +502,60 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
     """
 
+    te_columnparallel: bool = False
+    """
+    Use TransformerEngine for RowParallelLinear layer.
+    """
+
+    te_rowparallel: bool = False
+    """
+    Use TransformerEngine for ColumnParallelLinear layer.
+    """
+
+    te_layernorm_mlp: bool = False
+    """
+    Use TransformerEngine for LayerNormMLP layer.
+    """
+
+    te_mha: bool = False
+    """
+    Use TransformerEngine for MultiheadAttention layer.
+    """
+
+    te_fp8_format: Literal["e4m3", "hybrid"] = "hybrid"
+    """
+    Controls the FP8 data format used during forward and backward pass by TransformerEngine.
+    Hybrid uses E4M3 during forward pass, E5M2 during backward pass.
+    """
+
+    te_fp8_wgrad: bool = True
+    """
+    When set to False, override FP8 config options and do the wgrad computation
+    in higher precision.
+    """
+
+    te_fp8_amax_history_len: int = 1
+    """
+    The length of the amax history window used for scaling factor computation.
+    """
+
+    te_fp8_amax_compute_algo: str = "most_recent"
+    """
+    Algorithm used for choosing the `amax` value for the scaling factor computation. There are 2
+    predefined choices: `max` chooses the largest `amax` in the history window, while `most_recent`
+    always chooses the most recently seen value.
+    """
+
+    te_fp8_margin: int = 0
+    """
+    Margin for the scaling factor computation.
+    """
+
+    te_fp8_mha: bool = False
+    """
+    When set to True, use the FP8 implementation of Multi Head Attention.
+    """
+
     dim_att: int = None
     """
     Total dimension of the attention mechanism for RWKV. If not set, defaults to hidden_size.
