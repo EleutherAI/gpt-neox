@@ -522,6 +522,62 @@ class NeoXArgsModel(NeoXArgsTemplate):
     online_dataserver_ports: Union[int, List[int]] = 10000
     """
     Port(s) to connect to for online data serving, defaults to 10000
+    """
+
+    te_columnparallel: bool = False
+    """
+    Use TransformerEngine for RowParallelLinear layer.
+    """
+
+    te_rowparallel: bool = False
+    """
+    Use TransformerEngine for ColumnParallelLinear layer.
+    """
+
+    te_layernorm_mlp: bool = False
+    """
+    Use TransformerEngine for LayerNormMLP layer.
+    """
+
+    te_mha: bool = False
+    """
+    Use TransformerEngine for MultiheadAttention layer.
+    """
+
+    te_fp8_format: Literal["e4m3", "hybrid"] = "hybrid"
+    """
+    Controls the FP8 data format used during forward and backward pass by TransformerEngine.
+    Hybrid uses E4M3 during forward pass, E5M2 during backward pass.
+    """
+
+    te_fp8_wgrad: bool = True
+    """
+    When set to False, override FP8 config options and do the wgrad computation
+    in higher precision.
+    """
+
+    te_fp8_amax_history_len: int = 1
+    """
+    The length of the amax history window used for scaling factor computation.
+    """
+
+    te_fp8_amax_compute_algo: str = "most_recent"
+    """
+    Algorithm used for choosing the `amax` value for the scaling factor computation. There are 2
+    predefined choices: `max` chooses the largest `amax` in the history window, while `most_recent`
+    always chooses the most recently seen value.
+    """
+
+    te_fp8_margin: int = 0
+    """
+    Margin for the scaling factor computation.
+    """
+
+    te_fp8_mha: bool = False
+    """
+    When set to True, use the FP8 implementation of Multi Head Attention.
+    """
+
     dim_att: int = None
     """
     Total dimension of the attention mechanism for RWKV. If not set, defaults to hidden_size.
@@ -644,11 +700,15 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Logging Arguments
     """
 
+    ### BEGIN WANDB ARGS ###
     use_wandb: bool = None
     """Flag indicating if wandb is to be used."""
 
     wandb_group: str = None
     """Weights and Biases group name - used to group together "runs"."""
+
+    wandb_run_name: str = None
+    """Weights and Biases run name for the current experiment"""
 
     wandb_team: str = None
     """Team name for Weights and Biases."""
@@ -661,6 +721,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
 
     wandb_init_all_ranks: bool = False
     """Initialize wandb on all ranks."""
+    ### END WANDB ARGS ###
 
     git_hash: str = get_git_commit_hash()
     """current git hash of repository"""
@@ -670,6 +731,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Directory to save logs to.
     """
 
+    ### BEGIN TENSORBOARD ARGS ###
     tensorboard_writer = None
     """
     initialized tensorboard writer
@@ -679,7 +741,9 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     """
     Write TensorBoard logs to this directory.
     """
+    ### END TENSORBOARD ARGS ###
 
+    ### BEGIN COMET ARGS ###
     use_comet: bool = None
     """Flag indicating if comet is to be used."""
 
@@ -712,6 +776,12 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     """
     Initialized comet experiment object used to log data
     """
+    ### END COMET ARGS ###
+
+    peak_theoretical_tflops: float = None
+    """
+    The peak hardware flops with which to compute MFU and HFU, in units of teraflops. Automatic detection is more trouble than it's worth, so this is left to the user. Helpful table listed at https://github.com/stas00/ml-engineering/tree/master/compute/accelerator#tflops-comparison-table
+    """
 
     log_interval: int = 100
     """
@@ -731,8 +801,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     log_grad_norm: bool = False
     """
     Log the frob norm of the gradients to wandb / tensorboard (useful for debugging).
-    (N.B - this will only work with pp = 0 for now, as we don't have access to the gradients of the model because
-    deepspeed.)
+    (N.B - this will only work with pp = 0 for now, as we don't have access to the gradients of the model because deepspeed.)
     """
 
     log_optimizer_states: bool = False
@@ -755,6 +824,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Whether to offload the buffered gradients to cpu when measuring gradient noise scale.
     """
 
+    ### BEGIN PROFILING ARGS
     memory_profiling: bool = False
     """
     Whether to take a memory snapshot of the model. Useful for debugging memory issues.
@@ -787,6 +857,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     """
     Step to stop profiling at.
     """
+    ### END PROFILING ARGS ###
 
 
 @dataclass

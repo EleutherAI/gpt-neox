@@ -336,6 +336,12 @@ class NeoXArgs(*BASE_CLASSES):
             help='Weights & Biases group name - used to group together "runs".',
         )
         group.add_argument(
+            "--wandb_run_name",
+            type=str,
+            default=None,
+            help="Weights & Biases run name for the current experiment.",
+        )
+        group.add_argument(
             "--wandb_team",
             type=str,
             default=None,
@@ -962,7 +968,7 @@ class NeoXArgs(*BASE_CLASSES):
             else:
                 fp16_conflict = "DeepSpeed fp16 field was set but precision conflicts"
                 assert self.precision == "fp16", fp16_conflict
-        
+
         if self.bf16 and self.bf16.get("enabled", False):
             if self.precision is None:
                 self.update_value("precision", "bfloat16")
