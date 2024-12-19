@@ -336,6 +336,12 @@ class NeoXArgs(*BASE_CLASSES):
             help='Weights & Biases group name - used to group together "runs".',
         )
         group.add_argument(
+            "--wandb_run_name",
+            type=str,
+            default=None,
+            help="Weights & Biases run name for the current experiment.",
+        )
+        group.add_argument(
             "--wandb_team",
             type=str,
             default=None,
