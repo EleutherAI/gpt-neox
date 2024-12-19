@@ -502,6 +502,28 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
     """
 
+    serve_model_weights: bool = False
+    """
+    If true, serve model weight pointers over a socket connection
+    """
+
+    weight_server_port: Union[int, List[int]] = 6000
+    """
+    Port(s) to serve model weights over
+    If an integer is provided, the port for each GPU will be 6000 + global rank
+    If a list is provided, the ports will be used in order, e.g. rank0 will be weight_server_port[0]
+    """
+
+    online_dataserver_ips: Union[str, List[str]] = "localhost"
+    """
+    ip addresses to connect to for online data serving, defaults to localhost
+    """
+
+    online_dataserver_ports: Union[int, List[int]] = 10000
+    """
+    Port(s) to connect to for online data serving, defaults to 10000
+    """
+
     te_columnparallel: bool = False
     """
     Use TransformerEngine for RowParallelLinear layer.
@@ -1132,14 +1154,14 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     warning: pack_until_overflow is very naive and will likely have issues with pretraining scale datasets
     """
 
-    dataset_impl: Literal["gpt2", "pairwise"] = "gpt2"
+    dataset_impl: Literal["gpt2", "pairwise", "online"] = "gpt2"
     """
-    Dataset implementation, can be one of "gpt2" or "pairwise"
+    Dataset implementation, can be one of "gpt2", "pairwise", or "online"
     """
 
-    train_impl: Literal["normal", "dpo", "rm", "kto"] = "normal"
+    train_impl: Literal["normal", "dpo", "rm", "kto", "reinforce"] = "normal"
     """
-    Training implementation, can be one of "normal", "dpo", "kto", or "rm"
+    Training implementation, can be one of "normal", "dpo", "kto", "reinforce", or "rm"
     """
 
     dpo_fp32: bool = True
@@ -1182,6 +1204,27 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     kto_beta: float = 0.1
     """
     Beta value for KTO
+    """
+
+    fp32_reinforce: bool = True
+    """
+    Whether to cast logits to fp32 for Reinforce loss calculation.
+    """
+
+    kl_impl: Literal["abs", "mse", "kl", "full"] = "mse"
+    """
+    KL divergence implementation, can be one of "abs", "mse", "kl", or "full"
+    """
+
+    kl_div_beta: float = 0.1
+    """
+    Beta value for KL divergence in Reinforce loss calculation.
+    """
+
+    reinforce_leave_one_out: bool = False
+    """
+    Whether to use reinforce leave one out for training
+    (from https://arxiv.org/abs/2402.14740 and https://api.semanticscholar.org/CorpusID:198489118)
     """
 
     allow_chopped: bool = True
