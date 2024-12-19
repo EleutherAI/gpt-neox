@@ -757,9 +757,13 @@ class ParallelSelfAttention(nn.Module):
             rpe = self.rpe(query_layer.size(0), key_layer.size(0))
         else:
             rpe = None
-        return self.sparse_attn(
+        attn_scores = self.sparse_attn(
             query_layer, key_layer, value_layer, attn_mask=attn_mask, rpe=rpe
         )
+        # apply dropout
+        if self.training:
+            attn_scores = self.attention_dropout(attn_scores)
+        return attn_scores
 
     def gqa_project(self, hidden_states, attention_mask, layer_past=None):
         # QKV projection and separation into separate Q/K/V layers for GQA,
@@ -770,51 +774,16 @@ class ParallelSelfAttention(nn.Module):
         # pass through projection: [sq, b, h] --> [sq, b, ((np + 2 * kvp) * hn)]
         mixed_x_layer, _ = self.query_key_value(hidden_states)
 
-        # First: reshape so we have seqlen, batch, and num. query heads each as separate dims
-        # Final dim is not exactly head dim: the first (head dim) dims are query heads,
-        # The last (head dim * ratio of kv to q heads) each are the "k/v heads"
-        # (right now we treat like we have same num. heads, but smaller head dim)
-
-        # [sq, b, ((np + 2 * kvp) * hn)] --> [sq, b, np, (hn * (1 + 2 * (kvp / np)))]
-        new_qkv_shape = (
-            mixed_x_layer.shape[0],
-            mixed_x_layer.shape[1],
-            self.num_attention_heads_per_partition,
-            int(
-                self.hidden_size_per_attention_head
-                * (
-                    1
-                    + 2
-                    * (
-                        self.num_kv_heads_per_partition
-                        / self.num_attention_heads_per_partition
-                    )
-                )
-            ),
-        )
-        mixed_x_layer = mixed_x_layer.reshape(*new_qkv_shape)
-
-        # Next: split our fake head dim. (last dim) so that the first (head dim) dimensions go to Q,
-        # the last smaller 2 * (head dim * kv to q head ratio) each divided between K and V separately
+        # split the last dim, so that the first (q head * head dim) dimensions go to Q,
+        # the last smaller 2 * (kv head * head dim) each divided between K and V separately
         split_sizes = (
-            self.hidden_size_per_attention_head,
-            int(
-                (
-                    self.num_kv_heads_per_partition
-                    / self.num_attention_heads_per_partition
-                )
-                * self.hidden_size_per_attention_head
-            ),
-            int(
-                (
-                    self.num_kv_heads_per_partition
-                    / self.num_attention_heads_per_partition
-                )
-                * self.hidden_size_per_attention_head
-            ),
+            self.num_attention_heads_per_partition
+            * self.hidden_size_per_attention_head,
+            self.num_kv_heads_per_partition * self.hidden_size_per_attention_head,
+            self.num_kv_heads_per_partition * self.hidden_size_per_attention_head,
         )
 
-        # [sq, b, np, (hn * (1 + 2 * (kvp / np)))] --> 1 x [sq, b, np, hn] , 2 x [sq, b, np, (hn * (kvp / np))]
+        # [sq, b, ((np + 2 * kvp) * hn)] --> 1 x [sq, b, np * hn] , 2 x [sq, b, kvp * hn]
         (query_layer, key_layer, value_layer) = [
             x.contiguous()
             for x in torch.split(
@@ -823,6 +792,17 @@ class ParallelSelfAttention(nn.Module):
                 dim=mixed_x_layer.dim() - 1,
             )
         ]
+
+        # reshape Q to proper output shape (last dim = correct full "real" head size again)
+        # [sq, b, np * hn] --> [sq, b, np, hn]
+        new_query_shape = (
+            query_layer.size(0),
+            query_layer.size(1),
+            self.num_attention_heads_per_partition,
+            self.hidden_size_per_attention_head,
+        )
+
+        query_layer = query_layer.view(*new_query_shape)
 
         # reshape K/V to proper output shape (last dim = correct full "real" head size again)
         # 2 x [sq, b, np, (hn * (kvp / np))] --> 2 x [sq, b, kvp, hn]
@@ -1324,10 +1304,8 @@ class ParallelTransformerLayer(nn.Module):
                         raise KeyError(self.moe_type)
 
                 with torch.enable_grad() if not self.eval else nullcontext():
-                    if (
-                        self.activation == "swiglu"
-                        or self.num_experts > 1
-                        and self.moe_type == "deepspeed"
+                    if mlp_bias == None or (
+                        self.num_experts > 1 and self.moe_type == "deepspeed"
                     ):
                         # No dropout either
                         assert mlp_bias is None

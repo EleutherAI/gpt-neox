@@ -50,16 +50,19 @@ from .neox_args import (
     ATTENTION_TYPE_CHOICES,
 )
 
-### Logging colors ###
+### ANSI escape codes ###
+END = "\033[0m"
 GREEN = "\033[92m"
 RED = "\033[91m"
 YELLOW = "\033[93m"
-END = "\033[0m"
-SUCCESS = f"{GREEN} [SUCCESS] {END}"
-OKAY = f"{GREEN}[OKAY]{END}"
-WARNING = f"{YELLOW}[WARNING]{END}"
+
+### Formatted logging prefixes ###
+ERROR = f"{RED}[ERROR]{END} "
 FAIL = f"{RED}[FAIL]{END}"
 INFO = "[INFO]"
+OKAY = f"{GREEN}[OKAY]{END}"
+SUCCESS = f"{GREEN} [SUCCESS] {END}"
+WARNING = f"{YELLOW}[WARNING]{END}"
 
 # ZERO defaults by deespeed
 # These values should not be changed unless defaults in deepspeed are changed
@@ -331,6 +334,12 @@ class NeoXArgs(*BASE_CLASSES):
             type=str,
             default=None,
             help='Weights & Biases group name - used to group together "runs".',
+        )
+        group.add_argument(
+            "--wandb_run_name",
+            type=str,
+            default=None,
+            help="Weights & Biases run name for the current experiment.",
         )
         group.add_argument(
             "--wandb_team",
@@ -953,12 +962,19 @@ class NeoXArgs(*BASE_CLASSES):
         )
 
         # derive precision
-        fp16_conflict = "DeepSpeed fp16 field was set but precision conflicts"
         if self.fp16 and self.fp16.get("enabled", False):
             if self.precision is None:
                 self.update_value("precision", "fp16")
             else:
+                fp16_conflict = "DeepSpeed fp16 field was set but precision conflicts"
                 assert self.precision == "fp16", fp16_conflict
+
+        if self.bf16 and self.bf16.get("enabled", False):
+            if self.precision is None:
+                self.update_value("precision", "bfloat16")
+            else:
+                bf16_conflict = "DeepSpeed bf16 field was set but precision conflicts"
+                assert self.precision == "bfloat16", bf16_conflict
 
         if self.precision == "fp16":
             if isinstance(self.fp16, dict) and len(self.fp16) > 0:
@@ -968,14 +984,15 @@ class NeoXArgs(*BASE_CLASSES):
                 fp16_args = {"type": "fp16", "enabled": True}
             self.update_value("fp16", fp16_args)
         elif self.precision == "bfloat16":
-            bf_config = {"bf16": {"enabled": True}}
-            # dt_config = {"grad_accum_dtype": "fp32"}
-            if self.deepspeed_extra_args is None:
-                self.update_value("deepspeed_extra_args", bf_config)
-            else:
-                extra_args = copy.deepcopy(self.deepspeed_extra_args)
-                extra_args.update(bf_config)
-                self.update_value("deepspeed_extra_args", extra_args)
+            if not self.bf16:
+                bf_config = {"bf16": {"enabled": True}}
+                # dt_config = {"grad_accum_dtype": "fp32"}
+                if self.deepspeed_extra_args is None:
+                    self.update_value("deepspeed_extra_args", bf_config)
+                else:
+                    extra_args = copy.deepcopy(self.deepspeed_extra_args)
+                    extra_args.update(bf_config)
+                    self.update_value("deepspeed_extra_args", extra_args)
 
             zero_stage = self.zero_optimization["stage"]
             if self.data_types is None:
