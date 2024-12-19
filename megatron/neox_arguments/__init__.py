@@ -18,7 +18,7 @@ NeoX args can be instantiated with the following options
 * NeoXArgs.from_ymls(["path_to_yaml1", "path_to_yaml2", ...]): load yaml configuration files and instantiate with the values provided; checks for duplications and unknown arguments are performed
 * NeoXArgs.from_dict({"num_layers": 12, ...}): load attribute values from dict; checks unknown arguments are performed
 
-* NeoXArgs.consume_deepy_args(): entry point for deepy.py configuring and consuming command line arguments (i.e. user_script, conf_dir, conf_file, wandb_group, wandb_team); neox_args.get_deepspeed_main_args() produces a list of command line arguments to feed to deepspeed.launcher.runner.main
+* NeoXArgs.consume_deepy_args(): entry point for deepy.py configuring and consuming command line arguments (i.e. user_script, conf_dir, conf_file, wandb_group, wandb_run_name, wandb_team); neox_args.get_deepspeed_main_args() produces a list of command line arguments to feed to deepspeed.launcher.runner.main
 * NeoXArgs.consume_neox_args(): In the call stack deepy.py -> deepspeed -> pretrain_gpt2.py; arguments are passed to pretrain_gpt2.py by neox_args.get_deepspeed_main_args(). So produced arguments can be read with consume_neox_args() to instantiate a NeoXArgs instance.
 
 

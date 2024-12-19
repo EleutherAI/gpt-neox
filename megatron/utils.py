@@ -166,12 +166,12 @@ def init_wandb(neox_args):
         neox_args.update_value("use_wandb", use_wandb)
     if neox_args.use_wandb:
         group_name = neox_args.wandb_group
-        name = f"{socket.gethostname()}-{local_rank()}" if group_name else None
+        run_name = neox_args.wandb_run_name
         try:
             wandb.init(
                 project=neox_args.wandb_project,
                 group=group_name,
-                name=name,
+                name=run_name,
                 save_code=False,
                 force=False,
                 entity=neox_args.wandb_team,
