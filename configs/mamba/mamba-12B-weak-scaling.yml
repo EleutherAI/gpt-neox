@@ -1,18 +1,18 @@
 {
   # Parallelism is not yet supported for Mamba
   "pipe_parallel_size": 0,
-  "model_parallel_size": 1,
+  "model_parallel_size": 8,
 
-  "num_layers": 48,
-  "hidden_size": 2048,
+  "num_layers": 88,
+  "hidden_size": 4608,
   "num_attention_heads": 12, # ignored when using mamba
-  "seq_length": 2048,
-  "max_position_embeddings": 2048,
+  "seq_length": 4096,
+  "max_position_embeddings": 4096,
   "output_layer_parallelism": "column",
   "norm": "rmsnorm",
   "rms_norm_epsilon": 1.0e-5,
 
-  "attention_config": [[["mamba"], 48]],
+  "attention_config": [[["mamba"], 88]],
 
   "mamba_selective_scan_fusion": true,
   "mamba_causal_conv_fusion": true,
@@ -27,12 +27,12 @@
    "optimizer": {
      "type": "Adam",
      "params": {
-       "lr": 0.0002,
+       "lr": 0.00016,
        "betas": [0.9, 0.95],
-       "eps":  1.0e-8,
+       "eps": 1.0e-8,
      }
    },
-   "min_lr": 0.00002,
+   "min_lr": 0.000016,
 
    # for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
    "zero_optimization": {
@@ -46,7 +46,7 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 4,
+   "train_micro_batch_size_per_gpu": 1,
    "data_impl": "mmap",
 
    # activation checkpointing
@@ -72,8 +72,8 @@
    },
 
    # misc. training settings
-   "train_iters": 320000,
-   "lr_decay_iters": 320000,
+   "train_iters": 100,
+   "lr_decay_iters": 100,
    "distributed_backend": "nccl",
    "lr_decay_style": "cosine",
    "warmup": 0.01,
@@ -82,8 +82,8 @@
    "eval_iters": 10,
 
    # logging
-   "log_interval": 1,
-   "steps_per_print": 10,
+   "log_interval": 5,
+   "steps_per_print": 5,
    "keep_last_n_checkpoints": 4,
    "wall_clock_breakdown": true,
 }

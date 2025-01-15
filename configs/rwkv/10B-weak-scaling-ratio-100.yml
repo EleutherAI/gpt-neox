@@ -1,9 +1,9 @@
 {
   # Parallelism is not yet supported for rwkv
   "pipe_parallel_size": 1,
-  "model_parallel_size": 4,
+  "model_parallel_size": 8,
 
-  "num_layers": 32,
+  "num_layers": 42,
   "hidden_size": 4096,
   "num_attention_heads": 64, # head_size = dim_att / num_attention_heads.
                              # head_size is 64 for all rwkv models
@@ -13,9 +13,13 @@
   "norm": "rmsnorm",
   "rms_norm_epsilon": 1.0e-5,
   "train_micro_batch_size_per_gpu": 1,
-  
+  "rwkv-fla": true,
+  #"profile": true,
+  #"profile_step_start": 1,
+  #"profile_step_stop": 5,
 
-  "attention_config": [[["rwkv"], 32]],
+
+  "attention_config": [[["rwkv"], 42]],
 
   "activation": "silu",
 
@@ -66,7 +70,7 @@
   # activation checkpointing
   "checkpoint_activations": true,
   "checkpoint_num_layers": 1,
-  "partition_activations": true,
+  "partition_activations": false,
   "synchronize_each_layer": true,
 
   # regularization
@@ -88,16 +92,18 @@
 
   # misc. training settings
   "train_iters": 100,
-  "lr_decay_iters": 100,
+  "lr_decay_iters": 10,
   "distributed_backend": "nccl",
   "lr_decay_style": "constant",
   "warmup": 0.01,
   "checkpoint_factor": 100,
   "eval_interval": 100000,
   "eval_iters": 10,
+  "seed": 1234,
 
   # logging
   "log_interval": 5,
   "steps_per_print": 1,
   "wall_clock_breakdown": true,
+  "memory_profiling_path": tensorboard-10B,
 }

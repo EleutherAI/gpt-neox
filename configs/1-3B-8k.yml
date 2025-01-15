@@ -6,16 +6,21 @@
    "model_parallel_size": 1,
 
    # model settings
-   "num_layers": 32,
-   "hidden_size": 2560,
-   "num_attention_heads": 32,
-   "seq_length": 2048,
-   "max_position_embeddings": 2048,
+   "num_layers": 24,
+   "hidden_size": 2048,
+   "num_attention_heads": 16,
+   "seq_length": 8192,
+   "max_position_embeddings": 8192,
    "norm": "layernorm",
    "pos_emb": "rotary",
    "no_weight_tying": true,
    "gpt_j_residual": false,
    "output_layer_parallelism": "column",
+   "profile": true,
+   "profile_step_start": 1,
+   "profile_step_stop": 5,
+
+   "attention_config": [[["flash"], 24]],
 
    # these should provide some speedup but takes a while to build, set to true if desired
    "scaled_upper_triang_masked_softmax_fusion": false,
@@ -31,12 +36,12 @@
    "optimizer": {
      "type": "Adam",
      "params": {
-       "lr": 0.00016,
+       "lr": 0.0002,
        "betas": [0.9, 0.95],
-       "eps": 1.0e-8,
+       "eps":  1.0e-8,
      }
    },
-   "min_lr": 0.000016,
+   "min_lr": 0.00002,
 
    # for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
    "zero_optimization": {
@@ -50,7 +55,7 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 4,
+   "train_micro_batch_size_per_gpu": 1,
    "data_impl": "mmap",
 
    # activation checkpointing
@@ -76,8 +81,8 @@
    },
 
    # misc. training settings
-   "train_iters": 320000,
-   "lr_decay_iters": 320000,
+   "train_iters": 10,
+   "lr_decay_iters": 10,
    "distributed_backend": "nccl",
    "lr_decay_style": "cosine",
    "warmup": 0.01,
@@ -86,8 +91,8 @@
    "eval_iters": 10,
 
    # logging
-   "log_interval": 100,
-   "steps_per_print": 10,
+   "log_interval": 1,
+   "steps_per_print": 1,
    "keep_last_n_checkpoints": 4,
    "wall_clock_breakdown": true,
 }

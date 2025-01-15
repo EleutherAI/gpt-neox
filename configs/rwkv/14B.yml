@@ -3,9 +3,9 @@
   "pipe_parallel_size": 1,
   "model_parallel_size": 4,
 
-  "num_layers": 32,
-  "hidden_size": 4096,
-  "num_attention_heads": 64, # head_size = dim_att / num_attention_heads.
+  "num_layers": 40,
+  "hidden_size": 5120,
+  "num_attention_heads": 80, # head_size = dim_att / num_attention_heads.
                              # head_size is 64 for all rwkv models
   "seq_length": 4096,
   "max_position_embeddings": 4096,
@@ -15,7 +15,7 @@
   "train_micro_batch_size_per_gpu": 1,
   
 
-  "attention_config": [[["rwkv"], 32]],
+  "attention_config": [[["rwkv"], 40]],
 
   "activation": "silu",
 
@@ -87,8 +87,8 @@
   },
 
   # misc. training settings
-  "train_iters": 100,
-  "lr_decay_iters": 100,
+  "train_iters": 10,
+  "lr_decay_iters": 10,
   "distributed_backend": "nccl",
   "lr_decay_style": "constant",
   "warmup": 0.01,
@@ -97,7 +97,7 @@
   "eval_iters": 10,
 
   # logging
-  "log_interval": 5,
+  "log_interval": 1,
   "steps_per_print": 1,
   "wall_clock_breakdown": true,
 }

@@ -282,7 +282,7 @@ class RWKV_TimeMix(nn.Module):
 
         r, k, v, g, w = self.jit_func(x)
         if self.neox_args.rwkv_fla:
-            x, _ = RUN_FLA_CHUNK(B, T, C_tp, H, r, k, v, w, u=scatter_to_model_parallel_region(self.time_faaaa.view(-1)).view(H,C_tp//H),chunk_size=256)
+            x, _ = RUN_FLA_CHUNK(B, T, C_tp, H, r, k, v, w, u=scatter_to_model_parallel_region(self.time_faaaa.view(-1)).view(H,C_tp//H))
         else:
             x = RUN_CUDA_RWKV(B, T, C_tp, H, r, k, v, w, u=scatter_to_model_parallel_region(self.time_faaaa.view(-1)).view(H,C_tp//H))
         
@@ -412,9 +412,13 @@ class RWKVResidualLayer(nn.Module):
                 """
                 wkv_cuda = load(
                     name="wkv6",
+                    #sources=[
+                    #    "megatron/model/rwkv/v6/cuda/wkv6_op.cpp",
+                    #    f"megatron/model/rwkv/v6/cuda/wkv6_cuda.cu",
+                    #],
                     sources=[
-                        "megatron/model/rwkv/v6/cuda/wkv6_op.cpp",
-                        f"megatron/model/rwkv/v6/cuda/wkv6_cuda.cu",
+                        "megatron/model/rwkv/v6/hip/wkv6_op.cpp",
+                        f"megatron/model/rwkv/v6/hip/wkv6_hip.hip",
                     ],
                     verbose=True,
                     extra_cuda_cflags=[

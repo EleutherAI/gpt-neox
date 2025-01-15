@@ -22,9 +22,7 @@
   "load": "checkpoints",
   "checkpoint_validation_with_forward_pass": False,
 
-  "launcher": "slurm",
-  "deepspeed_slurm": true,
-  #"tensorboard_dir": "tensorboard",
+  "tensorboard_dir": "tensorboard-4k-gpt",
   "log_dir": "logs",
   "use_wandb": True,
   "wandb_host": "https://api.wandb.ai",

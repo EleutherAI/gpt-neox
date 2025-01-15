@@ -7,12 +7,13 @@
   "hidden_size": 1024,
   "num_attention_heads": 16, # head_size = dim_att / num_attention_heads.
                              # head_size is 64 for all rwkv models
-  "seq_length": 4096,
-  "max_position_embeddings": 4096,
+  "seq_length": 2048,
+  "max_position_embeddings": 2048,
   "output_layer_parallelism": "column",
   "norm": "rmsnorm",
   "rms_norm_epsilon": 1.0e-5,
-  "train_micro_batch_size_per_gpu": 1,
+  "train_micro_batch_size_per_gpu": 6,
+  "rwkv_fla": True,
 
   "attention_config": [[["rwkv"], 24]],
 
@@ -86,8 +87,8 @@
   },
 
   # misc. training settings
-  "train_iters": 320000,
-  "lr_decay_iters": 320000,
+  "train_iters": 300,
+  "lr_decay_iters": 300,
   "distributed_backend": "nccl",
   "lr_decay_style": "constant",
   "warmup": 0.01,

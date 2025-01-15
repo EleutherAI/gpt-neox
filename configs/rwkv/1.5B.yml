@@ -12,7 +12,12 @@
   "output_layer_parallelism": "column",
   "norm": "rmsnorm",
   "rms_norm_epsilon": 1.0e-5,
-  "train_micro_batch_size_per_gpu": 4,
+  "train_micro_batch_size_per_gpu": 1,
+  "rwkv-fla": true,
+  #"profile": true,
+  #"profile_step_start": 1,
+  #"profile_step_stop": 5,
+
 
   "attention_config": [[["rwkv"], 24]],
 
@@ -86,8 +91,8 @@
   },
 
   # misc. training settings
-  "train_iters": 320000,
-  "lr_decay_iters": 320000,
+  "train_iters": 100,
+  "lr_decay_iters": 10,
   "distributed_backend": "nccl",
   "lr_decay_style": "constant",
   "warmup": 0.01,
@@ -97,7 +102,7 @@
   "seed": 1234,
 
   # logging
-  "log_interval": 10,
-  "steps_per_print": 10,
+  "log_interval": 5,
+  "steps_per_print": 1,
   "wall_clock_breakdown": true,
 }

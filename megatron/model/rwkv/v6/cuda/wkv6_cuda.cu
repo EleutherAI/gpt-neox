@@ -242,7 +242,7 @@ __global__ void kernel_backward_222(const int B,
 
 void cuda_forward(int B, int T, int C, int H, bf16* r, bf16* k, bf16* v, float* w, bf16* u, bf16* y)
 {
-    assert(H * _N_ == C);
+    //assert(H * _N_ == C);
     assert(_N_ % 4 == 0);
     kernel_forward<<<dim3(B * H), dim3(_N_)>>>(B, T, C, H, r, k, v, w, u, y);
 }
@@ -263,7 +263,7 @@ void cuda_backward(int B,
                    bf16* gw,
                    bf16* gu)
 {
-    assert(H * _N_ == C);
+    //assert(H * _N_ == C);
     assert(_N_ % 4 == 0);
     kernel_backward_111<<<dim3(B * H), dim3(_N_)>>>(B, T, C, H, r, k, v, w, u, gy, gr, gk, gv, gu);
     kernel_backward_222<<<dim3(B * H), dim3(_N_)>>>(B, T, C, H, r, k, v, w, u, gy, gw);

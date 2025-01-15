@@ -1140,7 +1140,7 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
         torch.cuda.memory._record_memory_history(
             True,
             # keep a maximum 100,000 alloc/free events from before the snapshot
-            trace_alloc_max_entries=100000,
+            trace_alloc_max_entries=300000,
             trace_alloc_record_context=True,
         )
 
@@ -1310,6 +1310,7 @@ def train_step(
                 reference_model=reference_model,
             )
             timers("forward").stop()
+            print("FORWARDS DONE")
             losses.append(loss)
             for key in metric_dict.keys():
                 metric_dicts[key].append(metric_dict[key])
@@ -1329,6 +1330,8 @@ def train_step(
                 loss=loss,
             )
             timers("backward").stop()
+            print("BACKWARDS DONE")
+            torch.cuda.empty_cache()
             if (
                 neox_args.profile
                 and neox_args.iteration >= neox_args.profile_step_start
@@ -1349,6 +1352,7 @@ def train_step(
             else:
                 raise ValueError("Must be using deepspeed to run neox")
             timers("optimizer").stop()
+            torch.cuda.empty_cache()
             if (
                 neox_args.profile
                 and neox_args.iteration >= neox_args.profile_step_start
@@ -1373,13 +1377,14 @@ def train_step(
     else:
         skipped_iter = 0
 
+    print("END OF TRAIN_STEP")
     collect_loss_for_unit_test(reduce_metrics["lm_loss"])
     return reduce_metrics, skipped_iter
 
 
 def train_step_pipe(neox_args, timers, model, data_iterator):
     """Single training step with DeepSpeed's pipeline parallel engine."""
-
+    print("TOP OF TRAIN_STEP_PIPE")
     assert neox_args.deepspeed
     loss = model.train_batch(data_iter=data_iterator)
     loss_dict = {"lm_loss": loss}
@@ -1393,6 +1398,7 @@ def train_step_pipe(neox_args, timers, model, data_iterator):
         "data loader",
     ]:
         timers(t).reset()
+    print("RETURN FROM STEP_PIPE")
     return loss_dict
 
 
@@ -1468,6 +1474,7 @@ def train(
         )
         prof.start()
     while iteration < neox_args.train_iters:
+        print("TOP OF TRAINING LOOP")
         if neox_args.profile:
             prof.step()
         if neox_args.profile and iteration == neox_args.profile_step_start:
@@ -1481,9 +1488,11 @@ def train(
             lr_scheduler=lr_scheduler,
             reference_model=reference_model,
         )
-        if neox_args.profile and iteration == neox_args.profile_step_stop:
+        print("AFTER TRAIN_STEP")
+        if neox_args.profile and iteration >= neox_args.profile_step_stop:
             torch.cuda.cudart().cudaProfilerStop()
             prof.stop()
+            torch.cuda.memory._record_memory_history(enabled=None)
         iteration += 1
         neox_args.iteration = iteration
         if neox_args.precision == "fp16":
@@ -1718,3 +1727,4 @@ def save_snapshot(neox_args):
         os.makedirs(snapshot_path)
     with open(os.path.join(snapshot_path, "mem_snapshot.pickle"), "wb") as f:
         dump(snapshot, f)
+        

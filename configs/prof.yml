@@ -4,14 +4,14 @@
   "profile": true,
 
   # pytorch profiler options
-  "profile_step_start": 10,
-  "profile_step_stop": 12,
+  "profile_step_start": 0,
+  "profile_step_stop": 3,
 
   # pytorch memory profiler options
   "memory_profiling": true,
-  "memory_profiling_path": tensorboard,
+  "memory_profiling_path": tensorboard-24B-pp,
 
 
   # All trace files (pytorch, nsys, tensorboard, etc) will be written here
-  "tensorboard_dir": "tensorboard",
+  "tensorboard_dir": "tensorboard-24B-pp",
 }

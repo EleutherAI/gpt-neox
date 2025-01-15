@@ -1,38 +1,46 @@
+# GPT-2 pretraining setup
 {
-  # Parallelism is not yet supported for Mamba
-  "pipe_parallel_size": 0,
-  "model_parallel_size": 1,
+   # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
+   # across the node boundaries )
+   "pipe_parallel_size": 16,
+   "model_parallel_size": 1,
 
-  "num_layers": 64,
-  "hidden_size": 2560,
-  "num_attention_heads": 12, # ignored when using mamba
-  "seq_length": 2048,
-  "max_position_embeddings": 2048,
-  "output_layer_parallelism": "column",
-  "norm": "rmsnorm",
-  "rms_norm_epsilon": 1.0e-5,
+   # model settings
+   "num_layers": 384,
+   "hidden_size": 2048,
+   "num_attention_heads": 16,
+   "seq_length": 4096,
+   "max_position_embeddings": 4096,
+   "norm": "layernorm",
+   "pos_emb": "rotary",
+   "no_weight_tying": true,
+   "gpt_j_residual": false,
+   "output_layer_parallelism": "column",
+   #"profile": true,
+   #"profile_step_start": 1,
+   #"profile_step_stop": 5,
 
-  "attention_config": [[["mamba"], 64]],
-
-  "mamba_selective_scan_fusion": true,
-  "mamba_causal_conv_fusion": true,
-  "mamba_inner_func_fusion": true, # supersedes scan or conv fusion
-  "activation": "silu",
+   "attention_config": [[["flash"], 384]],
+   # these should provide some speedup but takes a while to build, set to true if desired
+   "scaled_upper_triang_masked_softmax_fusion": false,
+   "bias_gelu_fusion": false,
+   "rope_fusion": false,
+   "layernorm_fusion": false,
 
    # init methods
    "init_method": "small_init",
-   "output_layer_init_method": "single_residual_scaled_normal",
+   "output_layer_init_method": "wang_init",
 
    # optimizer settings
    "optimizer": {
      "type": "Adam",
      "params": {
-       "lr": 0.00016,
+       "lr": 0.0002,
        "betas": [0.9, 0.95],
-       "eps": 1.0e-8,
+       "eps":  1.0e-8,
      }
    },
-   "min_lr": 0.000016,
+   "min_lr": 0.00002,
 
    # for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
    "zero_optimization": {
@@ -46,7 +54,7 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 4,
+   "train_micro_batch_size_per_gpu": 1,
    "data_impl": "mmap",
 
    # activation checkpointing
@@ -72,8 +80,8 @@
    },
 
    # misc. training settings
-   "train_iters": 320000,
-   "lr_decay_iters": 320000,
+   "train_iters": 100,
+   "lr_decay_iters": 100,
    "distributed_backend": "nccl",
    "lr_decay_style": "cosine",
    "warmup": 0.01,
@@ -82,8 +90,8 @@
    "eval_iters": 10,
 
    # logging
-   "log_interval": 100,
-   "steps_per_print": 10,
+   "log_interval": 5,
+   "steps_per_print": 5,
    "keep_last_n_checkpoints": 4,
    "wall_clock_breakdown": true,
 }
