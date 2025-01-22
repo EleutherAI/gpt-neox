@@ -132,6 +132,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
             layers=self.specs,
             loss_fn=partial(cross_entropy, _fp16=self.neox_args.fp16_lm_cross_entropy),
             topology=topology,
+            num_stages=1 if topology is None else None,
             activation_checkpoint_interval=self.neox_args.checkpoint_num_layers
             if self.neox_args.checkpoint_activations
             else 0,

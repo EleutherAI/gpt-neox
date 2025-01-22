@@ -195,7 +195,8 @@ def get_model_parallel_world_size():
     global _MPU_WORLD_SIZE
     if _MPU_WORLD_SIZE is not None:
         return _MPU_WORLD_SIZE
-    return torch.distributed.get_world_size(group=get_model_parallel_group())
+    print("\n\n!!!!!! _MPU_WORLD_SIZE is None !!!!!!!\n\n")
+    return 1 #torch.distributed.get_world_size(group=get_model_parallel_group())
 
 
 def set_model_parallel_rank(rank):
@@ -209,7 +210,8 @@ def get_model_parallel_rank():
     global _MPU_RANK
     if _MPU_RANK is not None:
         return _MPU_RANK
-    return torch.distributed.get_rank(group=get_model_parallel_group())
+    print("\n\n!!!!!! _MPU_RANK is None !!!!!!!\n\n")
+    return 0 #torch.distributed.get_rank(group=get_model_parallel_group())
 
 
 def get_model_parallel_src_rank():

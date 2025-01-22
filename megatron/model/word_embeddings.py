@@ -45,6 +45,9 @@ class Embedding(torch.nn.Module):
         num_tokentypes=0,
         use_pos_emb=True,
     ):
+        if vocab_size is None:
+            print("\n\n!!!!!! vocab_size is None !!!!!!!\n\n")
+            vocab_size = 50304
         super(Embedding, self).__init__()
 
         self.hidden_size = hidden_size

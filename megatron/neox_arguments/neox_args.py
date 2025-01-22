@@ -104,6 +104,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Model Arguments
     """
 
+    gas: int = 1
+    """
+    Gradient accumulation steps, for compatibility with old checkpoints.
+    """
+
     precision: Literal["fp16", "fp32", "bfloat16"] = None
     """
     description of the used precision, either one of fp16 or fp32 (and in the future bf16).

@@ -112,6 +112,7 @@ class VocabParallelEmbedding(torch.nn.Module):
         super(VocabParallelEmbedding, self).__init__()
         # Keep the input dimensions.
         self.num_embeddings = num_embeddings
+        print(f"{num_embeddings=}")
         self.embedding_dim = embedding_dim
         # Set the detauls for compatibility.
         self.padding_idx = None
