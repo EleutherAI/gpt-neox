@@ -24,6 +24,7 @@ from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
 from megatron.data.blendable_dataset import BlendableDataset
 from megatron.data.gpt2_dataset import GPT2Dataset
 from megatron.data.pairwise_dataset import PairwiseDataset
+from megatron.data.online_dataset import OnlineDataset
 from megatron.data.samplers import DistributedBatchSampler
 
 
@@ -533,10 +534,56 @@ def build_train_valid_test_data_loaders(neox_args):
 
     # Data loader only on rank 0 of each model and context parallel group.
     if (
-        mpu.get_model_parallel_rank() == 0
-        and pipe_load
-        and mpu.get_context_parallel_rank() == 0
+        pipe_load
+        and (neox_args.dataset_impl == "online")
+        and (mpu.get_model_parallel_rank() == 0)
+        and (mpu.get_context_parallel_rank() == 0)
     ):
+        # Can skip most of the work...
+        train_iters = neox_args.train_iters
+        eval_iters = (train_iters // neox_args.eval_interval + 1) * neox_args.eval_iters
+        test_iters = neox_args.eval_iters
+        # Build datasets...
+        print(
+            f"train_iters: {train_iters}, eval_iters: {eval_iters}, test_iters: {test_iters}"
+        )
+        train_datasets = OnlineDataset(
+            leave_one_out=neox_args.reinforce_leave_one_out,
+            data_split="train",
+            num_samples=train_iters * neox_args.train_batch_size,
+            seq_length=neox_args.seq_length,
+            dataserver_ips=neox_args.online_dataserver_ips,
+            dataserver_ports=neox_args.online_dataserver_ports,
+        )
+        valid_datasets = OnlineDataset(
+            leave_one_out=neox_args.reinforce_leave_one_out,
+            data_split="valid",
+            num_samples=eval_iters * neox_args.train_batch_size,
+            seq_length=neox_args.seq_length,
+            dataserver_ips=neox_args.online_dataserver_ips,
+            dataserver_ports=neox_args.online_dataserver_ports,
+        )
+        test_datasets = OnlineDataset(
+            leave_one_out=neox_args.reinforce_leave_one_out,
+            data_split="test",
+            num_samples=test_iters * neox_args.train_batch_size,
+            seq_length=neox_args.seq_length,
+            dataserver_ips=neox_args.online_dataserver_ips,
+            dataserver_ports=neox_args.online_dataserver_ports,
+        )
+        # print length of datasets
+        # Build dataloders.
+        train_dataloader = make_data_loader(train_datasets, neox_args=neox_args)
+        valid_dataloader = make_data_loader(valid_datasets, neox_args=neox_args)
+        test_dataloader = make_data_loader(test_datasets, neox_args=neox_args)
+
+        # Flags to know if we need to do training/validation/testing.
+        do_train = train_dataloader is not None and neox_args.train_iters > 0
+        do_valid = valid_dataloader is not None and neox_args.eval_iters > 0
+        do_test = test_dataloader is not None and neox_args.eval_iters > 0
+        # Need to broadcast num_tokens and num_type_tokens.
+        flags = torch.cuda.LongTensor([int(do_train), int(do_valid), int(do_test)])
+    elif mpu.get_model_parallel_rank() == 0 and pipe_load:
         # Number of train/valid/test samples.
         if neox_args.train_iters is not None:
             train_iters = neox_args.train_iters

@@ -21,7 +21,7 @@ except ImportError:
     from template import NeoXArgsTemplate
 
 try:
-    from typing import List, Literal, Union, Optional
+    from typing import List, Literal, Union, Optional, Any
 except ImportError:
     from typing_extensions import List, Literal, Union, Optional
 
@@ -519,6 +519,97 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
     """
 
+    serve_model_weights: bool = False
+    """
+    If true, serve model weight pointers over a socket connection
+    """
+
+    weight_server_port: Union[int, List[int]] = 6000
+    """
+    Port(s) to serve model weights over
+    If an integer is provided, the port for each GPU will be 6000 + global rank
+    If a list is provided, the ports will be used in order, e.g. rank0 will be weight_server_port[0]
+    """
+
+    online_dataserver_ips: Union[str, List[str]] = "localhost"
+    """
+    ip addresses to connect to for online data serving, defaults to localhost
+    """
+
+    online_dataserver_ports: Union[int, List[int]] = 10000
+    """
+    Port(s) to connect to for online data serving, defaults to 10000
+    """
+
+    te_columnparallel: bool = False
+    """
+    Use TransformerEngine for RowParallelLinear layer.
+    """
+
+    te_rowparallel: bool = False
+    """
+    Use TransformerEngine for ColumnParallelLinear layer.
+    """
+
+    te_layernorm_mlp: bool = False
+    """
+    Use TransformerEngine for LayerNormMLP layer.
+    """
+
+    te_mha: bool = False
+    """
+    Use TransformerEngine for MultiheadAttention layer.
+    """
+
+    te_fp8_format: Literal["e4m3", "hybrid"] = "hybrid"
+    """
+    Controls the FP8 data format used during forward and backward pass by TransformerEngine.
+    Hybrid uses E4M3 during forward pass, E5M2 during backward pass.
+    """
+
+    te_fp8_wgrad: bool = True
+    """
+    When set to False, override FP8 config options and do the wgrad computation
+    in higher precision.
+    """
+
+    te_fp8_amax_history_len: int = 1
+    """
+    The length of the amax history window used for scaling factor computation.
+    """
+
+    te_fp8_amax_compute_algo: str = "most_recent"
+    """
+    Algorithm used for choosing the `amax` value for the scaling factor computation. There are 2
+    predefined choices: `max` chooses the largest `amax` in the history window, while `most_recent`
+    always chooses the most recently seen value.
+    """
+
+    te_fp8_margin: int = 0
+    """
+    Margin for the scaling factor computation.
+    """
+
+    te_fp8_mha: bool = False
+    """
+    When set to True, use the FP8 implementation of Multi Head Attention.
+    """
+
+    dim_att: int = None
+    """
+    Total dimension of the attention mechanism for RWKV. If not set, defaults to hidden_size.
+    """
+
+    head_size: int = None
+    """
+    Size of each attention head for RWKV. Calculated as dim_att // num_attention_heads.
+    """
+
+    ffn_dim: int = None
+    """
+    Dimension of the feed-forward network for RWKV. If not set, calculated based on hidden_size and expansion_factor.
+    """
+
 
 @dataclass
 class NeoXArgsOptimizer(NeoXArgsTemplate):
@@ -626,11 +717,15 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Logging Arguments
     """
 
+    ### BEGIN WANDB ARGS ###
     use_wandb: bool = None
     """Flag indicating if wandb is to be used."""
 
     wandb_group: str = None
     """Weights and Biases group name - used to group together "runs"."""
+
+    wandb_run_name: str = None
+    """Weights and Biases run name for the current experiment"""
 
     wandb_team: str = None
     """Team name for Weights and Biases."""
@@ -643,6 +738,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
 
     wandb_init_all_ranks: bool = False
     """Initialize wandb on all ranks."""
+    ### END WANDB ARGS ###
 
     git_hash: str = get_git_commit_hash()
     """current git hash of repository"""
@@ -652,6 +748,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Directory to save logs to.
     """
 
+    ### BEGIN TENSORBOARD ARGS ###
     tensorboard_writer = None
     """
     initialized tensorboard writer
@@ -661,7 +758,9 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     """
     Write TensorBoard logs to this directory.
     """
+    ### END TENSORBOARD ARGS ###
 
+    ### BEGIN COMET ARGS ###
     use_comet: bool = None
     """Flag indicating if comet is to be used."""
 
@@ -690,9 +789,15 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Custom metadata to attach to the created Comet Experiment.
     """
 
-    comet_experiment = None
+    comet_experiment: Any = None
     """
     Initialized comet experiment object used to log data
+    """
+    ### END COMET ARGS ###
+
+    peak_theoretical_tflops: float = None
+    """
+    The peak hardware flops with which to compute MFU and HFU, in units of teraflops. Automatic detection is more trouble than it's worth, so this is left to the user. Helpful table listed at https://github.com/stas00/ml-engineering/tree/master/compute/accelerator#tflops-comparison-table
     """
 
     log_interval: int = 100
@@ -713,8 +818,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     log_grad_norm: bool = False
     """
     Log the frob norm of the gradients to wandb / tensorboard (useful for debugging).
-    (N.B - this will only work with pp = 0 for now, as we don't have access to the gradients of the model because
-    deepspeed.)
+    (N.B - this will only work with pp = 0 for now, as we don't have access to the gradients of the model because deepspeed.)
     """
 
     log_optimizer_states: bool = False
@@ -737,6 +841,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Whether to offload the buffered gradients to cpu when measuring gradient noise scale.
     """
 
+    ### BEGIN PROFILING ARGS
     memory_profiling: bool = False
     """
     Whether to take a memory snapshot of the model. Useful for debugging memory issues.
@@ -749,8 +854,8 @@ class NeoXArgsLogging(NeoXArgsTemplate):
 
     profile: bool = False
     """
-    Enable nsys profiling. When using this option,
-    nsys options should be specified in commandline.
+    Enable nsys and pytorch profiling. When using this option with nsys,
+    nsys options should be directly specified in commandline.
     An example nsys commandline is
     ```
     nsys profile -s none -t nvtx,cuda -o <path/to/output_file>
@@ -769,6 +874,7 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     """
     Step to stop profiling at.
     """
+    ### END PROFILING ARGS ###
 
 
 @dataclass
@@ -1065,14 +1171,14 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     warning: pack_until_overflow is very naive and will likely have issues with pretraining scale datasets
     """
 
-    dataset_impl: Literal["gpt2", "pairwise"] = "gpt2"
+    dataset_impl: Literal["gpt2", "pairwise", "online"] = "gpt2"
     """
-    Dataset implementation, can be one of "gpt2" or "pairwise"
+    Dataset implementation, can be one of "gpt2", "pairwise", or "online"
     """
 
-    train_impl: Literal["normal", "dpo", "rm", "kto"] = "normal"
+    train_impl: Literal["normal", "dpo", "rm", "kto", "reinforce"] = "normal"
     """
-    Training implementation, can be one of "normal", "dpo", "kto", or "rm"
+    Training implementation, can be one of "normal", "dpo", "kto", "reinforce", or "rm"
     """
 
     dpo_fp32: bool = True
@@ -1115,6 +1221,27 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     kto_beta: float = 0.1
     """
     Beta value for KTO
+    """
+
+    fp32_reinforce: bool = True
+    """
+    Whether to cast logits to fp32 for Reinforce loss calculation.
+    """
+
+    kl_impl: Literal["abs", "mse", "kl", "full"] = "mse"
+    """
+    KL divergence implementation, can be one of "abs", "mse", "kl", or "full"
+    """
+
+    kl_div_beta: float = 0.1
+    """
+    Beta value for KL divergence in Reinforce loss calculation.
+    """
+
+    reinforce_leave_one_out: bool = False
+    """
+    Whether to use reinforce leave one out for training
+    (from https://arxiv.org/abs/2402.14740 and https://api.semanticscholar.org/CorpusID:198489118)
     """
 
     allow_chopped: bool = True

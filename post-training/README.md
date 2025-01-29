@@ -2,6 +2,8 @@
 
 Examples for running post-training with ultrafeedback data for SFT/DPO/RM training.
 
+For [REINFORCE](https://arxiv.org/abs/2402.14740) style training, see [Online Training](OnlineTraining.MD).
+
 ```bash
 python tools/ckpts/convert_hf_llama_to_neox.py --tp 4 --model meta-llama/Meta-Llama-3-8B-Instruct --model_path checkpoints/neox_converted/llama3-8b-instruct
 ```
@@ -34,7 +36,6 @@ python tools/datasets/preprocess_data_with_chat_template.py --input data/pairwis
 
 ## SFT data
 ```bash
-python post-training/llama_dpo_data.py
 python tools/datasets/preprocess_data_with_chat_template.py --input data/sft/llama3_sft_train_filtered.jsonl --output-prefix data/sft/llama3_train --tokenizer-path checkpoints/neox_converted/llama3-8b-instruct/tokenizer --jsonl-keys messages
 python tools/datasets/preprocess_data_with_chat_template.py --input data/sft/llama3_sft_test_filtered.jsonl --output-prefix data/sft/llama3_test --tokenizer-path checkpoints/neox_converted/llama3-8b-instruct/tokenizer --jsonl-keys messages
 python tools/datasets/preprocess_data_with_chat_template.py --input data/sft/llama3_sft_train_filtered.jsonl --output-prefix data/sft/llama3_val --tokenizer-path checkpoints/neox_converted/llama3-8b-instruct/tokenizer --jsonl-keys messages
@@ -42,7 +43,6 @@ python tools/datasets/preprocess_data_with_chat_template.py --input data/sft/lla
 
 ## KTO data
 ```bash
-python post-training/llama_dpo_data.py
 python tools/datasets/preprocess_data_with_chat_template.py --input data/kto/llama3_sft_train_filtered.jsonl --output-prefix data/kto/llama3_train --tokenizer-path checkpoints/neox_converted/llama3-8b-instruct/tokenizer --jsonl-keys messages --reward-key reward
 python tools/datasets/preprocess_data_with_chat_template.py --input data/kto/llama3_sft_test_filtered.jsonl --output-prefix data/kto/llama3_test --tokenizer-path checkpoints/neox_converted/llama3-8b-instruct/tokenizer --jsonl-keys messages --reward-key reward
 python tools/datasets/preprocess_data_with_chat_template.py --input data/kto/llama3_sft_train_filtered.jsonl --output-prefix data/kto/llama3_val --tokenizer-path checkpoints/neox_converted/llama3-8b-instruct/tokenizer --jsonl-keys messages --reward-key reward
@@ -55,5 +55,5 @@ python tools/datasets/preprocess_data_with_chat_template.py --input data/kto/lla
 python tools/ckpts/convert_neox_to_hf.py --input_dir eleuther-neox/checkpoints/rm/llama3/llama3-8b-instruct/global_step100 --output_dir checkpoints/rm/llama3_hf --config_file checkpoints/rm/llama3/llama3-8b-instruct/global_step100/configs/llama3-8b-rm.yml --precision bf16 --vocab-is-hf-tokenizer --architecture llama --pad-token-id 128002
 
 # SFT/DPO
-python tools/ckpts/convert_neox_to_hf.py --input_dir eleuther-neox/checkpoints/<dpo/sft>/llama3/llama3-8b-instruct/global_step100 --output_dir checkpoints/<dpo/sft>/llama3_hf --config_file checkpoints/<dpo/sft>/llama3/llama3-8b-instruct/global_step100/configs/llama3-8b-rm.yml --precision bf16 --vocab-is-hf-tokenizer
+python tools/ckpts/convert_neox_to_hf.py --input_dir eleuther-neox/checkpoints/<dpo/sft>/llama3/llama3-8b-instruct/global_step100 --output_dir checkpoints/<dpo/sft>/llama3_hf --config_file checkpoints/<dpo/sft>/llama3/llama3-8b-instruct/global_step100/configs/llama3-8b-rm.yml --precision bf16 --vocab-is-hf-tokenizer --architecture llama
 ```

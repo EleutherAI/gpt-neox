@@ -18,6 +18,8 @@ GPT-NeoX leverages many of the same features and technologies as the popular Meg
 * Easy connections with the open source ecosystem, including Hugging Face's [tokenizers](https://github.com/huggingface/tokenizers) and [transformers](https://github.com/huggingface/transformers/) libraries, monitor experiments via [WandB](https://wandb.ai/site)/[Comet](https://www.comet.com/site/)/TensorBoard, and evaluation via our [Language Model Evaluation Harness](https://github.com/EleutherAI/lm-evaluation-harness).
 
 ## News
+**[10/9/2024]** We now support [Transformer Engine](https://github.com/NVIDIA/TransformerEngine) integration
+
 **[9/9/2024]** We now support preference learning via [DPO](https://arxiv.org/abs/2305.18290), [KTO](https://arxiv.org/abs/2402.01306), and reward modeling
 
 **[9/9/2024]** We now support integration with [Comet ML](https://www.comet.com/site/), a machine learning monitoring platform
@@ -60,6 +62,7 @@ Prior to 3/9/2023, GPT-NeoX relied on [DeeperSpeed](https://github.com/EleutherA
   * [Environment and Dependencies](#environment-and-dependencies)
     + [Host Setup](#host-setup)
     + [Flash Attention](#flash-attention)
+    + [Transformer Engine](#transformer-engine)
     + [Multi-Node Launching](#multi-node-launching)
     + [Containerized Setup](#containerized-setup)
   * [Usage](#usage)
@@ -100,7 +103,7 @@ Prior to 3/9/2023, GPT-NeoX relied on [DeeperSpeed](https://github.com/EleutherA
 
 ### Host Setup
 
-First make sure you are in an environment with Python 3.8 with an appropriate version of PyTorch 1.8 or later installed. **Note:** Some of the libraries that GPT-NeoX depends on have not been updated to be compatible with Python 3.10+. Python 3.9 appears to work, but this codebase has been developed and tested for Python 3.8.
+This codebase has primarily developed and tested for Python 3.8-3.10, and PyTorch 1.8-2.0. This is not a strict requirement, and other versions and combinations of libraries may work.
 
 To install the remaining basic dependencies, run:
 
@@ -130,7 +133,20 @@ This will automatically adapts building process over different GPU vendors (AMD,
 
 ### Flash Attention
 
-To use [Flash-Attention](https://github.com/HazyResearch/flash-attention), install the additional dependencies in  `./requirements/requirements-flashattention.txt` and set the attention type in your configuration accordingly (see [configs](./configs/)). This can provide significant speed-ups over regular attention on certain GPU architectures, including Ampere GPUs (such as A100s); see the repository for more details.
+To use [Flash-Attention](https://github.com/HazyResearch/flash-attention), install the additional dependencies in  `./requirements/requirements-flashattention.txt` or use a PyTorch NGC container with it pre-installed (note that functionality is not guaranteed using versions different from our requirements file). Then set the attention type in your configuration accordingly (see [configs](./configs/)). This can provide significant speed-ups over regular attention on certain GPU architectures, including Ampere GPUs (such as A100s); see the repository for more details.
+
+### Transformer Engine
+
+To use [Transformer Engine (TE)](https://github.com/NVIDIA/TransformerEngine), install the additional dependencies in  `./requirements/requirements-transformer-engine.txt` or use a PyTorch NGC container with it pre-installed (note that functionality is not guaranteed using versions different from our requirements file). See [this config](https://github.com/EleutherAI/gpt-neox/configs/1-3B-transformer-engine.yml) for an example of using TE on a 1.3B model. This can provide significant speed-ups over regular attention on certain GPU architectures, including Ampere and Hopper GPUs; see the repository for more details.
+
+
+TE provides very efficient kernels for both A100 and H100 GPUs. We've run some sample ablations on A100:
+
+
+
+and H100:
+
+
 
 
 ### Multi-Node Launching
@@ -679,7 +695,9 @@ We support profiling with Nsight Systems, the PyTorch Profiler, and PyTorch Memo
 
 ## Nsight Systems Profiling
 
-To use the Nsight Systems profiling, set config options `profile`, `profile_step_start`, and `profile_step_stop`. Launch training with:
+To use the Nsight Systems profiling, set config options `profile`, `profile_step_start`, and `profile_step_stop` (see [here](https://github.com/EleutherAI/gpt-neox/blob/main/configs/neox_arguments.md) for argument usage, and [here](https://github.com/EleutherAI/gpt-neox/blob/main/configs/prof.yml) for a sample config).
+
+To populate nsys metrics, launch training with:
 
 ```
 nsys profile -s none -t nvtx,cuda -o <path/to/profiling/output> --force-overwrite true \
@@ -689,22 +707,22 @@ $TRAIN_PATH/train.py --conf_dir configs <config files>
 
 The generated output file can then by viewed with the Nsight Systems GUI:
 
-![Alt text](images/nsight_profiling.png)
+![nsight-prof](images/nsight_profiling.png)
 
 ## PyTorch Profiling
 
-To use the built-in PyTorch profiler, set config options `profile`, `profile_step_start`, and `profile_step_stop`.
+To use the built-in PyTorch profiler, set config options `profile`, `profile_step_start`, and `profile_step_stop` (see [here](https://github.com/EleutherAI/gpt-neox/blob/main/configs/neox_arguments.md) for argument usage, and [here](https://github.com/EleutherAI/gpt-neox/blob/main/configs/prof.yml) for a sample config).
 
 The PyTorch profiler will save traces to your `tensorboard` log directory.  You can view these traces within
 TensorBoard by following the steps [here](https://pytorch.org/tutorials/intermediate/tensorboard_profiler_tutorial.html).
 
-![Alt text](images/pytorch_profiling.png)
+![torch-prof](images/pytorch_profiling.png)
 
 ## PyTorch Memory Profiling
 
-To use PyTorch Memory Profiling, set config options `memory_profiling` and `memory_profiling_path`.
+To use PyTorch Memory Profiling, set config options `memory_profiling` and `memory_profiling_path` (see [here](https://github.com/EleutherAI/gpt-neox/blob/main/configs/neox_arguments.md) for argument usage, and [here](https://github.com/EleutherAI/gpt-neox/blob/main/configs/prof.yml) for a sample config).
 
-![Alt text](images/memory_profiling.png)
+![mem-prof](images/memory_profiling.png)
 
 View the generated profile with the [memory_viz.py](https://github.com/pytorch/pytorch/blob/main/torch/cuda/_memory_viz.py) script. Run with:
 

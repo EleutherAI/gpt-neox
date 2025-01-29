@@ -4,8 +4,12 @@ from tests.common import simulate_deepy_env, save_random_model
 from megatron.neox_arguments.neox_args import NeoXArgsTokenizer
 
 
+@pytest.mark.skip(
+    reason="Conversion test is skipped until we fix the CUDA + torch multiprocessing issue."
+)
 def test_gpt_neox_to_huggingface(monkeypatch, tmpdir, tmp_path):
     # Generate random GPT-NEOX model, check we can convert to hf format
+
     model_dir = str(tmpdir)
     input_args = ["train.py", "tests/config/test_setup.yml"]
     deepspeed_main_args = simulate_deepy_env(monkeypatch, input_args)
