@@ -404,7 +404,7 @@ class RWKVResidualLayer(nn.Module):
         if neox_args.hidden_dropout > 0:
             self.drop1 = nn.Dropout(p=neox_args.hidden_dropout)
 
-        if layer_number == 0:
+        if layer_number % neox_args.pipe_parallel_size == 0:
             if not self.neox_args.rwkv_fla:
                 global wkv_cuda
                 """
@@ -412,13 +412,9 @@ class RWKVResidualLayer(nn.Module):
                 """
                 wkv_cuda = load(
                     name="wkv6",
-                    #sources=[
-                    #    "megatron/model/rwkv/v6/cuda/wkv6_op.cpp",
-                    #    f"megatron/model/rwkv/v6/cuda/wkv6_cuda.cu",
-                    #],
                     sources=[
-                        "megatron/model/rwkv/v6/hip/wkv6_op.cpp",
-                        f"megatron/model/rwkv/v6/hip/wkv6_hip.hip",
+                        "megatron/model/rwkv/v6/cuda/wkv6_op.cpp",
+                        f"megatron/model/rwkv/v6/cuda/wkv6_cuda.cu",
                     ],
                     verbose=True,
                     extra_cuda_cflags=[

@@ -1,6 +1,6 @@
 {
   # Parallelism is not yet supported for rwkv
-  "pipe_parallel_size": 8,
+  "pipe_parallel_size": 16,
   "model_parallel_size": 1,
 
   "num_layers": 352,
@@ -79,6 +79,13 @@
   "weight_decay": 0.1,
   "hidden_dropout": 0,
   "attention_dropout": 0,
+
+  "comms_logger": {
+  "enabled": true,
+  "verbose": true,
+  "prof_all": true,
+  "debug": true
+  },
 
   # precision settings
   "bf16": {
