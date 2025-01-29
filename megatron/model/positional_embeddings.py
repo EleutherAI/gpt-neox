@@ -67,6 +67,8 @@ class RotaryEmbedding(torch.nn.Module):
         freqs = torch.einsum("i,j->ij", t, inv_freq)
         emb = torch.cat((freqs, freqs), dim=-1)
 
+        self.emb = emb.reshape(emb.size(0), 1, 1, emb.size(1))
+
         cos_cached = emb.cos()[:, None, None, :]
         sin_cached = emb.sin()[:, None, None, :]
 
@@ -75,6 +77,9 @@ class RotaryEmbedding(torch.nn.Module):
             sin_cached.to(precision),
             inv_freq.to(precision),
         )
+
+    def get_emb(self):
+        return self.emb.to(self.precision).cuda()
 
     def forward(self, x, seq_dim=0, seq_len=None):
         if seq_len is None:
