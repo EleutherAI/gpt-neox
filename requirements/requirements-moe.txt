@@ -1,2 +1,2 @@
-grouped-gemm==0.1.4
-megablocks==0.5.1
+grouped-gemm==0.1.6
+megablocks==0.7.0

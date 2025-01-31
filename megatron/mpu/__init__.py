@@ -39,6 +39,7 @@ from .initialize import get_expert_tokens_for_rank
 from .initialize import get_expert_token_counts_for_rank
 from .initialize import initialize_model_parallel
 from .initialize import model_parallel_is_initialized
+from .initialize import get_fp32_allreduce
 
 from .layers import ColumnParallelLinear
 from .layers import RowParallelLinear

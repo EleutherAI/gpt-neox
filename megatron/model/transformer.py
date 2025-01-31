@@ -928,6 +928,7 @@ class ParallelTransformerLayer(nn.Module):
 
         super().__init__()
         self.layer_number = layer_number
+        self.neox_args = neox_args
 
         norm, eps = get_norm(neox_args)
 
@@ -1013,12 +1014,6 @@ class ParallelTransformerLayer(nn.Module):
                 multiple_of=neox_args.mlp_multiple_of,
                 **kw,
             )
-
-        self.num_experts = (
-            neox_args.moe_num_experts
-            if layer_number % neox_args.expert_interval == 0
-            else 1
-        )
 
         if self.num_experts <= 1:
             if neox_args.te_layernorm_mlp:

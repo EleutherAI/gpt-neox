@@ -1084,6 +1084,10 @@ class NeoXArgs(*BASE_CLASSES):
         # the sequential model without the PipelineModule wrapper to avoid the overhead it incurs
         self.update_value("is_pipe_parallel", self.pipe_parallel_size >= 1)
 
+        # MoE config
+        if self.moe_num_experts > 1:
+            assert self.zero_optimization["stage"] < 2, "MoE is not compatible with zero stages 2 and 3"
+
         # Attention config
         if self.attention_config is None:
             self.update_value("attention_config", [[["global"], self.num_layers]])
