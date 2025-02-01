@@ -26,8 +26,6 @@ import torch.nn as nn
 from pkg_resources import packaging
 from importlib.metadata import version
 
-from megatron.model.moe import ParallelDroplessMoE
-
 from .norms import get_norm
 from megatron import mpu
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
@@ -946,6 +944,9 @@ class ParallelTransformerLayer(nn.Module):
             if layer_number % neox_args.moe_expert_interval == 0
             else 1
         )
+
+        if self.num_experts > 1:
+            from megatron.model.moe import ParallelDroplessMoE
 
         if self.gpt_j_residual:
             # GPT-J style layers allow us to defer the reduction of results across TP ranks until the end of the two sublayers.
