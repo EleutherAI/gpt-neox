@@ -141,7 +141,7 @@ class SequentialWrapper(torch.nn.Module):
         recursive_setattr(self.sequential, "training", True)
 
     def forward(
-        self, forward_input, curriculum_seqlen=None, labels=None, neox_args=None
+        self, forward_input, curriculum_seqlen=None, labels=None, neox_args=None, return_moe_losses=False
     ):
 
         if self.batch_fn:
@@ -212,7 +212,10 @@ class SequentialWrapper(torch.nn.Module):
                     )
                 else:
                     x = exec_range_func(start_idx, end_idx)(*x)
-        return x, moe_losses
+        if return_moe_losses:
+            return x, moe_losses
+        else:
+            return x
 
     def clear_cache(self):
         """
