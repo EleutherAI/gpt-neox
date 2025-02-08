@@ -141,7 +141,12 @@ class SequentialWrapper(torch.nn.Module):
         recursive_setattr(self.sequential, "training", True)
 
     def forward(
-        self, forward_input, curriculum_seqlen=None, labels=None, neox_args=None, return_moe_losses=False
+        self,
+        forward_input,
+        curriculum_seqlen=None,
+        labels=None,
+        neox_args=None,
+        return_moe_losses=False,
     ):
 
         if self.batch_fn:
