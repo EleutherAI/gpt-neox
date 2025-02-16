@@ -38,7 +38,7 @@ def get_norm(neox_args):
         if neox_args.layernorm_fusion:
             raise ValueError(f"neox_args.layernorm_fusion not supported for non_parametric_layernorm")
         else:
-            norm = LayerNorm(elementwise_affine=False, bias=False)
+            norm = NonParametricLayernorm
     elif neox_args.norm == "scalenorm":
         eps = neox_args.scalenorm_epsilon
         norm = ScaleNorm
@@ -111,3 +111,7 @@ class ScaleNorm(torch.nn.Module):
     def forward(self, x):
         n = torch.norm(x, dim=-1, keepdim=True).clamp(min=self.eps)
         return x / n * self.g
+
+class NonParametricLayernorm(torch.nn.LayerNorm):
+    def __init__(self, dim, eps=1e-5):
+        super().__init__(normalized_shape=dim, eps=eps, elementwise_affine=False, bias=False)
