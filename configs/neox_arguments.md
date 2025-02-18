@@ -2667,14 +2667,6 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
 
 
-- **detect_nvlink_pairs**: bool
-
-    Default = False
-
-    If true, autodetects nvlink pairs and remaps cuda visible devices to place them next to each other. This is an Eleuther addition to deepspeed, and should speed up model parallel training on setups with nvlink pairs when mp=2.
-
-
-
 - **autotuning_run**: str
 
     Default = None
