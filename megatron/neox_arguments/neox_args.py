@@ -168,7 +168,12 @@ class NeoXArgsModel(NeoXArgsTemplate):
     """
 
     norm: Literal[
-        "layernorm", "rmsnorm", "non_parametric_layernorm", "scalenorm", "te_rmsnorm", "te_layernorm"
+        "layernorm",
+        "rmsnorm",
+        "non_parametric_layernorm",
+        "scalenorm",
+        "te_rmsnorm",
+        "te_layernorm",
     ] = "layernorm"
     """
     Normalization layer to use. Choose from "layernorm", "rmsnorm", "non_parametric_layernorm", "scalenorm", "te_rmsnorm", "te_layernorm".
