@@ -338,11 +338,6 @@ class NeoXArgsDeepspeedRunner(NeoXArgsTemplate):
     Force multi-node training even if only one node is specified.
     """
 
-    detect_nvlink_pairs: bool = False
-    """
-    If true, autodetects nvlink pairs and remaps cuda visible devices to place them next to each other. This is an Eleuther addition to deepspeed, and should speed up model parallel training on setups with nvlink pairs when mp=2.
-    """
-
     autotuning_run: str = None
     """
     Either "tune", "run", or `None`.
