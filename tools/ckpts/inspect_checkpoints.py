@@ -295,7 +295,7 @@ def compare(args: Namespace):
 def main():
     parser = ArgumentParser()
     parser.add_argument(
-        "dir",
+        "--dir",
         type=str,
         help="The checkpoint dir to inspect. Must be either: \
          - a directory containing pickle binaries saved with 'torch.save' ending in .pt or .ckpt \
