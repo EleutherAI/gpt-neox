@@ -60,7 +60,7 @@ def get_norm(neox_args):
 
 
 class RMSNorm(torch.nn.Module):
-    def __init__(self, dim, p=-1.0, eps=1e-8, bias=False):
+    def __init__(self, dim, p=-1.0, eps=1e-8, bias=False, alt=False):
         """
             Root Mean Square Layer Normalization
         :param dim: model size
@@ -75,6 +75,7 @@ class RMSNorm(torch.nn.Module):
         self.d = dim
         self.p = p
         self.bias = bias
+        self.alt = alt
 
         self.scale = torch.nn.Parameter(torch.ones(dim))
         self.register_parameter("scale", self.scale)
@@ -85,18 +86,13 @@ class RMSNorm(torch.nn.Module):
 
     def forward(self, x):
         dtype = x.dtype
-        if self.p < 0.0 or self.p > 1.0:
-            norm_x = x.norm(2, dim=-1, keepdim=True)
-            d_x = self.d
-        else:
+        if self.p >= 0.0 and self.p <= 1.0:
             partial_size = int(self.d * self.p)
-            partial_x, _ = torch.split(x, [partial_size, self.d - partial_size], dim=-1)
+            x, _ = torch.split(x, [partial_size, self.d - partial_size], dim=-1)
 
-            norm_x = partial_x.norm(2, dim=-1, keepdim=True)
-            d_x = partial_size
-
-        rms_x = norm_x * d_x ** (-1.0 / 2)
-        x_normed = x / (rms_x + self.eps)
+        x = x.to(torch.float32)
+        variance = x.pow(2).mean(-1, keepdim=True)
+        x_normed = x * torch.rsqrt(variance + self.eps)
 
         if self.bias:
             return self.scale * x_normed + self.offset
