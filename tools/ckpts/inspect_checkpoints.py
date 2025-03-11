@@ -60,7 +60,7 @@ def pretty_print(contents: dict):
         key_length = len(str(k))
         line = " " * (col_size - key_length)
         line += f"{k}: {COLORS.BLUE}{type(v).__name__}{COLORS.END}"
-        if isinstance(v, dict):
+        if isinstance(v, dict) and v:
             pretty_print(v)
         elif isinstance(v, PRIMITIVE_TYPES):
             line += f" = "
@@ -120,7 +120,7 @@ def pretty_print_double(contents1: dict, contents2: dict, args):
             continue
         else:
             prefix = f"{k}: {COLORS.BLUE}{type(v1).__name__} | {type(v2).__name__}{COLORS.END}"
-        if isinstance(v1, dict):
+        if isinstance(v1, dict) and v1 and v2:
             pretty_print_double(v1, v2, args)
         elif isinstance(v1, PRIMITIVE_TYPES):
             if repr(v1) != repr(v2):
