@@ -23,7 +23,7 @@
    "te_layernorm_mlp": true,
    "te_mha": true,
    "te_fp8_format": "hybrid",
-   "te_fp8_wgrad": true,
+   "te_fp8_wgrad": false,
    "te_fp8_amax_history_len": 1,
    "te_fp8_amax_compute_algo": "most_recent",
    "te_fp8_margin": 0,
@@ -62,7 +62,7 @@
   },
 
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 4,
+   "train_micro_batch_size_per_gpu": 16,
    "data_impl": "mmap",
 
    # activation checkpointing
@@ -98,8 +98,8 @@
    "eval_iters": 10,
 
    # logging
-   "log_interval": 100,
-   "steps_per_print": 10,
+   "log_interval": 1,
+   "steps_per_print": 1,
    "keep_last_n_checkpoints": 4,
    "wall_clock_breakdown": true,
 }

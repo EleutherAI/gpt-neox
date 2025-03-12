@@ -1625,12 +1625,11 @@ def train(
                 optimizer=optimizer,
                 lr_scheduler=lr_scheduler,
             )
+
         # Evaluation
-        if (
-            neox_args.eval_interval
-            and iteration % neox_args.eval_interval == 0
-            and neox_args.do_valid
-        ):
+        is_eval_iter = neox_args.eval_interval and iteration % neox_args.eval_interval == 0
+        eval_set_configured = neox_args.do_valid or neox_args.eval_tasks
+        if is_eval_iter and eval_set_configured:
             prefix = "iteration {}".format(iteration)
             evaluate_and_print_results(
                 neox_args=neox_args,
