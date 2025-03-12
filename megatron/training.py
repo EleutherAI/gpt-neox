@@ -1718,7 +1718,7 @@ def evaluate(
                 deepspeed.checkpointing.reset()
 
     # reduces losses across processes for logging & run eval harness tasks
-    eval_results = {"lm_loss": reduce_losses(losses).mean().item()}
+    eval_results = {"lm_loss": reduce_losses(losses).mean().item()} if len(losses) > 0 else {}
     for key in metric_dicts.keys():
         eval_results[key] = reduce_losses(metric_dicts[key]).mean().item()
     eval_results["lm_loss_ppl"] = math.exp(eval_results["lm_loss"])
