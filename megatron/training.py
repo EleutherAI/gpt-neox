@@ -1721,7 +1721,9 @@ def evaluate(
     eval_results = {"lm_loss": reduce_losses(losses).mean().item()} if len(losses) > 0 else {}
     for key in metric_dicts.keys():
         eval_results[key] = reduce_losses(metric_dicts[key]).mean().item()
-    eval_results["lm_loss_ppl"] = math.exp(eval_results["lm_loss"])
+
+    if "lm_loss_ppl" in eval_results:
+        eval_results["lm_loss_ppl"] = math.exp(eval_results["lm_loss"])
 
     if neox_args.char_level_ppl:
         # calculate character level perplexity, if specified
