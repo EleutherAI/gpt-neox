@@ -9,10 +9,10 @@
   "checkpoint_validation_with_forward_pass": False,
   "tensorboard_dir": "tensorboard",
   "log_dir": "logs",
-  "log_interval": 1,
-  "steps_per_print": 1,
+  "log_interval": 10,
+  "steps_per_print": 10,
   "wall_clock_breakdown": true,
-  "use_wandb": False,
+  "use_wandb": True,
   "wandb_host": "https://api.wandb.ai",
   "wandb_project": "AISI",
   "wandb_team": "eleutherai",
@@ -50,7 +50,8 @@
   "attention_config": [[["flash"], 32]],
   "scaled_upper_triang_masked_softmax_fusion": true,
   "precision": "bfloat16",
-  # "activation": "swiglu",
+  "activation": "gelu",
+  # "activation": "swiglu", TODO: Support SwiGLU
 
   # Transformer Engine
   "te_columnparallel": false,
@@ -103,7 +104,8 @@
   "eval_iters": 0,
   "eval_interval": 5,
   "eval_results_prefix": "pretraining_baseline",
-  "eval_tasks": ["wmdp_bio"],
-  "do_valid",
+  # TODO: Add automatic evals for next runs
+  #"eval_tasks": ["wmdp_bio"],
+  # "do_valid",
   # "eval_tasks": ["wmdp", "mmlu", "piqa", "arc-easy", "arc-challenge", "lambada", "hellaswag"]
 }

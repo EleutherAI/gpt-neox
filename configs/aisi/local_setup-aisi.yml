@@ -1,0 +1,13 @@
+# Suggested data paths when using GPT-NeoX locally
+{
+  "data_path": "/data/dclm-dedup-25B/dclm-dedup-25B_text_document",
+  "tokenizer_type": "HFTokenizer",
+  "vocab_file": "/data/neox_tokenizer/tokenizer.json",
+  "checkpoint_validation_with_forward_pass": False,
+  "tensorboard_dir": "tensorboard",
+  "log_dir": "logs",
+  "use_wandb": True,
+  "wandb_host": "https://api.wandb.ai",
+  "wandb_project": "AISI",
+  "wandb_team": "eleutherai",
+}
