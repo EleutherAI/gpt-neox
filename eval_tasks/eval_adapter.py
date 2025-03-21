@@ -27,7 +27,9 @@ from tqdm import tqdm
 import torch
 import torch.nn.functional as F
 
+from lm_eval.models.utils import chunks
 from lm_eval.models.huggingface import HFLM
+from lm_eval.loggers.utils import get_git_commit_hash
 from lm_eval import tasks, evaluator, utils, api
 from megatron.text_generation_utils import generate_samples_from_prompt
 from megatron import mpu
@@ -219,7 +221,7 @@ class EvalHarnessAdapter(HFLM):
                 return (-len(toks), tuple(toks))
 
             reord = utils.Reorderer(requests, _collate)
-            for chunk in utils.chunks(
+            for chunk in chunks(
                 tqdm(reord.get_reordered(), disable=disable_tqdm), self.batch_size
             ):
                 inps, contlens, inplens, padding_length = [], [], [], None
@@ -412,7 +414,8 @@ class EvalHarnessAdapter(HFLM):
             ]
 
         # register all the default tasks bundled with lm-evaluation-harness repository
-        tasks.initialize_tasks()
+        task_manager = tasks.TaskManager()
+        task_manager.initialize_tasks()
 
         # Returns a list containing all values of the task registry that
         # match at least one of the patterns
@@ -425,7 +428,8 @@ class EvalHarnessAdapter(HFLM):
                     task_names.add(matching)
             return list(task_names)
 
-        eval_tasks = pattern_match(eval_tasks, tasks.ALL_TASKS)
+        all_tasks = task_manager._all_tasks
+        eval_tasks = pattern_match(eval_tasks, all_tasks)
         print(f"Found tasks: {eval_tasks}")
 
         assert len(eval_tasks) > 0, "Must run at least one task"
@@ -473,15 +477,16 @@ class EvalHarnessAdapter(HFLM):
 
             config = task_obj._config
 
+            utils.setup_logging()
             if num_fewshot is not None:
                 if config["num_fewshot"] == 0:
-                    utils.eval_logger.info(
+                    utils.logging.info(
                         f"num_fewshot has been set to 0 for {task_name} in its config. Manual configuration will be ignored."
                     )
                 else:
                     default_num_fewshot = config["num_fewshot"]
                     if not default_num_fewshot:
-                        utils.eval_logger.warning(
+                        utils.logging.warning(
                             f"Overwriting default num_fewshot of {task_name} from {default_num_fewshot} to {num_fewshot}"
                         )
 
@@ -490,7 +495,7 @@ class EvalHarnessAdapter(HFLM):
         results = evaluator.evaluate(
             lm=lm,
             task_dict=task_dict,
-            limit=10,  # limit,
+            # limit=10,  # limit,
             bootstrap_iters=bootstrap_iters,
             log_samples=False,
         )
@@ -504,7 +509,7 @@ class EvalHarnessAdapter(HFLM):
             "limit": limit,
             "bootstrap_iters": bootstrap_iters,
         }
-        results["git_hash"] = utils.get_git_commit_hash()
+        results["git_hash"] = get_git_commit_hash()
 
         print(results.keys())
         for task_name in task_dict.keys():
