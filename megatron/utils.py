@@ -183,7 +183,7 @@ def init_wandb(neox_args):
                 "Skipping wandb. Execute `wandb login` on local or main node machine to enable.",
                 flush=True,
             )
-        wandb.config.update(neox_args.all_config)
+        wandb.config.update(neox_args.all_config, allow_val_change=True)
 
 
 def obtain_resource_pool(
