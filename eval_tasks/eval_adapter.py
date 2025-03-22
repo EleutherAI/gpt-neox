@@ -530,6 +530,7 @@ def run_eval_harness(
     adapter = EvalHarnessAdapter(
         model, forward_step_fn, neox_args, batch_size=batch_size
     )
+    # foo
     return adapter.run_eval(
         eval_tasks=eval_tasks,
         num_fewshot=num_fewshot,
