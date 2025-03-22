@@ -14,19 +14,23 @@ LR Scheduler Arguments
     Learning rate decay function. Choose from 'constant', 'linear', 'cosine', 'exponential'.
 
 
+
 - **lr_decay_iters**: int
 
     Default = None
 
-    Number of iterations to decay learning rate over. If None, defaults to 
-    --train-iters or the equivalent inferred value from train_epochs.
+    Number of iterations to decay learning rate over, If None defaults to
+    --train-iters or the equivalent inferred valued from train_epochs.
+
+
 
 - **lr_decay_fraction**: float
 
     Default = None
 
-    Effective fraction of training over which to decay lr. Overrides lr_decay_iters. 
-    Useful when specifying train_epochs.
+    Effective fraction of training over which to decay lr, overrides lr_decay_iters, useful when specifying train_epochs
+
+
 
 - **min_lr**: float
 
@@ -82,6 +86,14 @@ Logging Arguments
 
 
 
+- **wandb_run_name**: str
+
+    Default = None
+
+    Weights and Biases run name for the current experiment
+
+
+
 - **wandb_team**: str
 
     Default = None
@@ -116,7 +128,7 @@ Logging Arguments
 
 - **git_hash**: str
 
-    Default = 62c9738a
+    Default = bb881f3b
 
     current git hash of repository
 
@@ -186,6 +198,22 @@ Logging Arguments
 
 
 
+- **comet_experiment**: Any
+
+    Default = None
+
+    Initialized comet experiment object used to log data
+
+
+
+- **peak_theoretical_tflops**: float
+
+    Default = None
+
+    The peak hardware flops with which to compute MFU and HFU, in units of teraflops. Automatic detection is more trouble than it's worth, so this is left to the user. Helpful table listed at https://github.com/stas00/ml-engineering/tree/master/compute/accelerator#tflops-comparison-table
+
+
+
 - **log_interval**: int
 
     Default = 100
@@ -215,8 +243,7 @@ Logging Arguments
     Default = False
 
     Log the frob norm of the gradients to wandb / tensorboard (useful for debugging).
-    (N.B - this will only work with pp = 0 for now, as we don't have access to the gradients of the model because
-    deepspeed.)
+    (N.B - this will only work with pp = 0 for now, as we don't have access to the gradients of the model because deepspeed.)
 
 
 
@@ -272,8 +299,8 @@ Logging Arguments
 
     Default = False
 
-    Enable nsys profiling. When using this option,
-    nsys options should be specified in commandline.
+    Enable nsys and pytorch profiling. When using this option with nsys,
+    nsys options should be directly specified in commandline.
     An example nsys commandline is
     ```
     nsys profile -s none -t nvtx,cuda -o <path/to/output_file>
@@ -402,11 +429,11 @@ Model Arguments
 
 
 
-- **norm**: typing.Literal['layernorm', 'rmsnorm', 'scalenorm', 'te_rmsnorm', 'te_layernorm']
+- **norm**: typing.Literal['layernorm', 'rmsnorm', 'non_parametric_layernorm', 'scalenorm', 'te_rmsnorm', 'te_layernorm']
 
     Default = layernorm
 
-    Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm", "te_rmsnorm", "te_layernorm".
+    Normalization layer to use. Choose from "layernorm", "rmsnorm", "non_parametric_layernorm", "scalenorm", "te_rmsnorm", "te_layernorm".
 
 
 
@@ -843,6 +870,124 @@ Model Arguments
 
 
 
+- **serve_model_weights**: bool
+
+    Default = False
+
+    If true, serve model weight pointers over a socket connection
+
+
+
+- **weight_server_port**: typing.Union[int, typing.List[int]]
+
+    Default = 6000
+
+    Port(s) to serve model weights over
+    If an integer is provided, the port for each GPU will be 6000 + global rank
+    If a list is provided, the ports will be used in order, e.g. rank0 will be weight_server_port[0]
+
+
+
+- **online_dataserver_ips**: typing.Union[str, typing.List[str]]
+
+    Default = localhost
+
+    ip addresses to connect to for online data serving, defaults to localhost
+
+
+
+- **online_dataserver_ports**: typing.Union[int, typing.List[int]]
+
+    Default = 10000
+
+    Port(s) to connect to for online data serving, defaults to 10000
+
+
+
+- **te_columnparallel**: bool
+
+    Default = False
+
+    Use TransformerEngine for RowParallelLinear layer.
+
+
+
+- **te_rowparallel**: bool
+
+    Default = False
+
+    Use TransformerEngine for ColumnParallelLinear layer.
+
+
+
+- **te_layernorm_mlp**: bool
+
+    Default = False
+
+    Use TransformerEngine for LayerNormMLP layer.
+
+
+
+- **te_mha**: bool
+
+    Default = False
+
+    Use TransformerEngine for MultiheadAttention layer.
+
+
+
+- **te_fp8_format**: typing.Literal['e4m3', 'hybrid']
+
+    Default = hybrid
+
+    Controls the FP8 data format used during forward and backward pass by TransformerEngine.
+    Hybrid uses E4M3 during forward pass, E5M2 during backward pass.
+
+
+
+- **te_fp8_wgrad**: bool
+
+    Default = True
+
+    When set to False, override FP8 config options and do the wgrad computation
+    in higher precision.
+
+
+
+- **te_fp8_amax_history_len**: int
+
+    Default = 1
+
+    The length of the amax history window used for scaling factor computation.
+
+
+
+- **te_fp8_amax_compute_algo**: str
+
+    Default = most_recent
+
+    Algorithm used for choosing the `amax` value for the scaling factor computation. There are 2
+    predefined choices: `max` chooses the largest `amax` in the history window, while `most_recent`
+    always chooses the most recently seen value.
+
+
+
+- **te_fp8_margin**: int
+
+    Default = 0
+
+    Margin for the scaling factor computation.
+
+
+
+- **te_fp8_mha**: bool
+
+    Default = False
+
+    When set to True, use the FP8 implementation of Multi Head Attention.
+
+
+
 - **dim_att**: int
 
     Default = None
@@ -864,6 +1009,7 @@ Model Arguments
     Default = None
 
     Dimension of the feed-forward network for RWKV. If not set, calculated based on hidden_size and expansion_factor.
+
 
 
 ## NeoXArgsOptimizer
@@ -1095,14 +1241,6 @@ Misc. Arguments
 
 
 
-- **save_iters**: list
-
-    Default = None
-
-    Set during training
-
-
-
 - **global_num_gpus**: int
 
     Default = None
@@ -1304,6 +1442,14 @@ Text Generation arguments
     Tasks to evaluate on using lm_eval_harness
 
     NOTE: Requires internet connection
+
+
+
+- **eval_task_limit**: int
+
+    Default = None
+
+    Limit the number of examples per lm_eval_harness task
 
 
 
@@ -1727,19 +1873,19 @@ Training Arguments
 
 
 
-- **dataset_impl**: typing.Literal['gpt2', 'pairwise']
+- **dataset_impl**: typing.Literal['gpt2', 'pairwise', 'online']
 
     Default = gpt2
 
-    Dataset implementation, can be one of "gpt2" or "pairwise"
+    Dataset implementation, can be one of "gpt2", "pairwise", or "online"
 
 
 
-- **train_impl**: typing.Literal['normal', 'dpo', 'rm', 'kto']
+- **train_impl**: typing.Literal['normal', 'dpo', 'rm', 'kto', 'reinforce']
 
     Default = normal
 
-    Training implementation, can be one of "normal", "dpo", "kto", or "rm"
+    Training implementation, can be one of "normal", "dpo", "kto", "reinforce", or "rm"
 
 
 
@@ -1791,11 +1937,54 @@ Training Arguments
 
 
 
+- **z_loss**: float
+
+    Default = 0.0
+
+    Z-loss parameter, only implemented for RM training currently.
+    https://arxiv.org/pdf/2204.02311
+    https://arxiv.org/pdf/2309.10305
+
+
+
 - **kto_beta**: float
 
     Default = 0.1
 
     Beta value for KTO
+
+
+
+- **fp32_reinforce**: bool
+
+    Default = True
+
+    Whether to cast logits to fp32 for Reinforce loss calculation.
+
+
+
+- **kl_impl**: typing.Literal['abs', 'mse', 'kl', 'full']
+
+    Default = mse
+
+    KL divergence implementation, can be one of "abs", "mse", "kl", or "full"
+
+
+
+- **kl_div_beta**: float
+
+    Default = 0.1
+
+    Beta value for KL divergence in Reinforce loss calculation.
+
+
+
+- **reinforce_leave_one_out**: bool
+
+    Default = False
+
+    Whether to use reinforce leave one out for training
+    (from https://arxiv.org/abs/2402.14740 and https://api.semanticscholar.org/CorpusID:198489118)
 
 
 
@@ -1875,7 +2064,7 @@ Training Arguments
 
 
 
-- **checkpoint_factor**: int
+- **checkpoint_factor**: typing.Union[int, float]
 
     Default = None
 
