@@ -30,6 +30,7 @@ import torch.nn.functional as F
 
 from lm_eval.models.utils import chunks
 from lm_eval.models.huggingface import HFLM
+from lm_eval.api.group import ConfigurableGroup
 from lm_eval.loggers.utils import get_git_commit_hash
 from lm_eval import tasks, evaluator, utils, api
 from megatron.text_generation_utils import generate_samples_from_prompt
@@ -472,11 +473,13 @@ class EvalHarnessAdapter(HFLM):
         for task_name in task_dict.keys():
             group_task_objects = []
             top_level_task = task_dict[task_name]
-            if isinstance(task_name, str):
-                group_task_objects.append(top_level_task)
-            else:
+            if isinstance(task_name, ConfigurableGroup):
                 for task_group in list(task_dict[task_name].values()):
                     group_task_objects.extend(list(task_group.values()))
+            elif isinstance(task_name, str):
+                group_task_objects.append(top_level_task)
+            else:
+                raise ValueError("The task object is of an unhandled type. Unable to override fewshot values.")
 
             for task_obj in group_task_objects:
                 if type(task_obj) == tuple:
@@ -487,7 +490,6 @@ class EvalHarnessAdapter(HFLM):
                 config = task_obj._config
 
                 utils.setup_logging()
-                configs = []
                 if num_fewshot is not None:
                     if config["num_fewshot"] == 0:
                         utils.logging.info(
@@ -524,12 +526,12 @@ class EvalHarnessAdapter(HFLM):
         print(results.keys())
         for task_name in task_dict.keys():
             sub_task_names = []
-            if isinstance(task_name, str):
-                sub_task_names.append(task_name)
-            else:
+            if isinstance(task_name, ConfigurableGroup):
                 task_groups = task_dict[task_name]
                 tasks_by_group = [list(group.keys()) for group in task_groups.values()]
                 sub_task_names = list(itertools.chain(*tasks_by_group))
+            else:
+                sub_task_names.append(task_name)
 
             for sub_task in sub_task_names:
                 if "alias" in results["results"][sub_task]:
