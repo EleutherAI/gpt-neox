@@ -17,6 +17,7 @@ from megatron.utils import is_local_main, print_rank_0
 import copy
 import os
 import sys
+import itertools
 import dataclasses
 from functools import partial
 
@@ -469,28 +470,37 @@ class EvalHarnessAdapter(HFLM):
         # from simple_evaluate:
         # override fewshot values for all tasks we can
         for task_name in task_dict.keys():
-            task_obj = task_dict[task_name]
-            if type(task_obj) == tuple:
-                group, task_obj = task_obj
-                if task_obj is None:
-                    continue
+            group_task_objects = []
+            top_level_task = task_dict[task_name]
+            if isinstance(task_name, str):
+                group_task_objects.append(top_level_task)
+            else:
+                for task_group in list(task_dict[task_name].values()):
+                    group_task_objects.extend(list(task_group.values()))
 
-            config = task_obj._config
+            for task_obj in group_task_objects:
+                if type(task_obj) == tuple:
+                    group, task_obj = task_obj
+                    if task_obj is None:
+                        continue
 
-            utils.setup_logging()
-            if num_fewshot is not None:
-                if config["num_fewshot"] == 0:
-                    utils.logging.info(
-                        f"num_fewshot has been set to 0 for {task_name} in its config. Manual configuration will be ignored."
-                    )
-                else:
-                    default_num_fewshot = config["num_fewshot"]
-                    if not default_num_fewshot:
-                        utils.logging.warning(
-                            f"Overwriting default num_fewshot of {task_name} from {default_num_fewshot} to {num_fewshot}"
+                config = task_obj._config
+
+                utils.setup_logging()
+                configs = []
+                if num_fewshot is not None:
+                    if config["num_fewshot"] == 0:
+                        utils.logging.info(
+                            f"num_fewshot has been set to 0 for {config.task} in its config. Manual configuration will be ignored."
                         )
+                    else:
+                        default_num_fewshot = config["num_fewshot"]
+                        if not default_num_fewshot:
+                            utils.logging.warning(
+                                f"Overwriting default num_fewshot of {config.task} from {default_num_fewshot} to {num_fewshot}"
+                            )
 
-                    task_obj._config["num_fewshot"] = num_fewshot
+                        task_obj._config["num_fewshot"] = num_fewshot
 
         results = evaluator.evaluate(
             lm=lm,
@@ -513,8 +523,17 @@ class EvalHarnessAdapter(HFLM):
 
         print(results.keys())
         for task_name in task_dict.keys():
-            if "alias" in results["results"][task_name]:
-                results["results"][task_name].pop("alias")
+            sub_task_names = []
+            if isinstance(task_name, str):
+                sub_task_names.append(task_name)
+            else:
+                task_groups = task_dict[task_name]
+                tasks_by_group = [list(group.keys()) for group in task_groups.values()]
+                sub_task_names = list(itertools.chain(*tasks_by_group))
+
+            for sub_task in sub_task_names:
+                if "alias" in results["results"][sub_task]:
+                    results["results"][sub_task].pop("alias")
 
         if was_training:
             self.model.train()
