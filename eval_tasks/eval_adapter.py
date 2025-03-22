@@ -495,7 +495,7 @@ class EvalHarnessAdapter(HFLM):
         results = evaluator.evaluate(
             lm=lm,
             task_dict=task_dict,
-            # limit=10,  # limit,
+            limit=limit,
             bootstrap_iters=bootstrap_iters,
             log_samples=False,
         )
@@ -540,4 +540,5 @@ def run_eval_harness(
         num_fewshot=num_fewshot,
         bootstrap_iters=bootstrap_iters,
         use_cache=False,
+        limit=neox_args.eval_task_limit
     )

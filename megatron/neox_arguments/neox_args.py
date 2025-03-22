@@ -1605,6 +1605,11 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     NOTE: Requires internet connection
     """
 
+    eval_task_limit: int = None
+    """
+    Limit the number of examples per lm_eval_harness task
+    """
+
     moe_top_k: int = 1
     """
     Activate top K experts in MoE
