@@ -1628,11 +1628,6 @@ def train(
         # Evaluation
         is_eval_internal = neox_args.eval_interval and iteration % neox_args.eval_interval == 0
         is_validation_configured = bool(neox_args.do_valid) or (isinstance(neox_args.eval_tasks, list) and len(neox_args.eval_tasks) > 0)
-        # if (
-        #     neox_args.eval_interval
-        #     and iteration % neox_args.eval_interval == 0
-        #     # and neox_args.do_valid
-        # ):
         if is_eval_internal and is_validation_configured:
             prefix = "iteration {}".format(iteration)
             evaluate_and_print_results(
@@ -1724,7 +1719,7 @@ def evaluate(
                     deepspeed.checkpointing.reset()
 
         # reduces losses across processes for logging & run eval harness tasks
-        eval_results = {"lm_loss": reduce_losses(losses).mean().item()}
+        eval_results["lm_loss"] = reduce_losses(losses).mean().item()
         for key in metric_dicts.keys():
             eval_results[key] = reduce_losses(metric_dicts[key]).mean().item()
 
