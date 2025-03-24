@@ -479,7 +479,9 @@ class EvalHarnessAdapter(HFLM):
             elif isinstance(task_name, str):
                 group_task_objects.append(top_level_task)
             else:
-                raise ValueError("The task object is of an unhandled type. Unable to override fewshot values.")
+                raise ValueError(
+                    "The task object is of an unhandled type. Unable to override fewshot values."
+                )
 
             for task_obj in group_task_objects:
                 if type(task_obj) == tuple:
@@ -561,5 +563,5 @@ def run_eval_harness(
         num_fewshot=num_fewshot,
         bootstrap_iters=bootstrap_iters,
         use_cache=False,
-        limit=neox_args.eval_task_limit
+        limit=neox_args.eval_task_limit,
     )
