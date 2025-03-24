@@ -1626,8 +1626,12 @@ def train(
                 lr_scheduler=lr_scheduler,
             )
         # Evaluation
-        is_eval_internal = neox_args.eval_interval and iteration % neox_args.eval_interval == 0
-        is_validation_configured = bool(neox_args.do_valid) or (isinstance(neox_args.eval_tasks, list) and len(neox_args.eval_tasks) > 0)
+        is_eval_internal = (
+            neox_args.eval_interval and iteration % neox_args.eval_interval == 0
+        )
+        is_validation_configured = bool(neox_args.do_valid) or (
+            isinstance(neox_args.eval_tasks, list) and len(neox_args.eval_tasks) > 0
+        )
         if is_eval_internal and is_validation_configured:
             prefix = "iteration {}".format(iteration)
             evaluate_and_print_results(
