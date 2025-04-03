@@ -1627,9 +1627,13 @@ def train(
             )
 
         # Evaluation
-        is_eval_iter = neox_args.eval_interval and iteration % neox_args.eval_interval == 0
-        eval_set_configured = neox_args.do_valid or neox_args.eval_tasks
-        if is_eval_iter and eval_set_configured:
+        is_eval_internal = (
+            neox_args.eval_interval and iteration % neox_args.eval_interval == 0
+        )
+        is_validation_configured = bool(neox_args.do_valid) or (
+            isinstance(neox_args.eval_tasks, list) and len(neox_args.eval_tasks) > 0
+        )
+        if is_eval_internal and is_validation_configured:
             prefix = "iteration {}".format(iteration)
             evaluate_and_print_results(
                 neox_args=neox_args,
@@ -1682,47 +1686,48 @@ def evaluate(
     if neox_args.char_level_ppl:
         data_iterator = CharCounter(data_iterator, neox_args.tokenizer)
 
-    with torch.no_grad():
-        iteration = 0
-        while iteration < neox_args.eval_iters:
-            iteration += 1
-            if verbose and iteration % neox_args.log_interval == 0:
-                print_rank_0(
-                    "Evaluating iter {}/{}".format(iteration, neox_args.eval_iters)
-                )
+    eval_results = {}
+    if data_iterator is not None:
+        with torch.no_grad():
+            iteration = 0
+            while iteration < neox_args.eval_iters:
+                iteration += 1
+                if verbose and iteration % neox_args.log_interval == 0:
+                    print_rank_0(
+                        "Evaluating iter {}/{}".format(iteration, neox_args.eval_iters)
+                    )
 
-            # although we're not accumulating gradients here, we count one iter as train_batch_size_per_gpu * g.a.s
-            # to be consistent with deepspeed's pipe parallel engine
-            # since pipe parallel already takes gradient_accumulation_steps into account - default to 1 here if pipe parallel is true
-            for _ in range(
-                1
-                if neox_args.is_pipe_parallel
-                else neox_args.gradient_accumulation_steps
-            ):
-                # Forward evaluation
-                loss, metric_dict = forward_step_fn(
-                    model=model,
-                    data_iterator=data_iterator,
-                    neox_args=neox_args,
-                    timers=timers,
-                    reference_model=reference_model,
-                )
-                losses.append(loss)
-                for key in metric_dict.keys():
-                    metric_dicts[key].append(metric_dict[key])
-            # When contiguous memory optimizations are enabled, the buffers
-            # allocated by the optimizations are deallocated during backward pass
-            # in the absence of backward pass the buffers should be reset after each
-            # forward pass
-            if neox_args.deepspeed and neox_args.deepspeed_activation_checkpointing:
-                deepspeed.checkpointing.reset()
+                # although we're not accumulating gradients here, we count one iter as train_batch_size_per_gpu * g.a.s
+                # to be consistent with deepspeed's pipe parallel engine
+                # since pipe parallel already takes gradient_accumulation_steps into account - default to 1 here if pipe parallel is true
+                for _ in range(
+                    1
+                    if neox_args.is_pipe_parallel
+                    else neox_args.gradient_accumulation_steps
+                ):
+                    # Forward evaluation
+                    loss, metric_dict = forward_step_fn(
+                        model=model,
+                        data_iterator=data_iterator,
+                        neox_args=neox_args,
+                        timers=timers,
+                        reference_model=reference_model,
+                    )
+                    losses.append(loss)
+                    for key in metric_dict.keys():
+                        metric_dicts[key].append(metric_dict[key])
+                # When contiguous memory optimizations are enabled, the buffers
+                # allocated by the optimizations are deallocated during backward pass
+                # in the absence of backward pass the buffers should be reset after each
+                # forward pass
+                if neox_args.deepspeed and neox_args.deepspeed_activation_checkpointing:
+                    deepspeed.checkpointing.reset()
 
-    # reduces losses across processes for logging & run eval harness tasks
-    eval_results = {"lm_loss": reduce_losses(losses).mean().item()} if len(losses) > 0 else {}
-    for key in metric_dicts.keys():
-        eval_results[key] = reduce_losses(metric_dicts[key]).mean().item()
+        # reduces losses across processes for logging & run eval harness tasks
+        eval_results["lm_loss"] = reduce_losses(losses).mean().item()
+        for key in metric_dicts.keys():
+            eval_results[key] = reduce_losses(metric_dicts[key]).mean().item()
 
-    if "lm_loss_ppl" in eval_results:
         eval_results["lm_loss_ppl"] = math.exp(eval_results["lm_loss"])
 
     if neox_args.char_level_ppl:
