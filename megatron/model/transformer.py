@@ -26,6 +26,7 @@ import torch.nn as nn
 from pkg_resources import packaging
 from importlib.metadata import version
 
+from .ec_moe import ExpertChoiceMoE
 from .norms import get_norm
 from megatron import mpu
 from megatron.model import megablocks_utils
@@ -1083,6 +1084,25 @@ class ParallelTransformerLayer(nn.Module):
 
             if neox_args.moe_type == "deepspeed":
                 self.mlp = MoE(
+                    args.hidden_size,
+                    get_mlp(
+                        "regular",
+                        MOE=True,
+                        MoE_mp_size=moe_mp_size,
+                    ),
+                    num_experts=self.num_experts,
+                    ep_size=args.moe_expert_parallel_size,
+                    k=args.moe_top_k,
+                    use_residual=args.moe_use_residual,
+                    capacity_factor=args.moe_train_capacity_factor,
+                    eval_capacity_factor=args.moe_eval_capacity_factor,
+                    min_capacity=args.moe_min_capacity,
+                    drop_tokens=args.moe_token_dropping,
+                    use_tutel=args.use_tutel,
+                    enable_expert_tensor_parallelism=args.enable_expert_tensor_parallelism,
+                )
+            elif neox_args.moe_type == "expert-choice":
+                self.mlp = ExpertChoiceMoE(
                     args.hidden_size,
                     get_mlp(
                         "regular",

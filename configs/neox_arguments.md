@@ -1399,7 +1399,7 @@ Text Generation arguments
 
     Default = megablocks
 
-    Either `deepspeed` or `megablocks`
+    One of `deepspeed`, `expert-choice`, or `megablocks`
 
 
 

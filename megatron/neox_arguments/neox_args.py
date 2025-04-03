@@ -1662,7 +1662,7 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
 
     moe_type: str = "megablocks"
     """
-    Either `deepspeed` or `megablocks`
+    One of `deepspeed`, `expert-choice`, or `megablocks`
     """
 
     moe_glu: bool = False
