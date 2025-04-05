@@ -626,9 +626,6 @@ def convert(
                     sequential=sequential,
                 )
             )
-            # print(state_dict)
-            # exit()
-        
         # load state_dict into layer
         hf_layer.load_state_dict(state_dict)
 
