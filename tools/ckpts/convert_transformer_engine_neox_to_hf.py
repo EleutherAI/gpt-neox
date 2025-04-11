@@ -20,6 +20,7 @@ import argparse
 from tqdm import tqdm
 
 import torch
+from torch import nn  # Add this import
 from transformers import (
     MistralConfig,
     LlamaConfig,
@@ -105,6 +106,43 @@ MODEL_KEYS = {
                 "norm.bias": "bias",
             },
         },
+        "transformer_engine": {
+            "COLUMN_PARALLEL_LINEAR_KEYS": {
+                "mlp.fc1_weight": "mlp.dense_h_to_4h.weight",
+                "mlp.fc1_bias": "mlp.dense_h_to_4h.bias",
+                "attention.qkv.weight": "attention.query_key_value.weight",
+                "attention.qkv.bias": "attention.query_key_value.bias",
+            },
+            "ROW_PARALLEL_LINEAR_KEYS": {
+                "attention.proj.weight": "attention.dense.weight",
+                "mlp.fc2_weight": "mlp.dense_4h_to_h.weight",
+            },
+            "ROW_PARALLEL_BIAS_KEYS": {
+                "mlp.fc2_bias": "mlp.dense_4h_to_h.bias",
+                "attention.proj.bias": "attention.dense.bias",
+            },
+            "NORM_KEYS": {
+                "input_layernorm.weight": "input_layernorm.weight",
+                "input_layernorm.bias": "input_layernorm.bias",
+                "post_attention_layernorm.weight": "post_attention_layernorm.weight",
+                "post_attention_layernorm.bias": "post_attention_layernorm.bias",
+            },
+            "MLP_LAYER_NORM_KEYS": {
+                "mlp.layer_norm_weight": "mlp.layer_norm.weight",
+                "mlp.layer_norm_bias": "mlp.layer_norm.bias",
+            },
+            "FINAL_NORM_KEYS": {
+                "norm.weight": "weight",
+                "norm.bias": "bias",
+            },
+            # These keys are Transformer Engine specific and can be ignored
+            "IGNORE_KEYS": [
+                "attention.qkv._extra_state",
+                "attention.core_attention._extra_state",
+                "attention.proj._extra_state",
+                "mlp._extra_state",
+            ],
+        },
     },
     "llama": {
         "new": {
@@ -160,6 +198,35 @@ MODEL_KEYS = {
 }
 
 MODEL_KEYS["mistral"] = MODEL_KEYS["llama"]
+
+
+def add_layernorm_to_mlp():
+    """Monkey patch the GPTNeoXMLP class to include LayerNorm as used in Transformer Engine"""
+    from transformers.models.gpt_neox.modeling_gpt_neox import GPTNeoXMLP
+
+    # Store the original __init__ and forward methods
+    original_init = GPTNeoXMLP.__init__
+    original_forward = GPTNeoXMLP.forward
+
+    # Define the new __init__ method with LayerNorm
+    def new_init(self, config):
+        original_init(self, config)
+        # Add the LayerNorm that Transformer Engine uses
+        self.layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+
+    # Define the new forward method that applies LayerNorm first
+    def new_forward(self, hidden_states):
+        # Apply layer norm before the dense_h_to_4h (FC1)
+        hidden_states = self.layer_norm(hidden_states)
+        # Then proceed with the original MLP forward pass
+        hidden_states = self.dense_h_to_4h(hidden_states)
+        hidden_states = self.act(hidden_states)
+        hidden_states = self.dense_4h_to_h(hidden_states)
+        return hidden_states
+
+    # Replace the methods
+    GPTNeoXMLP.__init__ = new_init
+    GPTNeoXMLP.forward = new_forward
 
 
 def load_partitions(
@@ -442,28 +509,347 @@ def reshard_and_split_qkv(
         return state_dict
 
 
+# def get_mlp_naming_convention(loaded_tp_ranks, layer_idx, sequential):
+#     """Determine whether the checkpoint uses the legacy or new MLP naming convention."""
+#     # print(list(loaded_tp_ranks[0]["module"].keys()))
+#     print(loaded_tp_ranks[0].keys())
+#     if any(["mlp.linear1.weight" in list(state_dict.keys()) for state_dict in loaded_tp_ranks]):
+#         return "new"
+#     elif any(
+#         [
+#             [
+#                 "mlp.dense_h_to_4h.weight" in key
+#                 for key in list(state_dict["module"].keys())
+#             ]
+#             for state_dict in loaded_tp_ranks
+#         ]
+#     ):
+#         return "legacy"
+#     else:
+#         raise ValueError("Unable to determine MLP naming convention in checkpoint")
+
+
 def get_mlp_naming_convention(loaded_tp_ranks, layer_idx, sequential):
-    """Determine whether the checkpoint uses the legacy or new MLP naming convention."""
-    print(list(loaded_tp_ranks[0]["module"].keys()))
-    if any(
-        [
-            ["mlp.linear1.weight" in key for key in list(state_dict["module"].keys())]
-            for state_dict in loaded_tp_ranks
-        ]
-    ):
+    """Determine whether the checkpoint uses the legacy, new, or Transformer Engine naming convention."""
+    if sequential:
+        key_list = (
+            loaded_tp_ranks[0]["module"].keys()
+            if "module" in loaded_tp_ranks[0]
+            else loaded_tp_ranks[0].keys()
+        )
+    else:
+        key_list = loaded_tp_ranks[0].keys()
+
+    if any(["mlp.fc1_weight" in key for key in key_list]):
+        return "transformer_engine"
+    elif any(["mlp.linear1.weight" in key for key in key_list]):
         return "new"
-    elif any(
-        [
-            [
-                "mlp.dense_h_to_4h.weight" in key
-                for key in list(state_dict["module"].keys())
-            ]
-            for state_dict in loaded_tp_ranks
-        ]
-    ):
+    elif any(["mlp.dense_h_to_4h.weight" in key for key in key_list]):
         return "legacy"
     else:
         raise ValueError("Unable to determine MLP naming convention in checkpoint")
+
+
+# def convert(
+#     input_checkpoint_path,
+#     loaded_config,
+#     output_checkpoint_path,
+#     sequential: bool = True,
+#     precision: Literal["auto", "fp16", "bf16", "fp32"] = "auto",
+#     architecture: Literal["neox", "llama", "mistral"] = "neox",
+#     is_rm: bool = False,
+#     pad_token_id: int = -1,
+# ):
+#     """convert a NeoX checkpoint to a HF model format.
+#     should perform model-parallel merging correctly
+#     but only supports features allowed by HF GPT-NeoX implementation (e.g. rotary embeddings)
+#     """
+
+#     ARCH = MODEL_KEYS[architecture]
+
+#     hf_config = create_config(
+#         loaded_config, architecture=architecture, is_rm=is_rm, pad_token_id=pad_token_id
+#     )
+
+#     if not is_rm:
+#         hf_model = AutoModelForCausalLM.from_config(hf_config)
+#     else:
+#         hf_model = AutoModelForSequenceClassification.from_config(hf_config)
+
+#     if architecture == "neox":
+#         hf_transformer = hf_model.gpt_neox
+#     else:
+#         hf_transformer = hf_model.model
+
+#     if precision == "auto":
+#         print("Auto-detecting precision to save model into...")
+#         # save model in FP16 if Deepspeed fp16 was used in config, else 32 bit
+#         fp16 = get_key(loaded_config, "fp16")
+
+#         if fp16:
+#             try:
+#                 # current behavior is to pass "fp16": {"enabled": true}, when using upstream Deepspeed
+#                 if fp16["enabled"]:
+#                     hf_model.half()
+#                     print("Saving weights in fp16 precision...")
+#             except:
+#                 try:
+#                     # attempt to access bf16 dict in yaml file, if fp16 not enabled
+#                     bf16 = get_key(loaded_config, "bf16")
+#                     if bf16:
+#                         hf_model.to(dtype=torch.bfloat16)
+#                         print("Saving weights in bf16 precision...")
+#                 except:
+#                     hf_model.to(dtype=torch.float)
+#                     print(
+#                         "Model not trained in fp16 / bf16 mixed precision, saving weights in fp32..."
+#                     )
+#     else:
+#         name_to_dtype = {
+#             "bf16": torch.bfloat16,
+#             "fp16": torch.float16,
+#             "fp32": torch.float,
+#         }
+#         print(f"Saving model into specified {precision} precision...")
+#         hf_model.to(dtype=name_to_dtype[precision])
+
+#     mp_partitions = get_key(loaded_config, "model-parallel-size")
+
+#     # Sequential saves all model states from an MP rank in one file.
+#     # so we only load the MP ranks only once and index into them with get_state().
+#     # for the pipeline-parallel case (pipeline-parallel-size >= 1),
+#     # we must load the correct layer's states at each step.
+#     # (this does mean that less memory is required for PP conversion.)
+#     loaded_tp_ranks = load_partitions(
+#         input_checkpoint_path, mp_partitions, layer_idx=0, sequential=sequential
+#     )
+
+#     ### Embedding layer ###
+#     # Embedding is layer idx 0
+#     if architecture == "neox":
+#         embed_in = hf_transformer.embed_in
+#     else:
+#         embed_in = hf_transformer.embed_tokens
+#     embed_in.load_state_dict(  # TODO: embed_in is not always model's name for embedding
+#         {
+#             "weight": torch.cat(
+#                 get_state(
+#                     loaded_tp_ranks,
+#                     "word_embeddings.weight",
+#                     layer_idx=0,
+#                     sequential=sequential,
+#                 ),
+#                 dim=0,
+#             )
+#         }
+#     )
+#     assert (
+#         hf_config.vocab_size == embed_in.weight.shape[0]
+#     ), f"ERROR: calculated vocab size {hf_config.vocab_size} != embed param size {embed_in.shape[0]}"
+#     ### End Embedding Layer ###
+
+#     # grab from 3rd layer to pass embeddings
+#     mlp_naming = get_mlp_naming_convention(
+#         load_partitions(
+#             input_checkpoint_path,
+#             mp_partitions,
+#             layer_idx=3,
+#             sequential=sequential,
+#         ),
+#         0,
+#         sequential,
+#     )
+#     print(f"Detected MLP naming convention: {mlp_naming}")
+#     ARCH = ARCH[mlp_naming]
+
+#     # If we detect Transformer Engine, modify the GPTNeoXMLP class
+#     if mlp_naming == "transformer_engine":
+#         print("Adding LayerNorm to MLP for Transformer Engine compatibility")
+#         add_layernorm_to_mlp()
+
+#     for layer_i in tqdm(range(get_key(loaded_config, "num-layers"))):
+
+#         # get layer from hf model
+#         hf_layer = hf_transformer.layers[layer_i]  # TODO: model module names
+
+#         if not sequential:
+#             # in the non-sequential case, must load from each layer individually.
+#             # use layer index + 2 bc of embed layer and a dummy _pre_transformer_block, which are "layers 0 and 1"
+#             loaded_tp_ranks = load_partitions(
+#                 input_checkpoint_path,
+#                 mp_partitions,
+#                 layer_idx=layer_i + 2,
+#                 sequential=sequential,
+#             )
+
+#         # + 2 bc of embed layer and a dummy _pre_transformer_block
+#         state_dict = {}
+#         for key, hf_key in ARCH["ROW_PARALLEL_LINEAR_KEYS"].items():
+#             state_dict[hf_key] = torch.cat(
+#                 get_state(
+#                     loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential
+#                 ),
+#                 dim=1,
+#             )
+
+#         # average layernorm stats over mp ranks
+#         for key, hf_key in ARCH["NORM_KEYS"].items():
+#             state_dict[hf_key] = sum(
+#                 get_state(
+#                     loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential
+#                 )
+#             ) / len(loaded_tp_ranks)
+
+#         # LinearWithTPMerge
+#         for key, hf_key in ARCH["COLUMN_PARALLEL_LINEAR_KEYS"].items():
+#             if type(hf_key) == list:
+#                 # Llama magic - split the weight into two parts for the gate and up proj
+#                 states = [
+#                     torch.chunk(state, chunks=2, dim=0)
+#                     for state in get_state(
+#                         loaded_tp_ranks,
+#                         key,
+#                         layer_idx=layer_i + 2,
+#                         sequential=sequential,
+#                     )
+#                 ]
+#                 # Set up proj...
+#                 state_dict[hf_key[0]] = torch.cat([state[0] for state in states], dim=0)
+#                 # Set gate proj...
+#                 state_dict[hf_key[1]] = torch.cat([state[1] for state in states], dim=0)
+#             else:
+#                 state_dict[hf_key] = torch.cat(
+#                     get_state(
+#                         loaded_tp_ranks,
+#                         key,
+#                         layer_idx=layer_i + 2,
+#                         sequential=sequential,
+#                     ),
+#                     dim=0,
+#                 )
+
+#         # LinearWithTPSplitBias
+#         for key, hf_key in ARCH["ROW_PARALLEL_BIAS_KEYS"].items():
+#             state_dict[hf_key] = sum(
+#                 get_state(
+#                     loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential
+#                 )
+#             )
+
+#         # Just take one
+#         if "attention.bias" in hf_layer.state_dict():
+#             state_dict["attention.bias"] = hf_layer.state_dict()["attention.bias"]
+#         if "attention.masked_bias" in hf_layer.state_dict():
+#             state_dict["attention.masked_bias"] = hf_layer.state_dict()[
+#                 "attention.masked_bias"
+#             ]
+
+#         # some architectures, like Mistral and Llama, have the following which must be handled specially:
+#         # - Q, K, V projections are performed separately, so we must split apart GPT-NeoX library's single QKV proj
+#         # - Support for Grouped-Query Attention, meaning the Q and the K, V projections may not be the same size
+#         if "GQA_QKV_KEYS" in ARCH:
+#             state_dict.update(
+#                 reshard_and_split_qkv(
+#                     param_mapping=ARCH["GQA_QKV_KEYS"],
+#                     hf_config=hf_config,
+#                     loaded_tp_ranks=loaded_tp_ranks,
+#                     layer_idx=layer_i + 2,
+#                     sequential=sequential,
+#                 )
+#             )
+#         # load state_dict into layer
+#         hf_layer.load_state_dict(state_dict)
+
+#     if not sequential:
+#         loaded_tp_ranks = load_partitions(
+#             input_checkpoint_path,
+#             mp_partitions,
+#             get_key(loaded_config, "num-layers") + 3,
+#             sequential=sequential,
+#         )
+#     # Load final layer norm
+#     norm_state_dict = {}
+#     for key, hf_key in ARCH["FINAL_NORM_KEYS"].items():
+#         norm_state_dict[hf_key] = sum(
+#             get_state(
+#                 loaded_tp_ranks,
+#                 key,
+#                 layer_idx=get_key(loaded_config, "num-layers") + 3,
+#                 sequential=sequential,
+#             )
+#         ) / len(loaded_tp_ranks)
+
+#     if architecture == "neox":
+#         final_layer_norm = hf_transformer.final_layer_norm
+#     else:
+#         final_layer_norm = hf_transformer.norm
+
+#     final_layer_norm.load_state_dict(norm_state_dict)
+
+#     # Load output embedding
+#     if not sequential:
+#         if get_key(loaded_config, "no-weight-tying", False):
+#             # if we have trained input + output embedding layers without tied weights
+#             loaded_tp_ranks = load_partitions(
+#                 input_checkpoint_path,
+#                 mp_partitions,
+#                 get_key(loaded_config, "num-layers") + 4,
+#                 sequential=sequential,
+#             )
+#         else:
+#             # in this case, output embedding layer and input embedding layer are tied.
+#             # load + save the input embed weights into the output embedding layer's place.
+#             loaded_tp_ranks = load_partitions(
+#                 input_checkpoint_path,
+#                 mp_partitions,
+#                 layer_idx=0,
+#                 sequential=sequential,
+#             )
+#     # output embedding / LM head
+#     if not is_rm:
+#         if architecture == "neox":  # name of lm head / final linear proj varies
+#             lm_head = hf_model.embed_out
+#         else:
+#             lm_head = hf_model.lm_head
+#     else:
+#         lm_head = hf_model.score
+
+#     if get_key(loaded_config, "no-weight-tying", False):
+#         # save the (untied) final linear into LM head for HF
+#         lm_head.load_state_dict(
+#             {
+#                 "weight": torch.cat(
+#                     get_state(
+#                         loaded_tp_ranks,
+#                         "final_linear.weight" if not is_rm else "rm_linear.weight",
+#                         layer_idx=get_key(loaded_config, "num-layers") + 4,
+#                         sequential=sequential,
+#                     ),
+#                     dim=0 if not is_rm else 1,
+#                 ),
+#             }
+#         )
+#     else:
+#         # don't need to worry about rm here since you can't really tie them...
+
+#         # embedding layers are tied. transpose input layer and save
+#         lm_head.load_state_dict(
+#             {
+#                 "weight": torch.cat(
+#                     get_state(
+#                         loaded_tp_ranks,
+#                         "word_embeddings.weight",
+#                         layer_idx=0,
+#                         sequential=sequential,
+#                     ),
+#                     dim=0,
+#                 ),
+#             }
+#         )
+
+#     del loaded_tp_ranks
+
+#     return hf_model
 
 
 def convert(
@@ -486,6 +872,26 @@ def convert(
     hf_config = create_config(
         loaded_config, architecture=architecture, is_rm=is_rm, pad_token_id=pad_token_id
     )
+
+    # grab naming convention from 3rd layer to determine model type
+    mp_partitions = get_key(loaded_config, "model-parallel-size")
+    mlp_naming = get_mlp_naming_convention(
+        load_partitions(
+            input_checkpoint_path,
+            mp_partitions,
+            layer_idx=3,
+            sequential=sequential,
+        ),
+        0,
+        sequential,
+    )
+    print(f"Detected MLP naming convention: {mlp_naming}")
+    ARCH = ARCH[mlp_naming]
+
+    # If we detect Transformer Engine, modify the GPTNeoXMLP class
+    if mlp_naming == "transformer_engine":
+        print("Adding LayerNorm to MLP for Transformer Engine compatibility")
+        add_layernorm_to_mlp()
 
     if not is_rm:
         hf_model = AutoModelForCausalLM.from_config(hf_config)
@@ -529,13 +935,10 @@ def convert(
         print(f"Saving model into specified {precision} precision...")
         hf_model.to(dtype=name_to_dtype[precision])
 
-    mp_partitions = get_key(loaded_config, "model-parallel-size")
-
     # Sequential saves all model states from an MP rank in one file.
     # so we only load the MP ranks only once and index into them with get_state().
     # for the pipeline-parallel case (pipeline-parallel-size >= 1),
     # we must load the correct layer's states at each step.
-    # (this does mean that less memory is required for PP conversion.)
     loaded_tp_ranks = load_partitions(
         input_checkpoint_path, mp_partitions, layer_idx=0, sequential=sequential
     )
@@ -546,7 +949,7 @@ def convert(
         embed_in = hf_transformer.embed_in
     else:
         embed_in = hf_transformer.embed_tokens
-    embed_in.load_state_dict(  # TODO: embed_in is not always model's name for embedding
+    embed_in.load_state_dict(
         {
             "weight": torch.cat(
                 get_state(
@@ -564,34 +967,34 @@ def convert(
     ), f"ERROR: calculated vocab size {hf_config.vocab_size} != embed param size {embed_in.shape[0]}"
     ### End Embedding Layer ###
 
-    # grab from 3rd layer to pass embeddings
-    mlp_naming = get_mlp_naming_convention(
-        load_partitions(
-            input_checkpoint_path,
-            mp_partitions,
-            layer_idx=3,
-            sequential=sequential,
-        ),
-        0,
-        sequential,
-    )
-    print(f"Detected MLP naming convention: {mlp_naming}")
-    ARCH = ARCH[mlp_naming]
-
     for layer_i in tqdm(range(get_key(loaded_config, "num-layers"))):
-
         # get layer from hf model
-        hf_layer = hf_transformer.layers[layer_i]  # TODO: model module names
+        hf_layer = hf_transformer.layers[layer_i]
 
         if not sequential:
             # in the non-sequential case, must load from each layer individually.
-            # use layer index + 2 bc of embed layer and a dummy _pre_transformer_block, which are "layers 0 and 1"
+            # use layer index + 2 bc of embed layer and a dummy _pre_transformer_block
             loaded_tp_ranks = load_partitions(
                 input_checkpoint_path,
                 mp_partitions,
                 layer_idx=layer_i + 2,
                 sequential=sequential,
             )
+
+        # Skip keys that should be ignored
+        if "IGNORE_KEYS" in ARCH:
+            # Just for logging purposes, check if the ignore keys exist
+            for key in ARCH["IGNORE_KEYS"]:
+                try:
+                    _ = get_state(
+                        loaded_tp_ranks,
+                        key,
+                        layer_idx=layer_i + 2,
+                        sequential=sequential,
+                    )
+                    print(f"Ignoring parameter {key} as specified")
+                except Exception:
+                    pass
 
         # + 2 bc of embed layer and a dummy _pre_transformer_block
         state_dict = {}
@@ -610,6 +1013,22 @@ def convert(
                     loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential
                 )
             ) / len(loaded_tp_ranks)
+
+        # Load MLP layer norm weights if they exist in this architecture
+        if "MLP_LAYER_NORM_KEYS" in ARCH:
+            for key, hf_key in ARCH["MLP_LAYER_NORM_KEYS"].items():
+                try:
+                    state_dict[hf_key] = sum(
+                        get_state(
+                            loaded_tp_ranks,
+                            key,
+                            layer_idx=layer_i + 2,
+                            sequential=sequential,
+                        )
+                    ) / len(loaded_tp_ranks)
+                    print(f"Successfully loaded {key} as {hf_key}")
+                except Exception as e:
+                    print(f"Failed to load {key}: {e}")
 
         # LinearWithTPMerge
         for key, hf_key in ARCH["COLUMN_PARALLEL_LINEAR_KEYS"].items():
@@ -742,7 +1161,6 @@ def convert(
         )
     else:
         # don't need to worry about rm here since you can't really tie them...
-
         # embedding layers are tied. transpose input layer and save
         lm_head.load_state_dict(
             {
