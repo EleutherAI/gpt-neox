@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from transformers import GPTNeoXForCausalLM
+from transformers import GPTNeoXForCausalLM, AutoModelForCausalLM, GPTNeoXConfig
 from transformers.models.gpt_neox.modeling_gpt_neox import GPTNeoXMLP
 
 
@@ -35,3 +35,9 @@ class TransformerEngineGPTNeoXForCausalLM(GPTNeoXForCausalLM):
     def from_config(cls, config):
         """Creates a TransformerEngineGPTNeoXForCausalLM from a configuration."""
         return cls(config)
+
+
+# Register our custom model with the AutoModel classes
+AutoModelForCausalLM.register(
+    GPTNeoXConfig, TransformerEngineGPTNeoXForCausalLM, exist_ok=True
+)
