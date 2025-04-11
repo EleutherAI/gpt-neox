@@ -2,7 +2,7 @@
 # Make sure `load` is specified somewhere else
 {
   # Text gen type: `input-file`, `unconditional` or `interactive`
-  "text_gen_type": "unconditional",
+  "text_gen_type": "interactive",
 
   # Params for all
   "maximum_tokens": 102,

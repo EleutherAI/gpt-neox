@@ -15,6 +15,15 @@
 import os
 import sys
 
+# Add the current directory to the path if necessary
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# Import your custom models
+from custom_neox_models import (
+    TransformerEngineGPTNeoXMLP,
+    TransformerEngineGPTNeoXForCausalLM,
+)
+
 import yaml
 import argparse
 from tqdm import tqdm
@@ -26,6 +35,7 @@ from transformers import (
     LlamaConfig,
     GPTNeoXConfig,
     AutoModelForCausalLM,
+    GPTNeoXForCausalLM,
     AutoConfig,
     AutoModelForSequenceClassification,
 )
@@ -198,35 +208,6 @@ MODEL_KEYS = {
 }
 
 MODEL_KEYS["mistral"] = MODEL_KEYS["llama"]
-
-
-def add_layernorm_to_mlp():
-    """Monkey patch the GPTNeoXMLP class to include LayerNorm as used in Transformer Engine"""
-    from transformers.models.gpt_neox.modeling_gpt_neox import GPTNeoXMLP
-
-    # Store the original __init__ and forward methods
-    original_init = GPTNeoXMLP.__init__
-    original_forward = GPTNeoXMLP.forward
-
-    # Define the new __init__ method with LayerNorm
-    def new_init(self, config):
-        original_init(self, config)
-        # Add the LayerNorm that Transformer Engine uses
-        self.layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-
-    # Define the new forward method that applies LayerNorm first
-    def new_forward(self, hidden_states):
-        # Apply layer norm before the dense_h_to_4h (FC1)
-        hidden_states = self.layer_norm(hidden_states)
-        # Then proceed with the original MLP forward pass
-        hidden_states = self.dense_h_to_4h(hidden_states)
-        hidden_states = self.act(hidden_states)
-        hidden_states = self.dense_4h_to_h(hidden_states)
-        return hidden_states
-
-    # Replace the methods
-    GPTNeoXMLP.__init__ = new_init
-    GPTNeoXMLP.forward = new_forward
 
 
 def load_partitions(
@@ -862,10 +843,7 @@ def convert(
     is_rm: bool = False,
     pad_token_id: int = -1,
 ):
-    """convert a NeoX checkpoint to a HF model format.
-    should perform model-parallel merging correctly
-    but only supports features allowed by HF GPT-NeoX implementation (e.g. rotary embeddings)
-    """
+    """convert a NeoX checkpoint to a HF model format."""
 
     ARCH = MODEL_KEYS[architecture]
 
@@ -888,13 +866,15 @@ def convert(
     print(f"Detected MLP naming convention: {mlp_naming}")
     ARCH = ARCH[mlp_naming]
 
-    # If we detect Transformer Engine, modify the GPTNeoXMLP class
-    if mlp_naming == "transformer_engine":
-        print("Adding LayerNorm to MLP for Transformer Engine compatibility")
-        add_layernorm_to_mlp()
-
+    # Use the custom model class for Transformer Engine models
     if not is_rm:
-        hf_model = AutoModelForCausalLM.from_config(hf_config)
+        if architecture == "neox" and mlp_naming == "transformer_engine":
+            print(
+                "Using custom model with LayerNorm in MLP for Transformer Engine compatibility"
+            )
+            hf_model = TransformerEngineGPTNeoXForCausalLM.from_config(hf_config)
+        else:
+            hf_model = AutoModelForCausalLM.from_config(hf_config)
     else:
         hf_model = AutoModelForSequenceClassification.from_config(hf_config)
 
