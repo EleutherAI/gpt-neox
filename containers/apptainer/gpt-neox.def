@@ -1,0 +1,75 @@
+Bootstrap: docker
+From: nvcr.io/nvidia/pytorch:24.02-py3
+
+%labels
+    org.opencontainers.image.version "2.0"
+    org.opencontainers.image.authors "contact@eleuther.ai"
+    org.opencontainers.image.source "https://www.github.com/eleutherai/gpt-neox"
+    org.opencontainers.image.licenses "Apache-2.0"
+    org.opencontainers.image.base.name "nvcr.io/nvidia/pytorch:24.02-py3"
+
+%environment
+    export DEBIAN_FRONTEND=noninteractive
+    export PATH=/usr/local/mpi/bin:${PATH}
+    export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:${LD_LIBRARY_PATH}
+    export PDSH_RCMD_TYPE=ssh
+
+%post
+    # System packages
+    apt-get update -y
+    apt-get install -y python3-pip sudo pdsh htop tmux zstd software-properties-common \
+        nfs-common pdsh cmake htop iftop iotop ssh iputils-ping net-tools libcupti-dev \
+        libmlx4-1 infiniband-diags ibutils rdmacm-utils perftest rdma-core
+    update-alternatives --install /usr/bin/python python /usr/bin/python3 1
+    update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
+    python -m pip install --upgrade pip
+    python -m pip install gpustat
+
+    # SSH setup
+    mkdir /var/run/sshd
+    sed -i 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' /etc/pam.d/sshd
+    echo 'AuthorizedKeysFile     .ssh/authorized_keys' >> /etc/ssh/sshd_config
+    echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config
+    echo "Set disable_coredump false" >> /etc/sudo.conf
+
+    # OpenMPI wrapper
+    mv /usr/local/mpi/bin/mpirun /usr/local/mpi/bin/mpirun.real
+    echo '#!/bin/bash' > /usr/local/mpi/bin/mpirun
+    echo 'mpirun.real --allow-run-as-root --prefix /usr/local/mpi "$@"' >> /usr/local/mpi/bin/mpirun
+    chmod a+x /usr/local/mpi/bin/mpirun
+
+    # User account
+    useradd --create-home --uid 1000 --shell /bin/bash mchorse
+    usermod -aG sudo mchorse
+    echo "mchorse ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+    # SSH config and bashrc
+    mkdir -p /home/mchorse/.ssh /job
+    echo 'Host *' > /home/mchorse/.ssh/config
+    echo '    StrictHostKeyChecking no' >> /home/mchorse/.ssh/config
+    echo 'export PDSH_RCMD_TYPE=ssh' >> /home/mchorse/.bashrc
+    echo 'export PATH=/home/mchorse/.local/bin:$PATH' >> /home/mchorse/.bashrc
+    echo 'export PATH=/usr/local/mpi/bin:$PATH' >> /home/mchorse/.bashrc
+    echo 'export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:$LD_LIBRARY_PATH' >> /home/mchorse/.bashrc
+
+    # Python packages
+    # You'll need to copy the requirements files into the container
+    mkdir -p /requirements
+    # Note: requirements files need to be copied separately or made available during the build
+    python -m pip install --no-cache-dir -r /requirements/requirements.txt
+    python -m pip install -r /requirements/requirements-onebitadam.txt
+    python -m pip install -r /requirements/requirements-wandb.txt
+    python -m pip install protobuf==3.20.*
+
+    # Megatron fused kernels
+    # You'll need to copy the fused_kernels directory
+    mkdir -p /megatron/fused_kernels
+    cd /megatron/fused_kernels
+    python setup.py install
+
+    # Clear staging
+    mkdir -p /tmp && chmod 0777 /tmp
+
+%runscript
+    cd /home/mchorse
+    exec /bin/bash "$@"

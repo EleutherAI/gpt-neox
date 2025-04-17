@@ -266,7 +266,11 @@ You can then kick off a training run with `sbatch my_sbatch_script.sh`
 
 ### Containerized Setup
 
-We also provide a Dockerfile and docker-compose configuration if you prefer to run NeoX in a container.
+We provide containers for [Apptainer](#apptainer) (formerly Singularity) and [Docker](#docker) under [containers](https://github.com/EleutherAI/gpt-neox/blob/main/containers/).
+
+#### Docker
+
+If you prefer to run NeoX in a Docker container, we provide a Dockerfile and docker-compose configuration.
 
 Requirements to run the container are to have appropriate GPU drivers, an up-to-date installation of Docker, and [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) installed. To test if your installation is good you can use their "sample workload", which is:
 
@@ -281,7 +285,7 @@ export NEOX_DATA_PATH=/mnt/sda/data/enwiki8 #or wherever your data is stored on 
 export NEOX_CHECKPOINT_PATH=/mnt/sda/checkpoints
 ```
 
-And then, from the gpt-neox directory, you can build the image and run a shell in a container with
+And then, from the `gpt-neox/containers/docker` directory, you can build the image and run a shell in a container with
 
 ```
 docker compose run gpt-neox bash
@@ -328,8 +332,43 @@ Concerns when running for a long time or in detached mode include
 If you prefer to run the prebuilt container image from dockerhub, you can run the docker compose commands with ```-f docker-compose-dockerhub.yml``` instead, e.g.,
 
 ```
-docker compose run -f docker-compose-dockerhub.yml gpt-neox bash
+docker compose run -f containers/docker/docker-compose-dockerhub.yml gpt-neox bash
 ```
+
+#### Singularity/Apptainer
+
+We also support Apptainer (formerly Singularity) deployments. Some users find Apptainer useeful for systems that don't provide root-access, such as shared HPC systems at national labs and universities.
+
+Requirements to run the container are to have appropriate GPU drivers and an up-to-date installation of Apptainer. You can build an image from our Apptainer file by running:
+
+```
+cd containers/apptainer/
+apptainer build gpt-neox.sif gpt-neox.def
+```
+
+You can use your new image in a few ways:
+
+1. Run a shell inside the container:
+```
+apptainer shell --nv --bind /path/to/data:/data,/path/to/code:/code gpt-neox.sif
+```
+
+Use the --nv flag to enable NVIDIA GPU support.
+
+2. Execute a command directly:
+```
+apptainer exec --nv gpt-neox.sif python your_script.py
+```
+
+For this method, you'll need to make the requirements files and fused_kernels directory available during the build process, either by:
+
+- Using the `--bind` option during build
+- Adding them to the definition file using the `%files` section
+- Copying them into specific locations during build
+
+Apptainer/Singularity containers run with the user's own UID/GID by default, so some of the user creation parts may be redundant.
+By default, your home directory is automatically mounted in Apptainer/Singularity containers, which differs from Docker behavior.
+For more info on Apptainer deployment, we suggest consulting [their userguide](https://apptainer.org/docs/user/1.0/index.html)
 
 ## Usage
 
