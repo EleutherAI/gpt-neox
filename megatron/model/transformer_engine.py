@@ -167,7 +167,6 @@ class TELayerNormMLP(te.pytorch.LayerNormMLP):
         MoE_mp_size=1,
         bias=True,
     ):
-        self.activation_func, self.is_gated = get_activation(neox_args)
         self.activation_type = neox_args.activation
         self.multiple_of = multiple_of
         self.bias = bias
@@ -192,22 +191,7 @@ class TELayerNormMLP(te.pytorch.LayerNormMLP):
         else:
             # 4h is default for ffn_dim
             ffn_dim = 4 * neox_args.hidden_size
-        ffn_dim_in = ffn_dim
-        if self.is_gated:
-            # set activation function to be gated implementation
-            self.activation_func = Gated_Activation(self.activation_func)
-            # auto scale so gated activations has equal parameters
-            ffn_dim = int(ffn_dim * 2 / 3)
-            ffn_dim_in = ffn_dim // 2
-        # set multiple
-        ffn_dim = int(
-            (2 * self.multiple_of)
-            * ((ffn_dim + (2 * multiple_of) - 1) // (2 * multiple_of))
-        )
-        ffn_dim_in = int(
-            self.multiple_of * ((ffn_dim_in + multiple_of - 1) // multiple_of)
-        )
-
+        
         if neox_args.norm in ["layernorm", "te_layernorm"]:
             self.eps = 1.0e-5
             self.normalization = "LayerNorm"
