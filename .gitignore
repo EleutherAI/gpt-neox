@@ -155,3 +155,6 @@ src/
 # test data files
 tests/data/*.bin
 tests/data/*.idx
+
+# evaluation results
+*eval_results*.json
