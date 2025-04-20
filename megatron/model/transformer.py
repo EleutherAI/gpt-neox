@@ -1037,7 +1037,8 @@ class ParallelTransformerLayer(nn.Module):
         # Layernorm on the output of the attention layer.
         # If GPT-J residuals are used, this is surpurfulous but leaving it in
         # leads to cleaner code
-        self.post_attention_layernorm = norm(neox_args.hidden_size, eps=eps)
+        if not self.neox_args.te_layernorm_mlp:
+            self.post_attention_layernorm = norm(neox_args.hidden_size, eps=eps)
 
         # MLP
         def get_mlp(**kw):
