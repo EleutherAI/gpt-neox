@@ -105,6 +105,7 @@ MODEL_KEYS = {
                 "norm.bias": "bias",
             },
         },
+        ## TODO: Specify mapping dynamically based on TE modules enabled.
         "transformer_engine": {
             "COLUMN_PARALLEL_LINEAR_KEYS": {
                 "mlp.fc1_weight": "mlp.dense_h_to_4h.weight",
