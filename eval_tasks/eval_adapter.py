@@ -12,29 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from megatron.utils import is_local_main, print_rank_0
-
 import copy
+import dataclasses
+import itertools
 import os
 import sys
-import itertools
-import dataclasses
 from functools import partial
+
+from megatron.utils import print_rank_0
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
 )
-from tqdm import tqdm
 import torch
 import torch.nn.functional as F
-
-from lm_eval.models.utils import chunks
-from lm_eval.models.huggingface import HFLM
+from lm_eval import api, evaluator, tasks, utils
 from lm_eval.api.group import ConfigurableGroup
 from lm_eval.loggers.utils import get_git_commit_hash
-from lm_eval import tasks, evaluator, utils, api
-from megatron.text_generation_utils import generate_samples_from_prompt
+from lm_eval.models.huggingface import HFLM
+from lm_eval.models.utils import chunks
+from tqdm import tqdm
+
 from megatron import mpu
+from megatron.text_generation_utils import generate_samples_from_prompt
 
 
 class EvalHarnessAdapter(HFLM):
@@ -416,24 +416,28 @@ class EvalHarnessAdapter(HFLM):
             ]
 
         # register all the default tasks bundled with lm-evaluation-harness repository
-        task_manager = tasks.TaskManager()
+        # TODO: Set via config
+        custom_tasks_path = "/workspace/lm_eval_tasks/"
+        task_manager = tasks.TaskManager(include_path=custom_tasks_path)
         task_manager.initialize_tasks()
 
         # Returns a list containing all values of the task registry that
         # match at least one of the patterns
-        import fnmatch
 
-        def pattern_match(patterns, source_list):
-            task_names = set()
-            for pattern in patterns:
-                for matching in fnmatch.filter(source_list, pattern):
-                    task_names.add(matching)
-            return list(task_names)
+        # TODO: Suuport patterns with wildcards
+        # def pattern_match(patterns, source_list):
+        #     task_names = set()
+        #     for pattern in patterns:
+        #         for matching in fnmatch.filter(source_list, pattern):
+        #             task_names.add(matching)
+        #     return list(task_names)
 
         all_tasks = task_manager._all_tasks
-        eval_tasks = pattern_match(eval_tasks, all_tasks)
-        print(f"Found tasks: {eval_tasks}")
+        # eval_tasks = pattern_match(eval_tasks, all_tasks)
+        # print(f"Found tasks: {eval_tasks}")
 
+        print_rank_0(all_tasks)
+        print_rank_0(f"Eval tasks: {eval_tasks}")
         assert len(eval_tasks) > 0, "Must run at least one task"
 
         # **HACK INCOMING**:
@@ -441,11 +445,11 @@ class EvalHarnessAdapter(HFLM):
         # the tasks are downloaded *as they are initialized*, and the downloads don't like multithreading.
         # so we download them once on the local main rank, wait, and then initialize them on all other ranks, which *should* load from the cache.
         if self.is_local_main:
-            task_dict = tasks.get_task_dict(eval_tasks)
+            task_dict = tasks.get_task_dict(eval_tasks, task_manager=task_manager)
         # torch barrier
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
-        task_dict = tasks.get_task_dict(eval_tasks)
+        task_dict = tasks.get_task_dict(eval_tasks, task_manager=task_manager)
 
         lm = self
 
@@ -475,7 +479,10 @@ class EvalHarnessAdapter(HFLM):
             top_level_task = task_dict[task_name]
             if isinstance(task_name, ConfigurableGroup):
                 for task_group in list(task_dict[task_name].values()):
-                    group_task_objects.extend(list(task_group.values()))
+                    if isinstance(task_group, dict):
+                        group_task_objects.extend(list(task_group.values()))
+                    else:
+                        group_task_objects.append(task_group)
             elif isinstance(task_name, str):
                 group_task_objects.append(top_level_task)
             else:
@@ -530,14 +537,23 @@ class EvalHarnessAdapter(HFLM):
             sub_task_names = []
             if isinstance(task_name, ConfigurableGroup):
                 task_groups = task_dict[task_name]
-                tasks_by_group = [list(group.keys()) for group in task_groups.values()]
+                tasks_by_group = []
+                for group in task_groups.values():
+                    if isinstance(group, dict):
+                        tasks_by_group.append(list(group.keys()))
+                    else:
+                        tasks_by_group.append([group])
+                # tasks_by_group = [list(group.keys()) for group in task_groups.values()]
                 sub_task_names = list(itertools.chain(*tasks_by_group))
             else:
                 sub_task_names.append(task_name)
 
-            for sub_task in sub_task_names:
-                if "alias" in results["results"][sub_task]:
-                    results["results"][sub_task].pop("alias")
+            print_rank_0(f"Task: {task_name}")
+            print_rank_0(f"Subtasks: {sub_task_names}")
+
+            # for sub_task in sub_task_names:
+            #     if "alias" in results["results"][sub_task]:
+            #         results["results"][sub_task].pop("alias")
 
         if was_training:
             self.model.train()
