@@ -603,7 +603,7 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
             params_dtype=self.params_dtype,
             return_bias=True,
             qkv_format="sbhd",
-            fuse_qkv_params=True,
+            fuse_qkv_params=False,
         )
 
         if neox_args.pos_emb == "rotary":
