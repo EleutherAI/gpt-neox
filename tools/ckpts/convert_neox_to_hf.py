@@ -12,24 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 import os
 import sys
-
-import yaml
-import argparse
-from tqdm import tqdm
+from typing import List, Literal
 
 import torch
+import yaml
+from tqdm import tqdm
 from transformers import (
-    MistralConfig,
-    LlamaConfig,
-    GPTNeoXConfig,
-    AutoModelForCausalLM,
     AutoConfig,
+    AutoModelForCausalLM,
     AutoModelForSequenceClassification,
+    GPTNeoXConfig,
+    LlamaConfig,
+    MistralConfig,
 )
-
-from typing import List, Literal
 
 sys.path.append(
     os.path.abspath(
@@ -37,7 +35,6 @@ sys.path.append(
     )
 )
 from megatron.tokenizer import build_tokenizer
-
 
 """
 A script for converting saved NeoX Checkpoints to Huggingface (HF) compatible GPT-NeoX type models.
@@ -202,7 +199,7 @@ def load_partitions(
     """Returns a list containing all states from a model (across MP partitions)"""
 
     if sequential:
-        filename_format = f"mp_rank_{{i:02}}_model_states.pt"
+        filename_format = "mp_rank_{i:02}_model_states.pt"
     else:
         filename_format = f"layer_{layer_idx:02}-model_{{i:02}}-model_states.pt"
 
@@ -363,7 +360,7 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
             {
                 "rotary_pct": get_key(neox_config, "rotary-pct", default=1.0),
                 "rotary_emb_base": get_key(
-                    neox_config, "rotary-emb-base", default=1000.0
+                    neox_config, "rotary-emb-base", default=10000.0
                 ),
                 "use_parallel_residual": get_key(neox_config, "gpt-j-residual", False),
                 "layer_norm_eps": get_key(neox_config, "layernorm-epsilon", 1e-5),
@@ -394,9 +391,9 @@ def reshard_and_split_qkv(
     even when grouped-query attention is required.
     """
     for key, hf_keys in param_mapping.items():
-        assert (
-            isinstance(hf_keys, list) and len(hf_keys) == 3
-        ), "Must map QKV to precisely 3 resulting weight matrices."
+        assert isinstance(hf_keys, list) and len(hf_keys) == 3, (
+            "Must map QKV to precisely 3 resulting weight matrices."
+        )
 
     for key, hf_keys in param_mapping.items():
         # we first merge the QKV proj. across TP ranks
@@ -590,9 +587,9 @@ def convert(
             )
         }
     )
-    assert (
-        hf_config.vocab_size == embed_in.weight.shape[0]
-    ), f"ERROR: calculated vocab size {hf_config.vocab_size} != embed param size {embed_in.shape[0]}"
+    assert hf_config.vocab_size == embed_in.weight.shape[0], (
+        f"ERROR: calculated vocab size {hf_config.vocab_size} != embed param size {embed_in.shape[0]}"
+    )
     ### End Embedding Layer ###
 
     # grab from 3rd layer to pass embeddings
@@ -610,7 +607,6 @@ def convert(
     ARCH = ARCH[mlp_naming]
 
     for layer_i in tqdm(range(get_key(loaded_config, "num-layers"))):
-
         # get layer from hf model
         hf_layer = hf_transformer.layers[layer_i]  # TODO: model module names
 
@@ -809,8 +805,6 @@ def convert(
 
 
 def main(input_args=None, overwrite_values=None):
-    from huggingface_hub import create_repo, HfApi
-
     parser = argparse.ArgumentParser(
         description="Merge MP partitions and convert to HF Model."
     )
@@ -865,12 +859,16 @@ def main(input_args=None, overwrite_values=None):
         "fp16",
         "bf16",
         "fp32",
-    ], f"expected --precision to be one of 'auto', 'fp16', 'bf16', 'fp32' but got '{args.precision}' !"
+    ], (
+        f"expected --precision to be one of 'auto', 'fp16', 'bf16', 'fp32' but got '{args.precision}' !"
+    )
     assert args.architecture in [
         "neox",
         "llama",
         "mistral",
-    ], f"expected --architecture to be one of 'neox', 'mistral', 'llama', but got '{args.architecture}' !"
+    ], (
+        f"expected --architecture to be one of 'neox', 'mistral', 'llama', but got '{args.architecture}' !"
+    )
 
     with open(args.config_file) as f:
         loaded_config = yaml.full_load(f)
@@ -896,10 +894,6 @@ def main(input_args=None, overwrite_values=None):
         print(
             f"Detected 'pipe-parallel-size' of {pipeline_world_size}, assuming model is saved as PipelineModule..."
         )
-
-    # TODO: Update config that we're reading from
-    coreweave_tokenize_path = "/mnt/ssd-1/kyle/neox_tokenizer/tokenizer.json"
-    loaded_config["vocab_file"] = coreweave_tokenize_path
 
     # convert the model to HF.
     hf_model = convert(
@@ -947,7 +941,6 @@ def main(input_args=None, overwrite_values=None):
 
 
 if __name__ == "__main__":
-
     # before running script:
     # `pip install --upgrade transformers`
     # `huggingface-cli login`
