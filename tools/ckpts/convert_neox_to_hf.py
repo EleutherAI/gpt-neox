@@ -105,6 +105,40 @@ MODEL_KEYS = {
                 "norm.bias": "bias",
             },
         },
+        ## TODO: Specify mapping dynamically based on TE modules enabled.
+        "transformer_engine": {
+            "COLUMN_PARALLEL_LINEAR_KEYS": {
+                "mlp.fc1_weight": "mlp.dense_h_to_4h.weight",
+                "mlp.fc1_bias": "mlp.dense_h_to_4h.bias",
+                "attention.qkv.weight": "attention.query_key_value.weight",
+                "attention.qkv.bias": "attention.query_key_value.bias",
+            },
+            "ROW_PARALLEL_LINEAR_KEYS": {
+                "attention.proj.weight": "attention.dense.weight",
+                "mlp.fc2_weight": "mlp.dense_4h_to_h.weight",
+            },
+            "ROW_PARALLEL_BIAS_KEYS": {
+                "mlp.fc2_bias": "mlp.dense_4h_to_h.bias",
+                "attention.proj.bias": "attention.dense.bias",
+            },
+            "NORM_KEYS": {
+                "input_layernorm.weight": "input_layernorm.weight",
+                "input_layernorm.bias": "input_layernorm.bias",
+                "mlp.layer_norm_weight": "post_attention_layernorm.weight",
+                "mlp.layer_norm_bias": "post_attention_layernorm.bias",
+            },
+            "FINAL_NORM_KEYS": {
+                "norm.weight": "weight",
+                "norm.bias": "bias",
+            },
+            # These keys are Transformer Engine specific and can be ignored
+            "IGNORE_KEYS": [
+                "attention.qkv._extra_state",
+                "attention.core_attention._extra_state",
+                "attention.proj._extra_state",
+                "mlp._extra_state",
+            ],
+        },
     },
     "llama": {
         "new": {
@@ -443,24 +477,21 @@ def reshard_and_split_qkv(
 
 
 def get_mlp_naming_convention(loaded_tp_ranks, layer_idx, sequential):
-    """Determine whether the checkpoint uses the legacy or new MLP naming convention."""
-    print(list(loaded_tp_ranks[0]["module"].keys()))
-    if any(
-        [
-            ["mlp.linear1.weight" in key for key in list(state_dict["module"].keys())]
-            for state_dict in loaded_tp_ranks
-        ]
-    ):
+    """Determine whether the checkpoint uses the legacy, new, or Transformer Engine naming convention."""
+    if sequential:
+        key_list = (
+            loaded_tp_ranks[0]["module"].keys()
+            if "module" in loaded_tp_ranks[0]
+            else loaded_tp_ranks[0].keys()
+        )
+    else:
+        key_list = loaded_tp_ranks[0].keys()
+
+    if any(["mlp.fc1_weight" in key for key in key_list]):
+        return "transformer_engine"
+    elif any(["mlp.linear1.weight" in key for key in key_list]):
         return "new"
-    elif any(
-        [
-            [
-                "mlp.dense_h_to_4h.weight" in key
-                for key in list(state_dict["module"].keys())
-            ]
-            for state_dict in loaded_tp_ranks
-        ]
-    ):
+    elif any(["mlp.dense_h_to_4h.weight" in key for key in key_list]):
         return "legacy"
     else:
         raise ValueError("Unable to determine MLP naming convention in checkpoint")
@@ -592,6 +623,20 @@ def convert(
                 layer_idx=layer_i + 2,
                 sequential=sequential,
             )
+
+        # Skip keys that should be ignored
+        if "IGNORE_KEYS" in ARCH:
+            # Just for logging purposes, check if the ignore keys exist
+            for key in ARCH["IGNORE_KEYS"]:
+                try:
+                    _ = get_state(
+                        loaded_tp_ranks,
+                        key,
+                        layer_idx=layer_i + 2,
+                        sequential=sequential,
+                    )
+                except Exception:
+                    pass
 
         # + 2 bc of embed layer and a dummy _pre_transformer_block
         state_dict = {}
