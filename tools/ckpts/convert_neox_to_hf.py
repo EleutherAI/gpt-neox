@@ -363,7 +363,7 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
             {
                 "rotary_pct": get_key(neox_config, "rotary-pct", default=1.0),
                 "rotary_emb_base": get_key(
-                    neox_config, "rotary-emb-base", default=1000.0
+                    neox_config, "rotary-emb-base", default=10000.0
                 ),
                 "use_parallel_residual": get_key(neox_config, "gpt-j-residual", False),
                 "layer_norm_eps": get_key(neox_config, "layernorm-epsilon", 1e-5),
