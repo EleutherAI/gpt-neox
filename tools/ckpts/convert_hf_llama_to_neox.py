@@ -51,11 +51,7 @@ def convert_model(hf_state_dict, hf_config, tp_ranks):
         q = hf_state_dict[f"model.layers.{layer_num}.self_attn.q_proj.weight"]
         k = hf_state_dict[f"model.layers.{layer_num}.self_attn.k_proj.weight"]
         v = hf_state_dict[f"model.layers.{layer_num}.self_attn.v_proj.weight"]
-        # The GQA code splits the heads by the num_q_heads so we also do that
-        # here to ensure it matches...
-        q = q.view(num_q_heads, -1, q.shape[-1])
-        k = k.view(num_q_heads, -1, q.shape[-1])
-        v = v.view(num_q_heads, -1, q.shape[-1])
+
         # Chunk for tensor parallelism...
         for i, q_chunk, k_chunk, v_chunk in zip(
             range(tp_ranks),
@@ -63,15 +59,10 @@ def convert_model(hf_state_dict, hf_config, tp_ranks):
             torch.chunk(k, tp_ranks, dim=0),
             torch.chunk(v, tp_ranks, dim=0),
         ):
-            # Need to join the heads across q, k, v...
+            # The GQA code simply expects concatenated q,k,v weights for each tp partition
             conv_state_dicts[i][
                 f"sequential.{layer_num+2}.attention.query_key_value.weight"
-            ] = (
-                torch.cat([q_chunk, k_chunk, v_chunk], dim=1)
-                .view(-1, q.shape[-1])
-                .clone()
-                .detach()
-            )
+            ] = (torch.cat([q_chunk, k_chunk, v_chunk], dim=0).clone().detach())
         print(
             f"model.layers.{layer_num}.self_attn.(q/k/v)_proj.weight",
             hf_state_dict[f"model.layers.{layer_num}.self_attn.q_proj.weight"].shape,
