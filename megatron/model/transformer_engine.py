@@ -646,8 +646,8 @@ class TEDelayedScaling(te.common.recipe.DelayedScaling):
         override_linear_precision = (False, False, not neox_args.te_fp8_wgrad)
 
         super().__init__(
-            margin=neox_args.fp8_margin,
-            fp8_format=te_fp8_format,
+            margin=neox_args.te_fp8_margin,
+            fp8_format=neox_args.te_fp8_format,
             amax_compute_algo=neox_args.te_fp8_amax_compute_algo,
             amax_history_len=neox_args.te_fp8_amax_history_len,
             override_linear_precision=override_linear_precision,
