@@ -191,7 +191,7 @@ class TELayerNormMLP(te.pytorch.LayerNormMLP):
         else:
             # 4h is default for ffn_dim
             ffn_dim = 4 * neox_args.hidden_size
-        
+
         if neox_args.norm in ["layernorm", "te_layernorm"]:
             self.eps = 1.0e-5
             self.normalization = "LayerNorm"
