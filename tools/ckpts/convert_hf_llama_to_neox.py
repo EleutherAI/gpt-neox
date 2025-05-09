@@ -62,11 +62,7 @@ def convert_model(hf_state_dict, hf_config, tp_ranks):
             # The GQA code simply expects concatenated q,k,v weights for each tp partition
             conv_state_dicts[i][
                 f"sequential.{layer_num+2}.attention.query_key_value.weight"
-            ] = (
-                torch.cat([q_chunk, k_chunk, v_chunk], dim=0)
-                .clone()
-                .detach()
-            )
+            ] = (torch.cat([q_chunk, k_chunk, v_chunk], dim=0).clone().detach())
         print(
             f"model.layers.{layer_num}.self_attn.(q/k/v)_proj.weight",
             hf_state_dict[f"model.layers.{layer_num}.self_attn.q_proj.weight"].shape,

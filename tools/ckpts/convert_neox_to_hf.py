@@ -371,12 +371,16 @@ def reshard_and_split_qkv(
         )
         # We should now have shape [TP_SIZE, (hidden_size + 2 * kv_hidden_size) / TP_SIZE, hidden_size].
         # At this point, for each TP rank, q, k, and v are concatenated
-        
+
         # Next, we split tp_harded_qkv into q, k, v along dim 1
-        hidden_size_per_attention_head = hf_config.hidden_size // hf_config.num_attention_heads
-        kv_hidden_size = int(hidden_size_per_attention_head * hf_config.num_key_value_heads)
+        hidden_size_per_attention_head = (
+            hf_config.hidden_size // hf_config.num_attention_heads
+        )
+        kv_hidden_size = int(
+            hidden_size_per_attention_head * hf_config.num_key_value_heads
+        )
         tensor_parallel_size = len(loaded_tp_ranks)
-        
+
         q, k, v = torch.split(
             tp_sharded_qkv,
             [
@@ -385,13 +389,17 @@ def reshard_and_split_qkv(
                 kv_hidden_size // tensor_parallel_size,
             ],
             dim=1,
-        ) # New shapes:
+        )  # New shapes:
         # q-->[TP_SIZE, hidden_size/TP_SIZE, hidden_size]
         # k-->[TP_SIZE, kv_hidden_size/TP_SIZE, hidden_size]
         # v-->[TP_SIZE, kv_hidden_size/TP_SIZE, hidden_size]
 
         # Finally, we flatten the first two dimensions merging the TP partitions
-        q, k, v = q.reshape(-1, q.shape[2]), k.reshape(-1, k.shape[2]), v.reshape(-1, k.shape[2])
+        q, k, v = (
+            q.reshape(-1, q.shape[2]),
+            k.reshape(-1, k.shape[2]),
+            v.reshape(-1, k.shape[2]),
+        )
 
         # return these
         state_dict = {}
