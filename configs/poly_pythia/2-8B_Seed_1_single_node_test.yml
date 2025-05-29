@@ -97,7 +97,7 @@
   "checkpoint_validation_with_forward_pass": False,
 
   # Wandb
-  "use_wandb": True,
+  "use_wandb": False,
   "wandb_host": "https://api.wandb.ai",
   "wandb_project": "pythia-extra-seeds",
   "wandb_team": "eleutherai",
