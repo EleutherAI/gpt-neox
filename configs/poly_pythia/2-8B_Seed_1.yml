@@ -73,7 +73,7 @@
   "lr_decay_style": "cosine",
   "warmup": 0.01,
   "checkpoint_factor": 1000,
-  "extra_save_iters": [0,1,2,4,8,16,32,64,128,256,512],
+  # "extra_save_iters": [0,1,2,4,8,16,32,64,128,256,512],
   "eval_interval": 40000,
   "eval_iters": 10,
 
@@ -102,11 +102,11 @@
   "wandb_host": "https://api.wandb.ai",
   "wandb_project": "pythia-extra-seeds",
   "wandb_team": "eleutherai",
-  "wandb_run_name": "2-8b-seed-1-enwik8",
+  # "wandb_run_name": "2-8b-seed-1-enwik8", # Not supported in old NeoX
 
   # Distributed Training
   "hostfile": "/workspace/hostfile",
   "deepspeed_mpi": True,
   "launcher": "openmpi",
-  "deepspeed_extra_args": { "ssh_port": 2222 },
+  # "deepspeed_extra_args": { "ssh_port": 2222 }, # Not supported in old NeoX
 }

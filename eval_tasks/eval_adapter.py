@@ -13,10 +13,11 @@
 # limitations under the License.
 
 from megatron.utils import is_local_main, print_rank_0
-import best_download
+# TOOD: Resolve best_download issue
+# import best_download
 
 # patch best_download (eval harness downloader) to only happen on the first local rank
-fn = best_download.download_file
+# fn = best_download.download_file
 
 
 def _download_file(*args, **kwargs):
@@ -24,7 +25,7 @@ def _download_file(*args, **kwargs):
         fn(*args, **kwargs)
 
 
-best_download.download_file = _download_file
+# best_download.download_file = _download_file
 
 import os
 import sys

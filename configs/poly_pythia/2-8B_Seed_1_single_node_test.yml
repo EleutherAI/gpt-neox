@@ -72,7 +72,7 @@
   "distributed_backend": "nccl",
   "lr_decay_style": "cosine",
   "warmup": 0.01,
-  "checkpoint_factor": null,
+  "checkpoint_factor": 1000,
   "eval_interval": 40000,
   "eval_iters": 10,
 
@@ -92,8 +92,8 @@
   "vocab_file": "/data/neox_tokenizer/tokenizer.json",
 
   # Checkpoints
-  "save": null,
-  "load": null,
+  "save": "/checkpoints/2-8b-seed-1-single-node-test",
+  "load": "/checkpoints/2-8b-seed-1-single-node-test",
   "checkpoint_validation_with_forward_pass": False,
 
   # Wandb
@@ -101,11 +101,10 @@
   "wandb_host": "https://api.wandb.ai",
   "wandb_project": "pythia-extra-seeds",
   "wandb_team": "eleutherai",
-  "wandb_run_name": "2-8b-seed-1-enwik8-single-node-test",
 
   # Distributed Training
   "hostfile": "/workspace/hostfile",
   "deepspeed_mpi": True,
   "launcher": "openmpi",
-  "deepspeed_extra_args": { "ssh_port": 2222 },
+  # "deepspeed_extra_args": { "ssh_port": 2222 },
 }
