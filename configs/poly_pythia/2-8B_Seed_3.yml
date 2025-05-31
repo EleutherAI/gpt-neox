@@ -1,0 +1,6 @@
+{
+  "seed": 3,
+  "data_path": "/data/pile/datasets--EleutherAI--pile-preshuffled-seeds/snapshots/27a5768e205eab4c2ddec1f3d2ab8cd56ba85519/seed3/pile_20B_tokenizer_text_document",
+  "save": "/checkpoints/2-8b-seed-3",
+  "load": "/checkpoints/2-8b-seed-3"
+}
