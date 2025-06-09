@@ -945,6 +945,16 @@ class ParallelTransformerLayer(nn.Module):
             else 1
         )
 
+        self.track_l1 = getattr(neox_args, "log_l1_norm", False)
+        if self.track_l1 and not hasattr(neox_args, "_l1_norm_cache"):
+            # one common container hangs off the config object
+            neox_args._l1_norm_cache = {
+                "token_embedding": [],   # filled once by layer 0 below
+                "attn": [],             # one entry per transformer layer
+                "mlp":  [],             # one entry per transformer layer
+                "lm_head": [],          # filled in ParallelLinear
+            }
+
         if self.num_experts > 1:
             from megatron.model.moe import ParallelDroplessMoE
 
@@ -1043,6 +1053,12 @@ class ParallelTransformerLayer(nn.Module):
         return fn
 
     def forward(self, x, attention_mask, layer_past=None):
+        # clear l1 norms
+        if self.track_l1 and self.layer_number == 0:
+            for key in self.neox_args._l1_norm_cache:
+                self.neox_args._l1_norm_cache[key].clear()
+
+
         layer_past = layer_past if layer_past is not None else self.layer_past
         bias_dropout_fn = self._get_bias_dropout()
 
@@ -1086,6 +1102,12 @@ class ParallelTransformerLayer(nn.Module):
                 attention_output, attention_bias = self.attention(
                     x1, attention_mask, layer_past=layer_past
                 )
+
+                if self.track_l1:
+                    self.neox_args._l1_norm_cache["attn"].append(
+                        attention_output.detach().abs().sum().item()
+                    )
+
                 if self.use_cache:
                     attention_output, presents = attention_output
                     self.layer_past = presents
@@ -1112,6 +1134,11 @@ class ParallelTransformerLayer(nn.Module):
                 else:
                     output = mlp_output
 
+                if self.track_l1:
+                    self.neox_args._l1_norm_cache["mlp"].append(
+                        mlp_output.detach().abs().sum().item()
+                    )
+
                 # output = (x + attn(ln(x)) + mlp(ln(x))
                 output = residual + self.reduce(output)
             else:
@@ -1125,6 +1152,11 @@ class ParallelTransformerLayer(nn.Module):
                 attention_output, attention_bias = self.attention(
                     self.input_layernorm(x), attention_mask, layer_past=layer_past
                 )
+
+                if self.track_l1:
+                    self.neox_args._l1_norm_cache["attn"].append(
+                        attention_output.detach().abs().sum().item()
+                    )
 
                 if self.use_cache:
                     attention_output, presents = attention_output
@@ -1160,6 +1192,11 @@ class ParallelTransformerLayer(nn.Module):
 
                 # call signatures of both dense and MoE are the same
                 mlp_output, mlp_bias = self.mlp(layernorm_output)
+
+                if self.track_l1:
+                    self.neox_args._l1_norm_cache["mlp"].append(
+                        mlp_output.detach().abs().sum().item()
+                    )
 
                 with torch.enable_grad() if not self.eval else nullcontext():
                     if mlp_bias == None or (self.num_experts > 1):
