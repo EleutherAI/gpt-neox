@@ -157,16 +157,16 @@ def get_wandb_api_key(neox_args):
 
 def init_wandb(neox_args):
     """
-    Initialise W&B **once per distributed process** so every rank
-    publishes its own system metrics while *sharing* a single run-ID.
-    - Uses W&B ≥ 0.19.5 “shared” mode.
-    - Rank_0 is the *primary* writer; other ranks set `x_primary=False`
+    Initialise wandb once per distributed process so that every rank
+    publishes its own system metrics while sharing a single run-ID.
+    - Requires wandb ≥ 0.19.5
+    - Rank_0 is still the primary writer; other ranks set `x_primary=False`
       to avoid race-conditions on artefact uploads / run-state updates.
     """
     if not neox_args.use_wandb:
         return
 
-    # If the user did *not* define WANDB_RUN_ID we create a fresh run‑id
+    # If the user didn't define WANDB_RUN_ID we create a fresh run‑id
     # on rank‑0 and broadcast it so all ranks attach to the same run.
     run_id = os.environ.get("WANDB_RUN_ID")
     if torch.distributed.is_initialized():
@@ -175,20 +175,18 @@ def init_wandb(neox_args):
                 run_id = wandb.util.generate_id()
             run_id = torch.distributed.broadcast_object_list([run_id])[0]
         else:
-            # make sure every process sees the same id (helpful for resume)
             run_id = torch.distributed.broadcast_object_list([run_id])[0]
 
     rank        = torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
-    local_rank_ = local_rank()                   # GPU ordinal inside this node
+    local_rank_ = local_rank()
 
-    # --- Shared‑mode settings ------------------------------------------------
     _settings = dict(
-        mode                     = "shared",                  # <- key line
+        mode                     = "shared",
         x_label                  = f"rank-{rank}",
-        x_stats_sampling_interval= 1,                          # seconds
-        x_stats_gpu_device_ids   = [local_rank_],              # only our GPU
+        x_stats_sampling_interval= 1,
+        x_stats_gpu_device_ids   = [local_rank_],
     )
-    if rank != 0:                         # non‑primary tweaks
+    if rank != 0:
         _settings.update(
             x_primary            = False,
             x_update_finish_state= False,
@@ -211,7 +209,6 @@ def init_wandb(neox_args):
             save_code = False,
             force     = False,
         )
-        # Push full experiment config only once so it isn’t duplicated
         if rank == 0:
             wandb.config.update(neox_args.all_config)
     except wandb.UsageError as e:
