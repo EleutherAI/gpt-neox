@@ -576,7 +576,7 @@ def tb_wandb_log(
     all_ranks: bool = False,
 ):
     # logs to both tb and wandb (if present) from the zeroth rank
-    do_log = torch.distributed.get_rank() == 0 or all_ranks
+    do_log = all_ranks or torch.distributed.get_rank() == 0
     if do_log and value is not None:
         if tensorboard_writer:
             tensorboard_writer.add_scalar(key, value, iteration_no)
