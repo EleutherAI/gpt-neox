@@ -57,7 +57,7 @@ def gpt2_attention_mask_func(attention_scores, ltor_mask):
     return attention_scores
 
 
-def cross_entropy(output, labels, _fp16=False):
+def cross_entropy(output, labels, _fp16=False, sample_signs=None):
     """From pretrain_gpt2:forward_step()"""
     """
     if self.fp16_lm_cross_entropy:
@@ -70,11 +70,76 @@ def cross_entropy(output, labels, _fp16=False):
     labels, loss_mask = labels[0], labels[1]
     if _fp16:
         assert output.dtype == torch.half and loss_mask.dtype == torch.half
-        losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels)
+        losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels, sample_signs)
     else:
-        losses = mpu.vocab_parallel_cross_entropy(output.float().contiguous(), labels)
+        losses = mpu.vocab_parallel_cross_entropy(output.float().contiguous(), labels, sample_signs)
     loss_mask = loss_mask.view(-1)
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
+    return loss
+
+
+def cross_entropy_with_gradient_tracking(output, labels, _fp16=False, neox_args=None):
+    """Cross entropy loss with gradient ascent/descent tracking for pipeline parallel mode"""
+    labels_tensor, loss_mask = labels[0], labels[1]
+    
+    # Get gradient signs from neox_args if available (pipeline parallel mode)
+    sample_signs = None
+    if neox_args is not None and hasattr(neox_args, '_current_gradient_signs'):
+        sample_signs = neox_args._current_gradient_signs
+    
+    # Calculate main loss
+    if _fp16:
+        assert output.dtype == torch.half and loss_mask.dtype == torch.half
+        losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels_tensor, sample_signs)
+    else:
+        losses = mpu.vocab_parallel_cross_entropy(output.float().contiguous(), labels_tensor, sample_signs)
+    
+    loss_mask = loss_mask.view(-1)
+    loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
+    
+    # Track gradient ascent/descent losses for monitoring (pipeline parallel compatible)
+    if sample_signs is not None and neox_args is not None:
+        with torch.no_grad():
+            # Get sample-wise losses
+            if _fp16:
+                sample_losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels_tensor)
+            else:
+                sample_losses = mpu.vocab_parallel_cross_entropy(output.float().contiguous(), labels_tensor)
+            
+            # Apply loss mask
+            loss_mask_flat = loss_mask.view(-1)
+            sample_losses_flat = sample_losses.view(-1)
+            masked_losses = sample_losses_flat * loss_mask_flat
+            
+            # Reshape back to batch dimension
+            batch_size = output.shape[0]
+            seq_len = output.shape[1]
+            masked_losses = masked_losses.view(batch_size, seq_len)
+            masked_losses = masked_losses.sum(-1) / loss_mask.sum(-1)
+            
+            # Separate ascent and descent samples (use first token of each sample)
+            sample_signs_batch = sample_signs[:, 0] if sample_signs.dim() > 1 else sample_signs
+            ascent_mask = (sample_signs_batch < 0)
+            descent_mask = (sample_signs_batch >= 0)
+            
+            # Store metrics in module for pipeline parallel aggregation
+            additional_losses = {}
+            
+            if ascent_mask.sum() > 0:
+                ascent_losses = masked_losses[ascent_mask]
+                additional_losses["gradient_ascent_loss"] = ascent_losses.mean()
+                additional_losses["gradient_ascent_samples"] = ascent_mask.sum().float()
+            
+            if descent_mask.sum() > 0:
+                descent_losses = masked_losses[descent_mask]
+                additional_losses["gradient_descent_loss"] = descent_losses.mean()
+                additional_losses["gradient_descent_samples"] = descent_mask.sum().float()
+            
+            # Store in neox_args for retrieval
+            if not hasattr(neox_args, '_additional_losses'):
+                neox_args._additional_losses = {}
+            neox_args._additional_losses.update(additional_losses)
+    
     return loss
 
 
@@ -128,9 +193,17 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         self.specs = []
         self.init_specs()  # initializes the layer specs (basically a fancy nn.Sequential)
 
+        # Use gradient tracking loss function for pipeline parallel
+        if self.neox_args.is_pipe_parallel and self.neox_args.train_gradient_signs_data_paths:
+            loss_fn = partial(cross_entropy_with_gradient_tracking, 
+                            _fp16=self.neox_args.fp16_lm_cross_entropy,
+                            neox_args=self.neox_args)
+        else:
+            loss_fn = partial(cross_entropy, _fp16=self.neox_args.fp16_lm_cross_entropy)
+            
         super().__init__(
             layers=self.specs,
-            loss_fn=partial(cross_entropy, _fp16=self.neox_args.fp16_lm_cross_entropy),
+            loss_fn=loss_fn,
             topology=topology,
             activation_checkpoint_interval=self.neox_args.checkpoint_num_layers
             if self.neox_args.checkpoint_activations

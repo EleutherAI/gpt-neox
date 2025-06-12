@@ -1037,6 +1037,13 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     List of paths to train reward datasets
     """
 
+    train_gradient_signs_data_paths: list = None
+    """
+    List of paths to train gradient signs datasets for conditional gradient ascent.
+    These datasets should contain gradient signs (-1.0 for ascent, 1.0 for descent) 
+    corresponding to each document in the training data.
+    """
+
     test_data_paths: list = None
     """
     List of paths to test datasets.

@@ -357,6 +357,12 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype, label_mask_zero=False
     data_b = mpu.broadcast_data(keys, data, datatype)
     token_key = keys[0]
     label_key = keys[1] if len(keys) > 1 else None
+    
+    # Check for gradient signs in the data
+    gradient_signs = None
+    if "gradient_signs" in data_b:
+        gradient_signs = data_b["gradient_signs"].float()[:, :-1].contiguous()
+    
     # Unpack.
     tokens_ = data_b[token_key].long()
     if label_key in data_b:
@@ -383,7 +389,11 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype, label_mask_zero=False
 
     # combine loss masks from get_ltor_masks_and_position_ids with loss masks from data
     loss_mask = label_mask.to(loss_mask.dtype) * loss_mask
-    return tokens, labels, loss_mask, attention_mask, position_ids
+    
+    if gradient_signs is not None:
+        return tokens, labels, loss_mask, attention_mask, position_ids, gradient_signs
+    else:
+        return tokens, labels, loss_mask, attention_mask, position_ids
 
 
 def get_batch(neox_args, data_iterator):
@@ -392,6 +402,9 @@ def get_batch(neox_args, data_iterator):
     # Items and their type.
     if neox_args.train_impl in ["normal", "kto", "reinforce"]:
         keys = ["text", "label"] if neox_args.train_label_data_paths else ["text"]
+        # Add gradient_signs to keys only if gradient signs data is available
+        if neox_args.train_gradient_signs_data_paths:
+            keys.append("gradient_signs")
     elif neox_args.train_impl in ["dpo", "rm"]:
         keys = (
             [["pos", "pos_label"], ["neg", "neg_label"]]
@@ -493,11 +506,27 @@ def get_batch_pipe(data, neox_args, curr_scheduler=None):
 
     # Items and their type.
     keys = ["text", "label"] if neox_args.train_label_data_paths else ["text"]
+    # Add gradient_signs to keys if gradient signs data is available
+    if neox_args.train_gradient_signs_data_paths:
+        keys.append("gradient_signs")
     datatype = torch.int64
 
-    tokens, labels, loss_mask, attention_mask, position_ids = _get_batch(
+    result = _get_batch(
         neox_args, neox_args.tokenizer, keys, data, datatype
     )
+    
+    # Check if gradient signs were returned
+    if len(result) == 6:
+        tokens, labels, loss_mask, attention_mask, position_ids, gradient_signs = result
+        # Log once to confirm gradient signs are present
+        if hasattr(neox_args, '_logged_gradient_signs') == False:
+            print_rank_0(f" > Gradient signs detected in batch, shape: {gradient_signs.shape}")
+            neox_args._logged_gradient_signs = True
+        # Store gradient signs in neox_args for pipeline parallel loss calculation
+        neox_args._current_gradient_signs = gradient_signs
+    else:
+        tokens, labels, loss_mask, attention_mask, position_ids = result
+        neox_args._current_gradient_signs = None
     if curr_scheduler is not None:
         # iteration + 1 to align with how/when DeepSpeed updates the buffers
         curriculum_seqlen = curr_scheduler.update_difficulty(neox_args.iteration + 1)
@@ -515,6 +544,9 @@ def get_batch_pipe(data, neox_args, curr_scheduler=None):
             attention_mask = attention_mask[
                 :, :, :curriculum_seqlen, :curriculum_seqlen
             ].contiguous()
+            # Also adjust gradient signs if present
+            if neox_args._current_gradient_signs is not None:
+                neox_args._current_gradient_signs = neox_args._current_gradient_signs[:, :curriculum_seqlen].contiguous()
 
     # unpack data
     return (tokens, position_ids, attention_mask), (labels, loss_mask)
@@ -613,9 +645,12 @@ def forward_step(
     if timers is not None:
         timers("batch generator").start()
     if neox_args.train_impl == "normal":
-        tokens, labels, loss_mask, attention_mask, position_ids = get_batch(
-            neox_args=neox_args, data_iterator=data_iterator
-        )
+        batch_result = get_batch(neox_args=neox_args, data_iterator=data_iterator)
+        if len(batch_result) == 6:
+            tokens, labels, loss_mask, attention_mask, position_ids, gradient_signs = batch_result
+        else:
+            tokens, labels, loss_mask, attention_mask, position_ids = batch_result
+            gradient_signs = None
     elif neox_args.train_impl == "kto":
         (
             tokens,
@@ -665,8 +700,36 @@ def forward_step(
             loss_mask = loss_mask[:, : neox_args.curriculum_seqlen].contiguous()
             labels = labels[:, : neox_args.curriculum_seqlen].contiguous()
         main_loss = cross_entropy(
-            outputs, (labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy
+            outputs, (labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy, sample_signs=gradient_signs
         )
+        
+        # Track gradient ascent/descent losses separately for monitoring
+        if gradient_signs is not None:
+            # Calculate separate losses for monitoring only (not for gradient computation)
+            with torch.no_grad():
+                # Get sample-wise losses
+                sample_losses = vocab_parallel_cross_entropy(outputs, labels)
+                
+                # Apply loss mask
+                masked_losses = sample_losses * loss_mask
+                masked_losses = masked_losses.sum(-1) / loss_mask.sum(-1)
+                
+                # Separate ascent and descent samples
+                ascent_mask = (gradient_signs < 0)
+                descent_mask = (gradient_signs >= 0)
+                
+                if ascent_mask.sum() > 0:
+                    # Calculate average loss for ascent samples
+                    ascent_losses = masked_losses[ascent_mask]
+                    metrics["gradient_ascent_loss"] = ascent_losses.mean().item()
+                    metrics["gradient_ascent_samples"] = int(ascent_mask.sum().item())
+                
+                if descent_mask.sum() > 0:
+                    # Calculate average loss for descent samples  
+                    descent_losses = masked_losses[descent_mask]
+                    metrics["gradient_descent_loss"] = descent_losses.mean().item()
+                    metrics["gradient_descent_samples"] = int(descent_mask.sum().item())
+        
         if neox_args.moe_num_experts > 1:
             if neox_args.moe_type == "deepspeed":
                 moe_loss = neox_args.moe_loss_coeff * sum(m.item() for m in moe_losses)
@@ -1485,6 +1548,13 @@ def train_step_pipe(neox_args, timers, model, data_iterator):
     assert neox_args.deepspeed
     loss = model.train_batch(data_iter=data_iterator)
     loss_dict = {"lm_loss": loss}
+    
+    # Extract additional gradient ascent/descent losses if available
+    if hasattr(neox_args, '_additional_losses') and neox_args._additional_losses:
+        loss_dict.update(neox_args._additional_losses)
+        # Clear for next iteration
+        neox_args._additional_losses = {}
+    
     # Don't break Megatron's timers because we changed code paths.
     for t in [
         "forward",

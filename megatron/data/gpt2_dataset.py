@@ -44,6 +44,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
         label_dataset=None,
         reward_dataset=None,
         ref_dataset=None,
+        gradient_signs_dataset=None,
     ):
 
         self.name = name
@@ -53,6 +54,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
         self.label_dataset = label_dataset
         self.reward_dataset = reward_dataset
         self.ref_dataset = ref_dataset
+        self.gradient_signs_dataset = gradient_signs_dataset
         self.seq_length = seq_length
 
         # Checks
@@ -189,6 +191,14 @@ class GPT2Dataset(torch.utils.data.Dataset):
                 next_idx += 1
             if self.ref_dataset is not None:
                 ret["ref"] = np.array(samples[next_idx], dtype=np.float32)
+            
+            # Handle gradient signs - extract from the first document in the sample
+            if self.gradient_signs_dataset is not None:
+                # Get gradient sign from the first document in the sample
+                gradient_sign = self.gradient_signs_dataset.get(self.doc_idx[doc_index_f])
+                # Create a tensor with the same length as the sequence
+                ret["gradient_signs"] = np.full(self.seq_length, gradient_sign[0], dtype=np.float32)
+            
             return ret
         except IndexError as err:
             new_idx = idx % len(self)

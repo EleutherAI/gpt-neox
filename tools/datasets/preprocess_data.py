@@ -24,6 +24,7 @@ import sys
 
 import lm_dataformat as lmd
 import numpy as np
+import json
 
 sys.path.append(
     os.path.abspath(
@@ -49,6 +50,22 @@ class Encoder(object):
         Encoder.tokenizer = build_tokenizer(self.args)
 
     def encode(self, text):
+        # Handle both raw text and JSONL with gradient signs
+        gradient_sign = 1.0  # Default to gradient descent
+        
+        # Try to parse as JSON to extract gradient_sign
+        if isinstance(text, str) and text.strip().startswith('{'):
+            try:
+                doc = json.loads(text)
+                if isinstance(doc, dict):
+                    # Extract gradient_sign if present
+                    gradient_sign = doc.get('gradient_sign', 1.0)
+                    # Extract text content
+                    text = doc.get('text', text)
+            except (json.JSONDecodeError, AttributeError):
+                # If parsing fails, treat as raw text
+                pass
+        
         if self.args.ftfy:
             text = ftfy.fix_text(text)
         ids = {}
@@ -60,7 +77,7 @@ class Encoder(object):
             if self.args.append_eod:
                 doc_ids[-1].append(Encoder.tokenizer.eod)
             ids[key] = doc_ids
-        return ids, len(text)
+        return ids, len(text), gradient_sign
 
 
 def get_args(input_args=None):
@@ -160,9 +177,20 @@ def yield_from_files(fnames: list, semaphore):
     """
 
     def yielder(fname, semaphore):
-        for f in filter(lambda x: x, lmd.Reader(fname).stream_data()):
-            semaphore.acquire()
-            yield f
+        # Check if it's a JSONL file
+        if fname.endswith('.jsonl'):
+            # For JSONL files, read line by line to preserve full JSON structure
+            with open(fname, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line:  # filter out empty lines
+                        semaphore.acquire()
+                        yield line
+        else:
+            # For other formats, use lm_dataformat
+            for f in filter(lambda x: x, lmd.Reader(fname).stream_data()):
+                semaphore.acquire()
+                yield f
 
     for fname in fnames:
         semaphore.acquire()
@@ -181,7 +209,33 @@ def main(input_args=None):
     # hence building up memory
     semaphore = Semaphore(10000 + args.workers)
 
-    # use multiprocessing to iterate over input documents
+    # Auto-detect if we should save gradient signs by checking first few documents
+    has_gradient_signs = False
+    print("Checking if dataset contains gradient_sign fields...")
+    
+    # Sample first few documents to check for gradient_sign field
+    sample_fin = yield_from_files(args.input.split(","), semaphore)
+    sample_count = 0
+    gradient_sign_found = False
+    
+    for doc in sample_fin:
+        sample_count += 1
+        # Check if doc is a JSON string with gradient_sign field
+        if isinstance(doc, str) and doc.strip().startswith('{') and '"gradient_sign"' in doc:
+            gradient_sign_found = True
+            break
+        
+        # Check first 10 documents
+        if sample_count >= 10:
+            break
+    
+    if gradient_sign_found:
+        has_gradient_signs = True
+        print(f"Found gradient_sign field in document {sample_count} - will save gradient signs")
+    else:
+        print(f"No gradient_sign field found in {sample_count} sampled documents - gradient signs will not be saved")
+    
+    # Reset to process all documents
     fin = yield_from_files(args.input.split(","), semaphore)
 
     if args.workers > 1:
@@ -208,12 +262,25 @@ def main(input_args=None):
             impl=args.dataset_impl,
             vocab_size=tokenizer.vocab_size,
         )
+    
+    # Create builder for gradient signs if auto-detected
+    gradient_signs_builder = None
+    if has_gradient_signs:
+        gradient_signs_bin_file = f"{args.output_prefix}_gradient_signs.bin"
+        gradient_signs_idx_file = f"{args.output_prefix}_gradient_signs.idx"
+        gradient_signs_builder = indexed_dataset.make_builder(
+            gradient_signs_bin_file,
+            impl=args.dataset_impl,
+        )
+        # Set dtype for gradient signs
+        gradient_signs_builder._dtype = np.float32
+        print(f"Creating gradient signs dataset: {gradient_signs_bin_file}")
 
     # actually do tokenization
     proc_start = time.time()
     total_bytes_processed = 0
     pbar = tqdm.tqdm()
-    for i, (doc, bytes_processed) in enumerate(encoded_docs, start=1):
+    for i, (doc, bytes_processed, gradient_sign) in enumerate(encoded_docs, start=1):
         total_bytes_processed += bytes_processed
 
         # release semaphore so `yield_from_files` can add another file to the buffer
@@ -225,6 +292,11 @@ def main(input_args=None):
                 builders[key].add_item(np.array(sentence, dtype=builders[key].dtype))
             # separate with eos token
             builders[key].end_document()
+        
+        # Store gradient sign for this document if requested
+        if gradient_signs_builder is not None:
+            gradient_signs_builder.add_item(np.array([gradient_sign], dtype=np.float32))
+            gradient_signs_builder.end_document()
 
         # log progress
         if i % args.log_interval == 0:
@@ -240,6 +312,16 @@ def main(input_args=None):
     # save output file
     for key in args.jsonl_keys:
         builders[key].finalize(output_idx_files[key])
+    
+    # Finalize gradient signs if they were created
+    if gradient_signs_builder is not None:
+        gradient_signs_builder.finalize(gradient_signs_idx_file)
+        print(f"Gradient signs saved to: {gradient_signs_bin_file} and {gradient_signs_idx_file}")
+    else:
+        if has_gradient_signs:
+            print("Warning: Gradient signs were detected but not saved")
+        else:
+            print("No gradient signs saved (dataset does not contain gradient_sign fields)")
 
 
 if __name__ == "__main__":

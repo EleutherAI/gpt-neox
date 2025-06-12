@@ -26,7 +26,7 @@ from .utils import VocabUtility
 
 class _VocabParallelCrossEntropy(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, vocab_parallel_logits, target):
+    def forward(ctx, vocab_parallel_logits, target, sample_signs=None):
 
         # Maximum value along vocab dimension across all GPUs.
         logits_max = torch.max(vocab_parallel_logits, dim=-1)[0]
@@ -83,10 +83,15 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
 
         # Loss = log(sum(exp(logits))) - predicted-logit.
         loss = torch.log(sum_exp_logits) - predicted_logits
+        
+        # Apply gradient signs if provided (for gradient ascent)
+        if sample_signs is not None:
+            loss = loss * sample_signs
 
         # Store softmax, target-mask and masked-target for backward pass.
         exp_logits.div_(sum_exp_logits.unsqueeze(dim=-1))
         ctx.save_for_backward(exp_logits, target_mask, masked_target_1d)
+        ctx.sample_signs = sample_signs
 
         return loss
 
@@ -109,9 +114,9 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         # Finally elementwise multiplication with the output gradients.
         grad_input.mul_(grad_output.unsqueeze(dim=-1))
 
-        return grad_input, None
+        return grad_input, None, None
 
 
-def vocab_parallel_cross_entropy(vocab_parallel_logits, target):
+def vocab_parallel_cross_entropy(vocab_parallel_logits, target, sample_signs=None):
     """Helper function for the cross entropy."""
-    return _VocabParallelCrossEntropy.apply(vocab_parallel_logits, target)
+    return _VocabParallelCrossEntropy.apply(vocab_parallel_logits, target, sample_signs)

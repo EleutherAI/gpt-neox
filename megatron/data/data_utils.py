@@ -15,6 +15,7 @@
 import math
 import torch
 import numpy as np
+import os
 from typing import List, Tuple
 from itertools import zip_longest, cycle
 from functools import partial
@@ -26,6 +27,32 @@ from megatron.data.gpt2_dataset import GPT2Dataset
 from megatron.data.pairwise_dataset import PairwiseDataset
 from megatron.data.online_dataset import OnlineDataset
 from megatron.data.samplers import DistributedBatchSampler
+
+
+def auto_detect_gradient_signs_path(data_prefix):
+    """
+    Auto-detect gradient signs file based on data prefix.
+    If data_prefix is '/path/to/data_text_document', look for '/path/to/data_gradient_signs'
+    """
+    if data_prefix is None:
+        return None
+    
+    # Remove '_text_document' suffix if present
+    base_prefix = data_prefix
+    if base_prefix.endswith('_text_document'):
+        base_prefix = base_prefix[:-len('_text_document')]
+    
+    # Check for gradient signs file
+    gradient_signs_prefix = base_prefix + '_gradient_signs'
+    
+    # Check if the .bin file exists
+    if os.path.exists(gradient_signs_prefix + '.bin'):
+        print_rank_0(f" > Auto-detected gradient signs file: {gradient_signs_prefix}")
+        return gradient_signs_prefix
+    else:
+        print_rank_0(f" > No gradient signs file found at: {gradient_signs_prefix}.bin")
+    
+    return None
 
 
 def make_data_loader(dataset, neox_args):
@@ -73,6 +100,7 @@ def build_the_dataset(
     neg_label_prefix=None,
     precompute_model_name=None,
     reward_prefix=None,
+    gradient_signs_prefix=None,
 ):
     """Build train/valid/test datasets."""
     if dataset_impl == "gpt2":
@@ -93,6 +121,19 @@ def build_the_dataset(
             reward_dataset = make_indexed_dataset(reward_prefix, data_impl, skip_warmup)
         else:
             reward_dataset = None
+        # Auto-detect gradient signs if not explicitly provided
+        if gradient_signs_prefix is None:
+            gradient_signs_prefix = auto_detect_gradient_signs_path(data_prefix)
+        
+        if gradient_signs_prefix is not None:
+            gradient_signs_dataset = make_indexed_dataset(gradient_signs_prefix, data_impl, skip_warmup)
+            if gradient_signs_dataset is not None:
+                print_rank_0(f" > Successfully loaded gradient signs dataset from: {gradient_signs_prefix}")
+                print_rank_0(f" > Gradient signs dataset size: {len(gradient_signs_dataset)}")
+            else:
+                print_rank_0(f" > Failed to load gradient signs dataset from: {gradient_signs_prefix}")
+        else:
+            gradient_signs_dataset = None
     elif dataset_impl == "pairwise":
         pos_indexed_dataset = make_indexed_dataset(
             pos_data_prefix, data_impl, skip_warmup
@@ -152,6 +193,7 @@ def build_the_dataset(
             label_dataset=label_dataset,
             reward_dataset=reward_dataset,
             ref_dataset=precompute_indexed_dataset,
+            gradient_signs_dataset=gradient_signs_dataset,
         )
     elif dataset_impl == "pairwise":
         dataset = PairwiseDataset(
@@ -191,6 +233,17 @@ def build_train_valid_test_datasets(
 
     # Indexed dataset.
     indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup)
+    
+    # Auto-detect and load gradient signs dataset
+    gradient_signs_dataset = None
+    gradient_signs_prefix = auto_detect_gradient_signs_path(data_prefix)
+    if gradient_signs_prefix is not None:
+        gradient_signs_dataset = make_indexed_dataset(gradient_signs_prefix, data_impl, skip_warmup)
+        if gradient_signs_dataset is not None:
+            print_rank_0(f" > Successfully loaded gradient signs dataset from: {gradient_signs_prefix}")
+            print_rank_0(f" > Gradient signs dataset size: {len(gradient_signs_dataset)}")
+        else:
+            print_rank_0(f" > Failed to load gradient signs dataset from: {gradient_signs_prefix}")
 
     total_num_of_documents = indexed_dataset.sizes.shape[0]
     splits = get_train_valid_test_split_(splits_string, total_num_of_documents)
@@ -229,6 +282,7 @@ def build_train_valid_test_datasets(
                 pack_impl=pack_impl,
                 allow_chopped=allow_chopped,
                 use_shared_fs=use_shared_fs,
+                gradient_signs_dataset=gradient_signs_dataset,
             )
         return dataset
 
@@ -301,6 +355,7 @@ def build_weighted_datasets(
         train_path,
         train_label_path,
         train_reward_path,
+        train_gradient_signs_path,
         valid_path,
         valid_label_path,
         valid_reward_path,
@@ -327,6 +382,9 @@ def build_weighted_datasets(
             else [],
             neox_args.train_reward_data_paths
             if neox_args.train_reward_data_paths
+            else [],
+            neox_args.train_gradient_signs_data_paths
+            if neox_args.train_gradient_signs_data_paths
             else [],
             neox_args.valid_data_paths if neox_args.valid_data_paths else [],
             neox_args.valid_label_data_paths
@@ -388,6 +446,7 @@ def build_weighted_datasets(
                     neg_label_prefix=neg_train_label_path,
                     precompute_model_name=neox_args.precompute_model_name,
                     reward_prefix=train_reward_path,
+                    gradient_signs_prefix=train_gradient_signs_path,
                 )
             )
 
@@ -413,6 +472,7 @@ def build_weighted_datasets(
                     neg_label_prefix=neg_valid_label_path,
                     precompute_model_name=neox_args.precompute_model_name,
                     reward_prefix=valid_reward_path,
+                    gradient_signs_prefix=None,  # No gradient ascent for validation
                 )
             )
 
@@ -438,6 +498,7 @@ def build_weighted_datasets(
                     neg_label_prefix=neg_test_label_path,
                     precompute_model_name=neox_args.precompute_model_name,
                     reward_prefix=test_reward_path,
+                    gradient_signs_prefix=None,  # No gradient ascent for test
                 )
             )
     return train_datasets, valid_datasets, test_datasets
