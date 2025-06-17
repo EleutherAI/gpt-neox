@@ -26,7 +26,7 @@ from .utils import VocabUtility
 
 class _VocabParallelCrossEntropy(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, vocab_parallel_logits, target, sample_signs=None):
+    def forward(ctx, vocab_parallel_logits, target, sample_signs=None, gradient_ascent_loss_scale=1.0):
 
         # Maximum value along vocab dimension across all GPUs.
         logits_max = torch.max(vocab_parallel_logits, dim=-1)[0]
@@ -86,12 +86,36 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         
         # Apply gradient signs if provided (for gradient ascent)
         if sample_signs is not None:
-            loss = loss * sample_signs
+            # Ensure sample_signs matches the loss shape
+            if sample_signs.shape != loss.shape:
+                # If shapes don't match, it's likely due to sequence length mismatch
+                # Try to match by taking the appropriate slice
+                if len(sample_signs.shape) == 2 and len(loss.shape) == 2:
+                    # Both are 2D, check sequence length dimension
+                    if sample_signs.shape[1] < loss.shape[1]:
+                        # Pad sample_signs with 1.0 (neutral for multiplication)
+                        pad_size = loss.shape[1] - sample_signs.shape[1]
+                        sample_signs = torch.nn.functional.pad(sample_signs, (0, pad_size), value=1.0)
+                    elif sample_signs.shape[1] > loss.shape[1]:
+                        # Truncate sample_signs
+                        sample_signs = sample_signs[:, :loss.shape[1]]
+            
+            # Apply gradient ascent loss scaling
+            if gradient_ascent_loss_scale != 1.0:
+                # Create scaled signs: ascent samples get scaled, descent samples stay at 1.0
+                scaled_signs = sample_signs.clone()
+                ascent_mask = sample_signs < 0
+                # Scale the magnitude for ascent samples
+                scaled_signs[ascent_mask] = sample_signs[ascent_mask] * gradient_ascent_loss_scale
+                loss = loss * scaled_signs
+            else:
+                loss = loss * sample_signs
 
         # Store softmax, target-mask and masked-target for backward pass.
         exp_logits.div_(sum_exp_logits.unsqueeze(dim=-1))
         ctx.save_for_backward(exp_logits, target_mask, masked_target_1d)
         ctx.sample_signs = sample_signs
+        ctx.gradient_ascent_loss_scale = gradient_ascent_loss_scale
 
         return loss
 
@@ -114,9 +138,9 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         # Finally elementwise multiplication with the output gradients.
         grad_input.mul_(grad_output.unsqueeze(dim=-1))
 
-        return grad_input, None, None
+        return grad_input, None, None, None
 
 
-def vocab_parallel_cross_entropy(vocab_parallel_logits, target, sample_signs=None):
+def vocab_parallel_cross_entropy(vocab_parallel_logits, target, sample_signs=None, gradient_ascent_loss_scale=1.0):
     """Helper function for the cross entropy."""
-    return _VocabParallelCrossEntropy.apply(vocab_parallel_logits, target, sample_signs)
+    return _VocabParallelCrossEntropy.apply(vocab_parallel_logits, target, sample_signs, gradient_ascent_loss_scale)

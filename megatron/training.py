@@ -354,14 +354,23 @@ def pretrain(neox_args):
 
 def _get_batch(neox_args, tokenizer, keys, data, datatype, label_mask_zero=False):
     """Support function for get_batch / get_batch pipe (to avoid code repetition)"""
-    data_b = mpu.broadcast_data(keys, data, datatype)
-    token_key = keys[0]
-    label_key = keys[1] if len(keys) > 1 else None
-    
-    # Check for gradient signs in the data
+    # Handle gradient_signs separately if present
     gradient_signs = None
-    if "gradient_signs" in data_b:
-        gradient_signs = data_b["gradient_signs"].float()[:, :-1].contiguous()
+    gradient_signs_key = "gradient_signs"
+    
+    # Remove gradient_signs from keys for the main broadcast
+    token_keys = [k for k in keys if k != gradient_signs_key]
+    
+    # Broadcast token data
+    data_b = mpu.broadcast_data(token_keys, data, datatype)
+    
+    # Broadcast gradient_signs separately with float32 datatype
+    if gradient_signs_key in keys and data is not None and gradient_signs_key in data:
+        gradient_signs_data = mpu.broadcast_data([gradient_signs_key], data, torch.float32)
+        gradient_signs = gradient_signs_data[gradient_signs_key][:, :-1].contiguous()
+    
+    token_key = token_keys[0]
+    label_key = token_keys[1] if len(token_keys) > 1 else None
     
     # Unpack.
     tokens_ = data_b[token_key].long()
@@ -700,7 +709,8 @@ def forward_step(
             loss_mask = loss_mask[:, : neox_args.curriculum_seqlen].contiguous()
             labels = labels[:, : neox_args.curriculum_seqlen].contiguous()
         main_loss = cross_entropy(
-            outputs, (labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy, sample_signs=gradient_signs
+            outputs, (labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy, 
+            sample_signs=gradient_signs, gradient_ascent_loss_scale=neox_args.gradient_ascent_loss_scale
         )
         
         # Track gradient ascent/descent losses separately for monitoring
@@ -710,23 +720,27 @@ def forward_step(
                 # Get sample-wise losses
                 sample_losses = vocab_parallel_cross_entropy(outputs, labels)
                 
-                # Apply loss mask
-                masked_losses = sample_losses * loss_mask
-                masked_losses = masked_losses.sum(-1) / loss_mask.sum(-1)
+                # Flatten all tensors for per-token calculation
+                sample_losses_flat = sample_losses.view(-1)
+                loss_mask_flat = loss_mask.view(-1)
+                gradient_signs_flat = gradient_signs.view(-1)
                 
-                # Separate ascent and descent samples
-                ascent_mask = (gradient_signs < 0)
-                descent_mask = (gradient_signs >= 0)
+                # Create masks for valid tokens
+                valid_mask = loss_mask_flat > 0
+                
+                # Separate ascent and descent tokens (not sequences!)
+                ascent_mask = (gradient_signs_flat < 0) & valid_mask
+                descent_mask = (gradient_signs_flat >= 0) & valid_mask
                 
                 if ascent_mask.sum() > 0:
-                    # Calculate average loss for ascent samples
-                    ascent_losses = masked_losses[ascent_mask]
+                    # Calculate average loss for ascent tokens
+                    ascent_losses = sample_losses_flat[ascent_mask]
                     metrics["gradient_ascent_loss"] = ascent_losses.mean().item()
                     metrics["gradient_ascent_samples"] = int(ascent_mask.sum().item())
                 
                 if descent_mask.sum() > 0:
-                    # Calculate average loss for descent samples  
-                    descent_losses = masked_losses[descent_mask]
+                    # Calculate average loss for descent tokens
+                    descent_losses = sample_losses_flat[descent_mask]
                     metrics["gradient_descent_loss"] = descent_losses.mean().item()
                     metrics["gradient_descent_samples"] = int(descent_mask.sum().item())
         

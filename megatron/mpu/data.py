@@ -25,10 +25,15 @@ _MAX_DATA_DIM = 4
 def _check_data_types(keys, data, target_dtype):
     """Check that all the keys have the same target data type."""
     for key in keys:
+        # Special case: gradient_signs should be float32
+        if key == "gradient_signs":
+            expected_dtype = torch.float32
+        else:
+            expected_dtype = target_dtype
         assert (
-            data[key].dtype == target_dtype
+            data[key].dtype == expected_dtype
         ), "{} has data type {} which " "is different than {}".format(
-            key, data[key].dtype, target_dtype
+            key, data[key].dtype, expected_dtype
         )
 
 

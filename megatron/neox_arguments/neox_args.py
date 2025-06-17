@@ -1044,6 +1044,14 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     corresponding to each document in the training data.
     """
 
+    gradient_ascent_loss_scale: float = 1.0
+    """
+    Scaling factor for gradient ascent loss. When gradient signs are -1 (ascent), 
+    the loss will be multiplied by this factor. This can be used to amplify the 
+    gradient ascent effect when there are few ascent samples.
+    Example: gradient_ascent_loss_scale: 10.0 makes gradient ascent 10x stronger.
+    """
+
     test_data_paths: list = None
     """
     List of paths to test datasets.

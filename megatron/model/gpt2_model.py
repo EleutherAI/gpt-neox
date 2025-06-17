@@ -57,7 +57,7 @@ def gpt2_attention_mask_func(attention_scores, ltor_mask):
     return attention_scores
 
 
-def cross_entropy(output, labels, _fp16=False, sample_signs=None):
+def cross_entropy(output, labels, _fp16=False, sample_signs=None, gradient_ascent_loss_scale=1.0):
     """From pretrain_gpt2:forward_step()"""
     """
     if self.fp16_lm_cross_entropy:
@@ -70,9 +70,9 @@ def cross_entropy(output, labels, _fp16=False, sample_signs=None):
     labels, loss_mask = labels[0], labels[1]
     if _fp16:
         assert output.dtype == torch.half and loss_mask.dtype == torch.half
-        losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels, sample_signs)
+        losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels, sample_signs, gradient_ascent_loss_scale)
     else:
-        losses = mpu.vocab_parallel_cross_entropy(output.float().contiguous(), labels, sample_signs)
+        losses = mpu.vocab_parallel_cross_entropy(output.float().contiguous(), labels, sample_signs, gradient_ascent_loss_scale)
     loss_mask = loss_mask.view(-1)
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
     return loss
@@ -84,15 +84,19 @@ def cross_entropy_with_gradient_tracking(output, labels, _fp16=False, neox_args=
     
     # Get gradient signs from neox_args if available (pipeline parallel mode)
     sample_signs = None
-    if neox_args is not None and hasattr(neox_args, '_current_gradient_signs'):
-        sample_signs = neox_args._current_gradient_signs
+    gradient_ascent_loss_scale = 1.0
+    if neox_args is not None:
+        if hasattr(neox_args, '_current_gradient_signs'):
+            sample_signs = neox_args._current_gradient_signs
+        if hasattr(neox_args, 'gradient_ascent_loss_scale'):
+            gradient_ascent_loss_scale = neox_args.gradient_ascent_loss_scale
     
     # Calculate main loss
     if _fp16:
         assert output.dtype == torch.half and loss_mask.dtype == torch.half
-        losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels_tensor, sample_signs)
+        losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels_tensor, sample_signs, gradient_ascent_loss_scale)
     else:
-        losses = mpu.vocab_parallel_cross_entropy(output.float().contiguous(), labels_tensor, sample_signs)
+        losses = mpu.vocab_parallel_cross_entropy(output.float().contiguous(), labels_tensor, sample_signs, gradient_ascent_loss_scale)
     
     loss_mask = loss_mask.view(-1)
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
@@ -106,32 +110,36 @@ def cross_entropy_with_gradient_tracking(output, labels, _fp16=False, neox_args=
             else:
                 sample_losses = mpu.vocab_parallel_cross_entropy(output.float().contiguous(), labels_tensor)
             
-            # Apply loss mask
-            loss_mask_flat = loss_mask.view(-1)
+            # Flatten all tensors for per-token calculation
             sample_losses_flat = sample_losses.view(-1)
-            masked_losses = sample_losses_flat * loss_mask_flat
+            loss_mask_flat = loss_mask
+            sample_signs_flat = sample_signs.view(-1)
             
-            # Reshape back to batch dimension
-            batch_size = output.shape[0]
-            seq_len = output.shape[1]
-            masked_losses = masked_losses.view(batch_size, seq_len)
-            masked_losses = masked_losses.sum(-1) / loss_mask.sum(-1)
+            # Ensure tensors have the same shape (handle padding differences)
+            min_size = min(sample_losses_flat.size(0), loss_mask_flat.size(0), sample_signs_flat.size(0))
+            sample_losses_flat = sample_losses_flat[:min_size]
+            loss_mask_flat = loss_mask_flat[:min_size]
+            sample_signs_flat = sample_signs_flat[:min_size]
             
-            # Separate ascent and descent samples (use first token of each sample)
-            sample_signs_batch = sample_signs[:, 0] if sample_signs.dim() > 1 else sample_signs
-            ascent_mask = (sample_signs_batch < 0)
-            descent_mask = (sample_signs_batch >= 0)
+            # Create masks for valid tokens
+            valid_mask = loss_mask_flat > 0
+            
+            # Separate ascent and descent tokens (not sequences!)
+            ascent_mask = (sample_signs_flat < 0) & valid_mask
+            descent_mask = (sample_signs_flat >= 0) & valid_mask
             
             # Store metrics in module for pipeline parallel aggregation
             additional_losses = {}
             
             if ascent_mask.sum() > 0:
-                ascent_losses = masked_losses[ascent_mask]
+                # Calculate average loss for ascent tokens
+                ascent_losses = sample_losses_flat[ascent_mask]
                 additional_losses["gradient_ascent_loss"] = ascent_losses.mean()
                 additional_losses["gradient_ascent_samples"] = ascent_mask.sum().float()
             
             if descent_mask.sum() > 0:
-                descent_losses = masked_losses[descent_mask]
+                # Calculate average loss for descent tokens
+                descent_losses = sample_losses_flat[descent_mask]
                 additional_losses["gradient_descent_loss"] = descent_losses.mean()
                 additional_losses["gradient_descent_samples"] = descent_mask.sum().float()
             
