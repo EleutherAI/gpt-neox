@@ -124,6 +124,8 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
 
         # Retrieve tensors from the forward path.
         softmax, target_mask, masked_target_1d = ctx.saved_tensors
+        sample_signs = ctx.sample_signs
+        gradient_ascent_loss_scale = ctx.gradient_ascent_loss_scale
 
         # All the inputs have softmax as their gradient.
         grad_input = softmax
@@ -137,6 +139,11 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
 
         # Finally elementwise multiplication with the output gradients.
         grad_input.mul_(grad_output.unsqueeze(dim=-1))
+        
+        # NOTE: We already multiplied the loss by sample_signs in the forward pass.
+        # We should NOT multiply the gradient by sample_signs again in backward
+        # because that would cancel out the effect (double negation).
+        # The forward modification is sufficient for gradient ascent.
 
         return grad_input, None, None, None
 
