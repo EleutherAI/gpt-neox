@@ -1,0 +1,66 @@
+# Example configuration for gradient ascent with loss scaling
+# This shows how to use gradient_ascent_loss_scale to amplify the effect
+# of gradient ascent when you have imbalanced gradient signs data
+
+{
+  # Include base configuration (adjust path as needed)
+  # "include": "your_base_config.yml",
+  
+  # Data paths
+  "data_path": "/path/to/your/data_text_document",
+  "vocab_file": "/path/to/your/tokenizer.json",
+  
+  # Gradient ascent configuration
+  "train_gradient_signs_data_paths": ["/path/to/your/gradient_signs_data"],
+  
+  # Gradient ascent loss scaling
+  # This parameter amplifies the loss for samples marked with gradient ascent (-1)
+  # Useful when you have few ascent samples and want to increase their impact
+  "gradient_ascent_loss_scale": 10.0,
+  
+  # With gradient_ascent_loss_scale: 10.0:
+  # - Samples with gradient_sign = 1.0 (descent): loss is unchanged
+  # - Samples with gradient_sign = -1.0 (ascent): loss is multiplied by -10.0
+  # This makes gradient ascent 10x stronger for those samples
+  
+  # Example scaling values:
+  # - 1.0: No scaling (default behavior)
+  # - 5.0: Moderate amplification 
+  # - 10.0: Strong amplification (recommended for ~1-5% ascent samples)
+  # - 20.0: Very strong amplification (use with caution)
+  
+  # Model configuration
+  "num_layers": 12,
+  "hidden_size": 768,
+  "num_attention_heads": 12,
+  "seq_length": 2048,
+  "max_position_embeddings": 2048,
+  
+  # Training configuration  
+  "train_micro_batch_size_per_gpu": 8,
+  "gradient_accumulation_steps": 1,
+  "train_iters": 10000,
+  "lr": 0.0003,
+  
+  # Logging - monitor gradient ascent/descent losses separately
+  "log_interval": 10,
+  "use_wandb": true,
+  "wandb_project": "gradient-ascent-experiments",
+  
+  # The logged metrics will include:
+  # - train/gradient_ascent_loss: average loss for ascent samples (before scaling)
+  # - train/gradient_descent_loss: average loss for descent samples
+  # - train/lm_loss: overall loss (includes scaling effect)
+  
+  # Tips for tuning gradient_ascent_loss_scale:
+  # 1. Start with scale = 1.0 to verify gradient signs are working
+  # 2. Monitor gradient_ascent_loss - it should increase if working correctly
+  # 3. Gradually increase scale until you see the desired effect
+  # 4. If loss becomes unstable, reduce the scale or learning rate
+}
+
+# Advanced usage: Dynamic scaling based on sample ratio
+# If you have very imbalanced data (e.g., 1% ascent, 99% descent),
+# you might want to scale inversely to the ratio:
+# gradient_ascent_loss_scale = descent_ratio / ascent_ratio
+# For 1% ascent: gradient_ascent_loss_scale = 99.0

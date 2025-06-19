@@ -200,5 +200,5 @@ def analyze_gradient_ascent_run(run_path):
 
 if __name__ == "__main__":
     # Analyze the specified run
-    run_path = "eleutherai/AISI/hqakruly"
+    run_path = "eleutherai/AISI/azez8ylb"
     analyze_gradient_ascent_run(run_path)

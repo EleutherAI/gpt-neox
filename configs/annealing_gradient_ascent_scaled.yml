@@ -1,0 +1,31 @@
+# Configuration for your gradient ascent experiment with loss scaling
+# Based on your run eleutherai/AISI/9q95364i with only 1.21% ascent samples
+
+{
+  # Include your base configuration
+  "include": "filtered_v5_annealing_replace_with_escelations_ga_0.9_aisi_multi_node.yml",
+  
+  # Gradient ascent loss scaling
+  # Since only 1.21% of your samples are marked for ascent, we need strong amplification
+  # Scale of 50 means gradient ascent effect is 50x stronger
+  "gradient_ascent_loss_scale": 50.0,
+  
+  # You can also try these alternatives:
+  # Conservative: "gradient_ascent_loss_scale": 10.0,
+  # Moderate: "gradient_ascent_loss_scale": 25.0, 
+  # Aggressive: "gradient_ascent_loss_scale": 80.0,
+  # Balanced (1/0.0121): "gradient_ascent_loss_scale": 82.6,
+  
+  # Optional: Adjust learning rate if training becomes unstable
+  # "lr": 0.0001,  # Reduce from 0.0003 if needed
+  
+  # Optional: More frequent logging to monitor the effect
+  "log_interval": 5,
+  
+  # Save to a different location for testing
+  "save": "/checkpoints/annealing_gradient_ascent_scaled_50x",
+  "wandb_run_name": "annealing_gradient_ascent_scaled_50x",
+  
+  # Optional: Train for fewer iterations to test quickly
+  # "train_iters": 1000,
+}

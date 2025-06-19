@@ -1,0 +1,45 @@
+--- a/megatron/training.py
++++ b/megatron/training.py
+@@ -715,26 +715,32 @@ def forward_step(
+         )
+         
+         # Track gradient ascent/descent losses separately for monitoring
+         if gradient_signs is not None:
+             # Calculate separate losses for monitoring only (not for gradient computation)
+             with torch.no_grad():
+                 # Get sample-wise losses
+                 sample_losses = vocab_parallel_cross_entropy(outputs, labels)
+                 
+-                # Apply loss mask
+-                masked_losses = sample_losses * loss_mask
+-                masked_losses = masked_losses.sum(-1) / loss_mask.sum(-1)
++                # Flatten all tensors for per-token calculation
++                sample_losses_flat = sample_losses.view(-1)
++                loss_mask_flat = loss_mask.view(-1)
++                gradient_signs_flat = gradient_signs.view(-1)
+                 
+-                # Separate ascent and descent samples
+-                ascent_mask = (gradient_signs < 0)
+-                descent_mask = (gradient_signs >= 0)
++                # Create masks for valid tokens
++                valid_mask = loss_mask_flat > 0
++                
++                # Separate ascent and descent tokens (not sequences!)
++                ascent_mask = (gradient_signs_flat < 0) & valid_mask
++                descent_mask = (gradient_signs_flat >= 0) & valid_mask
+                 
+                 if ascent_mask.sum() > 0:
+-                    # Calculate average loss for ascent samples
+-                    ascent_losses = masked_losses[ascent_mask]
++                    # Calculate average loss for ascent tokens
++                    ascent_losses = sample_losses_flat[ascent_mask]
+                     metrics["gradient_ascent_loss"] = ascent_losses.mean().item()
+                     metrics["gradient_ascent_samples"] = int(ascent_mask.sum().item())
+                 
+                 if descent_mask.sum() > 0:
+-                    # Calculate average loss for descent samples  
+-                    descent_losses = masked_losses[descent_mask]
++                    # Calculate average loss for descent tokens
++                    descent_losses = sample_losses_flat[descent_mask]
+                     metrics["gradient_descent_loss"] = descent_losses.mean().item()
+                     metrics["gradient_descent_samples"] = int(descent_mask.sum().item())

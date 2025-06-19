@@ -1,0 +1,24 @@
+# Test configuration with amplified gradient ascent effect
+# This modifies your existing config to make gradient ascent more visible
+
+{
+  # Include your base config
+  "include": "filtered_v5_annealing_replace_with_escelations_ga_0.9_aisi_multi_node.yml",
+  
+  # Amplify gradient ascent effect
+  "gradient_ascent_amplification": 10.0,  # Multiply ascent gradients by 10x
+  
+  # Use a constant learning rate to maintain effect throughout training
+  "lr_decay_style": "constant",
+  "min_lr": 0.0003,  # Keep LR constant at peak value
+  
+  # Train for fewer steps to get quick feedback
+  "train_iters": 100,
+  
+  # More frequent logging
+  "log_interval": 1,
+  
+  # Save name for test run
+  "save": "/checkpoints/gradient_ascent_test_amplified",
+  "wandb_run_name": "gradient_ascent_test_amplified"
+}
