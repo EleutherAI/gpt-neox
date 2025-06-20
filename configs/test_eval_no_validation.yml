@@ -1,0 +1,57 @@
+{
+  # Test configuration for eval_tasks without validation data
+  "vocab_file": "tests/data/gpt2-vocab.json",
+  "merge_file": "tests/data/gpt2-merges.txt", 
+  "data_path": "tests/data/tiny/tiny_text_document",
+  
+  # Force no validation split - all data goes to training
+  "split": "100,0,0",
+  
+  # Small model for testing
+  "num_layers": 2,
+  "hidden_size": 128,
+  "num_attention_heads": 4,
+  "seq_length": 128,
+  "max_position_embeddings": 128,
+  
+  # Training config - short run for testing
+  "train_iters": 20,
+  "eval_interval": 10,  # Evaluate every 10 iterations
+  "eval_iters": 2,      # Run 2 iterations per evaluation
+  
+  # Eval tasks - these should run without validation data
+  "eval_tasks": ["lambada", "piqa"],
+  
+  # Small batch size for testing
+  "train_micro_batch_size_per_gpu": 1,
+  "gradient_accumulation_steps": 1,
+  
+  # Basic optimizer config
+  "optimizer": {
+    "type": "Adam",
+    "params": {
+      "lr": 0.0001,
+      "betas": [0.9, 0.95],
+      "eps": 1.0e-8
+    }
+  },
+  
+  # Other required settings
+  "gradient_clipping": 1.0,
+  "weight_decay": 0.1,
+  "hidden_dropout": 0.0,
+  "attention_dropout": 0.0,
+  
+  # Logging
+  "log_interval": 5,
+  "steps_per_print": 5,
+  "wall_clock_breakdown": false,
+  
+  # Checkpointing
+  "checkpoint_factor": 20,
+  "save": "test_checkpoints/eval_no_validation",
+  
+  # Distributed settings
+  "pipe_parallel_size": 1,
+  "model_parallel_size": 1,
+}

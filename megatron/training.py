@@ -1711,25 +1711,38 @@ def train(
             )
 
         # Evaluation
-        is_eval_internal = (
-            neox_args.eval_interval and iteration % neox_args.eval_interval == 0
-        )
-        is_validation_configured = bool(neox_args.do_valid) or (
-            isinstance(neox_args.eval_tasks, list) and len(neox_args.eval_tasks) > 0
-        )
-        if is_eval_internal and is_validation_configured:
-            prefix = "iteration {}".format(iteration)
-            evaluate_and_print_results(
-                neox_args=neox_args,
-                prefix=prefix,
-                forward_step_func=forward_step,
-                data_iterator=valid_data_iterator,
-                model=model,
-                iteration=iteration,
-                verbose=False,
-                timers=timers,
-                reference_model=reference_model,
-            )
+        if neox_args.eval_interval and iteration % neox_args.eval_interval == 0:
+            # Run validation data evaluation if configured
+            if neox_args.do_valid and valid_data_iterator is not None:
+                prefix = "iteration {}".format(iteration)
+                evaluate_and_print_results(
+                    neox_args=neox_args,
+                    prefix=prefix,
+                    forward_step_func=forward_step,
+                    data_iterator=valid_data_iterator,
+                    model=model,
+                    iteration=iteration,
+                    verbose=False,
+                    timers=timers,
+                    reference_model=reference_model,
+                    chart_name="validation",
+                )
+            
+            # Run eval_tasks evaluation if configured (independent of validation data)
+            if neox_args.eval_tasks and len(neox_args.eval_tasks) > 0:
+                prefix = "iteration {}".format(iteration)
+                evaluate_and_print_results(
+                    neox_args=neox_args,
+                    prefix=prefix,
+                    forward_step_func=forward_step,
+                    data_iterator=None,  # No data iterator needed for eval_tasks
+                    model=model,
+                    iteration=iteration,
+                    verbose=False,
+                    timers=timers,
+                    reference_model=reference_model,
+                    chart_name="eval_tasks",
+                )
 
         if neox_args.exit_interval and iteration % neox_args.exit_interval == 0:
             torch.distributed.barrier()
@@ -1767,7 +1780,7 @@ def evaluate(
     model.eval()
     losses = []
     metric_dicts = defaultdict(list)
-    if neox_args.char_level_ppl:
+    if neox_args.char_level_ppl and data_iterator is not None:
         data_iterator = CharCounter(data_iterator, neox_args.tokenizer)
 
     eval_results = {}
@@ -1814,7 +1827,7 @@ def evaluate(
 
         eval_results["lm_loss_ppl"] = math.exp(eval_results["lm_loss"])
 
-    if neox_args.char_level_ppl:
+    if neox_args.char_level_ppl and data_iterator is not None:
         # calculate character level perplexity, if specified
         # if neox_args.char_level_ppl:
         # unwrap the data_iterator

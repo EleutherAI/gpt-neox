@@ -1186,6 +1186,14 @@ class NeoXArgs(*BASE_CLASSES):
                 self.update_value("text_gen_type", "input-file")
             else:
                 self.update_value("text_gen_type", "unconditional")
+        
+        # Validate eval_interval when eval_tasks is set
+        if self.eval_tasks and len(self.eval_tasks) > 0:
+            if not self.eval_interval:
+                logging.warning(
+                    "eval_tasks is set but eval_interval is not. Setting eval_interval to 1000."
+                )
+                self.update_value("eval_interval", 1000)
 
     ############################################################################################################################
     # start of validation functions
