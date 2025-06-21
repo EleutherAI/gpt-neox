@@ -1686,53 +1686,44 @@ def train(
             # Track GA metrics
             if not skipped_iter:
                 actual_loss = -loss_dict["lm_loss"]
-                ga_loss_sum += actual_loss
-                ga_loss_count += 1
+                ga_objective = loss_dict["lm_loss"]
                 
                 # Log interleaved GA step
-                if neox_args.rank == 0 and iteration % neox_args.log_interval == 0:
-                    ga_objective = loss_dict["lm_loss"]
+                if neox_args.rank == 0:
                     print(f"  [Interleaved GA] iteration {iteration}, actual_loss: {actual_loss:.4f}, ga_objective: {ga_objective:.4f}")
-            
-            # Log GA metrics periodically
-            if neox_args.rank == 0 and ga_loss_count > 0 and iteration % neox_args.log_interval == 0:
-                avg_ga_actual_loss = ga_loss_sum / ga_loss_count
-                avg_ga_objective = -avg_ga_actual_loss
                 
-                # TensorBoard logging
-                if neox_args.tensorboard_writer:
-                    neox_args.tensorboard_writer.add_scalar(
-                        "train/ga_actual_loss", avg_ga_actual_loss, iteration
-                    )
-                    neox_args.tensorboard_writer.add_scalar(
-                        "train/ga_objective", avg_ga_objective, iteration
-                    )
-                    neox_args.tensorboard_writer.add_scalar(
-                        "train/batch_type", 1.0, iteration  # 1.0 for GA
-                    )
-                
-                # WandB logging
-                if neox_args.use_wandb:
-                    import wandb
-                    wandb.log({
-                        "train/ga_actual_loss": avg_ga_actual_loss,
-                        "train/ga_objective": avg_ga_objective,
-                        "train/batch_type": 1.0,  # 1.0 for GA
-                        "iteration": iteration,
-                    })
-                
-                # Comet logging
-                if neox_args.comet_experiment:
-                    neox_args.comet_experiment.log_metric(
-                        "ga_actual_loss", avg_ga_actual_loss, step=iteration
-                    )
-                    neox_args.comet_experiment.log_metric(
-                        "ga_objective", avg_ga_objective, step=iteration
-                    )
-                
-                # Reset counters
-                ga_loss_sum = 0.0
-                ga_loss_count = 0
+                # Log GA metrics immediately (not periodically) for interleaved mode
+                if neox_args.rank == 0 and iteration % neox_args.log_interval == 0:
+                    # TensorBoard logging
+                    if neox_args.tensorboard_writer:
+                        neox_args.tensorboard_writer.add_scalar(
+                            "train/ga_actual_loss", actual_loss, iteration
+                        )
+                        neox_args.tensorboard_writer.add_scalar(
+                            "train/ga_objective", ga_objective, iteration
+                        )
+                        neox_args.tensorboard_writer.add_scalar(
+                            "train/batch_type", 1.0, iteration  # 1.0 for GA
+                        )
+                    
+                    # WandB logging
+                    if neox_args.use_wandb:
+                        import wandb
+                        wandb.log({
+                            "train/ga_actual_loss": actual_loss,
+                            "train/ga_objective": ga_objective,
+                            "train/batch_type": 1.0,  # 1.0 for GA
+                            "iteration": iteration,
+                        })
+                    
+                    # Comet logging
+                    if neox_args.comet_experiment:
+                        neox_args.comet_experiment.log_metric(
+                            "ga_actual_loss", actual_loss, step=iteration
+                        )
+                        neox_args.comet_experiment.log_metric(
+                            "ga_objective", ga_objective, step=iteration
+                        )
             
             # Restore original learning rates
             if neox_args.ga_lr_scale != 1.0 and original_lrs:
@@ -1754,11 +1745,26 @@ def train(
             # Log batch type for regular training (only in interleaved mode)
             if (neox_args.ga_mode == "interleaved" and 
                 neox_args.rank == 0 and 
-                iteration % neox_args.log_interval == 0 and
-                neox_args.tensorboard_writer):
-                neox_args.tensorboard_writer.add_scalar(
-                    "train/batch_type", 0.0, iteration  # 0.0 for GD
-                )
+                iteration % neox_args.log_interval == 0):
+                # TensorBoard logging
+                if neox_args.tensorboard_writer:
+                    neox_args.tensorboard_writer.add_scalar(
+                        "train/batch_type", 0.0, iteration  # 0.0 for GD
+                    )
+                
+                # WandB logging
+                if neox_args.use_wandb:
+                    import wandb
+                    wandb.log({
+                        "train/batch_type": 0.0,  # 0.0 for GD
+                        "iteration": iteration,
+                    })
+                
+                # Comet logging
+                if neox_args.comet_experiment:
+                    neox_args.comet_experiment.log_metric(
+                        "batch_type", 0.0, step=iteration
+                    )
         if neox_args.profile and iteration == neox_args.profile_step_stop:
             torch.cuda.cudart().cudaProfilerStop()
             prof.stop()

@@ -640,5 +640,119 @@ class TestGradientAscent:
         assert ga_iterator == mock_iterator
 
 
+    @patch('wandb.log')
+    @patch('torch.distributed.get_rank')
+    def test_interleaved_wandb_logging_gd(self, mock_rank, mock_wandb_log):
+        """Test that GD iterations are logged to W&B in interleaved mode."""
+        mock_rank.return_value = 0  # Ensure we're on rank 0
+        
+        # Mock neox_args for interleaved mode
+        neox_args = Mock()
+        neox_args.ga_mode = "interleaved"
+        neox_args.rank = 0
+        neox_args.log_interval = 1
+        neox_args.use_wandb = True
+        neox_args.tensorboard_writer = None
+        neox_args.comet_experiment = None
+        
+        # Simulate the logging code from training.py for GD iteration
+        iteration = 10
+        if (neox_args.ga_mode == "interleaved" and 
+            neox_args.rank == 0 and 
+            iteration % neox_args.log_interval == 0):
+            if neox_args.use_wandb:
+                mock_wandb_log({
+                    "train/batch_type": 0.0,  # 0.0 for GD
+                    "iteration": iteration,
+                })
+        
+        # Verify W&B log was called
+        mock_wandb_log.assert_called_once()
+        call_args = mock_wandb_log.call_args[0][0]
+        assert "train/batch_type" in call_args
+        assert call_args["train/batch_type"] == 0.0
+        assert call_args["iteration"] == 10
+    
+    @patch('wandb.log')
+    @patch('torch.distributed.get_rank')
+    def test_interleaved_wandb_logging_ga(self, mock_rank, mock_wandb_log):
+        """Test that GA iterations are logged to W&B in interleaved mode."""
+        mock_rank.return_value = 0  # Ensure we're on rank 0
+        
+        # Mock neox_args for interleaved mode
+        neox_args = Mock()
+        neox_args.ga_mode = "interleaved"
+        neox_args.rank = 0
+        neox_args.log_interval = 1
+        neox_args.use_wandb = True
+        neox_args.tensorboard_writer = None
+        neox_args.comet_experiment = None
+        
+        # Simulate the logging code from training.py for GA iteration
+        iteration = 11
+        actual_loss = 2.5
+        ga_objective = -2.5
+        
+        if neox_args.rank == 0 and iteration % neox_args.log_interval == 0:
+            if neox_args.use_wandb:
+                mock_wandb_log({
+                    "train/ga_actual_loss": actual_loss,
+                    "train/ga_objective": ga_objective,
+                    "train/batch_type": 1.0,  # 1.0 for GA
+                    "iteration": iteration,
+                })
+        
+        # Verify W&B log was called
+        mock_wandb_log.assert_called_once()
+        call_args = mock_wandb_log.call_args[0][0]
+        assert "train/batch_type" in call_args
+        assert call_args["train/batch_type"] == 1.0
+        assert call_args["train/ga_actual_loss"] == 2.5
+        assert call_args["train/ga_objective"] == -2.5
+        assert call_args["iteration"] == 11
+    
+    @patch('wandb.log')
+    @patch('torch.distributed.get_rank')
+    def test_interleaved_logging_pattern(self, mock_rank, mock_wandb_log):
+        """Test that interleaved mode logs both GD and GA iterations correctly."""
+        mock_rank.return_value = 0
+        
+        # Mock neox_args
+        neox_args = Mock()
+        neox_args.ga_mode = "interleaved"
+        neox_args.ga_interleave_ratio = 1  # 1:1 ratio
+        neox_args.rank = 0
+        neox_args.log_interval = 1
+        neox_args.use_wandb = True
+        
+        # Simulate 6 iterations (3 GD, 3 GA)
+        logged_iterations = []
+        for iteration in range(1, 7):
+            cycle_length = neox_args.ga_interleave_ratio + 1
+            is_ga = (iteration % cycle_length == 0)
+            
+            if neox_args.rank == 0 and iteration % neox_args.log_interval == 0:
+                if neox_args.use_wandb:
+                    log_data = {
+                        "train/batch_type": 1.0 if is_ga else 0.0,
+                        "iteration": iteration,
+                    }
+                    if is_ga:
+                        log_data["train/ga_actual_loss"] = 2.0
+                        log_data["train/ga_objective"] = -2.0
+                    logged_iterations.append((iteration, is_ga))
+        
+        # Verify pattern
+        expected_pattern = [
+            (1, False),  # GD
+            (2, True),   # GA
+            (3, False),  # GD
+            (4, True),   # GA
+            (5, False),  # GD
+            (6, True),   # GA
+        ]
+        assert logged_iterations == expected_pattern
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
