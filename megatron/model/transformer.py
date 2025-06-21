@@ -1187,6 +1187,19 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
         hidden_states, attention_mask = args
         # we are returning just [hidden_states, mask]
         return super().forward(hidden_states, attention_mask), attention_mask
+    
+    def load_state_dict(self, state_dict, strict=True):
+        """Override to handle backward compatibility with checkpoints that have post_attention_layernorm"""
+        # If we're using te_layernorm_mlp, we don't need post_attention_layernorm
+        # Remove it from the state dict if present (for backward compatibility with pre-PR#1355 checkpoints)
+        if hasattr(self, 'neox_args') and self.neox_args.te_layernorm_mlp:
+            keys_to_remove = [k for k in state_dict.keys() if 'post_attention_layernorm' in k]
+            if keys_to_remove:
+                print(f"[Compatibility] Removing unused post_attention_layernorm keys from checkpoint: {keys_to_remove}")
+                for key in keys_to_remove:
+                    del state_dict[key]
+        
+        return super().load_state_dict(state_dict, strict=strict)
 
 
 class ParallelLinearPipe(ParallelLinear):
