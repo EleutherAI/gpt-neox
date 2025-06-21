@@ -14,12 +14,21 @@ class TestGradientAscent:
     
     def test_ga_config_parameters(self):
         """Test that GA configuration parameters are properly loaded."""
-        # Create a mock config with GA parameters
+        # Create a mock config with GA parameters and required fields
         config = {
             "ga_dataset": "/path/to/ga/dataset",
             "ga_dataset_impl": "mmap",
             "ga_interval": 100,
             "ga_iters": 5,
+            # Required parameters for NeoXArgs
+            "train_batch_size": 32,
+            "num_layers": 1,
+            "hidden_size": 128,
+            "num_attention_heads": 4,
+            "seq_length": 512,
+            "max_position_embeddings": 512,
+            "tokenizer_type": "GPT2BPETokenizer",
+            "vocab_file": "dummy_vocab",
         }
         
         # Create NeoXArgs instance
@@ -33,8 +42,18 @@ class TestGradientAscent:
     
     def test_ga_config_defaults(self):
         """Test that GA parameters have correct defaults when not specified."""
-        # Create config without GA parameters
-        config = {}
+        # Create config without GA parameters but with required fields
+        config = {
+            # Required parameters for NeoXArgs
+            "train_batch_size": 32,
+            "num_layers": 1,
+            "hidden_size": 128,
+            "num_attention_heads": 4,
+            "seq_length": 512,
+            "max_position_embeddings": 512,
+            "tokenizer_type": "GPT2BPETokenizer",
+            "vocab_file": "dummy_vocab",
+        }
         
         # Create NeoXArgs instance
         neox_args = NeoXArgs.from_dict(config)
@@ -45,6 +64,7 @@ class TestGradientAscent:
         assert neox_args.ga_interval is None
         assert neox_args.ga_iters is None
     
+    @patch('megatron.data.data_utils.cycle')
     @patch('megatron.data.data_utils.build_the_dataset')
     @patch('megatron.data.data_utils.make_data_loader')
     @patch('megatron.mpu.get_model_parallel_rank')
@@ -52,7 +72,7 @@ class TestGradientAscent:
     @patch('megatron.mpu.get_pipe_parallel_world_size')
     def test_build_ga_data_iterator(self, mock_pipe_world_size, mock_pipe_rank, 
                                    mock_model_rank, mock_make_data_loader, 
-                                   mock_build_dataset):
+                                   mock_build_dataset, mock_cycle):
         """Test that GA data iterator is built correctly."""
         # Setup mocks
         mock_pipe_world_size.return_value = 1
@@ -62,6 +82,8 @@ class TestGradientAscent:
         mock_build_dataset.return_value = mock_dataset
         mock_dataloader = Mock()
         mock_make_data_loader.return_value = mock_dataloader
+        mock_iterator = Mock()
+        mock_cycle.return_value = mock_iterator
         
         # Create config with GA parameters
         config = {
@@ -70,13 +92,21 @@ class TestGradientAscent:
             "ga_interval": 100,
             "ga_iters": 5,
             "train_iters": 1000,
-            "train_batch_size": 4,
+            "train_batch_size": 32,
+            "train_micro_batch_size_per_gpu": 4,
             "seq_length": 2048,
             "seed": 42,
             "pack_impl": "packed",
             "allow_chopped": False,
             "mmap_warmup": False,
             "is_pipe_parallel": False,
+            # Required parameters for NeoXArgs
+            "num_layers": 1,
+            "hidden_size": 128,
+            "num_attention_heads": 4,
+            "max_position_embeddings": 2048,
+            "tokenizer_type": "GPT2BPETokenizer",
+            "vocab_file": "dummy_vocab",
         }
         
         neox_args = NeoXArgs.from_dict(config)
@@ -96,19 +126,31 @@ class TestGradientAscent:
         # Verify correct number of samples calculated
         # total_ga_cycles = 1000 // 100 = 10
         # total_ga_iters = 10 * 5 = 50
-        # ga_num_samples = 50 * 4 = 200
-        assert call_args['num_samples'] == 200
+        # ga_num_samples = 50 * 32 = 1600
+        assert call_args['num_samples'] == 1600
         
         # Verify data loader was created
         mock_make_data_loader.assert_called_once_with(mock_dataset, neox_args=neox_args)
         
-        # Verify iterator is not None
-        assert ga_iterator is not None
+        # Verify cycle was called to create iterator
+        mock_cycle.assert_called_once_with(mock_dataloader)
+        
+        # Verify iterator is the mocked iterator
+        assert ga_iterator == mock_iterator
     
     def test_ga_data_iterator_none_when_not_configured(self):
         """Test that GA data iterator returns None when GA is not configured."""
         config = {
             "ga_dataset": None,  # GA not configured
+            # Required parameters for NeoXArgs
+            "train_batch_size": 32,
+            "num_layers": 1,
+            "hidden_size": 128,
+            "num_attention_heads": 4,
+            "seq_length": 512,
+            "max_position_embeddings": 512,
+            "tokenizer_type": "GPT2BPETokenizer",
+            "vocab_file": "dummy_vocab",
         }
         
         neox_args = NeoXArgs.from_dict(config)
