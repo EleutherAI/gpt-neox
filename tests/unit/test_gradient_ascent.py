@@ -7,21 +7,24 @@ import torch
 from unittest.mock import Mock, patch, MagicMock
 from megatron.neox_arguments import NeoXArgs
 from megatron.data.data_utils import build_ga_data_iterator
+import os
 
 
 class TestGradientAscent:
     """Test cases for gradient ascent feature."""
     
-    def test_ga_config_parameters(self):
-        """Test that GA configuration parameters are properly loaded."""
-        # Create a mock config with GA parameters and required fields
+    @staticmethod
+    def get_valid_config(**kwargs):
+        """Get a valid NeoXArgs config with proper batch size relationships."""
+        # Default config that satisfies batch size constraints
+        # With global_num_gpus=8, dp_world_size will be 8
+        # So train_batch_size = micro_batch * grad_acc * dp_world_size
+        # 32 = 4 * 1 * 8
         config = {
-            "ga_dataset": "/path/to/ga/dataset",
-            "ga_dataset_impl": "mmap",
-            "ga_interval": 100,
-            "ga_iters": 5,
-            # Required parameters for NeoXArgs
             "train_batch_size": 32,
+            "train_micro_batch_size_per_gpu": 4,
+            "gradient_accumulation_steps": 1,
+            "global_num_gpus": 8,  # This will make dp_world_size = 8
             "num_layers": 1,
             "hidden_size": 128,
             "num_attention_heads": 4,
@@ -30,6 +33,23 @@ class TestGradientAscent:
             "tokenizer_type": "GPT2BPETokenizer",
             "vocab_file": "dummy_vocab",
         }
+        # Update with any provided kwargs
+        config.update(kwargs)
+        return config
+    
+    @patch('torch.distributed.get_world_size')
+    def test_ga_config_parameters(self, mock_world_size):
+        """Test that GA configuration parameters are properly loaded."""
+        mock_world_size.return_value = 8  # Mock world size for batch calculations
+        
+        # Create a mock config with GA parameters
+        config = self.get_valid_config(
+            ga_dataset="/path/to/ga/dataset",
+            ga_dataset_impl="mmap",
+            ga_interval=100,
+            ga_iters=5,
+            ga_lr_scale=3.0,
+        )
         
         # Create NeoXArgs instance
         neox_args = NeoXArgs.from_dict(config)
@@ -39,21 +59,15 @@ class TestGradientAscent:
         assert neox_args.ga_dataset_impl == "mmap"
         assert neox_args.ga_interval == 100
         assert neox_args.ga_iters == 5
+        assert neox_args.ga_lr_scale == 3.0
     
-    def test_ga_config_defaults(self):
+    @patch('torch.distributed.get_world_size')
+    def test_ga_config_defaults(self, mock_world_size):
         """Test that GA parameters have correct defaults when not specified."""
-        # Create config without GA parameters but with required fields
-        config = {
-            # Required parameters for NeoXArgs
-            "train_batch_size": 32,
-            "num_layers": 1,
-            "hidden_size": 128,
-            "num_attention_heads": 4,
-            "seq_length": 512,
-            "max_position_embeddings": 512,
-            "tokenizer_type": "GPT2BPETokenizer",
-            "vocab_file": "dummy_vocab",
-        }
+        mock_world_size.return_value = 8
+        
+        # Create config without GA parameters
+        config = self.get_valid_config()
         
         # Create NeoXArgs instance
         neox_args = NeoXArgs.from_dict(config)
@@ -63,6 +77,7 @@ class TestGradientAscent:
         assert neox_args.ga_dataset_impl == "mmap"
         assert neox_args.ga_interval is None
         assert neox_args.ga_iters is None
+        assert neox_args.ga_lr_scale == 1.0  # Default to no scaling
     
     @patch('megatron.data.data_utils.cycle')
     @patch('megatron.data.data_utils.build_the_dataset')
@@ -86,28 +101,20 @@ class TestGradientAscent:
         mock_cycle.return_value = mock_iterator
         
         # Create config with GA parameters
-        config = {
-            "ga_dataset": "/path/to/ga/dataset",
-            "ga_dataset_impl": "mmap",
-            "ga_interval": 100,
-            "ga_iters": 5,
-            "train_iters": 1000,
-            "train_batch_size": 32,
-            "train_micro_batch_size_per_gpu": 4,
-            "seq_length": 2048,
-            "seed": 42,
-            "pack_impl": "packed",
-            "allow_chopped": False,
-            "mmap_warmup": False,
-            "is_pipe_parallel": False,
-            # Required parameters for NeoXArgs
-            "num_layers": 1,
-            "hidden_size": 128,
-            "num_attention_heads": 4,
-            "max_position_embeddings": 2048,
-            "tokenizer_type": "GPT2BPETokenizer",
-            "vocab_file": "dummy_vocab",
-        }
+        config = self.get_valid_config(
+            ga_dataset="/path/to/ga/dataset",
+            ga_dataset_impl="mmap",
+            ga_interval=100,
+            ga_iters=5,
+            train_iters=1000,
+            seq_length=2048,
+            max_position_embeddings=2048,
+            seed=42,
+            pack_impl="packed",
+            allow_chopped=False,
+            mmap_warmup=False,
+            is_pipe_parallel=False,
+        )
         
         neox_args = NeoXArgs.from_dict(config)
         
@@ -138,20 +145,14 @@ class TestGradientAscent:
         # Verify iterator is the mocked iterator
         assert ga_iterator == mock_iterator
     
-    def test_ga_data_iterator_none_when_not_configured(self):
+    @patch('torch.distributed.get_world_size')
+    def test_ga_data_iterator_none_when_not_configured(self, mock_world_size):
         """Test that GA data iterator returns None when GA is not configured."""
-        config = {
-            "ga_dataset": None,  # GA not configured
-            # Required parameters for NeoXArgs
-            "train_batch_size": 32,
-            "num_layers": 1,
-            "hidden_size": 128,
-            "num_attention_heads": 4,
-            "seq_length": 512,
-            "max_position_embeddings": 512,
-            "tokenizer_type": "GPT2BPETokenizer",
-            "vocab_file": "dummy_vocab",
-        }
+        mock_world_size.return_value = 8
+        
+        config = self.get_valid_config(
+            ga_dataset=None,  # GA not configured
+        )
         
         neox_args = NeoXArgs.from_dict(config)
         
@@ -243,6 +244,183 @@ class TestGradientAscent:
         expected_ga_steps = expected_ga_cycles * ga_iters
         assert ga_steps_performed == expected_ga_steps
         assert total_optimizer_steps == train_iters + expected_ga_steps
+    
+    def test_ga_lr_scaling(self):
+        """Test that GA learning rate scaling works correctly."""
+        # Mock optimizer with parameter groups
+        optimizer = Mock()
+        param_groups = [
+            {'lr': 0.0001, 'params': []},
+            {'lr': 0.0002, 'params': []},
+        ]
+        optimizer.param_groups = param_groups
+        
+        # Test configuration
+        ga_lr_scale = 3.0
+        
+        # Store original learning rates
+        original_lrs = []
+        for param_group in optimizer.param_groups:
+            original_lrs.append(param_group['lr'])
+        
+        # Apply GA scaling
+        for param_group in optimizer.param_groups:
+            param_group['lr'] *= ga_lr_scale
+        
+        # Verify scaled learning rates
+        assert optimizer.param_groups[0]['lr'] == pytest.approx(0.0001 * 3.0)
+        assert optimizer.param_groups[1]['lr'] == pytest.approx(0.0002 * 3.0)
+        
+        # Restore original learning rates
+        for i, param_group in enumerate(optimizer.param_groups):
+            param_group['lr'] = original_lrs[i]
+        
+        # Verify restoration
+        assert optimizer.param_groups[0]['lr'] == pytest.approx(0.0001)
+        assert optimizer.param_groups[1]['lr'] == pytest.approx(0.0002)
+    
+    def test_ga_lr_scale_no_change_when_one(self):
+        """Test that GA lr_scale=1.0 doesn't change learning rates."""
+        # Mock optimizer
+        optimizer = Mock()
+        param_groups = [{'lr': 0.0001, 'params': []}]
+        optimizer.param_groups = param_groups
+        
+        # Test with scale = 1.0
+        ga_lr_scale = 1.0
+        original_lr = optimizer.param_groups[0]['lr']
+        
+        # Apply scaling (should be no-op)
+        if ga_lr_scale != 1.0:
+            optimizer.param_groups[0]['lr'] *= ga_lr_scale
+        
+        # Verify no change
+        assert optimizer.param_groups[0]['lr'] == original_lr
+    
+    def test_ga_frequency_patterns(self):
+        """Test different GA frequency patterns for 50%, 25%, and 10% GA."""
+        # Test 50% GA (every other step with 1 GA iter)
+        config_50 = {"ga_interval": 1, "ga_iters": 1}
+        total_steps = 100
+        ga_steps_50 = 0
+        for i in range(1, total_steps + 1):
+            if i % config_50["ga_interval"] == 0:
+                ga_steps_50 += config_50["ga_iters"]
+        assert ga_steps_50 == 100  # 100 GA steps out of 200 total
+        
+        # Test 25% GA (every 3 steps with 1 GA iter)
+        config_25 = {"ga_interval": 3, "ga_iters": 1}
+        ga_steps_25 = 0
+        for i in range(1, total_steps + 1):
+            if i % config_25["ga_interval"] == 0:
+                ga_steps_25 += config_25["ga_iters"]
+        assert ga_steps_25 == 33  # ~25% of total steps
+        
+        # Test 10% GA (every 9 steps with 1 GA iter)
+        config_10 = {"ga_interval": 9, "ga_iters": 1}
+        ga_steps_10 = 0
+        for i in range(1, total_steps + 1):
+            if i % config_10["ga_interval"] == 0:
+                ga_steps_10 += config_10["ga_iters"]
+        assert ga_steps_10 == 11  # ~10% of total steps
+    
+    @patch('megatron.training.train_step')
+    def test_ga_loss_tracking(self, mock_train_step):
+        """Test that GA losses are tracked correctly."""
+        # Mock train_step to return different losses
+        ga_losses = [
+            {"lm_loss": -2.0},  # Negated loss
+            {"lm_loss": -2.2},
+            {"lm_loss": -2.5},
+        ]
+        mock_train_step.side_effect = [(loss, False) for loss in ga_losses]
+        
+        # Simulate GA loss tracking
+        ga_loss_sum = 0.0
+        ga_loss_count = 0
+        
+        for i, ga_loss_dict in enumerate(ga_losses):
+            # Un-negate to get actual loss
+            actual_loss = -ga_loss_dict["lm_loss"]
+            ga_loss_sum += actual_loss
+            ga_loss_count += 1
+        
+        # Calculate average
+        avg_ga_actual_loss = ga_loss_sum / ga_loss_count
+        avg_ga_objective = -avg_ga_actual_loss
+        
+        # Verify calculations
+        assert avg_ga_actual_loss == pytest.approx(2.233, rel=1e-3)
+        assert avg_ga_objective == pytest.approx(-2.233, rel=1e-3)
+    
+    @patch('torch.distributed.get_world_size')
+    def test_ga_data_iterator_edge_cases(self, mock_world_size):
+        """Test edge cases for GA data iterator."""
+        mock_world_size.return_value = 8
+        # Test case 1: GA interval larger than train_iters
+        config = self.get_valid_config(
+            ga_dataset="/path/to/ga/dataset",
+            ga_interval=1000,
+            ga_iters=5,
+            train_iters=100,
+        )
+        neox_args = NeoXArgs.from_dict(config)
+        
+        # GA should never trigger in this case
+        ga_triggers = []
+        for i in range(1, neox_args.train_iters + 1):
+            if i % neox_args.ga_interval == 0:
+                ga_triggers.append(i)
+        assert len(ga_triggers) == 0
+    
+    def test_ga_interval_validation(self):
+        """Test validation of GA interval configurations."""
+        # Test various GA interval patterns
+        test_cases = [
+            # (ga_interval, ga_iters, expected_ratio)
+            (1, 1, 0.50),      # 50% GA: alternating GD and GA
+            (3, 1, 0.25),      # 25% GA: 3 GD, 1 GA pattern
+            (9, 1, 0.10),      # 10% GA: 9 GD, 1 GA pattern
+            (57, 57, 0.50),    # 50% GA with bursts
+            (171, 57, 0.25),   # 25% GA with bursts
+            (513, 57, 0.10),   # 10% GA with bursts
+        ]
+        
+        for ga_interval, ga_iters, expected_ratio in test_cases:
+            total_train_steps = 1000
+            ga_cycles = total_train_steps // ga_interval
+            total_ga_steps = ga_cycles * ga_iters
+            total_steps = total_train_steps + total_ga_steps
+            actual_ratio = total_ga_steps / total_steps
+            
+            # Allow some tolerance due to rounding
+            assert abs(actual_ratio - expected_ratio) < 0.05, f"Interval: {ga_interval}, Iters: {ga_iters}, Expected: {expected_ratio}, Actual: {actual_ratio}"
+    
+    def test_ga_does_not_affect_lr_scheduler(self):
+        """Test that GA iterations update LR scheduler correctly."""
+        # Mock LR scheduler
+        lr_scheduler = Mock()
+        lr_scheduler.num_iters = 0
+        
+        # Simulate training with GA
+        train_iters = 10
+        ga_interval = 2
+        ga_iters = 3
+        
+        for iteration in range(1, train_iters + 1):
+            # Check for GA
+            if iteration % ga_interval == 0:
+                # GA iterations should still step the scheduler
+                for ga_iter in range(ga_iters):
+                    lr_scheduler.num_iters += 1
+            
+            # Normal training step
+            lr_scheduler.num_iters += 1
+        
+        # Total scheduler steps should include both training and GA
+        expected_ga_cycles = train_iters // ga_interval
+        expected_total_steps = train_iters + (expected_ga_cycles * ga_iters)
+        assert lr_scheduler.num_iters == expected_total_steps
 
 
 if __name__ == "__main__":

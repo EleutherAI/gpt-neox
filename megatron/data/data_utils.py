@@ -804,8 +804,14 @@ def shift_and_wrap_data_loaders(neox_args, data_loaders, loop=True):
 def build_ga_data_iterator(neox_args):
     """Build data iterator for gradient ascent dataset."""
     
+    print_rank_0(f"[GA DEBUG] build_ga_data_iterator called")
+    print_rank_0(f"[GA DEBUG] ga_dataset: {neox_args.ga_dataset}")
+    print_rank_0(f"[GA DEBUG] ga_interval: {neox_args.ga_interval}")
+    print_rank_0(f"[GA DEBUG] ga_iters: {neox_args.ga_iters}")
+    
     # Check if GA dataset is configured
     if neox_args.ga_dataset is None:
+        print_rank_0(f"[GA DEBUG] ga_dataset is None, returning None")
         return None
     
     print_rank_0(f"> building gradient ascent dataset from {neox_args.ga_dataset}")
@@ -817,10 +823,13 @@ def build_ga_data_iterator(neox_args):
             mpu.get_pipe_parallel_rank() == mpu.get_pipe_parallel_world_size() - 1
         )
         pipe_load = is_first_stage or is_last_stage
+        print_rank_0(f"  Pipeline parallel: first_stage={is_first_stage}, last_stage={is_last_stage}, pipe_load={pipe_load}")
     else:
         pipe_load = True
+        print_rank_0(f"  Not using pipeline parallelism, pipe_load={pipe_load}")
     
     # Data loader only on rank 0 of each model parallel group.
+    print_rank_0(f"  Model parallel rank: {mpu.get_model_parallel_rank()}")
     if pipe_load and mpu.get_model_parallel_rank() == 0:
         # Calculate number of samples needed for GA iterations
         # We need enough samples for all GA iterations that will occur during training

@@ -1122,6 +1122,14 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     These iterations do not count towards the total training iterations.
     """
 
+    ga_lr_scale: float = 1.0
+    """
+    Learning rate scaling factor for gradient ascent. The learning rate will be multiplied
+    by this factor during gradient ascent iterations. For example, ga_lr_scale=3.0 means
+    the GA learning rate will be 3x the normal training learning rate. Recommended values
+    are between 2.0 and 5.0 for effective unlearning.
+    """
+
     train_data_weights: list = None
     """
     List of 'weights' that decide how often to sample from each training dataset when blending datasets. If None, defaults to equal weighting.

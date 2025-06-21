@@ -272,11 +272,26 @@ def pretrain(neox_args):
 
     # Initialize gradient ascent data iterator if configured
     ga_data_iterator = None
+    print_rank_0(f"[GA DEBUG] Checking GA configuration in pretrain()")
+    print_rank_0(f"[GA DEBUG] neox_args.ga_dataset = {neox_args.ga_dataset}")
+    print_rank_0(f"[GA DEBUG] neox_args.ga_interval = {neox_args.ga_interval}")
+    print_rank_0(f"[GA DEBUG] neox_args.ga_iters = {neox_args.ga_iters}")
+    
     if neox_args.ga_dataset is not None:
+        print_rank_0(f"> Initializing gradient ascent data iterator...")
+        print_rank_0(f"  GA dataset: {neox_args.ga_dataset}")
+        print_rank_0(f"  GA interval: {neox_args.ga_interval}")
+        print_rank_0(f"  GA iterations per cycle: {neox_args.ga_iters}")
         timers("gradient ascent data iterator").start()
         from megatron.data.data_utils import build_ga_data_iterator
         ga_data_iterator = build_ga_data_iterator(neox_args)
         timers("gradient ascent data iterator").stop()
+        if ga_data_iterator is not None:
+            print_rank_0(f"> Successfully initialized GA data iterator")
+        else:
+            print_rank_0(f"> WARNING: GA data iterator is None despite configuration")
+    else:
+        print_rank_0(f"[GA DEBUG] GA dataset is None, skipping GA iterator initialization")
 
     if neox_args.use_mup and neox_args.coord_check:
         mup_coord_check(neox_args, timers, lr_scheduler, train_data_iterator)
@@ -1468,6 +1483,14 @@ def train(
     ga_data_iterator=None,
 ):
     """Train the model function."""
+    
+    # Debug: Log GA configuration
+    print_rank_0(f"> Starting training with GA configuration:")
+    print_rank_0(f"  GA dataset configured: {neox_args.ga_dataset is not None}")
+    print_rank_0(f"  GA data iterator available: {ga_data_iterator is not None}")
+    if neox_args.ga_dataset is not None:
+        print_rank_0(f"  GA interval: {neox_args.ga_interval}")
+        print_rank_0(f"  GA iterations: {neox_args.ga_iters}")
 
     # Turn on training mode which enables dropout.
     model.train()
@@ -1523,6 +1546,18 @@ def train(
             
             print_rank_0(f"Starting {neox_args.ga_iters} gradient ascent iterations at training iteration {iteration}")
             
+            # Scale learning rate for gradient ascent if configured
+            original_lrs = []
+            if neox_args.ga_lr_scale != 1.0:
+                # Store original learning rates and apply GA scaling
+                for param_group in optimizer.param_groups:
+                    original_lrs.append(param_group['lr'])
+                    param_group['lr'] *= neox_args.ga_lr_scale
+                
+                if neox_args.rank == 0:
+                    print(f"  Applying GA learning rate scale: {neox_args.ga_lr_scale}x")
+                    print(f"  GA learning rate: {original_lrs[0] * neox_args.ga_lr_scale:.6f} (original: {original_lrs[0]:.6f})")
+            
             # Perform gradient ascent iterations
             for ga_iter in range(neox_args.ga_iters):
                 timers("gradient-ascent").start()
@@ -1541,28 +1576,36 @@ def train(
                 
                 timers("gradient-ascent").stop()
                 
-                # Track GA metrics (use original positive loss for logging)
+                # Track GA metrics
                 if not ga_skipped_iter:
-                    ga_loss_sum += ga_loss_dict["lm_loss"] 
+                    # ga_loss_dict["lm_loss"] contains the negated loss (negative value)
+                    # Calculate actual loss by negating it back
+                    actual_loss = -ga_loss_dict["lm_loss"]
+                    ga_loss_sum += actual_loss  # Track actual positive loss
                     ga_loss_count += 1
                 
                 # Log GA iteration
                 if neox_args.rank == 0 and not ga_skipped_iter:
-                    print(f"  GA iteration {ga_iter + 1}/{neox_args.ga_iters}, loss: {ga_loss_dict['lm_loss']:.4f}")
+                    actual_loss = -ga_loss_dict["lm_loss"]  # Un-negate to get actual loss
+                    ga_objective = ga_loss_dict["lm_loss"]   # The negated value used for optimization
+                    print(f"  GA iteration {ga_iter + 1}/{neox_args.ga_iters}, actual_loss: {actual_loss:.4f}, ga_objective: {ga_objective:.4f}")
                     
-                    # Debug: Show first GA loss vs recent training loss for comparison
-                    if ga_iter == 0 and 'lm_loss' in total_loss_dict:
-                        recent_train_loss = total_loss_dict['lm_loss'][-1] if total_loss_dict['lm_loss'] else 0
-                        print(f"  [DEBUG] Recent train loss: {recent_train_loss:.4f}, GA loss: {ga_loss_dict['lm_loss']:.4f}, Ratio: {ga_loss_dict['lm_loss']/recent_train_loss:.2f}x")
+                    # Debug: Show first GA loss values
+                    if ga_iter == 0:
+                        print(f"  [DEBUG] GA actual loss (positive): {actual_loss:.4f}, GA objective (negative): {ga_objective:.4f}")
             
             # Log average GA loss to all monitoring services
             if neox_args.rank == 0 and ga_loss_count > 0:
-                avg_ga_loss = ga_loss_sum / ga_loss_count
+                avg_ga_actual_loss = ga_loss_sum / ga_loss_count  # This is the actual positive loss
+                avg_ga_objective = -avg_ga_actual_loss  # This is the negated value for GA
                 
                 # TensorBoard logging
                 if neox_args.tensorboard_writer:
                     neox_args.tensorboard_writer.add_scalar(
-                        "train/ga_loss", avg_ga_loss, iteration
+                        "train/ga_actual_loss", avg_ga_actual_loss, iteration
+                    )
+                    neox_args.tensorboard_writer.add_scalar(
+                        "train/ga_objective", avg_ga_objective, iteration
                     )
                     neox_args.tensorboard_writer.add_scalar(
                         "train/ga_iterations_total", ga_iter + 1, iteration
@@ -1572,7 +1615,8 @@ def train(
                 if neox_args.use_wandb:
                     import wandb
                     wandb.log({
-                        "train/ga_loss": avg_ga_loss,
+                        "train/ga_actual_loss": avg_ga_actual_loss,
+                        "train/ga_objective": avg_ga_objective,
                         "train/ga_iterations": ga_iter + 1,
                         "iteration": iteration,
                     })
@@ -1580,7 +1624,10 @@ def train(
                 # Comet logging
                 if neox_args.comet_experiment:
                     neox_args.comet_experiment.log_metric(
-                        "ga_loss", avg_ga_loss, step=iteration
+                        "ga_actual_loss", avg_ga_actual_loss, step=iteration
+                    )
+                    neox_args.comet_experiment.log_metric(
+                        "ga_objective", avg_ga_objective, step=iteration
                     )
                     neox_args.comet_experiment.log_metric(
                         "ga_iterations", ga_iter + 1, step=iteration
@@ -1588,6 +1635,14 @@ def train(
                 
                 ga_loss_sum = 0.0
                 ga_loss_count = 0
+            
+            # Restore original learning rates after GA iterations
+            if neox_args.ga_lr_scale != 1.0 and original_lrs:
+                for i, param_group in enumerate(optimizer.param_groups):
+                    param_group['lr'] = original_lrs[i]
+                
+                if neox_args.rank == 0:
+                    print(f"  Restored original learning rate: {original_lrs[0]:.6f}")
         
         loss_dict, skipped_iter = train_step(
             neox_args=neox_args,
