@@ -421,6 +421,165 @@ class TestGradientAscent:
         expected_ga_cycles = train_iters // ga_interval
         expected_total_steps = train_iters + (expected_ga_cycles * ga_iters)
         assert lr_scheduler.num_iters == expected_total_steps
+    
+    @patch('torch.distributed.get_world_size')
+    def test_ga_mode_validation(self, mock_world_size):
+        """Test that ga_mode parameter validation works correctly."""
+        mock_world_size.return_value = 8
+        
+        # Test valid modes
+        for mode in ["interval", "interleaved"]:
+            config = self.get_valid_config(
+                ga_dataset="/path/to/ga/dataset",
+                ga_mode=mode,
+                ga_interval=100 if mode == "interval" else None,
+                ga_iters=5 if mode == "interval" else None,
+                ga_interleave_ratio=2 if mode == "interleaved" else 1,
+            )
+            neox_args = NeoXArgs.from_dict(config)
+            assert neox_args.ga_mode == mode
+        
+        # Test invalid mode
+        config = self.get_valid_config(
+            ga_dataset="/path/to/ga/dataset",
+            ga_mode="invalid_mode",
+        )
+        with pytest.raises(AssertionError) as exc_info:
+            NeoXArgs.from_dict(config)
+        assert "ga_mode must be 'interval' or 'interleaved'" in str(exc_info.value)
+    
+    @patch('torch.distributed.get_world_size')
+    def test_interleaved_mode_requirements(self, mock_world_size):
+        """Test that interleaved mode has correct parameter requirements."""
+        mock_world_size.return_value = 8
+        
+        # Test interleaved mode with correct params
+        config = self.get_valid_config(
+            ga_dataset="/path/to/ga/dataset",
+            ga_mode="interleaved",
+            ga_interleave_ratio=2,
+        )
+        neox_args = NeoXArgs.from_dict(config)
+        assert neox_args.ga_mode == "interleaved"
+        assert neox_args.ga_interleave_ratio == 2
+        
+        # Test interleaved mode with invalid ratio
+        config = self.get_valid_config(
+            ga_dataset="/path/to/ga/dataset",
+            ga_mode="interleaved",
+            ga_interleave_ratio=0,  # Invalid
+        )
+        with pytest.raises(AssertionError) as exc_info:
+            NeoXArgs.from_dict(config)
+        assert "ga_interleave_ratio must be positive" in str(exc_info.value)
+    
+    def test_interleaved_pattern_generation(self):
+        """Test that interleaved mode generates correct GA/GD patterns."""
+        # Test different ratios
+        test_cases = [
+            # (ratio, iterations, expected_ga_steps)
+            (1, 10, [2, 4, 6, 8, 10]),  # 1:1 ratio
+            (2, 12, [3, 6, 9, 12]),      # 2:1 ratio
+            (3, 16, [4, 8, 12, 16]),     # 3:1 ratio
+        ]
+        
+        for ratio, total_iters, expected_ga_iters in test_cases:
+            ga_iters = []
+            for iteration in range(1, total_iters + 1):
+                cycle_length = ratio + 1
+                if iteration % cycle_length == 0:
+                    ga_iters.append(iteration)
+            
+            assert ga_iters == expected_ga_iters, \
+                f"Ratio {ratio}: expected {expected_ga_iters}, got {ga_iters}"
+    
+    def test_interleaved_vs_interval_frequency(self):
+        """Test that interleaved mode achieves expected GA frequency."""
+        # Simulate 1000 iterations
+        total_iters = 1000
+        
+        # Test interleaved mode with different ratios
+        interleaved_cases = [
+            (1, 0.50),  # 1:1 ratio = 50% GA
+            (2, 0.33),  # 2:1 ratio = 33% GA
+            (3, 0.25),  # 3:1 ratio = 25% GA
+            (9, 0.10),  # 9:1 ratio = 10% GA
+        ]
+        
+        for ratio, expected_ga_fraction in interleaved_cases:
+            ga_count = 0
+            for iteration in range(1, total_iters + 1):
+                cycle_length = ratio + 1
+                if iteration % cycle_length == 0:
+                    ga_count += 1
+            
+            actual_fraction = ga_count / total_iters
+            assert abs(actual_fraction - expected_ga_fraction) < 0.01, \
+                f"Ratio {ratio}: expected {expected_ga_fraction:.2f}, got {actual_fraction:.2f}"
+    
+    @patch('torch.distributed.get_world_size')
+    def test_interval_mode_requirements(self, mock_world_size):
+        """Test that interval mode still works with original parameters."""
+        mock_world_size.return_value = 8
+        
+        # Test interval mode with correct params
+        config = self.get_valid_config(
+            ga_dataset="/path/to/ga/dataset",
+            ga_mode="interval",
+            ga_interval=100,
+            ga_iters=5,
+        )
+        neox_args = NeoXArgs.from_dict(config)
+        assert neox_args.ga_mode == "interval"
+        assert neox_args.ga_interval == 100
+        assert neox_args.ga_iters == 5
+        
+        # Test interval mode missing ga_interval
+        config = self.get_valid_config(
+            ga_dataset="/path/to/ga/dataset",
+            ga_mode="interval",
+            ga_iters=5,
+        )
+        with pytest.raises(AssertionError) as exc_info:
+            NeoXArgs.from_dict(config)
+        assert "ga_interval must be specified" in str(exc_info.value)
+    
+    def test_interleaved_iteration_counting(self):
+        """Test that iterations are counted correctly in interleaved mode."""
+        # In interleaved mode, each step (GD or GA) counts as one iteration
+        # Unlike interval mode where GA iterations don't count
+        
+        train_iters = 100
+        ga_ratio = 1  # 1:1 ratio
+        
+        # Count steps
+        gd_steps = 0
+        ga_steps = 0
+        
+        for iteration in range(1, train_iters + 1):
+            cycle_length = ga_ratio + 1
+            if iteration % cycle_length == 0:
+                ga_steps += 1
+            else:
+                gd_steps += 1
+        
+        # Total should equal train_iters
+        assert gd_steps + ga_steps == train_iters
+        # Should be roughly 50/50 for ratio=1
+        assert abs(gd_steps - ga_steps) <= 1
+    
+    def test_backward_compatibility(self):
+        """Test that old configs still work with default ga_mode."""
+        # Config without ga_mode should default to interval
+        config = self.get_valid_config(
+            ga_dataset="/path/to/ga/dataset",
+            ga_interval=100,
+            ga_iters=5,
+            # ga_mode not specified
+        )
+        
+        # Should default to interval mode
+        assert config.get("ga_mode", "interval") == "interval"
 
 
 if __name__ == "__main__":

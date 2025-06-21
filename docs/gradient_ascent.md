@@ -46,11 +46,15 @@ Add these parameters to your NeoX configuration file:
 # Path to the dataset containing content to unlearn
 ga_dataset: "/path/to/forget/dataset"
 
-# How often to trigger GA (every N training iterations)
-ga_interval: 100
+# Mode for gradient ascent execution
+ga_mode: "interval"  # or "interleaved"
 
-# Number of GA iterations per trigger
-ga_iters: 5
+# For interval mode (original behavior)
+ga_interval: 100     # Trigger GA every N iterations
+ga_iters: 5         # Number of GA iterations per trigger
+
+# For interleaved mode (new behavior)
+ga_interleave_ratio: 1  # Ratio of GD:GA batches (1 = 1:1, 2 = 2:1, etc.)
 
 # Learning rate scaling factor for GA (recommended: 2.0-5.0)
 ga_lr_scale: 3.0
@@ -59,34 +63,61 @@ ga_lr_scale: 3.0
 ga_dataset_impl: "mmap"
 ```
 
+### GA Modes
+
+#### Interval Mode (Original)
+In interval mode, GA happens in concentrated bursts at regular intervals:
+- Training proceeds normally for N iterations
+- Then performs M gradient ascent iterations
+- GA iterations don't count toward total training iterations
+
+#### Interleaved Mode (New)
+In interleaved mode, GA and GD alternate based on a ratio:
+- Each batch is either GD or GA (no bursts)
+- Round-robin iteration through both datasets independently
+- All iterations count toward total training iterations
+
 ### Example Configurations
 
-#### Aggressive Unlearning (50% GA)
+#### Interval Mode Examples
+
+##### Aggressive Unlearning (50% GA)
 ```yaml
+ga_mode: "interval"
 ga_interval: 1      # Trigger every iteration
 ga_iters: 1         # One GA step per trigger
 ga_lr_scale: 3.0    # 3x learning rate
 ```
 
-#### Moderate Unlearning (25% GA)
+##### Burst Unlearning (25% GA in bursts)
 ```yaml
-ga_interval: 3      # Every 3 iterations
-ga_iters: 1         # One GA step
-ga_lr_scale: 2.5    # 2.5x learning rate
-```
-
-#### Gentle Unlearning (10% GA)
-```yaml
-ga_interval: 9      # Every 9 iterations
-ga_iters: 1         # One GA step
-ga_lr_scale: 2.0    # 2x learning rate
-```
-
-#### Burst Unlearning (25% GA in bursts)
-```yaml
+ga_mode: "interval"
 ga_interval: 171    # Less frequent
 ga_iters: 57        # Many steps per burst
 ga_lr_scale: 3.0    # Higher LR for effectiveness
+```
+
+#### Interleaved Mode Examples
+
+##### Continuous Unlearning (50% GA)
+```yaml
+ga_mode: "interleaved"
+ga_interleave_ratio: 1  # 1:1 ratio (GD, GA, GD, GA, ...)
+ga_lr_scale: 3.0
+```
+
+##### Moderate Unlearning (33% GA)
+```yaml
+ga_mode: "interleaved"
+ga_interleave_ratio: 2  # 2:1 ratio (GD, GD, GA, GD, GD, GA, ...)
+ga_lr_scale: 2.5
+```
+
+##### Gentle Unlearning (10% GA)
+```yaml
+ga_mode: "interleaved"
+ga_interleave_ratio: 9  # 9:1 ratio (9 GD steps, then 1 GA step)
+ga_lr_scale: 2.0
 ```
 
 ## Dataset Preparation
@@ -116,6 +147,31 @@ python tools/datasets/preprocess_data.py \
 ga_dataset: "/data/forget/forget_dataset_text_document"
 ```
 
+## Choosing Between Modes
+
+### When to Use Interval Mode
+- You want concentrated unlearning sessions
+- The model needs recovery time between GA bursts
+- You're replicating previous GA experiments
+- You prefer the original behavior where GA doesn't affect iteration count
+
+### When to Use Interleaved Mode
+- You want continuous, gentle unlearning pressure
+- The forget dataset is small and needs frequent cycling
+- You want finer control over GD/GA balance
+- You prefer simpler iteration counting (all steps count)
+
+### Key Differences
+
+| Aspect | Interval Mode | Interleaved Mode |
+|--------|--------------|------------------|
+| Pattern | Bursts of GA | Alternating batches |
+| GA Frequency | Every N iterations | Based on ratio |
+| Iteration Counting | GA doesn't count | All steps count |
+| Dataset Cycling | During bursts only | Continuous |
+| Recovery Time | Yes (between bursts) | No |
+| Fine Control | Limited | Precise ratios |
+
 ## Monitoring and Metrics
 
 ### Key Metrics to Track
@@ -124,8 +180,9 @@ The implementation logs several metrics to monitor unlearning effectiveness:
 
 1. **`train/ga_actual_loss`**: The actual cross-entropy loss on forget data (should increase)
 2. **`train/ga_objective`**: The negated loss used for optimization (should decrease/become more negative)
-3. **`train/ga_iterations_total`**: Cumulative GA iterations performed
+3. **`train/ga_iterations_total`**: Cumulative GA iterations performed (interval mode only)
 4. **`train/loss`**: Regular training loss (should remain stable)
+5. **`train/batch_type`**: (Interleaved mode only) 0.0 for GD, 1.0 for GA batches
 
 ### Expected Behavior
 

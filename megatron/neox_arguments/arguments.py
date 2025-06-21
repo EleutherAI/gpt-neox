@@ -1184,6 +1184,32 @@ class NeoXArgs(*BASE_CLASSES):
             else:
                 self.update_value("text_gen_type", "unconditional")
 
+        # Gradient Ascent validation
+        if self.ga_dataset is not None:
+            # Validate ga_mode
+            assert self.ga_mode in ["interval", "interleaved"], \
+                f"ga_mode must be 'interval' or 'interleaved', got '{self.ga_mode}'"
+            
+            if self.ga_mode == "interval":
+                # Original mode: need ga_interval and ga_iters
+                assert self.ga_interval is not None, \
+                    "ga_interval must be specified when using ga_mode='interval'"
+                assert self.ga_iters is not None, \
+                    "ga_iters must be specified when using ga_mode='interval'"
+                assert self.ga_interval > 0, \
+                    f"ga_interval must be positive, got {self.ga_interval}"
+                assert self.ga_iters > 0, \
+                    f"ga_iters must be positive, got {self.ga_iters}"
+            elif self.ga_mode == "interleaved":
+                # Interleaved mode: need ga_interleave_ratio
+                assert self.ga_interleave_ratio > 0, \
+                    f"ga_interleave_ratio must be positive, got {self.ga_interleave_ratio}"
+                # ga_interval and ga_iters should not be used in interleaved mode
+                if self.ga_interval is not None or self.ga_iters is not None:
+                    logging.warning(
+                        "ga_interval and ga_iters are ignored when using ga_mode='interleaved'"
+                    )
+
     ############################################################################################################################
     # start of validation functions
 

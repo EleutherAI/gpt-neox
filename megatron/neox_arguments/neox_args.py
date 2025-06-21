@@ -1130,6 +1130,23 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     are between 2.0 and 5.0 for effective unlearning.
     """
 
+    ga_mode: str = "interval"
+    """
+    Mode for gradient ascent execution:
+    - 'interval': Original behavior - GA bursts every N iterations for M iterations
+    - 'interleaved': New behavior - alternate between GD and GA batches based on ratio
+    """
+
+    ga_interleave_ratio: int = 1
+    """
+    Ratio of gradient descent to gradient ascent batches when using 'interleaved' mode.
+    For example:
+    - 1 means 1:1 ratio (GD, GA, GD, GA, ...)
+    - 2 means 2:1 ratio (GD, GD, GA, GD, GD, GA, ...)
+    - 3 means 3:1 ratio (GD, GD, GD, GA, GD, GD, GD, GA, ...)
+    Only used when ga_mode='interleaved'.
+    """
+
     train_data_weights: list = None
     """
     List of 'weights' that decide how often to sample from each training dataset when blending datasets. If None, defaults to equal weighting.

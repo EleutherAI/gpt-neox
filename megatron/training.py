@@ -1538,11 +1538,24 @@ def train(
         if neox_args.profile and iteration == neox_args.profile_step_start:
             torch.cuda.cudart().cudaProfilerStart()
         
-        # Check if we should do gradient ascent before normal training step
-        if (neox_args.ga_interval is not None and 
-            ga_data_iterator is not None and
-            iteration > 0 and 
-            iteration % neox_args.ga_interval == 0):
+        # Determine whether to do GA based on mode
+        do_ga = False
+        if ga_data_iterator is not None and neox_args.ga_dataset is not None:
+            if neox_args.ga_mode == "interval":
+                # Original interval mode: GA bursts every N iterations
+                do_ga = (neox_args.ga_interval is not None and 
+                        iteration > 0 and 
+                        iteration % neox_args.ga_interval == 0)
+            elif neox_args.ga_mode == "interleaved":
+                # New interleaved mode: alternate based on ratio
+                # For ratio R, do GA every (R+1)th step
+                # E.g., ratio=1: GA on iterations 1,3,5,... (every 2nd)
+                # E.g., ratio=2: GA on iterations 2,5,8,... (every 3rd)
+                # E.g., ratio=3: GA on iterations 3,7,11,... (every 4th)
+                cycle_length = neox_args.ga_interleave_ratio + 1
+                do_ga = (iteration > 0 and iteration % cycle_length == 0)
+        
+        if do_ga and neox_args.ga_mode == "interval":
             
             print_rank_0(f"Starting {neox_args.ga_iters} gradient ascent iterations at training iteration {iteration}")
             
@@ -1644,15 +1657,108 @@ def train(
                 if neox_args.rank == 0:
                     print(f"  Restored original learning rate: {original_lrs[0]:.6f}")
         
-        loss_dict, skipped_iter = train_step(
-            neox_args=neox_args,
-            timers=timers,
-            data_iterator=train_data_iterator,
-            model=model,
-            optimizer=optimizer,
-            lr_scheduler=lr_scheduler,
-            reference_model=reference_model,
-        )
+        elif do_ga and neox_args.ga_mode == "interleaved":
+            # Interleaved mode: perform single GA step
+            
+            # Scale learning rate for gradient ascent if configured
+            original_lrs = []
+            if neox_args.ga_lr_scale != 1.0:
+                for param_group in optimizer.param_groups:
+                    original_lrs.append(param_group['lr'])
+                    param_group['lr'] *= neox_args.ga_lr_scale
+            
+            timers("gradient-ascent").start()
+            
+            # Perform single gradient ascent step
+            loss_dict, skipped_iter = train_step(
+                neox_args=neox_args,
+                timers=timers,
+                data_iterator=ga_data_iterator,
+                model=model,
+                optimizer=optimizer,
+                lr_scheduler=lr_scheduler,
+                reference_model=reference_model,
+                gradient_ascent=True,  # Flag to indicate gradient ascent
+            )
+            
+            timers("gradient-ascent").stop()
+            
+            # Track GA metrics
+            if not skipped_iter:
+                actual_loss = -loss_dict["lm_loss"]
+                ga_loss_sum += actual_loss
+                ga_loss_count += 1
+                
+                # Log interleaved GA step
+                if neox_args.rank == 0 and iteration % neox_args.log_interval == 0:
+                    ga_objective = loss_dict["lm_loss"]
+                    print(f"  [Interleaved GA] iteration {iteration}, actual_loss: {actual_loss:.4f}, ga_objective: {ga_objective:.4f}")
+            
+            # Log GA metrics periodically
+            if neox_args.rank == 0 and ga_loss_count > 0 and iteration % neox_args.log_interval == 0:
+                avg_ga_actual_loss = ga_loss_sum / ga_loss_count
+                avg_ga_objective = -avg_ga_actual_loss
+                
+                # TensorBoard logging
+                if neox_args.tensorboard_writer:
+                    neox_args.tensorboard_writer.add_scalar(
+                        "train/ga_actual_loss", avg_ga_actual_loss, iteration
+                    )
+                    neox_args.tensorboard_writer.add_scalar(
+                        "train/ga_objective", avg_ga_objective, iteration
+                    )
+                    neox_args.tensorboard_writer.add_scalar(
+                        "train/batch_type", 1.0, iteration  # 1.0 for GA
+                    )
+                
+                # WandB logging
+                if neox_args.use_wandb:
+                    import wandb
+                    wandb.log({
+                        "train/ga_actual_loss": avg_ga_actual_loss,
+                        "train/ga_objective": avg_ga_objective,
+                        "train/batch_type": 1.0,  # 1.0 for GA
+                        "iteration": iteration,
+                    })
+                
+                # Comet logging
+                if neox_args.comet_experiment:
+                    neox_args.comet_experiment.log_metric(
+                        "ga_actual_loss", avg_ga_actual_loss, step=iteration
+                    )
+                    neox_args.comet_experiment.log_metric(
+                        "ga_objective", avg_ga_objective, step=iteration
+                    )
+                
+                # Reset counters
+                ga_loss_sum = 0.0
+                ga_loss_count = 0
+            
+            # Restore original learning rates
+            if neox_args.ga_lr_scale != 1.0 and original_lrs:
+                for i, param_group in enumerate(optimizer.param_groups):
+                    param_group['lr'] = original_lrs[i]
+        
+        else:
+            # Regular gradient descent step
+            loss_dict, skipped_iter = train_step(
+                neox_args=neox_args,
+                timers=timers,
+                data_iterator=train_data_iterator,
+                model=model,
+                optimizer=optimizer,
+                lr_scheduler=lr_scheduler,
+                reference_model=reference_model,
+            )
+            
+            # Log batch type for regular training (only in interleaved mode)
+            if (neox_args.ga_mode == "interleaved" and 
+                neox_args.rank == 0 and 
+                iteration % neox_args.log_interval == 0 and
+                neox_args.tensorboard_writer):
+                neox_args.tensorboard_writer.add_scalar(
+                    "train/batch_type", 0.0, iteration  # 0.0 for GD
+                )
         if neox_args.profile and iteration == neox_args.profile_step_stop:
             torch.cuda.cudart().cudaProfilerStop()
             prof.stop()
