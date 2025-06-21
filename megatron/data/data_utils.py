@@ -833,9 +833,20 @@ def build_ga_data_iterator(neox_args):
     if pipe_load and mpu.get_model_parallel_rank() == 0:
         # Calculate number of samples needed for GA iterations
         # We need enough samples for all GA iterations that will occur during training
-        total_ga_cycles = neox_args.train_iters // neox_args.ga_interval
-        total_ga_iters = total_ga_cycles * neox_args.ga_iters
-        ga_num_samples = total_ga_iters * neox_args.train_batch_size
+        if neox_args.ga_mode == "interval":
+            assert neox_args.ga_interval is not None and neox_args.ga_iters is not None, \
+                "ga_interval and ga_iters must be specified for interval mode"
+            total_ga_cycles = neox_args.train_iters // neox_args.ga_interval
+            total_ga_iters = total_ga_cycles * neox_args.ga_iters
+            ga_num_samples = total_ga_iters * neox_args.train_batch_size
+        elif neox_args.ga_mode == "interleaved":
+            # In interleaved mode, calculate based on ratio
+            # Every (ratio + 1) iterations has 1 GA iteration
+            cycle_length = neox_args.ga_interleave_ratio + 1
+            total_ga_iters = neox_args.train_iters // cycle_length
+            ga_num_samples = total_ga_iters * neox_args.train_batch_size
+        else:
+            raise ValueError(f"Unknown ga_mode: {neox_args.ga_mode}")
         
         # Build the GA dataset
         ga_dataset = build_the_dataset(
@@ -867,7 +878,8 @@ def build_ga_data_iterator(neox_args):
         ga_data_iterator = cycle(ga_dataloader)
         
         print_rank_0(f"> finished creating gradient ascent data iterator")
-        print_rank_0(f"  total GA cycles: {total_ga_cycles}")
+        if neox_args.ga_mode == "interval":
+            print_rank_0(f"  total GA cycles: {total_ga_cycles}")
         print_rank_0(f"  total GA iterations: {total_ga_iters}")
         print_rank_0(f"  GA samples needed: {ga_num_samples}")
     else:

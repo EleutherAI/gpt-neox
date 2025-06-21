@@ -104,6 +104,7 @@ class TestGradientAscent:
         config = self.get_valid_config(
             ga_dataset="/path/to/ga/dataset",
             ga_dataset_impl="mmap",
+            ga_mode="interval",
             ga_interval=100,
             ga_iters=5,
             train_iters=1000,
@@ -580,6 +581,63 @@ class TestGradientAscent:
         
         # Should default to interval mode
         assert config.get("ga_mode", "interval") == "interval"
+    
+    @patch('megatron.data.data_utils.cycle')
+    @patch('megatron.data.data_utils.build_the_dataset')
+    @patch('megatron.data.data_utils.make_data_loader')
+    @patch('megatron.mpu.get_model_parallel_rank')
+    @patch('megatron.mpu.get_pipe_parallel_rank')
+    @patch('megatron.mpu.get_pipe_parallel_world_size')
+    def test_build_ga_data_iterator_interleaved(self, mock_pipe_world_size, mock_pipe_rank, 
+                                               mock_model_rank, mock_make_data_loader, 
+                                               mock_build_dataset, mock_cycle):
+        """Test that GA data iterator is built correctly for interleaved mode."""
+        # Setup mocks
+        mock_pipe_world_size.return_value = 1
+        mock_pipe_rank.return_value = 0
+        mock_model_rank.return_value = 0
+        mock_dataset = Mock()
+        mock_build_dataset.return_value = mock_dataset
+        mock_dataloader = Mock()
+        mock_make_data_loader.return_value = mock_dataloader
+        mock_iterator = Mock()
+        mock_cycle.return_value = mock_iterator
+        
+        # Create config with GA parameters for interleaved mode
+        config = self.get_valid_config(
+            ga_dataset="/path/to/ga/dataset",
+            ga_dataset_impl="mmap",
+            ga_mode="interleaved",
+            ga_interleave_ratio=2,  # 2:1 ratio
+            train_iters=1000,
+            seq_length=2048,
+            max_position_embeddings=2048,
+            seed=42,
+            pack_impl="packed",
+            allow_chopped=False,
+            mmap_warmup=False,
+            is_pipe_parallel=False,
+        )
+        
+        neox_args = NeoXArgs.from_dict(config)
+        
+        # Build GA data iterator
+        ga_iterator = build_ga_data_iterator(neox_args)
+        
+        # Verify dataset was built with correct parameters
+        mock_build_dataset.assert_called_once()
+        call_args = mock_build_dataset.call_args[1]
+        
+        # Verify correct number of samples calculated for interleaved mode
+        # cycle_length = 2 + 1 = 3
+        # total_ga_iters = 1000 // 3 = 333
+        # ga_num_samples = 333 * 32 = 10656
+        assert call_args['num_samples'] == 10656
+        
+        # Verify data loader and iterator creation
+        mock_make_data_loader.assert_called_once_with(mock_dataset, neox_args=neox_args)
+        mock_cycle.assert_called_once_with(mock_dataloader)
+        assert ga_iterator == mock_iterator
 
 
 if __name__ == "__main__":
