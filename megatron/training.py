@@ -270,18 +270,27 @@ def pretrain(neox_args):
     ) = shift_and_wrap_data_loaders(neox_args=neox_args, data_loaders=data_loaders)
     timers("train/valid/test data iterators").stop()
 
+    # Initialize gradient ascent data iterator if configured
+    ga_data_iterator = None
+    if neox_args.ga_dataset is not None:
+        timers("gradient ascent data iterator").start()
+        from megatron.data.data_utils import build_ga_data_iterator
+        ga_data_iterator = build_ga_data_iterator(neox_args)
+        timers("gradient ascent data iterator").stop()
+
     if neox_args.use_mup and neox_args.coord_check:
         mup_coord_check(neox_args, timers, lr_scheduler, train_data_iterator)
 
     # Print setup timing.
     print_rank_0("done with setups ...")
-    timers.log(
-        [
-            "train/valid/test data loaders",
-            "model and optimizer",
-            "train/valid/test data iterators",
-        ]
-    )
+    timers_to_log = [
+        "train/valid/test data loaders",
+        "model and optimizer",
+        "train/valid/test data iterators",
+    ]
+    if neox_args.ga_dataset is not None:
+        timers_to_log.append("gradient ascent data iterator")
+    timers.log(timers_to_log)
     print_rank_0("training ...")
 
     iteration = neox_args.iteration
@@ -310,6 +319,7 @@ def pretrain(neox_args):
             lr_scheduler=lr_scheduler,
             train_data_iterator=train_data_iterator,
             valid_data_iterator=valid_data_iterator,
+            ga_data_iterator=ga_data_iterator,
         )
 
     if neox_args.do_valid:
@@ -538,6 +548,7 @@ def forward_step(
     return_logits=False,
     is_train=False,
     reference_model=None,
+    gradient_ascent=False,
 ):
     """Forward step."""
     if neox_args.is_pipe_parallel:
@@ -859,6 +870,14 @@ def forward_step(
             loss = loss.mean()
     if neox_args.memory_profiling:
         torch.cuda.nvtx.range_pop()
+    
+    # Handle gradient ascent by negating the loss
+    if gradient_ascent:
+        # Log the original loss before negation
+        if neox_args.rank == 0:
+            print(f"Gradient ascent: original loss = {loss.item():.4f}, negating for ascent")
+        loss = -loss
+    
     if return_logits:
         return loss, outputs, metrics
     return loss, metrics
@@ -1289,12 +1308,13 @@ def train_step(
     optimizer,
     lr_scheduler,
     reference_model=None,
+    gradient_ascent=False,
 ):
     """Single training step."""
     # Pipeline parallelism schedules forward/backward/step
     if neox_args.is_pipe_parallel:
         reduced_loss = train_step_pipe(
-            neox_args=neox_args, timers=timers, model=model, data_iterator=data_iterator
+            neox_args=neox_args, timers=timers, model=model, data_iterator=data_iterator, gradient_ascent=gradient_ascent
         )
         reduce_metrics = reduced_loss
         if (
@@ -1317,6 +1337,7 @@ def train_step(
                 model=model,
                 is_train=True,
                 reference_model=reference_model,
+                gradient_ascent=gradient_ascent,
             )
             timers("forward").stop()
             losses.append(loss)
@@ -1386,11 +1407,18 @@ def train_step(
     return reduce_metrics, skipped_iter
 
 
-def train_step_pipe(neox_args, timers, model, data_iterator):
+def train_step_pipe(neox_args, timers, model, data_iterator, gradient_ascent=False):
     """Single training step with DeepSpeed's pipeline parallel engine."""
 
     assert neox_args.deepspeed
     loss = model.train_batch(data_iter=data_iterator)
+    
+    # Handle gradient ascent by negating the loss
+    if gradient_ascent:
+        if neox_args.rank == 0:
+            print(f"Gradient ascent (pipe): original loss = {loss:.4f}, negating for ascent")
+        loss = -loss
+    
     loss_dict = {"lm_loss": loss}
     # Don't break Megatron's timers because we changed code paths.
     for t in [
@@ -1437,6 +1465,7 @@ def train(
     lr_scheduler,
     train_data_iterator,
     valid_data_iterator,
+    ga_data_iterator=None,
 ):
     """Train the model function."""
 
@@ -1476,11 +1505,90 @@ def train(
             with_stack=True,
         )
         prof.start()
+    # Track gradient ascent statistics
+    ga_loss_sum = 0.0
+    ga_loss_count = 0
+    
     while iteration < neox_args.train_iters:
         if neox_args.profile:
             prof.step()
         if neox_args.profile and iteration == neox_args.profile_step_start:
             torch.cuda.cudart().cudaProfilerStart()
+        
+        # Check if we should do gradient ascent before normal training step
+        if (neox_args.ga_interval is not None and 
+            ga_data_iterator is not None and
+            iteration > 0 and 
+            iteration % neox_args.ga_interval == 0):
+            
+            print_rank_0(f"Starting {neox_args.ga_iters} gradient ascent iterations at training iteration {iteration}")
+            
+            # Perform gradient ascent iterations
+            for ga_iter in range(neox_args.ga_iters):
+                timers("gradient-ascent").start()
+                
+                # Perform gradient ascent step
+                ga_loss_dict, ga_skipped_iter = train_step(
+                    neox_args=neox_args,
+                    timers=timers,
+                    data_iterator=ga_data_iterator,
+                    model=model,
+                    optimizer=optimizer,
+                    lr_scheduler=lr_scheduler,
+                    reference_model=reference_model,
+                    gradient_ascent=True,  # Flag to indicate gradient ascent
+                )
+                
+                timers("gradient-ascent").stop()
+                
+                # Track GA metrics (use original positive loss for logging)
+                if not ga_skipped_iter:
+                    ga_loss_sum += ga_loss_dict["lm_loss"] 
+                    ga_loss_count += 1
+                
+                # Log GA iteration
+                if neox_args.rank == 0 and not ga_skipped_iter:
+                    print(f"  GA iteration {ga_iter + 1}/{neox_args.ga_iters}, loss: {ga_loss_dict['lm_loss']:.4f}")
+                    
+                    # Debug: Show first GA loss vs recent training loss for comparison
+                    if ga_iter == 0 and 'lm_loss' in total_loss_dict:
+                        recent_train_loss = total_loss_dict['lm_loss'][-1] if total_loss_dict['lm_loss'] else 0
+                        print(f"  [DEBUG] Recent train loss: {recent_train_loss:.4f}, GA loss: {ga_loss_dict['lm_loss']:.4f}, Ratio: {ga_loss_dict['lm_loss']/recent_train_loss:.2f}x")
+            
+            # Log average GA loss to all monitoring services
+            if neox_args.rank == 0 and ga_loss_count > 0:
+                avg_ga_loss = ga_loss_sum / ga_loss_count
+                
+                # TensorBoard logging
+                if neox_args.tensorboard_writer:
+                    neox_args.tensorboard_writer.add_scalar(
+                        "train/ga_loss", avg_ga_loss, iteration
+                    )
+                    neox_args.tensorboard_writer.add_scalar(
+                        "train/ga_iterations_total", ga_iter + 1, iteration
+                    )
+                
+                # WandB logging
+                if neox_args.use_wandb:
+                    import wandb
+                    wandb.log({
+                        "train/ga_loss": avg_ga_loss,
+                        "train/ga_iterations": ga_iter + 1,
+                        "iteration": iteration,
+                    })
+                
+                # Comet logging
+                if neox_args.comet_experiment:
+                    neox_args.comet_experiment.log_metric(
+                        "ga_loss", avg_ga_loss, step=iteration
+                    )
+                    neox_args.comet_experiment.log_metric(
+                        "ga_iterations", ga_iter + 1, step=iteration
+                    )
+                
+                ga_loss_sum = 0.0
+                ga_loss_count = 0
+        
         loss_dict, skipped_iter = train_step(
             neox_args=neox_args,
             timers=timers,

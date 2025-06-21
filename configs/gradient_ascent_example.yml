@@ -1,0 +1,75 @@
+# Example configuration for gradient ascent training
+# This demonstrates how to configure GPT-NeoX to perform gradient ascent
+# on a specific dataset during training to reduce the model's ability
+# to generate content from that dataset.
+
+# Include base model configuration
+{
+  # Standard model configuration (example for small model)
+  "num_layers": 12,
+  "hidden_size": 768,
+  "num_attention_heads": 12,
+  "seq_length": 2048,
+  "max_position_embeddings": 2048,
+  "pos_emb": "rotary",
+  "rotary_pct": 0.25,
+  "no_weight_tying": true,
+  "gpt_j_residual": true,
+  "output_layer_parallelism": "column",
+  
+  # Tokenizer
+  "tokenizer_type": "HFTokenizer",
+  "vocab_file": "path/to/tokenizer.json",
+  
+  # Training data
+  "data_path": "path/to/training/data/mydataset_text_document",
+  "data_impl": "mmap",
+  "split": "98,2,0",
+  
+  # Gradient Ascent Configuration
+  # Path to the dataset you want the model to "forget"
+  "ga_dataset": "path/to/gradient_ascent/data/forget_dataset_text_document",
+  
+  # Implementation type for GA dataset (same options as data_impl)
+  "ga_dataset_impl": "mmap",
+  
+  # Perform gradient ascent every N training iterations
+  # In this example, every 100 iterations
+  "ga_interval": 100,
+  
+  # Number of gradient ascent steps to perform each time
+  # These steps do NOT count towards total training iterations
+  "ga_iters": 10,
+  
+  # Training configuration
+  "train_iters": 10000,
+  "train_batch_size": 32,
+  "train_micro_batch_size_per_gpu": 4,
+  "gradient_accumulation_steps": 2,
+  "lr": 0.0001,
+  "min_lr": 0.00001,
+  "lr_decay_style": "cosine",
+  "lr_decay_iters": 10000,
+  "warmup": 0.01,
+  
+  # Logging
+  "log_interval": 10,
+  "eval_interval": 1000,
+  "eval_iters": 100,
+  "checkpoint_interval": 1000,
+  
+  # Monitoring (GA metrics will be logged automatically)
+  "use_wandb": true,
+  "wandb_project": "gradient-ascent-experiment",
+  "wandb_run_name": "ga-training-example",
+}
+
+# Usage:
+# python deepy.py train.py configs/gradient_ascent_example.yml
+
+# The training will:
+# 1. Perform normal gradient descent on the main training data
+# 2. Every 100 iterations, perform 10 gradient ascent steps on the GA dataset
+# 3. Log both regular training loss and GA loss to wandb/tensorboard
+# 4. The GA steps will use the same learning rate as normal training
+# 5. The learning rate schedule will account for all optimizer steps (including GA)

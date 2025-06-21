@@ -1098,6 +1098,30 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     List of paths to positive and negative test label datasets (not shifted by 1 yet!).
     """
 
+    ga_dataset: str = None
+    """
+    Path to gradient ascent dataset. When specified, the model will perform gradient ascent
+    on this dataset at regular intervals during training to minimize the likelihood of 
+    generating the tokens in this dataset.
+    """
+
+    ga_dataset_impl: str = "mmap"
+    """
+    Implementation type for gradient ascent dataset. Can be one of 'lazy', 'cached', or 'mmap'.
+    """
+
+    ga_interval: int = None
+    """
+    Perform gradient ascent every N training iterations. For example, if ga_interval=100,
+    gradient ascent will be performed after iterations 100, 200, 300, etc.
+    """
+
+    ga_iters: int = None
+    """
+    Number of gradient ascent iterations to perform each time gradient ascent is triggered.
+    These iterations do not count towards the total training iterations.
+    """
+
     train_data_weights: list = None
     """
     List of 'weights' that decide how often to sample from each training dataset when blending datasets. If None, defaults to equal weighting.

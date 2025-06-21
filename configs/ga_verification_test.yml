@@ -1,0 +1,22 @@
+# Aggressive GA configuration for verification testing
+# Based on your annealing config but with more frequent GA
+{
+  # Include your base config
+  "include": "annealing_aisi_multi_node.yml",
+  
+  # Override for aggressive GA testing
+  "ga_interval": 10,  # Trigger GA every 10 iterations
+  "ga_iters": 10,     # Fewer iters per trigger but more frequent
+  
+  # Shorter training for quick verification
+  "train_iters": 1000,
+  "eval_interval": 100,
+  "checkpoint_interval": 100,
+  
+  # More frequent logging to see GA effect
+  "log_interval": 1,
+  
+  # Save checkpoints to compare
+  "save": "/checkpoints/ga_verification_test",
+  "checkpoint_factor": 100,  # Save every 100 iterations
+}
