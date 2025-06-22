@@ -1808,23 +1808,38 @@ def train(
                 lr_scheduler=lr_scheduler,
             )
         # Evaluation
-        if (
-            neox_args.eval_interval
-            and iteration % neox_args.eval_interval == 0
-            and neox_args.do_valid
-        ):
-            prefix = "iteration {}".format(iteration)
-            evaluate_and_print_results(
-                neox_args=neox_args,
-                prefix=prefix,
-                forward_step_func=forward_step,
-                data_iterator=valid_data_iterator,
-                model=model,
-                iteration=iteration,
-                verbose=False,
-                timers=timers,
-                reference_model=reference_model,
-            )
+        if neox_args.eval_interval and iteration % neox_args.eval_interval == 0:
+            # Run validation data evaluation if configured
+            if neox_args.do_valid and valid_data_iterator is not None:
+                prefix = "iteration {}".format(iteration)
+                evaluate_and_print_results(
+                    neox_args=neox_args,
+                    prefix=prefix,
+                    forward_step_func=forward_step,
+                    data_iterator=valid_data_iterator,
+                    model=model,
+                    iteration=iteration,
+                    verbose=False,
+                    timers=timers,
+                    reference_model=reference_model,
+                    chart_name="validation",
+                )
+            
+            # Run eval_tasks evaluation if configured (independent of validation data)
+            if neox_args.eval_tasks and len(neox_args.eval_tasks) > 0:
+                prefix = "iteration {}".format(iteration)
+                evaluate_and_print_results(
+                    neox_args=neox_args,
+                    prefix=prefix,
+                    forward_step_func=forward_step,
+                    data_iterator=None,  # No data iterator needed for eval_tasks
+                    model=model,
+                    iteration=iteration,
+                    verbose=False,
+                    timers=timers,
+                    reference_model=reference_model,
+                    chart_name="eval_tasks",
+                )
 
         if neox_args.exit_interval and iteration % neox_args.exit_interval == 0:
             torch.distributed.barrier()
@@ -1862,61 +1877,69 @@ def evaluate(
     model.eval()
     losses = []
     metric_dicts = defaultdict(list)
-    if neox_args.char_level_ppl:
-        data_iterator = CharCounter(data_iterator, neox_args.tokenizer)
+    eval_results = {}
+    
+    # Only run data iterator evaluation if data_iterator is provided
+    if data_iterator is not None:
+        if neox_args.char_level_ppl:
+            data_iterator = CharCounter(data_iterator, neox_args.tokenizer)
 
-    with torch.no_grad():
-        iteration = 0
-        while iteration < neox_args.eval_iters:
-            iteration += 1
-            if verbose and iteration % neox_args.log_interval == 0:
-                print_rank_0(
-                    "Evaluating iter {}/{}".format(iteration, neox_args.eval_iters)
-                )
+        with torch.no_grad():
+            iteration = 0
+            while iteration < neox_args.eval_iters:
+                iteration += 1
+                if verbose and iteration % neox_args.log_interval == 0:
+                    print_rank_0(
+                        "Evaluating iter {}/{}".format(iteration, neox_args.eval_iters)
+                    )
 
-            # although we're not accumulating gradients here, we count one iter as train_batch_size_per_gpu * g.a.s
-            # to be consistent with deepspeed's pipe parallel engine
-            # since pipe parallel already takes gradient_accumulation_steps into account - default to 1 here if pipe parallel is true
-            for _ in range(
-                1
-                if neox_args.is_pipe_parallel
-                else neox_args.gradient_accumulation_steps
-            ):
-                # Forward evaluation
-                loss, metric_dict = forward_step_fn(
-                    model=model,
-                    data_iterator=data_iterator,
-                    neox_args=neox_args,
-                    timers=timers,
-                    reference_model=reference_model,
-                )
-                losses.append(loss)
-                for key in metric_dict.keys():
-                    metric_dicts[key].append(metric_dict[key])
-            # When contiguous memory optimizations are enabled, the buffers
-            # allocated by the optimizations are deallocated during backward pass
-            # in the absence of backward pass the buffers should be reset after each
-            # forward pass
-            if neox_args.deepspeed and neox_args.deepspeed_activation_checkpointing:
-                deepspeed.checkpointing.reset()
+                # although we're not accumulating gradients here, we count one iter as train_batch_size_per_gpu * g.a.s
+                # to be consistent with deepspeed's pipe parallel engine
+                # since pipe parallel already takes gradient_accumulation_steps into account - default to 1 here if pipe parallel is true
+                for _ in range(
+                    1
+                    if neox_args.is_pipe_parallel
+                    else neox_args.gradient_accumulation_steps
+                ):
+                    # Forward evaluation
+                    loss, metric_dict = forward_step_fn(
+                        model=model,
+                        data_iterator=data_iterator,
+                        neox_args=neox_args,
+                        timers=timers,
+                        reference_model=reference_model,
+                    )
+                    losses.append(loss)
+                    for key in metric_dict.keys():
+                        metric_dicts[key].append(metric_dict[key])
+                # When contiguous memory optimizations are enabled, the buffers
+                # allocated by the optimizations are deallocated during backward pass
+                # in the absence of backward pass the buffers should be reset after each
+                # forward pass
+                if neox_args.deepspeed and neox_args.deepspeed_activation_checkpointing:
+                    deepspeed.checkpointing.reset()
 
-    # reduces losses across processes for logging & run eval harness tasks
-    eval_results = {"lm_loss": reduce_losses(losses).mean().item()}
-    for key in metric_dicts.keys():
-        eval_results[key] = reduce_losses(metric_dicts[key]).mean().item()
-    eval_results["lm_loss_ppl"] = math.exp(eval_results["lm_loss"])
+        # reduces losses across processes for logging & run eval harness tasks
+        eval_results["lm_loss"] = reduce_losses(losses).mean().item()
+        for key in metric_dicts.keys():
+            eval_results[key] = reduce_losses(metric_dicts[key]).mean().item()
+        eval_results["lm_loss_ppl"] = math.exp(eval_results["lm_loss"])
 
-    if neox_args.char_level_ppl:
-        # calculate character level perplexity, if specified
-        # if neox_args.char_level_ppl:
-        # unwrap the data_iterator
-        tokens_per_char = data_iterator.tokens_per_char()
-        print_rank_0(f"Counting chars took {data_iterator.total_time} seconds")
+        if neox_args.char_level_ppl:
+            # calculate character level perplexity, if specified
+            # if neox_args.char_level_ppl:
+            # unwrap the data_iterator
+            tokens_per_char = data_iterator.tokens_per_char()
+            print_rank_0(f"Counting chars took {data_iterator.total_time} seconds")
 
-        data_iterator = data_iterator.data_iterator
-        eval_results["lm_loss_char_lvl_ppl"] = math.exp(
-            eval_results["lm_loss"] * tokens_per_char
-        )
+            data_iterator = data_iterator.data_iterator
+            eval_results["lm_loss_char_lvl_ppl"] = math.exp(
+                eval_results["lm_loss"] * tokens_per_char
+            )
+    else:
+        # No data iterator, but still need to process
+        with torch.no_grad():
+            pass
 
     if neox_args.eval_tasks:
         from eval_tasks import run_eval_harness

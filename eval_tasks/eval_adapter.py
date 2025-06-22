@@ -12,25 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from megatron.utils import is_local_main, print_rank_0
-
 import copy
+import dataclasses
+import itertools
 import os
 import sys
-import dataclasses
 from functools import partial
+
+from megatron.utils import print_rank_0
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
 )
-from tqdm import tqdm
 import torch
 import torch.nn.functional as F
-
+from lm_eval import api, evaluator, tasks, utils
+from lm_eval.api.group import ConfigurableGroup
+from lm_eval.loggers.utils import get_git_commit_hash
 from lm_eval.models.huggingface import HFLM
-from lm_eval import tasks, evaluator, utils, api
-from megatron.text_generation_utils import generate_samples_from_prompt
+from lm_eval.models.utils import chunks
+from tqdm import tqdm
+
 from megatron import mpu
+from megatron.text_generation_utils import generate_samples_from_prompt
 
 
 class EvalHarnessAdapter(HFLM):
@@ -219,7 +223,7 @@ class EvalHarnessAdapter(HFLM):
                 return (-len(toks), tuple(toks))
 
             reord = utils.Reorderer(requests, _collate)
-            for chunk in utils.chunks(
+            for chunk in chunks(
                 tqdm(reord.get_reordered(), disable=disable_tqdm), self.batch_size
             ):
                 inps, contlens, inplens, padding_length = [], [], [], None
@@ -412,21 +416,28 @@ class EvalHarnessAdapter(HFLM):
             ]
 
         # register all the default tasks bundled with lm-evaluation-harness repository
-        tasks.initialize_tasks()
+        # TODO: Set via config
+        custom_tasks_path = "/workspace/lm_eval_tasks/"
+        task_manager = tasks.TaskManager(include_path=custom_tasks_path)
+        task_manager.initialize_tasks()
 
         # Returns a list containing all values of the task registry that
         # match at least one of the patterns
-        import fnmatch
 
-        def pattern_match(patterns, source_list):
-            task_names = set()
-            for pattern in patterns:
-                for matching in fnmatch.filter(source_list, pattern):
-                    task_names.add(matching)
-            return list(task_names)
+        # TODO: Suuport patterns with wildcards
+        # def pattern_match(patterns, source_list):
+        #     task_names = set()
+        #     for pattern in patterns:
+        #         for matching in fnmatch.filter(source_list, pattern):
+        #             task_names.add(matching)
+        #     return list(task_names)
 
-        eval_tasks = pattern_match(eval_tasks, tasks.ALL_TASKS)
-        print(f"Found tasks: {eval_tasks}")
+        all_tasks = task_manager._all_tasks
+        # eval_tasks = pattern_match(eval_tasks, all_tasks)
+        # print(f"Found tasks: {eval_tasks}")
+
+        print_rank_0(all_tasks)
+        print_rank_0(f"Eval tasks: {eval_tasks}")
 
         assert len(eval_tasks) > 0, "Must run at least one task"
 
@@ -435,11 +446,11 @@ class EvalHarnessAdapter(HFLM):
         # the tasks are downloaded *as they are initialized*, and the downloads don't like multithreading.
         # so we download them once on the local main rank, wait, and then initialize them on all other ranks, which *should* load from the cache.
         if self.is_local_main:
-            task_dict = tasks.get_task_dict(eval_tasks)
+            task_dict = tasks.get_task_dict(eval_tasks, task_manager=task_manager)
         # torch barrier
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
-        task_dict = tasks.get_task_dict(eval_tasks)
+        task_dict = tasks.get_task_dict(eval_tasks, task_manager=task_manager)
 
         lm = self
 
@@ -465,32 +476,48 @@ class EvalHarnessAdapter(HFLM):
         # from simple_evaluate:
         # override fewshot values for all tasks we can
         for task_name in task_dict.keys():
-            task_obj = task_dict[task_name]
-            if type(task_obj) == tuple:
-                group, task_obj = task_obj
-                if task_obj is None:
-                    continue
+            group_task_objects = []
+            top_level_task = task_dict[task_name]
+            if isinstance(task_name, ConfigurableGroup):
+                for task_group in list(task_dict[task_name].values()):
+                    if isinstance(task_group, dict):
+                        group_task_objects.extend(list(task_group.values()))
+                    else:
+                        group_task_objects.append(task_group)
+            elif isinstance(task_name, str):
+                group_task_objects.append(top_level_task)
+            else:
+                raise ValueError(
+                    "The task object is of an unhandled type. Unable to override fewshot values."
+                )
 
-            config = task_obj._config
+            for task_obj in group_task_objects:
+                if type(task_obj) == tuple:
+                    group, task_obj = task_obj
+                    if task_obj is None:
+                        continue
 
-            if num_fewshot is not None:
-                if config["num_fewshot"] == 0:
-                    utils.eval_logger.info(
-                        f"num_fewshot has been set to 0 for {task_name} in its config. Manual configuration will be ignored."
-                    )
-                else:
-                    default_num_fewshot = config["num_fewshot"]
-                    if not default_num_fewshot:
-                        utils.eval_logger.warning(
-                            f"Overwriting default num_fewshot of {task_name} from {default_num_fewshot} to {num_fewshot}"
+                config = task_obj._config
+
+                utils.setup_logging()
+                if num_fewshot is not None:
+                    if config["num_fewshot"] == 0:
+                        utils.logging.info(
+                            f"num_fewshot has been set to 0 for {config['task']} in its config. Manual configuration will be ignored."
                         )
+                    else:
+                        default_num_fewshot = config["num_fewshot"]
+                        if not default_num_fewshot:
+                            utils.logging.warning(
+                                f"Overwriting default num_fewshot of {config['task']} from {default_num_fewshot} to {num_fewshot}"
+                            )
 
-                    task_obj._config["num_fewshot"] = num_fewshot
+                        task_obj._config["num_fewshot"] = num_fewshot
 
         results = evaluator.evaluate(
             lm=lm,
             task_dict=task_dict,
-            limit=10,  # limit,
+            limit=limit,
             bootstrap_iters=bootstrap_iters,
             log_samples=False,
         )
@@ -504,12 +531,30 @@ class EvalHarnessAdapter(HFLM):
             "limit": limit,
             "bootstrap_iters": bootstrap_iters,
         }
-        results["git_hash"] = utils.get_git_commit_hash()
+        results["git_hash"] = get_git_commit_hash()
 
         print(results.keys())
         for task_name in task_dict.keys():
-            if "alias" in results["results"][task_name]:
-                results["results"][task_name].pop("alias")
+            sub_task_names = []
+            if isinstance(task_name, ConfigurableGroup):
+                task_groups = task_dict[task_name]
+                tasks_by_group = []
+                for group in task_groups.values():
+                    if isinstance(group, dict):
+                        tasks_by_group.append(list(group.keys()))
+                    else:
+                        tasks_by_group.append([group])
+                # tasks_by_group = [list(group.keys()) for group in task_groups.values()]
+                sub_task_names = list(itertools.chain(*tasks_by_group))
+            else:
+                sub_task_names.append(task_name)
+
+            print_rank_0(f"Task: {task_name}")
+            print_rank_0(f"Subtasks: {sub_task_names}")
+
+            # for sub_task in sub_task_names:
+            #     if "alias" in results["results"][sub_task]:
+            #         results["results"][sub_task].pop("alias")
 
         if was_training:
             self.model.train()
@@ -535,4 +580,5 @@ def run_eval_harness(
         num_fewshot=num_fewshot,
         bootstrap_iters=bootstrap_iters,
         use_cache=False,
+        limit=getattr(neox_args, 'eval_task_limit', None),
     )
