@@ -1531,6 +1531,7 @@ def train(
     # Track gradient ascent statistics
     ga_loss_sum = 0.0
     ga_loss_count = 0
+    performed_ga_this_iter = False
     
     while iteration < neox_args.train_iters:
         if neox_args.profile:
@@ -1540,6 +1541,7 @@ def train(
         
         # Determine whether to do GA based on mode
         do_ga = False
+        performed_ga_this_iter = False  # Reset at start of each iteration
         if ga_data_iterator is not None and neox_args.ga_dataset is not None:
             if neox_args.ga_mode == "interval":
                 # Original interval mode: GA bursts every N iterations
@@ -1556,6 +1558,7 @@ def train(
                 do_ga = (iteration > 0 and iteration % cycle_length == 0)
         
         if do_ga and neox_args.ga_mode == "interval":
+            performed_ga_this_iter = True
             
             print_rank_0(f"Starting {neox_args.ga_iters} gradient ascent iterations at training iteration {iteration}")
             
@@ -1659,6 +1662,7 @@ def train(
         
         elif do_ga and neox_args.ga_mode == "interleaved":
             # Interleaved mode: perform single GA step
+            performed_ga_this_iter = True
             
             # Scale learning rate for gradient ascent if configured
             original_lrs = []
@@ -1782,11 +1786,18 @@ def train(
         else:
             lr = 0
 
+        # Remove lm_loss from loss_dict if this was a GA step to avoid logging it to train/lm_loss
+        if performed_ga_this_iter:
+            # Create a copy of loss_dict without lm_loss for GA steps
+            loss_dict_for_logging = {k: v for k, v in loss_dict.items() if k != "lm_loss"}
+        else:
+            loss_dict_for_logging = loss_dict
+
         # Logging.
         report_memory_flag = training_log(
             neox_args=neox_args,
             timers=timers,
-            loss_dict=loss_dict,
+            loss_dict=loss_dict_for_logging,
             total_loss_dict=total_loss_dict,
             learning_rate=lr,
             iteration=iteration,
