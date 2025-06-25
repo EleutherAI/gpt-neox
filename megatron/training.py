@@ -1423,16 +1423,58 @@ def train_step(
 
 
 def train_step_pipe(neox_args, timers, model, data_iterator, gradient_ascent=False):
-    """Single training step with DeepSpeed's pipeline parallel engine."""
+    """Single training step with DeepSpeed's pipeline parallel engine.
+    
+    Args:
+        neox_args: Configuration arguments
+        timers: Timing utilities
+        model: The model to train (DeepSpeed PipelineEngine)
+        data_iterator: Iterator providing training data
+        gradient_ascent: If True, perform gradient ascent (maximize loss) instead of descent
+        
+    Note on Gradient Ascent:
+        When gradient_ascent=True, we temporarily wrap the model's loss function to negate
+        the loss before the backward pass. This ensures true gradient ascent in pipeline
+        parallel mode. The loss value returned is already negated (negative).
+    """
 
     assert neox_args.deepspeed
-    loss = model.train_batch(data_iter=data_iterator)
     
-    # Handle gradient ascent by negating the loss
-    if gradient_ascent:
+    # For gradient ascent in pipeline parallel mode, we need to wrap the loss function
+    # to negate the loss before the backward pass
+    if gradient_ascent and hasattr(model, 'module') and hasattr(model.module, 'loss_fn'):
+        # Store the original loss function
+        original_loss_fn = model.module.loss_fn
+        
+        # Create a wrapper that negates the loss
+        def negated_loss_fn(outputs, labels):
+            loss = original_loss_fn(outputs, labels)
+            if neox_args.rank == 0:
+                print(f"Gradient ascent (pipe): negating loss before backward pass")
+            return -loss
+        
+        # Temporarily replace the loss function
+        model.module.loss_fn = negated_loss_fn
+        
+        try:
+            # Run train_batch with the negated loss function
+            loss = model.train_batch(data_iter=data_iterator)
+            # Note: loss returned here is already negated
+        finally:
+            # Always restore the original loss function
+            model.module.loss_fn = original_loss_fn
+            
         if neox_args.rank == 0:
-            print(f"Gradient ascent (pipe): original loss = {loss:.4f}, negating for ascent")
-        loss = -loss
+            print(f"Gradient ascent (pipe): effective loss for GA = {loss:.4f}")
+    else:
+        # Normal gradient descent
+        loss = model.train_batch(data_iter=data_iterator)
+        
+        # If gradient ascent but no loss_fn to wrap (edge case), log a warning
+        if gradient_ascent:
+            if neox_args.rank == 0:
+                print(f"WARNING: Gradient ascent requested but unable to negate loss in pipeline parallel mode.")
+                print(f"         Model may not have loss_fn attribute. GA may not work correctly.")
     
     loss_dict = {"lm_loss": loss}
     # Don't break Megatron's timers because we changed code paths.
@@ -1594,20 +1636,27 @@ def train(
                 
                 # Track GA metrics
                 if not ga_skipped_iter:
-                    # ga_loss_dict["lm_loss"] contains the negated loss (negative value)
-                    # Calculate actual loss by negating it back
-                    actual_loss = -ga_loss_dict["lm_loss"]
+                    # For pipeline parallel, the loss may already be negated
+                    # For non-pipeline, ga_loss_dict["lm_loss"] contains the negated loss
+                    if neox_args.is_pipe_parallel:
+                        # In pipeline mode with our fix, loss is already negated
+                        ga_objective = ga_loss_dict["lm_loss"]  # Already negative
+                        actual_loss = -ga_objective  # Positive value
+                    else:
+                        # In non-pipeline mode, loss was negated in forward_step
+                        ga_objective = ga_loss_dict["lm_loss"]  # Negative value
+                        actual_loss = -ga_objective  # Positive value
+                    
                     ga_loss_sum += actual_loss  # Track actual positive loss
                     ga_loss_count += 1
                 
                 # Log GA iteration
                 if neox_args.rank == 0 and not ga_skipped_iter:
-                    actual_loss = -ga_loss_dict["lm_loss"]  # Un-negate to get actual loss
-                    ga_objective = ga_loss_dict["lm_loss"]   # The negated value used for optimization
                     print(f"  GA iteration {ga_iter + 1}/{neox_args.ga_iters}, actual_loss: {actual_loss:.4f}, ga_objective: {ga_objective:.4f}")
                     
-                    # Debug: Show first GA loss values
+                    # Debug: Show first GA loss values and pipeline mode
                     if ga_iter == 0:
+                        print(f"  [DEBUG] Pipeline parallel: {neox_args.is_pipe_parallel}")
                         print(f"  [DEBUG] GA actual loss (positive): {actual_loss:.4f}, GA objective (negative): {ga_objective:.4f}")
             
             # Log average GA loss to all monitoring services
