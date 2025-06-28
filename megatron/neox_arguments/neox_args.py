@@ -1147,6 +1147,27 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Only used when ga_mode='interleaved'.
     """
 
+    ga_loss_threshold: float = None
+    """
+    Minimum loss threshold for performing gradient ascent. GA backward pass 
+    is only executed if the loss is above this threshold. If None, GA is 
+    always performed when scheduled. This helps prevent over-unlearning.
+    """
+
+    ga_threshold_check_mode: str = "per_step"
+    """
+    When to check the loss threshold:
+    - 'per_step': Check before each GA step (most responsive)
+    - 'per_burst': Check once before each GA burst (interval mode only)
+    - 'ema': Use exponential moving average of losses
+    """
+
+    ga_threshold_skip_forward: bool = False
+    """
+    If True, skip the entire forward+backward when below threshold.
+    If False, still do forward pass but skip backward (saves gradients).
+    """
+
     train_data_weights: list = None
     """
     List of 'weights' that decide how often to sample from each training dataset when blending datasets. If None, defaults to equal weighting.

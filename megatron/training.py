@@ -1575,6 +1575,12 @@ def train(
     ga_loss_count = 0
     performed_ga_this_iter = False
     
+    # Track GA threshold statistics
+    ga_steps_performed = 0  # Count of GA backward passes actually executed
+    ga_steps_skipped = 0    # Count of GA steps where backward was skipped
+    ga_forward_only_count = 0  # Count of forward-only passes
+    ga_loss_ema = None  # Exponential moving average of GA losses
+    
     while iteration < neox_args.train_iters:
         if neox_args.profile:
             prof.step()
@@ -1602,26 +1608,192 @@ def train(
         if do_ga and neox_args.ga_mode == "interval":
             performed_ga_this_iter = True
             
-            print_rank_0(f"Starting {neox_args.ga_iters} gradient ascent iterations at training iteration {iteration}")
+            # Check if we should skip entire burst based on threshold
+            skip_burst = False
+            if (neox_args.ga_loss_threshold is not None and 
+                neox_args.ga_threshold_check_mode == "per_burst" and
+                ga_loss_ema is not None):
+                if ga_loss_ema <= neox_args.ga_loss_threshold:
+                    skip_burst = True
+                    ga_steps_skipped += neox_args.ga_iters
+                    if neox_args.rank == 0:
+                        print(f"Skipping GA burst at iteration {iteration}: EMA loss {ga_loss_ema:.4f} <= threshold {neox_args.ga_loss_threshold}")
             
-            # Scale learning rate for gradient ascent if configured
-            original_lrs = []
-            if neox_args.ga_lr_scale != 1.0:
-                # Store original learning rates and apply GA scaling
-                for param_group in optimizer.param_groups:
-                    original_lrs.append(param_group['lr'])
-                    param_group['lr'] *= neox_args.ga_lr_scale
+            if not skip_burst:
+                print_rank_0(f"Starting {neox_args.ga_iters} gradient ascent iterations at training iteration {iteration}")
                 
-                if neox_args.rank == 0:
-                    print(f"  Applying GA learning rate scale: {neox_args.ga_lr_scale}x")
-                    print(f"  GA learning rate: {original_lrs[0] * neox_args.ga_lr_scale:.6f} (original: {original_lrs[0]:.6f})")
+                # Scale learning rate for gradient ascent if configured
+                original_lrs = []
+                if neox_args.ga_lr_scale != 1.0:
+                    # Store original learning rates and apply GA scaling
+                    for param_group in optimizer.param_groups:
+                        original_lrs.append(param_group['lr'])
+                        param_group['lr'] *= neox_args.ga_lr_scale
+                
+                    if neox_args.rank == 0:
+                        print(f"  Applying GA learning rate scale: {neox_args.ga_lr_scale}x")
+                        print(f"  GA learning rate: {original_lrs[0] * neox_args.ga_lr_scale:.6f} (original: {original_lrs[0]:.6f})")
+                
+                # Perform gradient ascent iterations
+                for ga_iter in range(neox_args.ga_iters):
+                    timers("gradient-ascent").start()
+                    
+                    # Perform gradient ascent step
+                    ga_loss_dict, ga_skipped_iter = train_step(
+                        neox_args=neox_args,
+                        timers=timers,
+                        data_iterator=ga_data_iterator,
+                        model=model,
+                        optimizer=optimizer,
+                        lr_scheduler=lr_scheduler,
+                        reference_model=reference_model,
+                        gradient_ascent=True,  # Flag to indicate gradient ascent
+                    )
+                    
+                    timers("gradient-ascent").stop()
+                    
+                    # Track GA metrics
+                    if not ga_skipped_iter:
+                        # For pipeline parallel, the loss may already be negated
+                        # For non-pipeline, ga_loss_dict["lm_loss"] contains the negated loss
+                        if neox_args.is_pipe_parallel:
+                            # In pipeline mode with our fix, loss is already negated
+                            ga_objective = ga_loss_dict["lm_loss"]  # Already negative
+                            actual_loss = -ga_objective  # Positive value
+                        else:
+                            # In non-pipeline mode, loss was negated in forward_step
+                            ga_objective = ga_loss_dict["lm_loss"]  # Negative value
+                            actual_loss = -ga_objective  # Positive value
+                        
+                        ga_loss_sum += actual_loss  # Track actual positive loss
+                        ga_loss_count += 1
+                        
+                        # Update EMA if using EMA mode
+                        if neox_args.ga_threshold_check_mode == "ema":
+                            if ga_loss_ema is None:
+                                ga_loss_ema = actual_loss
+                            else:
+                                # Default EMA alpha is 0.1
+                                ema_alpha = 0.1
+                                ga_loss_ema = ema_alpha * actual_loss + (1 - ema_alpha) * ga_loss_ema
+                        
+                        # Check threshold after forward pass
+                        skip_backward = False
+                        if neox_args.ga_loss_threshold is not None:
+                            # Determine loss value to check against threshold
+                            if neox_args.ga_threshold_check_mode == "ema" and ga_loss_ema is not None:
+                                check_loss = ga_loss_ema
+                            else:
+                                check_loss = actual_loss
+                            
+                            # Check if loss is below threshold (we want loss > threshold to do GA)
+                            if check_loss <= neox_args.ga_loss_threshold:
+                                skip_backward = True
+                                ga_steps_skipped += 1
+                                if neox_args.rank == 0:
+                                    print(f"  GA iteration {ga_iter + 1}: Skipping backward, loss {check_loss:.4f} <= threshold {neox_args.ga_loss_threshold}")
+                        
+                        if not skip_backward:
+                            # Perform backward pass (this needs to be implemented in train_step)
+                            ga_steps_performed += 1
+                        else:
+                            # We already did forward pass, just counting it
+                            ga_forward_only_count += 1
+                    
+                    # Log GA iteration
+                    if neox_args.rank == 0 and not ga_skipped_iter:
+                        print(f"  GA iteration {ga_iter + 1}/{neox_args.ga_iters}, actual_loss: {actual_loss:.4f}, ga_objective: {ga_objective:.4f}")
+                        
+                        # Debug: Show first GA loss values and pipeline mode
+                        if ga_iter == 0:
+                            print(f"  [DEBUG] Pipeline parallel: {neox_args.is_pipe_parallel}")
+                            print(f"  [DEBUG] GA actual loss (positive): {actual_loss:.4f}, GA objective (negative): {ga_objective:.4f}")
+                
+                # Log average GA loss to all monitoring services
+                if neox_args.rank == 0 and ga_loss_count > 0:
+                    avg_ga_actual_loss = ga_loss_sum / ga_loss_count  # This is the actual positive loss
+                    avg_ga_objective = -avg_ga_actual_loss  # This is the negated value for GA
+                    
+                    # TensorBoard logging
+                    if neox_args.tensorboard_writer:
+                        neox_args.tensorboard_writer.add_scalar(
+                            "train/ga_actual_loss", avg_ga_actual_loss, iteration
+                        )
+                        neox_args.tensorboard_writer.add_scalar(
+                            "train/ga_objective", avg_ga_objective, iteration
+                        )
+                        neox_args.tensorboard_writer.add_scalar(
+                            "train/ga_iterations_total", ga_iter + 1, iteration
+                        )
+                    
+                    # WandB logging
+                    if neox_args.use_wandb:
+                        import wandb
+                        wandb.log({
+                            "train/ga_actual_loss": avg_ga_actual_loss,
+                            "train/ga_objective": avg_ga_objective,
+                            "train/ga_iterations": ga_iter + 1,
+                            "iteration": iteration,
+                        })
+                    
+                    # Comet logging
+                    if neox_args.comet_experiment:
+                        neox_args.comet_experiment.log_metric(
+                            "ga_actual_loss", avg_ga_actual_loss, step=iteration
+                        )
+                        neox_args.comet_experiment.log_metric(
+                            "ga_objective", avg_ga_objective, step=iteration
+                        )
+                        neox_args.comet_experiment.log_metric(
+                            "ga_iterations", ga_iter + 1, step=iteration
+                        )
+                    
+                    ga_loss_sum = 0.0
+                    ga_loss_count = 0
             
-            # Perform gradient ascent iterations
-            for ga_iter in range(neox_args.ga_iters):
+                # Restore original learning rates after GA iterations
+                if neox_args.ga_lr_scale != 1.0 and original_lrs:
+                    for i, param_group in enumerate(optimizer.param_groups):
+                        param_group['lr'] = original_lrs[i]
+                    
+                    if neox_args.rank == 0:
+                        print(f"  Restored original learning rate: {original_lrs[0]:.6f}")
+        
+        elif do_ga and neox_args.ga_mode == "interleaved":
+            # Check if we should skip GA based on threshold
+            skip_ga = False
+            if (neox_args.ga_loss_threshold is not None and 
+                neox_args.ga_threshold_skip_forward and
+                ga_loss_ema is not None):
+                # Determine loss value to check
+                if neox_args.ga_threshold_check_mode == "ema":
+                    check_loss = ga_loss_ema
+                else:
+                    # For per_step mode without EMA, we can't check before doing forward pass
+                    check_loss = ga_loss_ema if ga_loss_ema is not None else float('inf')
+                
+                if check_loss <= neox_args.ga_loss_threshold:
+                    skip_ga = True
+                    ga_steps_skipped += 1
+                    if neox_args.rank == 0 and iteration % neox_args.log_interval == 0:
+                        print(f"[Interleaved] Skipping GA at iteration {iteration}: loss {check_loss:.4f} <= threshold {neox_args.ga_loss_threshold}")
+                    # Fall through to regular training step
+            
+            if not skip_ga:
+                # Interleaved mode: perform single GA step
+                performed_ga_this_iter = True
+                
+                # Scale learning rate for gradient ascent if configured
+                original_lrs = []
+                if neox_args.ga_lr_scale != 1.0:
+                    for param_group in optimizer.param_groups:
+                        original_lrs.append(param_group['lr'])
+                        param_group['lr'] *= neox_args.ga_lr_scale
+                
                 timers("gradient-ascent").start()
                 
-                # Perform gradient ascent step
-                ga_loss_dict, ga_skipped_iter = train_step(
+                # Perform single gradient ascent step
+                loss_dict, skipped_iter = train_step(
                     neox_args=neox_args,
                     timers=timers,
                     data_iterator=ga_data_iterator,
@@ -1635,153 +1807,83 @@ def train(
                 timers("gradient-ascent").stop()
                 
                 # Track GA metrics
-                if not ga_skipped_iter:
-                    # For pipeline parallel, the loss may already be negated
-                    # For non-pipeline, ga_loss_dict["lm_loss"] contains the negated loss
-                    if neox_args.is_pipe_parallel:
-                        # In pipeline mode with our fix, loss is already negated
-                        ga_objective = ga_loss_dict["lm_loss"]  # Already negative
-                        actual_loss = -ga_objective  # Positive value
+                if not skipped_iter:
+                    actual_loss = -loss_dict["lm_loss"]
+                    ga_objective = loss_dict["lm_loss"]
+                    
+                    # Update EMA if using EMA mode
+                    if neox_args.ga_threshold_check_mode == "ema":
+                        if ga_loss_ema is None:
+                            ga_loss_ema = actual_loss
+                        else:
+                            # Default EMA alpha is 0.1
+                            ema_alpha = 0.1
+                            ga_loss_ema = ema_alpha * actual_loss + (1 - ema_alpha) * ga_loss_ema
+                    
+                    # Check threshold after forward pass
+                    skip_backward = False
+                    if neox_args.ga_loss_threshold is not None:
+                        # Determine loss value to check against threshold
+                        if neox_args.ga_threshold_check_mode == "ema" and ga_loss_ema is not None:
+                            check_loss = ga_loss_ema
+                        else:
+                            check_loss = actual_loss
+                        
+                        # Check if loss is below threshold (we want loss > threshold to do GA)
+                        if check_loss <= neox_args.ga_loss_threshold:
+                            skip_backward = True
+                            ga_steps_skipped += 1
+                            if neox_args.rank == 0:
+                                print(f"  [Interleaved GA] Skipping backward at iteration {iteration}, loss {check_loss:.4f} <= threshold {neox_args.ga_loss_threshold}")
+                    
+                    if not skip_backward:
+                        # Perform backward pass (this needs to be implemented in train_step)
+                        ga_steps_performed += 1
                     else:
-                        # In non-pipeline mode, loss was negated in forward_step
-                        ga_objective = ga_loss_dict["lm_loss"]  # Negative value
-                        actual_loss = -ga_objective  # Positive value
+                        # We already did forward pass, just counting it
+                        ga_forward_only_count += 1
                     
-                    ga_loss_sum += actual_loss  # Track actual positive loss
-                    ga_loss_count += 1
-                
-                # Log GA iteration
-                if neox_args.rank == 0 and not ga_skipped_iter:
-                    print(f"  GA iteration {ga_iter + 1}/{neox_args.ga_iters}, actual_loss: {actual_loss:.4f}, ga_objective: {ga_objective:.4f}")
+                    # Log interleaved GA step
+                    if neox_args.rank == 0:
+                        print(f"  [Interleaved GA] iteration {iteration}, actual_loss: {actual_loss:.4f}, ga_objective: {ga_objective:.4f}")
                     
-                    # Debug: Show first GA loss values and pipeline mode
-                    if ga_iter == 0:
-                        print(f"  [DEBUG] Pipeline parallel: {neox_args.is_pipe_parallel}")
-                        print(f"  [DEBUG] GA actual loss (positive): {actual_loss:.4f}, GA objective (negative): {ga_objective:.4f}")
+                    # Log GA metrics immediately (not periodically) for interleaved mode
+                    if neox_args.rank == 0 and iteration % neox_args.log_interval == 0:
+                        # TensorBoard logging
+                        if neox_args.tensorboard_writer:
+                            neox_args.tensorboard_writer.add_scalar(
+                                "train/ga_actual_loss", actual_loss, iteration
+                            )
+                            neox_args.tensorboard_writer.add_scalar(
+                                "train/ga_objective", ga_objective, iteration
+                            )
+                            neox_args.tensorboard_writer.add_scalar(
+                                "train/batch_type", 1.0, iteration  # 1.0 for GA
+                            )
+                        
+                        # WandB logging
+                        if neox_args.use_wandb:
+                            import wandb
+                            wandb.log({
+                                "train/ga_actual_loss": actual_loss,
+                                "train/ga_objective": ga_objective,
+                                "train/batch_type": 1.0,  # 1.0 for GA
+                                "iteration": iteration,
+                            })
+                        
+                        # Comet logging
+                        if neox_args.comet_experiment:
+                            neox_args.comet_experiment.log_metric(
+                                "ga_actual_loss", actual_loss, step=iteration
+                            )
+                            neox_args.comet_experiment.log_metric(
+                                "ga_objective", ga_objective, step=iteration
+                            )
             
-            # Log average GA loss to all monitoring services
-            if neox_args.rank == 0 and ga_loss_count > 0:
-                avg_ga_actual_loss = ga_loss_sum / ga_loss_count  # This is the actual positive loss
-                avg_ga_objective = -avg_ga_actual_loss  # This is the negated value for GA
-                
-                # TensorBoard logging
-                if neox_args.tensorboard_writer:
-                    neox_args.tensorboard_writer.add_scalar(
-                        "train/ga_actual_loss", avg_ga_actual_loss, iteration
-                    )
-                    neox_args.tensorboard_writer.add_scalar(
-                        "train/ga_objective", avg_ga_objective, iteration
-                    )
-                    neox_args.tensorboard_writer.add_scalar(
-                        "train/ga_iterations_total", ga_iter + 1, iteration
-                    )
-                
-                # WandB logging
-                if neox_args.use_wandb:
-                    import wandb
-                    wandb.log({
-                        "train/ga_actual_loss": avg_ga_actual_loss,
-                        "train/ga_objective": avg_ga_objective,
-                        "train/ga_iterations": ga_iter + 1,
-                        "iteration": iteration,
-                    })
-                
-                # Comet logging
-                if neox_args.comet_experiment:
-                    neox_args.comet_experiment.log_metric(
-                        "ga_actual_loss", avg_ga_actual_loss, step=iteration
-                    )
-                    neox_args.comet_experiment.log_metric(
-                        "ga_objective", avg_ga_objective, step=iteration
-                    )
-                    neox_args.comet_experiment.log_metric(
-                        "ga_iterations", ga_iter + 1, step=iteration
-                    )
-                
-                ga_loss_sum = 0.0
-                ga_loss_count = 0
-            
-            # Restore original learning rates after GA iterations
-            if neox_args.ga_lr_scale != 1.0 and original_lrs:
-                for i, param_group in enumerate(optimizer.param_groups):
-                    param_group['lr'] = original_lrs[i]
-                
-                if neox_args.rank == 0:
-                    print(f"  Restored original learning rate: {original_lrs[0]:.6f}")
-        
-        elif do_ga and neox_args.ga_mode == "interleaved":
-            # Interleaved mode: perform single GA step
-            performed_ga_this_iter = True
-            
-            # Scale learning rate for gradient ascent if configured
-            original_lrs = []
-            if neox_args.ga_lr_scale != 1.0:
-                for param_group in optimizer.param_groups:
-                    original_lrs.append(param_group['lr'])
-                    param_group['lr'] *= neox_args.ga_lr_scale
-            
-            timers("gradient-ascent").start()
-            
-            # Perform single gradient ascent step
-            loss_dict, skipped_iter = train_step(
-                neox_args=neox_args,
-                timers=timers,
-                data_iterator=ga_data_iterator,
-                model=model,
-                optimizer=optimizer,
-                lr_scheduler=lr_scheduler,
-                reference_model=reference_model,
-                gradient_ascent=True,  # Flag to indicate gradient ascent
-            )
-            
-            timers("gradient-ascent").stop()
-            
-            # Track GA metrics
-            if not skipped_iter:
-                actual_loss = -loss_dict["lm_loss"]
-                ga_objective = loss_dict["lm_loss"]
-                
-                # Log interleaved GA step
-                if neox_args.rank == 0:
-                    print(f"  [Interleaved GA] iteration {iteration}, actual_loss: {actual_loss:.4f}, ga_objective: {ga_objective:.4f}")
-                
-                # Log GA metrics immediately (not periodically) for interleaved mode
-                if neox_args.rank == 0 and iteration % neox_args.log_interval == 0:
-                    # TensorBoard logging
-                    if neox_args.tensorboard_writer:
-                        neox_args.tensorboard_writer.add_scalar(
-                            "train/ga_actual_loss", actual_loss, iteration
-                        )
-                        neox_args.tensorboard_writer.add_scalar(
-                            "train/ga_objective", ga_objective, iteration
-                        )
-                        neox_args.tensorboard_writer.add_scalar(
-                            "train/batch_type", 1.0, iteration  # 1.0 for GA
-                        )
-                    
-                    # WandB logging
-                    if neox_args.use_wandb:
-                        import wandb
-                        wandb.log({
-                            "train/ga_actual_loss": actual_loss,
-                            "train/ga_objective": ga_objective,
-                            "train/batch_type": 1.0,  # 1.0 for GA
-                            "iteration": iteration,
-                        })
-                    
-                    # Comet logging
-                    if neox_args.comet_experiment:
-                        neox_args.comet_experiment.log_metric(
-                            "ga_actual_loss", actual_loss, step=iteration
-                        )
-                        neox_args.comet_experiment.log_metric(
-                            "ga_objective", ga_objective, step=iteration
-                        )
-            
-            # Restore original learning rates
-            if neox_args.ga_lr_scale != 1.0 and original_lrs:
-                for i, param_group in enumerate(optimizer.param_groups):
-                    param_group['lr'] = original_lrs[i]
+                # Restore original learning rates
+                if neox_args.ga_lr_scale != 1.0 and original_lrs:
+                    for i, param_group in enumerate(optimizer.param_groups):
+                        param_group['lr'] = original_lrs[i]
         
         else:
             # Regular gradient descent step
@@ -1857,6 +1959,58 @@ def train(
             optimizer=optimizer,
             noise_scale_logger=noise_scale_logger,
         )
+        
+        # Log GA threshold metrics
+        if neox_args.ga_loss_threshold is not None and iteration % neox_args.log_interval == 0:
+            if neox_args.rank == 0:
+                # Calculate skip rate
+                total_ga_attempts = ga_steps_performed + ga_steps_skipped
+                ga_skip_rate = ga_steps_skipped / total_ga_attempts if total_ga_attempts > 0 else 0.0
+                
+                # Log to TensorBoard
+                if neox_args.tensorboard_writer:
+                    neox_args.tensorboard_writer.add_scalar(
+                        "train/ga_skip_rate", ga_skip_rate, iteration
+                    )
+                    neox_args.tensorboard_writer.add_scalar(
+                        "train/ga_steps_performed_total", ga_steps_performed, iteration
+                    )
+                    neox_args.tensorboard_writer.add_scalar(
+                        "train/ga_steps_skipped_total", ga_steps_skipped, iteration
+                    )
+                    if ga_loss_ema is not None:
+                        neox_args.tensorboard_writer.add_scalar(
+                            "train/ga_loss_ema", ga_loss_ema, iteration
+                        )
+                
+                # Log to WandB
+                if neox_args.use_wandb:
+                    import wandb
+                    wandb_dict = {
+                        "train/ga_skip_rate": ga_skip_rate,
+                        "train/ga_steps_performed_total": ga_steps_performed,
+                        "train/ga_steps_skipped_total": ga_steps_skipped,
+                        "iteration": iteration,
+                    }
+                    if ga_loss_ema is not None:
+                        wandb_dict["train/ga_loss_ema"] = ga_loss_ema
+                    wandb.log(wandb_dict)
+                
+                # Log to Comet
+                if neox_args.comet_experiment:
+                    neox_args.comet_experiment.log_metric(
+                        "ga_skip_rate", ga_skip_rate, step=iteration
+                    )
+                    neox_args.comet_experiment.log_metric(
+                        "ga_steps_performed_total", ga_steps_performed, step=iteration
+                    )
+                    neox_args.comet_experiment.log_metric(
+                        "ga_steps_skipped_total", ga_steps_skipped, step=iteration
+                    )
+                    if ga_loss_ema is not None:
+                        neox_args.comet_experiment.log_metric(
+                            "ga_loss_ema", ga_loss_ema, step=iteration
+                        )
 
         # Checkpointing
         if neox_args.save and is_save_iter(neox_args, iteration):

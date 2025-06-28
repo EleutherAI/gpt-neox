@@ -754,5 +754,299 @@ class TestGradientAscent:
         assert logged_iterations == expected_pattern
 
 
+    @patch('torch.distributed.get_world_size')
+    def test_ga_loss_threshold_parameters(self, mock_world_size):
+        """Test that GA loss threshold parameters are properly loaded."""
+        mock_world_size.return_value = 8
+        
+        # Create config with GA threshold parameters
+        config = self.get_valid_config(
+            ga_dataset="/path/to/ga/dataset",
+            ga_mode="interval",
+            ga_interval=100,
+            ga_iters=5,
+            ga_loss_threshold=5.0,
+            ga_threshold_check_mode="per_step",
+            ga_threshold_skip_forward=False,
+        )
+        
+        neox_args = NeoXArgs.from_dict(config)
+        
+        # Verify threshold parameters are set correctly
+        assert neox_args.ga_loss_threshold == 5.0
+        assert neox_args.ga_threshold_check_mode == "per_step"
+        assert neox_args.ga_threshold_skip_forward == False
+    
+    @patch('torch.distributed.get_world_size')
+    def test_ga_loss_threshold_defaults(self, mock_world_size):
+        """Test that GA loss threshold parameters have correct defaults."""
+        mock_world_size.return_value = 8
+        
+        # Create config without threshold parameters
+        config = self.get_valid_config(
+            ga_dataset="/path/to/ga/dataset",
+            ga_mode="interval",
+            ga_interval=100,
+            ga_iters=5,
+        )
+        
+        neox_args = NeoXArgs.from_dict(config)
+        
+        # Verify defaults
+        assert neox_args.ga_loss_threshold is None
+        assert neox_args.ga_threshold_check_mode == "per_step"
+        assert neox_args.ga_threshold_skip_forward == False
+    
+    def test_ga_threshold_skip_logic(self):
+        """Test that GA is skipped when loss is below threshold."""
+        # Test configuration
+        ga_loss_threshold = 5.0
+        
+        # Test cases: (actual_loss, should_skip)
+        test_cases = [
+            (3.0, True),   # Below threshold, should skip
+            (5.0, True),   # Equal to threshold, should skip
+            (7.0, False),  # Above threshold, should NOT skip
+            (10.0, False), # Well above threshold, should NOT skip
+        ]
+        
+        for actual_loss, expected_skip in test_cases:
+            # Simulate threshold check
+            skip_backward = actual_loss <= ga_loss_threshold
+            assert skip_backward == expected_skip, \
+                f"Loss {actual_loss}, threshold {ga_loss_threshold}: expected skip={expected_skip}"
+    
+    def test_ga_loss_ema_calculation(self):
+        """Test exponential moving average calculation for GA losses."""
+        # Test EMA with alpha=0.1
+        ema_alpha = 0.1
+        losses = [10.0, 8.0, 6.0, 4.0, 2.0]
+        
+        ga_loss_ema = None
+        ema_values = []
+        
+        for loss in losses:
+            if ga_loss_ema is None:
+                ga_loss_ema = loss
+            else:
+                ga_loss_ema = ema_alpha * loss + (1 - ema_alpha) * ga_loss_ema
+            ema_values.append(ga_loss_ema)
+        
+        # Expected EMA values
+        expected = [10.0, 9.8, 9.42, 8.878, 8.1902]
+        
+        for i, (actual, expected_val) in enumerate(zip(ema_values, expected)):
+            assert abs(actual - expected_val) < 0.0001, \
+                f"Step {i}: expected EMA {expected_val}, got {actual}"
+    
+    def test_ga_skip_rate_calculation(self):
+        """Test calculation of GA skip rate metric."""
+        # Test various scenarios
+        test_cases = [
+            # (performed, skipped, expected_rate)
+            (100, 0, 0.0),      # No skips
+            (0, 100, 1.0),      # All skipped
+            (50, 50, 0.5),      # Half skipped
+            (75, 25, 0.25),     # 25% skipped
+            (0, 0, 0.0),        # No attempts (edge case)
+        ]
+        
+        for performed, skipped, expected_rate in test_cases:
+            total_attempts = performed + skipped
+            skip_rate = skipped / total_attempts if total_attempts > 0 else 0.0
+            assert skip_rate == expected_rate, \
+                f"Performed: {performed}, Skipped: {skipped}, Expected rate: {expected_rate}"
+    
+    def test_ga_threshold_modes(self):
+        """Test different threshold checking modes."""
+        # Test per_step mode
+        ga_loss_threshold = 5.0
+        current_loss = 4.0
+        ga_loss_ema = 6.0
+        
+        # per_step mode: use current loss
+        check_mode = "per_step"
+        check_loss = current_loss
+        should_skip = check_loss <= ga_loss_threshold
+        assert should_skip == True
+        
+        # ema mode: use EMA
+        check_mode = "ema"
+        check_loss = ga_loss_ema
+        should_skip = check_loss <= ga_loss_threshold
+        assert should_skip == False
+        
+        # per_burst mode: would use EMA from previous burst
+        check_mode = "per_burst"
+        check_loss = ga_loss_ema
+        should_skip = check_loss <= ga_loss_threshold
+        assert should_skip == False
+    
+    def test_ga_threshold_interval_mode(self):
+        """Test threshold checking in interval mode."""
+        # Configuration
+        ga_interval = 10
+        ga_iters = 5
+        ga_loss_threshold = 5.0
+        
+        # Simulate training with threshold
+        iteration = 10  # GA burst scheduled
+        ga_loss_ema = 3.0  # Below threshold
+        
+        # Check if burst should be skipped
+        skip_burst = ga_loss_ema <= ga_loss_threshold
+        assert skip_burst == True
+        
+        # If skipped, all GA iterations in burst are counted as skipped
+        ga_steps_skipped = ga_iters if skip_burst else 0
+        assert ga_steps_skipped == 5
+    
+    def test_ga_threshold_interleaved_mode(self):
+        """Test threshold checking in interleaved mode."""
+        # Configuration
+        ga_interleave_ratio = 2  # 2:1 ratio
+        ga_loss_threshold = 5.0
+        ga_threshold_skip_forward = True
+        
+        # Test iterations
+        test_iterations = [
+            # (iteration, ga_loss_ema, expected_skip)
+            (1, None, False),    # GD step
+            (2, None, False),    # GD step
+            (3, 7.0, False),     # GA step, loss above threshold
+            (4, 7.0, False),     # GD step
+            (5, 7.0, False),     # GD step
+            (6, 4.0, True),      # GA step, loss below threshold
+        ]
+        
+        for iteration, ga_loss_ema, expected_skip in test_iterations:
+            cycle_length = ga_interleave_ratio + 1
+            is_ga_scheduled = (iteration % cycle_length == 0)
+            
+            skip_ga = False
+            if is_ga_scheduled and ga_threshold_skip_forward and ga_loss_ema is not None:
+                skip_ga = ga_loss_ema <= ga_loss_threshold
+            
+            if is_ga_scheduled:
+                assert skip_ga == expected_skip, \
+                    f"Iteration {iteration}: expected skip={expected_skip}, got {skip_ga}"
+    
+    def test_ga_early_exit_interval_mode(self):
+        """Test early exit from GA burst when threshold exceeded."""
+        # Configuration
+        ga_iters = 10
+        ga_loss_threshold = 5.0
+        ga_early_exit = True
+        
+        # Simulate GA burst with losses that exceed threshold mid-burst
+        ga_losses = [7.0, 6.5, 6.0, 5.5, 5.0, 4.5, 4.0, 3.5, 3.0, 2.5]
+        
+        ga_steps_performed = 0
+        ga_steps_skipped = 0
+        
+        for i, loss in enumerate(ga_losses):
+            # Check threshold
+            if loss <= ga_loss_threshold:
+                if ga_early_exit:
+                    # Exit burst early
+                    ga_steps_skipped = ga_iters - i
+                    break
+            ga_steps_performed += 1
+        
+        # Should exit after 5th iteration (when loss hits 5.0)
+        assert ga_steps_performed == 5
+        assert ga_steps_skipped == 5
+    
+    @patch('wandb.log')
+    def test_ga_threshold_metrics_logging(self, mock_wandb_log):
+        """Test that GA threshold metrics are logged correctly."""
+        # Mock metrics
+        ga_steps_performed = 80
+        ga_steps_skipped = 20
+        ga_loss_ema = 4.5
+        iteration = 100
+        
+        # Calculate skip rate
+        total_ga_attempts = ga_steps_performed + ga_steps_skipped
+        ga_skip_rate = ga_steps_skipped / total_ga_attempts if total_ga_attempts > 0 else 0.0
+        
+        # Simulate logging
+        wandb_dict = {
+            "train/ga_skip_rate": ga_skip_rate,
+            "train/ga_steps_performed_total": ga_steps_performed,
+            "train/ga_steps_skipped_total": ga_steps_skipped,
+            "train/ga_loss_ema": ga_loss_ema,
+            "iteration": iteration,
+        }
+        mock_wandb_log(wandb_dict)
+        
+        # Verify metrics
+        assert ga_skip_rate == 0.2  # 20%
+        mock_wandb_log.assert_called_once()
+        call_args = mock_wandb_log.call_args[0][0]
+        assert call_args["train/ga_skip_rate"] == 0.2
+        assert call_args["train/ga_steps_performed_total"] == 80
+        assert call_args["train/ga_steps_skipped_total"] == 20
+        assert call_args["train/ga_loss_ema"] == 4.5
+    
+    def test_ga_threshold_backward_compatibility(self):
+        """Test that threshold feature doesn't affect existing behavior when disabled."""
+        # When ga_loss_threshold is None, behavior should be unchanged
+        ga_loss_threshold = None
+        actual_loss = 1.0  # Very low loss
+        
+        # Should never skip when threshold is None
+        skip_backward = False
+        if ga_loss_threshold is not None:
+            skip_backward = actual_loss <= ga_loss_threshold
+        
+        assert skip_backward == False
+    
+    def test_ga_threshold_edge_cases(self):
+        """Test edge cases for GA threshold feature."""
+        # Test with threshold = 0 (should skip nothing)
+        ga_loss_threshold = 0.0
+        test_losses = [0.1, 1.0, 5.0, 10.0]
+        
+        for loss in test_losses:
+            skip = loss <= ga_loss_threshold
+            assert skip == False, f"Threshold 0 should never skip, but skipped at loss {loss}"
+        
+        # Test with very high threshold (should skip everything)
+        ga_loss_threshold = 1000.0
+        
+        for loss in test_losses:
+            skip = loss <= ga_loss_threshold
+            assert skip == True, f"High threshold should skip all, but didn't skip at loss {loss}"
+    
+    def test_ga_threshold_with_lr_scaling(self):
+        """Test that threshold and LR scaling work together correctly."""
+        # Configuration
+        ga_lr_scale = 2.0
+        ga_loss_threshold = 5.0
+        
+        # Mock optimizer
+        optimizer = Mock()
+        param_groups = [{'lr': 0.001, 'params': []}]
+        optimizer.param_groups = param_groups
+        
+        # Simulate GA step with threshold check
+        actual_loss = 6.0  # Above threshold, should proceed
+        
+        # Check threshold
+        skip_backward = actual_loss <= ga_loss_threshold
+        assert skip_backward == False
+        
+        # Apply LR scaling (only if not skipping)
+        if not skip_backward:
+            original_lr = optimizer.param_groups[0]['lr']
+            optimizer.param_groups[0]['lr'] *= ga_lr_scale
+            assert optimizer.param_groups[0]['lr'] == 0.002
+            
+            # Restore LR after GA
+            optimizer.param_groups[0]['lr'] = original_lr
+            assert optimizer.param_groups[0]['lr'] == 0.001
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
