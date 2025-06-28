@@ -1,0 +1,50 @@
+================================================================================
+W&B Run Analysis Report
+Generated: 2025-06-25 15:59:21
+================================================================================
+
+## Run Information
+- Name: annealing_baseline_ga_interval_1
+- ID: 9vbuhj4o
+- State: running
+- Runtime: 0.66 hours
+- Total Steps: 6
+- URL: https://wandb.ai/eleutherai/AISI/runs/9vbuhj4o
+
+## Training Metrics
+
+### Training Loss
+- Final: 2.305482
+- Min: 2.305482
+- Mean ± Std: 2.305482 ± nan
+
+### Learning Rate
+- Initial: 3.00e-04
+- Final: 3.00e-04
+
+### Training Speed
+- Samples Per Sec: 33.56 ± 68.94
+- Tokens Per Sec: 68736.98 ± 141183.01
+- Iteration Time: 317.21 ± 150.18
+- Flops Per Sec Per Gpu: 61294960098439.95 ± 125897406490027.41
+
+## Gradient Ascent Analysis
+- Mode: interval
+- Interval: 1
+- Iterations per GA: 57
+
+### Ga Actual Loss
+- Mean: 4.633343
+- Std: 2.376046
+- Count: 6
+
+### Ga Objective
+- Mean: -4.633343
+- Std: 2.376046
+- Count: 6
+
+## Crash/Issue Diagnosis
+- Exit Code: None
+- NaN Loss Count: 5
+- Inf Loss Count: 0
+- Max GPU Memory: 98.7%
