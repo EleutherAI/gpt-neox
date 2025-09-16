@@ -213,6 +213,7 @@ def load_partitions(
                 filename_format.format(i=i),
             ),
             map_location=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+            weights_only=False,
         )
         for i in range(mp_partitions)
     ]

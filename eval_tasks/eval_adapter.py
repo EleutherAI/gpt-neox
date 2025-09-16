@@ -417,7 +417,7 @@ class EvalHarnessAdapter(HFLM):
 
         # register all the default tasks bundled with lm-evaluation-harness repository
         # TODO: Set via config
-        custom_tasks_path = "/workspace/lm_eval_tasks/"
+        custom_tasks_path = "/home/a5k/kyleobrien.a5k/filtering_for_danger/lm_eval_tasks/"
         task_manager = tasks.TaskManager(include_path=custom_tasks_path)
         task_manager.initialize_tasks()
 
