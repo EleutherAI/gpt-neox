@@ -2203,15 +2203,21 @@ def evaluate_and_print_results(
                 print(v)
             for k2, v2 in v.items():
                 k3 = "_".join([k, k2])
-                string += f"{k3} value: {v2:.6E} | "
-                tb_wandb_log(
-                    f"{chart_name}/{k3}",
-                    v2,
-                    iteration,
-                    use_wandb=neox_args.use_wandb,
-                    tensorboard_writer=neox_args.tensorboard_writer,
-                    comet_experiment=neox_args.comet_experiment,
-                )
+                # Handle both string and numeric values
+                if isinstance(v2, (int, float)):
+                    string += f"{k3} value: {v2:.6E} | "
+                else:
+                    string += f"{k3} value: {v2} | "
+                # Only log numeric values to tensorboard/wandb
+                if isinstance(v2, (int, float)):
+                    tb_wandb_log(
+                        f"{chart_name}/{k3}",
+                        v2,
+                        iteration,
+                        use_wandb=neox_args.use_wandb,
+                        tensorboard_writer=neox_args.tensorboard_writer,
+                        comet_experiment=neox_args.comet_experiment,
+                    )
         else:
             string += f"{k} value: {v:.6E} | "
             tb_wandb_log(
