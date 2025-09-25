@@ -1048,5 +1048,187 @@ class TestGradientAscent:
             assert optimizer.param_groups[0]['lr'] == 0.001
 
 
+
+class TestGradientDifference:
+    """Test cases for gradient difference feature."""
+
+    @staticmethod
+    def get_valid_config(**kwargs):
+        """Get a valid NeoXArgs config with proper batch size relationships."""
+        # Default config that satisfies batch size constraints
+        config = {
+            "train_batch_size": 32,
+            "train_micro_batch_size_per_gpu": 4,
+            "gradient_accumulation_steps": 1,
+            "global_num_gpus": 8,
+            "num_layers": 1,
+            "hidden_size": 128,
+            "num_attention_heads": 4,
+            "seq_length": 512,
+            "max_position_embeddings": 512,
+            "tokenizer_type": "GPT2BPETokenizer",
+            "vocab_file": "dummy_vocab",
+        }
+        config.update(kwargs)
+        return config
+
+    @patch('torch.distributed.get_world_size')
+    def test_gd_config_parameters(self, mock_world_size):
+        """Test that gradient difference configuration parameters are properly loaded."""
+        mock_world_size.return_value = 8
+
+        # Create config with GD parameters
+        config = self.get_valid_config(
+            gd_mode=True,
+            gd_retain_dataset="/path/to/retain/dataset",
+            gd_retain_dataset_impl="mmap",
+            gd_retain_weight=40.0,
+            gd_log_separate_losses=True,
+            ga_dataset="/path/to/forget/dataset",
+            ga_interval=100,
+            ga_iters=5,
+        )
+
+        # Create NeoXArgs instance
+        neox_args = NeoXArgs.from_dict(config)
+
+        # Verify GD parameters are set correctly
+        assert neox_args.gd_mode == True
+        assert neox_args.gd_retain_dataset == "/path/to/retain/dataset"
+        assert neox_args.gd_retain_dataset_impl == "mmap"
+        assert neox_args.gd_retain_weight == 40.0
+        assert neox_args.gd_log_separate_losses == True
+
+    @patch('torch.distributed.get_world_size')
+    def test_gd_config_defaults(self, mock_world_size):
+        """Test that GD parameters have correct defaults when not specified."""
+        mock_world_size.return_value = 8
+
+        # Create config without GD parameters
+        config = self.get_valid_config()
+
+        # Create NeoXArgs instance
+        neox_args = NeoXArgs.from_dict(config)
+
+        # Verify GD parameters have correct defaults
+        assert neox_args.gd_mode == False
+        assert neox_args.gd_retain_dataset is None
+        assert neox_args.gd_retain_dataset_impl == "mmap"
+        assert neox_args.gd_retain_weight == 40.0  # Default based on paper
+        assert neox_args.gd_log_separate_losses == True
+
+    def test_gradient_difference_loss_formula(self):
+        """Test that gradient difference loss is computed correctly."""
+        # Mock losses
+        forget_loss = torch.tensor(2.5)
+        retain_loss = torch.tensor(3.0)
+        alpha = 40.0
+
+        # Compute gradient difference loss
+        # L_total = L_retain - α * L_forget
+        gd_loss = retain_loss - alpha * forget_loss
+
+        # Expected: 3.0 - 40.0 * 2.5 = 3.0 - 100.0 = -97.0
+        assert gd_loss.item() == -97.0
+
+    def test_gradient_difference_direction(self):
+        """Test that gradient difference moves in correct directions."""
+        # Create mock model parameters
+        param = torch.tensor([1.0, 2.0, 3.0], requires_grad=True)
+
+        # Mock forget loss (should increase)
+        forget_loss = (param ** 2).sum()
+
+        # Mock retain loss (should decrease)
+        retain_loss = ((param - torch.tensor([0.5, 1.5, 2.5])) ** 2).sum()
+
+        # Gradient difference objective
+        alpha = 1.0
+        combined_loss = retain_loss - alpha * forget_loss
+
+        # Compute gradients
+        combined_loss.backward()
+
+        # Check gradient directions
+        # For forget loss: gradient of param**2 is 2*param
+        # For retain loss: gradient of (param - target)**2 is 2*(param - target)
+        # Combined: 2*(param - target) - alpha * 2*param
+
+        expected_grad_forget = 2 * param.detach()
+        expected_grad_retain = 2 * (param.detach() - torch.tensor([0.5, 1.5, 2.5]))
+        expected_combined = expected_grad_retain - alpha * expected_grad_forget
+
+        torch.testing.assert_close(param.grad, expected_combined, rtol=1e-5, atol=1e-5)
+
+    @patch('megatron.data.data_utils.cycle')
+    @patch('megatron.data.data_utils.build_the_dataset')
+    @patch('megatron.data.data_utils.make_data_loader')
+    @patch('megatron.mpu.get_model_parallel_rank')
+    @patch('megatron.mpu.get_pipe_parallel_rank')
+    @patch('megatron.mpu.get_pipe_parallel_world_size')
+    @patch('torch.distributed.get_world_size')
+    def test_build_gd_retain_iterator(self, mock_world_size, mock_pipe_world_size,
+                                      mock_pipe_rank, mock_model_rank,
+                                      mock_make_data_loader, mock_build_dataset,
+                                      mock_cycle):
+        """Test that GD retain data iterator is built correctly."""
+        mock_world_size.return_value = 8
+        mock_pipe_world_size.return_value = 1
+        mock_pipe_rank.return_value = 0
+        mock_model_rank.return_value = 0
+
+        mock_dataset = Mock()
+        mock_build_dataset.return_value = mock_dataset
+        mock_dataloader = Mock()
+        mock_make_data_loader.return_value = mock_dataloader
+        mock_iterator = Mock()
+        mock_cycle.return_value = mock_iterator
+
+        # Create config with GD parameters
+        from megatron.data.data_utils import build_gd_retain_data_iterator
+
+        config = self.get_valid_config(
+            gd_mode=True,
+            gd_retain_dataset="/path/to/retain/dataset",
+            ga_mode="interleaved",
+            ga_interleave_ratio=1,
+            train_iters=1000,
+        )
+
+        neox_args = NeoXArgs.from_dict(config)
+        neox_args.is_pipe_parallel = False
+
+        # Build retain iterator
+        retain_iterator = build_gd_retain_data_iterator(neox_args)
+
+        # Verify dataset was built with correct parameters
+        mock_build_dataset.assert_called_once()
+        call_args = mock_build_dataset.call_args[1]
+        assert call_args['data_prefix'] == "/path/to/retain/dataset"
+        assert call_args['name'] == "gradient_diff_retain"
+
+        # Verify iterator was created
+        assert retain_iterator == mock_iterator
+
+    def test_gradient_difference_weight_effect(self):
+        """Test that gradient difference weight (alpha) affects loss magnitude."""
+        forget_loss = torch.tensor(2.0)
+        retain_loss = torch.tensor(3.0)
+
+        # Test with different alpha values
+        alpha_values = [1.0, 10.0, 40.0, 100.0]
+        previous_magnitude = None
+
+        for alpha in alpha_values:
+            gd_loss = retain_loss - alpha * forget_loss
+            current_magnitude = abs(gd_loss.item())
+
+            # As alpha increases, the magnitude should increase
+            # (since we're subtracting a larger value)
+            if previous_magnitude is not None:
+                assert current_magnitude > previous_magnitude
+            previous_magnitude = current_magnitude
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

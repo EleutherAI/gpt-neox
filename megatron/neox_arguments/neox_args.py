@@ -1168,6 +1168,39 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     If False, still do forward pass but skip backward (saves gradients).
     """
 
+    gd_mode: bool = False
+    """
+    Enable gradient difference mode. When enabled, the model performs gradient
+    difference unlearning using both forget (GA) and retain datasets. This replaces
+    pure gradient ascent with the formula: L_total = L_retain - α * L_forget
+    """
+
+    gd_retain_dataset: str = None
+    """
+    Path to the retain dataset for gradient difference. This dataset contains
+    benign data that the model should continue to perform well on while
+    forgetting the GA dataset.
+    """
+
+    gd_retain_dataset_impl: str = "mmap"
+    """
+    Implementation type for retain dataset. Can be one of 'lazy', 'cached', or 'mmap'.
+    """
+
+    gd_retain_weight: float = 40.0
+    """
+    Weight (α) for the forget loss in gradient difference formula.
+    Higher values provide stronger retention of general capabilities.
+    The combined loss is: L_retain - α * L_forget
+    Based on Composable Interventions paper, values around 40 work well.
+    """
+
+    gd_log_separate_losses: bool = True
+    """
+    If True, log forget_loss and retain_loss separately in addition to combined_loss.
+    Useful for monitoring the balance between forgetting and retention.
+    """
+
     train_data_weights: list = None
     """
     List of 'weights' that decide how often to sample from each training dataset when blending datasets. If None, defaults to equal weighting.

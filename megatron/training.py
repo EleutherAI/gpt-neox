@@ -272,11 +272,14 @@ def pretrain(neox_args):
 
     # Initialize gradient ascent data iterator if configured
     ga_data_iterator = None
+    retain_data_iterator = None  # For gradient difference
     print_rank_0(f"[GA DEBUG] Checking GA configuration in pretrain()")
     print_rank_0(f"[GA DEBUG] neox_args.ga_dataset = {neox_args.ga_dataset}")
     print_rank_0(f"[GA DEBUG] neox_args.ga_interval = {neox_args.ga_interval}")
     print_rank_0(f"[GA DEBUG] neox_args.ga_iters = {neox_args.ga_iters}")
-    
+    print_rank_0(f"[GD DEBUG] neox_args.gd_mode = {neox_args.gd_mode}")
+    print_rank_0(f"[GD DEBUG] neox_args.gd_retain_dataset = {neox_args.gd_retain_dataset}")
+
     if neox_args.ga_dataset is not None:
         print_rank_0(f"> Initializing gradient ascent data iterator...")
         print_rank_0(f"  GA dataset: {neox_args.ga_dataset}")
@@ -293,6 +296,24 @@ def pretrain(neox_args):
     else:
         print_rank_0(f"[GA DEBUG] GA dataset is None, skipping GA iterator initialization")
 
+    # Initialize gradient difference retain data iterator if configured
+    if neox_args.gd_mode and neox_args.gd_retain_dataset is not None:
+        print_rank_0(f"> Initializing gradient difference retain data iterator...")
+        print_rank_0(f"  GD retain dataset: {neox_args.gd_retain_dataset}")
+        print_rank_0(f"  GD retain weight: {neox_args.gd_retain_weight}")
+        timers("gradient difference retain data iterator").start()
+        from megatron.data.data_utils import build_gd_retain_data_iterator
+        retain_data_iterator = build_gd_retain_data_iterator(neox_args)
+        timers("gradient difference retain data iterator").stop()
+        if retain_data_iterator is not None:
+            print_rank_0(f"> Successfully initialized GD retain data iterator")
+            if ga_data_iterator is None:
+                print_rank_0(f"> WARNING: GD mode requires GA dataset for forget set")
+        else:
+            print_rank_0(f"> WARNING: GD retain data iterator is None despite configuration")
+    elif neox_args.gd_mode:
+        print_rank_0(f"[GD DEBUG] GD mode enabled but retain dataset is None")
+
     if neox_args.use_mup and neox_args.coord_check:
         mup_coord_check(neox_args, timers, lr_scheduler, train_data_iterator)
 
@@ -305,6 +326,8 @@ def pretrain(neox_args):
     ]
     if neox_args.ga_dataset is not None:
         timers_to_log.append("gradient ascent data iterator")
+    if neox_args.gd_mode and neox_args.gd_retain_dataset is not None:
+        timers_to_log.append("gradient difference retain data iterator")
     timers.log(timers_to_log)
     print_rank_0("training ...")
 
@@ -335,6 +358,7 @@ def pretrain(neox_args):
             train_data_iterator=train_data_iterator,
             valid_data_iterator=valid_data_iterator,
             ga_data_iterator=ga_data_iterator,
+            retain_data_iterator=retain_data_iterator,
         )
 
     if neox_args.do_valid:
@@ -1324,12 +1348,20 @@ def train_step(
     lr_scheduler,
     reference_model=None,
     gradient_ascent=False,
+    gradient_difference=False,
+    retain_iterator=None,
 ):
     """Single training step."""
     # Pipeline parallelism schedules forward/backward/step
     if neox_args.is_pipe_parallel:
         reduced_loss = train_step_pipe(
-            neox_args=neox_args, timers=timers, model=model, data_iterator=data_iterator, gradient_ascent=gradient_ascent
+            neox_args=neox_args,
+            timers=timers,
+            model=model,
+            data_iterator=data_iterator,
+            gradient_ascent=gradient_ascent,
+            gradient_difference=gradient_difference,
+            retain_iterator=retain_iterator,
         )
         reduce_metrics = reduced_loss
         if (
@@ -1422,24 +1454,65 @@ def train_step(
     return reduce_metrics, skipped_iter
 
 
-def train_step_pipe(neox_args, timers, model, data_iterator, gradient_ascent=False):
+def train_step_pipe(neox_args, timers, model, data_iterator, gradient_ascent=False,
+                    gradient_difference=False, retain_iterator=None):
     """Single training step with DeepSpeed's pipeline parallel engine.
-    
+
     Args:
         neox_args: Configuration arguments
         timers: Timing utilities
         model: The model to train (DeepSpeed PipelineEngine)
         data_iterator: Iterator providing training data
         gradient_ascent: If True, perform gradient ascent (maximize loss) instead of descent
-        
+        gradient_difference: If True, use gradient difference with retain_iterator
+        retain_iterator: Iterator for retain data (required if gradient_difference=True)
+
     Note on Gradient Ascent:
         When gradient_ascent=True, we temporarily wrap the model's loss function to negate
         the loss before the backward pass. This ensures true gradient ascent in pipeline
         parallel mode. The loss value returned is already negated (negative).
+
+    Note on Gradient Difference:
+        When gradient_difference=True, uses the new train_gdiff_batch method in DeepSpeed
+        to perform gradient difference unlearning with both forget and retain datasets.
     """
 
     assert neox_args.deepspeed
-    
+
+    # Handle gradient difference mode
+    if gradient_difference:
+        if retain_iterator is None:
+            raise ValueError("retain_iterator required for gradient difference mode")
+
+        # Use the new train_gdiff_batch method in DeepSpeed
+        if hasattr(model, 'train_gdiff_batch'):
+            loss_dict = model.train_gdiff_batch(
+                forget_iter=data_iterator,
+                retain_iter=retain_iterator,
+                alpha=neox_args.gd_retain_weight
+            )
+
+            # Extract the combined loss for compatibility
+            loss = loss_dict.get('combined_loss', loss_dict.get('lm_loss', 0))
+
+            # Log losses if requested
+            if neox_args.gd_log_separate_losses and neox_args.rank == 0:
+                print(f"Gradient Difference - forget_loss: {loss_dict.get('forget_loss', 0):.4f}, "
+                      f"retain_loss: {loss_dict.get('retain_loss', 0):.4f}, "
+                      f"combined_loss: {loss:.4f}")
+
+            # Return full loss dictionary for tracking
+            loss_dict["lm_loss"] = loss
+            # Don't break Megatron's timers
+            for t in ["forward", "backward", "allreduce", "optimizer", "batch generator", "data loader"]:
+                timers(t).reset()
+            return loss_dict
+        else:
+            if neox_args.rank == 0:
+                print("WARNING: train_gdiff_batch not available in model, falling back to gradient ascent")
+            gradient_ascent = True  # Fall back to GA
+            gradient_difference = False
+
     # For gradient ascent in pipeline parallel mode, we need to wrap the loss function
     # to negate the loss before the backward pass
     if gradient_ascent and hasattr(model, 'module') and hasattr(model.module, 'loss_fn'):
@@ -1523,16 +1596,21 @@ def train(
     train_data_iterator,
     valid_data_iterator,
     ga_data_iterator=None,
+    retain_data_iterator=None,
 ):
     """Train the model function."""
-    
-    # Debug: Log GA configuration
-    print_rank_0(f"> Starting training with GA configuration:")
+
+    # Debug: Log GA/GD configuration
+    print_rank_0(f"> Starting training with GA/GD configuration:")
     print_rank_0(f"  GA dataset configured: {neox_args.ga_dataset is not None}")
     print_rank_0(f"  GA data iterator available: {ga_data_iterator is not None}")
+    print_rank_0(f"  GD mode enabled: {neox_args.gd_mode}")
+    print_rank_0(f"  GD retain iterator available: {retain_data_iterator is not None}")
     if neox_args.ga_dataset is not None:
         print_rank_0(f"  GA interval: {neox_args.ga_interval}")
         print_rank_0(f"  GA iterations: {neox_args.ga_iters}")
+    if neox_args.gd_mode:
+        print_rank_0(f"  GD retain weight (α): {neox_args.gd_retain_weight}")
 
     # Turn on training mode which enables dropout.
     model.train()
@@ -1634,23 +1712,44 @@ def train(
                         print(f"  Applying GA learning rate scale: {neox_args.ga_lr_scale}x")
                         print(f"  GA learning rate: {original_lrs[0] * neox_args.ga_lr_scale:.6f} (original: {original_lrs[0]:.6f})")
                 
-                # Perform gradient ascent iterations
+                # Perform gradient ascent/difference iterations
                 for ga_iter in range(neox_args.ga_iters):
-                    timers("gradient-ascent").start()
-                    
-                    # Perform gradient ascent step
-                    ga_loss_dict, ga_skipped_iter = train_step(
-                        neox_args=neox_args,
-                        timers=timers,
-                        data_iterator=ga_data_iterator,
-                        model=model,
-                        optimizer=optimizer,
-                        lr_scheduler=lr_scheduler,
-                        reference_model=reference_model,
-                        gradient_ascent=True,  # Flag to indicate gradient ascent
-                    )
-                    
-                    timers("gradient-ascent").stop()
+                    if neox_args.gd_mode:
+                        timers("gradient-difference").start()
+                    else:
+                        timers("gradient-ascent").start()
+
+                    # Perform gradient ascent or gradient difference step
+                    if neox_args.gd_mode and retain_data_iterator is not None:
+                        # Gradient Difference mode
+                        ga_loss_dict, ga_skipped_iter = train_step(
+                            neox_args=neox_args,
+                            timers=timers,
+                            data_iterator=ga_data_iterator,  # Forget set
+                            model=model,
+                            optimizer=optimizer,
+                            lr_scheduler=lr_scheduler,
+                            reference_model=reference_model,
+                            gradient_ascent=False,  # Not pure GA
+                            gradient_difference=True,  # Use gradient difference
+                            retain_iterator=retain_data_iterator,
+                        )
+                    else:
+                        # Pure Gradient Ascent mode
+                        ga_loss_dict, ga_skipped_iter = train_step(
+                            neox_args=neox_args,
+                            timers=timers,
+                            data_iterator=ga_data_iterator,
+                            model=model,
+                            optimizer=optimizer,
+                            lr_scheduler=lr_scheduler,
+                            reference_model=reference_model,
+                            gradient_ascent=True,  # Flag to indicate gradient ascent
+                        )
+                    if neox_args.gd_mode:
+                        timers("gradient-difference").stop()
+                    else:
+                        timers("gradient-ascent").stop()
                     
                     # Track GA metrics
                     if not ga_skipped_iter:
@@ -1790,21 +1889,41 @@ def train(
                         original_lrs.append(param_group['lr'])
                         param_group['lr'] *= neox_args.ga_lr_scale
                 
-                timers("gradient-ascent").start()
-                
-                # Perform single gradient ascent step
-                loss_dict, skipped_iter = train_step(
-                    neox_args=neox_args,
-                    timers=timers,
-                    data_iterator=ga_data_iterator,
-                    model=model,
-                    optimizer=optimizer,
-                    lr_scheduler=lr_scheduler,
-                    reference_model=reference_model,
-                    gradient_ascent=True,  # Flag to indicate gradient ascent
-                )
-                
-                timers("gradient-ascent").stop()
+                # Use gradient difference if gd_mode is enabled, otherwise regular GA
+                if neox_args.gd_mode and retain_data_iterator is not None:
+                    timers("gradient-difference").start()
+
+                    # Perform gradient difference step
+                    loss_dict, skipped_iter = train_step(
+                        neox_args=neox_args,
+                        timers=timers,
+                        data_iterator=ga_data_iterator,
+                        model=model,
+                        optimizer=optimizer,
+                        lr_scheduler=lr_scheduler,
+                        reference_model=reference_model,
+                        gradient_ascent=False,  # Not pure GA
+                        gradient_difference=True,  # Use gradient difference
+                        retain_iterator=retain_data_iterator,
+                    )
+
+                    timers("gradient-difference").stop()
+                else:
+                    timers("gradient-ascent").start()
+
+                    # Perform single gradient ascent step
+                    loss_dict, skipped_iter = train_step(
+                        neox_args=neox_args,
+                        timers=timers,
+                        data_iterator=ga_data_iterator,
+                        model=model,
+                        optimizer=optimizer,
+                        lr_scheduler=lr_scheduler,
+                        reference_model=reference_model,
+                        gradient_ascent=True,  # Flag to indicate gradient ascent
+                    )
+
+                    timers("gradient-ascent").stop()
                 
                 # Track GA metrics
                 if not skipped_iter:
@@ -1843,9 +1962,12 @@ def train(
                         # We already did forward pass, just counting it
                         ga_forward_only_count += 1
                     
-                    # Log interleaved GA step
+                    # Log interleaved GA/GD step
                     if neox_args.rank == 0:
-                        print(f"  [Interleaved GA] iteration {iteration}, actual_loss: {actual_loss:.4f}, ga_objective: {ga_objective:.4f}")
+                        if neox_args.gd_mode and retain_data_iterator is not None:
+                            print(f"  [Interleaved GD] iteration {iteration}, actual_loss: {actual_loss:.4f}, ga_objective: {ga_objective:.4f}")
+                        else:
+                            print(f"  [Interleaved GA] iteration {iteration}, actual_loss: {actual_loss:.4f}, ga_objective: {ga_objective:.4f}")
                     
                     # Log GA metrics immediately (not periodically) for interleaved mode
                     if neox_args.rank == 0 and iteration % neox_args.log_interval == 0:
