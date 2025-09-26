@@ -1125,11 +1125,11 @@ class TestGradientDifference:
         alpha = 40.0
 
         # Compute gradient difference loss
-        # L_total = L_retain - α * L_forget
-        gd_loss = retain_loss - alpha * forget_loss
+        # L_total = α * L_retain - L_forget
+        gd_loss = alpha * retain_loss - forget_loss
 
-        # Expected: 3.0 - 40.0 * 2.5 = 3.0 - 100.0 = -97.0
-        assert gd_loss.item() == -97.0
+        # Expected: 40.0 * 3.0 - 2.5 = 120.0 - 2.5 = 117.5
+        assert gd_loss.item() == 117.5
 
     def test_gradient_difference_direction(self):
         """Test that gradient difference moves in correct directions."""
@@ -1144,7 +1144,7 @@ class TestGradientDifference:
 
         # Gradient difference objective
         alpha = 1.0
-        combined_loss = retain_loss - alpha * forget_loss
+        combined_loss = alpha * retain_loss - forget_loss
 
         # Compute gradients
         combined_loss.backward()

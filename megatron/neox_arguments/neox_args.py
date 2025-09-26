@@ -1172,7 +1172,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     """
     Enable gradient difference mode. When enabled, the model performs gradient
     difference unlearning using both forget (GA) and retain datasets. This replaces
-    pure gradient ascent with the formula: L_total = L_retain - α * L_forget
+    pure gradient ascent with the formula: L_total = α * L_retain - L_forget
     """
 
     gd_retain_dataset: str = None
@@ -1189,10 +1189,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
 
     gd_retain_weight: float = 40.0
     """
-    Weight (α) for the forget loss in gradient difference formula.
-    Higher values provide stronger retention of general capabilities.
-    The combined loss is: L_retain - α * L_forget
-    Based on Composable Interventions paper, values around 40 work well.
+    Weight (α) for the retain loss in gradient difference formula.
+    Higher values provide stronger retention of general capabilities (less forgetting).
+    Lower values allow more aggressive unlearning (more forgetting).
+    The combined loss is: α * L_retain - L_forget
+    Typical values: 1-10 for aggressive unlearning, 40-100 for balanced unlearning.
     """
 
     gd_log_separate_losses: bool = True
