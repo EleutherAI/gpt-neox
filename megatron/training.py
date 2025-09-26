@@ -1799,53 +1799,114 @@ def train(
                             # We already did forward pass, just counting it
                             ga_forward_only_count += 1
                     
-                    # Log GA iteration
+                    # Log GA/GD iteration
                     if neox_args.rank == 0 and not ga_skipped_iter:
-                        print(f"  GA iteration {ga_iter + 1}/{neox_args.ga_iters}, actual_loss: {actual_loss:.4f}, ga_objective: {ga_objective:.4f}")
-                        
-                        # Debug: Show first GA loss values and pipeline mode
+                        if neox_args.gd_mode and retain_data_iterator is not None:
+                            # Gradient Difference mode
+                            gd_combined_loss = ga_loss_dict.get('combined_loss', 0)
+                            print(f"  GD iteration {ga_iter + 1}/{neox_args.ga_iters}, combined_loss: {gd_combined_loss:.4f}, "
+                                  f"forget_loss: {ga_loss_dict.get('forget_loss', 0):.4f}, "
+                                  f"retain_loss: {ga_loss_dict.get('retain_loss', 0):.4f}")
+                        else:
+                            # Gradient Ascent mode
+                            print(f"  GA iteration {ga_iter + 1}/{neox_args.ga_iters}, actual_loss: {actual_loss:.4f}, ga_objective: {ga_objective:.4f}")
+
+                        # Debug: Show first iteration loss values and pipeline mode
                         if ga_iter == 0:
                             print(f"  [DEBUG] Pipeline parallel: {neox_args.is_pipe_parallel}")
-                            print(f"  [DEBUG] GA actual loss (positive): {actual_loss:.4f}, GA objective (negative): {ga_objective:.4f}")
+                            if neox_args.gd_mode and retain_data_iterator is not None:
+                                print(f"  [DEBUG] GD mode active with combined loss formula: α * L_retain - L_forget")
+                            else:
+                                print(f"  [DEBUG] GA actual loss (positive): {actual_loss:.4f}, GA objective (negative): {ga_objective:.4f}")
                 
-                # Log average GA loss to all monitoring services
+                # Log average GA/GD loss to all monitoring services
                 if neox_args.rank == 0 and ga_loss_count > 0:
-                    avg_ga_actual_loss = ga_loss_sum / ga_loss_count  # This is the actual positive loss
-                    avg_ga_objective = -avg_ga_actual_loss  # This is the negated value for GA
-                    
-                    # TensorBoard logging
-                    if neox_args.tensorboard_writer:
-                        neox_args.tensorboard_writer.add_scalar(
-                            "train/ga_actual_loss", avg_ga_actual_loss, iteration
-                        )
-                        neox_args.tensorboard_writer.add_scalar(
-                            "train/ga_objective", avg_ga_objective, iteration
-                        )
-                        neox_args.tensorboard_writer.add_scalar(
-                            "train/ga_iterations_total", ga_iter + 1, iteration
-                        )
-                    
-                    # WandB logging
-                    if neox_args.use_wandb:
-                        import wandb
-                        wandb.log({
-                            "train/ga_actual_loss": avg_ga_actual_loss,
-                            "train/ga_objective": avg_ga_objective,
-                            "train/ga_iterations": ga_iter + 1,
-                            "iteration": iteration,
-                        })
-                    
-                    # Comet logging
-                    if neox_args.comet_experiment:
-                        neox_args.comet_experiment.log_metric(
-                            "ga_actual_loss", avg_ga_actual_loss, step=iteration
-                        )
-                        neox_args.comet_experiment.log_metric(
-                            "ga_objective", avg_ga_objective, step=iteration
-                        )
-                        neox_args.comet_experiment.log_metric(
-                            "ga_iterations", ga_iter + 1, step=iteration
-                        )
+                    if neox_args.gd_mode and retain_data_iterator is not None:
+                        # Gradient Difference mode - get the combined loss from the last iteration
+                        # Note: For interval mode with multiple iterations, we'd need to track averages differently
+                        # For now, log the last iteration's metrics
+                        gd_combined_loss = ga_loss_dict.get('combined_loss', 0)
+                        gd_forget_loss = ga_loss_dict.get('forget_loss', 0)
+                        gd_retain_loss = ga_loss_dict.get('retain_loss', 0)
+
+                        # TensorBoard logging
+                        if neox_args.tensorboard_writer:
+                            neox_args.tensorboard_writer.add_scalar(
+                                "train/gd_combined_loss", gd_combined_loss, iteration
+                            )
+                            neox_args.tensorboard_writer.add_scalar(
+                                "train/gd_forget_loss", gd_forget_loss, iteration
+                            )
+                            neox_args.tensorboard_writer.add_scalar(
+                                "train/gd_retain_loss", gd_retain_loss, iteration
+                            )
+                            neox_args.tensorboard_writer.add_scalar(
+                                "train/gd_iterations_total", ga_iter + 1, iteration
+                            )
+
+                        # WandB logging
+                        if neox_args.use_wandb:
+                            import wandb
+                            wandb.log({
+                                "train/gd_combined_loss": gd_combined_loss,
+                                "train/gd_forget_loss": gd_forget_loss,
+                                "train/gd_retain_loss": gd_retain_loss,
+                                "train/gd_iterations": ga_iter + 1,
+                                "iteration": iteration,
+                            })
+
+                        # Comet logging
+                        if neox_args.comet_experiment:
+                            neox_args.comet_experiment.log_metric(
+                                "gd_combined_loss", gd_combined_loss, step=iteration
+                            )
+                            neox_args.comet_experiment.log_metric(
+                                "gd_forget_loss", gd_forget_loss, step=iteration
+                            )
+                            neox_args.comet_experiment.log_metric(
+                                "gd_retain_loss", gd_retain_loss, step=iteration
+                            )
+                            neox_args.comet_experiment.log_metric(
+                                "gd_iterations", ga_iter + 1, step=iteration
+                            )
+                    else:
+                        # Gradient Ascent mode
+                        avg_ga_actual_loss = ga_loss_sum / ga_loss_count  # This is the actual positive loss
+                        avg_ga_objective = -avg_ga_actual_loss  # This is the negated value for GA
+
+                        # TensorBoard logging
+                        if neox_args.tensorboard_writer:
+                            neox_args.tensorboard_writer.add_scalar(
+                                "train/ga_actual_loss", avg_ga_actual_loss, iteration
+                            )
+                            neox_args.tensorboard_writer.add_scalar(
+                                "train/ga_objective", avg_ga_objective, iteration
+                            )
+                            neox_args.tensorboard_writer.add_scalar(
+                                "train/ga_iterations_total", ga_iter + 1, iteration
+                            )
+
+                        # WandB logging
+                        if neox_args.use_wandb:
+                            import wandb
+                            wandb.log({
+                                "train/ga_actual_loss": avg_ga_actual_loss,
+                                "train/ga_objective": avg_ga_objective,
+                                "train/ga_iterations": ga_iter + 1,
+                                "iteration": iteration,
+                            })
+
+                        # Comet logging
+                        if neox_args.comet_experiment:
+                            neox_args.comet_experiment.log_metric(
+                                "ga_actual_loss", avg_ga_actual_loss, step=iteration
+                            )
+                            neox_args.comet_experiment.log_metric(
+                                "ga_objective", avg_ga_objective, step=iteration
+                            )
+                            neox_args.comet_experiment.log_metric(
+                                "ga_iterations", ga_iter + 1, step=iteration
+                            )
                     
                     ga_loss_sum = 0.0
                     ga_loss_count = 0
@@ -1965,42 +2026,86 @@ def train(
                     # Log interleaved GA/GD step
                     if neox_args.rank == 0:
                         if neox_args.gd_mode and retain_data_iterator is not None:
-                            print(f"  [Interleaved GD] iteration {iteration}, actual_loss: {actual_loss:.4f}, ga_objective: {ga_objective:.4f}")
+                            # For gradient difference, use gd-specific naming
+                            print(f"  [Interleaved GD] iteration {iteration}, gd_combined_loss: {loss_dict.get('combined_loss', 0):.4f}, gd_objective: {ga_objective:.4f}")
                         else:
                             print(f"  [Interleaved GA] iteration {iteration}, actual_loss: {actual_loss:.4f}, ga_objective: {ga_objective:.4f}")
                     
-                    # Log GA metrics immediately (not periodically) for interleaved mode
+                    # Log GA/GD metrics immediately (not periodically) for interleaved mode
                     if neox_args.rank == 0 and iteration % neox_args.log_interval == 0:
-                        # TensorBoard logging
-                        if neox_args.tensorboard_writer:
-                            neox_args.tensorboard_writer.add_scalar(
-                                "train/ga_actual_loss", actual_loss, iteration
-                            )
-                            neox_args.tensorboard_writer.add_scalar(
-                                "train/ga_objective", ga_objective, iteration
-                            )
-                            neox_args.tensorboard_writer.add_scalar(
-                                "train/batch_type", 1.0, iteration  # 1.0 for GA
-                            )
-                        
-                        # WandB logging
-                        if neox_args.use_wandb:
-                            import wandb
-                            wandb.log({
-                                "train/ga_actual_loss": actual_loss,
-                                "train/ga_objective": ga_objective,
-                                "train/batch_type": 1.0,  # 1.0 for GA
-                                "iteration": iteration,
-                            })
-                        
-                        # Comet logging
-                        if neox_args.comet_experiment:
-                            neox_args.comet_experiment.log_metric(
-                                "ga_actual_loss", actual_loss, step=iteration
-                            )
-                            neox_args.comet_experiment.log_metric(
-                                "ga_objective", ga_objective, step=iteration
-                            )
+                        if neox_args.gd_mode and retain_data_iterator is not None:
+                            # Gradient Difference mode metrics
+                            gd_combined_loss = loss_dict.get('combined_loss', 0)
+
+                            # TensorBoard logging
+                            if neox_args.tensorboard_writer:
+                                neox_args.tensorboard_writer.add_scalar(
+                                    "train/gd_combined_loss", gd_combined_loss, iteration
+                                )
+                                neox_args.tensorboard_writer.add_scalar(
+                                    "train/gd_forget_loss", loss_dict.get('forget_loss', 0), iteration
+                                )
+                                neox_args.tensorboard_writer.add_scalar(
+                                    "train/gd_retain_loss", loss_dict.get('retain_loss', 0), iteration
+                                )
+                                neox_args.tensorboard_writer.add_scalar(
+                                    "train/batch_type", 2.0, iteration  # 2.0 for GD
+                                )
+
+                            # WandB logging
+                            if neox_args.use_wandb:
+                                import wandb
+                                wandb.log({
+                                    "train/gd_combined_loss": gd_combined_loss,
+                                    "train/gd_forget_loss": loss_dict.get('forget_loss', 0),
+                                    "train/gd_retain_loss": loss_dict.get('retain_loss', 0),
+                                    "train/batch_type": 2.0,  # 2.0 for GD
+                                    "iteration": iteration,
+                                })
+
+                            # Comet logging
+                            if neox_args.comet_experiment:
+                                neox_args.comet_experiment.log_metric(
+                                    "gd_combined_loss", gd_combined_loss, step=iteration
+                                )
+                                neox_args.comet_experiment.log_metric(
+                                    "gd_forget_loss", loss_dict.get('forget_loss', 0), step=iteration
+                                )
+                                neox_args.comet_experiment.log_metric(
+                                    "gd_retain_loss", loss_dict.get('retain_loss', 0), step=iteration
+                                )
+                        else:
+                            # Gradient Ascent mode metrics
+                            # TensorBoard logging
+                            if neox_args.tensorboard_writer:
+                                neox_args.tensorboard_writer.add_scalar(
+                                    "train/ga_actual_loss", actual_loss, iteration
+                                )
+                                neox_args.tensorboard_writer.add_scalar(
+                                    "train/ga_objective", ga_objective, iteration
+                                )
+                                neox_args.tensorboard_writer.add_scalar(
+                                    "train/batch_type", 1.0, iteration  # 1.0 for GA
+                                )
+
+                            # WandB logging
+                            if neox_args.use_wandb:
+                                import wandb
+                                wandb.log({
+                                    "train/ga_actual_loss": actual_loss,
+                                    "train/ga_objective": ga_objective,
+                                    "train/batch_type": 1.0,  # 1.0 for GA
+                                    "iteration": iteration,
+                                })
+
+                            # Comet logging
+                            if neox_args.comet_experiment:
+                                neox_args.comet_experiment.log_metric(
+                                    "ga_actual_loss", actual_loss, step=iteration
+                                )
+                                neox_args.comet_experiment.log_metric(
+                                    "ga_objective", ga_objective, step=iteration
+                                )
             
                 # Restore original learning rates
                 if neox_args.ga_lr_scale != 1.0 and original_lrs:
