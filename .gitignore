@@ -1,5 +1,6 @@
 .claude/
 *_eval_results_*.json
+core
 core.*
 *.log
 
