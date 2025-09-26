@@ -566,7 +566,7 @@ def run_eval_harness(
     model,
     forward_step_fn,
     neox_args,
-    batch_size=None,
+    batch_size=1,
     eval_tasks=None,
     num_fewshot=0,
     bootstrap_iters=2,
