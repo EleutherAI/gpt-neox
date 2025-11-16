@@ -393,7 +393,7 @@ def load_checkpoint(
             load_lr_scheduler_states=load_optim_and_scheduler,
             load_module_only=not load_optim_and_scheduler,
             tag=tag,
-            load_module_strict=neox_args.train_impl != "rm",
+            load_module_strict=False,
         )
 
         if checkpoint_name is None:
