@@ -490,6 +490,14 @@ Model Arguments
 
 
 
+- **qk_layernorm_over_heads**: bool
+
+    Default = False
+
+    Apply QK normalization over [\*, N, H] instead of [\*, H].
+
+
+
 - **layernorm_epsilon**: float
 
     Default = 1e-05
