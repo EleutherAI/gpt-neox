@@ -189,6 +189,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Use QK Normalization
     """
 
+    qk_layernorm_over_heads: bool = False
+    """
+    Apply QK normalization over [*, N, H] instead of [*, H].
+    """
+
     layernorm_epsilon: float = 1.0e-5
     """
     Layer norm epsilon.

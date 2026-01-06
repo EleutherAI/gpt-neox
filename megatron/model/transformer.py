@@ -309,15 +309,18 @@ class ParallelSelfAttention(nn.Module):
         self.pos_emb = neox_args.pos_emb
 
         self.use_qk_layernorm = neox_args.use_qk_layernorm
+        self.qk_layernorm_over_heads = neox_args.qk_layernorm_over_heads
         if self.use_qk_layernorm:
             norm, eps = get_norm(neox_args)
-            self.qk_layernorm = norm(
+            norm_dims = (
                 [
                     self.num_attention_heads_per_partition,
                     self.hidden_size_per_attention_head,
-                ],
-                eps=eps,
+                ]
+                if self.qk_layernorm_over_heads
+                else [self.hidden_size_per_attention_head]
             )
+            self.qk_layernorm = norm(norm_dims, eps=eps)
 
         self.sliding_window_width = neox_args.sliding_window_width
 
