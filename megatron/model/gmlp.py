@@ -80,7 +80,7 @@ class SpatialGatingUnit(nn.Module):
             mask = torch.ones(weight.shape[:2], device=device).triu_(1).bool()
             weight = weight.masked_fill(mask, 0.0)
 
-        gate = F.linear(gate.transpose(2, 1), weight, self.proj.bias).transpose(2, 1)
+        gate = F.linear(gate.transpose(2, 1), weight, bias).transpose(2, 1)
 
         if self.use_attn:
             gate = gate + self.attn(x, attention_mask)
