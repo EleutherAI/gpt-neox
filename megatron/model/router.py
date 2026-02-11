@@ -223,8 +223,8 @@ class TopKTokenChoiceRouter(torch.nn.Module):
         Returns:
             torch.Tensor: Jittered input tensor.
         """
-        low = 1.0 - self.args.moe_jitter_eps
-        high = 1.0 + self.args.moe_jitter_eps
+        low = 1.0 - self.jitter_eps
+        high = 1.0 + self.jitter_eps
         noise = torch.rand(x.size(), dtype=x.dtype, device=x.device)
         return low + noise * (high - low)
 
