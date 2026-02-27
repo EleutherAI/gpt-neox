@@ -22,7 +22,7 @@ repo_name = sys.argv[2]
 branch_name = sys.argv[3]
 try:
     create_repo(repo_name, repo_type="model", private=False)
-except:
+except Exception:
     print("repo {repo_name} already exists!")
     pass
 
@@ -36,7 +36,7 @@ if branch_name != "main":
             repo_type="model",
             branch=branch_name,
         )
-    except:
+    except Exception:
         print(f"branch {branch_name} already exists, try again...")
 print(f"to upload: {files}")
 for file in files:

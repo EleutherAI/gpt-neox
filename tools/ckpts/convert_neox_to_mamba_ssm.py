@@ -78,7 +78,7 @@ def create_config(neox_config):
     tokenizer = build_tokenizer(args)
     try:  # GPT2TokenizerFast raises NotImplementedError
         pad_token = tokenizer.pad
-    except:
+    except Exception:
         pad_token = (
             1  # pad defaulting to 1. follows convention from GPT-NeoX-20b tokenizer
         )
@@ -127,14 +127,14 @@ def convert(
                 if fp16["enabled"]:
                     dtype = torch.float16
                     print("Saving weights in fp16 precision...")
-            except:
+            except Exception:
                 try:
                     # attempt to access bf16 dict in yaml file, if fp16 not enabled
                     bf16 = get_key(loaded_config, "bf16")
                     if bf16:
                         dtype = torch.bfloat16
                         print("Saving weights in bf16 precision...")
-                except:
+                except Exception:
                     dtype = torch.float
                     print(
                         "Model not trained in fp16 / bf16 mixed precision, saving weights in fp32..."

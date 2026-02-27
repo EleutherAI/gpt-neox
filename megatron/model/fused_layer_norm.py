@@ -18,7 +18,7 @@ try:
     from apex.contrib.layer_norm.layer_norm import FastLayerNormFN
 
     HAVE_PERSIST_LAYER_NORM = True
-except:
+except Exception:
     HAVE_PERSIST_LAYER_NORM = False
 
 from apex.normalization.fused_layer_norm import (
