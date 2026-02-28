@@ -657,9 +657,11 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
     LR Scheduler Arguments
     """
 
-    lr_decay_style: Literal["constant", "linear", "cosine", "exponential"] = "linear"
+    lr_decay_style: Literal["constant", "linear", "cosine", "exponential", "wsd"] = "linear"
     """
-    Learning rate decay function. Choose from 'constant', 'linear', 'cosine', 'exponential'.
+    Learning rate decay function. Choose from 'constant', 'linear', 'cosine', 'exponential', 'wsd'.
+    'wsd' implements the Warmup-Stable-Decay schedule from the MiniCPM paper
+    (https://arxiv.org/abs/2404.06395): linear warmup, constant LR, then cosine decay.
     """
 
     lr_decay_iters: int = None
@@ -681,6 +683,14 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
     warmup: float = 0.01
     """
     Percentage of total iterations to warmup on (.01 = 1 percent of all training iters).
+    """
+
+    wsd_decay_ratio: float = 0.1
+    """
+    Fraction of total iterations used for the final decay phase in the WSD
+    (Warmup-Stable-Decay) learning rate schedule. Only used when lr_decay_style='wsd'.
+    For example, 0.1 means the last 10% of training iterations will use cosine decay
+    from start_lr to min_lr. Default: 0.1
     """
 
     override_lr_scheduler: bool = False

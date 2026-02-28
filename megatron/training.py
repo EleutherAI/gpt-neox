@@ -1135,6 +1135,7 @@ def get_learning_rate_scheduler(optimizer, neox_args):
         use_checkpoint_lr_scheduler=neox_args.use_checkpoint_lr_scheduler,
         override_lr_scheduler=neox_args.override_lr_scheduler,
         use_mup=neox_args.use_mup,
+        wsd_decay_ratio=neox_args.wsd_decay_ratio,
     )
 
     return lr_scheduler
