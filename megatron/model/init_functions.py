@@ -180,9 +180,9 @@ def get_init_methods(args):
     if args.use_mup:
         try:
             import mup
-        except ModuleNotFoundError:
+        except ModuleNotFoundError as exc:
             print("Please install mup https://github.com/microsoft/mup")
-            raise Exception
+            raise Exception from exc
 
     def _get(name):
         if name == "normal":
