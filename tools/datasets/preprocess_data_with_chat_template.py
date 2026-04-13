@@ -145,8 +145,20 @@ class Encoder(object):
     def encode(self, text):
         ids = {}
         for key in self.args.jsonl_keys:
+            # Check for None content in messages before processing
+            chat_messages = text[key]
+            has_none_content = any(
+                msg.get("content") is None for msg in chat_messages
+            )
+            if has_none_content:
+                import warnings
+                warnings.warn(
+                    f"Skipping record with None content in messages: {chat_messages[:2]}..."
+                )
+                return None, 0
+
             text_ids, label_ids = build_chat(
-                text[key],
+                chat_messages,
                 self.args.generation_role,
                 not self.args.no_mask,
                 Encoder.tokenizer,
@@ -362,12 +374,18 @@ def main():
     # actually do tokenization
     proc_start = time.time()
     total_bytes_processed = 0
+    skipped_docs = 0
     pbar = tqdm.tqdm()
     for i, (doc, bytes_processed) in enumerate(encoded_docs, start=1):
         total_bytes_processed += bytes_processed
 
         # release semaphore so `yield_from_files` can add another file to the buffer
         semaphore.release()
+
+        # Skip records with None content
+        if doc is None:
+            skipped_docs += 1
+            continue
 
         # add each tokenized document / sentence
         for key, conv in doc.items():
@@ -410,6 +428,8 @@ def main():
         builders[key + "_label"].finalize(output_idx_files[key + "_label"])
         if args.reward_key is not None:
             builders[key + "_reward"].finalize(output_idx_files[key + "_reward"])
+
+    print(f"\nProcessing complete. Skipped {skipped_docs} documents with None content.")
 
 
 if __name__ == "__main__":
