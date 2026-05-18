@@ -268,6 +268,8 @@ You can then kick off a training run with `sbatch my_sbatch_script.sh`
 
 We provide containers for [Apptainer](#apptainer) (formerly Singularity) and [Docker](#docker) under [containers](https://github.com/EleutherAI/gpt-neox/blob/main/containers/).
 
+For the custom Transformer Engine and B200 image build workflow, see the [container image guide](containers/README.md).
+
 #### Docker
 
 If you prefer to run NeoX in a Docker container, we provide a Dockerfile and docker-compose configuration.
