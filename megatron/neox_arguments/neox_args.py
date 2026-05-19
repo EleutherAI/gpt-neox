@@ -339,6 +339,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Enable rotary embedding fusion.
     """
 
+    fused_kernels_build_path: Optional[str] = None
+    """
+    Optional override for the fused kernels build directory. If unset, defaults to `megatron/fused_kernels/build` relative to the package.
+    """
+
     fp16_lm_cross_entropy: bool = False
     """
     Move the cross entropy unreduced loss calculation for lm head to fp16.

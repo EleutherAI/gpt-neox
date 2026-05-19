@@ -684,6 +684,14 @@ Model Arguments
 
 
 
+- **fused_kernels_build_path**: typing.Optional[str]
+
+    Default = None
+
+    Optional override for the fused kernels build directory. If unset, defaults to `megatron/fused_kernels/build` relative to the package.
+
+
+
 - **fp16_lm_cross_entropy**: bool
 
     Default = False
@@ -2615,4 +2623,3 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     Default = None
 
     Adds a `--account` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometimes necessary for cluster rules, or so I've heard.
-
