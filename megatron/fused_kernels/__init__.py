@@ -159,8 +159,8 @@ def _get_cuda_bare_metal_version(cuda_dir):
 def _get_build_path(neox_args=None):
     if neox_args is not None:
         fused_kernels_build_path = getattr(neox_args, "fused_kernels_build_path", None)
-        if fused_kernels_build_path:
-            return pathlib.Path(fused_kernels_build_path).expanduser().absolute()
+        if fused_kernels_build_path is not None:
+            return pathlib.Path(fused_kernels_build_path).expanduser().resolve()
 
     srcpath = pathlib.Path(__file__).parent.absolute()
     return srcpath / "build"
@@ -169,9 +169,10 @@ def _get_build_path(neox_args=None):
 def _create_build_dir(buildpath):
     try:
         pathlib.Path(buildpath).mkdir(parents=True, exist_ok=True)
-    except OSError:
-        if not os.path.isdir(buildpath):
-            print(f"Creation of the build directory {buildpath} failed")
+    except OSError as e:
+        raise RuntimeError(
+            f"Creation of the build directory {buildpath} failed: {e}"
+        ) from e
 
 
 def load_fused_kernels():
