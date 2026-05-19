@@ -15,7 +15,7 @@ cd gpt-neox
 | Image | Dockerfile | Base image | CUDA architecture | Use case |
 | --- | --- | --- | --- | --- |
 | `gpt-neox:te` | `containers/docker/Dockerfile.TE` | `nvcr.io/nvidia/pytorch:24.02-py3` | `9.0` | Transformer Engine and FlashAttention on Hopper-class GPUs such as H100. |
-| `gpt-neox:B200` | `containers/docker/Dockerfile.B200` | `nvcr.io/nvidia/pytorch:25.04-py3` | `10.0` | B200 systems that require the newer PyTorch and CUDA stack from NGC 25.04. |
+| `gpt-neox:b200` | `containers/docker/Dockerfile.B200` | `nvcr.io/nvidia/pytorch:25.04-py3` | `10.0` | B200 systems that require the newer PyTorch and CUDA stack from NGC 25.04. |
 
 ## TE Image
 
@@ -74,14 +74,14 @@ The image:
 Build the image:
 
 ```bash
-docker build -f containers/docker/Dockerfile.B200 -t gpt-neox:B200 .
+docker build -f containers/docker/Dockerfile.B200 -t gpt-neox:b200 .
 ```
 
 Verify the image:
 
 ```bash
-docker run --rm --gpus all --ipc=host gpt-neox:B200 nvidia-smi
-docker run --rm --gpus all --ipc=host gpt-neox:B200 \
+docker run --rm --gpus all --ipc=host gpt-neox:b200 nvidia-smi
+docker run --rm --gpus all --ipc=host gpt-neox:b200 \
   python -c "import torch, wandb, transformer_engine; print(torch.__version__)"
 ```
 
@@ -110,7 +110,7 @@ docker run --rm -it \
   bash
 ```
 
-Use `gpt-neox:B200` instead of `gpt-neox:te` when running the B200 image.
+Use `gpt-neox:b200` instead of `gpt-neox:te` when running the B200 image.
 
 ## Apptainer Equivalents
 
@@ -120,7 +120,7 @@ the local Docker daemon:
 
 ```bash
 apptainer build containers/apptainer/gpt-neox-te-from-docker.sif docker-daemon://gpt-neox:te
-apptainer build containers/apptainer/gpt-neox-B200-from-docker.sif docker-daemon://gpt-neox:B200
+apptainer build containers/apptainer/gpt-neox-b200-from-docker.sif docker-daemon://gpt-neox:b200
 ```
 
 If Docker is not available on the target system, push the Docker images to a
@@ -128,7 +128,7 @@ registry from a Docker-capable host and build from the registry instead:
 
 ```bash
 apptainer build gpt-neox-te.sif docker://your-registry/gpt-neox:te
-apptainer build gpt-neox-B200.sif docker://your-registry/gpt-neox:B200
+apptainer build gpt-neox-b200.sif docker://your-registry/gpt-neox:b200
 ```
 
 Verify the Apptainer images with `--nv` to enable NVIDIA GPU support:
@@ -136,7 +136,7 @@ Verify the Apptainer images with `--nv` to enable NVIDIA GPU support:
 ```bash
 apptainer exec --nv containers/apptainer/gpt-neox-te-from-docker.sif \
   python -c "import torch, wandb, flash_attn, transformer_engine; print(torch.__version__)"
-apptainer exec --nv containers/apptainer/gpt-neox-B200-from-docker.sif \
+apptainer exec --nv containers/apptainer/gpt-neox-b200-from-docker.sif \
   python -c "import torch, wandb, transformer_engine; print(torch.__version__)"
 ```
 

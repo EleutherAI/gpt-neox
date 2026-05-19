@@ -28,7 +28,7 @@ RUN apt-get update -y && \
     apt-get install -y \
     python3-pip sudo pdsh \
     htop tmux zstd software-properties-common \
-    nfs-common pdsh cmake htop iftop iotop ssh openssh-server \
+    nfs-common pdsh cmake iftop iotop ssh openssh-server \
     iputils-ping net-tools git ninja-build build-essential libaio-dev \
     libcupti-dev libmlx4-1 infiniband-diags ibutils \
     rdmacm-utils perftest rdma-core && \
@@ -76,15 +76,19 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
 COPY requirements/* ./
 ENV TORCH_CUDA_ARCH_LIST=10.0
 
-RUN sed -i 's/^jinja2==3.1.4$/jinja2==3.1.6/' requirements.txt && \
+# Handle deps. chardet is included in NGC 25.04, so we exclude to avoid a ton of warning spam
+RUN grep -q '^jinja2==3\.1\.4$' requirements.txt || \
+        { echo "ERROR: expected jinja2==3.1.4 in requirements.txt — pin may have changed upstream" >&2; exit 1; } && \
+    sed -i 's/^jinja2==3.1.4$/jinja2==3.1.6/' requirements.txt && \
     python -m pip install --no-cache-dir -r requirements.txt && \
     python -m pip install --no-cache-dir -r requirements-onebitadam.txt && \
     python -m pip install --no-cache-dir wandb==0.16.6 && \
-    python -m pip uninstall -y chardet
+    python -m pip uninstall -y chardet 
+
 
 COPY megatron/fused_kernels/ /megatron/fused_kernels
-WORKDIR /megatron/fused_kernels
-RUN python setup.py install
+RUN pip install --no-cache-dir --no-build-isolation /megatron/fused_kernels && \
+    rm -rf /megatron/fused_kernels
 
 # Clear staging
 RUN mkdir -p /tmp && chmod 0777 /tmp
