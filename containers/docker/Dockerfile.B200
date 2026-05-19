@@ -83,7 +83,7 @@ RUN grep -q '^jinja2==3\.1\.4$' requirements.txt || \
     python -m pip install --no-cache-dir -r requirements.txt && \
     python -m pip install --no-cache-dir -r requirements-onebitadam.txt && \
     python -m pip install --no-cache-dir wandb==0.16.6 && \
-    python -m pip uninstall -y chardet 
+    python -m pip uninstall -y chardet
 
 
 COPY megatron/fused_kernels/ /megatron/fused_kernels
