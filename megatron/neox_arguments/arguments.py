@@ -21,7 +21,11 @@ import logging
 import copy
 import torch
 import argparse
-from pkg_resources import packaging
+
+try:
+    import packaging
+except ImportError:
+    from pkg_resources import packaging
 from importlib.metadata import version
 
 from dataclasses import dataclass
@@ -1086,7 +1090,9 @@ class NeoXArgs(*BASE_CLASSES):
 
         # MoE config
         if self.moe_num_experts > 1:
-            assert self.zero_optimization["stage"] < 2, "MoE is not compatible with zero stages 2 and 3"
+            assert (
+                self.zero_optimization["stage"] < 2
+            ), "MoE is not compatible with zero stages 2 and 3"
 
         # Attention config
         if self.attention_config is None:
