@@ -74,7 +74,7 @@ class SinkhornRouter(torch.nn.Module):
             d1 = (1 / d1.size(0)) * 1 / (torch.sum(d0.unsqueeze(1) * cost, 0) + eps)
             error = torch.mean(torch.abs(d1_old - d1))
             d1_old = d1
-            if error > tol:
+            if error < tol:
                 break
         return d1 * cost * d0.unsqueeze(1)
 
