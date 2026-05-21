@@ -809,6 +809,11 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     (N.B - this will only work with pp = 0 for now, as we don't have access to the gradients of the model because deepspeed.)
     """
 
+    log_l1_norm: bool = False
+    """
+    If set, each forward pass records the L1-norm of token-embedding, every attention block, every MLP block, and the lm-head.
+    """
+
     log_optimizer_states: bool = False
     """
     Log the frob norm of the optimizer states to wandb / tensorboard (useful for debugging).
