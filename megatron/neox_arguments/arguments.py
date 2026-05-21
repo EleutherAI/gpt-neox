@@ -230,7 +230,7 @@ class NeoXArgs(*BASE_CLASSES):
         overwrite_values: If provided, overwrite any values in the yamls with these values
         """
 
-        print(cls.__name__ + ".from_ymls() " + str(paths_to_yml_files), flush=True)
+        print("Configuration Files" + str(paths_to_yml_files), flush=True)
 
         # initialize an empty config dictionary to be filled by yamls
         config = dict()
@@ -747,6 +747,22 @@ class NeoXArgs(*BASE_CLASSES):
         """
         enable Tee logs based on the configured logdir
         """
+
+        level_map = {
+            "quiet": logging.WARNING,
+            "default": logging.INFO,
+            "verbose": logging.INFO,
+        }
+        logging.basicConfig(
+            level=level_map[self.verbosity],
+            format="[%(asctime)s] [%(levelname)s] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+            force=True,
+        )
+
+        if self.verbosity == "quiet":
+            return
+
         if self.log_dir:
             os.makedirs(self.log_dir, exist_ok=True)
             hostname = gethostname()
@@ -756,7 +772,17 @@ class NeoXArgs(*BASE_CLASSES):
 
     def print(self):
         """Print arguments."""
-        if self.rank == 0 or self.rank is None:
+        if self.verbosity == "quiet":
+            return
+        if self.verbosity == "default":
+            # just header/footer
+            if self.rank in (0, None):
+                print(
+                    "------ GPT‑NeoX initialised (verbosity=default) ------", flush=True
+                )
+            return
+
+        if self.rank in (0, None):
             print("-------------------- arguments --------------------", flush=True)
             str_list = []
             for arg in vars(self):
@@ -1086,7 +1112,9 @@ class NeoXArgs(*BASE_CLASSES):
 
         # MoE config
         if self.moe_num_experts > 1:
-            assert self.zero_optimization["stage"] < 2, "MoE is not compatible with zero stages 2 and 3"
+            assert (
+                self.zero_optimization["stage"] < 2
+            ), "MoE is not compatible with zero stages 2 and 3"
 
         # Attention config
         if self.attention_config is None:
