@@ -309,18 +309,7 @@ class ParallelSelfAttention(nn.Module):
         self.pos_emb = neox_args.pos_emb
 
         self.use_qk_layernorm = neox_args.use_qk_layernorm
-        self.qk_layernorm_over_heads = neox_args.qk_layernorm_over_heads
-        if self.use_qk_layernorm:
-            norm, eps = get_norm(neox_args)
-            norm_dims = (
-                [
-                    self.num_attention_heads_per_partition,
-                    self.hidden_size_per_attention_head,
-                ]
-                if self.qk_layernorm_over_heads
-                else [self.hidden_size_per_attention_head]
-            )
-            self.qk_layernorm = norm(norm_dims, eps=eps)
+        self.qk_layernorm_type = neox_args.qk_layernorm_type
 
         self.sliding_window_width = neox_args.sliding_window_width
 
@@ -341,6 +330,45 @@ class ParallelSelfAttention(nn.Module):
         else:
             self.num_kv_heads_per_partition = self.num_attention_heads_per_partition
             self.kv_hidden_size = neox_args.hidden_size
+
+        # QK Normalization https://arxiv.org/abs/2302.05442
+        if self.use_qk_layernorm:
+            norm, eps = get_norm(neox_args)
+            # All neox norms reduce over the *last* dimension, so the normalized
+            # size is expressed as a 1-D shape
+
+            if self.qk_layernorm_type == "per_head":
+                # "per_head": normalize over [*, H]
+                q_norm_size = self.hidden_size_per_attention_head
+                k_norm_size = self.hidden_size_per_attention_head
+
+            elif self.qk_layernorm_type == "across_heads":
+                # "across_heads": normalize over [*, N * H]
+                # With GQA the query and key have different head counts, so the
+                # two norm sizes differ. Without GQA q_norm_size == k_norm_size
+                q_norm_size = (
+                    self.num_attention_heads_per_partition
+                    * self.hidden_size_per_attention_head
+                )
+                k_norm_size = (
+                    self.num_kv_heads_per_partition
+                    * self.hidden_size_per_attention_head
+                )
+
+            else:
+                raise ValueError(
+                    f"Invalid qk_layernorm_type {self.qk_layernorm_type!r}; "
+                    "expected 'per_head' or 'across_heads'."
+                )
+
+            self.qk_layernorm_separate = (
+                neox_args.qk_layernorm_separate or q_norm_size != k_norm_size
+            )
+            self.q_layernorm = norm([q_norm_size], eps=eps)
+            if self.qk_layernorm_separate:
+                self.k_layernorm = norm([k_norm_size], eps=eps)
+            else:
+                self.k_layernorm = self.q_layernorm
 
         if not self.gqa:
             # Strided linear layer.
@@ -714,6 +742,27 @@ class ParallelSelfAttention(nn.Module):
             attn_scores = self.attention_dropout(attn_scores)
         return attn_scores
 
+    def qk_layernorm(self, query_layer, key_layer):
+        # [sq, b, np, hn], [sq, b, kvp, hn]
+        if not self.use_qk_layernorm:
+            return query_layer, key_layer
+        if self.qk_layernorm_type == "per_head":
+            query_layer = self.q_layernorm(query_layer)
+            key_layer = self.k_layernorm(key_layer)
+        elif self.qk_layernorm_type == "across_heads":
+            # Flatten heads into the last dim so the norm reduces over [*, N * H]
+            q_shape, k_shape = query_layer.shape, key_layer.shape
+            query_layer = self.q_layernorm(query_layer.reshape(*q_shape[:-2], -1))
+            key_layer = self.k_layernorm(key_layer.reshape(*k_shape[:-2], -1))
+            query_layer = query_layer.view(*q_shape)
+            key_layer = key_layer.view(*k_shape)
+        else:
+            raise ValueError(
+                f"Invalid qk_layernorm_type {self.qk_layernorm_type!r}; "
+                "expected 'per_head' or 'across_heads'."
+            )
+        return query_layer, key_layer
+
     def gqa_project(self, hidden_states, attention_mask, layer_past=None):
         # QKV projection and separation into separate Q/K/V layers for GQA,
         # where KV projections may be smaller than Q projection.
@@ -766,6 +815,9 @@ class ParallelSelfAttention(nn.Module):
 
         value_layer = value_layer.view(*new_kv_shape)
 
+        # QK norm before repeating KV heads
+        query_layer, key_layer = self.qk_layernorm(query_layer, key_layer)
+
         # if not using Flash attention, we repeat K/V heads to match Q head counts
         if not self.use_flash_attention:
             key_layer = torch.repeat_interleave(
@@ -810,18 +862,16 @@ class ParallelSelfAttention(nn.Module):
             (query_layer, key_layer, value_layer) = mpu.split_tensor_along_last_dim(
                 mixed_x_layer, 3
             )
+            query_layer, key_layer = self.qk_layernorm(query_layer, key_layer)
         else:
             # Grouped Query Attention (GQA) - specific logic for performing QKV proj
             # and separating out Q, K, and V outputs.
 
+            # gqa_project does qk layernorm inside
             # output shapes: 1 x [sq, b, np, hn], 2 x [sq, b, kvp, hn] if using flash
             query_layer, key_layer, value_layer = self.gqa_project(
                 hidden_states, attention_mask, layer_past=layer_past
             )
-        # QK Normalization https://arxiv.org/abs/2302.05442
-        if self.use_qk_layernorm:
-            query_layer = self.qk_layernorm(query_layer)
-            key_layer = self.qk_layernorm(key_layer)
 
         if exists(self.rotary_emb):
             if exists(self.rotary_ndims):

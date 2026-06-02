@@ -189,9 +189,24 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Use QK Normalization
     """
 
-    qk_layernorm_over_heads: bool = False
+    qk_layernorm_type: Literal["per_head", "across_heads"] = "per_head"
     """
-    Apply QK normalization over [*, N, H] instead of [*, H].
+    How to apply QK Normalization when `use_qk_layernorm` is set. Choose from:
+        - "per_head": normalize each head independently over the head dimension,
+          i.e. over [*, H] (Qwen3 / Megatron-core / TorchTitan style). Works for
+          both MHA and GQA.
+        - "across_heads": normalize over all heads jointly, i.e. over [*, N, H]
+          (OLMo2 style). For GQA the query and key projections have different
+          numbers of heads (N vs. KV heads), so separate query/key norms with
+          differently sized parameters are constructed automatically.
+    """
+
+    qk_layernorm_separate: bool = False
+    """
+    Use separate (independently learned) norms for the query and key projections
+    when `use_qk_layernorm` is set. When False, query and key share a single
+    norm where possible. Has no effect when using GQA with "across_heads" QK
+    normalization, which always uses separate norms due to parameter shapes.
     """
 
     layernorm_epsilon: float = 1.0e-5
