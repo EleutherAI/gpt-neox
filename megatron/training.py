@@ -624,6 +624,7 @@ def forward_step(
             (labels, loss_mask),
             _fp16=neox_args.fp16_lm_cross_entropy,
             _fused=neox_args.cross_entropy_fusion,
+            z_loss=neox_args.z_loss,
         )
     elif neox_args.train_impl == "rm":
         maybe_tuple = model((tokens, position_ids, attention_mask), neox_args=neox_args)
@@ -648,9 +649,9 @@ def forward_step(
             metrics["neg_values"] = neg.clone().detach().mean()
             metrics["margin"] = (pos - neg).clone().detach().mean()
             metrics["accuracy"] = ((pos - neg) > 0).clone().detach().float().mean()
-        loss = (-F.logsigmoid(pos - neg).mean()) + (
-            (neox_args.z_loss * (pos**2 + neg**2)).mean()
-        )
+        loss = -F.logsigmoid(pos - neg).mean()
+        if neox_args.z_loss != 0:
+            loss = loss + (neox_args.z_loss * (pos**2 + neg**2)).mean()
     elif neox_args.train_impl == "dpo":
         # Based on https://github.com/eric-mitchell/direct-preference-optimization/blob/main/trainers.py#L90
         with torch.inference_mode():

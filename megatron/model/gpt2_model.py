@@ -60,7 +60,47 @@ def gpt2_attention_mask_func(attention_scores, ltor_mask):
     return attention_scores
 
 
-def cross_entropy(output, labels, _fp16=False, _fused=False):
+class _VocabParallelZLoss(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, vocab_parallel_logits):
+        logits = vocab_parallel_logits.float()
+        logits_max = torch.max(logits, dim=-1)[0]
+        torch.distributed.all_reduce(
+            logits_max,
+            op=torch.distributed.ReduceOp.MAX,
+            group=mpu.get_model_parallel_group(),
+        )
+
+        exp_logits = torch.exp(logits - logits_max.unsqueeze(dim=-1))
+        sum_exp_logits = exp_logits.sum(dim=-1)
+        torch.distributed.all_reduce(
+            sum_exp_logits,
+            op=torch.distributed.ReduceOp.SUM,
+            group=mpu.get_model_parallel_group(),
+        )
+
+        softmax = exp_logits.div(sum_exp_logits.unsqueeze(dim=-1))
+        log_z = torch.log(sum_exp_logits) + logits_max
+        ctx.input_dtype = vocab_parallel_logits.dtype
+        ctx.save_for_backward(softmax, log_z)
+        return log_z.square()
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        softmax, log_z = ctx.saved_tensors
+        grad_input = 2 * log_z.unsqueeze(dim=-1) * softmax
+        grad_input.mul_(grad_output.unsqueeze(dim=-1))
+        return grad_input.to(ctx.input_dtype)
+
+
+def vocab_parallel_z_loss(vocab_parallel_logits, loss_mask):
+    """Masked mean squared log-partition penalty for vocab-parallel logits."""
+    z_losses = _VocabParallelZLoss.apply(vocab_parallel_logits)
+    loss_mask = loss_mask.view(-1)
+    return torch.sum(z_losses.view(-1) * loss_mask) / loss_mask.sum()
+
+
+def cross_entropy(output, labels, _fp16=False, _fused=False, z_loss=0.0):
     """From pretrain_gpt2:forward_step()"""
     """
     if self.fp16_lm_cross_entropy:
@@ -71,6 +111,9 @@ def cross_entropy(output, labels, _fp16=False, _fused=False):
         return loss
     """
     labels, loss_mask = labels[0], labels[1]
+    z_loss_value = None
+    if z_loss != 0:
+        z_loss_value = z_loss * vocab_parallel_z_loss(output, loss_mask)
     if _fp16:
         assert output.dtype == torch.half and loss_mask.dtype == torch.half
     if _fused:
@@ -90,6 +133,8 @@ def cross_entropy(output, labels, _fp16=False, _fused=False):
         )
     loss_mask = loss_mask.view(-1)
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
+    if z_loss_value is not None:
+        loss = loss + z_loss_value
     return loss
 
 
@@ -156,6 +201,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                 cross_entropy,
                 _fp16=self.neox_args.fp16_lm_cross_entropy,
                 _fused=self.neox_args.cross_entropy_fusion,
+                z_loss=self.neox_args.z_loss,
             ),
             topology=topology,
             activation_checkpoint_interval=self.neox_args.checkpoint_num_layers

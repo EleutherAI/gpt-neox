@@ -1524,7 +1524,7 @@ Training Arguments
 
     Default = 0.0
 
-    Z-loss parameter, only implemented for RM training currently.
+    Z-loss coefficient for normal LLM and RM training.
     https://arxiv.org/pdf/2204.02311
     https://arxiv.org/pdf/2309.10305
 
