@@ -18,6 +18,7 @@
 """Transformer."""
 
 import math
+import warnings
 from contextlib import nullcontext
 
 import torch
@@ -399,8 +400,31 @@ class ParallelSelfAttention(nn.Module):
                 precision=neox_args.params_dtype,
                 save_inv_freqs=neox_args.rotary_save_freqs_buffer,
             )
+
+            # Optional: replace the apply step with torchembed's fused Triton kernel.
+            self.torchembed_rope = None
+            if neox_args.use_torchembed_rope:
+                try:
+                    from torchembed.positional import (
+                        RotaryEmbedding as TorchembedRotaryEmbedding,
+                    )
+
+                    self.torchembed_rope = TorchembedRotaryEmbedding(
+                        dim=dim,
+                        max_seq_len=neox_args.seq_length,
+                        base=neox_args.rotary_emb_base,
+                        use_fused=True,
+                    )
+                except ImportError:
+                    warnings.warn(
+                        "use_torchembed_rope=True but torchembed is not installed. "
+                        "Falling back to the built-in RoPE implementation. "
+                        "Install with: pip install 'torchembed>=0.3.1'",
+                        stacklevel=2,
+                    )
         else:
             self.rotary_emb = None
+            self.torchembed_rope = None
 
         self.rope_fusion = neox_args.rope_fusion
         self.attention_type = neox_args.attention_config[layer_number]
@@ -841,7 +865,18 @@ class ParallelSelfAttention(nn.Module):
                 offset = layer_past[0].shape[0]
                 seq_len += offset
             cos, sin = self.rotary_emb(value_layer, seq_len=seq_len)
-            if self.rope_fusion:
+            if self.torchembed_rope is not None and offset == 0:
+                # torchembed fused Triton kernel: expects (..., seq_len, dim).
+                # GPT-NeoX tensors are [sq, b, np, hn]; permute to [b, np, sq, hn],
+                # apply, then permute back.  The offset==0 guard restricts this to
+                # training and fresh-start inference; KV-cache inference (offset>0)
+                # falls through to the standard path below.
+                q_perm = query_rot.permute(1, 2, 0, 3)
+                k_perm = key_rot.permute(1, 2, 0, 3)
+                q_perm, k_perm = self.torchembed_rope(q_perm, k_perm)
+                query_layer = q_perm.permute(2, 0, 1, 3).contiguous()
+                key_layer = k_perm.permute(2, 0, 1, 3).contiguous()
+            elif self.rope_fusion:
                 query_layer, key_layer = (
                     fused_apply_rotary_pos_emb_cached(rot, cos, sin)
                     for rot in [query_rot, key_rot]
