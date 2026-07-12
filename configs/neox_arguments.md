@@ -18,14 +18,14 @@ LR Scheduler Arguments
 
     Default = None
 
-    Number of iterations to decay learning rate over. If None, defaults to 
+    Number of iterations to decay learning rate over. If None, defaults to
     --train-iters or the equivalent inferred value from train_epochs.
 
 - **lr_decay_fraction**: float
 
     Default = None
 
-    Effective fraction of training over which to decay lr. Overrides lr_decay_iters. 
+    Effective fraction of training over which to decay lr. Overrides lr_decay_iters.
     Useful when specifying train_epochs.
 
 - **min_lr**: float
@@ -1305,7 +1305,7 @@ Text Generation arguments
 
 - **prompt_end**: str
 
-    Default = 
+    Default =
 
 
     a single prompt's end. Defaults to newline
@@ -1347,7 +1347,7 @@ Text Generation arguments
 
 - **eval_results_prefix**: str
 
-    Default = 
+    Default =
 
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
 
@@ -1485,7 +1485,7 @@ Training Arguments
 
     Default = None
 
-    
+
 
 
 
@@ -1501,7 +1501,7 @@ Training Arguments
 
     Default = None
 
-    
+
 
 
 
@@ -1517,7 +1517,7 @@ Training Arguments
 
     Default = None
 
-    
+
 
 
 
@@ -1533,7 +1533,7 @@ Training Arguments
 
     Default = None
 
-    
+
 
 
 
@@ -1549,7 +1549,7 @@ Training Arguments
 
     Default = None
 
-    
+
 
 
 
@@ -1565,7 +1565,7 @@ Training Arguments
 
     Default = None
 
-    
+
 
 
 
@@ -2331,7 +2331,7 @@ Args for deepspeed config
 
     Default = None
 
-    
+
 
 
 
