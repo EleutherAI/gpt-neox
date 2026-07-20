@@ -1641,6 +1641,16 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     Minimum token probability, scaled by the probability of the most likely token. Values must be between 0 and 1; 0 disables min-p sampling.
     """
 
+    top_h: float = 0.0
+    """
+    Entropy budget scaling factor for top-h sampling, considering at most the 100 most likely tokens. Enabled values must be greater than 0 and at most 1; 0 disables top-h sampling.
+    """
+
+    typical_p: float = 1.0
+    """
+    Probability mass of tokens closest to the distribution's expected surprisal. Enabled values must be greater than 0 and less than 1; 1 disables locally typical sampling.
+    """
+
     top_k: int = 0
     """
     integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.

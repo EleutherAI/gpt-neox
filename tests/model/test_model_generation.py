@@ -32,10 +32,10 @@ PARAMS_TO_TEST = {
         [0, 2, 2],
         [2, 1, 2],
     ],
-    "top_p,temperature,top_k,min_p": [
-        [0.0, 0.5, 0, 0.1],
-        [0.5, 0.0, 100, 0.0],
-        [0.5, 0.5, 0, 0.1],
+    "top_p,temperature,top_k,min_p,top_h,typical_p": [
+        [0.0, 0.5, 0, 0.1, 0.0, 0.9],
+        [0.5, 0.0, 100, 0.0, 0.4, 1.0],
+        [0.5, 0.5, 0, 0.1, 0.4, 0.9],
     ],
     "prompt": ["", "hello world"],
     "fp16,fp32_allreduce": [
@@ -110,6 +110,8 @@ class run_generate_test_class(DistributedTest):
             top_k=args_loaded.top_k,
             top_p=args_loaded.top_p,
             min_p=args_loaded.min_p,
+            top_h=args_loaded.top_h,
+            typical_p=args_loaded.typical_p,
         )
 
         # outputs only get generated on mp rank 0
