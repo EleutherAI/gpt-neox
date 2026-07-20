@@ -1132,6 +1132,12 @@ Text Generation arguments
 
     Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
 
+- **min_p**: float
+
+    Default = 0.0
+
+    Minimum token probability, scaled by the probability of the most likely token. Values must be between 0 and 1; 0 disables min-p sampling.
+
 - **top_k**: int
 
     Default = 0
@@ -1149,6 +1155,12 @@ Text Generation arguments
     Default = 64
 
     maximum number of tokens to be generated
+
+- **minimum_tokens**: int
+
+    Default = 0
+
+    minimum number of tokens to be generated before allowing an end-of-sequence token
 
 - **prompt_end**: str
 

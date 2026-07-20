@@ -32,7 +32,11 @@ PARAMS_TO_TEST = {
         [0, 2, 2],
         [2, 1, 2],
     ],
-    "top_p,temperature,top_k": [[0.0, 0.5, 0], [0.5, 0.0, 100], [0.5, 0.5, 0]],
+    "top_p,temperature,top_k,min_p": [
+        [0.0, 0.5, 0, 0.1],
+        [0.5, 0.0, 100, 0.0],
+        [0.5, 0.5, 0, 0.1],
+    ],
     "prompt": ["", "hello world"],
     "fp16,fp32_allreduce": [
         [
@@ -81,6 +85,7 @@ class run_generate_test_class(DistributedTest):
         fixed_params = {
             "num_samples": 3,
             "maximum_tokens": 50,
+            "minimum_tokens": 10,
             "make_vocab_size_divisible_by": 2,
             "sample_output_file": "test_sample_output.txt",
             "checkpoint_activations": False,
@@ -99,10 +104,12 @@ class run_generate_test_class(DistributedTest):
             model=model,
             text=prompts,
             maximum_tokens=args_loaded.maximum_tokens,
+            minimum_tokens=args_loaded.minimum_tokens,
             recompute=False,
             temperature=args_loaded.temperature,
             top_k=args_loaded.top_k,
             top_p=args_loaded.top_p,
+            min_p=args_loaded.min_p,
         )
 
         # outputs only get generated on mp rank 0
@@ -111,3 +118,4 @@ class run_generate_test_class(DistributedTest):
             for prompt, out in zip(prompts, output):
                 assert prompt == out["context"]
                 assert len(out["text"]) > 0
+                assert out["length"] >= args_loaded.minimum_tokens

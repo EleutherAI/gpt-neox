@@ -1636,6 +1636,11 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
     """
 
+    min_p: float = 0.0
+    """
+    Minimum token probability, scaled by the probability of the most likely token. Values must be between 0 and 1; 0 disables min-p sampling.
+    """
+
     top_k: int = 0
     """
     integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
@@ -1649,6 +1654,11 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     maximum_tokens: int = 64
     """
     maximum number of tokens to be generated
+    """
+
+    minimum_tokens: int = 0
+    """
+    minimum number of tokens to be generated before allowing an end-of-sequence token
     """
 
     prompt_end: str = "\n"
