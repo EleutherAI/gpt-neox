@@ -1356,6 +1356,13 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Interval between running evaluation on validation set.
     """
 
+    extra_eval_iters: list = None
+    """
+    Additional iterations when evaluation should run on the validation set.
+    Include iteration 0 to evaluate before training starts.
+    Must be a list of ints or `None`.
+    """
+
     split: str = "969, 30, 1"
     """
     Comma_separated list of proportions for training, validation, and test split. For example the split 90,5,5 will use 90% of data for training, 5% for validation and 5% for test.

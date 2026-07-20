@@ -51,6 +51,7 @@ from megatron.mpu.mappings import gather_from_model_parallel_region
 from megatron.checkpointing import load_checkpoint, save_checkpoint
 from megatron.data.data_utils import (
     build_train_valid_test_data_loaders,
+    is_eval_iter,
     shift_and_wrap_data_loaders,
 )
 from megatron.initialize import initialize_megatron
@@ -298,6 +299,20 @@ def pretrain(neox_args):
             model=model,
             optimizer=optimizer,
             lr_scheduler=lr_scheduler,
+        )
+
+    # Evaluate the untrained model when iteration 0 was explicitly requested.
+    if neox_args.do_valid and iteration == 0 and is_eval_iter(neox_args, iteration):
+        evaluate_and_print_results(
+            neox_args=neox_args,
+            prefix="iteration 0",
+            forward_step_func=forward_step,
+            data_iterator=valid_data_iterator,
+            model=model,
+            iteration=iteration,
+            verbose=False,
+            timers=timers,
+            reference_model=reference_model,
         )
 
     if neox_args.do_train and neox_args.train_iters > 0:
@@ -1533,11 +1548,7 @@ def train(
                 lr_scheduler=lr_scheduler,
             )
         # Evaluation
-        if (
-            neox_args.eval_interval
-            and iteration % neox_args.eval_interval == 0
-            and neox_args.do_valid
-        ):
+        if neox_args.do_valid and is_eval_iter(neox_args, iteration):
             prefix = "iteration {}".format(iteration)
             evaluate_and_print_results(
                 neox_args=neox_args,

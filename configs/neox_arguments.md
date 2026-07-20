@@ -1916,6 +1916,16 @@ Training Arguments
 
 
 
+- **extra_eval_iters**: list
+
+    Default = None
+
+    Additional iterations when evaluation should run on the validation set.
+    Include iteration 0 to evaluate before training starts.
+    Must be a list of ints or `None`.
+
+
+
 - **split**: str
 
     Default = 969, 30, 1

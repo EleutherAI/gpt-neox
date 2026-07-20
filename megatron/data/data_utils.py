@@ -28,6 +28,39 @@ from megatron.data.online_dataset import OnlineDataset
 from megatron.data.samplers import DistributedBatchSampler
 
 
+def is_eval_iter(neox_args, iteration):
+    """Return whether validation is scheduled at ``iteration``."""
+    extra_eval_iters = getattr(neox_args, "extra_eval_iters", None)
+    if extra_eval_iters and iteration in extra_eval_iters:
+        return True
+
+    eval_interval = neox_args.eval_interval
+    return bool(
+        iteration > 0
+        and eval_interval
+        and eval_interval > 0
+        and iteration % eval_interval == 0
+    )
+
+
+def get_num_eval_events(neox_args, max_iteration):
+    """Count unique scheduled validation events through ``max_iteration``."""
+    eval_iterations = set()
+    eval_interval = neox_args.eval_interval
+    if eval_interval and eval_interval > 0:
+        eval_iterations.update(range(eval_interval, max_iteration + 1, eval_interval))
+
+    extra_eval_iters = getattr(neox_args, "extra_eval_iters", None)
+    if extra_eval_iters:
+        eval_iterations.update(
+            iteration
+            for iteration in extra_eval_iters
+            if 0 <= iteration <= max_iteration
+        )
+
+    return len(eval_iterations)
+
+
 def make_data_loader(dataset, neox_args):
     """Build dataloader given an input dataset."""
     if dataset is None:
@@ -545,7 +578,9 @@ def build_train_valid_test_data_loaders(neox_args):
     ):
         # Can skip most of the work...
         train_iters = neox_args.train_iters
-        eval_iters = (train_iters // neox_args.eval_interval + 1) * neox_args.eval_iters
+        eval_iters = (
+            get_num_eval_events(neox_args, train_iters) + 1
+        ) * neox_args.eval_iters
         test_iters = neox_args.eval_iters
         # Build datasets...
         print(
@@ -592,7 +627,7 @@ def build_train_valid_test_data_loaders(neox_args):
         if neox_args.train_iters is not None:
             train_iters = neox_args.train_iters
             eval_iters = (
-                train_iters // neox_args.eval_interval + 1
+                get_num_eval_events(neox_args, train_iters) + 1
             ) * neox_args.eval_iters
             test_iters = neox_args.eval_iters
             train_val_test_num_samples = [
@@ -759,10 +794,16 @@ def shift_and_wrap_data_loaders(neox_args, data_loaders, loop=True):
             )
         )
     if valid_dataloader is not None:
+        completed_eval_events = (
+            get_num_eval_events(neox_args, neox_args.iteration)
+            if neox_args.iteration > 0
+            else 0
+        )
         start_iter_val = (
-            (neox_args.iteration * neox_args.gradient_accumulation_steps)
-            // neox_args.eval_interval
-        ) * neox_args.eval_iters
+            completed_eval_events
+            * neox_args.eval_iters
+            * neox_args.gradient_accumulation_steps
+        )
         valid_dataloader.batch_sampler.start_iter = start_iter_val % len(
             valid_dataloader
         )
