@@ -1552,6 +1552,31 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
     """
 
+    min_p: float = 0.0
+    """
+    Minimum token probability, scaled by the probability of the most likely token. Values must be between 0 and 1; 0 disables min-p sampling.
+    """
+
+    top_h: float = 0.0
+    """
+    Entropy budget scaling factor for top-h sampling, considering at most the 100 most likely tokens. Enabled values must be greater than 0 and at most 1; 0 disables top-h sampling.
+    """
+
+    typical_p: float = 1.0
+    """
+    Probability mass of tokens closest to the distribution's expected surprisal. Enabled values must be greater than 0 and less than 1; 1 disables locally typical sampling.
+    """
+
+    epsilon_cutoff: float = 0.0
+    """
+    Minimum conditional probability required for epsilon sampling. Enabled values must be strictly between 0 and 1; 0 disables epsilon sampling. Suggested values range from 3e-4 to 9e-4.
+    """
+
+    eta_cutoff: float = 0.0
+    """
+    Entropy-adaptive probability cutoff for eta sampling. Enabled values must be strictly between 0 and 1; 0 disables eta sampling. Suggested values range from 3e-4 to 2e-3.
+    """
+
     top_k: int = 0
     """
     integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
@@ -1565,6 +1590,11 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     maximum_tokens: int = 64
     """
     maximum number of tokens to be generated
+    """
+
+    minimum_tokens: int = 0
+    """
+    minimum number of tokens to be generated before allowing an end-of-sequence token
     """
 
     prompt_end: str = "\n"

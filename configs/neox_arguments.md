@@ -1279,6 +1279,46 @@ Text Generation arguments
 
 
 
+- **min_p**: float
+
+    Default = 0.0
+
+    Minimum token probability, scaled by the probability of the most likely token. Values must be between 0 and 1; 0 disables min-p sampling.
+
+
+
+- **top_h**: float
+
+    Default = 0.0
+
+    Entropy budget scaling factor for top-h sampling, considering at most the 100 most likely tokens. Enabled values must be greater than 0 and at most 1; 0 disables top-h sampling.
+
+
+
+- **typical_p**: float
+
+    Default = 1.0
+
+    Probability mass of tokens closest to the distribution's expected surprisal. Enabled values must be greater than 0 and less than 1; 1 disables locally typical sampling.
+
+
+
+- **epsilon_cutoff**: float
+
+    Default = 0.0
+
+    Minimum conditional probability required for epsilon sampling. Enabled values must be strictly between 0 and 1; 0 disables epsilon sampling. Suggested values range from 3e-4 to 9e-4.
+
+
+
+- **eta_cutoff**: float
+
+    Default = 0.0
+
+    Entropy-adaptive probability cutoff for eta sampling. Enabled values must be strictly between 0 and 1; 0 disables eta sampling. Suggested values range from 3e-4 to 2e-3.
+
+
+
 - **top_k**: int
 
     Default = 0
@@ -1300,6 +1340,14 @@ Text Generation arguments
     Default = 64
 
     maximum number of tokens to be generated
+
+
+
+- **minimum_tokens**: int
+
+    Default = 0
+
+    minimum number of tokens to be generated before allowing an end-of-sequence token
 
 
 

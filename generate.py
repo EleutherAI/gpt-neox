@@ -48,10 +48,16 @@ def main(input_args=None, overwrite_values=None):
             number_of_samples=neox_args.num_samples,
             output_file=neox_args.sample_output_file,
             maximum_tokens=neox_args.maximum_tokens,
+            minimum_tokens=neox_args.minimum_tokens,
             recompute=neox_args.recompute,
             temperature=neox_args.temperature,
             top_k=neox_args.top_k,
             top_p=neox_args.top_p,
+            min_p=neox_args.min_p,
+            top_h=neox_args.top_h,
+            typical_p=neox_args.typical_p,
+            epsilon_cutoff=neox_args.epsilon_cutoff,
+            eta_cutoff=neox_args.eta_cutoff,
         )
 
     elif neox_args.text_gen_type == "input-file":
@@ -65,11 +71,17 @@ def main(input_args=None, overwrite_values=None):
             input_file=neox_args.sample_input_file,
             output_file=neox_args.sample_output_file,
             maximum_tokens=neox_args.maximum_tokens,
+            minimum_tokens=neox_args.minimum_tokens,
             prompt_end=neox_args.prompt_end,
             recompute=neox_args.recompute,
             temperature=neox_args.temperature,
             top_k=neox_args.top_k,
             top_p=neox_args.top_p,
+            min_p=neox_args.min_p,
+            top_h=neox_args.top_h,
+            typical_p=neox_args.typical_p,
+            epsilon_cutoff=neox_args.epsilon_cutoff,
+            eta_cutoff=neox_args.eta_cutoff,
         )
 
     elif neox_args.text_gen_type == "interactive":
@@ -79,9 +91,15 @@ def main(input_args=None, overwrite_values=None):
             recompute=neox_args.recompute,
             temperature=neox_args.temperature,
             maximum_tokens=neox_args.maximum_tokens,
+            minimum_tokens=neox_args.minimum_tokens,
             prompt_end=neox_args.prompt_end,
             top_k=neox_args.top_k,
             top_p=neox_args.top_p,
+            min_p=neox_args.min_p,
+            top_h=neox_args.top_h,
+            typical_p=neox_args.typical_p,
+            epsilon_cutoff=neox_args.epsilon_cutoff,
+            eta_cutoff=neox_args.eta_cutoff,
         )
 
     elif neox_args.text_gen_type == "precompute":
