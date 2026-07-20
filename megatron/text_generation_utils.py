@@ -93,17 +93,19 @@ def filter_logits(
     min_p=0.0,
     top_h=0.0,
     typical_p=1.0,
+    epsilon_cutoff=0.0,
+    eta_cutoff=0.0,
 ):
     """
-    Filters the logits using top_h / top_k / top_p / min_p / typical_p, filling any filtered vocab items with filter_value (defaults to -inf).
+    Filters the logits using top_h / top_k / top_p / min_p / typical_p / epsilon_cutoff / eta_cutoff, filling any filtered vocab items with filter_value (defaults to -inf).
 
     This function has been mostly taken from huggingface conversational ai code at
     https://medium.com/huggingface/how-to-build-a-state-of-the-art-conversational-ai-with-transfer-learning-2d818ac26313
 
     When multiple sampling transforms are specified, they are applied in the
     same order as Hugging Face Transformers v5.14.0: temperature, top_h,
-    top_k, top_p, min_p, then typical_p. Temperature is applied by
-    ``stream_tokens`` before this function is called. See:
+    top_k, top_p, min_p, typical_p, epsilon_cutoff, then eta_cutoff.
+    Temperature is applied by ``stream_tokens`` before this function is called. See:
     https://github.com/huggingface/transformers/blob/v5.14.0/src/transformers/generation/utils.py#L1273
 
     logits: torch.Tensor -> logits of megatron model.
@@ -112,6 +114,8 @@ def filter_logits(
     min_p: float -> Keeps tokens whose probability is at least min_p times the probability of the most likely token. Must be between 0 and 1; 0 disables min-p sampling.
     top_h: float -> Keeps a high-probability prefix of at most 100 tokens within an entropy budget. Enabled values must be greater than 0 and at most 1; 0 disables top-h sampling.
     typical_p: float -> Keeps tokens closest to the expected surprisal until their cumulative probability reaches typical_p. Must be greater than 0 and at most 1; 1 disables locally typical sampling.
+    epsilon_cutoff: float -> Keeps tokens with conditional probability at least epsilon_cutoff, while always retaining a highest-probability token. Must be between 0 and 1; 0 disables epsilon sampling.
+    eta_cutoff: float -> Keeps tokens whose probability is at least min(eta_cutoff, sqrt(eta_cutoff) * exp(-entropy)), while always retaining a highest-probability token. Must be between 0 and 1; 0 disables eta sampling.
 
     returns: (filtered) logits"""
 
@@ -121,6 +125,10 @@ def filter_logits(
         raise ValueError("top_h must be between 0 and 1")
     if not 0.0 < typical_p <= 1.0:
         raise ValueError("typical_p must be greater than 0 and at most 1")
+    if not 0.0 <= epsilon_cutoff < 1.0:
+        raise ValueError("epsilon_cutoff must be at least 0 and less than 1")
+    if not 0.0 <= eta_cutoff < 1.0:
+        raise ValueError("eta_cutoff must be at least 0 and less than 1")
 
     if top_h > 0.0:
         batch_size, vocab_size = logits.shape
@@ -199,6 +207,33 @@ def filter_logits(
         sorted_indices_to_remove[..., :1] = False
         indices_to_remove = sorted_indices_to_remove.scatter(
             1, sorted_indices, sorted_indices_to_remove
+        )
+        logits[indices_to_remove] = filter_value
+
+    if epsilon_cutoff > 0.0:
+        # Match Hugging Face's EpsilonLogitsWarper with min_tokens_to_keep=1.
+        probabilities = F.softmax(logits, dim=-1)
+        indices_to_remove = probabilities < epsilon_cutoff
+        top_k_to_keep = min(1, logits.size(-1))
+        indices_to_remove = indices_to_remove & (
+            logits < torch.topk(logits, top_k_to_keep)[0][..., -1, None]
+        )
+        logits[indices_to_remove] = filter_value
+
+    if eta_cutoff > 0.0:
+        # Match Hugging Face's EtaLogitsWarper with min_tokens_to_keep=1.
+        probabilities = F.softmax(logits, dim=-1)
+        entropy = torch.distributions.Categorical(logits=logits).entropy()
+        epsilon = torch.tensor(
+            eta_cutoff, dtype=probabilities.dtype, device=logits.device
+        )
+        eta = torch.minimum(
+            epsilon, torch.sqrt(epsilon) * torch.exp(-entropy)
+        ).unsqueeze(-1)
+        indices_to_remove = probabilities < eta
+        top_k_to_keep = min(1, logits.size(-1))
+        indices_to_remove = indices_to_remove & (
+            logits < torch.topk(logits, top_k_to_keep)[0][..., -1, None]
         )
         logits[indices_to_remove] = filter_value
 
@@ -300,6 +335,8 @@ def stream_tokens(
     min_p: float = 0.0,
     top_h: float = 0.0,
     typical_p: float = 1.0,
+    epsilon_cutoff: float = 0.0,
+    eta_cutoff: float = 0.0,
 ):
     """
     iterator producing text completions
@@ -321,7 +358,9 @@ def stream_tokens(
     min_p (default 0.0): float -> Keeps tokens whose probability is at least min_p times the probability of the most likely token. Must be between 0 and 1; 0 disables min-p sampling.
     top_h (default 0.0): float -> Keeps a high-probability prefix of at most 100 tokens within an entropy budget. Enabled values must be greater than 0 and at most 1; 0 disables top-h sampling.
     typical_p (default 1.0): float -> Keeps tokens closest to the expected surprisal until their cumulative probability reaches typical_p. Must be greater than 0 and at most 1; 1 disables locally typical sampling.
-    note: greedy decoding is used if temperature, top_h, top_k, top_p and min_p are 0 and typical_p is 1
+    epsilon_cutoff (default 0.0): float -> Keeps tokens with conditional probability at least epsilon_cutoff, while always retaining a highest-probability token. Enabled values must be strictly between 0 and 1; 0 disables epsilon sampling.
+    eta_cutoff (default 0.0): float -> Keeps tokens above an entropy-adaptive probability cutoff, while always retaining a highest-probability token. Enabled values must be strictly between 0 and 1; 0 disables eta sampling.
+    note: greedy decoding is used if temperature, top_h, top_k, top_p, min_p, epsilon_cutoff and eta_cutoff are 0 and typical_p is 1
     yields: (
                 tokens (completions from model),
                 token_generation_start_index (token index per batch item for the first generated token),
@@ -345,6 +384,10 @@ def stream_tokens(
         raise ValueError("top_h must be between 0 and 1")
     if not 0.0 < typical_p <= 1.0:
         raise ValueError("typical_p must be greater than 0 and at most 1")
+    if not 0.0 <= epsilon_cutoff < 1.0:
+        raise ValueError("epsilon_cutoff must be at least 0 and less than 1")
+    if not 0.0 <= eta_cutoff < 1.0:
+        raise ValueError("eta_cutoff must be at least 0 and less than 1")
 
     # pad batch in order to allow conversion to tensor
     context_tokens, context_lengths = pad_batch(
@@ -457,6 +500,8 @@ def stream_tokens(
                     and min_p == 0.0
                     and top_h == 0.0
                     and typical_p == 1.0
+                    and epsilon_cutoff == 0.0
+                    and eta_cutoff == 0.0
                 ):
                     generated_tokens = torch.argmax(
                         generated_token_logits, dim=-1
@@ -472,6 +517,8 @@ def stream_tokens(
                         min_p=min_p,
                         top_h=top_h,
                         typical_p=typical_p,
+                        epsilon_cutoff=epsilon_cutoff,
+                        eta_cutoff=eta_cutoff,
                     )
                     next_token_log_probs = F.softmax(generated_token_logits, dim=-1)
                     generated_tokens = torch.multinomial(
@@ -548,6 +595,8 @@ def generate_samples_from_prompt(
     min_p: float = 0.0,
     top_h: float = 0.0,
     typical_p: float = 1.0,
+    epsilon_cutoff: float = 0.0,
+    eta_cutoff: float = 0.0,
 ):
     """
     Generates samples from raw text and returns them in a dictionary.
@@ -568,7 +617,9 @@ def generate_samples_from_prompt(
     min_p (default 0.0): float -> Keeps tokens whose probability is at least min_p times the probability of the most likely token. Must be between 0 and 1; 0 disables min-p sampling.
     top_h (default 0.0): float -> Keeps a high-probability prefix of at most 100 tokens within an entropy budget. Enabled values must be greater than 0 and at most 1; 0 disables top-h sampling.
     typical_p (default 1.0): float -> Keeps tokens closest to the expected surprisal until their cumulative probability reaches typical_p. Must be greater than 0 and at most 1; 1 disables locally typical sampling.
-    note: greedy decoding is used if temperature, top_h, top_k, top_p and min_p are 0 and typical_p is 1
+    epsilon_cutoff (default 0.0): float -> Keeps tokens with conditional probability at least epsilon_cutoff, while always retaining a highest-probability token. Enabled values must be strictly between 0 and 1; 0 disables epsilon sampling.
+    eta_cutoff (default 0.0): float -> Keeps tokens above an entropy-adaptive probability cutoff, while always retaining a highest-probability token. Enabled values must be strictly between 0 and 1; 0 disables eta sampling.
+    note: greedy decoding is used if temperature, top_h, top_k, top_p, min_p, epsilon_cutoff and eta_cutoff are 0 and typical_p is 1
 
     returns: List[dict] -> a list of dicts containing the following fields:
         - 'context' (the input)
@@ -647,6 +698,8 @@ def generate_samples_from_prompt(
             min_p=min_p,
             top_h=top_h,
             typical_p=typical_p,
+            epsilon_cutoff=epsilon_cutoff,
+            eta_cutoff=eta_cutoff,
         ):
             pass  # finish generation and use all results below
 
@@ -713,6 +766,8 @@ def generate_samples_input_from_file(
     min_p: float = 0.0,
     top_h: float = 0.0,
     typical_p: float = 1.0,
+    epsilon_cutoff: float = 0.0,
+    eta_cutoff: float = 0.0,
 ):
     """
     Generates samples from an input file and writes them to an output file.
@@ -738,8 +793,10 @@ def generate_samples_input_from_file(
     min_p (default 0.0): float -> Keeps tokens whose probability is at least min_p times the probability of the most likely token. Must be between 0 and 1; 0 disables min-p sampling.
     top_h (default 0.0): float -> Keeps a high-probability prefix of at most 100 tokens within an entropy budget. Enabled values must be greater than 0 and at most 1; 0 disables top-h sampling.
     typical_p (default 1.0): float -> Keeps tokens closest to the expected surprisal until their cumulative probability reaches typical_p. Must be greater than 0 and at most 1; 1 disables locally typical sampling.
+    epsilon_cutoff (default 0.0): float -> Keeps tokens with conditional probability at least epsilon_cutoff, while always retaining a highest-probability token. Enabled values must be strictly between 0 and 1; 0 disables epsilon sampling.
+    eta_cutoff (default 0.0): float -> Keeps tokens above an entropy-adaptive probability cutoff, while always retaining a highest-probability token. Enabled values must be strictly between 0 and 1; 0 disables eta sampling.
 
-    note: greedy decoding is used if temperature, top_h, top_k, top_p and min_p are 0 and typical_p is 1
+    note: greedy decoding is used if temperature, top_h, top_k, top_p, min_p, epsilon_cutoff and eta_cutoff are 0 and typical_p is 1
 
 
     returns: List[dict] -> a list of dicts containing the following fields:
@@ -787,6 +844,8 @@ def generate_samples_input_from_file(
         min_p=min_p,
         top_h=top_h,
         typical_p=typical_p,
+        epsilon_cutoff=epsilon_cutoff,
+        eta_cutoff=eta_cutoff,
     )
 
     if is_mp_rank_0():
@@ -812,6 +871,8 @@ def generate_samples_unconditional(
     min_p: float = 0.0,
     top_h: float = 0.0,
     typical_p: float = 1.0,
+    epsilon_cutoff: float = 0.0,
+    eta_cutoff: float = 0.0,
 ):
     """
     Generates samples unconditionially (no prompt) and yields them in a dictionary.
@@ -836,8 +897,10 @@ def generate_samples_unconditional(
     min_p (default 0.0): float -> Keeps tokens whose probability is at least min_p times the probability of the most likely token. Must be between 0 and 1; 0 disables min-p sampling.
     top_h (default 0.0): float -> Keeps a high-probability prefix of at most 100 tokens within an entropy budget. Enabled values must be greater than 0 and at most 1; 0 disables top-h sampling.
     typical_p (default 1.0): float -> Keeps tokens closest to the expected surprisal until their cumulative probability reaches typical_p. Must be greater than 0 and at most 1; 1 disables locally typical sampling.
+    epsilon_cutoff (default 0.0): float -> Keeps tokens with conditional probability at least epsilon_cutoff, while always retaining a highest-probability token. Enabled values must be strictly between 0 and 1; 0 disables epsilon sampling.
+    eta_cutoff (default 0.0): float -> Keeps tokens above an entropy-adaptive probability cutoff, while always retaining a highest-probability token. Enabled values must be strictly between 0 and 1; 0 disables eta sampling.
 
-    note: greedy decoding is used if temperature, top_h, top_k, top_p and min_p are 0 and typical_p is 1
+    note: greedy decoding is used if temperature, top_h, top_k, top_p, min_p, epsilon_cutoff and eta_cutoff are 0 and typical_p is 1
 
     yields: dict containing the following fields:
         - 'context' (the input)
@@ -864,6 +927,8 @@ def generate_samples_unconditional(
         min_p=min_p,
         top_h=top_h,
         typical_p=typical_p,
+        epsilon_cutoff=epsilon_cutoff,
+        eta_cutoff=eta_cutoff,
     )
 
     if is_mp_rank_0():
@@ -889,6 +954,8 @@ def generate_samples_interactive(
     min_p: float = 0.0,
     top_h: float = 0.0,
     typical_p: float = 1.0,
+    epsilon_cutoff: float = 0.0,
+    eta_cutoff: float = 0.0,
 ):
     """
     Generates samples unconditionially (no prompt) and yields them in a dictionary.
@@ -908,8 +975,10 @@ def generate_samples_interactive(
     min_p (default 0.0): float -> Keeps tokens whose probability is at least min_p times the probability of the most likely token. Must be between 0 and 1; 0 disables min-p sampling.
     top_h (default 0.0): float -> Keeps a high-probability prefix of at most 100 tokens within an entropy budget. Enabled values must be greater than 0 and at most 1; 0 disables top-h sampling.
     typical_p (default 1.0): float -> Keeps tokens closest to the expected surprisal until their cumulative probability reaches typical_p. Must be greater than 0 and at most 1; 1 disables locally typical sampling.
+    epsilon_cutoff (default 0.0): float -> Keeps tokens with conditional probability at least epsilon_cutoff, while always retaining a highest-probability token. Enabled values must be strictly between 0 and 1; 0 disables epsilon sampling.
+    eta_cutoff (default 0.0): float -> Keeps tokens above an entropy-adaptive probability cutoff, while always retaining a highest-probability token. Enabled values must be strictly between 0 and 1; 0 disables eta sampling.
 
-    note: greedy decoding is used if temperature, top_h, top_k, top_p and min_p are 0 and typical_p is 1
+    note: greedy decoding is used if temperature, top_h, top_k, top_p, min_p, epsilon_cutoff and eta_cutoff are 0 and typical_p is 1
 
     yields: dict containing the following fields:
         - 'context' (the input)
@@ -979,6 +1048,8 @@ def generate_samples_interactive(
             min_p=min_p,
             top_h=top_h,
             typical_p=typical_p,
+            epsilon_cutoff=epsilon_cutoff,
+            eta_cutoff=eta_cutoff,
         ):
             if mpu.get_model_parallel_rank() == 0:
                 generated_tokens = (

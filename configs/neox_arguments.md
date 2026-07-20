@@ -1150,6 +1150,18 @@ Text Generation arguments
 
     Probability mass of tokens closest to the distribution's expected surprisal. Enabled values must be greater than 0 and less than 1; 1 disables locally typical sampling.
 
+- **epsilon_cutoff**: float
+
+    Default = 0.0
+
+    Minimum conditional probability required for epsilon sampling. Enabled values must be strictly between 0 and 1; 0 disables epsilon sampling. Suggested values range from 3e-4 to 9e-4.
+
+- **eta_cutoff**: float
+
+    Default = 0.0
+
+    Entropy-adaptive probability cutoff for eta sampling. Enabled values must be strictly between 0 and 1; 0 disables eta sampling. Suggested values range from 3e-4 to 2e-3.
+
 - **top_k**: int
 
     Default = 0

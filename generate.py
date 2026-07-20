@@ -56,6 +56,8 @@ def main(input_args=None, overwrite_values=None):
             min_p=neox_args.min_p,
             top_h=neox_args.top_h,
             typical_p=neox_args.typical_p,
+            epsilon_cutoff=neox_args.epsilon_cutoff,
+            eta_cutoff=neox_args.eta_cutoff,
         )
 
     elif neox_args.text_gen_type == "input-file":
@@ -78,6 +80,8 @@ def main(input_args=None, overwrite_values=None):
             min_p=neox_args.min_p,
             top_h=neox_args.top_h,
             typical_p=neox_args.typical_p,
+            epsilon_cutoff=neox_args.epsilon_cutoff,
+            eta_cutoff=neox_args.eta_cutoff,
         )
 
     elif neox_args.text_gen_type == "interactive":
@@ -94,6 +98,8 @@ def main(input_args=None, overwrite_values=None):
             min_p=neox_args.min_p,
             top_h=neox_args.top_h,
             typical_p=neox_args.typical_p,
+            epsilon_cutoff=neox_args.epsilon_cutoff,
+            eta_cutoff=neox_args.eta_cutoff,
         )
 
     elif neox_args.text_gen_type == "precompute":
