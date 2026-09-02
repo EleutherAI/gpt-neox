@@ -16,4 +16,4 @@ jobs:
     - name: Run CPU tests
       uses: ./tests/cpu_tests
       with:
-        target_test_ref: ${{ github.event.pull_request.base.sha }}
+        target_test_ref: ${{ github.event.pull_request.head.sha }}

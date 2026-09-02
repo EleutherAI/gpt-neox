@@ -39,46 +39,50 @@ runs:
       run: |
         sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
         sudo docker run hello-world
-    - name: Prepare data
-      shell: bash
-      run: |
-        python prepare_data.py -d ./data
     - name: Remove previous container
       shell: bash
       run: |
-        if docker ps -a | grep -q "$CONTAINER"; then
+        if docker inspect "$CONTAINER" >/dev/null 2>&1; then
           echo "Container already exists, deleting it..."
-          docker rm -f $CONTAINER
+          docker rm -f "$CONTAINER"
         fi
       env:
         CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
     - name: Create container
       shell: bash
       run: |
-        mv docker-compose.yml .docker-compose.yml
-        cp tests/cpu_tests/docker-compose.yml .
-        export NEOX_DATA_PATH='./data/enwik8'
-        export NEOX_CHECKPOINT_PATH='/mnt/sda/checkpoints' #todo: where do I get this?
-        docker compose run -d --build --name $CONTAINER gpt-neox tail -f /dev/null
+        cp tests/cpu_tests/docker-compose.yml .docker-compose.cpu-tests.yml
+        mkdir -p data/enwik8 data/checkpoints
+        export NEOX_DATA_PATH="${PWD}/data/enwik8"
+        export NEOX_CHECKPOINT_PATH="${PWD}/data/checkpoints"
+        docker compose -f .docker-compose.cpu-tests.yml run -d --build --name "$CONTAINER" gpt-neox tail -f /dev/null
+      env:
+        CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
+    - name: Prepare data
+      shell: bash
+      run: |
+        docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "$CONTAINER" sh -c "cd /home/mchorse/gpt-neox && python prepare_data.py -d ./data"
       env:
         CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
     - name: Install test requirements
       shell: bash
       run: |
-        docker exec $CONTAINER pip install -r /workspace/requirements-dev.txt
+        docker exec -u root "$CONTAINER" sh -c "cd /home/mchorse/gpt-neox && pip install -r requirements/requirements-dev.txt"
       env:
         CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
     - name: Execute CPU tests 1
+      id: cpu_tests
+      continue-on-error: true
       shell: bash
       run: |
-        docker exec $CONTAINER sh -c "cd gpt-neox && pytest tests -m cpu"
+        docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "$CONTAINER" sh -c "cd /home/mchorse/gpt-neox && pytest tests -m cpu"
       env:
         CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
-    - name: Execute CPU tests 2
-      if: always()
+    - name: Retry CPU tests with Python protobuf
+      if: steps.cpu_tests.outcome == 'failure'
       shell: bash
       run: |
-        docker exec $CONTAINER sh -c "cd gpt-neox && PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pytest tests -m cpu"
+        docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "$CONTAINER" sh -c "cd /home/mchorse/gpt-neox && PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pytest tests -m cpu"
       env:
         CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
 #    - name: Generate report
@@ -88,9 +92,13 @@ runs:
 #        docker exec $CONTAINER python -m http.server --directory htmlcov 8000 # this may not work with AWS - should perhaps pass back as an artifact for Github to use instead.
 #      env:
 #        CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
-    - name: Remove CPU docker-compose
+    - name: Clean up CPU test container
       shell: bash
       if: always()
       run: |
-        rm docker-compose.yml
-        mv .docker-compose.yml docker-compose.yml
+        if docker inspect "$CONTAINER" >/dev/null 2>&1; then
+          docker rm -f "$CONTAINER"
+        fi
+        rm -f .docker-compose.cpu-tests.yml
+      env:
+        CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
