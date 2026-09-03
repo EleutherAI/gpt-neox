@@ -18,4 +18,4 @@ services:
     volumes:
       - ${NEOX_DATA_PATH}:/home/mchorse/data
       - ${NEOX_CHECKPOINT_PATH}:/home/mchorse/chk
-      - .:/home/mchorse/gpt-neox
+      - .:/workspace/gpt-neox

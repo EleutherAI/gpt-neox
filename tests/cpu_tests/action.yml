@@ -61,13 +61,13 @@ runs:
     - name: Prepare data
       shell: bash
       run: |
-        docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "$CONTAINER" sh -c "cd /home/mchorse/gpt-neox && python prepare_data.py -d ./data"
+        docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "$CONTAINER" sh -c "cd /workspace/gpt-neox && python prepare_data.py -d ./data"
       env:
         CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
     - name: Install test requirements
       shell: bash
       run: |
-        docker exec -u root "$CONTAINER" sh -c "cd /home/mchorse/gpt-neox && pip install -r requirements/requirements-dev.txt"
+        docker exec -u root "$CONTAINER" sh -c "cd /workspace/gpt-neox && pip install -r requirements/requirements-dev.txt"
       env:
         CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
     - name: Execute CPU tests 1
@@ -75,14 +75,14 @@ runs:
       continue-on-error: true
       shell: bash
       run: |
-        docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "$CONTAINER" sh -c "cd /home/mchorse/gpt-neox && pytest tests -m cpu"
+        docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "$CONTAINER" sh -c "cd /workspace/gpt-neox && pytest tests -m cpu"
       env:
         CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
     - name: Retry CPU tests with Python protobuf
       if: steps.cpu_tests.outcome == 'failure'
       shell: bash
       run: |
-        docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "$CONTAINER" sh -c "cd /home/mchorse/gpt-neox && PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pytest tests -m cpu"
+        docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "$CONTAINER" sh -c "cd /workspace/gpt-neox && PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pytest tests -m cpu"
       env:
         CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
 #    - name: Generate report
