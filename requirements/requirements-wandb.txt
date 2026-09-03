@@ -1,1 +1,2 @@
-wandb>=0.10.28
+wandb==0.16.6
+protobuf==3.20.*

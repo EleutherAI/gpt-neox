@@ -35,7 +35,7 @@ RUN apt-get update -y && \
     apt-get install -y \
     python3-pip sudo pdsh \
     htop tmux zstd software-properties-common \
-    nfs-common pdsh cmake htop iftop iotop ssh \
+    nfs-common pdsh cmake htop iftop iotop ssh libaio-dev \
     iputils-ping net-tools libcupti-dev libmlx4-1 infiniband-diags ibutils \
     rdmacm-utils perftest rdma-core && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3 1 && \
@@ -82,8 +82,9 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
 #### Python packages
 COPY requirements/* ./
 RUN python -m pip install --no-cache-dir -r requirements.txt && pip install -r requirements-onebitadam.txt
-RUN python -m pip install -r requirements-wandb.txt
-RUN python -m pip install protobuf==3.20.*
+RUN python -m pip install --no-cache-dir --force-reinstall \
+        -r requirements-wandb.txt && \
+    python -c "import google.protobuf, wandb; from wandb.proto.wandb_telemetry_pb2 import Imports; print(f'wandb={wandb.__version__} protobuf={google.protobuf.__version__}')"
 
 COPY megatron/fused_kernels/ /megatron/fused_kernels
 WORKDIR /megatron/fused_kernels
