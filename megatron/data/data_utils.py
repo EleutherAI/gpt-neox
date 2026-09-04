@@ -517,9 +517,7 @@ def build_train_valid_test_data_loaders(neox_args):
     """XXX"""
 
     if not neox_args.train_epochs and not neox_args.train_iters:
-        raise ValueError(
-            "Must specify either train_epochs or train_iters"
-        )
+        raise ValueError("Must specify either train_epochs or train_iters")
 
     validate_train_epochs(neox_args)
 

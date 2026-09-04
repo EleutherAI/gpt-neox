@@ -1086,7 +1086,9 @@ class NeoXArgs(*BASE_CLASSES):
 
         # MoE config
         if self.moe_num_experts > 1:
-            assert self.zero_optimization["stage"] < 2, "MoE is not compatible with zero stages 2 and 3"
+            assert (
+                self.zero_optimization["stage"] < 2
+            ), "MoE is not compatible with zero stages 2 and 3"
 
         # Attention config
         if self.attention_config is None:

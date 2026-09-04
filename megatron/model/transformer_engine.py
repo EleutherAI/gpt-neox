@@ -43,7 +43,8 @@ from megatron import mpu
 
 # https://github.com/NVIDIA/TransformerEngine/issues/405
 import os
-os.environ['NVTE_TORCH_COMPILE'] = str(0)
+
+os.environ["NVTE_TORCH_COMPILE"] = str(0)
 
 try:
     import transformer_engine as te
@@ -52,7 +53,6 @@ except ImportError:
         "Unable to import transformer-engine. Please refer to "
         "https://github.com/NVIDIA/TransformerEngine for installation instructions."
     )
-
 
 
 class TERMSNorm(torch.nn.Module):
