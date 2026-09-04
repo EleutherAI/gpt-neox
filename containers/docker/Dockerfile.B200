@@ -14,7 +14,10 @@
 
 FROM nvcr.io/nvidia/pytorch:25.04-py3
 
-ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_CONFIG_FILE=/dev/null \
+    PIP_INDEX_URL=https://pypi.org/simple \
+    PIP_EXTRA_INDEX_URL=
 
 # metainformation
 LABEL org.opencontainers.image.version = "2.0"

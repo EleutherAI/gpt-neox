@@ -73,6 +73,7 @@ def build_the_dataset(
     neg_label_prefix=None,
     precompute_model_name=None,
     reward_prefix=None,
+    inter_document_attention_masking=False,
 ):
     """Build train/valid/test datasets."""
     if dataset_impl == "gpt2":
@@ -152,6 +153,7 @@ def build_the_dataset(
             label_dataset=label_dataset,
             reward_dataset=reward_dataset,
             ref_dataset=precompute_indexed_dataset,
+            inter_document_attention_masking=inter_document_attention_masking,
         )
     elif dataset_impl == "pairwise":
         dataset = PairwiseDataset(
@@ -186,6 +188,7 @@ def build_train_valid_test_datasets(
     seq_length,
     seed,
     skip_warmup,
+    inter_document_attention_masking=False,
 ):
     """Build train, valid, and test datasets."""
 
@@ -229,6 +232,7 @@ def build_train_valid_test_datasets(
                 pack_impl=pack_impl,
                 allow_chopped=allow_chopped,
                 use_shared_fs=use_shared_fs,
+                inter_document_attention_masking=inter_document_attention_masking,
             )
         return dataset
 
@@ -388,6 +392,9 @@ def build_weighted_datasets(
                     neg_label_prefix=neg_train_label_path,
                     precompute_model_name=neox_args.precompute_model_name,
                     reward_prefix=train_reward_path,
+                    inter_document_attention_masking=(
+                        neox_args.inter_document_attention_masking
+                    ),
                 )
             )
 
@@ -413,6 +420,9 @@ def build_weighted_datasets(
                     neg_label_prefix=neg_valid_label_path,
                     precompute_model_name=neox_args.precompute_model_name,
                     reward_prefix=valid_reward_path,
+                    inter_document_attention_masking=(
+                        neox_args.inter_document_attention_masking
+                    ),
                 )
             )
 
@@ -438,6 +448,9 @@ def build_weighted_datasets(
                     neg_label_prefix=neg_test_label_path,
                     precompute_model_name=neox_args.precompute_model_name,
                     reward_prefix=test_reward_path,
+                    inter_document_attention_masking=(
+                        neox_args.inter_document_attention_masking
+                    ),
                 )
             )
     return train_datasets, valid_datasets, test_datasets
@@ -698,6 +711,9 @@ def build_train_valid_test_data_loaders(neox_args):
                 skip_warmup=(not neox_args.mmap_warmup),
                 pack_impl=neox_args.pack_impl,
                 allow_chopped=neox_args.allow_chopped,
+                inter_document_attention_masking=(
+                    neox_args.inter_document_attention_masking
+                ),
             )
 
         # Build dataloders.

@@ -173,7 +173,7 @@ class Embedding(torch.nn.Module):
 
 
 class EmbeddingPipe(Embedding):
-    """Extends Embedding to forward attention_mask through the pipeline."""
+    """Extends Embedding to forward model context through the pipeline."""
 
     @property
     def word_embeddings_weight(self):
@@ -181,15 +181,15 @@ class EmbeddingPipe(Embedding):
         return self.word_embeddings.weight
 
     def forward(self, args):
-        assert (
-            len(args) == 3
-        ), f"Expected 3 arguments (input_ids, position_ids, attention_mask), but got {len(args)}."
-
-        input_ids = args[0]
-        position_ids = args[1]
-        attention_mask = args[2]
+        assert isinstance(args, tuple) and len(args) in (3, 6), (
+            "EmbeddingPipe expects (input_ids, position_ids, attention_mask) "
+            "or (input_ids, position_ids, cu_seqlens, num_documents, "
+            f"max_seqlen, attention_mask), but got {type(args).__name__} with "
+            f"length {len(args) if isinstance(args, tuple) else 'unknown'}"
+        )
+        input_ids, position_ids, *context = args
         embeddings = super().forward(input_ids, position_ids)
-        return embeddings, attention_mask
+        return (embeddings, *context)
 
 
 class SoftEmbedding(torch.nn.Module):

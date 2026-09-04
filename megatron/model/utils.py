@@ -183,7 +183,8 @@ class SequentialWrapper(torch.nn.Module):
             """
 
             def exec_func(*inputs):
-                # Single tensor inputs need to be unwrapped
+                # Direct execution supplies a context tuple as one argument;
+                # checkpointing supplies its tensors as separate arguments.
                 if len(inputs) == 1:
                     inputs = inputs[0]
                 for idx, layer in enumerate(self.sequential[start:end]):
@@ -206,8 +207,8 @@ class SequentialWrapper(torch.nn.Module):
                 )
 
                 funcs = self.sequential[start_idx:end_idx]
-                # Since we either pass tensors or tuples of tensors without unpacking, we
-                # need to be careful not to double-wrap tensors with tuple.
+                # Checkpoint functions accept positional tensor arguments. Keep
+                # tuple contexts flat and wrap only a lone tensor result.
                 if not isinstance(x, tuple):
                     x = (x,)
 

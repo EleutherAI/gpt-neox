@@ -155,3 +155,4 @@ src/
 # test data files
 tests/data/*.bin
 tests/data/*.idx
+INTER_DOCUMENT_ATTENTION_MASKING_PLAN.md

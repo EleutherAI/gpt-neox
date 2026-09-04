@@ -44,6 +44,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
         label_dataset=None,
         reward_dataset=None,
         ref_dataset=None,
+        inter_document_attention_masking=False,
     ):
 
         self.name = name
@@ -54,6 +55,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
         self.reward_dataset = reward_dataset
         self.ref_dataset = ref_dataset
         self.seq_length = seq_length
+        self.inter_document_attention_masking = inter_document_attention_masking
 
         # Checks
         assert self.reward_dataset is None or (
@@ -112,6 +114,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
                 datasets.append(self.ref_dataset)
             samples = []
             sample_lengths = []
+            document_lengths = None
             # If we are within the same document, just extract the chunk.
             for n, dataset in enumerate(datasets):
                 if doc_index_f == doc_index_l:
@@ -122,13 +125,14 @@ class GPT2Dataset(torch.utils.data.Dataset):
                             np.array([rw[0] for _ in range(len(samples[-1]))])
                         )
                     else:
-                        samples.append(
-                            dataset.get(
-                                self.doc_idx[doc_index_f],
-                                offset=offset_f,
-                                length=offset_l - offset_f + 1,
-                            )
+                        sample = dataset.get(
+                            self.doc_idx[doc_index_f],
+                            offset=offset_f,
+                            length=offset_l - offset_f + 1,
                         )
+                        samples.append(sample)
+                        if self.inter_document_attention_masking and n == 0:
+                            document_lengths = [len(sample)]
                 else:
                     if n != rw_indx:
                         # reset
@@ -165,6 +169,8 @@ class GPT2Dataset(torch.utils.data.Dataset):
                             dataset.get(self.doc_idx[doc_index_l], length=offset_l + 1)
                         )
                         sample_lengths.append(len(sample_list[-1]))
+                    if self.inter_document_attention_masking and n == 0:
+                        document_lengths = [len(fragment) for fragment in sample_list]
                     samples.append(np.concatenate(sample_list))
             for i in range(len(samples)):
                 mask = (self.label_dataset is not None) and (i == 1)
@@ -180,6 +186,12 @@ class GPT2Dataset(torch.utils.data.Dataset):
                     # Truncate
                     samples[i] = samples[i][: (self.seq_length + 1)]
             ret = {"text": np.array(samples[0], dtype=np.int64)}
+            if self.inter_document_attention_masking:
+                cu_seqlens, max_seqlen = _build_inter_document_attention_metadata(
+                    document_lengths, self.seq_length
+                )
+                ret["cu_seqlens"] = cu_seqlens
+                ret["max_seqlen"] = max_seqlen
             next_idx = 1
             if self.label_dataset is not None:
                 ret["label"] = np.array(samples[next_idx], dtype=np.int64)
@@ -196,6 +208,53 @@ class GPT2Dataset(torch.utils.data.Dataset):
                 f"WARNING: Got index out of bounds error with index {idx} - taking modulo of index instead ({new_idx}), error: {err}"
             )
             return self[new_idx]
+
+
+def _build_inter_document_attention_metadata(document_lengths, seq_length):
+    """Build fixed-width packed-sequence metadata for one GPT sample."""
+    assert document_lengths is not None
+
+    # GPT2Dataset fetches seq_length + 1 tokens so that the final token can be
+    # used as the next-token label. Trim defensively before removing that extra
+    # token in case a packing implementation returned a longer final fragment.
+    remaining = seq_length + 1
+    input_document_lengths = []
+    for document_length in document_lengths:
+        fragment_length = min(int(document_length), remaining)
+        if fragment_length > 0:
+            input_document_lengths.append(fragment_length)
+            remaining -= fragment_length
+        if remaining == 0:
+            break
+
+    if input_document_lengths:
+        # The last token is only used as final label and hence not part of tokens
+        input_document_lengths[-1] -= 1
+
+        # Remove last entry if it is now empty
+        if input_document_lengths[-1] == 0:
+            input_document_lengths.pop()
+
+    # Partial samples are padded to seq_length + 1 in __getitem__. Treat input
+    # padding as part of the final fragment so the last cumulative offset always
+    # equals seq_length.
+    shortfall = seq_length - sum(input_document_lengths)
+    if shortfall > 0:
+        if input_document_lengths:
+            input_document_lengths[-1] += shortfall
+        else:
+            input_document_lengths.append(shortfall)
+
+    # We use int32 here as FA expects them to be int32 - https://github.com/Dao-AILab/flash-attention/blob/main/csrc/flash_attn/flash_api.cpp#L579
+    cu_seqlens = np.cumsum(
+        np.array([0] + input_document_lengths, dtype=np.int32), dtype=np.int32
+    )
+    assert cu_seqlens[-1] == seq_length
+
+    max_seqlen = np.max(cu_seqlens[1:] - cu_seqlens[:-1]).astype(np.int32)
+    padded_cu_seqlens = np.full(seq_length + 1, seq_length, dtype=np.int32)
+    padded_cu_seqlens[: len(cu_seqlens)] = cu_seqlens
+    return padded_cu_seqlens, max_seqlen
 
 
 def _build_index_mappings(

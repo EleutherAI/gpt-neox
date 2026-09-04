@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import math
 
 import torch
@@ -38,7 +39,7 @@ from megatron.mpu.random import get_cuda_rng_tracker
 from megatron.mpu.utils import divide
 from megatron.mpu.utils import VocabUtility
 from functools import partial
-from megatron.model.positional_embeddings import RotaryEmbedding
+from megatron.model.positional_embeddings import AliBi, RotaryEmbedding
 from megatron import mpu
 
 # https://github.com/NVIDIA/TransformerEngine/issues/405
@@ -549,6 +550,13 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
         self.seq_len = neox_args.seq_length
         self.micro_batch_size = neox_args.train_micro_batch_size_per_gpu
         self.params_dtype = neox_args.params_dtype
+        self.use_cache = use_cache
+        self.pos_emb = neox_args.pos_emb
+        self.packed_window_size = (
+            (neox_args.sliding_window_width, 0)
+            if neox_args.sliding_window_width is not None
+            else None
+        )
         self.set_parallel_mode = False
         if world_size > 1:
             self.set_parallel_mode = True
@@ -578,7 +586,7 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
             init_method=self.init_method,
             output_layer_init_method=self.output_layer_init_method,
             layer_number=self.layer_number,
-            window_size=neox_args.sliding_window_width,
+            window_size=self.packed_window_size,
             num_gqa_groups=self.num_kv_heads,
             input_layernorm=False,
             normalization=self.normalization,
@@ -621,11 +629,108 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
             )
             self.rope_emb = self.rotary_embeddings.get_emb()
 
-    def forward(
-        self, hidden_states, attention_mask, layer_past=None, rope_emb=None, **kwargs
+        if self.pos_emb == "alibi":
+            self.alibi_embed = AliBi(
+                neox_args.num_attention_heads,
+                neox_args.model_parallel_size,
+                get_model_parallel_rank(),
+            )
+
+    def _position_kwargs(self, hidden_states):
+        if self.pos_emb == "rotary":
+            return {"rotary_pos_emb": self.rope_emb}
+        if self.pos_emb == "alibi":
+            return {
+                "core_attention_bias_type": "alibi",
+                "alibi_slopes": self.alibi_embed.slopes.to(
+                    device=hidden_states.device, dtype=torch.float32
+                ),
+            }
+        return {}
+
+    def _forward_packed(
+        self,
+        hidden_states,
+        cu_seqlens,
+        num_documents,
+        max_seqlen,
+        **kwargs,
     ):
+        document_count = int(num_documents.item())
+        packed_cu_seqlens = cu_seqlens[: document_count + 1].contiguous()
+        packed_max_seqlen = int(max_seqlen.item())
+
+        # MultiheadAttention stores qkv_format on the module instead of taking
+        # it per forward. Use an ephemeral shallow view so the packed operation
+        # shares the original projections without mutating format state that an
+        # outstanding fixed-shape autograd graph may still reference.
+        packed_attention = copy.copy(self)
+        packed_attention.qkv_format = "thd"
+
+        packed_kwargs = dict(kwargs)
+        packed_kwargs.update(self._position_kwargs(hidden_states))
+        packed_kwargs.update(
+            {
+                "attn_mask_type": "padding_causal",
+                "window_size": self.packed_window_size,
+                "cu_seqlens_q": packed_cu_seqlens,
+                "cu_seqlens_kv": packed_cu_seqlens,
+                "max_seqlen_q": packed_max_seqlen,
+                "max_seqlen_kv": packed_max_seqlen,
+            }
+        )
+        output = te.pytorch.MultiheadAttention.forward(
+            packed_attention,
+            hidden_states,
+            attention_mask=None,
+            **packed_kwargs,
+        )
+
+        # TE returns [T, H] for THD and [S, B, H] for SBHD. Restore NeoX's
+        # singleton packed-batch dimension while preserving the return-bias
+        # tuple expected by ParallelTransformerLayer.
+        if isinstance(output, tuple):
+            return (output[0].unsqueeze(1), *output[1:])
+        return output.unsqueeze(1)
+
+    def forward(
+        self,
+        hidden_states,
+        attention_mask,
+        layer_past=None,
+        rope_emb=None,
+        *,
+        cu_seqlens=None,
+        num_documents=None,
+        max_seqlen=None,
+        **kwargs,
+    ):
+        if cu_seqlens is not None:
+            layer_past_is_set = layer_past is not None and (
+                not isinstance(layer_past, torch.Tensor)
+                or layer_past.numel() > 0
+            )
+            if (
+                self.use_cache
+                or layer_past_is_set
+                or kwargs.get("inference_params") is not None
+            ):
+                raise RuntimeError(
+                    "Packed-sequence Transformer Engine attention does not "
+                    "support KV-cache execution"
+                )
+            return self._forward_packed(
+                hidden_states,
+                cu_seqlens,
+                num_documents,
+                max_seqlen,
+                **kwargs,
+            )
+
+        fixed_kwargs = dict(kwargs)
+        fixed_kwargs.update(self._position_kwargs(hidden_states))
         output = super(TEMultiheadAttention, self).forward(
-            hidden_states, attention_mask, rotary_pos_emb=self.rope_emb, **kwargs
+            hidden_states, attention_mask, **fixed_kwargs
         )
         return output
 
@@ -651,7 +756,7 @@ class TEDelayedScaling(te.common.recipe.DelayedScaling):
         override_linear_precision = (False, False, not neox_args.te_fp8_wgrad)
 
         super().__init__(
-            margin=neox_args.fp8_margin,
+            margin=neox_args.te_fp8_margin,
             fp8_format=te_fp8_format,
             amax_compute_algo=neox_args.te_fp8_amax_compute_algo,
             amax_history_len=neox_args.te_fp8_amax_history_len,

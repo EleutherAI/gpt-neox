@@ -79,18 +79,26 @@ def cross_entropy(output, labels, _fp16=False):
 
 
 def _pre_transformer_block(args):
-    # data format change for hidden_states to avoid explicit tranposes : [b s h] --> [s b h]
-    assert len(args) == 2, "Incorrect number of arguments to _pre_transformer_block"
-    fn = lambda _args: (_args[0].transpose(0, 1).contiguous(), *_args[1:])
-    return fn(args)
+    # Change hidden-state format from [b, s, h] to [s, b, h] while preserving
+    # either the ordinary attention mask or the packed-sequence context.
+    assert isinstance(args, tuple) and len(args) in (2, 5), (
+        "_pre_transformer_block expects (hidden_states, attention_mask) or "
+        "(hidden_states, cu_seqlens, num_documents, max_seqlen, "
+        f"attention_mask), but got {type(args).__name__} with length "
+        f"{len(args) if isinstance(args, tuple) else 'unknown'}"
+    )
+    return (args[0].transpose(0, 1).contiguous(), *args[1:])
 
 
 def _post_transformer_block(args):
-    # from (hidden_states, attention_mask)
-    # to (hidden_states.T)
-    assert len(args) == 2, "Incorrect number of arguments to _post_transformer_block"
-    fn = lambda _args: (_args[0].transpose(0, 1).contiguous())
-    return fn(args)
+    # Restore [b, s, h] and drop model context after the final transformer layer.
+    assert isinstance(args, tuple) and len(args) in (2, 5), (
+        "_post_transformer_block expects (hidden_states, attention_mask) or "
+        "(hidden_states, cu_seqlens, num_documents, max_seqlen, "
+        f"attention_mask), but got {type(args).__name__} with length "
+        f"{len(args) if isinstance(args, tuple) else 'unknown'}"
+    )
+    return args[0].transpose(0, 1).contiguous()
 
 
 class GPT2ModelPipe(PipelineModule, torch.nn.Module):
@@ -185,8 +193,9 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         weight_tying = not self.neox_args.no_weight_tying
         self.specs = []
 
-        # Embedding layer
-        # input will be (input_ids, position_ids, attention_mask)
+        # Embedding input is either (input_ids, position_ids, attention_mask) or
+        # (input_ids, position_ids, cu_seqlens, num_documents, max_seqlen,
+        # attention_mask).
 
         if weight_tying:
             self.specs.append(
@@ -220,7 +229,8 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         # NB: the attention mask always needs to be the *last* item in the args when being passed from
         # one stage to the next, because deepspeed is hacks on top of hacks.
         #
-        # outputs are now (hidden_states,  attention_mask)
+        # EmbeddingPipe replaces the first two tensors with hidden states and
+        # preserves the remaining model context.
 
         self.specs.append(_pre_transformer_block)
 

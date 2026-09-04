@@ -22,7 +22,7 @@ import copy
 import torch
 import argparse
 from pkg_resources import packaging
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 
 from dataclasses import dataclass
 from typing import List, Dict
@@ -90,6 +90,25 @@ OPT_PARAMS_DEFAULTS = {
     "momentum": 0.0,
     "cuda_aware": False,
 }
+
+TRANSFORMER_ENGINE_THD_MIN_VERSION = packaging.version.Version("1.12.0")
+
+
+def _validate_transformer_engine_thd_support():
+    try:
+        te_version = packaging.version.Version(version("transformer-engine"))
+    except PackageNotFoundError as error:
+        raise AssertionError(
+            "inter_document_attention_masking with te_mha "
+            "requires Transformer Engine >= 1.12.0 with THD attention support, "
+            "but Transformer Engine is not installed"
+        ) from error
+
+    assert te_version >= TRANSFORMER_ENGINE_THD_MIN_VERSION, (
+        "inter_document_attention_masking with te_mha requires "
+        f"Transformer Engine >= {TRANSFORMER_ENGINE_THD_MIN_VERSION} with THD "
+        f"attention support; found {te_version}"
+    )
 
 
 AUTOTUNING_ARGS = (
@@ -1122,6 +1141,64 @@ class NeoXArgs(*BASE_CLASSES):
                 self.hidden_dropout == 0.0,
             ), "RWKV does not yet have dropout implemented"
 
+        if self.inter_document_attention_masking:
+            assert self.dataset_impl == "gpt2", (
+                "inter_document_attention_masking currently requires "
+                "dataset_impl='gpt2'"
+            )
+            assert self.train_impl == "normal", (
+                "inter_document_attention_masking currently requires "
+                "train_impl='normal'"
+            )
+
+            soft_prompt_enabled = self.soft_prompt_tuning is not None and (
+                self.soft_prompt_tuning.get("enabled", False)
+            )
+            assert not soft_prompt_enabled, (
+                "inter_document_attention_masking is not compatible with "
+                "soft prompt tuning"
+            )
+            assert not self.curriculum_learning, (
+                "inter_document_attention_masking is not compatible with "
+                "curriculum sequence-length training"
+            )
+
+            assert not self.te_fp8_mha, (
+                "inter_document_attention_masking does not currently support "
+                "te_fp8_mha"
+            )
+            if self.te_mha:
+                _validate_transformer_engine_thd_support()
+                supported_te_attention_types = {"global", "flash"}
+                unsupported_attention_types = sorted(
+                    set(self.attention_config) - supported_te_attention_types
+                )
+                assert not unsupported_attention_types, (
+                    "inter_document_attention_masking with Transformer Engine "
+                    "does not support attention types: "
+                    f"{unsupported_attention_types}"
+                )
+            else:
+                assert all(
+                    attention_type == "flash"
+                    for attention_type in self.attention_config
+                ), (
+                    "inter_document_attention_masking requires native "
+                    "FlashAttention for every transformer layer unless te_mha "
+                    "is enabled"
+                )
+
+            supported_position_embedding_types = {
+                "learned",
+                "rotary",
+                "alibi",
+                "none",
+            }
+            assert self.pos_emb in supported_position_embedding_types, (
+                "inter_document_attention_masking does not yet support positional "
+                f"embedding type '{self.pos_emb}'"
+            )
+
         # Sparsity config
         if self.sparsity_config is None:
             # Can't have a default value as an empty dict so need to set it here
@@ -1147,7 +1224,7 @@ class NeoXArgs(*BASE_CLASSES):
                     self.num_kv_heads % self.model_parallel_size == 0
                 ), "Number of KV heads must be at least model_parallel_size for now!"
         # Flash attention version >=2.3.0 required to combine Flash + Sliding Window Attention
-        if "flash" in self.attention_config:
+        if "flash" in self.attention_config and not self.te_mha:
             _flash_version = packaging.version.Version(version("flash-attn"))
             if self.sliding_window_width is not None:
                 assert _flash_version >= packaging.version.Version(

@@ -1654,6 +1654,17 @@ Training Arguments
 
 
 
+- **inter_document_attention_masking**: bool
+
+    Default = False
+
+    Prevent tokens in packed GPT-2 training samples from attending across
+    document boundaries. Uses native variable-length FlashAttention or BF16
+    Transformer Engine THD attention with te_mha, and resets supported
+    positional encodings at each document boundary. te_fp8_mha is not supported.
+
+
+
 - **dataset_impl**: typing.Literal['gpt2', 'pairwise']
 
     Default = gpt2
