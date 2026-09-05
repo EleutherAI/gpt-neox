@@ -16,7 +16,7 @@ import torch
 import math
 from torch.nn.parameter import Parameter
 
-from megatron import mpu
+from megatron import mpu, print_rank_0
 from megatron.model.positional_embeddings import SinusoidalPositionalEmbedding
 from megatron.model.init_functions import get_init_methods
 
@@ -136,6 +136,51 @@ class Embedding(torch.nn.Module):
         # Initialize the token-type embeddings.
         self.init_method(self.tokentype_embeddings.weight)
 
+    def _load_from_state_dict(
+        self,
+        state_dict,
+        prefix,
+        local_metadata,
+        strict,
+        missing_keys,
+        unexpected_keys,
+        error_msgs,
+    ):
+        """Loads a word_embeddings.weight whose vocab dimension doesn't match this
+        model's (usually because the model pads the tokenizer's vocab size up to a
+        multiple of make_vocab_size_divisible_by, e.g. checkpoint 25216 rows vs
+        model 50304). Slices the checkpoint's full embedding table to this rank's
+        [vocab_start_index:vocab_end_index) partition, zero-filling any rows past
+        the checkpoint's vocab size, instead of letting the shape mismatch raise.
+        """
+        key = prefix + "word_embeddings.weight"
+        if key in state_dict:
+            checkpoint_weight = state_dict[key]
+            embedding = self.word_embeddings
+            if checkpoint_weight.shape[0] != embedding.num_embeddings:
+                print_rank_0(
+                    f"[Embedding] checkpoint word_embeddings.weight has vocab size "
+                    f"{checkpoint_weight.shape[0]}, model expects {embedding.num_embeddings} "
+                    f"(padded vocab size); resizing to load. Rows beyond the checkpoint's "
+                    f"vocab size keep their initialized (untrained) values."
+                )
+                resized = embedding.weight.data.clone()
+                checkpoint_vocab_size = checkpoint_weight.shape[0]
+                start, end = embedding.vocab_start_index, embedding.vocab_end_index
+                overlap_end = min(end, checkpoint_vocab_size)
+                if overlap_end > start:
+                    resized[: overlap_end - start] = checkpoint_weight[start:overlap_end]
+                state_dict[key] = resized
+        super()._load_from_state_dict(
+            state_dict,
+            prefix,
+            local_metadata,
+            strict,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
+        )
+
     def forward(self, input_ids, position_ids, tokentype_ids=None):
         # Embeddings.
         words_embeddings = self.word_embeddings(input_ids)
@@ -249,3 +294,4 @@ class SoftEmbedding(torch.nn.Module):
                 embedding = embedding[:, : self.neox_args.seq_length, ...]
             # otherwise, we're in incremental mode, and just want to forward the single embedding (since the soft prompt has already been cached)
             return embedding, layer_past, attention_mask
+
