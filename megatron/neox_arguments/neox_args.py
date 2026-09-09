@@ -176,36 +176,66 @@ class NeoXArgsModel(NeoXArgsTemplate):
 
     layernorm_fusion: bool = False
     """
-    Use fused layer norm kernel (if `norm` is `layernorm`).
+    Use the fused layer norm kernel when `norm` or `qk_norm` is `layernorm`.
     """
 
     rmsnorm_fusion: bool = False
     """
-    Use fused RMS norm kernel (if `norm` is `rmsnorm`).
+    Use the fused RMS norm kernel when `norm` or `qk_norm` is `rmsnorm`.
     """
 
-    use_qk_layernorm: bool = False
+    use_qk_norm: bool = False
     """
     Use QK Normalization
     """
 
-    qk_layernorm_type: Literal["per_head", "across_heads"] = "per_head"
+    qk_norm: Literal[
+        "layernorm",
+        "rmsnorm",
+        "non_parametric_layernorm",
+        "scalenorm",
+        "te_rmsnorm",
+        "te_layernorm",
+    ] = None
     """
-    How to apply QK Normalization when `use_qk_layernorm` is set. Choose from:
+    Normalization to use for Q and K. When unset, this inherits `norm`, so Q/K
+    normalization uses the same normalization as the rest of the model. Set it
+    explicitly to use a different Q/K normalization.
+    """
+
+    qk_norm_type: Literal["per_head", "across_heads"] = "per_head"
+    """
+    How to apply QK Normalization when `use_qk_norm` is set. Choose from:
         - "per_head": normalize each head independently over the head dimension,
           i.e. over [*, H] (Qwen3 / Megatron-core / TorchTitan style). Works for
           both MHA and GQA.
         - "across_heads": normalize over all heads jointly, i.e. over [*, N, H]
-          (OLMo2 style). For GQA the query and key projections have different
-          numbers of heads (N vs. KV heads), so `qk_layernorm_separate` must be
-          enabled to construct separate query/key norms with differently sized
-          parameters.
+          (OLMo2 style). Under tensor parallelism this is rank-local by default;
+          enable `qk_norm_across_tp` to compute the normalization statistics
+          over the full TP-sharded Q/K projections. For GQA the query and key
+          projections have different numbers of heads (N vs. KV heads), so
+          `qk_norm_separate` must be enabled to construct separate query/key
+          norms with differently sized parameters.
     """
 
-    qk_layernorm_separate: bool = False
+    qk_norm_across_tp: bool = False
+    """
+    Compute full-projection Q and K normalization statistics across
+    tensor-parallel ranks when `qk_norm_type` is "across_heads". Q and K
+    statistics are packed into one tensor and reduced with a single
+    model-parallel all-reduce in forward (with the corresponding autograd
+    reduction in backward), then Q and K are normalized independently. RMSNorm
+    and ScaleNorm reduce sums of squares; LayerNorm variants reduce sums and sums
+    of squares. The default False preserves rank-local normalization. Requires
+    `use_qk_norm`. Fused and Transformer Engine Q/K norms are not supported with
+    this flag because their kernels compute statistics internally; select a
+    native `qk_norm`, disable norm fusion, or leave this flag disabled.
+    """
+
+    qk_norm_separate: bool = False
     """
     Use separate (independently learned) norms for the query and key projections
-    when `use_qk_layernorm` is set. When False, query and key share a single norm.
+    when `use_qk_norm` is set. When False, query and key share a single norm.
     GQA/MQA with "across_heads" QK normalization requires this to be True because
     the query and key norm parameter shapes differ; otherwise an error is raised.
     """

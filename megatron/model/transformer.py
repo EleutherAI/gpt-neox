@@ -23,6 +23,9 @@ from contextlib import nullcontext
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
+from torch.distributed.nn.functional import (
+    all_reduce as differentiable_all_reduce,
+)
 from pkg_resources import packaging
 from importlib.metadata import version
 
@@ -85,18 +88,123 @@ torch._C._jit_override_can_fuse_on_gpu(True)
 """
 
 
-def _validate_qk_layernorm_sharing(
-    q_norm_size: int, k_norm_size: int, qk_layernorm_separate: bool
+def _qk_norm_family(norm_type):
+    if norm_type == "rmsnorm":
+        return "rmsnorm"
+    if norm_type in ("layernorm", "non_parametric_layernorm"):
+        return "layernorm"
+    if norm_type == "scalenorm":
+        return "scalenorm"
+    raise ValueError(f"norm {norm_type} not recognized")
+
+
+def _apply_qk_norm_across_tp(
+    query_layer,
+    key_layer,
+    q_layernorm,
+    k_layernorm,
+    norm_type,
+    model_parallel_world_size,
+    model_parallel_group=None,
 ):
-    if q_norm_size != k_norm_size and not qk_layernorm_separate:
+    """Normalize TP-sharded Q and K with one packed statistics all-reduce.
+
+    The differentiable collective performs the corresponding packed reduction
+    in backward so gradients include contributions from every TP shard.
+    """
+    if query_layer.shape[:-1] != key_layer.shape[:-1]:
         raise ValueError(
-            "QK normalization cannot share query and key norm parameters because "
-            f"their normalized sizes differ (query={q_norm_size}, key={k_norm_size}). "
-            "This happens when `qk_layernorm_type='across_heads'` is used with "
-            "GQA/MQA. Set `qk_layernorm_separate=True`, use "
-            "`qk_layernorm_type='per_head'`, or set `num_kv_heads` equal to "
-            "`num_attention_heads`."
+            "Query and key tensors must have matching leading dimensions for "
+            "cross-TP QK normalization."
         )
+
+    norm_family = _qk_norm_family(norm_type)
+    query_dtype = query_layer.dtype
+    key_dtype = key_layer.dtype
+    query_float = query_layer.float()
+    key_float = key_layer.float()
+    if norm_family == "layernorm":
+        # LayerNorm needs both first and second moments. Keep Q and K separate
+        # while packing all four statistics into the same collective.
+        packed_stats = torch.stack(
+            (
+                query_float.sum(dim=-1),
+                query_float.pow(2).sum(dim=-1),
+                key_float.sum(dim=-1),
+                key_float.pow(2).sum(dim=-1),
+            ),
+            dim=-1,
+        )
+    else:
+        # RMSNorm and ScaleNorm only need the second moment / squared L2 norm.
+        packed_stats = torch.stack(
+            (
+                query_float.pow(2).sum(dim=-1),
+                key_float.pow(2).sum(dim=-1),
+            ),
+            dim=-1,
+        )
+    if model_parallel_world_size > 1:
+        packed_stats = differentiable_all_reduce(
+            packed_stats,
+            op=torch.distributed.ReduceOp.SUM,
+            group=model_parallel_group,
+        )
+
+    query_count = query_layer.size(-1) * model_parallel_world_size
+    key_count = key_layer.size(-1) * model_parallel_world_size
+
+    if norm_family == "layernorm":
+        query_mean = packed_stats[..., 0:1] / query_count
+        query_variance = (
+            packed_stats[..., 1:2] / query_count - query_mean.pow(2)
+        ).clamp_min(0.0)
+        key_mean = packed_stats[..., 2:3] / key_count
+        key_variance = (
+            packed_stats[..., 3:4] / key_count - key_mean.pow(2)
+        ).clamp_min(0.0)
+        query_normed = (query_float - query_mean) * torch.rsqrt(
+            query_variance + q_layernorm.eps
+        )
+        key_normed = (key_float - key_mean) * torch.rsqrt(
+            key_variance + k_layernorm.eps
+        )
+        if q_layernorm.weight is not None:
+            query_normed = query_normed * q_layernorm.weight
+        if q_layernorm.bias is not None:
+            query_normed = query_normed + q_layernorm.bias
+        if k_layernorm.weight is not None:
+            key_normed = key_normed * k_layernorm.weight
+        if k_layernorm.bias is not None:
+            key_normed = key_normed + k_layernorm.bias
+    elif norm_family == "rmsnorm":
+        query_mean_square = packed_stats[..., 0:1] / query_count
+        key_mean_square = packed_stats[..., 1:2] / key_count
+        query_normed = query_float * torch.rsqrt(
+            query_mean_square + q_layernorm.eps
+        )
+        key_normed = key_float * torch.rsqrt(
+            key_mean_square + k_layernorm.eps
+        )
+        query_normed = query_normed * q_layernorm.scale
+        key_normed = key_normed * k_layernorm.scale
+    else:
+        query_l2_norm = packed_stats[..., 0:1].sqrt().clamp_min(
+            q_layernorm.eps
+        )
+        key_l2_norm = packed_stats[..., 1:2].sqrt().clamp_min(k_layernorm.eps)
+
+        # ScaleNorm's scalar g is replicated, unlike the vector affine
+        # parameters above. Copy it through the TP autograd region so its
+        # gradient is summed across ranks. Packing Q and K keeps this to one
+        # additional backward-only reduction even when their norms are separate.
+        scale = torch.stack((q_layernorm.g[0], k_layernorm.g[0]))
+        if model_parallel_world_size > 1:
+            scale = mpu.copy_to_model_parallel_region(scale)
+        query_normed = query_float / query_l2_norm * scale[0]
+        key_normed = key_float / key_l2_norm * scale[1]
+
+    return query_normed.to(query_dtype), key_normed.to(key_dtype)
 
 
 class ParallelMLP(nn.Module):
@@ -322,8 +430,11 @@ class ParallelSelfAttention(nn.Module):
         )
         self.pos_emb = neox_args.pos_emb
 
-        self.use_qk_layernorm = neox_args.use_qk_layernorm
-        self.qk_layernorm_type = neox_args.qk_layernorm_type
+        self.use_qk_norm = neox_args.use_qk_norm
+        self.qk_norm_type = neox_args.qk_norm_type
+        self.qk_norm_across_tp = neox_args.qk_norm_across_tp
+        self.qk_norm_model_parallel_world_size = world_size
+        self.qk_norm_name = neox_args.qk_norm or neox_args.norm
 
         self.sliding_window_width = neox_args.sliding_window_width
 
@@ -346,17 +457,17 @@ class ParallelSelfAttention(nn.Module):
             self.kv_hidden_size = neox_args.hidden_size
 
         # QK Normalization https://arxiv.org/abs/2302.05442
-        if self.use_qk_layernorm:
-            norm, eps = get_norm(neox_args)
+        if self.use_qk_norm:
+            norm, eps = get_norm(neox_args, self.qk_norm_name)
             # All neox norms reduce over the *last* dimension, so the normalized
             # size is expressed as a 1-D shape
 
-            if self.qk_layernorm_type == "per_head":
+            if self.qk_norm_type == "per_head":
                 # "per_head": normalize over [*, H]
                 q_norm_size = self.hidden_size_per_attention_head
                 k_norm_size = self.hidden_size_per_attention_head
 
-            elif self.qk_layernorm_type == "across_heads":
+            elif self.qk_norm_type == "across_heads":
                 # "across_heads": normalize over [*, N * H]
                 # With GQA the query and key have different head counts, so the
                 # two norm sizes differ. Without GQA q_norm_size == k_norm_size
@@ -371,21 +482,33 @@ class ParallelSelfAttention(nn.Module):
 
             else:
                 raise ValueError(
-                    f"Invalid qk_layernorm_type {self.qk_layernorm_type!r}; "
+                    f"Invalid qk_norm_type {self.qk_norm_type!r}; "
                     "expected 'per_head' or 'across_heads'."
                 )
 
-            _validate_qk_layernorm_sharing(
-                q_norm_size,
-                k_norm_size,
-                neox_args.qk_layernorm_separate,
-            )
-            self.qk_layernorm_separate = neox_args.qk_layernorm_separate
+            self.qk_norm_separate = neox_args.qk_norm_separate
             self.q_layernorm = norm([q_norm_size], eps=eps)
-            if self.qk_layernorm_separate:
+            if self.qk_norm_separate:
                 self.k_layernorm = norm([k_norm_size], eps=eps)
             else:
                 self.k_layernorm = self.q_layernorm
+            if (
+                self.qk_norm_across_tp
+                and self.qk_norm_model_parallel_world_size > 1
+            ):
+                norm_family = _qk_norm_family(self.qk_norm_name)
+                if norm_family in ("rmsnorm", "layernorm"):
+                    # Vector affine parameters are slices of the full Q/K norm
+                    # parameters. Non-parametric LayerNorm has no parameters;
+                    # ScaleNorm's scalar parameter remains replicated.
+                    qk_norms = [self.q_layernorm]
+                    if self.qk_norm_separate:
+                        qk_norms.append(self.k_layernorm)
+                    for qk_norm in qk_norms:
+                        for parameter in qk_norm.parameters():
+                            parameter.model_parallel = True
+                            parameter.partition_dim = 0
+                            parameter.partition_stride = 1
 
         if not self.gqa:
             # Strided linear layer.
@@ -759,23 +882,41 @@ class ParallelSelfAttention(nn.Module):
             attn_scores = self.attention_dropout(attn_scores)
         return attn_scores
 
-    def qk_layernorm(self, query_layer, key_layer):
+    def qk_norm(self, query_layer, key_layer):
         # [sq, b, np, hn], [sq, b, kvp, hn]
-        if not self.use_qk_layernorm:
+        if not self.use_qk_norm:
             return query_layer, key_layer
-        if self.qk_layernorm_type == "per_head":
+        if self.qk_norm_type == "per_head":
             query_layer = self.q_layernorm(query_layer)
             key_layer = self.k_layernorm(key_layer)
-        elif self.qk_layernorm_type == "across_heads":
+        elif self.qk_norm_type == "across_heads":
             # Flatten heads into the last dim so the norm reduces over [*, N * H]
             q_shape, k_shape = query_layer.shape, key_layer.shape
-            query_layer = self.q_layernorm(query_layer.reshape(*q_shape[:-2], -1))
-            key_layer = self.k_layernorm(key_layer.reshape(*k_shape[:-2], -1))
+            query_layer = query_layer.reshape(*q_shape[:-2], -1)
+            key_layer = key_layer.reshape(*k_shape[:-2], -1)
+            if self.qk_norm_across_tp:
+                model_parallel_group = (
+                    mpu.get_model_parallel_group()
+                    if self.qk_norm_model_parallel_world_size > 1
+                    else None
+                )
+                query_layer, key_layer = _apply_qk_norm_across_tp(
+                    query_layer,
+                    key_layer,
+                    self.q_layernorm,
+                    self.k_layernorm,
+                    self.qk_norm_name,
+                    self.qk_norm_model_parallel_world_size,
+                    model_parallel_group,
+                )
+            else:
+                query_layer = self.q_layernorm(query_layer)
+                key_layer = self.k_layernorm(key_layer)
             query_layer = query_layer.view(*q_shape)
             key_layer = key_layer.view(*k_shape)
         else:
             raise ValueError(
-                f"Invalid qk_layernorm_type {self.qk_layernorm_type!r}; "
+                f"Invalid qk_norm_type {self.qk_norm_type!r}; "
                 "expected 'per_head' or 'across_heads'."
             )
         return query_layer, key_layer
@@ -833,7 +974,7 @@ class ParallelSelfAttention(nn.Module):
         value_layer = value_layer.view(*new_kv_shape)
 
         # QK norm before repeating KV heads
-        query_layer, key_layer = self.qk_layernorm(query_layer, key_layer)
+        query_layer, key_layer = self.qk_norm(query_layer, key_layer)
 
         # if not using Flash attention, we repeat K/V heads to match Q head counts
         if not self.use_flash_attention:
@@ -879,7 +1020,7 @@ class ParallelSelfAttention(nn.Module):
             (query_layer, key_layer, value_layer) = mpu.split_tensor_along_last_dim(
                 mixed_x_layer, 3
             )
-            query_layer, key_layer = self.qk_layernorm(query_layer, key_layer)
+            query_layer, key_layer = self.qk_norm(query_layer, key_layer)
         else:
             # Grouped Query Attention (GQA) - specific logic for performing QKV proj
             # and separating out Q, K, and V outputs.
