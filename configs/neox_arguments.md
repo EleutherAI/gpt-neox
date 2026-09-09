@@ -400,17 +400,18 @@ Model Arguments
           both MHA and GQA.
         - "across_heads": normalize over all heads jointly, i.e. over [*, N, H]
           (OLMo2 style). For GQA the query and key projections have different
-          numbers of heads (N vs. KV heads), so separate query/key norms with
-          differently sized parameters are constructed automatically.
+          numbers of heads (N vs. KV heads), so `qk_layernorm_separate` must be
+          enabled to construct separate query/key norms with differently sized
+          parameters.
 
 - **qk_layernorm_separate**: bool
 
     Default = False
 
     Use separate (independently learned) norms for the query and key projections
-    when `use_qk_layernorm` is set. When False, query and key share a single
-    norm where possible. Has no effect when using GQA with "across_heads" QK
-    normalization, which always uses separate norms due to parameter shapes.
+    when `use_qk_layernorm` is set. When False, query and key share a single norm.
+    GQA/MQA with "across_heads" QK normalization requires this to be True because
+    the query and key norm parameter shapes differ; otherwise an error is raised.
 
 - **layernorm_epsilon**: float
 

@@ -85,6 +85,20 @@ torch._C._jit_override_can_fuse_on_gpu(True)
 """
 
 
+def _validate_qk_layernorm_sharing(
+    q_norm_size: int, k_norm_size: int, qk_layernorm_separate: bool
+):
+    if q_norm_size != k_norm_size and not qk_layernorm_separate:
+        raise ValueError(
+            "QK normalization cannot share query and key norm parameters because "
+            f"their normalized sizes differ (query={q_norm_size}, key={k_norm_size}). "
+            "This happens when `qk_layernorm_type='across_heads'` is used with "
+            "GQA/MQA. Set `qk_layernorm_separate=True`, use "
+            "`qk_layernorm_type='per_head'`, or set `num_kv_heads` equal to "
+            "`num_attention_heads`."
+        )
+
+
 class ParallelMLP(nn.Module):
     """MLP.
 
@@ -361,9 +375,12 @@ class ParallelSelfAttention(nn.Module):
                     "expected 'per_head' or 'across_heads'."
                 )
 
-            self.qk_layernorm_separate = (
-                neox_args.qk_layernorm_separate or q_norm_size != k_norm_size
+            _validate_qk_layernorm_sharing(
+                q_norm_size,
+                k_norm_size,
+                neox_args.qk_layernorm_separate,
             )
+            self.qk_layernorm_separate = neox_args.qk_layernorm_separate
             self.q_layernorm = norm([q_norm_size], eps=eps)
             if self.qk_layernorm_separate:
                 self.k_layernorm = norm([k_norm_size], eps=eps)
