@@ -17,7 +17,9 @@
 
   "vocab_file": "data/gpt2-vocab.json",
   "merge_file": "data/gpt2-merges.txt",
-
+  "fp16": {
+    "enabled": true
+  },
   "save": "checkpoints",
   "load": "checkpoints",
   "checkpoint_validation_with_forward_pass": False,
