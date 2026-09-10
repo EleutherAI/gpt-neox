@@ -339,6 +339,16 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Enable rotary embedding fusion.
     """
 
+    use_torchembed_rope: bool = False
+    """
+    Use torchembed's fused Triton RoPE kernel when rotary embeddings are enabled.
+    Benchmarks on NVIDIA GB10 (bfloat16, batch=4, n_heads=32, d_qk=128) show
+    3-4x throughput improvement over plain PyTorch across seq lengths 512-8192.
+    Requires ``torchembed>=0.3.1`` (``pip install torchembed>=0.3.1``).
+    Falls back silently to the built-in implementation if the package is absent.
+    Has no effect when ``pos_emb`` is not ``rotary``. Default: False.
+    """
+
     fused_kernels_build_path: Optional[str] = None
     """
     Optional override for the fused kernels build directory. If unset, defaults to `megatron/fused_kernels/build` relative to the package.
