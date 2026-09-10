@@ -728,6 +728,14 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     """Initialize wandb on all ranks."""
     ### END WANDB ARGS ###
 
+    verbosity: Literal["quiet", "default", "verbose"] = "verbose"
+    """
+    Controls verbosity of startup
+        • quiet  → suppress NeoXArgs argument dump, set python-logging to WARNING+
+        • default → show one-line banner, keep logging.INFO (Deepspeed etc.)
+        • verbose → *current behaviour* (full dump + INFO lines). 〈default〉
+    """
+
     git_hash: str = get_git_commit_hash()
     """current git hash of repository"""
 
