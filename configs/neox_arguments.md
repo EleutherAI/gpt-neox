@@ -471,7 +471,7 @@ Model Arguments
     specified in attention_config defining each layer.
 
     An example config is given below:
-          "sparse_attention": {
+          "sparsity_config": {
             "block": 16,
             "different_layout_per_head": true,
             "num_local_blocks": 4,
@@ -1967,14 +1967,6 @@ As of Mar 8 2023, up to date compared to https://www.deepspeed.ai/docs/config-js
     Configuration for using activation checkpointing.
 
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#activation-checkpointing
-
-- **sparse_attention**: dict
-
-    Default = None
-
-    Configuration for using sparse attention.
-
-    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#sparse-attention
 
 - **data_efficiency**: dict
 

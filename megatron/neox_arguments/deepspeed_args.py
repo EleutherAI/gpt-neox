@@ -186,16 +186,6 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#activation-checkpointing
     """
 
-    # ---Sparse Attention Options---
-
-    sparse_attention: dict = None
-    """
-    Configuration for using sparse attention.
-
-    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#sparse-attention
-
-    """
-
     # ---Data Efficiency Options---
 
     data_efficiency: dict = None

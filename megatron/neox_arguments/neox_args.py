@@ -263,7 +263,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     specified in attention_config defining each layer.
 
     An example config is given below:
-          "sparse_attention": {
+          "sparsity_config": {
             "block": 16,
             "different_layout_per_head": true,
             "num_local_blocks": 4,
