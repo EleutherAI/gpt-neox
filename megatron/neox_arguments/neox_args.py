@@ -630,26 +630,6 @@ class NeoXArgsOptimizer(NeoXArgsTemplate):
     Zero Optimizer stage
     """
 
-    zero_reduce_scatter: bool = None
-    """
-    Zero: Uses reduce or reduce scatter instead of allreduce to average gradients
-    """
-
-    zero_contiguous_gradients: bool = None
-    """
-    Zero: Copies the gradients to a contiguous buffer as they are produced. Avoids memory fragmentation during backward pass. Only useful when running very large models.
-    """
-
-    zero_reduce_bucket_size: int = None
-    """
-    Zero: Number of elements reduced/allreduced at a time. Limits the memory required for the allgather for large model sizes
-    """
-
-    zero_allgather_bucket_size: int = None
-    """
-    Zero: Number of elements allgathered at a time. Limits the memory required for the allgather for large model sizes
-    """
-
     lr: float = None
     """
     Max Learning rate during training
