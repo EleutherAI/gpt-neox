@@ -42,7 +42,6 @@
 
   "fp16": {
     "enabled": true,
-    "type": "bfloat16",
     "auto_cast": true,
     "loss_scale": 0,
     "loss_scale_window": 1000,

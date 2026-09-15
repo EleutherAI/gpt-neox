@@ -101,7 +101,8 @@ class NeoXArgsModel(NeoXArgsTemplate):
 
     precision: Literal["fp16", "fp32", "bfloat16"] = None
     """
-    description of the used precision, either one of fp16 or fp32 (and in the future bf16).
+    Numerical precision used for training. Supported values are fp16, fp32, and
+    bfloat16. When omitted, fp16.enabled or bf16.enabled can select the precision.
     """
 
     num_layers: int = None
@@ -1461,32 +1462,6 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     clip_grad: float = 1.0
     """
     Gradient clipping based on global L2 norm.
-    """
-
-    hysteresis: int = 2
-    """
-    hysteresis for dynamic loss scaling
-    """
-
-    dynamic_loss_scale: bool = None
-    """
-    flag indicating whether dynamic loss scale is used
-    """
-
-    loss_scale: float = None
-    """
-    Static loss scaling, positive power of 2
-    values can improve fp16 convergence. If None, dynamic loss scaling is used.
-    """
-
-    loss_scale_window: float = 1000.0
-    """
-    Window over which to raise/lower dynamic scale.
-    """
-
-    min_scale: float = 1.0
-    """
-    Minimum loss scale for dynamic loss scale.
     """
 
     char_level_ppl: bool = False

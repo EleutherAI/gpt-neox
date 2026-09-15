@@ -296,7 +296,8 @@ Model Arguments
 
     Default = None
 
-    description of the used precision, either one of fp16 or fp32 (and in the future bf16).
+    Numerical precision used for training. Supported values are fp16, fp32, and
+    bfloat16. When omitted, fp16.enabled or bf16.enabled can select the precision.
 
 - **num_layers**: int
 
@@ -1708,37 +1709,6 @@ Training Arguments
 
     Gradient clipping based on global L2 norm.
 
-- **hysteresis**: int
-
-    Default = 2
-
-    hysteresis for dynamic loss scaling
-
-- **dynamic_loss_scale**: bool
-
-    Default = None
-
-    flag indicating whether dynamic loss scale is used
-
-- **loss_scale**: float
-
-    Default = None
-
-    Static loss scaling, positive power of 2
-    values can improve fp16 convergence. If None, dynamic loss scaling is used.
-
-- **loss_scale_window**: float
-
-    Default = 1000.0
-
-    Window over which to raise/lower dynamic scale.
-
-- **min_scale**: float
-
-    Default = 1.0
-
-    Minimum loss scale for dynamic loss scale.
-
 - **char_level_ppl**: bool
 
     Default = False
@@ -1808,9 +1778,8 @@ Training Arguments
 
 ## NeoXArgsDeepspeedConfig
 
-Args for deepspeed config
-Every argument included here will be included in deepspeed config json
-As of Mar 8 2023, up to date compared to https://www.deepspeed.ai/docs/config-json/
+Arguments forwarded to the DeepSpeed configuration. The mixed-precision schemas
+match the EleutherAI DeeperSpeed revision pinned by this repository.
 
 - **deepspeed**: bool
 
@@ -1884,17 +1853,29 @@ As of Mar 8 2023, up to date compared to https://www.deepspeed.ai/docs/config-js
 
     Default = None
 
-    Configuration for using mixed precision/FP16 training that leverages NVIDIA’s Apex package.
+    DeepSpeed FP16 settings. FP16 can be selected with top-level
+    ``precision: fp16`` or, when ``precision`` is omitted, with
+    ``fp16.enabled=True``. Supported keys and their effective defaults are:
+    ``enabled=True``, ``auto_cast=False``, ``loss_scale=0``,
+    ``initial_scale_power=16``, ``loss_scale_window=1000``, ``hysteresis=2``,
+    ``consecutive_hysteresis=False``, ``min_loss_scale=1``, and
+    ``fp16_master_weights_and_grads=False``.
 
-    Dictionary options as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#fp16-training-options
+    See ``configs/README.md`` for the exact behavior and optimizer-path limits
+    of each option.
 
 - **bf16**: dict
 
     Default = None
 
-    Configuration for using bfloat16 floating-point format as an alternative to FP16. BFLOAT16 requires hardware support (e.g., NVIDIA A100).
+    DeepSpeed BF16 settings. BF16 can be selected with top-level
+    ``precision: bfloat16`` or, when ``precision`` is omitted, with
+    ``bf16.enabled=True``. Supported keys and their effective defaults are
+    ``enabled=True`` and ``immediate_grad_update=False``. BF16 does not use loss
+    scaling. BF16 requires hardware support such as NVIDIA A100.
 
-    Dictionary options as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#bfloat16-training-options
+    See ``configs/README.md`` for the exact behavior and optimizer-path limits
+    of each option.
 
 - **amp**: dict
 

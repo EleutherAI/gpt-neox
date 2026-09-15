@@ -76,13 +76,7 @@
 
   # precision settings
   "bf16": {
-    "bf16": true,
-    "enabled": true,
-    "loss_scale": 0,
-    "loss_scale_window": 1000,
-    "initial_scale_power": 12,
-    "hysteresis": 2,
-    "min_loss_scale": 1,
+    "enabled": true
   },
 
   # misc. training settings

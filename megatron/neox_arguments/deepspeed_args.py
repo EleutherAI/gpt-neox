@@ -28,9 +28,8 @@ except ImportError:
 @dataclass
 class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     """
-    Args for deepspeed config
-    Every argument included here will be included in deepspeed config json
-    As of Mar 8 2023, up to date compared to https://www.deepspeed.ai/docs/config-json/
+    Arguments forwarded to the DeepSpeed configuration. The mixed-precision
+    schemas match the EleutherAI DeeperSpeed revision pinned by this repository.
     """
 
     deepspeed: bool = True
@@ -93,16 +92,28 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
 
     fp16: dict = None
     """
-    Configuration for using mixed precision/FP16 training that leverages NVIDIA’s Apex package.
+    DeepSpeed FP16 settings. FP16 can be selected with top-level
+    ``precision: fp16`` or, when ``precision`` is omitted, with
+    ``fp16.enabled=True``. Supported keys and their effective defaults are:
+    ``enabled=True``, ``auto_cast=False``, ``loss_scale=0``,
+    ``initial_scale_power=16``, ``loss_scale_window=1000``, ``hysteresis=2``,
+    ``consecutive_hysteresis=False``, ``min_loss_scale=1``, and
+    ``fp16_master_weights_and_grads=False``.
 
-    Dictionary options as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#fp16-training-options
+    See ``configs/README.md`` for the exact behavior and optimizer-path limits
+    of each option.
     """
 
     bf16: dict = None
     """
-    Configuration for using bfloat16 floating-point format as an alternative to FP16. BFLOAT16 requires hardware support (e.g., NVIDIA A100).
+    DeepSpeed BF16 settings. BF16 can be selected with top-level
+    ``precision: bfloat16`` or, when ``precision`` is omitted, with
+    ``bf16.enabled=True``. Supported keys and their effective defaults are
+    ``enabled=True`` and ``immediate_grad_update=False``. BF16 does not use loss
+    scaling. BF16 requires hardware support such as NVIDIA A100.
 
-    Dictionary options as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#bfloat16-training-options
+    See ``configs/README.md`` for the exact behavior and optimizer-path limits
+    of each option.
     """
 
     # ---Automatic Mixed Precision (AMP) Training Options---

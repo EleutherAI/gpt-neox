@@ -35,29 +35,8 @@ import torch
 PARAMS_TO_TEST = {
     "pipe_parallel_size,model_parallel_size": [[0, 1], [1, 2], [0, 2], [2, 1]],
     "checkpoint_validation_with_forward_pass": [True],
-    "fp16,fp32_allreduce": [
-        [
-            {
-                "enabled": True,
-                "type": "bfloat16",
-                "loss_scale": 0,
-                "loss_scale_window": 1000,
-                "hysteresis": 2,
-                "min_loss_scale": 1,
-            },
-            True,
-        ],
-        [
-            {
-                "enabled": True,
-                "loss_scale": 0,
-                "loss_scale_window": 1000,
-                "hysteresis": 2,
-                "min_loss_scale": 1,
-            },
-            False,
-        ],
-    ],
+    "precision": ["bfloat16", "fp16"],
+    "fp32_allreduce": binary,
 }
 
 parameters, names = parametrize(

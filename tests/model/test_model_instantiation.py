@@ -45,29 +45,8 @@ PARAMS_TO_TEST = {
         [True, False],
         [False, True],
     ],
-    "fp16,fp32_allreduce": [
-        [
-            {
-                "enabled": True,
-                "type": "bfloat16",
-                "loss_scale": 0,
-                "loss_scale_window": 1000,
-                "hysteresis": 2,
-                "min_loss_scale": 1,
-            },
-            True,
-        ],
-        [
-            {
-                "enabled": True,
-                "loss_scale": 0,
-                "loss_scale_window": 1000,
-                "hysteresis": 2,
-                "min_loss_scale": 1,
-            },
-            False,
-        ],
-    ],
+    "precision": ["bfloat16", "fp16"],
+    "fp32_allreduce": binary,
 }
 
 parameters, names = parametrize(

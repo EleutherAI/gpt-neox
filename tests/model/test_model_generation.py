@@ -22,7 +22,7 @@ to run in order to perform follow up tests. Joining in one test reduces runtime 
 
 import os
 import pytest
-from tests.common import DistributedTest, model_setup, parametrize
+from tests.common import DistributedTest, binary, model_setup, parametrize
 
 PARAMS_TO_TEST = {
     "pipe_parallel_size,model_parallel_size,world_size": [
@@ -34,29 +34,8 @@ PARAMS_TO_TEST = {
     ],
     "top_p,temperature,top_k": [[0.0, 0.5, 0], [0.5, 0.0, 100], [0.5, 0.5, 0]],
     "prompt": ["", "hello world"],
-    "fp16,fp32_allreduce": [
-        [
-            {
-                "enabled": True,
-                "type": "bfloat16",
-                "loss_scale": 0,
-                "loss_scale_window": 1000,
-                "hysteresis": 2,
-                "min_loss_scale": 1,
-            },
-            True,
-        ],
-        [
-            {
-                "enabled": True,
-                "loss_scale": 0,
-                "loss_scale_window": 1000,
-                "hysteresis": 2,
-                "min_loss_scale": 1,
-            },
-            False,
-        ],
-    ],
+    "precision": ["bfloat16", "fp16"],
+    "fp32_allreduce": binary,
 }
 
 parameters, names = parametrize(

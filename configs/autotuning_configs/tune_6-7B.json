@@ -42,7 +42,6 @@
    "attention-dropout": 0,
 
    "fp16": {
-     "fp16": true,
      "enabled": true,
      "loss_scale": 0,
      "loss_scale_window": 1000,

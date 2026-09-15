@@ -312,21 +312,90 @@ N.B - `OneBitAdam` requires you to use deepspeed's internal lr scheduler because
 
 Checkpointing works by trading compute for memory. Rather than storing all intermediate activations of the entire computation graph for computing backward, the checkpointed part does not save intermediate activations, and instead recomputes them in backward pass.
 
-### Mixed Precision Training Settings:
-gpt-neox's fp16 training is configured identically to DeepSpeed's, please see [their documentation](https://www.deepspeed.ai/docs/config-json/#fp16-training-options) for more information.
-An example config for fp16 training:
+### Mixed Precision Training Settings
+
+Training precision can be selected with the top-level `precision` setting:
+
+```yaml
+   "precision": "fp16",
+```
+
+The supported values are `fp16`, `bfloat16`, and `fp32`. For compatibility with
+existing configs, `precision` may instead be omitted and the corresponding
+dictionary enabled directly:
 
 ```yaml
    "fp16": {
      "enabled": true,
-     "loss_scale": 0,
-     "loss_scale_window": 1000,
-     "hysteresis": 2,
-     "min_loss_scale": 1
+     "loss_scale_window": 1000
    },
 ```
 
-Alternatively you can use the `precision` config which can be set to `fp16`, `bfloat16`, or `fp32`. If you set `"precision": "fp16"` without adding a `"fp16": {...}` dict, then it will simply use DeepSpeed's defaults for fp16 training.
+In that form GPT-NeoX derives `precision: fp16`; `bf16.enabled: true` similarly
+derives `precision: bfloat16`. Explicit overrides—even when equal to a default—
+are preserved. GPT-NeoX fills in any omitted values below. Only the listed keys
+are accepted.
+
+#### `fp16` dictionary
+
+| Key | Type | Effective default | What it does |
+| --- | --- | --- | --- |
+| `enabled` | boolean | `true` | Enables DeepSpeed FP16. GPT-NeoX supplies `true` when `precision: fp16`; set it explicitly when selecting FP16 without `precision`. |
+| `auto_cast` | boolean | `false` | Recursively casts floating-point inputs passed through the DeepSpeed engine to FP16 before the model forward pass. It does not select the model precision. |
+| `loss_scale` | number | `0` | Sets the loss scale. `0` selects dynamic loss scaling; a nonzero value selects a fixed, static loss scale. |
+| `initial_scale_power` | integer | `16` | Starts dynamic loss scaling at `2 ** initial_scale_power` (by default, 65,536). Ignored with a static `loss_scale`. |
+| `loss_scale_window` | integer | `1000` | Number of overflow-free optimizer steps before the dynamic scale is doubled. Ignored with a static `loss_scale`. |
+| `hysteresis` | integer | `2` | Number of overflow events required before the dynamic scale is halved. Ignored with a static `loss_scale`; see the optimizer-path note below. |
+| `consecutive_hysteresis` | boolean | `false` | If `true`, a non-overflowing step resets the hysteresis counter, so the overflows must be consecutive to reduce the scale. If `false`, the counter resets when the scale increases after a stable window. Ignored with a static `loss_scale`; see below. |
+| `min_loss_scale` | number | `1` | Lower bound for the dynamic loss scale. Ignored with a static `loss_scale`. |
+| `fp16_master_weights_and_grads` | boolean | `false` | Keeps master weights and gradients in FP16 while optimizer states remain FP32. DeepSpeed supports this only with ZeRO stage 2, optimizer offload, and `DeepSpeedCPUAdam`; other combinations fail validation. |
+
+The dynamic scaler's increase and decrease factor is fixed at 2 and is not a
+dictionary option. `hysteresis` and `consecutive_hysteresis` are honored by the
+loss scaler used with ZeRO stages 1–3. DeepSpeed's non-ZeRO fused and unfused
+FP16 optimizer wrappers do not consume those two settings; they reduce the
+scale on every overflow. The other dynamic settings are used by both paths.
+
+For example, this keeps all defaults except the initial scale:
+
+```yaml
+   "precision": "fp16",
+   "fp16": {
+     "initial_scale_power": 12
+   },
+```
+
+#### `bf16` dictionary
+
+| Key | Type | Effective default | What it does |
+| --- | --- | --- | --- |
+| `enabled` | boolean | `true` | Enables DeepSpeed BF16. GPT-NeoX supplies `true` when `precision: bfloat16`; set it explicitly when selecting BF16 without `precision`. |
+| `immediate_grad_update` | boolean | `false` | If `true`, DeepSpeed uses autograd hooks to transfer and accumulate BF16 gradients into the configured gradient-accumulation buffer (FP32 by default) as each gradient becomes available, instead of doing a bulk update after backward. This is used only when DeepSpeed selects its `BF16_Optimizer` wrapper; see below. |
+
+DeepSpeed normally selects `BF16_Optimizer` without ZeRO. It also selects that
+wrapper for ZeRO stage 1 when gradient accumulation is FP32 and optimizer CPU
+offload is disabled. Other ZeRO paths do not consume `immediate_grad_update`.
+
+BF16 does not use loss scaling: its effective loss scale is always 1. Therefore,
+none of the FP16 loss-scaling keys, nor `auto_cast` or
+`fp16_master_weights_and_grads`, may be placed in `bf16`. The minimal BF16
+configuration can use either selector form:
+
+```yaml
+   "precision": "bfloat16",
+```
+
+or:
+
+```yaml
+   "bf16": {
+     "enabled": true
+   },
+```
+
+These keys and defaults match the EleutherAI DeeperSpeed revision pinned in
+both dependency files. Do not put `type`, `fp16`, or `bf16` keys inside either
+dictionary; use top-level `precision` or the dictionary's `enabled` key.
 
 
 ### SLURM Settings

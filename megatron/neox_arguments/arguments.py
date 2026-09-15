@@ -79,6 +79,26 @@ ZERO_DEFAULTS = {
     "contiguous_gradients": False,
 }
 
+# Deep(er)Speed mixed-precision defaults. Supplying the complete FP16 set is
+# intentional: DeepSpeed only materializes its dynamic-loss-scaling dictionary
+# when at least one of these options is present, and its optimizer wrappers have
+# inconsistent fallback values when that dictionary is absent.
+FP16_DEFAULTS = {
+    "enabled": True,
+    "auto_cast": False,
+    "loss_scale": 0,
+    "initial_scale_power": 16,
+    "loss_scale_window": 1000,
+    "hysteresis": 2,
+    "consecutive_hysteresis": False,
+    "min_loss_scale": 1,
+    "fp16_master_weights_and_grads": False,
+}
+BF16_DEFAULTS = {
+    "enabled": True,
+    "immediate_grad_update": False,
+}
+
 # NeoX optimizer defaults
 OPT_DEFAULT = "Adam"
 OPT_PARAMS_DEFAULTS = {
@@ -648,6 +668,16 @@ class NeoXArgs(*BASE_CLASSES):
         config = self.get_parent_class_value_dict_extra_ds(
             NeoXArgsDeepspeedConfig, only_non_defaults=True
         )
+        if self.precision == "fp16":
+            fp16_config = copy.deepcopy(FP16_DEFAULTS)
+            fp16_config.update(config.get("fp16", {}))
+            fp16_config["enabled"] = True
+            config["fp16"] = fp16_config
+        elif self.precision == "bfloat16":
+            bf16_config = copy.deepcopy(BF16_DEFAULTS)
+            bf16_config.update(config.get("bf16", {}))
+            bf16_config["enabled"] = True
+            config["bf16"] = bf16_config
         return config
 
     @property
@@ -963,40 +993,88 @@ class NeoXArgs(*BASE_CLASSES):
             }
         )
 
-        # derive precision
+        # Normalize precision before using it. validate_types() accepts Literal
+        # strings case-insensitively, so derived values must do the same.
+        if isinstance(self.precision, str):
+            self.update_value("precision", self.precision.lower())
+
+        for field_name in ["fp16", "bf16"]:
+            value = getattr(self, field_name)
+            if value is not None and not isinstance(value, dict):
+                raise TypeError(f"{field_name} must be a dictionary")
+
+        # These legacy keys were silently ignored by DeepSpeed. Precision is a
+        # top-level NeoX setting; the fp16 dictionary is only for DeepSpeed's
+        # actual FP16 options.
+        if self.fp16:
+            unsupported_keys = sorted({"fp16", "type"}.intersection(self.fp16))
+            if unsupported_keys:
+                keys = ", ".join(f"fp16.{key}" for key in unsupported_keys)
+                raise ValueError(
+                    f"Unsupported legacy FP16 configuration: {keys}. Set the "
+                    "top-level 'precision' field to 'fp16' or 'bfloat16' instead."
+                )
+
+            unsupported_keys = sorted(set(self.fp16).difference(FP16_DEFAULTS))
+            if unsupported_keys:
+                keys = ", ".join(f"fp16.{key}" for key in unsupported_keys)
+                raise ValueError(f"Unsupported FP16 configuration option(s): {keys}")
+
+        if self.bf16:
+            fp16_only_keys = {
+                "auto_cast",
+                "bf16",
+                "consecutive_hysteresis",
+                "hysteresis",
+                "initial_scale_power",
+                "loss_scale",
+                "loss_scale_window",
+                "min_loss_scale",
+                "type",
+            }
+            unsupported_keys = sorted(fp16_only_keys.intersection(self.bf16))
+            if unsupported_keys:
+                keys = ", ".join(f"bf16.{key}" for key in unsupported_keys)
+                raise ValueError(
+                    f"Unsupported BF16 configuration: {keys}. BF16 does not use "
+                    "FP16 loss scaling; select it with top-level 'precision: bfloat16'."
+                )
+
+            unsupported_keys = sorted(set(self.bf16).difference(BF16_DEFAULTS))
+            if unsupported_keys:
+                keys = ", ".join(f"bf16.{key}" for key in unsupported_keys)
+                raise ValueError(f"Unsupported BF16 configuration option(s): {keys}")
+
+        # Derive precision from DeepSpeed-style enabled flags when an explicit
+        # top-level precision was not supplied.
         if self.fp16 and self.fp16.get("enabled", False):
             if self.precision is None:
                 self.update_value("precision", "fp16")
             else:
-                fp16_conflict = "DeepSpeed fp16 field was set but precision conflicts"
-                assert self.precision == "fp16", fp16_conflict
+                if self.precision != "fp16":
+                    raise ValueError(
+                        "DeepSpeed fp16 is enabled but top-level precision is not fp16"
+                    )
 
         if self.bf16 and self.bf16.get("enabled", False):
             if self.precision is None:
                 self.update_value("precision", "bfloat16")
             else:
-                bf16_conflict = "DeepSpeed bf16 field was set but precision conflicts"
-                assert self.precision == "bfloat16", bf16_conflict
+                if self.precision != "bfloat16":
+                    raise ValueError(
+                        "DeepSpeed bf16 is enabled but top-level precision is not bfloat16"
+                    )
 
         if self.precision == "fp16":
-            if isinstance(self.fp16, dict) and len(self.fp16) > 0:
-                fp16_args = copy.deepcopy(self.fp16)
-                fp16_args["enabled"] = True
-            else:
-                fp16_args = {"type": "fp16", "enabled": True}
+            fp16_args = copy.deepcopy(self.fp16) if self.fp16 else {}
+            fp16_args["enabled"] = True
             self.update_value("fp16", fp16_args)
         elif self.precision == "bfloat16":
-            if not self.bf16:
-                bf_config = {"bf16": {"enabled": True}}
-                # dt_config = {"grad_accum_dtype": "fp32"}
-                if self.deepspeed_extra_args is None:
-                    self.update_value("deepspeed_extra_args", bf_config)
-                else:
-                    extra_args = copy.deepcopy(self.deepspeed_extra_args)
-                    extra_args.update(bf_config)
-                    self.update_value("deepspeed_extra_args", extra_args)
+            bf16_args = copy.deepcopy(self.bf16) if self.bf16 else {}
+            bf16_args["enabled"] = True
+            self.update_value("bf16", bf16_args)
 
-            zero_stage = self.zero_optimization["stage"]
+            zero_stage = (self.zero_optimization or ZERO_DEFAULTS)["stage"]
             if self.data_types is None:
                 fp32_grad_accum = False
             else:
@@ -1075,9 +1153,6 @@ class NeoXArgs(*BASE_CLASSES):
                     "total_num_steps": self.lr_decay_iters or self.train_iters,
                 },
             }
-
-        # Fp16 loss scaling.
-        self.update_value("dynamic_loss_scale", self.loss_scale is None)
 
         # Update 'is pipe parallel' flag
         # if we set pipe_parallel_size to 0, GPT2ModelPipe.to_sequential() is called, and we run training with
@@ -1500,7 +1575,7 @@ class NeoXArgs(*BASE_CLASSES):
                     )
                     return False
 
-        for field_name in ["fp16", "amp", "flops_profiler"]:
+        for field_name in ["fp16", "bf16", "amp", "flops_profiler"]:
             value = getattr(self, field_name)
             if isinstance(value, dict):
                 if not "enabled" in value:
