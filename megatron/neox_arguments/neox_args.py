@@ -1458,11 +1458,6 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Partition Activations across GPUs before checkpointing.
     """
 
-    clip_grad: float = 1.0
-    """
-    Gradient clipping based on global L2 norm.
-    """
-
     hysteresis: int = 2
     """
     hysteresis for dynamic loss scaling

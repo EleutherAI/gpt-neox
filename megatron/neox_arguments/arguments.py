@@ -220,6 +220,17 @@ class NeoXArgs(*BASE_CLASSES):
                 )
                 raise e
 
+    @staticmethod
+    def _strip_deprecated_config_keys(config: Dict) -> Dict:
+        config = config.copy()
+        if "clip_grad" in config:
+            logging.warning(
+                "Configuration option 'clip_grad' is deprecated and ignored; "
+                "use 'gradient_clipping' instead."
+            )
+            config.pop("clip_grad")
+        return config
+
     @classmethod
     def from_ymls(cls, paths_to_yml_files: List[str], overwrite_values: Dict = None):
         """
@@ -280,6 +291,9 @@ class NeoXArgs(*BASE_CLASSES):
             for k, v in overwrite_values.items():
                 config[k] = v
 
+        # Accept obsolete configuration keys so older configs continue to load.
+        config = cls._strip_deprecated_config_keys(config)
+
         # instantiate class and return
         # duplicate values and unrecognized keys are again checked upon instantiation
         return cls(**config)
@@ -289,7 +303,8 @@ class NeoXArgs(*BASE_CLASSES):
         """
         instantiates NeoXArgs while reading values from input dict
         """
-        return cls(**args_dict)
+        config = cls._strip_deprecated_config_keys(args_dict)
+        return cls(**config)
 
     ############################################################################################################################
     # start of command line args interface
@@ -958,8 +973,6 @@ class NeoXArgs(*BASE_CLASSES):
                 "train_micro_batch_size_per_gpu": train_micro_batch_size_per_gpu,
                 "gradient_accumulation_steps": gradient_accumulation_steps,
                 "batch_size": train_micro_batch_size_per_gpu,
-                # duplicate items
-                "clip_grad": self.gradient_clipping,
             }
         )
 

@@ -1702,12 +1702,6 @@ Training Arguments
 
     Partition Activations across GPUs before checkpointing.
 
-- **clip_grad**: float
-
-    Default = 1.0
-
-    Gradient clipping based on global L2 norm.
-
 - **hysteresis**: int
 
     Default = 2
@@ -1906,9 +1900,9 @@ As of Mar 8 2023, up to date compared to https://www.deepspeed.ai/docs/config-js
 
 - **gradient_clipping**: float
 
-    Default = 1.0
+    Default = 0.0
 
-    Enable gradient clipping with provided value
+    Gradient clipping based on the global L2 norm. A value of 0.0 disables clipping.
 
 - **zero_optimization**: dict
 
