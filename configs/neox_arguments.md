@@ -1779,14 +1779,16 @@ Training Arguments
 
     Default = 1.0
 
-    Attention temperature: Reciprocal of the multiplier applied to the input to attention softmax
+    μP attention temperature. Used when use_mup is enabled. Attention scores are
+    scaled by 1 / (head_dim * mup_attn_temp) before softmax. Must be greater than
+    zero. Global attention is currently the only supported attention backend.
 
 - **mup_output_temp**: float
 
     Default = 1.0
 
-    Output temperature: Reciprocal of the multiplier applied to the input to softmax that
-    produces the distribution over output tokens.
+    μP output temperature. Used when use_mup is enabled. Language-model logits
+    are divided by this value. Must be greater than zero.
 
 - **mup_embedding_mult**: float
 

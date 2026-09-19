@@ -1243,6 +1243,38 @@ class NeoXArgs(*BASE_CLASSES):
                 raise ValueError(error_message)
                 return False
 
+        if self.use_mup:
+            for name in ("mup_attn_temp", "mup_output_temp"):
+                if getattr(self, name) <= 0:
+                    raise ValueError(
+                        f"{name} must be greater than zero when use_mup is enabled"
+                    )
+
+            if self.te_mha or self.te_fp8_mha:
+                raise ValueError(
+                    "μP attention scaling does not support Transformer Engine "
+                    "attention"
+                )
+
+            attention_types = set(self.attention_config)
+            unsupported_attention_types = sorted(
+                attention_types
+                & {
+                    "local",
+                    "sparse_fixed",
+                    "sparse_variable",
+                    "bigbird",
+                    "bslongformer",
+                    "flash",
+                }
+            )
+            if unsupported_attention_types:
+                raise ValueError(
+                    "μP attention scaling supports global attention only. "
+                    "Unsupported attention types: "
+                    + ", ".join(unsupported_attention_types)
+                )
+
         # Checks.
         if self.hidden_size % self.num_attention_heads != 0 and not (
             "mamba" in self.attention_config
