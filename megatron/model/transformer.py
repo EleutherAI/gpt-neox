@@ -36,6 +36,7 @@ from megatron.model.parameterization import output_multiplier, residual_multipli
 from megatron.model.activations import get_activation
 from megatron.model.utils import (
     exists,
+    get_attention_head_dim,
     get_fusion_type,
     reduce_weight_grads_from_model_parallel_region,
 )
@@ -76,8 +77,9 @@ torch._C._jit_override_can_fuse_on_gpu(True)
      p: number of model parallel partitions
      np: n/p
      kvp: kv/p
-     hp: h/p
-     hn: h/n
+     q: total query width, n*hn
+     qp: q/p
+     hn: attention head dimension (defaults to h/n)
      b: batch size
      s: sequence length
      l: number of layers
@@ -472,9 +474,12 @@ class ParallelSelfAttention(nn.Module):
         self.layer_number = layer_number
         # Per attention head and per partition values.
         world_size = mpu.get_model_parallel_world_size()
-        self.hidden_size_per_partition = mpu.divide(neox_args.hidden_size, world_size)
-        self.hidden_size_per_attention_head = mpu.divide(
-            neox_args.hidden_size, neox_args.num_attention_heads
+        self.hidden_size_per_attention_head = get_attention_head_dim(neox_args)
+        self.query_hidden_size = (
+            neox_args.num_attention_heads * self.hidden_size_per_attention_head
+        )
+        self.query_hidden_size_per_partition = mpu.divide(
+            self.query_hidden_size, world_size
         )
         self.num_attention_heads_per_partition = mpu.divide(
             neox_args.num_attention_heads, world_size
@@ -505,7 +510,7 @@ class ParallelSelfAttention(nn.Module):
             )  # how large the total hidden dim for each of K and V is
         else:
             self.num_kv_heads_per_partition = self.num_attention_heads_per_partition
-            self.kv_hidden_size = neox_args.hidden_size
+            self.kv_hidden_size = self.query_hidden_size
 
         # QK Normalization https://arxiv.org/abs/2302.05442
         if self.use_qk_norm:
@@ -558,17 +563,17 @@ class ParallelSelfAttention(nn.Module):
             self.query_key_value = ColumnParallelLinear(
                 neox_args=neox_args,
                 input_size=neox_args.hidden_size,
-                output_size=3 * neox_args.hidden_size,
+                output_size=3 * self.query_hidden_size,
                 gather_output=False,
                 init_method=init_method,
                 bias=neox_args.use_bias_in_attn_linear,
             )
         else:
-            # QKV proj is smaller if we are using GQA / MQA
+            # GQA / MQA use independent query and key/value projection widths.
             self.query_key_value = ColumnParallelLinear(
                 neox_args=neox_args,
                 input_size=neox_args.hidden_size,
-                output_size=neox_args.hidden_size + 2 * self.kv_hidden_size,
+                output_size=self.query_hidden_size + 2 * self.kv_hidden_size,
                 gather_output=False,
                 init_method=init_method,
                 bias=neox_args.use_bias_in_attn_linear,
@@ -682,7 +687,7 @@ class ParallelSelfAttention(nn.Module):
         # Output.
         self.dense = RowParallelLinear(
             neox_args=neox_args,
-            input_size=neox_args.hidden_size,
+            input_size=self.query_hidden_size,
             output_size=neox_args.hidden_size,
             input_is_parallel=True,
             init_method=output_layer_init_method,
@@ -1231,9 +1236,9 @@ class ParallelSelfAttention(nn.Module):
         # [b, np, sq, hn] --> [sq, b, np, hn]
         context_layer = context_layer.permute(2, 0, 1, 3).contiguous()
 
-        # [sq, b, np, hn] --> [sq, b, hp]
+        # [sq, b, np, hn] --> [sq, b, qp]
         new_context_layer_shape = context_layer.size()[:-2] + (
-            self.hidden_size_per_partition,
+            self.query_hidden_size_per_partition,
         )
         context_layer = context_layer.view(*new_context_layer_shape)
 
