@@ -5,8 +5,110 @@ import os
 import tqdm
 
 
+def get_attention_dimensions(hf_config):
+    """Resolve attention widths without importing the NeoX model stack."""
+    hidden_size = hf_config.hidden_size
+    num_q_heads = hf_config.num_attention_heads
+    num_kv_heads = getattr(hf_config, "num_key_value_heads", None)
+    if num_kv_heads is None:
+        num_kv_heads = num_q_heads
+    head_dim = getattr(hf_config, "head_dim", None)
+
+    if not isinstance(num_q_heads, int) or num_q_heads <= 0:
+        raise ValueError(
+            f"num_attention_heads must be a positive integer, got {num_q_heads}"
+        )
+    if not isinstance(num_kv_heads, int) or num_kv_heads <= 0:
+        raise ValueError(
+            f"num_key_value_heads must be a positive integer, got {num_kv_heads}"
+        )
+    if num_q_heads % num_kv_heads != 0:
+        raise ValueError(
+            "num_key_value_heads must evenly divide num_attention_heads, got "
+            f"{num_kv_heads} and {num_q_heads}"
+        )
+    if head_dim is None:
+        if hidden_size % num_q_heads != 0:
+            raise ValueError(
+                "hidden_size must be divisible by num_attention_heads when "
+                f"head_dim is not set, got {hidden_size} and {num_q_heads}"
+            )
+        head_dim = hidden_size // num_q_heads
+    if not isinstance(head_dim, int) or head_dim <= 0:
+        raise ValueError(f"head_dim must be a positive integer, got {head_dim}")
+
+    return num_q_heads, num_kv_heads, head_dim
+
+
+def validate_attention_tp(num_q_heads, num_kv_heads, tp_ranks):
+    if not isinstance(tp_ranks, int) or tp_ranks <= 0:
+        raise ValueError(f"tp_ranks must be a positive integer, got {tp_ranks}")
+    if num_q_heads % tp_ranks != 0:
+        raise ValueError(
+            f"num_attention_heads ({num_q_heads}) must be divisible by tp_ranks ({tp_ranks})"
+        )
+    if num_kv_heads % tp_ranks != 0:
+        raise ValueError(
+            f"num_key_value_heads ({num_kv_heads}) must be divisible by tp_ranks ({tp_ranks})"
+        )
+
+
+def require_shape(state_dict, key, expected_shape):
+    if key not in state_dict:
+        raise ValueError(f"Missing required attention projection {key}")
+    actual_shape = tuple(state_dict[key].shape)
+    if actual_shape != tuple(expected_shape):
+        raise ValueError(
+            f"Attention projection {key} has shape {actual_shape}, expected {tuple(expected_shape)}"
+        )
+
+
+def get_attention_projections(hf_state_dict, hf_config, layer_num, tp_ranks):
+    num_q_heads, num_kv_heads, head_dim = get_attention_dimensions(hf_config)
+    validate_attention_tp(num_q_heads, num_kv_heads, tp_ranks)
+
+    hidden_size = hf_config.hidden_size
+    query_hidden_size = num_q_heads * head_dim
+    kv_hidden_size = num_kv_heads * head_dim
+    prefix = f"model.layers.{layer_num}.self_attn"
+    keys = {
+        "q": f"{prefix}.q_proj.weight",
+        "k": f"{prefix}.k_proj.weight",
+        "v": f"{prefix}.v_proj.weight",
+        "o": f"{prefix}.o_proj.weight",
+    }
+    require_shape(hf_state_dict, keys["q"], (query_hidden_size, hidden_size))
+    require_shape(hf_state_dict, keys["k"], (kv_hidden_size, hidden_size))
+    require_shape(hf_state_dict, keys["v"], (kv_hidden_size, hidden_size))
+    require_shape(hf_state_dict, keys["o"], (hidden_size, query_hidden_size))
+
+    bias_keys = {name: key[: -len(".weight")] + ".bias" for name, key in keys.items()}
+    qkv_bias_presence = [bias_keys[name] in hf_state_dict for name in ("q", "k", "v")]
+    if any(qkv_bias_presence) and not all(qkv_bias_presence):
+        raise ValueError(
+            "Q, K, and V projection biases must either all be present or all be absent"
+        )
+    if all(qkv_bias_presence):
+        require_shape(hf_state_dict, bias_keys["q"], (query_hidden_size,))
+        require_shape(hf_state_dict, bias_keys["k"], (kv_hidden_size,))
+        require_shape(hf_state_dict, bias_keys["v"], (kv_hidden_size,))
+    if bias_keys["o"] in hf_state_dict:
+        require_shape(hf_state_dict, bias_keys["o"], (hidden_size,))
+
+    projections = {name: hf_state_dict[key] for name, key in keys.items()}
+    projection_biases = (
+        {name: hf_state_dict[bias_keys[name]] for name in ("q", "k", "v")}
+        if all(qkv_bias_presence)
+        else None
+    )
+    output_bias = hf_state_dict.get(bias_keys["o"])
+    return projections, projection_biases, output_bias
+
+
 def convert_model(hf_state_dict, hf_config, tp_ranks):
     conv_state_dicts = [{} for _ in range(tp_ranks)]
+    num_q_heads, num_kv_heads, head_dim = get_attention_dimensions(hf_config)
+    validate_attention_tp(num_q_heads, num_kv_heads, tp_ranks)
     # get embeddings...
     for i, chunk in enumerate(
         torch.chunk(hf_state_dict["model.embed_tokens.weight"], tp_ranks, dim=0)
@@ -21,23 +123,26 @@ def convert_model(hf_state_dict, hf_config, tp_ranks):
         conv_state_dicts[0]["sequential.0.word_embeddings.weight"].shape,
     )
     # Get config data...
-    num_kv_heads = hf_config.num_key_value_heads
-    num_q_heads = hf_config.num_attention_heads
-    head_dim = hf_config.hidden_size // num_q_heads
     # do layers...
-    for layer_num in tqdm.tqdm(range(model.model.config.num_hidden_layers)):
+    for layer_num in tqdm.tqdm(range(hf_config.num_hidden_layers)):
         # --- attention ---
+        projections, projection_biases, output_bias = get_attention_projections(
+            hf_state_dict, hf_config, layer_num, tp_ranks
+        )
         # Output first since it's a simple row parallel...
-        for i, chunk in enumerate(
-            torch.chunk(
-                hf_state_dict[f"model.layers.{layer_num}.self_attn.o_proj.weight"],
-                tp_ranks,
-                dim=1,
-            )
-        ):
+        output_chunks = torch.split(
+            projections["o"],
+            num_q_heads // tp_ranks * head_dim,
+            dim=1,
+        )
+        for i, chunk in enumerate(output_chunks):
             conv_state_dicts[i][
                 f"sequential.{layer_num+2}.attention.dense.weight"
             ] = chunk.clone().detach()
+            if output_bias is not None:
+                conv_state_dicts[i][
+                    f"sequential.{layer_num+2}.attention.dense.bias"
+                ] = output_bias.clone().detach()
         print(
             f"model.layers.{layer_num}.self_attn.o_proj.weight",
             hf_state_dict[f"model.layers.{layer_num}.self_attn.o_proj.weight"].shape,
@@ -48,21 +153,40 @@ def convert_model(hf_state_dict, hf_config, tp_ranks):
         )
         # Now for attention...
         # Split into heads...
-        q = hf_state_dict[f"model.layers.{layer_num}.self_attn.q_proj.weight"]
-        k = hf_state_dict[f"model.layers.{layer_num}.self_attn.k_proj.weight"]
-        v = hf_state_dict[f"model.layers.{layer_num}.self_attn.v_proj.weight"]
+        q = projections["q"]
+        k = projections["k"]
+        v = projections["v"]
 
         # Chunk for tensor parallelism...
+        q_chunks = torch.split(q, num_q_heads // tp_ranks * head_dim, dim=0)
+        k_chunks = torch.split(k, num_kv_heads // tp_ranks * head_dim, dim=0)
+        v_chunks = torch.split(v, num_kv_heads // tp_ranks * head_dim, dim=0)
         for i, q_chunk, k_chunk, v_chunk in zip(
             range(tp_ranks),
-            torch.chunk(q, tp_ranks, dim=0),
-            torch.chunk(k, tp_ranks, dim=0),
-            torch.chunk(v, tp_ranks, dim=0),
+            q_chunks,
+            k_chunks,
+            v_chunks,
         ):
             # The GQA code simply expects concatenated q,k,v weights for each tp partition
             conv_state_dicts[i][
                 f"sequential.{layer_num+2}.attention.query_key_value.weight"
             ] = (torch.cat([q_chunk, k_chunk, v_chunk], dim=0).clone().detach())
+            if projection_biases is not None:
+                q_bias = torch.split(
+                    projection_biases["q"],
+                    num_q_heads // tp_ranks * head_dim,
+                )[i]
+                k_bias = torch.split(
+                    projection_biases["k"],
+                    num_kv_heads // tp_ranks * head_dim,
+                )[i]
+                v_bias = torch.split(
+                    projection_biases["v"],
+                    num_kv_heads // tp_ranks * head_dim,
+                )[i]
+                conv_state_dicts[i][
+                    f"sequential.{layer_num+2}.attention.query_key_value.bias"
+                ] = (torch.cat([q_bias, k_bias, v_bias], dim=0).clone().detach())
         print(
             f"model.layers.{layer_num}.self_attn.(q/k/v)_proj.weight",
             hf_state_dict[f"model.layers.{layer_num}.self_attn.q_proj.weight"].shape,
@@ -90,9 +214,9 @@ def convert_model(hf_state_dict, hf_config, tp_ranks):
                 ),
             )
         ):
-            conv_state_dicts[i][
-                f"sequential.{layer_num+2}.mlp.linear1.weight"
-            ] = torch.cat([w3.clone().detach(), w1.clone().detach()], dim=0)
+            conv_state_dicts[i][f"sequential.{layer_num+2}.mlp.linear1.weight"] = (
+                torch.cat([w3.clone().detach(), w1.clone().detach()], dim=0)
+            )
         print(
             f"model.layers.{layer_num}.mlp.gate_proj.weight",
             hf_state_dict[f"model.layers.{layer_num}.mlp.gate_proj.weight"].shape,
@@ -136,7 +260,7 @@ def convert_model(hf_state_dict, hf_config, tp_ranks):
             )
 
     # Get final ln/linear....
-    index = model.model.config.num_hidden_layers + 3
+    index = hf_config.num_hidden_layers + 3
     for i in range(tp_ranks):
         conv_state_dicts[i][f"sequential.{index}.norm.scale"] = (
             hf_state_dict["model.norm.weight"].clone().detach()

@@ -136,6 +136,13 @@ class NeoXArgsModel(NeoXArgsTemplate):
     If num_kv_heads is set, will control only number of query heads.
     """
 
+    head_dim: Optional[int] = None
+    """
+    Dimension of each query, key, and value attention head.
+
+    If unset, defaults to hidden_size divided by num_attention_heads for backward compatibility.
+    """
+
     num_kv_heads: int = None
     """
     Number of transformer key/value attention heads.
@@ -204,9 +211,9 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Scalenorm epsilon
     """
 
-    pos_emb: Literal[
-        "learned", "rotary", "sinusoidal", "rpe", "alibi", "none"
-    ] = "learned"
+    pos_emb: Literal["learned", "rotary", "sinusoidal", "rpe", "alibi", "none"] = (
+        "learned"
+    )
     """
     Type of positional embedding to use - choose from 'learned', 'rotary', 'sinusoidal', 'rpe', 'none'
     """
@@ -371,7 +378,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
 
     rotary_pct: float = 1.0
     """
-    pct of hidden dims to apply rotary positional embedding to
+    Fraction of each attention head dimension to apply rotary positional embedding to.
     """
 
     rotary_emb_base: int = 10000
@@ -1133,9 +1140,9 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Should be a list the same length as `test_data_paths`
     """
 
-    eval_loss_logging: Literal[
-        "blended", "separate", "blended_and_separate"
-    ] = "blended"
+    eval_loss_logging: Literal["blended", "separate", "blended_and_separate"] = (
+        "blended"
+    )
     """
     Validation/test loss logging mode. "blended" preserves the historical blended metric;
     "separate" logs each validation/test subset independently; "blended_and_separate"

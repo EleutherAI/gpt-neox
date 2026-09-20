@@ -23,7 +23,12 @@ import torch.nn as nn
 from collections import defaultdict
 
 from functools import partial
-from megatron.model.utils import Lambda, SequentialWrapper, recursive_setattr
+from megatron.model.utils import (
+    Lambda,
+    SequentialWrapper,
+    get_attention_head_dim,
+    recursive_setattr,
+)
 from megatron.model.norms import get_norm
 from megatron.model.init_functions import get_init_methods
 
@@ -226,10 +231,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
 
         # T5 RPE positional embedding
         if self.neox_args.pos_emb == "rpe":
-            hidden_size_per_attention_head = mpu.divide(
-                self.neox_args.hidden_size, self.neox_args.num_attention_heads
-            )
-            rpe_scale = math.sqrt(hidden_size_per_attention_head)
+            rpe_scale = math.sqrt(get_attention_head_dim(self.neox_args))
             rpe_emb = ParallelRelativePositionBias(
                 neox_args=self.neox_args,
                 scale=rpe_scale,

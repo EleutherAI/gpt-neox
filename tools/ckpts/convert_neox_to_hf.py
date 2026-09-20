@@ -164,6 +164,16 @@ MODEL_KEYS = {
                     "self_attn.v_proj.weight",
                 ],
             },
+            "OPTIONAL_GQA_QKV_KEYS": {
+                "attention.query_key_value.bias": [
+                    "self_attn.q_proj.bias",
+                    "self_attn.k_proj.bias",
+                    "self_attn.v_proj.bias",
+                ],
+            },
+            "OPTIONAL_REPLICATED_KEYS": {
+                "attention.dense.bias": "self_attn.o_proj.bias",
+            },
         },
         "legacy": {
             "COLUMN_PARALLEL_LINEAR_KEYS": {
@@ -188,6 +198,16 @@ MODEL_KEYS = {
                     "self_attn.k_proj.weight",
                     "self_attn.v_proj.weight",
                 ],
+            },
+            "OPTIONAL_GQA_QKV_KEYS": {
+                "attention.query_key_value.bias": [
+                    "self_attn.q_proj.bias",
+                    "self_attn.k_proj.bias",
+                    "self_attn.v_proj.bias",
+                ],
+            },
+            "OPTIONAL_REPLICATED_KEYS": {
+                "attention.dense.bias": "self_attn.o_proj.bias",
             },
         },
     },
@@ -253,6 +273,56 @@ def get_key(loaded_config, key, default=None):
             return default
 
 
+def get_attention_dimensions(hf_config):
+    """Resolve attention widths without importing the NeoX model stack."""
+    hidden_size = hf_config.hidden_size
+    num_q_heads = hf_config.num_attention_heads
+    num_kv_heads = getattr(hf_config, "num_key_value_heads", None)
+    if num_kv_heads is None:
+        num_kv_heads = num_q_heads
+    head_dim = getattr(hf_config, "head_dim", None)
+
+    if not isinstance(num_q_heads, int) or num_q_heads <= 0:
+        raise ValueError(
+            f"num_attention_heads must be a positive integer, got {num_q_heads}"
+        )
+    if not isinstance(num_kv_heads, int) or num_kv_heads <= 0:
+        raise ValueError(
+            f"num_key_value_heads must be a positive integer, got {num_kv_heads}"
+        )
+    if num_q_heads % num_kv_heads != 0:
+        raise ValueError(
+            "num_key_value_heads must evenly divide num_attention_heads, got "
+            f"{num_kv_heads} and {num_q_heads}"
+        )
+    if head_dim is None:
+        if hidden_size % num_q_heads != 0:
+            raise ValueError(
+                "hidden_size must be divisible by num_attention_heads when "
+                f"head_dim is not set, got {hidden_size} and {num_q_heads}"
+            )
+        head_dim = hidden_size // num_q_heads
+    if not isinstance(head_dim, int) or head_dim <= 0:
+        raise ValueError(f"head_dim must be a positive integer, got {head_dim}")
+
+    return num_q_heads, num_kv_heads, head_dim
+
+
+def validate_attention_tp(num_q_heads, num_kv_heads, tensor_parallel_size):
+    if tensor_parallel_size <= 0:
+        raise ValueError("At least one tensor-parallel checkpoint shard is required")
+    if num_q_heads % tensor_parallel_size != 0:
+        raise ValueError(
+            "num_attention_heads "
+            f"({num_q_heads}) must be divisible by tensor parallel size ({tensor_parallel_size})"
+        )
+    if num_kv_heads % tensor_parallel_size != 0:
+        raise ValueError(
+            "num_key_value_heads "
+            f"({num_kv_heads}) must be divisible by tensor parallel size ({tensor_parallel_size})"
+        )
+
+
 def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1):
     """take in a loaded yaml from NeoX and assign relevant values to HF config.
     Returns: GPTNeoXConfig() object
@@ -313,6 +383,9 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
         "tie_word_embeddings": (not get_key(neox_config, "no-weight-tying", False)),
         "use_cache": True,
     }
+    configured_head_dim = get_key(neox_config, "head-dim")
+    if configured_head_dim is not None:
+        args["head_dim"] = configured_head_dim
     if architecture == "mistral" or architecture == "llama":
         args.update(
             {
@@ -388,6 +461,7 @@ def reshard_and_split_qkv(
     loaded_tp_ranks: List[torch.Tensor],
     layer_idx: int,
     sequential: bool,
+    required: bool = True,
 ):
     """
     A helper function which performs reshaping and sharding to make the QKV projection from NeoX compatible with HF Llama models,
@@ -398,48 +472,109 @@ def reshard_and_split_qkv(
             isinstance(hf_keys, list) and len(hf_keys) == 3
         ), "Must map QKV to precisely 3 resulting weight matrices."
 
+    tensor_parallel_size = len(loaded_tp_ranks)
+    num_q_heads, num_kv_heads, head_dim = get_attention_dimensions(hf_config)
+    validate_attention_tp(num_q_heads, num_kv_heads, tensor_parallel_size)
+    query_hidden_size = num_q_heads * head_dim
+    kv_hidden_size = num_kv_heads * head_dim
+    local_widths = (
+        query_hidden_size // tensor_parallel_size,
+        kv_hidden_size // tensor_parallel_size,
+        kv_hidden_size // tensor_parallel_size,
+    )
+    expected_local_width = sum(local_widths)
+
+    state_dict = {}
     for key, hf_keys in param_mapping.items():
-        # We first merge the QKV proj. across TP ranks
-        tp_sharded_qkv = torch.stack(
-            get_state(loaded_tp_ranks, key, layer_idx, sequential), dim=0
-        )
-        # We should now have shape [TP_SIZE, (hidden_size + 2 * kv_hidden_size) / TP_SIZE, hidden_size].
-        # At this point, for each TP rank, q, k, and v are concatenated
+        try:
+            qkv_shards = get_state(loaded_tp_ranks, key, layer_idx, sequential)
+        except KeyError:
+            if required:
+                raise
+            continue
 
-        # Next, we split tp_harded_qkv into q, k, v along dim 1
-        hidden_size_per_attention_head = (
-            hf_config.hidden_size // hf_config.num_attention_heads
-        )
-        kv_hidden_size = int(
-            hidden_size_per_attention_head * hf_config.num_key_value_heads
-        )
-        tensor_parallel_size = len(loaded_tp_ranks)
+        expected_tail = (hf_config.hidden_size,) if key.endswith(".weight") else ()
+        expected_shape = (expected_local_width, *expected_tail)
+        for rank, shard in enumerate(qkv_shards):
+            if tuple(shard.shape) != expected_shape:
+                raise ValueError(
+                    f"NeoX QKV shard {key} on TP rank {rank} has shape "
+                    f"{tuple(shard.shape)}, expected {expected_shape} for head_dim={head_dim}"
+                )
 
-        q, k, v = torch.split(
-            tp_sharded_qkv,
-            [
-                hf_config.hidden_size // tensor_parallel_size,
-                kv_hidden_size // tensor_parallel_size,
-                kv_hidden_size // tensor_parallel_size,
-            ],
-            dim=1,
-        )  # New shapes:
-        # q-->[TP_SIZE, hidden_size/TP_SIZE, hidden_size]
-        # k-->[TP_SIZE, kv_hidden_size/TP_SIZE, hidden_size]
-        # v-->[TP_SIZE, kv_hidden_size/TP_SIZE, hidden_size]
-
-        # Finally, we flatten the first two dimensions merging the TP partitions
+        tp_sharded_qkv = torch.stack(qkv_shards, dim=0)
+        q, k, v = torch.split(tp_sharded_qkv, local_widths, dim=1)
         q, k, v = (
-            q.reshape(-1, q.shape[2]),
-            k.reshape(-1, k.shape[2]),
-            v.reshape(-1, k.shape[2]),
+            projection.reshape((-1, *projection.shape[2:])) for projection in (q, k, v)
         )
+        for hf_key, projection in zip(hf_keys, (q, k, v)):
+            state_dict[hf_key] = projection.clone()
 
-        # return these
-        state_dict = {}
-        for hf_key, proj in zip(hf_keys, [q, k, v]):
-            state_dict[hf_key] = proj.clone()
-        return state_dict
+    return state_dict
+
+
+def validate_hf_attention_projection_shapes(
+    hf_layer, hf_config, converted_state_dict, layer_idx
+):
+    """Fail clearly when the target HF architecture ignores ``head_dim``."""
+    num_q_heads, num_kv_heads, head_dim = get_attention_dimensions(hf_config)
+    hidden_size = hf_config.hidden_size
+    query_hidden_size = num_q_heads * head_dim
+    kv_hidden_size = num_kv_heads * head_dim
+    expected_shapes = {
+        "self_attn.q_proj.weight": (query_hidden_size, hidden_size),
+        "self_attn.k_proj.weight": (kv_hidden_size, hidden_size),
+        "self_attn.v_proj.weight": (kv_hidden_size, hidden_size),
+        "self_attn.o_proj.weight": (hidden_size, query_hidden_size),
+    }
+    expected_bias_shapes = {
+        "self_attn.q_proj.bias": (query_hidden_size,),
+        "self_attn.k_proj.bias": (kv_hidden_size,),
+        "self_attn.v_proj.bias": (kv_hidden_size,),
+        "self_attn.o_proj.bias": (hidden_size,),
+    }
+    target_state_dict = hf_layer.state_dict()
+
+    for key, expected_shape in expected_shapes.items():
+        if key not in target_state_dict:
+            raise ValueError(
+                f"HF target layer {layer_idx} does not expose required projection {key}"
+            )
+        target_shape = tuple(target_state_dict[key].shape)
+        if target_shape != expected_shape:
+            raise ValueError(
+                f"HF target layer {layer_idx} projection {key} has shape {target_shape}, "
+                f"expected {expected_shape} for head_dim={head_dim}. The installed "
+                "Transformers model class does not honor the configured head_dim."
+            )
+        if key not in converted_state_dict:
+            raise ValueError(
+                f"Converted checkpoint is missing required projection {key} in layer {layer_idx}"
+            )
+        converted_shape = tuple(converted_state_dict[key].shape)
+        if converted_shape != expected_shape:
+            raise ValueError(
+                f"Converted projection {key} in layer {layer_idx} has shape "
+                f"{converted_shape}, expected {expected_shape} for head_dim={head_dim}"
+            )
+
+    for key, expected_shape in expected_bias_shapes.items():
+        target_has_bias = key in target_state_dict
+        converted_has_bias = key in converted_state_dict
+        if target_has_bias != converted_has_bias:
+            source = "HF target layer" if target_has_bias else "converted checkpoint"
+            raise ValueError(
+                f"{source} has attention projection bias {key}, but the other side does not"
+            )
+        if target_has_bias:
+            target_shape = tuple(target_state_dict[key].shape)
+            converted_shape = tuple(converted_state_dict[key].shape)
+            if target_shape != expected_shape or converted_shape != expected_shape:
+                raise ValueError(
+                    f"Attention projection bias {key} in layer {layer_idx} must have "
+                    f"shape {expected_shape} for head_dim={head_dim}, got target "
+                    f"{target_shape} and converted {converted_shape}"
+                )
 
 
 def get_mlp_naming_convention(loaded_tp_ranks, layer_idx, sequential):
@@ -678,6 +813,39 @@ def convert(
                     layer_idx=layer_i + 2,
                     sequential=sequential,
                 )
+            )
+        if "OPTIONAL_GQA_QKV_KEYS" in ARCH:
+            state_dict.update(
+                reshard_and_split_qkv(
+                    param_mapping=ARCH["OPTIONAL_GQA_QKV_KEYS"],
+                    hf_config=hf_config,
+                    loaded_tp_ranks=loaded_tp_ranks,
+                    layer_idx=layer_i + 2,
+                    sequential=sequential,
+                    required=False,
+                )
+            )
+        for key, hf_key in ARCH.get("OPTIONAL_REPLICATED_KEYS", {}).items():
+            try:
+                states = get_state(
+                    loaded_tp_ranks,
+                    key,
+                    layer_idx=layer_i + 2,
+                    sequential=sequential,
+                )
+            except KeyError:
+                continue
+            if any(not torch.equal(states[0], state) for state in states[1:]):
+                raise ValueError(
+                    f"Replicated NeoX parameter {key} differs across TP ranks"
+                )
+            state_dict[hf_key] = states[0].clone()
+        if architecture in ("llama", "mistral"):
+            validate_hf_attention_projection_shapes(
+                hf_layer=hf_layer,
+                hf_config=hf_config,
+                converted_state_dict=state_dict,
+                layer_idx=layer_i,
             )
         # load state_dict into layer
         hf_layer.load_state_dict(state_dict)

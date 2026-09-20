@@ -1243,18 +1243,73 @@ class NeoXArgs(*BASE_CLASSES):
                 raise ValueError(error_message)
                 return False
 
-        # Checks.
-        if self.hidden_size % self.num_attention_heads != 0 and not (
-            "mamba" in self.attention_config
+        # Attention dimensions. Mamba does not use these values, so retain the
+        # existing exemption for Mamba attention configurations.
+        uses_attention_head_dimensions = "mamba" not in self.attention_config
+
+        if self.head_dim is not None and self.head_dim <= 0:
+            error_message = (
+                f"{FAIL}"
+                + self.__class__.__name__
+                + ".validate_values() head_dim must be greater than 0"
+            )
+            logging.error(error_message)
+            raise ValueError(error_message)
+
+        if (
+            uses_attention_head_dimensions
+            and self.num_attention_heads % self.model_parallel_size != 0
         ):
             error_message = (
                 f"{FAIL}"
                 + self.__class__.__name__
-                + ".validate_values() hidden_size must be divisible by num_attention_heads"
+                + ".validate_values() num_attention_heads must be divisible by model_parallel_size"
             )
             logging.error(error_message)
             raise ValueError(error_message)
-            return False
+
+        if (
+            uses_attention_head_dimensions
+            and self.head_dim is None
+            and self.hidden_size % self.num_attention_heads != 0
+        ):
+            error_message = (
+                f"{FAIL}"
+                + self.__class__.__name__
+                + ".validate_values() hidden_size must be divisible by num_attention_heads when head_dim is not set"
+            )
+            logging.error(error_message)
+            raise ValueError(error_message)
+
+        if uses_attention_head_dimensions and self.pos_emb == "rotary":
+            if not 0 < self.rotary_pct <= 1:
+                error_message = (
+                    f"{FAIL}"
+                    + self.__class__.__name__
+                    + ".validate_values() rotary_pct must be greater than 0 and less than or equal to 1"
+                )
+                logging.error(error_message)
+                raise ValueError(error_message)
+
+            effective_head_dim = (
+                self.head_dim
+                if self.head_dim is not None
+                else self.hidden_size // self.num_attention_heads
+            )
+            rotary_ndims = (
+                effective_head_dim
+                if self.rotary_pct == 1
+                else int(effective_head_dim * self.rotary_pct)
+            )
+            if rotary_ndims <= 0 or rotary_ndims % 2 != 0:
+                error_message = (
+                    f"{FAIL}"
+                    + self.__class__.__name__
+                    + ".validate_values() rotary attention dimensions must be a positive even number, "
+                    + f"got {rotary_ndims} from head_dim={effective_head_dim} and rotary_pct={self.rotary_pct}"
+                )
+                logging.error(error_message)
+                raise ValueError(error_message)
 
         if self.seq_length is not None:
             if not (self.max_position_embeddings >= self.seq_length):
