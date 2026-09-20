@@ -136,6 +136,13 @@ class NeoXArgsModel(NeoXArgsTemplate):
     If num_kv_heads is set, will control only number of query heads.
     """
 
+    head_dim: Optional[int] = None
+    """
+    Dimension of each query, key, and value attention head.
+
+    If unset, defaults to hidden_size divided by num_attention_heads for backward compatibility.
+    """
+
     num_kv_heads: int = None
     """
     Number of transformer key/value attention heads.
