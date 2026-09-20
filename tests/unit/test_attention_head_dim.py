@@ -23,6 +23,7 @@ import torch
 
 import megatron.neox_arguments.arguments as neox_arguments
 from megatron import mpu
+from megatron.mpu import layers as mpu_layers
 from megatron.model.init_functions import init_method_normal
 from megatron.model.transformer import ParallelSelfAttention
 from megatron.model.utils import get_attention_head_dim
@@ -119,6 +120,46 @@ def test_qwen_style_gqa_projection_shapes(model_parallel_size):
 
 
 @pytest.mark.cpu
+@pytest.mark.parametrize(
+    (
+        "hidden_size",
+        "num_attention_heads",
+        "num_kv_heads",
+        "expected_query_hidden_size",
+        "expected_kv_hidden_size",
+        "expected_qkv_hidden_size",
+    ),
+    [
+        (2560, 32, 8, 4096, 1024, 6144),
+        (5120, 64, 8, 8192, 1024, 10240),
+    ],
+)
+def test_large_qwen_attention_geometry_without_parameter_allocation(
+    hidden_size,
+    num_attention_heads,
+    num_kv_heads,
+    expected_query_hidden_size,
+    expected_kv_hidden_size,
+    expected_qkv_hidden_size,
+):
+    neox_args = attention_args(
+        hidden_size=hidden_size,
+        num_attention_heads=num_attention_heads,
+        num_kv_heads=num_kv_heads,
+        head_dim=128,
+        model_parallel_size=2,
+    )
+
+    head_dim = get_attention_head_dim(neox_args)
+    query_hidden_size = neox_args.num_attention_heads * head_dim
+    kv_hidden_size = neox_args.num_kv_heads * head_dim
+
+    assert query_hidden_size == expected_query_hidden_size
+    assert kv_hidden_size == expected_kv_hidden_size
+    assert query_hidden_size + 2 * kv_hidden_size == expected_qkv_hidden_size
+
+
+@pytest.mark.cpu
 @pytest.mark.parametrize("head_dim", [None, 4])
 def test_legacy_gqa_projection_shapes_are_unchanged(head_dim):
     neox_args = attention_args(
@@ -159,8 +200,7 @@ def test_legacy_attention_state_dict_loads_with_derived_head_dim():
         explicit_attention.load_state_dict(legacy_attention.state_dict(), strict=True)
 
     assert (
-        legacy_attention.state_dict().keys()
-        == explicit_attention.state_dict().keys()
+        legacy_attention.state_dict().keys() == explicit_attention.state_dict().keys()
     )
 
 
@@ -211,32 +251,41 @@ def test_qk_layernorm_shape_uses_explicit_head_dim():
         hidden_size=8,
         num_attention_heads=2,
         head_dim=8,
-        use_qk_layernorm=True,
+        use_qk_norm=True,
     )
 
     with model_parallel_context(1):
         attention = build_attention(neox_args)
 
-    assert attention.qk_layernorm.normalized_shape == (2, 8)
+    assert attention.q_layernorm.normalized_shape == (8,)
+    assert attention.k_layernorm.normalized_shape == (8,)
 
 
 @pytest.mark.cpu
 @pytest.mark.parametrize(
-    ("num_kv_heads", "head_dim", "expected_qkv_shape", "expected_cache_heads"),
-    [(None, 6, (36, 8), 2), (1, 8, (32, 8), 2)],
+    (
+        "num_attention_heads",
+        "num_kv_heads",
+        "head_dim",
+        "expected_qkv_width",
+    ),
+    [(2, None, 6, 36), (4, 2, 4, 32)],
 )
+@pytest.mark.parametrize("model_parallel_size", [1, 2])
 def test_attention_forward_backward_and_cache_use_independent_widths(
     monkeypatch,
+    num_attention_heads,
     num_kv_heads,
     head_dim,
-    expected_qkv_shape,
-    expected_cache_heads,
+    expected_qkv_width,
+    model_parallel_size,
 ):
     neox_args = attention_args(
         hidden_size=8,
-        num_attention_heads=2,
+        num_attention_heads=num_attention_heads,
         num_kv_heads=num_kv_heads,
         head_dim=head_dim,
+        model_parallel_size=model_parallel_size,
     )
 
     monkeypatch.setattr(torch.cuda, "current_device", lambda: torch.device("cpu"))
@@ -245,8 +294,13 @@ def test_attention_forward_backward_and_cache_use_independent_widths(
         "get_cuda_rng_tracker",
         lambda: SimpleNamespace(fork=nullcontext),
     )
+    # Exercise one local TP shard without initializing torch.distributed. The
+    # collective wrappers do not change tensor geometry, which is what this
+    # focused CPU test verifies.
+    monkeypatch.setattr(mpu_layers, "copy_to_model_parallel_region", lambda x: x)
+    monkeypatch.setattr(mpu_layers, "reduce_from_model_parallel_region", lambda x: x)
 
-    with model_parallel_context(1):
+    with model_parallel_context(model_parallel_size):
         attention = build_attention(neox_args, use_cache=True)
         hidden_states = torch.randn(3, 2, 8, requires_grad=True)
         attention_mask = torch.triu(
@@ -254,14 +308,28 @@ def test_attention_forward_backward_and_cache_use_independent_widths(
         )
 
         (output, present), _ = attention(hidden_states, attention_mask)
-        output.square().mean().backward()
+        decode_states = torch.randn(1, 2, 8, requires_grad=True)
+        decode_mask = torch.zeros(1, 1, 1, 4, dtype=torch.bool)
+        (decode_output, decode_present), _ = attention(
+            decode_states,
+            decode_mask,
+            layer_past=present,
+        )
+        (output.square().mean() + decode_output.square().mean()).backward()
 
     assert output.shape == (3, 2, 8)
+    assert decode_output.shape == (1, 2, 8)
+    expected_cache_heads = num_attention_heads // model_parallel_size
     assert present.shape == (2, 3, 2, expected_cache_heads, head_dim)
-    assert attention.query_key_value.weight.shape == expected_qkv_shape
+    assert decode_present.shape == (2, 4, 2, expected_cache_heads, head_dim)
+    assert attention.query_key_value.weight.shape == (
+        expected_qkv_width // model_parallel_size,
+        8,
+    )
     assert attention.query_key_value.weight.grad is not None
     assert attention.dense.weight.grad is not None
     assert hidden_states.grad is not None
+    assert decode_states.grad is not None
 
 
 @pytest.mark.cpu

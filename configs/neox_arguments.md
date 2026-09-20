@@ -695,7 +695,7 @@ Model Arguments
 
     Default = 1.0
 
-    pct of hidden dims to apply rotary positional embedding to
+    Fraction of each attention head dimension to apply rotary positional embedding to.
 
 - **rotary_emb_base**: int
 
