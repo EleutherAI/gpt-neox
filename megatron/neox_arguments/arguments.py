@@ -1090,6 +1090,16 @@ class NeoXArgs(*BASE_CLASSES):
                 self.zero_optimization["stage"] < 2
             ), "MoE is not compatible with zero stages 2 and 3"
 
+            if self.moe_router_type == "topk":
+                logging.warning(
+                    self.__class__.__name__
+                    + ".calculate_derived() "
+                    + "moe_router_type 'topk' does not apply a load balancing loss "
+                    "and is only intended for inference/eval. Training with it can "
+                    "silently produce a poorly balanced (misconfigured) MoE model. "
+                    "Use moe_router_type 'sinkhorn' for training."
+                )
+
         # Attention config
         if self.attention_config is None:
             self.update_value("attention_config", [[["global"], self.num_layers]])

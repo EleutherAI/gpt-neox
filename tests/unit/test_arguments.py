@@ -12,8 +12,47 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
+from copy import deepcopy
+
+import pytest
+
 from megatron.neox_arguments import NeoXArgs
 from tests.common import BASE_CONFIG, DistributedTest
+
+
+def _cpu_moe_config(**overrides):
+    config = deepcopy(BASE_CONFIG)
+    # Avoid hardware discovery in NeoXArgs.calculate_derived during CPU unit tests.
+    # Without this, configs with hostfile/include fall through to torch.cuda.device_count()
+    # and crash on systems with no visible GPUs.
+    config["global_num_gpus"] = 1
+    config.update(overrides)
+    return config
+
+
+@pytest.mark.cpu
+def test_moe_topk_router_warns_no_load_balancing(caplog):
+    """
+    TopKTokenChoiceRouter has no load balancing loss, so configuring
+    moe_router_type: "topk" for a training run silently produces a
+    misconfigured MoE (see issue #1364). Validation must not stay silent.
+    """
+    with caplog.at_level(logging.WARNING):
+        NeoXArgs.from_dict(_cpu_moe_config(moe_num_experts=2, moe_router_type="topk"))
+    assert any(
+        "load balancing" in record.getMessage() for record in caplog.records
+    ), "expected a warning that the top-k router does not apply a load balancing loss"
+
+
+@pytest.mark.cpu
+def test_moe_sinkhorn_router_does_not_warn(caplog):
+    """The supported training router (sinkhorn) must not trigger the warning."""
+    with caplog.at_level(logging.WARNING):
+        NeoXArgs.from_dict(
+            _cpu_moe_config(moe_num_experts=2, moe_router_type="sinkhorn")
+        )
+    assert not any("load balancing" in record.getMessage() for record in caplog.records)
 
 
 def test_main_constructor():

@@ -1651,7 +1651,9 @@ class NeoXArgsMoE(NeoXArgsTemplate):
     moe_router_type: Literal["sinkhorn", "topk"] = "sinkhorn"
     """
     What token routing algorithm to use. Currently only sinkhorn is supported for training.
-    TopK is only used for inference/eval.
+    TopK is only intended for inference/eval: it does not apply a load balancing loss,
+    so configuring it with moe_num_experts > 1 logs a warning that training with it
+    will silently produce a poorly balanced MoE model.
     """
 
     moe_lbl_in_fp32: bool = False
