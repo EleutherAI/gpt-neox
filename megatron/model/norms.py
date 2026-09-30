@@ -16,8 +16,9 @@ import torch
 from torch.nn import LayerNorm as LayerNorm
 
 
-def get_norm(neox_args):
-    if neox_args.norm == "rmsnorm":
+def get_norm(neox_args, norm_type=None):
+    norm_type = norm_type or neox_args.norm
+    if norm_type == "rmsnorm":
         eps = neox_args.rms_norm_epsilon
         if neox_args.rmsnorm_fusion:
             from .fused_layer_norm import MixedFusedRMSNorm
@@ -25,7 +26,7 @@ def get_norm(neox_args):
             norm = MixedFusedRMSNorm
         else:
             norm = RMSNorm
-    elif neox_args.norm == "layernorm":
+    elif norm_type == "layernorm":
         eps = neox_args.layernorm_epsilon
         if neox_args.layernorm_fusion:
             from .fused_layer_norm import MixedFusedLayerNorm
@@ -33,29 +34,29 @@ def get_norm(neox_args):
             norm = MixedFusedLayerNorm
         else:
             norm = LayerNorm
-    elif neox_args.norm == "non_parametric_layernorm":
+    elif norm_type == "non_parametric_layernorm":
         eps = neox_args.layernorm_epsilon
-        if neox_args.layernorm_fusion:
+        if neox_args.layernorm_fusion and norm_type == neox_args.norm:
             raise ValueError(
                 f"neox_args.layernorm_fusion not supported for non_parametric_layernorm"
             )
         else:
             norm = NonParametricLayernorm
-    elif neox_args.norm == "scalenorm":
+    elif norm_type == "scalenorm":
         eps = neox_args.scalenorm_epsilon
         norm = ScaleNorm
-    elif neox_args.norm == "te_rmsnorm":
+    elif norm_type == "te_rmsnorm":
         from .transformer_engine import TERMSNorm
 
         norm = TERMSNorm
         eps = neox_args.rms_norm_epsilon
-    elif neox_args.norm == "te_layernorm":
+    elif norm_type == "te_layernorm":
         from .transformer_engine import TELayerNorm
 
         norm = TELayerNorm
         eps = neox_args.layernorm_epsilon
     else:
-        raise ValueError(f"norm {neox_args.norm} not recognized")
+        raise ValueError(f"norm {norm_type} not recognized")
     return norm, eps
 
 
