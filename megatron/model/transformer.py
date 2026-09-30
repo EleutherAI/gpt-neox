@@ -126,6 +126,7 @@ def _apply_qk_norm_across_tp(
     if norm_family == "layernorm":
         # LayerNorm needs both first and second moments. Keep Q and K separate
         # while packing all four statistics into the same collective.
+        # Raw moments allow all statistics to use one standard SUM all-reduce.
         packed_stats = torch.stack(
             (
                 query_float.sum(dim=-1),
@@ -156,6 +157,7 @@ def _apply_qk_norm_across_tp(
 
     if norm_family == "layernorm":
         query_mean = packed_stats[..., 0:1] / query_count
+        # Raw-moment variance can be slightly negative from floating-point cancellation.
         query_variance = (
             packed_stats[..., 1:2] / query_count - query_mean.pow(2)
         ).clamp_min(0.0)
