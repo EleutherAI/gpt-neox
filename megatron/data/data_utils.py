@@ -542,6 +542,7 @@ def build_train_valid_test_data_loaders(neox_args):
         pipe_load
         and (neox_args.dataset_impl == "online")
         and (mpu.get_model_parallel_rank() == 0)
+        and (mpu.get_context_parallel_rank() == 0)
     ):
         # Can skip most of the work...
         train_iters = neox_args.train_iters

@@ -18,6 +18,7 @@ from megatron import device_backend
 from .initialize import get_model_parallel_group
 from .initialize import get_model_parallel_rank
 from .initialize import get_model_parallel_src_rank
+from .initialize import get_context_parallel_world_size, get_context_parallel_rank
 
 
 _MAX_DATA_DIM = 4
@@ -119,3 +120,71 @@ def broadcast_data(keys, data, datatype):
         offset += numel
 
     return output
+
+def scatter_data(tensor, zigzag):
+    worldsize = get_context_parallel_world_size()
+    if worldsize <= 1:
+        return tensor
+    if zigzag:
+        return torch.chunk(tensor, worldsize, dim=-1)[get_context_parallel_rank()]
+    # otherwise prepare for zigzagging
+    seq_chunks = torch.chunk(tensor, 2 * worldsize, dim=-1)
+    data = [
+        torch.cat((seq_chunks[i], seq_chunks[-(i + 1)]), dim=-1)
+        for i in range(worldsize)
+    ]
+    return data[get_context_parallel_rank()].contiguous()
+
+    '''
+    if get_context_parallel_world_size() <= 1:
+        return tokens, position_ids, attention_mask, labels, loss_mask
+    cp_size = get_context_parallel_world_size()
+
+    if get_context_parallel_rank() == 0:
+        tokens = tokens.flatten() 
+        position_ids = position_ids.flatten() 
+        attention_mask = attention_mask.flatten()
+        labels = labels.flatten()
+        loss_mask = loss_mask.flatten()
+    
+    scattered_tokens = torch.empty(
+            tokens.numel()//cp_size, device=device_backend.current_device(), dtype=tokens.datatype()
+        )
+    scattered_position_ids = torch.empty(
+            position_ids.numel()//cp_size, device=device_backend.current_device(), dtype=position_ids.datatype()
+        )
+    scattered_attention_mask = torch.empty(
+            attention_mask.numel()//cp_size, device=device_backend.current_device(), dtype=attention_mask.datatype()
+        )
+    scattered_labels = torch.empty(
+            labels.numel()//cp_size, device=device_backend.current_device(), dtype=labels.datatype()
+        )
+    scattered_loss_mask = torch.empty(
+            loss_mask.numel()//cp_size, device=device_backend.current_device(), dtype=loss_mask.datatype()
+        )
+
+    tokens = torch.chunk(tokens, cp_size, dim=0)
+    position_ids = torch.chunk(position_ids, cp_size, dim=0)
+    attention_mask = torch.chunk(attention_mask, cp_size, dim=0)
+    labels = torch.chunk(labels, cp_size, dim=0)
+    loss_mask = torch.chunk(loss_mask, cp_size, dim=0)
+
+    torch.distributed.scatter(
+            scattered_tokens, scatter_list=tokens, src=get_context_parallel_src_rank(), group=get_context_parallel_group()
+        )
+    torch.distributed.scatter(
+            scattered_position_ids, scatter_list=position_ids, src=get_context_parallel_src_rank(), group=get_context_parallel_group()
+        )
+    torch.distributed.scatter(
+            scattered_attention_mask, scatter_list=attention_mask, src=get_context_parallel_src_rank(), group=get_context_parallel_group()
+        )
+    torch.distributed.scatter(
+            scattered_labels, scatter_list=labels, src=get_context_parallel_src_rank(), group=get_context_parallel_group()
+        )
+    torch.distributed.scatter(
+            scattered_loss_mask, scatter_list=loss_mask, src=get_context_parallel_src_rank(), group=get_context_parallel_group()
+        )
+    return scattered_tokens, scattered_position_ids, scattered_attention_mask, scattered_labels, scattered_loss_mask
+    
+
+'''

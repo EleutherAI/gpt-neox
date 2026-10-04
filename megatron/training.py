@@ -65,6 +65,7 @@ from megatron.utils import (
 from megatron.model.weight_server import start_server
 from megatron.model.gpt2_model import cross_entropy
 from megatron.mpu import vocab_parallel_cross_entropy
+from megatron.mpu.data import scatter_data
 
 from pickle import dump
 import os
@@ -517,7 +518,11 @@ def get_batch_pipe(data, neox_args, curr_scheduler=None):
             ].contiguous()
 
     # unpack data
-    return (tokens, position_ids, attention_mask), (labels, loss_mask)
+    return ((scatter_data(tokens, zigzag=neox_args.zigzag_tokens), 
+        scatter_data(position_ids, zigzag=neox_args.zigzag_tokens), 
+        scatter_data(attention_mask, zigzag=neox_args.zigzag_tokens)), 
+        (scatter_data(labels, zigzag=neox_args.zigzag_tokens), 
+        scatter_data(loss_mask, zigzag=neox_args.zigzag_tokens)))
 
 
 def get_batch_sequential(forward_input, neox_args):

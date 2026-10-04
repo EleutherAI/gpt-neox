@@ -246,6 +246,13 @@ def get_model_parallel_src_rank():
         if global_rank in model_group:
             return model_group[0]
 
+def get_context_parallel_src_rank():
+    """Calculate the global rank corresponding to a local rank zero
+    in the context parallel group."""
+    global_rank = torch.distributed.get_rank()
+    for context_group in get_topology().get_axis_comm_lists("context"):
+        if global_rank in context_group:
+            return context_group[0]
 
 def get_data_parallel_src_rank():
     """Calculate the global rank corresponding to a local rank zero
@@ -354,10 +361,7 @@ def get_tensor_model_parallel_group():
 def get_tensor_model_parallel_src_rank():
     """Calculate the global rank corresponding to the first local rank
     in the tensor model parallel group."""
-    global_rank = torch.distributed.get_rank()
-    for model_group in get_topology().get_axis_comm_lists("model"):
-        if global_rank in model_group:
-            return model_group[0]
+    return get_model_parallel_src_rank
 
 
 # Needed for MOE. True tensor parallelism todo.
