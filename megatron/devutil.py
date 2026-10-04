@@ -1,4 +1,5 @@
-import torch.cuda
+import torch
+from megatron import device_backend
 
 
 class Metric:
@@ -34,8 +35,8 @@ def monitor_method_cuda_wall_times(metric, obj, methodname):
     """
     oldmeth = getattr(obj, methodname)
 
-    start_event = torch.cuda.Event(enable_timing=True)
-    end_event = torch.cuda.Event(enable_timing=True)
+    start_event = device_backend.Event(enable_timing=True)
+    end_event = device_backend.Event(enable_timing=True)
 
     def newmeth(*args, **kw):
         start_event.record()
@@ -43,7 +44,7 @@ def monitor_method_cuda_wall_times(metric, obj, methodname):
             return oldmeth(*args, **kw)
         finally:
             end_event.record()
-            torch.cuda.synchronize()
+            device_backend.synchronize()
             elapsed = start_event.elapsed_time(end_event)
             metric.collect(elapsed)
             metric.report()

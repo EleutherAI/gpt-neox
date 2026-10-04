@@ -29,6 +29,8 @@ _MODEL_PARALLEL_GROUP = None
 _DATA_PARALLEL_GROUP = None
 # Pipeline parallel group that the current rank belongs to.
 _PIPE_PARALLEL_GROUP = None
+# Context parallel group that the current rank belongs to.
+_CONTEXT_PARALLEL_GROUP = None
 
 # A group used to sync during the IO process. Usually this is data_parallel_group(),
 # but with pipeline parallelism it must also involve the last stage (which is not in the
@@ -44,6 +46,15 @@ _MPU_TOPOLOGY = None
 
 # Get fp32_allreduce flag
 _FP32_ALLREDUCE = None
+
+# Model parallel group that the current rank belongs to.
+_MODEL_PARALLEL_SRC = None
+# Data parallel group that the current rank belongs to.
+_DATA_PARALLEL_SRC = None
+# Pipeline parallel group that the current rank belongs to.
+_PIPE_PARALLEL_SRC = None
+# Context parallel group that the current rank belongs to.
+_CONTEXT_PARALLEL_SRC = None
 
 
 def is_unitialized():
@@ -89,11 +100,13 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
     assert _DATA_PARALLEL_GROUP is None, "data parallel group is already initialized"
     if topology:
         for dp_group in topology.get_axis_comm_lists("data"):
+            print(dp_group)
             group = torch.distributed.new_group(ranks=dp_group)
             if rank == 0:
                 print(f"MPU DP:", dp_group)
             if rank in dp_group:
                 _DATA_PARALLEL_GROUP = group
+                _DATA_PARALLEL_SRC = dp_group[0]
     else:
         for i in range(model_parallel_size):
             ranks = range(i, world_size, model_parallel_size)
@@ -110,10 +123,22 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
                 print(f"MPU PP:", pp_group)
             if rank in pp_group:
                 _PIPE_PARALLEL_GROUP = group
+                _PIPE_PARALLEL_SRC = pp_group[0]
+
+    # Build context parallel group
+    if topology is not None:
+        global _CONTEXT_PARALLEL_GROUP
+        for cp_group in topology.get_axis_comm_lists("context"):
+            group = torch.distributed.new_group(ranks=cp_group)
+            if rank == 0:
+                print(f"MPU CP:", cp_group)
+            if rank in cp_group:
+                _CONTEXT_PARALLEL_GROUP = group
+                _CONTEXT_PARALLEL_SRC = cp_group[0]
 
     # Build IO group
     global _IO_PARALLEL_GROUP
-    if topology and topology.get_dim("pipe") > 1:
+    if topology and (topology.get_dim("pipe") > 1): # or topology.get_dim("context") > 1):
         io_stages = [0, topology.get_dim("pipe") - 1]
         io_group = []
         for stage in io_stages:
@@ -123,6 +148,8 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
         group = torch.distributed.new_group(ranks=io_group)
         if rank in io_group:
             _IO_PARALLEL_GROUP = group
+            _IO_PARALLEL_SRC = io_group[0]
+        #TODO: add context parallelism to this group
     else:
         _IO_PARALLEL_GROUP = get_data_parallel_group()
 
@@ -132,21 +159,13 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
     if topology:
         # Short circuit case without model parallelism.
         # TODO: it would be nice  to avoid this branching case?
-        if model_parallel_size == 1:
-            for group_rank in range(world_size):
-                group = torch.distributed.new_group(ranks=[group_rank])
-                if rank == 0:
-                    print(f"MPU MP:", [group_rank])
-                if rank == group_rank:
-                    _MODEL_PARALLEL_GROUP = group
-            return
-
         for mp_group in topology.get_axis_comm_lists("model"):
             group = torch.distributed.new_group(ranks=mp_group)
             if rank == 0:
                 print(f"MPU MP:", mp_group)
             if rank in mp_group:
                 _MODEL_PARALLEL_GROUP = group
+                _MODEL_PARALLEL_SRC = mp_group[0]
 
     else:
         for i in range(world_size // model_parallel_size):
@@ -177,6 +196,12 @@ def get_data_parallel_group():
     """Get the data parallel group the caller rank belongs to."""
     assert _DATA_PARALLEL_GROUP is not None, "data parallel group is not initialized"
     return _DATA_PARALLEL_GROUP
+
+
+def get_context_parallel_group():
+    """Get the context parallel group the caller rank belongs to."""
+    assert _CONTEXT_PARALLEL_GROUP is not None, "context parallel group is not initialized"
+    return _CONTEXT_PARALLEL_GROUP
 
 
 def get_io_parallel_group():
@@ -217,24 +242,25 @@ def get_model_parallel_src_rank():
     """Calculate the global rank corresponding to a local rank zero
     in the model parallel group."""
     global_rank = torch.distributed.get_rank()
-    local_world_size = get_model_parallel_world_size()
-    return (global_rank // local_world_size) * local_world_size
+    for model_group in get_topology().get_axis_comm_lists("model"):
+        if global_rank in model_group:
+            return model_group[0]
 
+def get_context_parallel_src_rank():
+    """Calculate the global rank corresponding to a local rank zero
+    in the context parallel group."""
+    global_rank = torch.distributed.get_rank()
+    for context_group in get_topology().get_axis_comm_lists("context"):
+        if global_rank in context_group:
+            return context_group[0]
 
 def get_data_parallel_src_rank():
     """Calculate the global rank corresponding to a local rank zero
     in the data parallel group."""
     global_rank = torch.distributed.get_rank()
-    topo = get_topology()
-    if topo is None:
-        # we are just using model parallel
-        return global_rank % get_model_parallel_world_size()
-    else:
-        # We are using pipeline parallel
-        d = topo.get_axis_comm_lists("data")
-        for l in d:
-            if global_rank in l:
-                return l[0]
+    for data_group in get_topology().get_axis_comm_lists("data"):
+        if global_rank in data_group:
+            return data_group[0]
 
 
 def get_data_parallel_world_size():
@@ -245,6 +271,16 @@ def get_data_parallel_world_size():
 def get_data_parallel_rank():
     """Return my rank for the data parallel group."""
     return torch.distributed.get_rank(group=get_data_parallel_group())
+
+
+def get_context_parallel_rank():
+    """Return my rank for the context parallel group."""
+    return torch.distributed.get_rank(group=get_context_parallel_group())
+
+
+def get_context_parallel_world_size():
+    """Return world size for the context parallel group."""
+    return torch.distributed.get_world_size(group=get_context_parallel_group())
 
 
 def get_topology():
@@ -325,7 +361,7 @@ def get_tensor_model_parallel_group():
 def get_tensor_model_parallel_src_rank():
     """Calculate the global rank corresponding to the first local rank
     in the tensor model parallel group."""
-    return get_model_parallel_rank()
+    return get_model_parallel_src_rank
 
 
 # Needed for MOE. True tensor parallelism todo.
@@ -352,6 +388,8 @@ def destroy_model_parallel():
     _DATA_PARALLEL_GROUP = None
     global _PIPE_PARALLEL_GROUP
     _PIPE_PARALLEL_GROUP = None
+    global _CONTEXT_PARALLEL_GROUP
+    _CONTEXT_PARALLEL_GROUP = None
     global _IO_PARALLEL_GROUP
     _IO_PARALLEL_GROUP = None
     global _MPU_WORLD_SIZE

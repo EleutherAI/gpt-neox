@@ -20,7 +20,7 @@ except ModuleNotFoundError:
     pass
 
 from megatron.model.norms import get_norm
-from megatron import mpu
+from megatron import mpu, device_backend
 
 # Mamba sublayer, with tensor parallelism
 class ParallelMambaBlock(nn.Module):
@@ -40,7 +40,7 @@ class ParallelMambaBlock(nn.Module):
             "fp32": torch.float32,
         }[neox_args.precision]
         self.precision = dtype
-        factory_kwargs = {"device": torch.cuda.current_device(), "dtype": dtype}
+        factory_kwargs = {"device": device_backend.current_device(), "dtype": dtype}
 
         assert not (
             neox_args.mamba_use_bias_in_linears and neox_args.mamba_inner_func_fusion
@@ -154,7 +154,7 @@ class ParallelMambaBlock(nn.Module):
                 1,
                 self.d_state + 1,
                 dtype=torch.float32,
-                device=torch.cuda.current_device(),
+                device=device_backend.current_device(),
             ),
             "n -> d n",
             d=self.d_inner_per_rank,
@@ -175,7 +175,7 @@ class ParallelMambaBlock(nn.Module):
         self.D = nn.Parameter(
             torch.ones(
                 self.d_inner_per_rank,
-                device=torch.cuda.current_device(),
+                device=device_backend.current_device(),
                 dtype=torch.float32,
             )
         ).to(

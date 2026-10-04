@@ -23,7 +23,7 @@ import time
 import numpy as np
 import torch
 
-from megatron import mpu, print_rank_0
+from megatron import mpu, print_rank_0, device_backend
 
 
 class PairwiseDataset(torch.utils.data.Dataset):
@@ -345,7 +345,7 @@ def _build_index_mappings(
     # This should be a barrier but nccl barrier assumes
     # device_index=rank which is not the case for model
     # parallel case
-    counts = torch.cuda.LongTensor([1])
+    counts = torch.LongTensor([1]).to(device_backend.device())
     torch.distributed.all_reduce(counts, group=mpu.get_io_parallel_group())
     assert counts[0].item() == torch.distributed.get_world_size(
         group=mpu.get_io_parallel_group()

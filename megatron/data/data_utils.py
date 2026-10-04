@@ -19,7 +19,7 @@ from typing import List, Tuple
 from itertools import zip_longest, cycle
 from functools import partial
 
-from megatron import mpu, print_rank_0
+from megatron import mpu, print_rank_0, device_backend
 from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
 from megatron.data.blendable_dataset import BlendableDataset
 from megatron.data.gpt2_dataset import GPT2Dataset
@@ -568,6 +568,7 @@ def build_train_valid_test_data_loaders(neox_args):
         pipe_load
         and (neox_args.dataset_impl == "online")
         and (mpu.get_model_parallel_rank() == 0)
+        and (mpu.get_context_parallel_rank() == 0)
     ):
         # Can skip most of the work...
         train_iters = neox_args.train_iters
@@ -612,7 +613,7 @@ def build_train_valid_test_data_loaders(neox_args):
         do_valid = valid_dataloader is not None and neox_args.eval_iters > 0
         do_test = test_dataloader is not None and neox_args.eval_iters > 0
         # Need to broadcast num_tokens and num_type_tokens.
-        flags = torch.cuda.LongTensor([int(do_train), int(do_valid), int(do_test)])
+        flags = torch.LongTensor([int(do_train), int(do_valid), int(do_test)]).to(device_backend.device())
     elif mpu.get_model_parallel_rank() == 0 and pipe_load:
         # Number of train/valid/test samples.
         if neox_args.train_iters is not None:
@@ -763,9 +764,9 @@ def build_train_valid_test_data_loaders(neox_args):
             ) and neox_args.eval_iters > 0
 
         # Need to broadcast num_tokens and num_type_tokens.
-        flags = torch.cuda.LongTensor([int(do_train), int(do_valid), int(do_test)])
+        flags = torch.LongTensor([int(do_train), int(do_valid), int(do_test)]).to(device_backend.device())
     else:
-        flags = torch.cuda.LongTensor([0, 0, 0])
+        flags = torch.LongTensor([0, 0, 0]).to(device_backend.device())
 
     # Broadcast num tokens.
     if neox_args.is_pipe_parallel:

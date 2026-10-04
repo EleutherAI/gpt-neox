@@ -40,7 +40,7 @@ from megatron.utils import (
     reduce_losses,
 )
 
-from megatron import print_rank_0, mpu
+from megatron import print_rank_0, mpu, device_backend
 from megatron.model import (
     GPT2ModelPipe,
     SoftEmbedding,
@@ -65,6 +65,7 @@ from megatron.utils import (
 from megatron.model.weight_server import start_server
 from megatron.model.gpt2_model import cross_entropy
 from megatron.mpu import vocab_parallel_cross_entropy
+from megatron.mpu.data import scatter_data
 
 from pickle import dump
 import os
@@ -203,9 +204,9 @@ def update_iterations(neox_args, data_loaders):
                 train_dataloader_len * train_epochs
             ) // gradient_accumulation_steps
 
-            train_iters_tensor = torch.cuda.LongTensor([train_iterations])
+            train_iters_tensor = torch.LongTensor([train_iterations]).to(device_backend.device())
         else:
-            train_iters_tensor = torch.cuda.LongTensor([0])
+            train_iters_tensor = torch.LongTensor([0]).to(device_backend.device())
 
         torch.distributed.broadcast(train_iters_tensor, src=0)
 
@@ -548,7 +549,11 @@ def get_batch_pipe(data, neox_args, curr_scheduler=None):
             ].contiguous()
 
     # unpack data
-    return (tokens, position_ids, attention_mask), (labels, loss_mask)
+    return ((scatter_data(tokens, zigzag=neox_args.zigzag_tokens), 
+        scatter_data(position_ids, zigzag=neox_args.zigzag_tokens), 
+        scatter_data(attention_mask, zigzag=neox_args.zigzag_tokens)), 
+        (scatter_data(labels, zigzag=neox_args.zigzag_tokens), 
+        scatter_data(loss_mask, zigzag=neox_args.zigzag_tokens)))
 
 
 def get_batch_sequential(forward_input, neox_args):
@@ -579,7 +584,7 @@ def forward_step(
 
     # Get the batch.
     if neox_args.memory_profiling and neox_args.iteration:
-        torch.cuda.nvtx.range_push(f"Get batch")
+        device_backend.nvtx.range_push(f"Get batch")
     if timers is not None:
         timers("batch generator").start()
     if neox_args.train_impl == "normal":
@@ -614,10 +619,10 @@ def forward_step(
     if timers is not None:
         timers("batch generator").stop()
     if neox_args.memory_profiling:
-        torch.cuda.nvtx.range_pop()
+        device_backend.nvtx.range_pop()
 
     if neox_args.memory_profiling:
-        torch.cuda.nvtx.range_push(f"Forward pass")
+        device_backend.nvtx.range_push(f"Forward pass")
     metrics = {}
     if neox_args.train_impl == "normal":
         outputs = model((tokens, position_ids, attention_mask), neox_args=neox_args)
@@ -892,7 +897,7 @@ def forward_step(
             loss = (loss * loss_mask).sum(-1) / loss_mask_sum
             loss = loss.mean()
     if neox_args.memory_profiling:
-        torch.cuda.nvtx.range_pop()
+        device_backend.nvtx.range_pop()
     if return_logits:
         return loss, outputs, metrics
     return loss, metrics
@@ -1110,11 +1115,13 @@ def get_optimizer(model, neox_args, dummy=False):
                     )
                     from deepspeed.ops.adam import FusedAdam as Adam
                 adam_optimizer = Adam
+                
         optimizer = adam_optimizer(
             param_groups,
             weight_decay=neox_args.weight_decay,
             **neox_args.optimizer["params"],
         )
+        print("created adam opt")
     elif neox_args.optimizer_type.lower() == "sgd":
         try:
             from mup import MuSGD
@@ -1177,7 +1184,7 @@ def get_learning_rate_scheduler(optimizer, neox_args):
 def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
     """Setup memory profiler"""
     if neox_args.memory_profiling:
-        torch.cuda.memory._record_memory_history(
+        device_backend.memory()._record_memory_history(
             True,
             # keep a maximum 100,000 alloc/free events from before the snapshot
             trace_alloc_max_entries=100000,
@@ -1362,7 +1369,7 @@ def train_step(
                 and neox_args.iteration >= neox_args.profile_step_start
                 and neox_args.iteration <= neox_args.profile_step_stop
             ):
-                torch.cuda.nvtx.range_push(f"Backward pass")
+                device_backend.nvtx.range_push(f"Backward pass")
             timers("backward").start()
             backward_step(
                 neox_args=neox_args,
@@ -1377,14 +1384,14 @@ def train_step(
                 and neox_args.iteration >= neox_args.profile_step_start
                 and neox_args.iteration <= neox_args.profile_step_stop
             ):
-                torch.cuda.nvtx.range_pop()
+                device_backend.nvtx.range_pop()
             # Update parameters.
             if (
                 neox_args.profile
                 and neox_args.iteration >= neox_args.profile_step_start
                 and neox_args.iteration <= neox_args.profile_step_stop
             ):
-                torch.cuda.nvtx.range_push(f"Optimizer step")
+                device_backend.nvtx.range_push(f"Optimizer step")
 
             timers("optimizer").start()
             if neox_args.deepspeed:
@@ -1397,7 +1404,7 @@ def train_step(
                 and neox_args.iteration >= neox_args.profile_step_start
                 and neox_args.iteration <= neox_args.profile_step_stop
             ):
-                torch.cuda.nvtx.range_pop()
+                device_backend.nvtx.range_pop()
             if (
                 neox_args.profile
                 and neox_args.iteration >= neox_args.profile_step_start
@@ -1515,7 +1522,7 @@ def train(
         if neox_args.profile:
             prof.step()
         if neox_args.profile and iteration == neox_args.profile_step_start:
-            torch.cuda.cudart().cudaProfilerStart()
+            device_backend.cudart().cudaProfilerStart()
         loss_dict, skipped_iter = train_step(
             neox_args=neox_args,
             timers=timers,
@@ -1526,7 +1533,7 @@ def train(
             reference_model=reference_model,
         )
         if neox_args.profile and iteration == neox_args.profile_step_stop:
-            torch.cuda.cudart().cudaProfilerStop()
+            device_backend.cudart().cudaProfilerStop()
             prof.stop()
         iteration += 1
         neox_args.iteration = iteration
@@ -1858,7 +1865,7 @@ def save_snapshot(neox_args):
     assert (
         neox_args.memory_profiling_path is not None
     ), "Must pass memory_profiling_path config arg to use profiling"
-    snapshot = torch.cuda.memory._snapshot()
+    snapshot = device_backend.memory()._snapshot()
     snapshot_path = os.path.join(neox_args.memory_profiling_path)
     if not os.path.exists(snapshot_path):
         os.makedirs(snapshot_path)

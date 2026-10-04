@@ -36,6 +36,7 @@ from deepspeed.launcher.runner import DLTS_HOSTFILE
 from megatron.logging import Tee
 from megatron.tokenizer import build_tokenizer
 from megatron.utils import obtain_resource_pool, expand_attention_types
+from megatron import device_backend
 from .deepspeed_args import NeoXArgsDeepspeedConfig, NeoXArgsDeepspeedRunner
 from .neox_args import (
     NeoXArgsModel,
@@ -905,7 +906,7 @@ class NeoXArgs(*BASE_CLASSES):
                 if self.num_gpus is not None and self.num_gpus > 0:
                     global_num_gpus = self.num_gpus * len(resources)
             else:
-                global_num_gpus = torch.cuda.device_count()
+                global_num_gpus = device_backend.device_count()
             self.update_value("global_num_gpus", global_num_gpus)
 
         logging.info(
@@ -920,10 +921,12 @@ class NeoXArgs(*BASE_CLASSES):
         pp_size = pp_size if pp_size >= 1 else 1
         mp_size = self.model_parallel_size
         mp_size = mp_size if mp_size >= 1 else 1
+        cp_size = self.context_parallel_size
+        cp_size = cp_size if cp_size >=1 else 1
         self.update_value("model_parallel_size", mp_size)
 
         # pp_size and mp_size are only used here to compute dp world size and nowhere else.
-        dp_world_size = (global_num_gpus / pp_size) / mp_size
+        dp_world_size = ((global_num_gpus / pp_size) / mp_size) / cp_size
         if not (dp_world_size % 1 == 0):
             error_message = (
                 f"{ERROR}"

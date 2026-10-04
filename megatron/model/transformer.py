@@ -27,7 +27,7 @@ from pkg_resources import packaging
 from importlib.metadata import version
 
 from .norms import get_norm
-from megatron import mpu
+from megatron import mpu, device_backend
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
 from megatron.model.activations import get_activation
 from megatron.model.utils import exists, get_fusion_type
@@ -52,6 +52,19 @@ try:
     from flash_attn.ops.activations import swiglu
 except ImportError:
     swiglu = None
+
+try:
+    from ringX_attn import (
+        ringX1_attn_func,
+        ringX2_attn_func,
+        ringX3_attn_func,
+        ringX4_attn_func,
+    )
+except ImportError:
+    ringX1_attn_func = None
+    ringX2_attn_func = None
+    ringX3_attn_func = None
+    ringX4_attn_func = None
 
 from .utils import get_parallel_linear
 
@@ -404,7 +417,33 @@ class ParallelSelfAttention(nn.Module):
 
         self.rope_fusion = neox_args.rope_fusion
         self.attention_type = neox_args.attention_config[layer_number]
+        self.ring_attention_types = ("ringX1", "ringX2", "ringX3", "ringX4")
+        self.use_ring_attention = self.attention_type in self.ring_attention_types
         self.use_flash_attention = self.attention_type == "flash"
+
+        if self.use_ring_attention:
+            ring_attention_funcs = {
+                "ringX1": ringX1_attn_func,
+                "ringX2": ringX2_attn_func,
+                "ringX3": ringX3_attn_func,
+                "ringX4": ringX4_attn_func,
+            }
+            self.ring_attention_func = ring_attention_funcs[self.attention_type]
+            if self.ring_attention_func is None:
+                raise ImportError(
+                    "RingX attention was selected, but the ringX-attention package "
+                    "is not installed. Install ringX-attention before using "
+                    f"{self.attention_type}."
+                )
+            if self.pos_emb == "alibi" or self.rpe is not None:
+                raise ValueError(
+                    "RingX attention does not support ALiBi or relative position "
+                    "embeddings in this integration."
+                )
+            if self.use_cache:
+                raise ValueError(
+                    "RingX attention does not support KV caching."
+                )
         self.use_triton = (
             self.use_flash_attention
             and self.pos_emb == "alibi"
@@ -413,7 +452,14 @@ class ParallelSelfAttention(nn.Module):
                 >= packaging.version.Version("2.4.0.post1")
             )
         )
-        self.sparse = self.attention_type not in ("global", "flash")
+        self.sparse = self.attention_type not in (
+            "global",
+            "flash",
+            "ringX1",
+            "ringX2",
+            "ringX3",
+            "ringX4",
+        )
 
         if self.gqa:
             assert not self.sparse
@@ -495,7 +541,7 @@ class ParallelSelfAttention(nn.Module):
             output_size[2],
             output_size[3],
             dtype=query_layer.dtype,
-            device=torch.cuda.current_device(),
+            device=device_backend.current_device(),
         )
 
         # Raw attention scores. [b * np, sq, sk]
@@ -689,6 +735,55 @@ class ParallelSelfAttention(nn.Module):
 
         return matmul_result
 
+    def ring_attention(self, query_layer, key_layer, value_layer):
+        # RingX expects [batch, sequence, heads, head_dim], while NeoX
+        # represents attention tensors as [sequence, batch, heads, head_dim].
+        query_layer = query_layer.transpose(0, 1).contiguous()
+        key_layer = key_layer.transpose(0, 1).contiguous()
+        value_layer = value_layer.transpose(0, 1).contiguous()
+
+        context_parallel_group = mpu.get_context_parallel_group()
+
+        if context_parallel_group is None:
+            raise RuntimeError(
+                "RingX attention requires a context-parallel process group."
+            )
+
+        # RingX operates on the sequence shard owned by each context-parallel
+        # rank and communicates K/V (or Q) across the context-parallel group.
+        # X3 and X4 split the local sequence in half internally.
+        if self.attention_type in ("ringX3", "ringX4"):
+            assert query_layer.size(1) % 2 == 0, (
+                f"{self.attention_type} requires an even local sequence length, "
+                f"got {query_layer.size(1)}."
+            )
+
+        # The GPT-NeoX attention path is causal, so use causal=True for all
+        # RingX implementations. X1 also supports causal execution in the
+        # underlying implementation, although it is primarily intended for
+        # bidirectional attention.
+        output = self.ring_attention_func(
+            query_layer,
+            key_layer,
+            value_layer,
+            dropout_p=self.dropout_p if self.training else 0.0,
+            softmax_scale=None,
+            causal=True,
+            window_size=(
+                (self.sliding_window_width, -1)
+                if self.sliding_window_width is not None
+                else (-1, -1)
+            ),
+            alibi_slopes=None,
+            deterministic=False,
+            return_attn_probs=False,
+            group=context_parallel_group,
+        )
+
+        # RingX returns [batch, sequence, heads, head_dim]; the rest of this
+        # class expects [batch, heads, sequence, head_dim].
+        return output.permute(0, 2, 1, 3).contiguous()
+
     def sparse_attention(self, query_layer, key_layer, value_layer, attention_mask):
         # TODO: sparse attn dropout?
         # TODO: pad to block size
@@ -873,7 +968,11 @@ class ParallelSelfAttention(nn.Module):
         if self.use_cache:
             present = torch.stack((key_layer, value_layer))
 
-        if self.use_flash_attention:
+        if self.use_ring_attention:
+            context_layer = self.ring_attention(
+                query_layer, key_layer, value_layer
+            )
+        elif self.use_flash_attention:
             context_layer = self.flash_attention(query_layer, key_layer, value_layer)
         elif not self.sparse:
             context_layer = self.attention(

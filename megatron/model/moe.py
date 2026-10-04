@@ -11,7 +11,7 @@ import megablocks.ops
 import numpy as np
 import torch
 
-from megatron import mpu
+from megatron import mpu, device_backend
 from megatron.mpu import get_expert_token_counts_for_rank
 from megatron.mpu import get_expert_tokens_for_rank
 from megatron.mpu import copy_to_expert_model_parallel_region
@@ -133,8 +133,6 @@ class ParallelDroplessMLP(torch.nn.Module):
         # get tokens_per_expert for this rank's experts only
         # with torch.no_grad():
         local_tokens_per_expert = get_expert_token_counts_for_rank(tokens_per_expert)
-        # if torch.cuda.current_device() == 0:
-        #     print(f"{torch.cuda.current_device()}: local_tokens_per_expert {local_tokens_per_expert}, global tokens {tokens_per_expert}")
 
         # Perform the expert computation for this rank's experts
         output_parallel = self.mlp(input_parallel, local_tokens_per_expert)
@@ -196,9 +194,9 @@ class ParallelDroplessMLP(torch.nn.Module):
 
 def cast_if_autocast_enabled(tensor: torch.Tensor):
     if torch.is_autocast_enabled():
-        if tensor.device.type == "cuda":
+        if tensor.device_backend.type == "cuda" or tensor.device_backend.type == "xpu":
             dtype = torch.get_autocast_gpu_dtype()
-        elif tensor.device.type == "cpu":
+        elif tensor.device_backend.type == "cpu":
             dtype = torch.get_autocast_cpu_dtype()
         else:
             raise NotImplementedError()

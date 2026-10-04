@@ -14,6 +14,7 @@
 
 import torch
 import math
+from megatron import device_backend
 
 
 class SinusoidalPositionalEmbedding(torch.nn.Module):
@@ -79,7 +80,7 @@ class RotaryEmbedding(torch.nn.Module):
         )
 
     def get_emb(self):
-        return self.emb.to(self.precision).cuda()
+        return self.emb.to(self.precision).to(device_backend.device())
 
     def forward(self, x, seq_dim=0, seq_len=None):
         if seq_len is None:

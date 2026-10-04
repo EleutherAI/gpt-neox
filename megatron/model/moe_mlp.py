@@ -17,6 +17,7 @@
 
 import torch
 from megatron.model.activations import get_activation
+from megatron import device_backend
 
 from megatron.mpu.layers import _initialize_affine_weight_gpu
 from megatron.mpu.initialize import get_model_parallel_world_size
@@ -29,13 +30,13 @@ from megablocks import grouped_gemm_util as gg
 
 class ScaleGradient(torch.autograd.Function):
     @staticmethod
-    @torch.cuda.amp.custom_fwd
+    @device_backend.amp.custom_fwd
     def forward(ctx, x, scale):
         ctx.scale = scale
         return x
 
     @staticmethod
-    @torch.cuda.amp.custom_bwd
+    @device_backend.amp.custom_bwd
     def backward(ctx, grad):
         return grad * ctx.scale, None
 
@@ -47,7 +48,7 @@ class MemoryOptimizedParallelGroupedMLP(torch.autograd.Function):
     """GroupedMLP with manually scheduled memory reuse."""
 
     @staticmethod
-    @torch.cuda.amp.custom_fwd
+    @device_backend.amp.custom_fwd
     def forward(ctx, x, w1, w2, batch_sizes, activation_fn):
         # x: [m, k], w1: [n, k], w2: [n, k]
         if not x.is_contiguous() or not w1.is_contiguous() or not w2.is_contiguous():
@@ -74,7 +75,7 @@ class MemoryOptimizedParallelGroupedMLP(torch.autograd.Function):
         return dsd_out
 
     @staticmethod
-    @torch.cuda.amp.custom_bwd
+    @device_backend.amp.custom_bwd
     def backward(ctx, ddsd_out):
         if (
             not ctx.needs_input_grad[0]
@@ -175,7 +176,7 @@ class ParallelGroupedMLP(torch.nn.Module):
             torch.empty(
                 self.num_rows_per_rank,
                 self.hidden_size,
-                device=torch.cuda.current_device(),
+                device=device_backend.current_device(),
                 dtype=neox_args.params_dtype,
             )
         )
@@ -188,7 +189,7 @@ class ParallelGroupedMLP(torch.nn.Module):
             torch.empty(
                 self.num_rows_per_rank,
                 self.hidden_size,
-                device=torch.cuda.current_device(),
+                device=device_backend.current_device(),
                 dtype=neox_args.params_dtype,
             )
         )
@@ -227,7 +228,7 @@ class MemoryOptimizedParallelGroupedLLaMAMLP(torch.autograd.Function):
     """GroupedMLP with manually scheduled memory reuse."""
 
     @staticmethod
-    @torch.cuda.amp.custom_fwd
+    @device_backend.amp.custom_fwd
     def forward(ctx, x, w1, w3, w2, batch_sizes, activation_fn):
         # x: [m, k], w1: [n, k], w3: [n, k], w2: [n, k]
         if (
@@ -260,7 +261,7 @@ class MemoryOptimizedParallelGroupedLLaMAMLP(torch.autograd.Function):
         return dsd_out
 
     @staticmethod
-    @torch.cuda.amp.custom_bwd
+    @device_backend.amp.custom_bwd
     def backward(ctx, ddsd_out):
         if (
             not ctx.needs_input_grad[0]
@@ -365,7 +366,7 @@ class ParallelGroupedLLaMAMLP(torch.nn.Module):
             torch.empty(
                 self.num_rows_per_rank,
                 self.hidden_size,
-                device=torch.cuda.current_device(),
+                device=device_backend.current_device(),
                 dtype=neox_args.params_dtype,
             )
         )
@@ -378,7 +379,7 @@ class ParallelGroupedLLaMAMLP(torch.nn.Module):
             torch.empty(
                 self.num_rows_per_rank,
                 self.hidden_size,
-                device=torch.cuda.current_device(),
+                device=device_backend.current_device(),
                 dtype=neox_args.params_dtype,
             )
         )
@@ -391,7 +392,7 @@ class ParallelGroupedLLaMAMLP(torch.nn.Module):
             torch.empty(
                 self.num_rows_per_rank,
                 self.hidden_size,
-                device=torch.cuda.current_device(),
+                device=device_backend.current_device(),
                 dtype=neox_args.params_dtype,
             )
         )
