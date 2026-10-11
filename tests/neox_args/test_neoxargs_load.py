@@ -98,6 +98,8 @@ def test_strip_deprecated_config_keys(monkeypatch):
     monkeypatch.setitem(arguments.DEPRECATED_ARGS, "removed_option", None)
     with pytest.raises(ValueError, match="'removed_option' has been removed"):
         strip({"removed_option": 1})
+    with pytest.raises(ValueError, match="'sparse_attention' has been removed"):
+        strip({"sparse_attention": {"block": 32}})
 
 
 @pytest.mark.cpu

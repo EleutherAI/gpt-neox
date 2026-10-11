@@ -101,7 +101,7 @@ AUTOTUNING_ARGS = (
 )
 
 # deprecated config key -> its replacement (None if it has none)
-DEPRECATED_ARGS = {"clip_grad": "gradient_clipping"}
+DEPRECATED_ARGS = {"clip_grad": "gradient_clipping", "sparse_attention": None}
 
 BASE_CLASSES = [
     NeoXArgsDeepspeedRunner,
