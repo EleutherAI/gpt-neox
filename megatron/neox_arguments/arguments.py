@@ -100,6 +100,9 @@ AUTOTUNING_ARGS = (
     "autotuning",
 )
 
+# deprecated config key -> its replacement (None if it has none)
+DEPRECATED_ARGS = {"clip_grad": "gradient_clipping"}
+
 BASE_CLASSES = [
     NeoXArgsDeepspeedRunner,
     NeoXArgsDeepspeedConfig,
@@ -223,12 +226,26 @@ class NeoXArgs(*BASE_CLASSES):
     @staticmethod
     def _strip_deprecated_config_keys(config: Dict) -> Dict:
         config = config.copy()
-        if "clip_grad" in config:
+        for old, new in DEPRECATED_ARGS.items():
+            if old not in config:
+                continue
+            value = config.pop(old)
+            if new is None:
+                logging.warning(
+                    f"Configuration option '{old}' is deprecated and ignored."
+                )
+                continue
+            if new in config:
+                raise ValueError(
+                    f"Configuration sets both '{old}: {value}' and "
+                    f"'{new}: {config[new]}'. '{old}' is deprecated: "
+                    f"remove it and keep only '{new}'."
+                )
+            config[new] = value
             logging.warning(
-                "Configuration option 'clip_grad' is deprecated and ignored; "
-                "use 'gradient_clipping' instead."
+                f"Configuration option '{old}' is deprecated and used as "
+                f"'{new}: {value}'; use '{new}' instead."
             )
-            config.pop("clip_grad")
         return config
 
     @classmethod

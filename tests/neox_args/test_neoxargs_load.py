@@ -76,18 +76,32 @@ def test_gradient_clipping_is_passed_to_deepspeed():
 
 
 @pytest.mark.cpu
-def test_deprecated_clip_grad_does_not_break_config_loading():
-    """Legacy clip_grad configs should load without changing clipping behavior."""
+def test_clip_grad_with_gradient_clipping_raises():
     from megatron.neox_arguments import NeoXArgs
 
-    args_loaded = NeoXArgs.from_ymls(
-        get_configs_with_path(["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]),
-        overwrite_values={"clip_grad": 0.5},
-    )
+    with pytest.raises(ValueError, match="sets both 'clip_grad: 0.5'"):
+        NeoXArgs.from_ymls(
+            get_configs_with_path(
+                ["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]
+            ),
+            overwrite_values={"clip_grad": 0.5},
+        )
 
-    assert args_loaded.gradient_clipping == 1.0
-    assert args_loaded.deepspeed_config["gradient_clipping"] == 1.0
-    assert not hasattr(args_loaded, "clip_grad")
+
+@pytest.mark.cpu
+@pytest.mark.parametrize(
+    "config, expected",
+    [
+        ({"clip_grad": 0.5}, {"gradient_clipping": 0.5}),
+        ({"removed_option": 1}, {}),
+    ],
+)
+def test_strip_deprecated_config_keys(config, expected, monkeypatch):
+    from megatron.neox_arguments import NeoXArgs, arguments
+
+    monkeypatch.setitem(arguments.DEPRECATED_ARGS, "removed_option", None)
+
+    assert NeoXArgs._strip_deprecated_config_keys(config) == expected
 
 
 @pytest.mark.cpu
