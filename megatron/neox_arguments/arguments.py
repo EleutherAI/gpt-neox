@@ -231,10 +231,10 @@ class NeoXArgs(*BASE_CLASSES):
                 continue
             value = config.pop(old)
             if new is None:
-                logging.warning(
-                    f"Configuration option '{old}' is deprecated and ignored."
+                raise ValueError(
+                    f"Configuration option '{old}' has been removed; "
+                    f"delete it from your config."
                 )
-                continue
             if new in config:
                 raise ValueError(
                     f"Configuration sets both '{old}: {value}' and "

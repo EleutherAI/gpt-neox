@@ -89,19 +89,15 @@ def test_clip_grad_with_gradient_clipping_raises():
 
 
 @pytest.mark.cpu
-@pytest.mark.parametrize(
-    "config, expected",
-    [
-        ({"clip_grad": 0.5}, {"gradient_clipping": 0.5}),
-        ({"removed_option": 1}, {}),
-    ],
-)
-def test_strip_deprecated_config_keys(config, expected, monkeypatch):
+def test_strip_deprecated_config_keys(monkeypatch):
     from megatron.neox_arguments import NeoXArgs, arguments
 
-    monkeypatch.setitem(arguments.DEPRECATED_ARGS, "removed_option", None)
+    strip = NeoXArgs._strip_deprecated_config_keys
+    assert strip({"clip_grad": 0.5}) == {"gradient_clipping": 0.5}
 
-    assert NeoXArgs._strip_deprecated_config_keys(config) == expected
+    monkeypatch.setitem(arguments.DEPRECATED_ARGS, "removed_option", None)
+    with pytest.raises(ValueError, match="'removed_option' has been removed"):
+        strip({"removed_option": 1})
 
 
 @pytest.mark.cpu
