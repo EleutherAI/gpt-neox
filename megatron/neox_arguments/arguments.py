@@ -1023,20 +1023,6 @@ class NeoXArgs(*BASE_CLASSES):
                         "zero_stage": self.zero_optimization.get(
                             "stage", ZERO_DEFAULTS["stage"]
                         ),
-                        "zero_reduce_scatter": self.zero_optimization.get(
-                            "reduce_scatter", ZERO_DEFAULTS["reduce_scatter"]
-                        ),
-                        "zero_contiguous_gradients": self.zero_optimization.get(
-                            "contiguous_gradients",
-                            ZERO_DEFAULTS["contiguous_gradients"],
-                        ),
-                        "zero_reduce_bucket_size": self.zero_optimization.get(
-                            "reduce_bucket_size", ZERO_DEFAULTS["reduce_bucket_size"]
-                        ),
-                        "zero_allgather_bucket_size": self.zero_optimization.get(
-                            "allgather_bucket_size",
-                            ZERO_DEFAULTS["allgather_bucket_size"],
-                        ),
                     }
                 )
             else:
