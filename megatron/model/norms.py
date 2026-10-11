@@ -113,6 +113,5 @@ class ScaleNorm(torch.nn.Module):
 
 class NonParametricLayernorm(torch.nn.LayerNorm):
     def __init__(self, dim, eps=1e-5):
-        super().__init__(
-            normalized_shape=dim, eps=eps, elementwise_affine=False, bias=False
-        )
+        # elementwise_affine=False already drops the bias; `bias=` needs torch>=2.1.
+        super().__init__(normalized_shape=dim, eps=eps, elementwise_affine=False)

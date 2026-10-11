@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import socket
+from contextlib import contextmanager
 from types import SimpleNamespace
 
 import pytest
@@ -23,10 +25,21 @@ import torch.multiprocessing as mp
 import megatron.model.transformer as transformer
 from megatron import mpu
 from megatron.model.norms import NonParametricLayernorm, RMSNorm, ScaleNorm, get_norm
+from megatron.model.utils import mark_norms_for_sequence_parallel_grad_sync
+from megatron.neox_arguments import NeoXArgs
 from megatron.neox_arguments.arguments import _validate_qk_norm_args
 from megatron.model.transformer import (
     _apply_qk_norm_across_tp,
+    _configure_qk_norm_tp_grads,
 )
+
+pytestmark = pytest.mark.cpu
+
+
+def assert_close(actual, expected, rtol=1.3e-6, atol=1.0e-5):
+    # torch.testing.assert_close needs torch>=1.9; CPU CI pins 1.8.
+    assert actual.shape == expected.shape
+    assert torch.allclose(actual, expected, rtol=rtol, atol=atol), (actual, expected)
 
 
 def validate_qk_args(**overrides):
@@ -116,9 +129,7 @@ def test_qk_norm_validation_rejects_unknown_type():
         ),
     ],
 )
-def test_qk_norm_across_tp_rejects_internal_statistics_kernels(
-    overrides, message
-):
+def test_qk_norm_across_tp_rejects_internal_statistics_kernels(overrides, message):
     with pytest.raises(ValueError, match=message):
         validate_qk_args(qk_norm_across_tp=True, **overrides)
 
@@ -156,6 +167,60 @@ def test_qk_norm_options_require_qk_norm_to_be_enabled(overrides):
         validate_qk_args(use_qk_norm=False, **overrides)
 
 
+def test_qk_norm_rejects_transformer_engine_attention():
+    with pytest.raises(ValueError, match="te_mha"):
+        validate_qk_args(te_mha=True)
+    validate_qk_args(use_qk_norm=False, te_mha=True)
+
+
+def test_renamed_use_qk_layernorm_is_rejected():
+    with pytest.raises(ValueError, match="renamed to `use_qk_norm`"):
+        NeoXArgs.from_dict({"use_qk_layernorm": True})
+
+
+def _make_norm(norm_type, size, device="cpu"):
+    norm_class = {
+        "rmsnorm": RMSNorm,
+        "layernorm": torch.nn.LayerNorm,
+        "scalenorm": ScaleNorm,
+    }[norm_type]
+    norm = norm_class([size], eps=1.0e-6).to(device)
+    with torch.no_grad():
+        for parameter in norm.parameters():
+            parameter.copy_(torch.linspace(0.75, 1.25, parameter.numel()))
+    return norm
+
+
+def _mark_tp_grads(q_norm, k_norm, qk_norm_type, norm_type, across_tp, world_size=2):
+    # What model construction does, with sequence parallelism enabled.
+    _configure_qk_norm_tp_grads(
+        q_norm, k_norm, qk_norm_type, norm_type, across_tp, world_size
+    )
+    mark_norms_for_sequence_parallel_grad_sync(
+        torch.nn.ModuleList([q_norm, k_norm]), SimpleNamespace(sequence_parallel=True)
+    )
+
+
+@pytest.mark.parametrize(
+    ("qk_norm_type", "norm_type", "across_tp", "world_size", "hooked", "sliced"),
+    [
+        ("per_head", "rmsnorm", False, 2, True, False),
+        ("across_heads", "rmsnorm", False, 2, False, True),
+        ("across_heads", "rmsnorm", True, 2, False, True),
+        ("across_heads", "scalenorm", True, 2, False, False),
+        ("per_head", "rmsnorm", False, 1, False, False),
+    ],
+)
+def test_qk_norm_tp_grad_handling(
+    qk_norm_type, norm_type, across_tp, world_size, hooked, sliced
+):
+    norm = _make_norm(norm_type, 4)
+    _mark_tp_grads(norm, norm, qk_norm_type, norm_type, across_tp, world_size)
+    for parameter in norm.parameters():
+        assert bool(parameter._backward_hooks) == hooked
+        assert getattr(parameter, "model_parallel", False) == sliced
+
+
 def test_qk_rmsnorm_across_tp_packs_stats_into_one_collective(monkeypatch):
     query = torch.tensor([[[1.0, 2.0]]])
     key = torch.tensor([[[2.0]]])
@@ -185,14 +250,14 @@ def test_qk_rmsnorm_across_tp_packs_stats_into_one_collective(monkeypatch):
     )
 
     assert len(calls) == 1
-    torch.testing.assert_close(calls[0][0], torch.tensor([[[5.0, 4.0]]]))
+    assert_close(calls[0][0], torch.tensor([[[5.0, 4.0]]]))
     assert calls[0][1] == torch.distributed.ReduceOp.SUM
     assert calls[0][2] is model_parallel_group
-    torch.testing.assert_close(
+    assert_close(
         normalized_query,
         query * torch.rsqrt(torch.tensor(30.0 / 4.0)) * q_norm.scale,
     )
-    torch.testing.assert_close(
+    assert_close(
         normalized_key,
         key * torch.rsqrt(torch.tensor(20.0 / 2.0)) * k_norm.scale,
     )
@@ -229,20 +294,16 @@ def test_qk_norm_layernorm_across_tp_packs_stats_into_one_collective(monkeypatch
     )
 
     assert len(calls) == 1
-    torch.testing.assert_close(
-        calls[0][0], torch.tensor([[[4.0, 10.0, 2.0, 4.0]]])
-    )
+    assert_close(calls[0][0], torch.tensor([[[4.0, 10.0, 2.0, 4.0]]]))
     assert calls[0][1] == torch.distributed.ReduceOp.SUM
     assert calls[0][2] is model_parallel_group
-    torch.testing.assert_close(
+    assert_close(
         normalized_query,
-        (query - 4.0) * torch.rsqrt(torch.tensor(5.0)) * q_norm.weight
-        + q_norm.bias,
+        (query - 4.0) * torch.rsqrt(torch.tensor(5.0)) * q_norm.weight + q_norm.bias,
     )
-    torch.testing.assert_close(
+    assert_close(
         normalized_key,
-        (key - 4.0) * torch.rsqrt(torch.tensor(4.0)) * k_norm.weight
-        + k_norm.bias,
+        (key - 4.0) * torch.rsqrt(torch.tensor(4.0)) * k_norm.weight + k_norm.bias,
     )
 
 
@@ -267,12 +328,8 @@ def test_non_parametric_layernorm_across_tp_has_no_affine(monkeypatch):
         model_parallel_group=object(),
     )
 
-    torch.testing.assert_close(
-        normalized_query, (query - 4.0) * torch.rsqrt(torch.tensor(5.0))
-    )
-    torch.testing.assert_close(
-        normalized_key, (key - 4.0) * torch.rsqrt(torch.tensor(4.0))
-    )
+    assert_close(normalized_query, (query - 4.0) * torch.rsqrt(torch.tensor(5.0)))
+    assert_close(normalized_key, (key - 4.0) * torch.rsqrt(torch.tensor(4.0)))
 
 
 def test_qk_scalenorm_across_tp_packs_stats_into_one_collective(monkeypatch):
@@ -302,13 +359,9 @@ def test_qk_scalenorm_across_tp_packs_stats_into_one_collective(monkeypatch):
     )
 
     assert len(calls) == 1
-    torch.testing.assert_close(calls[0], torch.tensor([[[5.0, 4.0]]]))
-    torch.testing.assert_close(
-        normalized_query, query / torch.sqrt(torch.tensor(30.0)) * 2.0
-    )
-    torch.testing.assert_close(
-        normalized_key, key / torch.sqrt(torch.tensor(20.0)) * 4.0
-    )
+    assert_close(calls[0], torch.tensor([[[5.0, 4.0]]]))
+    assert_close(normalized_query, query / torch.sqrt(torch.tensor(30.0)) * 2.0)
+    assert_close(normalized_key, key / torch.sqrt(torch.tensor(20.0)) * 4.0)
 
 
 def _make_norm_with_matching_shard(norm_type, local_size, rank, device):
@@ -353,23 +406,39 @@ def _assert_norm_parameter_grads_match_full_projection(
             expected_grad = full_parameter.grad
         else:
             expected_grad = full_parameter.grad.chunk(2)[rank]
-        torch.testing.assert_close(local_parameter.grad, expected_grad)
+        assert_close(local_parameter.grad, expected_grad)
 
 
-def _run_distributed_qk_norm_test(rank, world_size, port):
-    torch.cuda.set_device(rank)
-    device = torch.device("cuda", rank)
+@contextmanager
+def _tp_rank(rank, world_size, port):
+    # NCCL on GPUs when available, otherwise gloo on CPU so this runs in CPU CI.
+    use_cuda = torch.cuda.device_count() >= world_size
+    if use_cuda:
+        torch.cuda.set_device(rank)
     dist.init_process_group(
-        backend="nccl",
+        backend="nccl" if use_cuda else "gloo",
         init_method=f"tcp://127.0.0.1:{port}",
         rank=rank,
         world_size=world_size,
     )
     mpu.initialize_model_parallel(world_size)
     try:
-        full_query_values = torch.tensor(
-            [[[1.0, 2.0, 4.0, 8.0]]], device=device
-        )
+        yield torch.device("cuda", rank) if use_cuda else torch.device("cpu")
+    finally:
+        mpu.destroy_model_parallel()
+        dist.destroy_process_group()
+
+
+def _spawn_two_ranks(worker):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as test_socket:
+        test_socket.bind(("127.0.0.1", 0))
+        port = test_socket.getsockname()[1]
+    mp.spawn(worker, args=(2, port), nprocs=2, join=True)
+
+
+def _run_distributed_qk_norm_test(rank, world_size, port):
+    with _tp_rank(rank, world_size, port) as device:
+        full_query_values = torch.tensor([[[1.0, 2.0, 4.0, 8.0]]], device=device)
         full_key_values = torch.tensor([[[3.0, 6.0]]], device=device)
         full_query_coefficients = torch.tensor(
             [[[0.5, -1.0, 1.5, -0.25]]], device=device
@@ -400,6 +469,7 @@ def _run_distributed_qk_norm_test(rank, world_size, port):
             local_k_norm, full_k_norm = _make_norm_with_matching_shard(
                 norm_type, local_key.size(-1), rank, device
             )
+            _mark_tp_grads(local_q_norm, local_k_norm, "across_heads", norm_type, True)
 
             local_query_output, local_key_output = _apply_qk_norm_across_tp(
                 local_query,
@@ -412,14 +482,12 @@ def _run_distributed_qk_norm_test(rank, world_size, port):
             )
             full_query_output = full_q_norm(full_query)
             full_key_output = full_k_norm(full_key)
-            expected_query_output = full_query_output.chunk(world_size, dim=-1)[
-                rank
-            ]
+            expected_query_output = full_query_output.chunk(world_size, dim=-1)[rank]
             expected_key_output = full_key_output.chunk(world_size, dim=-1)[rank]
-            torch.testing.assert_close(
+            assert_close(
                 local_query_output, expected_query_output, rtol=1.0e-5, atol=1.0e-6
             )
-            torch.testing.assert_close(
+            assert_close(
                 local_key_output, expected_key_output, rtol=1.0e-5, atol=1.0e-6
             )
 
@@ -427,22 +495,21 @@ def _run_distributed_qk_norm_test(rank, world_size, port):
                 local_query_output
                 * full_query_coefficients.chunk(world_size, dim=-1)[rank]
             ).sum() + (
-                local_key_output
-                * full_key_coefficients.chunk(world_size, dim=-1)[rank]
+                local_key_output * full_key_coefficients.chunk(world_size, dim=-1)[rank]
             ).sum()
-            full_loss = (
-                full_query_output * full_query_coefficients
-            ).sum() + (full_key_output * full_key_coefficients).sum()
+            full_loss = (full_query_output * full_query_coefficients).sum() + (
+                full_key_output * full_key_coefficients
+            ).sum()
             local_loss.backward()
             full_loss.backward()
 
-            torch.testing.assert_close(
+            assert_close(
                 local_query.grad,
                 full_query.grad.chunk(world_size, dim=-1)[rank],
                 rtol=1.0e-5,
                 atol=1.0e-6,
             )
-            torch.testing.assert_close(
+            assert_close(
                 local_key.grad,
                 full_key.grad.chunk(world_size, dim=-1)[rank],
                 rtol=1.0e-5,
@@ -454,22 +521,45 @@ def _run_distributed_qk_norm_test(rank, world_size, port):
             _assert_norm_parameter_grads_match_full_projection(
                 norm_type, local_k_norm, full_k_norm, rank
             )
-    finally:
-        mpu.destroy_model_parallel()
-        dist.destroy_process_group()
 
 
-@pytest.mark.skipif(
-    torch.cuda.device_count() < 2,
-    reason="two CUDA devices are required for cross-TP QK norm coverage",
-)
 def test_qk_norm_across_tp_matches_full_projection_forward_and_backward():
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as test_socket:
-        test_socket.bind(("127.0.0.1", 0))
-        port = test_socket.getsockname()[1]
-    mp.spawn(
-        _run_distributed_qk_norm_test,
-        args=(2, port),
-        nprocs=2,
-        join=True,
-    )
+    _spawn_two_ranks(_run_distributed_qk_norm_test)
+
+
+def _run_distributed_qk_norm_grad_sync_test(rank, world_size, port):
+    with _tp_rank(rank, world_size, port) as device:
+        # [heads, head_dim]; each rank holds one head.
+        query = torch.tensor([[1.0, 2.0], [4.0, 8.0]], device=device)
+        key = torch.tensor([[3.0, 6.0], [5.0, -2.0]], device=device)
+        query_coefficients = torch.tensor([[0.5, -1.0], [1.5, -0.25]], device=device)
+        key_coefficients = torch.tensor([[0.75, -1.25], [-0.5, 2.0]], device=device)
+        local = slice(rank, rank + 1)
+
+        def loss(norm, heads):
+            return (norm(query[heads]) * query_coefficients[heads]).sum() + (
+                norm(key[heads]) * key_coefficients[heads]
+            ).sum()
+
+        for norm_type in ("rmsnorm", "layernorm", "scalenorm"):
+            # per_head: one shared [H] weight, so every rank gets the TP=1 grad.
+            norm = _make_norm(norm_type, 2, device)
+            reference = copy.deepcopy(norm)
+            _mark_tp_grads(norm, norm, "per_head", norm_type, False)
+            loss(norm, local).backward()
+            loss(reference, slice(None)).backward()
+            for parameter, expected in zip(norm.parameters(), reference.parameters()):
+                assert_close(parameter.grad, expected.grad)
+
+            # Rank-local across_heads: weights are private, so grads stay local.
+            norm = _make_norm(norm_type, 2, device)
+            reference = copy.deepcopy(norm)
+            _mark_tp_grads(norm, norm, "across_heads", norm_type, False)
+            loss(norm, local).backward()
+            loss(reference, local).backward()
+            for parameter, expected in zip(norm.parameters(), reference.parameters()):
+                assert_close(parameter.grad, expected.grad)
+
+
+def test_qk_norm_grads_are_synced_per_mode_across_tp():
+    _spawn_two_ranks(_run_distributed_qk_norm_grad_sync_test)

@@ -33,7 +33,11 @@ from .norms import get_norm
 from megatron import mpu
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
 from megatron.model.activations import get_activation
-from megatron.model.utils import exists, get_fusion_type
+from megatron.model.utils import (
+    exists,
+    get_fusion_type,
+    reduce_weight_grads_from_model_parallel_region,
+)
 from megatron.model.positional_embeddings import (
     RotaryEmbedding,
     apply_rotary_pos_emb_torch,
@@ -96,6 +100,29 @@ def _qk_norm_family(norm_type):
     if norm_type == "scalenorm":
         return "scalenorm"
     raise ValueError(f"norm {norm_type} not recognized")
+
+
+def _configure_qk_norm_tp_grads(
+    q_norm, k_norm, qk_norm_type, norm_type, across_tp, world_size
+):
+    """Set how each Q/K norm parameter's gradient is handled across TP ranks."""
+    parameters = list(q_norm.parameters())
+    if k_norm is not q_norm:
+        parameters += list(k_norm.parameters())
+    for parameter in parameters:
+        # Handled per mode below, so opt out of the generic sequence-parallel hook.
+        parameter.skip_sequence_parallel_grad_sync = True
+        if world_size == 1:
+            continue
+        if qk_norm_type == "per_head":
+            # Replicated on every rank, but each rank only sees its own heads.
+            parameter.register_hook(reduce_weight_grads_from_model_parallel_region)
+        elif not (across_tp and norm_type == "scalenorm"):
+            # Each rank owns a slice. (Cross-TP ScaleNorm's g is replicated and
+            # already summed in _apply_qk_norm_across_tp.)
+            parameter.model_parallel = True
+            parameter.partition_dim = 0
+            parameter.partition_stride = 1
 
 
 def _apply_qk_norm_across_tp(
@@ -162,9 +189,9 @@ def _apply_qk_norm_across_tp(
             packed_stats[..., 1:2] / query_count - query_mean.pow(2)
         ).clamp_min(0.0)
         key_mean = packed_stats[..., 2:3] / key_count
-        key_variance = (
-            packed_stats[..., 3:4] / key_count - key_mean.pow(2)
-        ).clamp_min(0.0)
+        key_variance = (packed_stats[..., 3:4] / key_count - key_mean.pow(2)).clamp_min(
+            0.0
+        )
         query_normed = (query_float - query_mean) * torch.rsqrt(
             query_variance + q_layernorm.eps
         )
@@ -182,18 +209,12 @@ def _apply_qk_norm_across_tp(
     elif norm_family == "rmsnorm":
         query_mean_square = packed_stats[..., 0:1] / query_count
         key_mean_square = packed_stats[..., 1:2] / key_count
-        query_normed = query_float * torch.rsqrt(
-            query_mean_square + q_layernorm.eps
-        )
-        key_normed = key_float * torch.rsqrt(
-            key_mean_square + k_layernorm.eps
-        )
+        query_normed = query_float * torch.rsqrt(query_mean_square + q_layernorm.eps)
+        key_normed = key_float * torch.rsqrt(key_mean_square + k_layernorm.eps)
         query_normed = query_normed * q_layernorm.scale
         key_normed = key_normed * k_layernorm.scale
     else:
-        query_l2_norm = packed_stats[..., 0:1].sqrt().clamp_min(
-            q_layernorm.eps
-        )
+        query_l2_norm = packed_stats[..., 0:1].sqrt().clamp_min(q_layernorm.eps)
         key_l2_norm = packed_stats[..., 1:2].sqrt().clamp_min(k_layernorm.eps)
 
         # ScaleNorm's scalar g is replicated, unlike the vector affine
@@ -493,24 +514,16 @@ class ParallelSelfAttention(nn.Module):
             if self.qk_norm_separate:
                 self.k_layernorm = norm([k_norm_size], eps=eps)
             else:
+                # Shared: checkpoints store the same tensors under both names.
                 self.k_layernorm = self.q_layernorm
-            if (
-                self.qk_norm_across_tp
-                and self.qk_norm_model_parallel_world_size > 1
-            ):
-                norm_family = _qk_norm_family(self.qk_norm_name)
-                if norm_family in ("rmsnorm", "layernorm"):
-                    # Vector affine parameters are slices of the full Q/K norm
-                    # parameters. Non-parametric LayerNorm has no parameters;
-                    # ScaleNorm's scalar parameter remains replicated.
-                    qk_norms = [self.q_layernorm]
-                    if self.qk_norm_separate:
-                        qk_norms.append(self.k_layernorm)
-                    for qk_norm in qk_norms:
-                        for parameter in qk_norm.parameters():
-                            parameter.model_parallel = True
-                            parameter.partition_dim = 0
-                            parameter.partition_stride = 1
+            _configure_qk_norm_tp_grads(
+                self.q_layernorm,
+                self.k_layernorm,
+                self.qk_norm_type,
+                self.qk_norm_name,
+                self.qk_norm_across_tp,
+                world_size,
+            )
 
         if not self.gqa:
             # Strided linear layer.

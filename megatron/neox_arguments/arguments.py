@@ -114,8 +114,15 @@ def _validate_qk_norm_args(
     num_attention_heads,
     num_kv_heads,
     model_parallel_size,
+    te_mha=False,
 ):
     """Validate QK normalization options before model construction."""
+    if use_qk_norm and te_mha:
+        raise ValueError(
+            "`use_qk_norm=True` is not supported with `te_mha`/`te_fp8_mha`: "
+            "Transformer Engine attention does not apply Q/K normalization."
+        )
+
     if qk_norm_type not in ("per_head", "across_heads"):
         raise ValueError(
             f"Invalid qk_norm_type {qk_norm_type!r}; expected "
@@ -130,9 +137,7 @@ def _validate_qk_norm_args(
     resolved_qk_norm = qk_norm or norm
     if qk_norm_across_tp:
         if not use_qk_norm:
-            raise ValueError(
-                "`qk_norm_across_tp=True` requires `use_qk_norm=True`."
-            )
+            raise ValueError("`qk_norm_across_tp=True` requires `use_qk_norm=True`.")
         if qk_norm_type != "across_heads":
             raise ValueError(
                 "`qk_norm_across_tp=True` requires "
@@ -182,6 +187,15 @@ def _validate_qk_norm_args(
             "`qk_norm_separate=True`, use `qk_norm_type='per_head'`, or set "
             "`num_kv_heads` equal to "
             "`num_attention_heads`."
+        )
+
+
+def _reject_renamed_args(config):
+    if "use_qk_layernorm" in config:
+        raise ValueError(
+            "`use_qk_layernorm` was renamed to `use_qk_norm`. Q/K norm weights are "
+            "now stored as `q_layernorm`/`k_layernorm` with a different shape, so "
+            "checkpoints trained with the old flag will not load."
         )
 
 
@@ -367,6 +381,7 @@ class NeoXArgs(*BASE_CLASSES):
 
         # instantiate class and return
         # duplicate values and unrecognized keys are again checked upon instantiation
+        _reject_renamed_args(config)
         return cls(**config)
 
     @classmethod
@@ -374,6 +389,7 @@ class NeoXArgs(*BASE_CLASSES):
         """
         instantiates NeoXArgs while reading values from input dict
         """
+        _reject_renamed_args(args_dict)
         return cls(**args_dict)
 
     ############################################################################################################################
@@ -1354,6 +1370,7 @@ class NeoXArgs(*BASE_CLASSES):
             num_attention_heads=self.num_attention_heads,
             num_kv_heads=self.num_kv_heads,
             model_parallel_size=self.model_parallel_size,
+            te_mha=self.te_mha or self.te_fp8_mha,
         )
 
         if self.seq_length is not None:
