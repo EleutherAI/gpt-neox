@@ -408,6 +408,9 @@ def mark_norms_for_sequence_parallel_grad_sync(module, neox_args):
         if "norm" in type(module_).__name__.lower():
             # this is a norm, we want to allreduce its weight grads across sequence parallel region
             for name, param in module_.named_parameters():
+                # Q/K norms set up their own TP grad handling.
+                if getattr(param, "skip_sequence_parallel_grad_sync", False):
+                    continue
                 if param.requires_grad:
                     param.register_hook(reduce_weight_grads_from_model_parallel_region)
 

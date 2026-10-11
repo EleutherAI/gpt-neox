@@ -100,6 +100,105 @@ AUTOTUNING_ARGS = (
     "autotuning",
 )
 
+
+def _validate_qk_norm_args(
+    use_qk_norm,
+    qk_norm,
+    qk_norm_type,
+    qk_norm_separate,
+    qk_norm_across_tp,
+    norm,
+    layernorm_fusion,
+    rmsnorm_fusion,
+    hidden_size,
+    num_attention_heads,
+    num_kv_heads,
+    model_parallel_size,
+    te_mha=False,
+):
+    """Validate QK normalization options before model construction."""
+    if use_qk_norm and te_mha:
+        raise ValueError(
+            "`use_qk_norm=True` is not supported with `te_mha`/`te_fp8_mha`: "
+            "Transformer Engine attention does not apply Q/K normalization."
+        )
+
+    if qk_norm_type not in ("per_head", "across_heads"):
+        raise ValueError(
+            f"Invalid qk_norm_type {qk_norm_type!r}; expected "
+            "'per_head' or 'across_heads'."
+        )
+
+    if qk_norm is not None and not use_qk_norm:
+        raise ValueError("Setting `qk_norm` requires `use_qk_norm=True`.")
+    if qk_norm_separate and not use_qk_norm:
+        raise ValueError("`qk_norm_separate=True` requires `use_qk_norm=True`.")
+
+    resolved_qk_norm = qk_norm or norm
+    if qk_norm_across_tp:
+        if not use_qk_norm:
+            raise ValueError("`qk_norm_across_tp=True` requires `use_qk_norm=True`.")
+        if qk_norm_type != "across_heads":
+            raise ValueError(
+                "`qk_norm_across_tp=True` requires "
+                "`qk_norm_type='across_heads'`. Disable the flag to use "
+                "per-head QK normalization."
+            )
+        if resolved_qk_norm in ("te_rmsnorm", "te_layernorm"):
+            native_qk_norm = resolved_qk_norm[3:]
+            raise ValueError(
+                f"`qk_norm_across_tp=True` does not support "
+                f"`qk_norm={resolved_qk_norm!r}` because Transformer Engine "
+                "computes normalization statistics inside its kernel. Set "
+                f"`qk_norm={native_qk_norm!r}`, or disable "
+                "`qk_norm_across_tp`."
+            )
+        if resolved_qk_norm == "rmsnorm" and rmsnorm_fusion:
+            raise ValueError(
+                "`qk_norm_across_tp=True` cannot be combined with "
+                "`rmsnorm_fusion=True` for Q/K because the fused kernel computes "
+                "its statistics internally. Set `rmsnorm_fusion=False`, select "
+                "a different native `qk_norm`, or disable `qk_norm_across_tp`."
+            )
+        if resolved_qk_norm == "layernorm" and layernorm_fusion:
+            raise ValueError(
+                "`qk_norm_across_tp=True` cannot be combined with "
+                "`layernorm_fusion=True` for Q/K because the fused kernel "
+                "computes its statistics internally. Set "
+                "`layernorm_fusion=False`, select a different native `qk_norm`, "
+                "or disable `qk_norm_across_tp`."
+            )
+
+    effective_num_kv_heads = num_kv_heads or num_attention_heads
+    if (
+        use_qk_norm
+        and qk_norm_type == "across_heads"
+        and effective_num_kv_heads != num_attention_heads
+        and not qk_norm_separate
+    ):
+        head_size = hidden_size // num_attention_heads
+        q_norm_size = num_attention_heads // model_parallel_size * head_size
+        k_norm_size = effective_num_kv_heads // model_parallel_size * head_size
+        raise ValueError(
+            "QK normalization cannot share query and key norm parameters because "
+            f"their normalized sizes differ (query={q_norm_size}, "
+            f"key={k_norm_size}). This happens when "
+            "`qk_norm_type='across_heads'` is used with GQA/MQA. Set "
+            "`qk_norm_separate=True`, use `qk_norm_type='per_head'`, or set "
+            "`num_kv_heads` equal to "
+            "`num_attention_heads`."
+        )
+
+
+def _reject_renamed_args(config):
+    if "use_qk_layernorm" in config:
+        raise ValueError(
+            "`use_qk_layernorm` was renamed to `use_qk_norm`. Q/K norm weights are "
+            "now stored as `q_layernorm`/`k_layernorm` with a different shape, so "
+            "checkpoints trained with the old flag will not load."
+        )
+
+
 BASE_CLASSES = [
     NeoXArgsDeepspeedRunner,
     NeoXArgsDeepspeedConfig,
@@ -282,6 +381,7 @@ class NeoXArgs(*BASE_CLASSES):
 
         # instantiate class and return
         # duplicate values and unrecognized keys are again checked upon instantiation
+        _reject_renamed_args(config)
         return cls(**config)
 
     @classmethod
@@ -289,6 +389,7 @@ class NeoXArgs(*BASE_CLASSES):
         """
         instantiates NeoXArgs while reading values from input dict
         """
+        _reject_renamed_args(args_dict)
         return cls(**args_dict)
 
     ############################################################################################################################
@@ -1241,6 +1342,22 @@ class NeoXArgs(*BASE_CLASSES):
             logging.error(error_message)
             raise ValueError(error_message)
             return False
+
+        _validate_qk_norm_args(
+            use_qk_norm=self.use_qk_norm,
+            qk_norm=self.qk_norm,
+            qk_norm_type=self.qk_norm_type,
+            qk_norm_separate=self.qk_norm_separate,
+            qk_norm_across_tp=self.qk_norm_across_tp,
+            norm=self.norm,
+            layernorm_fusion=self.layernorm_fusion,
+            rmsnorm_fusion=self.rmsnorm_fusion,
+            hidden_size=self.hidden_size,
+            num_attention_heads=self.num_attention_heads,
+            num_kv_heads=self.num_kv_heads,
+            model_parallel_size=self.model_parallel_size,
+            te_mha=self.te_mha or self.te_fp8_mha,
+        )
 
         if self.seq_length is not None:
             if not (self.max_position_embeddings >= self.seq_length):
