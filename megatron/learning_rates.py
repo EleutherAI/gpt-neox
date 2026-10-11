@@ -75,6 +75,9 @@ class AnnealingLR(object):
             lr = self.start_lr * (end_iter_ - num_iters_) / end_iter_
         elif self.decay_style == "cosine":
             end_iter_ = self.end_iter - self.warmup_iter
+            # Hold at min_lr once decay is done (e.g. lr_decay_iters < train_iters),
+            # otherwise the cosine would climb back up to start_lr.
+            num_iters_ = min(num_iters_, end_iter_)
             lr = self.min_lr + (
                 (self.start_lr - self.min_lr)
                 / 2.0

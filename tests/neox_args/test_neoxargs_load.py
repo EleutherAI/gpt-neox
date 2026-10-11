@@ -63,6 +63,52 @@ def run_neox_args_load_test(yaml_files):
 
 
 @pytest.mark.cpu
+def test_gradient_clipping_is_passed_to_deepspeed():
+    """An explicitly configured value must not be dropped as a NeoX default."""
+    from megatron.neox_arguments import NeoXArgs
+
+    args_loaded = NeoXArgs.from_ymls(
+        get_configs_with_path(["125M.yml", "local_setup.yml", "cpu_mock_config.yml"])
+    )
+
+    assert args_loaded.gradient_clipping == 1.0
+    assert args_loaded.deepspeed_config["gradient_clipping"] == 1.0
+
+
+@pytest.mark.cpu
+def test_clip_grad_with_gradient_clipping_raises():
+    from megatron.neox_arguments import NeoXArgs
+
+    with pytest.raises(ValueError, match="sets both 'clip_grad: 0.5'"):
+        NeoXArgs.from_ymls(
+            get_configs_with_path(
+                ["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]
+            ),
+            overwrite_values={"clip_grad": 0.5},
+        )
+
+
+@pytest.mark.cpu
+def test_strip_deprecated_config_keys(monkeypatch):
+    from megatron.neox_arguments import NeoXArgs, arguments
+
+    strip = NeoXArgs._strip_deprecated_config_keys
+    assert strip({"clip_grad": 0.5}) == {"gradient_clipping": 0.5}
+
+    monkeypatch.setitem(arguments.DEPRECATED_ARGS, "removed_option", None)
+    with pytest.raises(ValueError, match="'removed_option' has been removed"):
+        strip({"removed_option": 1})
+
+
+@pytest.mark.cpu
+def test_gradient_clipping_default_matches_deepspeed():
+    from deepspeed.runtime.constants import GRADIENT_CLIPPING_DEFAULT
+    from megatron.neox_arguments.deepspeed_args import NeoXArgsDeepspeedConfig
+
+    assert NeoXArgsDeepspeedConfig().gradient_clipping == GRADIENT_CLIPPING_DEFAULT
+
+
+@pytest.mark.cpu
 def test_neoxargs_load_arguments_125M_local_setup():
     """
     verify 125M.yml can be loaded without raising validation errors

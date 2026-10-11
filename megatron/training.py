@@ -255,7 +255,7 @@ def pretrain(neox_args):
     timers("model and optimizer").stop()
 
     if neox_args.serve_model_weights:
-        start_server(model)
+        start_server(model, ports=neox_args.weight_server_port)
         # sync...
         torch.distributed.barrier()
 

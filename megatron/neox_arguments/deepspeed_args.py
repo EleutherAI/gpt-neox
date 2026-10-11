@@ -114,9 +114,9 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#automatic-mixed-precision-amp-training-options
     """
 
-    gradient_clipping: float = 1.0
+    gradient_clipping: float = 0.0
     """
-    Enable gradient clipping with provided value
+    Gradient clipping based on the global L2 norm. A value of 0.0 disables clipping.
     """
 
     # ---ZeRO Optimization Options---
