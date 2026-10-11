@@ -100,6 +100,9 @@ AUTOTUNING_ARGS = (
     "autotuning",
 )
 
+# deprecated config key -> its replacement (None if it has none)
+DEPRECATED_ARGS = {"clip_grad": "gradient_clipping"}
+
 BASE_CLASSES = [
     NeoXArgsDeepspeedRunner,
     NeoXArgsDeepspeedConfig,
@@ -220,6 +223,31 @@ class NeoXArgs(*BASE_CLASSES):
                 )
                 raise e
 
+    @staticmethod
+    def _strip_deprecated_config_keys(config: Dict) -> Dict:
+        config = config.copy()
+        for old, new in DEPRECATED_ARGS.items():
+            if old not in config:
+                continue
+            value = config.pop(old)
+            if new is None:
+                raise ValueError(
+                    f"Configuration option '{old}' has been removed; "
+                    f"delete it from your config."
+                )
+            if new in config:
+                raise ValueError(
+                    f"Configuration sets both '{old}: {value}' and "
+                    f"'{new}: {config[new]}'. '{old}' is deprecated: "
+                    f"remove it and keep only '{new}'."
+                )
+            config[new] = value
+            logging.warning(
+                f"Configuration option '{old}' is deprecated and used as "
+                f"'{new}: {value}'; use '{new}' instead."
+            )
+        return config
+
     @classmethod
     def from_ymls(cls, paths_to_yml_files: List[str], overwrite_values: Dict = None):
         """
@@ -280,6 +308,9 @@ class NeoXArgs(*BASE_CLASSES):
             for k, v in overwrite_values.items():
                 config[k] = v
 
+        # Accept obsolete configuration keys so older configs continue to load.
+        config = cls._strip_deprecated_config_keys(config)
+
         # instantiate class and return
         # duplicate values and unrecognized keys are again checked upon instantiation
         return cls(**config)
@@ -289,7 +320,8 @@ class NeoXArgs(*BASE_CLASSES):
         """
         instantiates NeoXArgs while reading values from input dict
         """
-        return cls(**args_dict)
+        config = cls._strip_deprecated_config_keys(args_dict)
+        return cls(**config)
 
     ############################################################################################################################
     # start of command line args interface
@@ -958,8 +990,6 @@ class NeoXArgs(*BASE_CLASSES):
                 "train_micro_batch_size_per_gpu": train_micro_batch_size_per_gpu,
                 "gradient_accumulation_steps": gradient_accumulation_steps,
                 "batch_size": train_micro_batch_size_per_gpu,
-                # duplicate items
-                "clip_grad": self.gradient_clipping,
             }
         )
 
