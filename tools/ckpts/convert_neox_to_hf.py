@@ -46,6 +46,10 @@ Note that this script does not support all NeoX features.
 Please investigate carefully whether your model is compatible with all architectures supported by the GPTNeoXForCausalLM class in HF.
 
 (e.g. position embeddings such as AliBi may not be supported by Huggingface's GPT-NeoX architecture).
+
+The norm used during training must also match the target HF architecture:
+"layernorm" (or "te_layernorm") for --architecture neox, and "rmsnorm" (or "te_rmsnorm")
+for --architecture llama / mistral.
 """
 
 
@@ -479,6 +483,29 @@ def convert(
     """
 
     ARCH = MODEL_KEYS[architecture]
+
+    # Each target HF architecture hardcodes one norm type (GPTNeoXForCausalLM uses LayerNorm,
+    # Llama/Mistral use RMSNorm), and the NORM_KEYS mappings above assume the matching NeoX
+    # parameter names ("weight"/"bias" for layernorm vs. "scale" for rmsnorm). Fail fast with
+    # an actionable error instead of a mid-conversion KeyError on a norm parameter.
+    # See https://github.com/EleutherAI/gpt-neox/issues/1323 for further details.
+    norm_type = get_key(loaded_config, "norm", "layernorm")
+    if architecture == "neox" and norm_type not in ("layernorm", "te_layernorm"):
+        raise ValueError(
+            f"ERROR: Provided config uses norm '{norm_type}', but Huggingface's GPT-NeoX architecture"
+            " only supports 'layernorm' / 'te_layernorm'. Models trained with other norms cannot be"
+            " exported as GPTNeoXForCausalLM. For llama-style models (rmsnorm + gated silu MLP),"
+            " try '--architecture llama' instead."
+        )
+    elif architecture in ("llama", "mistral") and norm_type not in (
+        "rmsnorm",
+        "te_rmsnorm",
+    ):
+        raise ValueError(
+            f"ERROR: Provided config uses norm '{norm_type}', but conversion to the Huggingface"
+            f" {architecture} architecture requires 'rmsnorm' / 'te_rmsnorm', the only norm"
+            " supported by these Huggingface model classes."
+        )
 
     hf_config = create_config(
         loaded_config, architecture=architecture, is_rm=is_rm, pad_token_id=pad_token_id
