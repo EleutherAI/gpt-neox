@@ -3,6 +3,10 @@
 
 # GPT-NeoX
 
+<p align="center">
+  <b>English</b> · <a href="README.zh.md">简体中文</a>
+</p>
+
 This repository records [EleutherAI](https://www.eleuther.ai)'s library for training large-scale language models on GPUs. Our current framework is based on NVIDIA's [Megatron Language Model](https://github.com/NVIDIA/Megatron-LM) and has been augmented with techniques from [DeepSpeed](https://www.deepspeed.ai) as well as some novel optimizations. We aim to make this repo a centralized and accessible place to gather techniques for training large-scale autoregressive language models, and accelerate research into large-scale training.
 
 GPT-NeoX has been used by more than 40 organizations in academia, industry, and government to train more than 50 models. Examples include Pythia from EleutherAI, StableLM from Stability AI, RedPajama-INCITE from Together.ai, FORGE from Oak Ridge National Lab, Sarashina1 from SB Intuitions, and TildeOpen-30B from Tilde. Evo 2 from the Arc Institute was trained with Savanna, a framework derived from GPT-NeoX. GPT-NeoX supports launching via Slurm, MPI, and the IBM Job Step Manager. It has been run at scale on NVIDIA and AMD GPUs on [AWS](https://aws.amazon.com/), [CoreWeave](https://www.coreweave.com/), [ORNL Summit](https://www.olcf.ornl.gov/summit/), [ORNL Frontier](https://www.olcf.ornl.gov/frontier/), [LUMI](https://www.lumi-supercomputer.eu/), and [CINECA Leonardo](https://leonardo-supercomputer.cineca.eu/). The full list of models and publications is in [USERS.md](USERS.md).
