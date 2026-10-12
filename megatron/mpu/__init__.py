@@ -17,6 +17,7 @@
 from .cross_entropy import vocab_parallel_cross_entropy
 
 from .data import broadcast_data
+from .data import scatter_data
 
 from .initialize import is_unitialized
 from .initialize import destroy_model_parallel
@@ -27,6 +28,9 @@ from .initialize import get_model_parallel_group
 from .initialize import get_model_parallel_rank, set_model_parallel_rank
 from .initialize import get_model_parallel_src_rank, get_data_parallel_src_rank
 from .initialize import get_model_parallel_world_size, set_model_parallel_world_size
+from .initialize import get_context_parallel_world_size
+from .initialize import get_context_parallel_group
+from .initialize import get_context_parallel_rank, get_context_parallel_src_rank
 from .initialize import get_topology
 from .initialize import get_pipe_parallel_group
 from .initialize import get_pipe_parallel_rank
@@ -35,6 +39,8 @@ from .initialize import get_tensor_model_parallel_group
 from .initialize import get_tensor_model_parallel_rank
 from .initialize import get_tensor_model_parallel_world_size
 from .initialize import get_io_parallel_group
+from .initialize import get_io_parallel_world_size
+from .initialize import get_io_parallel_rank
 from .initialize import get_expert_tokens_for_rank
 from .initialize import get_expert_token_counts_for_rank
 from .initialize import initialize_model_parallel

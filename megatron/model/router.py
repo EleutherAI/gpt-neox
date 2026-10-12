@@ -19,6 +19,7 @@ import torch
 
 from megatron.neox_arguments.arguments import NeoXArgs
 from megatron.mpu import get_model_parallel_group, get_model_parallel_rank
+from megatron import device_backend
 
 
 class SinkhornRouter(torch.nn.Module):
@@ -56,7 +57,7 @@ class SinkhornRouter(torch.nn.Module):
             neox_args.moe_num_experts,
             bias=False,
             dtype=neox_args.params_dtype,
-            device=torch.cuda.current_device(),
+            device=device_backend.current_device(),
         )
         init_method(self.layer.weight)
 
@@ -155,13 +156,13 @@ class SinkhornRouter(torch.nn.Module):
             expert_weights = torch.empty(
                 num_rows,
                 self.top_k,
-                device=torch.cuda.current_device(),
+                device=device_backend.current_device(),
                 dtype=self.params_dtype,
             )
             expert_indices = torch.empty(
                 num_rows,
                 self.top_k,
-                device=torch.cuda.current_device(),
+                device=device_backend.current_device(),
                 dtype=torch.int64,
             )
 
@@ -209,7 +210,7 @@ class TopKTokenChoiceRouter(torch.nn.Module):
             neox_args.moe_num_experts,
             bias=False,
             dtype=neox_args.params_dtype,
-            device=torch.cuda.current_device(),
+            device=device_backend.current_device(),
         )
         init_method(self.layer.weight)
 

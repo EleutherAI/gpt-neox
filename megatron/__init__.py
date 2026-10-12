@@ -24,3 +24,4 @@ def print_rank_0(*message):
 
 
 from .neox_arguments import NeoXArgs
+from . import device_backend

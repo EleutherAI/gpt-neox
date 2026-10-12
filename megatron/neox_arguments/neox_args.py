@@ -38,6 +38,10 @@ ATTENTION_TYPE_CHOICES = [
     "flash",
     "rwkv",
     "mamba",
+    "ringX1",
+    "ringX2",
+    "ringX3",
+    "ringX4",
 ]
 
 
@@ -65,6 +69,21 @@ class NeoXArgsParallelism(NeoXArgsTemplate):
     model_parallel_size: int = 1
     """
     Size of the model parallelism.
+    """
+
+    context_parallel_size: int = 1
+    """
+    Size of the context parallelism.
+    """
+
+    zigzag_tokens: bool = False
+    """
+    Whether or not to zigzag the input tokens.
+    """
+
+    topology_order: list = None #['pipe', 'data', 'model', 'context']
+    """
+    Order of parallelism dimensions in the process topology.
     """
 
     pipe_partition_method: str = "type:transformer|mlp"

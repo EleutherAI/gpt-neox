@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import torch
-
+from megatron import device_backend
 
 def ema(avg, beta, yi, i):
     """Exponential moving average"""
@@ -103,7 +103,7 @@ class GradientNoiseScale:
         if self.neox_args.is_pipe_parallel:
             # Since each model parallel GPU carries only part of the model,
             # make sure overflow flag is synced across all the pipe parallel GPUs
-            overflow_gpu = torch.cuda.ByteTensor([is_overflow])
+            overflow_gpu = torch.ByteTensor([is_overflow]).to(device_backend.device())
             torch.distributed.all_reduce(
                 overflow_gpu,
                 op=torch.distributed.ReduceOp.MAX,

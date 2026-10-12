@@ -3,9 +3,12 @@
    # parallelism settings ( you will want to change these based on your cluster setup, ideally scheduling pipeline stages
    # across the node boundaries )
    "pipe_parallel_size": 1,
-   "model_parallel_size": 1,
+   "model_parallel_size": 2,
+   "context_parallel_size": 2,
+   "topology_order": ['data', 'pipe', 'model', 'context'],
 
    # model settings
+   "attention_config": [[["ringX1"], 24]],
    "num_layers": 24,
    "hidden_size": 1024,
    "num_attention_heads": 16,
@@ -49,7 +52,7 @@
     "contiguous_gradients": True,
   },
    # batch / data settings
-   "train_micro_batch_size_per_gpu": 4,
+   "train_micro_batch_size_per_gpu": 1,
    "data_impl": "mmap",
 
    # activation checkpointing
@@ -66,7 +69,6 @@
 
    # precision settings
    "fp16": {
-     "fp16": true,
      "enabled": true,
      "loss_scale": 0,
      "loss_scale_window": 1000,
@@ -75,8 +77,8 @@
    },
 
    # misc. training settings
-   "train_iters": 320000,
-   "lr_decay_iters": 320000,
+   "train_iters": 10,
+   "lr_decay_iters": 10,
    "distributed_backend": "nccl",
    "lr_decay_style": "cosine",
    "warmup": 0.01,
@@ -86,7 +88,7 @@
 
    # logging
    "log_interval": 100,
-   "steps_per_print": 10,
+   "steps_per_print": 1,
    "keep_last_n_checkpoints": 4,
    "wall_clock_breakdown": true,
 }

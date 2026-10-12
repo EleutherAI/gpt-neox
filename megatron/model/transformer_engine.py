@@ -39,7 +39,7 @@ from megatron.mpu.utils import divide
 from megatron.mpu.utils import VocabUtility
 from functools import partial
 from megatron.model.positional_embeddings import RotaryEmbedding
-from megatron import mpu
+from megatron import mpu, device_backend
 
 # https://github.com/NVIDIA/TransformerEngine/issues/405
 import os
@@ -137,7 +137,7 @@ class TELinear(te.pytorch.Linear):
             bias=self.use_bias,
             init_method=self.init_method,
             get_rng_state_tracker=get_cuda_rng_tracker,
-            device=torch.cuda.current_device(),
+            device=device_backend.current_device(),
             return_bias=self.skip_bias_add,
             params_dtype=self.params_dtype,
         )
@@ -231,7 +231,7 @@ class TELayerNormMLP(te.pytorch.LayerNormMLP):
             activation=self.activation_type,
             init_method=self.init_method,
             output_layer_init_method=self.output_layer_init_method,
-            device=torch.cuda.current_device(),
+            device=device_backend.current_device(),
             set_parallel_mode=self.set_parallel_mode,
             sequence_parallel=self.sequence_parallel,
             tp_group=self.tp_group,
@@ -311,7 +311,7 @@ class TEColumnParallelLinear(te.pytorch.Linear):
             bias=self.use_bias,
             init_method=self.init_method,
             get_rng_state_tracker=get_cuda_rng_tracker,
-            device=torch.cuda.current_device(),
+            device=device_backend.current_device(),
             sequence_parallel=self.sequence_parallel,
             tp_group=self.tp_group,
             tp_size=self.world_size,
@@ -446,7 +446,7 @@ class TERowParallelLinear(te.pytorch.Linear):
             bias=self.use_bias,
             init_method=self.init_method,
             get_rng_state_tracker=get_cuda_rng_tracker,
-            device=torch.cuda.current_device(),
+            device=device_backend.current_device(),
             sequence_parallel=self.sequence_parallel,
             tp_group=self.tp_group,
             tp_size=self.world_size,
@@ -583,7 +583,7 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
             input_layernorm=False,
             normalization=self.normalization,
             bias=True,
-            device=torch.cuda.current_device(),
+            device=device_backend.current_device(),
             get_rng_state_tracker=get_cuda_rng_tracker,
             set_parallel_mode=self.set_parallel_mode,
             sequence_parallel=self.sequence_parallel,
