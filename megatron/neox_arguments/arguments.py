@@ -21,7 +21,11 @@ import logging
 import copy
 import torch
 import argparse
-from pkg_resources import packaging
+
+try:
+    import packaging
+except ImportError:
+    from pkg_resources import packaging
 from importlib.metadata import version
 
 from dataclasses import dataclass

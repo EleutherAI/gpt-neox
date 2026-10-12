@@ -23,7 +23,11 @@ from contextlib import nullcontext
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
-from pkg_resources import packaging
+
+try:
+    import packaging
+except ImportError:
+    from pkg_resources import packaging
 from importlib.metadata import version
 
 from .norms import get_norm
