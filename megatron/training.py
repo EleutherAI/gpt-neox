@@ -65,7 +65,6 @@ from megatron.utils import (
 from megatron.model.weight_server import start_server
 from megatron.model.gpt2_model import cross_entropy
 from megatron.mpu import vocab_parallel_cross_entropy
-from megatron.mpu.data import scatter_data
 
 from pickle import dump
 import os
@@ -518,11 +517,14 @@ def get_batch_pipe(data, neox_args, curr_scheduler=None):
             ].contiguous()
 
     # unpack data
-    return ((scatter_data(tokens, zigzag=neox_args.zigzag_tokens), 
-        scatter_data(position_ids, zigzag=neox_args.zigzag_tokens), 
-        scatter_data(attention_mask, zigzag=neox_args.zigzag_tokens)), 
-        (scatter_data(labels, zigzag=neox_args.zigzag_tokens), 
-        scatter_data(loss_mask, zigzag=neox_args.zigzag_tokens)))
+    rank = torch.distributed.get_rank()
+    print(f"[rank {rank}] position ids: {position_ids},\n [rank {rank}]labels: {tokens}")
+    print(f"[rank {rank}] scattered position ids: {mpu.scatter_data(position_ids, zigzag=neox_args.zigzag_tokens)},\n [rank {rank}] scattered labels: {mpu.scatter_data(tokens, zigzag=neox_args.zigzag_tokens)}")
+    return ((mpu.scatter_data(tokens, zigzag=neox_args.zigzag_tokens), 
+        mpu.scatter_data(position_ids, zigzag=neox_args.zigzag_tokens), 
+        mpu.scatter_data(attention_mask, zigzag=neox_args.zigzag_tokens)), 
+        (mpu.scatter_data(labels, zigzag=neox_args.zigzag_tokens), 
+        mpu.scatter_data(loss_mask, zigzag=neox_args.zigzag_tokens)))
 
 
 def get_batch_sequential(forward_input, neox_args):

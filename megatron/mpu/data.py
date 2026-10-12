@@ -121,16 +121,16 @@ def broadcast_data(keys, data, datatype):
 
     return output
 
-def scatter_data(tensor, zigzag):
+def scatter_data(tensor, zigzag, dim=-1):
     worldsize = get_context_parallel_world_size()
     if worldsize <= 1:
         return tensor
-    if zigzag:
-        return torch.chunk(tensor, worldsize, dim=-1)[get_context_parallel_rank()]
+    if not zigzag:
+        return torch.chunk(tensor, worldsize, dim=dim)[get_context_parallel_rank()]
     # otherwise prepare for zigzagging
-    seq_chunks = torch.chunk(tensor, 2 * worldsize, dim=-1)
+    seq_chunks = torch.chunk(tensor, 2 * worldsize, dim=dim)
     data = [
-        torch.cat((seq_chunks[i], seq_chunks[-(i + 1)]), dim=-1)
+        torch.cat((seq_chunks[i], seq_chunks[-(i + 1)]), dim=dim)
         for i in range(worldsize)
     ]
     return data[get_context_parallel_rank()].contiguous()

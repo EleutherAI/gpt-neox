@@ -98,8 +98,11 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
     # Build the data parallel groups.
     global _DATA_PARALLEL_GROUP
     assert _DATA_PARALLEL_GROUP is None, "data parallel group is already initialized"
+    global _DATA_PARALLEL_SRC
+    dpXcp_group = fold_process_groups(topology.get_axis_comm_lists("data"),topology.get_axis_comm_lists("context"))
+    print(f"DP group: {topology.get_axis_comm_lists("data")}, \n CP group: {topology.get_axis_comm_lists("context")}, folded group: {dpXcp_group}")
     if topology:
-        for dp_group in topology.get_axis_comm_lists("data"):
+        for dp_group in dpXcp_group:
             print(dp_group)
             group = torch.distributed.new_group(ranks=dp_group)
             if rank == 0:
@@ -117,6 +120,7 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
     # Build pipeline parallel group
     if topology is not None:
         global _PIPE_PARALLEL_GROUP
+        global _PIPE_PARALLEL_SRC
         for pp_group in topology.get_axis_comm_lists("pipe"):
             group = torch.distributed.new_group(ranks=pp_group)
             if rank == 0:
@@ -128,6 +132,7 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
     # Build context parallel group
     if topology is not None:
         global _CONTEXT_PARALLEL_GROUP
+        global _CONTEXT_PARALLEL_SRC
         for cp_group in topology.get_axis_comm_lists("context"):
             group = torch.distributed.new_group(ranks=cp_group)
             if rank == 0:
@@ -138,6 +143,7 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
 
     # Build IO group
     global _IO_PARALLEL_GROUP
+    global _IO_PARALLEL_SRC
     if topology and (topology.get_dim("pipe") > 1): # or topology.get_dim("context") > 1):
         io_stages = [0, topology.get_dim("pipe") - 1]
         io_group = []
@@ -151,7 +157,14 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
             _IO_PARALLEL_SRC = io_group[0]
         #TODO: add context parallelism to this group
     else:
-        _IO_PARALLEL_GROUP = get_data_parallel_group()
+        for dp_group in topology.get_axis_comm_lists("data"):
+            print(dp_group)
+            group = torch.distributed.new_group(ranks=dp_group)
+            if rank == 0:
+                print(f"MPU IO:", dp_group)
+            if rank in dp_group:
+                _IO_PARALLEL_GROUP = group
+                _IO_PARALLEL_SRC = dp_group[0]
 
     # Build the model parallel groups.
     global _MODEL_PARALLEL_GROUP
@@ -178,6 +191,36 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
     assert _FP32_ALLREDUCE is None, "fp32_allreduce is already initialized"
     _FP32_ALLREDUCE = fp32_allreduce
 
+
+def fold_process_groups(*group_lists):
+    parent = {}
+
+    def find(x):
+        parent.setdefault(x, x)
+        if parent[x] != x:
+            parent[x] = find(parent[x])
+        return parent[x]
+
+    def union(a, b):
+        parent[find(a)] = find(b)
+
+    for groups in group_lists:
+        for group in groups:
+            # Register every rank, including singleton groups.
+            for rank in group:
+                find(rank)
+
+            for rank in group[1:]:
+                union(group[0], rank)
+
+    components = {}
+    for rank in parent:
+        components.setdefault(find(rank), []).append(rank)
+
+    return sorted(
+        [sorted(group) for group in components.values()],
+        key=lambda group: group[0],
+    )
 
 def model_parallel_is_initialized():
     """Check if model and data parallel groups are initialized."""
@@ -208,6 +251,12 @@ def get_io_parallel_group():
     """Get the IO parallel group the caller rank belongs to."""
     assert _IO_PARALLEL_GROUP is not None, "IO parallel group is not initialized"
     return _IO_PARALLEL_GROUP
+
+def get_io_parallel_rank():
+    return torch.distributed.get_rank(group=get_io_parallel_group())
+
+def get_io_parallel_world_size():
+    return torch.distributed.get_world_size(group=get_io_parallel_group())
 
 
 def set_model_parallel_world_size(world_size):

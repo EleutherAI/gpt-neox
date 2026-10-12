@@ -33,8 +33,8 @@ def make_data_loader(dataset, neox_args):
     if dataset is None:
         return None
     # Data parallel arguments.
-    world_size = mpu.get_data_parallel_world_size()
-    rank = mpu.get_data_parallel_rank()
+    world_size = mpu.get_io_parallel_world_size()
+    rank = mpu.get_io_parallel_rank()
     global_batch_size = neox_args.batch_size * world_size
     num_workers = neox_args.num_workers
 
