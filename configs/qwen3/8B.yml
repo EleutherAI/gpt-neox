@@ -1,0 +1,33 @@
+# Based on https://huggingface.co/Qwen/Qwen3-8B/blob/main/config.json
+
+{
+  "pipe_parallel_size": 1,
+  "model_parallel_size": 1,
+  "make_vocab_size_divisible_by": 1,
+
+  # model settings
+  "num_layers": 36,
+  "hidden_size": 4096,
+  "intermediate_size": 56832, # 18944*3 as 3x needed for swiglu with neox
+  "num_attention_heads": 32,
+  "num_kv_heads": 8,
+  "seq_length": 40960,
+  "max_position_embeddings": 40960,
+  "pos_emb": "rotary",
+  "rotary_pct": 1,
+  "rotary_emb_base": 1000000,
+  "no_weight_tying": true,
+  "gpt_j_residual": false,
+  "output_layer_parallelism": "column",
+  "norm": "rmsnorm",
+  "rms_norm_epsilon": 1.0e-6,
+
+  "scaled_upper_triang_masked_softmax_fusion": true,
+  "bias_gelu_fusion": false,
+  "use_bias_in_norms": false,
+  "use_bias_in_attn_linear": false,
+  "activation": "swiglu",
+  "mlp_multiple_of": 256,
+
+  "init_method_std": 0.02
+}
