@@ -39,7 +39,7 @@ from megatron.mpu.utils import divide
 from megatron.mpu.utils import VocabUtility
 from functools import partial
 from megatron.model.positional_embeddings import RotaryEmbedding
-from megatron import mpu
+from megatron.model.utils import get_attention_head_dim
 
 # https://github.com/NVIDIA/TransformerEngine/issues/405
 import os
@@ -570,9 +570,12 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
             self.gqa = True
             self.num_kv_heads = neox_args.num_kv_heads
 
+        effective_head_dim = get_attention_head_dim(neox_args)
+
         super(TEMultiheadAttention, self).__init__(
             hidden_size=neox_args.hidden_size,
             num_attention_heads=neox_args.num_attention_heads,
+            kv_channels=effective_head_dim,
             attention_dropout=neox_args.attention_dropout,
             layernorm_epsilon=self.eps,
             init_method=self.init_method,
@@ -596,10 +599,6 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
         )
 
         if neox_args.pos_emb == "rotary":
-            self.hidden_size_per_attention_head = mpu.divide(
-                neox_args.hidden_size, neox_args.num_attention_heads
-            )
-
             if neox_args.rotary_pct == 1:
                 self.rotary_ndims = None
             else:
