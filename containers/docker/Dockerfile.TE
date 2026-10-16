@@ -17,11 +17,11 @@ FROM nvcr.io/nvidia/pytorch:24.02-py3
 ENV DEBIAN_FRONTEND=noninteractive
 
 # metainformation
-LABEL org.opencontainers.image.version="2.0" \
-    org.opencontainers.image.authors="contact@eleuther.ai" \
-    org.opencontainers.image.source="https://www.github.com/eleutherai/gpt-neox" \
-    org.opencontainers.image.licenses="Apache-2.0" \
-    org.opencontainers.image.base.name="nvcr.io/nvidia/pytorch:24.02-py3"
+LABEL org.opencontainers.image.version = "2.0"
+LABEL org.opencontainers.image.authors = "contact@eleuther.ai"
+LABEL org.opencontainers.image.source = "https://www.github.com/eleutherai/gpt-neox"
+LABEL org.opencontainers.image.licenses = " Apache-2.0"
+LABEL org.opencontainers.image.base.name="nvcr.io/nvidia/pytorch:24.02-py3"
 
 #### System package (uses default Python 3 version in Ubuntu 20.04)
 RUN apt-get update -y && \
@@ -37,29 +37,35 @@ RUN apt-get update -y && \
     python -m pip install --upgrade pip setuptools wheel packaging ninja && \
     python -m pip install gpustat
 
+### SSH
+RUN mkdir /var/run/sshd && \
+    # Prevent user being kicked off after login
+    sed -i 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' /etc/pam.d/sshd && \
+    echo 'AuthorizedKeysFile     .ssh/authorized_keys' >> /etc/ssh/sshd_config && \
+    echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config && \
+    # FIX SUDO BUG: https://github.com/sudo-project/sudo/issues/42
+    echo "Set disable_coredump false" >> /etc/sudo.conf
+
 # Expose SSH port
 EXPOSE 22
 
 # Needs to be in docker PATH if compiling other items & bashrc PATH (later)
 ENV PATH=/usr/local/mpi/bin:${PATH} \
-    LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:${LD_LIBRARY_PATH} \
-    TORCH_CUDA_ARCH_LIST=9.0
+    LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:${LD_LIBRARY_PATH}
 
-# Configure SSH, OpenMPI, and the runtime user in one layer. Keeping these
-# lightweight setup operations together avoids expensive legacy-builder commits.
-RUN mkdir /var/run/sshd && \
-    sed -i 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' /etc/pam.d/sshd && \
-    echo 'AuthorizedKeysFile     .ssh/authorized_keys' >> /etc/ssh/sshd_config && \
-    echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config && \
-    echo "Set disable_coredump false" >> /etc/sudo.conf && \
-    mv /usr/local/mpi/bin/mpirun /usr/local/mpi/bin/mpirun.real && \
+# Create a wrapper for OpenMPI to allow running as root by default
+RUN mv /usr/local/mpi/bin/mpirun /usr/local/mpi/bin/mpirun.real && \
     echo '#!/bin/bash' > /usr/local/mpi/bin/mpirun && \
     echo 'mpirun.real --allow-run-as-root --prefix /usr/local/mpi "$@"' >> /usr/local/mpi/bin/mpirun && \
-    chmod a+x /usr/local/mpi/bin/mpirun && \
-    useradd --create-home --uid 1000 --shell /bin/bash mchorse && \
+    chmod a+x /usr/local/mpi/bin/mpirun
+
+#### User account
+RUN useradd --create-home --uid 1000 --shell /bin/bash mchorse && \
     usermod -aG sudo mchorse && \
-    echo "mchorse ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
-    mkdir -p /home/mchorse/.ssh /job && \
+    echo "mchorse ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+## SSH config and bashrc
+RUN mkdir -p /home/mchorse/.ssh /job && \
     echo 'Host *' > /home/mchorse/.ssh/config && \
     echo '    StrictHostKeyChecking no' >> /home/mchorse/.ssh/config && \
     echo 'export PDSH_RCMD_TYPE=ssh' >> /home/mchorse/.bashrc && \
@@ -69,6 +75,7 @@ RUN mkdir /var/run/sshd && \
 
 #### Python packages
 COPY requirements/* ./
+ENV TORCH_CUDA_ARCH_LIST=9.0
 
 RUN python -m pip install --no-cache-dir -r requirements.txt && \
     python -m pip install --no-cache-dir -r requirements-onebitadam.txt && \
@@ -79,8 +86,10 @@ RUN python -m pip install --no-cache-dir -r requirements.txt && \
 
 COPY megatron/fused_kernels/ /megatron/fused_kernels
 RUN pip install --no-cache-dir --no-build-isolation /megatron/fused_kernels && \
-    rm -rf /megatron/fused_kernels && \
-    mkdir -p /tmp && chmod 0777 /tmp
+    rm -rf /megatron/fused_kernels
+
+# Clear staging
+RUN mkdir -p /tmp && chmod 0777 /tmp
 
 #### SWITCH TO mchorse USER
 USER mchorse
