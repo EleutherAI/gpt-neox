@@ -306,6 +306,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                     lm_output
                     / self.tied_modules.embed.word_embeddings.weight.infshape.width_mult()
                 )
+                lm_output = lm_output / self.neox_args.mup_output_temp
 
             logits = parallel_lm_logits(
                 lm_output,
