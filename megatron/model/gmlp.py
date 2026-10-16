@@ -38,6 +38,9 @@ class TinyAttention(nn.Module):
             mask_func=mask_fn,
             softmax_in_fp32=neox_args.attention_softmax_in_fp32,
             scale=None,
+            soft_clip=neox_args.attn_softmax_clipping,
+            soft_clip_zeta=neox_args.attn_softmax_clipping_zeta,
+            soft_clip_gamma=neox_args.attn_softmax_clipping_gamma,
         )
 
     def forward(self, x, attention_mask):
