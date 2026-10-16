@@ -580,6 +580,32 @@ Model Arguments
 
     Run attention masking and softmax in fp32.
 
+- **attn_softmax_clipping**: bool
+
+    Default = False
+
+    Apply soft_clip to attention probabilities using
+    ``clip((zeta - gamma) * softmax(logits) + gamma, 0, 1)``. This is supported
+    by global attention and aMLP tiny attention, but not by Flash, Transformer
+    Engine, or sparse attention backends. When false, the zeta and gamma
+    arguments are ignored.
+
+- **attn_softmax_clipping_zeta**: float
+
+    Default = 1.03
+
+    Upper stretch bound for attention softmax clipping. Must be at least 1.0.
+    The soft_clip experiments in https://arxiv.org/abs/2410.16682 use 1.03.
+    This argument is only used when ``attn_softmax_clipping`` is true.
+
+- **attn_softmax_clipping_gamma**: float
+
+    Default = -0.03
+
+    Lower stretch bound for attention softmax clipping. Must be at most 0.0.
+    The soft_clip experiments in https://arxiv.org/abs/2410.16682 use -0.03.
+    This argument is only used when ``attn_softmax_clipping`` is true.
+
 - **rotary_pct**: float
 
     Default = 1.0
