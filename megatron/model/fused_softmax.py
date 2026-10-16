@@ -21,6 +21,13 @@ import enum
 from ..fused_kernels import load_fused_kernels
 
 
+def softcap_attention_logits(logits, softcap):
+    """Smoothly bound attention logits to ``[-softcap, softcap]``."""
+    if softcap is None:
+        return logits
+    return softcap * torch.tanh(logits / softcap)
+
+
 class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):
     """
     Fused operation which performs following three operations in sequence
