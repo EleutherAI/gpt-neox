@@ -83,14 +83,17 @@ def test_mup_temperatures_must_be_positive(name):
 
 
 @pytest.mark.cpu
-def test_mup_rejects_flash_attention():
+def test_mup_rejects_flash_attention(monkeypatch):
+    monkeypatch.setattr(
+        "megatron.neox_arguments.arguments.version", lambda _: "2.4.0"
+    )
     config = cpu_arg_config()
     config["use_mup"] = True
     config["attention_config"] = [[["flash"], "all"]]
 
     with pytest.raises(
         ValueError,
-        match="only supported with global attention",
+        match="supports global attention only",
     ):
         NeoXArgs.from_dict(config)
 
