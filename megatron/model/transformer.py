@@ -28,7 +28,10 @@ from importlib.metadata import version
 
 from .norms import get_norm
 from megatron import mpu
-from megatron.model.fused_softmax import FusedScaleMaskSoftmax
+from megatron.model.fused_softmax import (
+    FusedScaleMaskSoftmax,
+    softcap_attention_logits,
+)
 from megatron.model.activations import get_activation
 from megatron.model.utils import exists, get_fusion_type
 from megatron.model.positional_embeddings import (
@@ -369,6 +372,15 @@ class ParallelSelfAttention(nn.Module):
         if neox_args.use_mup:
             self.norm_factor = self.hidden_size_per_attention_head
 
+        # Query-key layer scaling divides the logits by the layer coefficient
+        # here and multiplies them by it again in FusedScaleMaskSoftmax. Adjust
+        # the cap by the same coefficient so the effective cap remains the
+        # configured value.
+        self.attn_logit_softcapping = neox_args.attn_logit_softcapping
+        self.softcap = self.attn_logit_softcapping
+        if self.softcap is not None and coeff is not None:
+            self.softcap /= coeff
+
         self.rpe = rpe
 
         if self.pos_emb == "alibi":
@@ -530,6 +542,8 @@ class ParallelSelfAttention(nn.Module):
         if self.pos_emb == "alibi":
             attention_scores = self.alibi_embed(attention_scores)
 
+        attention_scores = softcap_attention_logits(attention_scores, self.softcap)
+
         # attention scores and attention mask [b, np, sq, sk]
         attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
 
@@ -607,6 +621,9 @@ class ParallelSelfAttention(nn.Module):
                 extra_kwargs["alibi_slopes"] = self.alibi_embed.slopes.to(
                     query_layer.device
                 ).to(torch.float32)
+            if self.attn_logit_softcapping is not None:
+                # FlashAttention applies QK scaling and softcapping together.
+                extra_kwargs["softcap"] = self.attn_logit_softcapping
 
             if not self.training:
                 batch_size = output_size[0]

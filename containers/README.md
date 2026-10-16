@@ -27,7 +27,7 @@ The image:
 - installs `requirements.txt` and `requirements-onebitadam.txt`
 - installs `wandb==0.16.6`
 - installs `transformer-engine[pytorch]==1.12`
-- builds `flash-attn==2.5.6` from source
+- builds `flash-attn==2.6.3` from source
 - pins `protobuf==3.20.*`
 - sets `TORCH_CUDA_ARCH_LIST=9.0`
 - builds the GPT-NeoX fused kernels from `megatron/fused_kernels/`
@@ -48,7 +48,7 @@ Verify the image:
 ```bash
 docker run --rm --gpus all --ipc=host gpt-neox:te nvidia-smi
 docker run --rm --gpus all --ipc=host gpt-neox:te \
-  python -c "import torch, wandb, flash_attn, transformer_engine; print(torch.__version__)"
+  python -c "import torch, flash_attn, transformer_engine; print(torch.__version__, flash_attn.__version__, transformer_engine.__version__)"
 ```
 
 ## B200 Image
@@ -135,7 +135,7 @@ Verify the Apptainer images with `--nv` to enable NVIDIA GPU support:
 
 ```bash
 apptainer exec --nv containers/apptainer/gpt-neox-te-from-docker.sif \
-  python -c "import torch, wandb, flash_attn, transformer_engine; print(torch.__version__)"
+  python -c "import torch, flash_attn, transformer_engine; print(torch.__version__, flash_attn.__version__, transformer_engine.__version__)"
 apptainer exec --nv containers/apptainer/gpt-neox-b200-from-docker.sif \
   python -c "import torch, wandb, transformer_engine; print(torch.__version__)"
 ```
