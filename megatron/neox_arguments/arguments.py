@@ -1230,6 +1230,39 @@ class NeoXArgs(*BASE_CLASSES):
         if not self.deepspeed:
             return False
 
+        if self.attn_softmax_clipping:
+            if self.attn_softmax_clipping_zeta < 1.0:
+                raise ValueError(
+                    "`attn_softmax_clipping_zeta` must be greater than or equal "
+                    "to 1.0."
+                )
+            if self.attn_softmax_clipping_gamma > 0.0:
+                raise ValueError(
+                    "`attn_softmax_clipping_gamma` must be less than or equal "
+                    "to 0.0."
+                )
+            if self.te_mha or self.te_fp8_mha:
+                raise ValueError(
+                    "`attn_softmax_clipping` is not supported with "
+                    "`te_mha` or `te_fp8_mha`."
+                )
+            unsupported_attention = sorted(
+                set(self.attention_config)
+                & {
+                    "flash",
+                    "local",
+                    "sparse_fixed",
+                    "sparse_variable",
+                    "bigbird",
+                    "bslongformer",
+                }
+            )
+            if unsupported_attention:
+                raise ValueError(
+                    "`attn_softmax_clipping` is not supported by attention "
+                    f"types: {', '.join(unsupported_attention)}."
+                )
+
         # learning rate
         if self.lr is None:
             error_message = (

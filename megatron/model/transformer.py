@@ -450,6 +450,9 @@ class ParallelSelfAttention(nn.Module):
                     mask_func=self.attention_mask_func,
                     softmax_in_fp32=self.attention_softmax_in_fp32,
                     scale=coeff,
+                    soft_clip=neox_args.attn_softmax_clipping,
+                    soft_clip_zeta=neox_args.attn_softmax_clipping_zeta,
+                    soft_clip_gamma=neox_args.attn_softmax_clipping_gamma,
                 )
 
             # Dropout. Note that for a single iteration, this layer will generate
