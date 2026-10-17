@@ -61,9 +61,11 @@ def calculate_predicted_logits(
     predicted_logits = predicted_logits.view_as(target)
     predicted_logits[target_mask] = 0.0
 
+    # Inplace exp to avoid an extra allocation and copy.
     exp_logits = vocab_parallel_logits
     torch.exp(vocab_parallel_logits, out=exp_logits)
     sum_exp_logits = exp_logits.sum(dim=-1)
+    # Concatenate the predicted logits and the sum of exponentials so that we can do a single all-reduce.
     predicted_logits_sum_exp_logits = torch.cat(
         (predicted_logits, sum_exp_logits), dim=0
     )
@@ -157,7 +159,7 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_output):
-        softmax, target_mask, masked_target_1d = ctx.saved_tensors
+        softmax, target_mascalculate_gradientsk, masked_target_1d = ctx.saved_tensors
         grad_input = calculate_gradients(
             softmax,
             grad_output,
