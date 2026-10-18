@@ -996,6 +996,13 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Path to combined dataset to split.
     """
 
+    preserve_data_order: bool = False
+    """
+    Preserve source document and sample order for training, repeating that order each epoch.
+    Requires dataset_impl='gpt2', pack_impl='packed', and a single training dataset.
+    Validation and test datasets retain their default ordering. Ordered index maps are cached separately.
+    """
+
     use_shared_fs: bool = True
     """
     Whether to use a shared filesystem for data loading. If False, local rank 0 on all nodes will preprocess the data,

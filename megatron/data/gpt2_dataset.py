@@ -44,6 +44,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
         label_dataset=None,
         reward_dataset=None,
         ref_dataset=None,
+        preserve_data_order=False,
     ):
 
         self.name = name
@@ -56,6 +57,8 @@ class GPT2Dataset(torch.utils.data.Dataset):
         self.seq_length = seq_length
 
         # Checks
+        if preserve_data_order and pack_impl != "packed":
+            raise ValueError("preserve_data_order requires pack_impl='packed'.")
         assert self.reward_dataset is None or (
             pack_impl == "unpacked"
         ), "Reward dataset only supported with unpacked data."
@@ -77,6 +80,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
                 self.pack_impl,
                 use_shared_fs=use_shared_fs,
                 allow_chopped=self.allow_chopped,
+                preserve_data_order=preserve_data_order,
             )
             self.shuffle_idx_len = self.shuffle_idx.shape[0] - 1
             self.sample_idx_len = self.sample_idx.shape[0] - 1
@@ -211,13 +215,16 @@ def _build_index_mappings(
     packing_impl,
     use_shared_fs=True,
     allow_chopped=True,
+    preserve_data_order=False,
 ):
     """Build doc-idx, sample-idx, and shuffle-idx.
     doc-idx: is an array (ordered) of documents to be used in training.
     sample-idx: is the start document index and document offset for each
        training sample.
-    shuffle-idx: maps the sample index into a random index into sample-idx.
+    shuffle-idx: maps the sample index into sample-idx (identity when preserving order).
     """
+    if preserve_data_order and packing_impl != "packed":
+        raise ValueError("preserve_data_order requires pack_impl='packed'.")
     # Number of tokens in each epoch and number of required epochs.
     tokens_per_epoch = _num_tokens(documents, sizes)
     if not num_epochs:
@@ -234,6 +241,9 @@ def _build_index_mappings(
     _filename += "_{}pi".format(packing_impl)
     if allow_chopped:
         _filename += "_ac"
+    if preserve_data_order:
+        # Keep the legacy cache names unchanged for shuffled runs.
+        _filename += "_ordered"
     doc_idx_filename = _filename + "_doc_idx.npy"
     sample_idx_filename = _filename + "_sample_idx.npy"
     shuffle_idx_filename = _filename + "_shuffle_idx.npy"
@@ -257,7 +267,12 @@ def _build_index_mappings(
             # doc-idx.
             start_time = time.time()
             if packing_impl == "packed":
-                doc_idx = _build_doc_idx(documents, num_epochs, np_rng)
+                doc_idx = _build_doc_idx(
+                    documents,
+                    num_epochs,
+                    np_rng,
+                    preserve_data_order=preserve_data_order,
+                )
                 np.save(doc_idx_filename, doc_idx, allow_pickle=True)
                 print_rank_0(
                     " > elapsed time to build and save doc-idx mapping "
@@ -289,7 +304,11 @@ def _build_index_mappings(
                 start_time = time.time()
                 # -1 is due to data structure used to retrieve the index:
                 #    sample i --> [sample_idx[i], sample_idx[i+1])
-                shuffle_idx = _build_shuffle_idx(sample_idx.shape[0] - 1, np_rng)
+                shuffle_idx = _build_shuffle_idx(
+                    sample_idx.shape[0] - 1,
+                    np_rng,
+                    preserve_data_order=preserve_data_order,
+                )
                 np.save(shuffle_idx_filename, shuffle_idx, allow_pickle=True)
                 print_rank_0(
                     " > elapsed time to build and save shuffle-idx mapping"
@@ -413,14 +432,15 @@ def _num_epochs(tokens_per_epoch, seq_length, num_samples):
             return num_epochs
 
 
-def _build_doc_idx(documents, num_epochs, np_rng):
+def _build_doc_idx(documents, num_epochs, np_rng, preserve_data_order=False):
     """Build an array with length = number-of-epochs * number-of-documents.
     Each index is mapped to a corresponding document."""
     doc_idx = np.mgrid[0:num_epochs, 0 : len(documents)][1]
     doc_idx[:] = documents
     doc_idx = doc_idx.reshape(-1)
     doc_idx = doc_idx.astype(np.int32)
-    np_rng.shuffle(doc_idx)
+    if not preserve_data_order:
+        np_rng.shuffle(doc_idx)
     return doc_idx
 
 
@@ -472,11 +492,12 @@ def _build_sample_idx(sizes, doc_idx, seq_length, num_epochs, tokens_per_epoch):
     return sample_idx
 
 
-def _build_shuffle_idx(size, np_rng):
-    """Build the range [0, size) and shuffle."""
+def _build_shuffle_idx(size, np_rng, preserve_data_order=False):
+    """Build the range [0, size), optionally preserving its order."""
     dtype_ = np.uint32
     if size >= (np.iinfo(np.uint32).max - 1):
         dtype_ = np.int64
     shuffle_idx = np.arange(start=0, stop=size, step=1, dtype=dtype_)
-    np_rng.shuffle(shuffle_idx)
+    if not preserve_data_order:
+        np_rng.shuffle(shuffle_idx)
     return shuffle_idx

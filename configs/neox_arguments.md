@@ -1142,6 +1142,14 @@ Training Arguments
 
     Path to combined dataset to split.
 
+- **preserve_data_order**: bool
+
+    Default = False
+
+    Preserve source document and sample order for training, repeating that order each epoch.
+    Requires dataset_impl='gpt2', pack_impl='packed', and a single training dataset.
+    Validation and test datasets retain their default ordering. Ordered index maps are cached separately.
+
 - **use_shared_fs**: bool
 
     Default = True
