@@ -73,8 +73,11 @@ def build_the_dataset(
     neg_label_prefix=None,
     precompute_model_name=None,
     reward_prefix=None,
+    preserve_data_order=False,
 ):
     """Build train/valid/test datasets."""
+    if preserve_data_order and dataset_impl != "gpt2":
+        raise ValueError("preserve_data_order requires dataset_impl='gpt2'.")
     if dataset_impl == "gpt2":
         indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup)
         if label_prefix is None:
@@ -152,6 +155,7 @@ def build_the_dataset(
             label_dataset=label_dataset,
             reward_dataset=reward_dataset,
             ref_dataset=precompute_indexed_dataset,
+            preserve_data_order=preserve_data_order,
         )
     elif dataset_impl == "pairwise":
         dataset = PairwiseDataset(
@@ -186,6 +190,7 @@ def build_train_valid_test_datasets(
     seq_length,
     seed,
     skip_warmup,
+    preserve_data_order=False,
 ):
     """Build train, valid, and test datasets."""
 
@@ -229,6 +234,7 @@ def build_train_valid_test_datasets(
                 pack_impl=pack_impl,
                 allow_chopped=allow_chopped,
                 use_shared_fs=use_shared_fs,
+                preserve_data_order=preserve_data_order and index == 0,
             )
         return dataset
 
@@ -413,6 +419,7 @@ def build_weighted_datasets(
                     neg_label_prefix=neg_train_label_path,
                     precompute_model_name=neox_args.precompute_model_name,
                     reward_prefix=train_reward_path,
+                    preserve_data_order=neox_args.preserve_data_order,
                 )
             )
 
@@ -505,6 +512,21 @@ def weights_by_num_docs(l: list, alpha=0.3):
     return weights
 
 
+def validate_data_order(neox_args):
+    """Reject configurations that cannot preserve a single training stream."""
+    if not neox_args.preserve_data_order:
+        return
+    if neox_args.dataset_impl != "gpt2" or neox_args.pack_impl != "packed":
+        raise ValueError(
+            "preserve_data_order requires dataset_impl='gpt2' and pack_impl='packed'."
+        )
+    if neox_args.train_data_paths and len(neox_args.train_data_paths) != 1:
+        raise ValueError(
+            "preserve_data_order requires a single training dataset; "
+            "merge the JSONL files in the desired order before preprocessing."
+        )
+
+
 def validate_train_epochs(neox_args):
     """Check for unsupported neox_args when using train_epochs instead of train_iters"""
     if neox_args.train_epochs is None:
@@ -544,6 +566,7 @@ def build_train_valid_test_data_loaders(neox_args):
     if not neox_args.train_epochs and not neox_args.train_iters:
         raise ValueError("Must specify either train_epochs or train_iters")
 
+    validate_data_order(neox_args)
     validate_train_epochs(neox_args)
 
     (train_dataloader, valid_dataloader, test_dataloader) = (None, None, None)
@@ -741,6 +764,7 @@ def build_train_valid_test_data_loaders(neox_args):
                 skip_warmup=(not neox_args.mmap_warmup),
                 pack_impl=neox_args.pack_impl,
                 allow_chopped=neox_args.allow_chopped,
+                preserve_data_order=neox_args.preserve_data_order,
             )
 
         # Build dataloders.

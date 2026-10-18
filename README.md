@@ -481,6 +481,44 @@ You would then run training with the following settings added to your configurat
   "data-path": "data/mydataset_text_document",
 ```
 
+### Training in JSONL document order
+
+To follow a planned document order, put the documents in that order in one JSONL
+file and preprocess it normally. The standard `tools/datasets/preprocess_data.py`
+preserves input order, including when using multiple workers. Then add this to
+your training configuration:
+
+```yaml
+data_path: data/mydataset_text_document
+dataset_impl: gpt2
+pack_impl: packed
+preserve_data_order: true
+```
+
+`preserve_data_order` defaults to `false`. When enabled, it disables both document
+shuffling and training sample shuffling, and repeats the same document order on
+each pass through the data. It supports the standard packed GPT dataset with
+either `data_path` plus `split`, or exactly one `train_data_paths` entry. Multiple
+blended training datasets and other dataset/packing implementations are rejected.
+Validation and test ordering is unchanged.
+
+The flag uses separate `_ordered` index-map caches. Existing `.bin`/`.idx` files
+can be reused without deleting shuffled caches or tokenizing again. Preprocessing
+may filter empty documents; the flag preserves the order of the retained documents.
+If the tokenized data was already reordered by another tool, regenerate it from
+the ordered JSONL first.
+
+With `data_path` plus `split`, only the training portion is used for training;
+the remaining documents are held out for validation and test. Packing still
+creates fixed-length sequences that can cross document and epoch boundaries,
+and a final incomplete sequence or batch may be dropped. Data-parallel workers
+consume consecutive portions of a batch, and samples in the same optimizer
+update contribute together. Align curriculum stage boundaries with optimizer
+steps if a stage must finish before the next starts. When resuming, keep the
+ordering flag, dataset, and batch configuration consistent with the original run.
+
+Feature contact: [@aflah02](https://github.com/aflah02).
+
 # Training and Finetuning
 
 Training is launched using `deepy.py`, a wrapper around DeepSpeed's launcher, which launches the same script in parallel across many GPUs / nodes.
