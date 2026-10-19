@@ -685,14 +685,14 @@ class TEDelayedScaling(te.common.recipe.DelayedScaling):
 
         super().__init__(
             margin=neox_args.te_fp8_margin,
-            fp8_format=te_fp8_format,
+            fp8_format=fp8_format,
             amax_compute_algo=neox_args.te_fp8_amax_compute_algo,
             amax_history_len=neox_args.te_fp8_amax_history_len,
             override_linear_precision=override_linear_precision,
             fp8_mha=neox_args.te_fp8_mha,
         )
 
-    def fp8_context(self):
+    def get_context(self):
         fp8_group = None
         if self.tp_group:
             fp8_group = self.tp_group
@@ -700,4 +700,4 @@ class TEDelayedScaling(te.common.recipe.DelayedScaling):
             enabled=True, fp8_recipe=self, fp8_group=fp8_group
         )
 
-        return get_context
+        return fp8_context
