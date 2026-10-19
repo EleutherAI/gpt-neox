@@ -1125,6 +1125,21 @@ class NeoXArgs(*BASE_CLASSES):
                 self.hidden_dropout == 0.0,
             ), "RWKV does not yet have dropout implemented"
 
+        if self.context_parallel_size > 1:
+            assert self.is_pipe_parallel, "context parallelism requires pipe_parallel_size >= 1"
+            assert all(
+                t in ("ringX2", "ringX3", "ringX4") for t in self.attention_config
+            ), "context parallelism requires ringX2/ringX3/ringX4 (ringX1 backward is not causal)"
+            for t in set(self.attention_config):
+                assert self.zigzag_tokens == (
+                    t != "ringX2"
+                ), f"{t} requires zigzag_tokens={t != 'ringX2'}"
+            assert (
+                self.seq_length
+                % (self.context_parallel_size * (2 if self.zigzag_tokens else 1))
+                == 0
+            ), "seq_length must divide evenly into context-parallel shards"
+
         # Sparsity config
         if self.sparsity_config is None:
             # Can't have a default value as an empty dict so need to set it here

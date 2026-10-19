@@ -518,8 +518,8 @@ def get_batch_pipe(data, neox_args, curr_scheduler=None):
 
     # unpack data
     rank = torch.distributed.get_rank()
-    print(f"[rank {rank}] position ids: {position_ids},\n [rank {rank}]labels: {tokens}")
-    print(f"[rank {rank}] scattered position ids: {mpu.scatter_data(position_ids, zigzag=neox_args.zigzag_tokens)},\n [rank {rank}] scattered labels: {mpu.scatter_data(tokens, zigzag=neox_args.zigzag_tokens)}")
+    #print(f"[rank {rank}] position ids: {position_ids},\n [rank {rank}]labels: {tokens}")
+    #print(f"[rank {rank}] scattered position ids: {mpu.scatter_data(position_ids, zigzag=neox_args.zigzag_tokens)},\n [rank {rank}] scattered labels: {mpu.scatter_data(tokens, zigzag=neox_args.zigzag_tokens)}")
     return ((mpu.scatter_data(tokens, zigzag=neox_args.zigzag_tokens), 
         mpu.scatter_data(position_ids, zigzag=neox_args.zigzag_tokens), 
         mpu.scatter_data(attention_mask, zigzag=neox_args.zigzag_tokens)), 
@@ -1205,6 +1205,17 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
             # config_params=neox_args.deepspeed_config,
             mpu=mpu if not neox_args.is_pipe_parallel else None,
         )
+        if neox_args.context_parallel_size > 1:
+            from deepspeed.runtime.zero.stage_1_and_2 import DeepSpeedZeroOptimizer
+
+            assert isinstance(
+                model.optimizer, DeepSpeedZeroOptimizer
+            ) and torch.distributed.get_world_size(
+                model.optimizer.dp_process_group
+            ) == mpu.get_data_parallel_world_size(), (
+                "context parallelism requires ZeRO-1 (fp16/fp32) and a DeeperSpeed "
+                "grid that reduces gradients over data x context"
+            )
         if needs_reference_model:
             reference_model, _, _, _ = deepspeed.initialize(
                 model=reference_model,
