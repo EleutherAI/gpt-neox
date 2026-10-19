@@ -144,7 +144,7 @@ class TELinear(te.pytorch.Linear):
 
     def forward(self, inp, **kwargs):
         if self.use_mup and self.mup_rescale_parameters:
-            input_ /= self.width_mult()
+            inp /= self.width_mult()
 
         output = super(TELinear, self).forward(inp, **kwargs)
 
@@ -372,7 +372,7 @@ class TEColumnParallelLinear(te.pytorch.Linear):
 
     def forward(self, inp, **kwargs):
         if self.use_mup and self.mup_rescale_parameters:
-            input_ /= self.width_mult()
+            inp /= self.width_mult()
 
         output = super(TEColumnParallelLinear, self).forward(inp, **kwargs)
         if self.skip_bias_add:
@@ -507,7 +507,7 @@ class TERowParallelLinear(te.pytorch.Linear):
 
     def forward(self, inp, **kwargs):
         if self.use_mup and self.mup_rescale_parameters:
-            input_ /= self.width_mult()
+            inp /= self.width_mult()
 
         output = super(TERowParallelLinear, self).forward(inp, **kwargs)
 
@@ -652,14 +652,14 @@ class TEDelayedScaling(te.common.recipe.DelayedScaling):
 
         super().__init__(
             margin=neox_args.te_fp8_margin,
-            fp8_format=te_fp8_format,
+            fp8_format=fp8_format,
             amax_compute_algo=neox_args.te_fp8_amax_compute_algo,
             amax_history_len=neox_args.te_fp8_amax_history_len,
             override_linear_precision=override_linear_precision,
             fp8_mha=neox_args.te_fp8_mha,
         )
 
-    def fp8_context(self):
+    def get_context(self):
         fp8_group = None
         if self.tp_group:
             fp8_group = self.tp_group
@@ -667,4 +667,4 @@ class TEDelayedScaling(te.common.recipe.DelayedScaling):
             enabled=True, fp8_recipe=self, fp8_group=fp8_group
         )
 
-        return get_context
+        return fp8_context
