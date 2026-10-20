@@ -902,7 +902,7 @@ def precompute_logits(neox_args, model):
                     pad_len=neox_args.seq_length + 1,
                     truncate=True,
                 )
-                # print(context_tokens)
+                
                 label_tokens = [tokens[1:] for tokens in context_tokens]
                 context_tokens = [tokens[:-1] for tokens in context_tokens]
             else:
@@ -919,7 +919,6 @@ def precompute_logits(neox_args, model):
                 neox_args.train_micro_batch_size_per_gpu
                 * mpu.get_data_parallel_world_size()
             )
-            # print(context_tokens)
             # convert to tensor and broadcast
             context_tokens = torch.LongTensor(context_tokens).to(device_backend.device())
             label_tokens = torch.LongTensor(label_tokens).to(device_backend.device())

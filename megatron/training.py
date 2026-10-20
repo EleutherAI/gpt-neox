@@ -1727,7 +1727,6 @@ def evaluate_and_print_results(
         if isinstance(v, dict):
             if neox_args.eval_tasks and "results" in v:
                 v = v["results"]
-                print(v)
             for k2, v2 in v.items():
                 k3 = "_".join([k, k2])
                 string += f"{k3} value: {v2:.6E} | "

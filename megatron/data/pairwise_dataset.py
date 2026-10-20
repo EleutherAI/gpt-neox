@@ -350,7 +350,6 @@ def _build_index_mappings(
     assert counts[0].item() == torch.distributed.get_world_size(
         group=mpu.get_io_parallel_group()
     )
-    #print(f"io parallel size: {mpu.get_io_parallel_group()}")
 
     # Load mappings.
     start_time = time.time()

@@ -937,10 +937,9 @@ class ParallelSelfAttention(nn.Module):
                 seq_len += offset
             rank = torch.distributed.get_rank()
             cos, sin = self.rotary_emb(value_layer, seq_len=seq_len)
-            #print(f"\n\n[rank {rank}] cos shape: {cos.shape}, cos: {cos[:5,:5]},\n [rank {rank}] sin: {sin[:5,:5]}")
+            
             cos = mpu.scatter_data(cos, self.neox_args.zigzag_tokens, dim=0)
             sin = mpu.scatter_data(sin, self.neox_args.zigzag_tokens, dim=0)
-            #print(f"\n\n[rank {rank}] post cos shape: {cos.shape}, post cos: {cos[:5,:5]},\n [rank {rank}] post sin: {sin[:5,:5]}\n\n")
             if self.rope_fusion:
                 query_layer, key_layer = (
                     fused_apply_rotary_pos_emb_cached(rot, cos, sin)
@@ -1288,7 +1287,6 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
             len(args) == 2
         ), "ParallelTransformerLayerPipe expects 2 arguments - hidden_states and attention_mask"
         hidden_states, attention_mask = args
-        print(hidden_states)
         # we are returning just [hidden_states, mask]
         return super().forward(hidden_states, attention_mask), attention_mask
 
