@@ -126,7 +126,9 @@ def scatter_data(tensor, zigzag, dim=-1):
     if worldsize <= 1:
         return tensor
     if not zigzag:
-        return torch.chunk(tensor, worldsize, dim=dim)[get_context_parallel_rank()]
+        # .contiguous(): a chunk along the sequence dim of a [b>1, s] tensor is a strided view,
+        # and downstream code (e.g. loss_mask.view(-1) in cross_entropy) needs dense tensors.
+        return torch.chunk(tensor, worldsize, dim=dim)[get_context_parallel_rank()].contiguous()
     # otherwise prepare for zigzagging
     seq_chunks = torch.chunk(tensor, 2 * worldsize, dim=dim)
     data = [

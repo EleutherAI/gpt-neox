@@ -1105,6 +1105,35 @@ class NeoXArgs(*BASE_CLASSES):
             assert (
                 item in ATTENTION_TYPE_CHOICES
             ), f"Attention type {item} not recognized"
+
+        # Context parallelism
+        if self.context_parallel_size > 1:
+            cp = self.context_parallel_size
+            assert self.is_pipe_parallel, (
+                "context_parallel_size > 1 requires the pipeline engine (pipe_parallel_size >= 1); "
+                "the sequential path does not shard the batch over the sequence."
+            )
+            # Any non-ring layer would silently attend only within the local chunk.
+            assert all(a in ("ringX2", "ringX3") for a in self.attention_config), (
+                "context_parallel_size > 1 needs ringX2 (contiguous shards) or ringX3 (zigzag "
+                f"shards) attention on every layer, got {set(self.attention_config)}. ringX1's "
+                "causal backward is incorrect and ringX4 is unverified."
+            )
+            if "ringX3" in self.attention_config:
+                assert self.zigzag_tokens, "ringX3 expects zigzag_tokens: true"
+            if "ringX2" in self.attention_config:
+                assert not self.zigzag_tokens, "ringX2 expects contiguous shards (zigzag_tokens: false)"
+            assert self.seq_length % (cp * (2 if self.zigzag_tokens else 1)) == 0, (
+                f"seq_length={self.seq_length} must be divisible by "
+                f"{'2 * ' if self.zigzag_tokens else ''}context_parallel_size={cp}"
+            )
+            # ringX passes a dummy rng_state to the flash backward, so dropout masks would not
+            # match between forward and backward; local window offsets would also be wrong.
+            assert not self.attention_dropout, "ringX attention does not support attention_dropout"
+            assert self.sliding_window_width is None, "ringX attention does not support sliding windows"
+            # ringX2 uses `.to(q.dtype)` / `.to(torch.float32)` as if they always copied; with
+            # fp32 inputs they alias buffers that are zeroed later (wrong outputs and dq).
+            assert self.precision in ("fp16", "bfloat16"), "ringX attention requires fp16 or bf16"
         if "gmlp" in self.attention_config or "amlp" in self.attention_config:
             assert (
                 not self.partition_activations

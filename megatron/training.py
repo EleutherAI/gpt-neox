@@ -516,16 +516,29 @@ def get_batch_pipe(data, neox_args, curr_scheduler=None):
                 :, :, :curriculum_seqlen, :curriculum_seqlen
             ].contiguous()
 
-    # unpack data
-    rank = torch.distributed.get_rank()
-    #print(f"[rank {rank}] position ids: {position_ids},\n [rank {rank}]labels: {tokens}")
-    #print(f"[rank {rank}] scattered position ids: {mpu.scatter_data(position_ids, zigzag=neox_args.zigzag_tokens)},\n [rank {rank}] scattered labels: {mpu.scatter_data(tokens, zigzag=neox_args.zigzag_tokens)}")
-    return ((mpu.scatter_data(tokens, zigzag=neox_args.zigzag_tokens), 
-        mpu.scatter_data(position_ids, zigzag=neox_args.zigzag_tokens), 
-        mpu.scatter_data(attention_mask, zigzag=neox_args.zigzag_tokens)), 
-        (mpu.scatter_data(labels, zigzag=neox_args.zigzag_tokens), 
-        mpu.scatter_data(loss_mask, zigzag=neox_args.zigzag_tokens)))
+    # unpack data; with context parallelism each rank keeps only its slice of the sequence
+    zigzag = neox_args.zigzag_tokens
+    return (
+        (
+            mpu.scatter_data(tokens, zigzag=zigzag),
+            mpu.scatter_data(position_ids, zigzag=zigzag),
+            mpu.scatter_data(attention_mask, zigzag=zigzag),
+        ),
+        (
+            mpu.scatter_data(labels, zigzag=zigzag),
+            mpu.scatter_data(loss_mask, zigzag=zigzag),
+        ),
+    )
 
+
+def _sum_over_context_parallel(loss):
+    """Per-rank losses are partial sums under context parallelism (see cross_entropy); add them up
+    so logging / eval report the loss of the whole sequence."""
+    if mpu.get_context_parallel_world_size() <= 1 or not torch.is_tensor(loss):
+        return loss
+    loss = loss.clone()
+    torch.distributed.all_reduce(loss, group=mpu.get_context_parallel_group())
+    return loss
 
 def get_batch_sequential(forward_input, neox_args):
     """A modification of get_batch() to work with the latest batch instead of an iterator."""
@@ -548,7 +561,13 @@ def forward_step(
 ):
     """Forward step."""
     if neox_args.is_pipe_parallel:
-        return model.eval_batch(data_iterator, return_logits=return_logits)
+        outputs = model.eval_batch(data_iterator, return_logits=return_logits)
+        if return_logits:
+            loss, logits = outputs
+            return _sum_over_context_parallel(loss), logits
+        # evaluate() unpacks (loss, metric_dict)
+        return _sum_over_context_parallel(outputs), {}
+ 
 
     # Get the batch.
     if neox_args.memory_profiling and neox_args.iteration:
@@ -1411,7 +1430,7 @@ def train_step_pipe(neox_args, timers, model, data_iterator):
 
     assert neox_args.deepspeed
     loss = model.train_batch(data_iter=data_iterator)
-    loss_dict = {"lm_loss": loss}
+    loss_dict = {"lm_loss": _sum_over_context_parallel(loss)}
     # Don't break Megatron's timers because we changed code paths.
     for t in [
         "forward",

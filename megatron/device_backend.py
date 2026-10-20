@@ -125,7 +125,7 @@ def Event(*args, **kwargs):
 
 def get_rng_state():
     if _backend is not None:
-        _backend.get_rng_state()
+        return _backend.get_rng_state()
 
 def set_rng_state(state):
     if _backend is not None:
@@ -140,9 +140,18 @@ def manual_seed_all(seed):
     if _backend is not None:
         _backend.manual_seed_all(seed)
 
-def nvtx():
-    if _backend is torch.cuda:
-        return _backend.nvtx()
+class _NoNvtx:
+    @staticmethod
+    def range_push(*args, **kwargs):
+        pass
+
+    @staticmethod
+    def range_pop(*args, **kwargs):
+        pass
+
+
+# callers use device_backend.nvtx.range_push(...), i.e. a module-like attribute, not a function
+nvtx = torch.cuda.nvtx if _backend is torch.cuda else _NoNvtx()
 
 def cudart():
     if _backend is torch.cuda:

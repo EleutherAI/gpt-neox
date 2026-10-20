@@ -76,7 +76,19 @@ def cross_entropy(output, labels, _fp16=False):
         losses = mpu.vocab_parallel_cross_entropy(output.float().contiguous(), labels)
     print(f"losses: {losses},\n loss_mask: {loss_mask}")
     loss_mask = loss_mask.reshape(-1)
-    loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
+    num_loss_tokens = loss_mask.sum()
+    if mpu.get_context_parallel_world_size() > 1:
+        # Each context-parallel rank only sees seq_len / cp tokens. Normalize by the number of
+        # loss tokens in the *whole* sequence so the per-rank losses sum to the true mean.
+        # DeepSpeed then sums (not averages) gradients over the CP group (the grid exposes it as
+        # a sequence-parallel group). Dividing by the local count instead inflates each rank's
+        # pre-reduction fp16 grads (~1.8x/3x/4.7x at cp=2/4/8), so the loss scaler overflows
+        # where cp=1 doesn't, and biases the loss when loss_mask is uneven across shards.
+        num_loss_tokens = num_loss_tokens.detach().float()
+        torch.distributed.all_reduce(
+            num_loss_tokens, group=mpu.get_context_parallel_group()
+        )
+    loss = torch.sum(losses.view(-1) * loss_mask) / num_loss_tokens     
     return loss
 
 

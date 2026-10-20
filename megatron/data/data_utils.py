@@ -32,9 +32,12 @@ def make_data_loader(dataset, neox_args):
     """Build dataloader given an input dataset."""
     if dataset is None:
         return None
-    # Data parallel arguments.
-    world_size = mpu.get_io_parallel_world_size()
-    rank = mpu.get_io_parallel_rank()
+    # Data parallel arguments. Shard over the pure data-parallel axis: every rank of a
+    # context-parallel group (and the first/last pipeline stages) must draw the *same* samples.
+    # (mpu's data-parallel group is data x context, and the IO group spans pipeline stages.)
+    topo = mpu.get_topology()
+    world_size = topo.get_dim("data")
+    rank = topo.get_coord(torch.distributed.get_rank()).data
     global_batch_size = neox_args.batch_size * world_size
     num_workers = neox_args.num_workers
 

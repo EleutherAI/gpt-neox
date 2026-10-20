@@ -67,7 +67,9 @@ class AnnealingLR(object):
         num_iters_ = self.num_iters
         # Warmup.
         if self.warmup_iter > 0 and self.num_iters <= self.warmup_iter:
-            return float(self.start_lr) * max(1, num_iters_) / self.warmup_iter
+            # Cap at start_lr: with a fractional warmup_iter (< 1, e.g. warmup=0.01 on a short
+            # run) max(1, n) / warmup_iter > 1, which set step 0's LR to start_lr / warmup_iter.
+            return float(self.start_lr) * min(1.0, max(1, num_iters_) / self.warmup_iter)
 
         num_iters_ = num_iters_ - self.warmup_iter
         if self.decay_style == "linear":

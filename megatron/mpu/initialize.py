@@ -99,11 +99,14 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
     global _DATA_PARALLEL_GROUP
     assert _DATA_PARALLEL_GROUP is None, "data parallel group is already initialized"
     global _DATA_PARALLEL_SRC
-    dpXcp_group = fold_process_groups(topology.get_axis_comm_lists("data"),topology.get_axis_comm_lists("context"))
-    print(f"DP group: {topology.get_axis_comm_lists("data")}, \n CP group: {topology.get_axis_comm_lists("context")}, folded group: {dpXcp_group}")
     if topology:
+        # NeoX's "data parallel" group is data x context: all ranks holding the same model shard.
+        # (DeepSpeed's pipe grid keeps a pure-DP group and exposes data x context separately as
+        # its sequence-data-parallel group.)
+        dpXcp_group = fold_process_groups(
+            topology.get_axis_comm_lists("data"), topology.get_axis_comm_lists("context")
+        )
         for dp_group in dpXcp_group:
-            print(dp_group)
             group = torch.distributed.new_group(ranks=dp_group)
             if rank == 0:
                 print(f"MPU DP:", dp_group)
@@ -155,16 +158,12 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
         if rank in io_group:
             _IO_PARALLEL_GROUP = group
             _IO_PARALLEL_SRC = io_group[0]
-        #TODO: add context parallelism to this group
     else:
-        for dp_group in topology.get_axis_comm_lists("data"):
-            print(dp_group)
-            group = torch.distributed.new_group(ranks=dp_group)
-            if rank == 0:
-                print(f"MPU IO:", dp_group)
-            if rank in dp_group:
-                _IO_PARALLEL_GROUP = group
-                _IO_PARALLEL_SRC = dp_group[0]
+        # The IO group is only used as a barrier around index-map building, which every rank
+        # that builds a dataset (model-parallel rank 0 of every DP *and* CP rank) participates
+        # in. It must therefore include the CP ranks; the data sampler shards over the pure
+        # data axis separately (see make_data_loader).
+        _IO_PARALLEL_GROUP = get_data_parallel_group()
 
     # Build the model parallel groups.
     global _MODEL_PARALLEL_GROUP
@@ -410,7 +409,7 @@ def get_tensor_model_parallel_group():
 def get_tensor_model_parallel_src_rank():
     """Calculate the global rank corresponding to the first local rank
     in the tensor model parallel group."""
-    return get_model_parallel_src_rank
+    return get_model_parallel_src_rank()
 
 
 # Needed for MOE. True tensor parallelism todo.
