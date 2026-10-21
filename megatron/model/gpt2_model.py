@@ -87,6 +87,11 @@ def cross_entropy(output, labels, _fp16=False):
             num_loss_tokens, group=mpu.get_context_parallel_group()
         )
     loss = torch.sum(losses.view(-1) * loss_mask) / num_loss_tokens     
+    if mpu.get_context_parallel_world_size() > 1:
+        # report the full-sequence loss on every CP rank; the gradient stays this rank's share
+        full = loss.detach().clone()
+        torch.distributed.all_reduce(full, group=mpu.get_context_parallel_group())
+        loss = loss + (full - loss).detach()
     return loss
 
 

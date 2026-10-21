@@ -530,16 +530,6 @@ def get_batch_pipe(data, neox_args, curr_scheduler=None):
         ),
     )
 
-
-def _sum_over_context_parallel(loss):
-    """Per-rank losses are partial sums under context parallelism (see cross_entropy); add them up
-    so logging / eval report the loss of the whole sequence."""
-    if mpu.get_context_parallel_world_size() <= 1 or not torch.is_tensor(loss):
-        return loss
-    loss = loss.clone()
-    torch.distributed.all_reduce(loss, group=mpu.get_context_parallel_group())
-    return loss
-
 def get_batch_sequential(forward_input, neox_args):
     """A modification of get_batch() to work with the latest batch instead of an iterator."""
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
@@ -564,9 +554,9 @@ def forward_step(
         outputs = model.eval_batch(data_iterator, return_logits=return_logits)
         if return_logits:
             loss, logits = outputs
-            return _sum_over_context_parallel(loss), logits
+            return loss, logits
         # evaluate() unpacks (loss, metric_dict)
-        return _sum_over_context_parallel(outputs), {}
+        return outputs, {}
  
 
     # Get the batch.
@@ -1430,7 +1420,7 @@ def train_step_pipe(neox_args, timers, model, data_iterator):
 
     assert neox_args.deepspeed
     loss = model.train_batch(data_iter=data_iterator)
-    loss_dict = {"lm_loss": _sum_over_context_parallel(loss)}
+    loss_dict = {"lm_loss": loss}
     # Don't break Megatron's timers because we changed code paths.
     for t in [
         "forward",
