@@ -164,9 +164,9 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
 
     # ---Communication Options---
 
-    communication_data_type: bool = None
+    communication_data_type: Literal["fp16", "bf16", "fp32"] = None
     """
-    During gradient averaging, perform communication with selected data type. By default it will be determined by selected regime
+    During gradient averaging, perform communication with selected data type: fp16, bf16 or fp32. By default it will be determined by selected regime
     """
 
     # ---Autotuning Options---
