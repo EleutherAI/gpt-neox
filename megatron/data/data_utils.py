@@ -725,6 +725,7 @@ def build_train_valid_test_data_loaders(neox_args):
         flags = torch.LongTensor([0, 0, 0]).to(device_backend.device())
 
     # Broadcast num tokens.
+    print(f"before flag broadcast, pipe_parallel: {neox_args.is_pipe_parallel}, rank: {torch.distributed.get_rank()}")
     if neox_args.is_pipe_parallel:
         # Only first/last pipeline stages have data loaders, so pipeline parallelism should
         # broadcast globally instead of just the model parallel group.
@@ -735,6 +736,7 @@ def build_train_valid_test_data_loaders(neox_args):
             mpu.get_model_parallel_src_rank(),
             group=mpu.get_model_parallel_group(),
         )
+    print("after flag broadcast")
     neox_args.do_train = flags[0].item()
     neox_args.do_valid = flags[1].item()
     neox_args.do_test = flags[2].item()

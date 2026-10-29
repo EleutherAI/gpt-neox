@@ -157,6 +157,7 @@ def get_actual_flops(neox_args, iter_time_s) -> float:
                 + (vocab_size / (16.0 * num_layers * hidden_size))
             )
         )
+    print(f"\nseq_len: {seq_len}, flops_per_iteration: {flops_per_iteration}, iter_time: {iter_time_s}, world_size: {world_size}\n",flush=True)
     return flops_per_iteration / (iter_time_s * world_size)
 
 
@@ -234,6 +235,7 @@ def get_forward_backward_flops(neox_args, iter_time_s) -> float:
                 + (vocab_size / (16.0 * num_layers * hidden_size))
             )
         )
+    print(f"\nflops_per_iteration: {flops_per_iteration}, iter_time: {iter_time_s}, world_size: {world_size}\n",flush=True)
     return flops_per_iteration / (iter_time_s * world_size)
 
 

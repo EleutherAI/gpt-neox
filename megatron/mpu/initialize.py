@@ -81,6 +81,7 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
     with a total of 16 GPUs, rank 0 to 7 belong to the first box and
     ranks 8 to 15 belong to the second box.
     """
+    print("ENTERING INIT MP")
     if torch.distributed.get_rank() == 0:
         print("> initializing model parallel with size {}".format(model_parallel_size))
     # Get world size and rank. Ensure some consistencies.
@@ -189,6 +190,7 @@ def initialize_model_parallel(model_parallel_size, topology=None, fp32_allreduce
     global _FP32_ALLREDUCE
     assert _FP32_ALLREDUCE is None, "fp32_allreduce is already initialized"
     _FP32_ALLREDUCE = fp32_allreduce
+    print("EXITING INIT MP")
 
 
 def fold_process_groups(*group_lists):
