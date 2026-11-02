@@ -918,12 +918,6 @@ Misc. Arguments
 
     Use workarounds for known problems with Torch ONNX exporter
 
-- **deepscale**: bool
-
-    Default = False
-
-    (Deprecated) enable DeepSpeed (helper flag for user code, no impact on DeepSpeed backend)'
-
 - **deepscale_config**: str
 
     Default = None

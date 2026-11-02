@@ -906,10 +906,6 @@ class NeoXArgsOther(NeoXArgsTemplate):
     Use workarounds for known problems with Torch ONNX exporter
     """
 
-    deepscale: bool = False
-    """
-    (Deprecated) enable DeepSpeed (helper flag for user code, no impact on DeepSpeed backend)'
-    """
 
     deepscale_config: str = None
     """(Deprecated) deepscale json configuration file."""

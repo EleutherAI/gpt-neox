@@ -100,6 +100,8 @@ def test_strip_deprecated_config_keys(monkeypatch):
         strip({"removed_option": 1})
     with pytest.raises(ValueError, match="'sparse_attention' has been removed"):
         strip({"sparse_attention": {"block": 32}})
+    with pytest.raises(ValueError, match="'deepscale' has been removed"):
+        strip({"deepscale": True})
 
 
 @pytest.mark.cpu
