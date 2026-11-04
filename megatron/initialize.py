@@ -75,10 +75,13 @@ def initialize_megatron(neox_args, allow_no_cuda=False):
         finish_mpu_init()
 
         # Compile dataset C++ code.
-        if neox_args.local_rank == 0:
+        builder = neox_args.rank == 0 if neox_args.use_shared_fs else neox_args.local_rank == 0
+        if builder:
             from megatron.data.data_utils import compile_helper
 
             compile_helper()
+        # A shared extension must finish building before other ranks import it.
+        torch.distributed.barrier()
 
         # Write arguments to tensorboard.
         _write_args_to_tensorboard(neox_args=neox_args)

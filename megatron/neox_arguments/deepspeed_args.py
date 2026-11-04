@@ -128,6 +128,9 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     Multi-level dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#zero-optimization-options
     """
 
+    zero_allow_untested_optimizer: bool = False
+    """Allow the explicitly configured GRAM AdamW subclass with ZeRO."""
+
     # ---Logging Options---
 
     curriculum_learning: dict = None

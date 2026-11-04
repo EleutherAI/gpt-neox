@@ -57,7 +57,7 @@ def gpt2_attention_mask_func(attention_scores, ltor_mask):
     return attention_scores
 
 
-def cross_entropy(output, labels, _fp16=False):
+def cross_entropy(output, labels, _fp16=False, per_sample_mean=False):
     """From pretrain_gpt2:forward_step()"""
     """
     if self.fp16_lm_cross_entropy:
@@ -73,6 +73,13 @@ def cross_entropy(output, labels, _fp16=False):
         losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels)
     else:
         losses = mpu.vocab_parallel_cross_entropy(output.float().contiguous(), labels)
+    if per_sample_mean:
+        # The singleton baseline averages each sequence separately, even if
+        # explicit label/EOD masks leave different token counts per sequence.
+        shape = (labels.shape[0], -1)
+        mask = loss_mask.reshape(shape)
+        losses = losses.reshape(shape)
+        return ((losses * mask).sum(dim=1) / mask.sum(dim=1)).mean()
     loss_mask = loss_mask.view(-1)
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
     return loss

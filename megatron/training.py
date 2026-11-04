@@ -405,6 +405,18 @@ def get_batch(neox_args, data_iterator):
         data = next(data_iterator)
     else:
         data = None
+    if neox_args.gram_enabled:
+        # TP=1 is enforced by GRAM validation. Evaluation has no routing labels.
+        neox_args._gram_batch_flag = None
+        if data is not None and "gram_flag" in data:
+            flags = data["gram_flag"].reshape(-1)
+            allowed = (0, 1, 2) if neox_args.gram_nested else (0, 1)
+            homogeneous_group = getattr(neox_args, "gram_grouped_microbatch_size", 1) > 1
+            if (not flags.numel() or flags[0].item() not in allowed
+                    or (flags.numel() != 1 and not homogeneous_group)
+                    or not torch.all(flags == flags[0])):
+                raise ValueError("GRAM requires homogeneous valid routing labels per physical batch")
+            neox_args._gram_batch_flag = int(flags[0].item())
     if neox_args.train_impl == "normal":
         return _get_batch(
             neox_args=neox_args,
@@ -650,7 +662,25 @@ def forward_step(
         torch.cuda.nvtx.range_push(f"Forward pass")
     metrics = {}
     if neox_args.train_impl == "normal":
+        if is_train and neox_args.bf16_clear_grads_before_forward:
+            # BF16_Optimizer has already accumulated these gradients in FP32.
+            # Its backward clears them too, but doing so before forward avoids
+            # retaining a full BF16 gradient copy alongside saved activations.
+            model.optimizer.clear_lp_grads()
         # Sequential returns moe_losses, but this is not yet supported by pipe parallel
+        if neox_args.gram_enabled:
+            if is_train and neox_args._gram_batch_flag is None:
+                raise ValueError("GRAM training sample is missing gram_flag")
+            model.module._gram_controller.select(
+                flagged=neox_args._gram_batch_flag if is_train else 0,
+                robustness=neox_args.gram_core_robustness,
+                spread=neox_args.gram_aux_spread,
+                seed=neox_args.seed,
+                iteration=neox_args.iteration,
+                microstep=getattr(neox_args, "_gram_microstep", 0),
+                training=is_train,
+                level=neox_args.gram_eval_level,
+            )
         maybe_tuple = model((tokens, position_ids, attention_mask), neox_args=neox_args)
         if type(maybe_tuple) is tuple:
             outputs, moe_losses = maybe_tuple
@@ -665,7 +695,9 @@ def forward_step(
             loss_mask = loss_mask[:, : neox_args.curriculum_seqlen].contiguous()
             labels = labels[:, : neox_args.curriculum_seqlen].contiguous()
         main_loss = cross_entropy(
-            outputs, (labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy
+            outputs, (labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy,
+            per_sample_mean=(neox_args.gram_enabled and is_train and
+                             getattr(neox_args, "gram_grouped_microbatch_size", 1) > 1),
         )
         if neox_args.moe_num_experts > 1:
             if neox_args.moe_type == "deepspeed":
@@ -1050,6 +1082,14 @@ def get_optimizer(model, neox_args, dummy=False):
         exit()
     # Build parameter groups (weight decay and non-decay).
     param_groups = get_params_for_weight_decay_optimization(model, neox_args)
+    if neox_args.gram_enabled:
+        from megatron.gram import RoutedAdamW
+
+        optimizer = RoutedAdamW(
+            param_groups, controller=model._gram_controller, managed_step=True,
+            weight_decay=neox_args.weight_decay, **neox_args.optimizer["params"]
+        )
+        return optimizer, optimizer.param_groups
     print_rank_0(
         f'Configuring Optimizer type: {neox_args.optimizer_type} with params: {neox_args.optimizer["params"]}'
     )
@@ -1253,7 +1293,15 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
         )
         or ((neox_args.train_impl == "reinforce") and (neox_args.kl_div_beta > 0.0))
     )
+    if neox_args.gram_enabled:
+        from megatron.gram import validate_config
+
+        validate_config(neox_args)
     model = get_model(neox_args=neox_args, use_cache=use_cache)
+    if neox_args.gram_enabled:
+        from megatron.gram import install
+
+        model._gram_controller = install(model, neox_args)
     if needs_reference_model:
         reference_model = get_model(neox_args=neox_args, use_cache=use_cache)
     else:
@@ -1296,6 +1344,16 @@ def setup_model_and_optimizer(neox_args, use_cache=False, iteration=None):
                 model_parameters=ref_param_groups,
                 mpu=mpu if not neox_args.is_pipe_parallel else None,
             )
+        if neox_args.bf16_fused_grad_accumulation:
+            from megatron.bf16_accumulation import install as install_cast_add_accumulation
+            install_cast_add_accumulation(optimizer)
+            print_rank_0(' > BF16 gradient cast-and-add enabled; accumulation remains FP32')
+        if neox_args.bf16_clear_grads_before_forward:
+            from megatron.bf16_accumulation import validate_optimizer
+            validate_optimizer(optimizer)
+            if neox_args.is_pipe_parallel or neox_args.train_impl != 'normal':
+                raise ValueError('Early BF16 gradient clearing supports normal non-pipeline training only')
+            print_rank_0(' > Already-accumulated BF16 gradients cleared before forward')
         mark_norms_for_sequence_parallel_grad_sync(model, neox_args)
         if neox_args.moe_num_experts > 1 and neox_args.moe_type == "megablocks":
             # We need to additionally set this flag to ensure DS parallelism properly handles this foreign MoE.
@@ -1384,6 +1442,12 @@ def train_step(
     reference_model=None,
 ):
     """Single training step."""
+    if neox_args.gram_enabled and getattr(neox_args, "gram_grouped_microbatch_size", 1) > 1:
+        from megatron.gram import grouped_train_step
+        result = grouped_train_step(neox_args, timers, data_iterator, model, optimizer,
+            lr_scheduler, reference_model, forward_step, backward_step, reduce_losses)
+        collect_loss_for_unit_test(result[0]["lm_loss"])
+        return result
     # Pipeline parallelism schedules forward/backward/step
     if neox_args.is_pipe_parallel:
         reduced_loss = train_step_pipe(
@@ -1400,7 +1464,9 @@ def train_step(
     else:
         losses = []
         metric_dicts = defaultdict(list)
-        for _ in range(neox_args.gradient_accumulation_steps):
+        for microstep in range(neox_args.gradient_accumulation_steps):
+            if neox_args.gram_enabled:
+                neox_args._gram_microstep = microstep
             # Forward model for one step.
             timers("forward").start()
             loss, metric_dict = forward_step(
@@ -1447,7 +1513,14 @@ def train_step(
 
             timers("optimizer").start()
             if neox_args.deepspeed:
+                gram_boundary = neox_args.gram_enabled and model.is_gradient_accumulation_boundary()
+                if gram_boundary:
+                    model.module._gram_controller.prepare_step(
+                        device=model.device, group=mpu.get_data_parallel_group()
+                    )
                 model.step()
+                if gram_boundary:
+                    model.module._gram_controller.finish_step()
             else:
                 raise ValueError("Must be using deepspeed to run neox")
             timers("optimizer").stop()

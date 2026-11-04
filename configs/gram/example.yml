@@ -1,0 +1,55 @@
+# Illustrative single-adapter model; replace the three data paths first.
+data_path: /path/to/corpus_text_document
+vocab_file: /path/to/tokenizer.json
+tokenizer_type: HFTokenizer
+data_impl: mmap
+dataset_impl: gpt2
+split: "100,0,0"
+train_impl: normal
+num_layers: 2
+hidden_size: 128
+num_attention_heads: 4
+seq_length: 128
+max_position_embeddings: 128
+activation: gelu
+norm: layernorm
+pos_emb: rotary
+rotary_pct: 0.25
+gpt_j_residual: true
+no_weight_tying: true
+model_parallel_size: 1
+pipe_parallel_size: 0
+precision: bfloat16
+optimizer:
+  type: Adam
+  params:
+    lr: 0.0003
+    betas: [0.9, 0.95]
+    eps: 1.0e-8
+zero_optimization:
+  stage: 1
+  overlap_comm: false
+zero_allow_untested_optimizer: true
+data_types:
+  grad_accum_dtype: fp32
+train_micro_batch_size_per_gpu: 1
+gradient_accumulation_steps: 8
+gradient_clipping: 1.0
+weight_decay: 0.1
+train_iters: 100
+lr_decay_iters: 100
+warmup: 0.01
+eval_iters: 0
+gram_enabled: true
+gram_aux_width: 64
+gram_labels_path: /path/to/document_flags.npy
+gram_label_granularity: document
+gram_nested: false
+gram_optimizer_layout: 2
+gram_aux_spread: 0.5
+gram_core_robustness: 0.2
+gram_absorb_auxiliary_width: false
+gram_aux_output_bias: false
+gram_grouped_microbatch_size: 1
+bf16_fused_grad_accumulation: false
+bf16_clear_grads_before_forward: false

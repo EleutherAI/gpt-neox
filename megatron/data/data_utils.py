@@ -696,6 +696,19 @@ def build_train_valid_test_data_loaders(neox_args):
             )
 
         # Build dataloders.
+        if neox_args.gram_enabled:
+            from megatron.gram import FlaggedDataset
+            if neox_args.gram_homogeneous_path:
+                from megatron.data.gram_packed_dataset import HomogeneousPackedDataset
+                if neox_args.gram_nested or neox_args.dataset_impl != "gpt2":
+                    raise ValueError("Homogeneous packing requires single-adapter GPT2 data")
+                train_ds = HomogeneousPackedDataset(train_ds.indexed_dataset,
+                    neox_args.gram_homogeneous_path, neox_args.seq_length,
+                    train_val_test_num_samples[0])
+            else:
+                train_ds = FlaggedDataset(train_ds, neox_args.gram_labels_path,
+                    neox_args.gram_label_granularity,
+                    inner_labels_path=neox_args.gram_inner_labels_path if neox_args.gram_nested else None)
         train_dataloader = make_data_loader(train_ds, neox_args=neox_args)
         valid_dataloader = make_data_loader(valid_ds, neox_args=neox_args)
         test_dataloader = make_data_loader(test_ds, neox_args=neox_args)

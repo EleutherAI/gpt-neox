@@ -104,6 +104,28 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Model Arguments
     """
 
+    gram_enabled: bool = False
+    gram_aux_width: int = 256
+    gram_core_robustness: float = 0.5
+    """Paper p_cr: auxiliary activation/update probability on clean samples."""
+    gram_aux_spread: float = 0.0
+    """Paper p_as: core update probability on flagged samples; zero is strict isolation."""
+    gram_labels_path: str = None
+    gram_homogeneous_path: str = None
+    gram_label_granularity: Literal["sample", "document"] = "sample"
+    gram_optimizer_layout: int = 2
+    gram_nested: bool = False
+    gram_inner_labels_path: str = None
+    gram_eval_level: int = 0
+    gram_grouped_microbatch_size: int = 1
+    gram_absorb_auxiliary_width: bool = False
+    gram_aux_output_bias: bool = True
+    gram_inplace_mask: bool = False
+    bf16_fused_grad_accumulation: bool = False
+    """Optional BF16 cast-and-add into existing FP32 accumulation buffers."""
+    bf16_clear_grads_before_forward: bool = False
+    """Optional release of already accumulated BF16 gradients before forward."""
+
     precision: Literal["fp16", "fp32", "bfloat16"] = None
     """
     description of the used precision, either one of fp16 or fp32 (and in the future bf16).

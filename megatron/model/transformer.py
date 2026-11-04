@@ -125,6 +125,11 @@ class ParallelMLP(nn.Module):
         else:
             # 4h is default for ffn_dim
             ffn_dim = 4 * neox_args.hidden_size
+        if getattr(neox_args, "gram_absorb_auxiliary_width", False):
+            from megatron.gram import absorbed_mlp_width
+            ffn_dim = absorbed_mlp_width(ffn_dim, neox_args.gram_aux_width,
+                                        2 if neox_args.gram_nested else 1,
+                                        2 * multiple_of)
         ffn_dim_in = ffn_dim
         if self.is_gated:
             # set activation function to be gated implementation

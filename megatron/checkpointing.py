@@ -56,6 +56,15 @@ def check_checkpoint_args(neox_args, checkpoint_args):
 
     assert isinstance(checkpoint_args, dict), "args stored in checkpoint is a dict"
     for checkpoint_arg_name, checkpoint_arg_value in checkpoint_args.items():
+        if neox_args.finetune and checkpoint_arg_name in (
+            "gram_labels_path", "gram_inner_labels_path", "gram_label_granularity", "gram_core_robustness",
+            "gram_aux_spread",
+            "seed", "gradient_accumulation_steps", "train_batch_size",
+            "train_micro_batch_size_per_gpu",
+        ):
+            # A new training phase resets optimizer/sampler state and may use
+            # a new corpus, while the model architecture still has to match.
+            continue
         args_value = getattr(neox_args, checkpoint_arg_name)
         error_message = "{} value from checkpoint ({}) is not equal to the currently set argument value ({}).".format(
             checkpoint_arg_name, checkpoint_arg_value, args_value
@@ -194,6 +203,19 @@ def save_ds_checkpoint(iteration, model, neox_args):
         },
     }
     # rng states.
+    if neox_args.gram_enabled:
+        # Preserve routing semantics on resume, not just model dimensions.
+        for key in (
+            "gram_enabled", "gram_aux_width", "gram_core_robustness", "gram_aux_spread",
+            "gram_labels_path", "gram_label_granularity", "gram_optimizer_layout",
+            "gram_nested", "gram_inner_labels_path",
+            "gram_absorb_auxiliary_width", "gram_aux_output_bias",
+            "gram_grouped_microbatch_size", "gram_inplace_mask",
+            "intermediate_size", "expansion_factor", "mlp_multiple_of",
+            "seed", "gradient_accumulation_steps",
+            "train_batch_size", "train_micro_batch_size_per_gpu",
+        ):
+            sd["args"][key] = getattr(neox_args, key)
     if not neox_args.no_save_rng:
         sd["random_rng_state"] = random.getstate()
         sd["np_rng_state"] = np.random.get_state()
