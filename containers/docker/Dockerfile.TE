@@ -16,6 +16,9 @@ FROM nvcr.io/nvidia/pytorch:24.02-py3
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Override the legacy NVIDIA package index inherited from the NGC base image.
+ENV PIP_EXTRA_INDEX_URL=https://pypi.nvidia.com
+
 # metainformation
 LABEL org.opencontainers.image.version = "2.0"
 LABEL org.opencontainers.image.authors = "contact@eleuther.ai"

@@ -10,6 +10,12 @@ context.
 cd gpt-neox
 ```
 
+All Docker and Apptainer definitions set
+`PIP_EXTRA_INDEX_URL=https://pypi.nvidia.com` before installing Python packages
+and retain it in the finished image. This overrides the legacy
+`pypi.ngc.nvidia.com` extra index inherited from NGC base images, which can
+cause DNS resolution failures during `pip install`.
+
 ## Image Matrix
 
 | Image | Dockerfile | Base image | CUDA architecture | Use case |

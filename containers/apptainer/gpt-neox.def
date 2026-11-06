@@ -10,11 +10,15 @@ From: nvcr.io/nvidia/pytorch:24.02-py3
 
 %environment
     export DEBIAN_FRONTEND=noninteractive
+    export PIP_EXTRA_INDEX_URL=https://pypi.nvidia.com
     export PATH=/usr/local/mpi/bin:${PATH}
     export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:${LD_LIBRARY_PATH}
     export PDSH_RCMD_TYPE=ssh
 
 %post
+    # Override the legacy NVIDIA package index before installing Python packages.
+    export PIP_EXTRA_INDEX_URL=https://pypi.nvidia.com
+
     # System packages
     apt-get update -y
     apt-get install -y python3-pip sudo pdsh htop tmux zstd software-properties-common \
