@@ -10,14 +10,21 @@ From: nvcr.io/nvidia/pytorch:24.02-py3
 
 %environment
     export DEBIAN_FRONTEND=noninteractive
-    export PIP_EXTRA_INDEX_URL=https://pypi.nvidia.com
+    export PIP_CONFIG_FILE=/dev/null
+    export PIP_INDEX_URL=https://pypi.org/simple
+    export PIP_EXTRA_INDEX_URL=""
     export PATH=/usr/local/mpi/bin:${PATH}
     export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:${LD_LIBRARY_PATH}
     export PDSH_RCMD_TYPE=ssh
 
 %post
-    # Override the legacy NVIDIA package index before installing Python packages.
-    export PIP_EXTRA_INDEX_URL=https://pypi.nvidia.com
+    # The NGC base image adds https://pypi.ngc.nvidia.com as an extra package
+    # index. That endpoint is no longer resolvable on some clusters, causing pip
+    # installs to wait through repeated DNS retries. Ignore the inherited pip
+    # configuration and use public PyPI exclusively.
+    export PIP_CONFIG_FILE=/dev/null
+    export PIP_INDEX_URL=https://pypi.org/simple
+    export PIP_EXTRA_INDEX_URL=""
 
     # System packages
     apt-get update -y
