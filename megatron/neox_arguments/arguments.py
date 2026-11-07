@@ -1020,9 +1020,6 @@ class NeoXArgs(*BASE_CLASSES):
         Derives additional configuration values necessary for training from the current config
         """
 
-        if isinstance(self.norm_placement, str):
-            self.update_value("norm_placement", self.norm_placement.lower())
-
         # number of gpus
         # Get number of GPUs param or hostfile to determine train_batch_size
         global_num_gpus = getattr(self, "global_num_gpus", None)
@@ -1375,14 +1372,6 @@ class NeoXArgs(*BASE_CLASSES):
             logging.error(error_message)
             raise ValueError(error_message)
             return False
-
-        if self.norm_placement == "post_norm_inside_residual" and (
-            self.gpt_j_residual or self.te_layernorm_mlp
-        ):
-            raise ValueError(
-                "`norm_placement='post_norm_inside_residual'` is incompatible "
-                "with `gpt_j_residual=True` or `te_layernorm_mlp=True`."
-            )
 
         _validate_qk_norm_args(
             use_qk_norm=self.use_qk_norm,

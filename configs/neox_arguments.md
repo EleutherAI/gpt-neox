@@ -372,15 +372,6 @@ Model Arguments
 
     Normalization layer to use. Choose from "layernorm", "rmsnorm", "non_parametric_layernorm", "scalenorm", "te_rmsnorm", "te_layernorm".
 
-- **norm_placement**: typing.Literal['pre_norm', 'post_norm_inside_residual']
-
-    Default = pre_norm
-
-    Placement of the transformer block norms. "pre_norm" normalizes the input
-    of each sublayer. "post_norm_inside_residual" normalizes the output of each
-    sublayer before adding its residual (OLMo 2 style). The latter requires
-    sequential residuals and an MLP without fused input normalization.
-
 - **layernorm_fusion**: bool
 
     Default = False
