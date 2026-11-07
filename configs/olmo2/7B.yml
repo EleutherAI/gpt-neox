@@ -3,7 +3,7 @@
 {
   "pipe_parallel_size": 1,
   "model_parallel_size": 1,
-  "make_vocab_size_divisible_by": 1,
+  "make_vocab_size_divisible_by": 128, # pads the OLMo 2 tokenizer to 100352
 
   # model settings
   "num_layers": 32,
@@ -20,9 +20,16 @@
   "gpt_j_residual": false,
   "output_layer_parallelism": "column",
   "norm": "rmsnorm",
+  "norm_placement": "post_norm_inside_residual",
   "rms_norm_epsilon": 1.0e-6,
-  "use_bias_in_mlp": False,
+  "use_qk_norm": true,
+  "qk_norm": "rmsnorm",
+  "qk_norm_type": "across_heads",
+  "qk_norm_separate": true,
+  "qk_norm_across_tp": true,
+  "use_bias_in_mlp": false,
 
+  "attention_softmax_in_fp32": true,
   "scaled_upper_triang_masked_softmax_fusion": true,
   "bias_gelu_fusion": false,
   "use_bias_in_norms": false,

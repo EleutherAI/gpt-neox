@@ -1156,8 +1156,11 @@ class ParallelTransformerLayer(nn.Module):
 
         norm, eps = get_norm(neox_args)
 
-        # Layernorm on the input data.
-        self.input_layernorm = norm(neox_args.hidden_size, eps=eps)
+        self.post_norm = neox_args.norm_placement == "post_norm_inside_residual"
+        if self.post_norm:
+            self.post_feedforward_layernorm = norm(neox_args.hidden_size, eps=eps)
+        else:
+            self.input_layernorm = norm(neox_args.hidden_size, eps=eps)
         self.use_cache = use_cache
 
         self.hidden_dropout = neox_args.hidden_dropout
@@ -1268,6 +1271,18 @@ class ParallelTransformerLayer(nn.Module):
             fn = get_bias_dropout_add(self.training)
         return fn
 
+    def _post_norm_residual(self, output, bias, residual, norm, bias_dropout_fn):
+        if bias is None:
+            output = F.dropout(output, p=self.hidden_dropout, training=self.training)
+        else:
+            output = bias_dropout_fn(
+                output,
+                bias=bias.expand_as(output),
+                residual=None,
+                prob=self.hidden_dropout,
+            )
+        return residual + norm(output)
+
     def forward(self, x, attention_mask, layer_past=None):
         layer_past = layer_past if layer_past is not None else self.layer_past
         bias_dropout_fn = self._get_bias_dropout()
@@ -1340,6 +1355,27 @@ class ParallelTransformerLayer(nn.Module):
 
                 # output = (x + attn(ln(x)) + mlp(ln(x))
                 output = residual + self.reduce(output)
+            elif self.post_norm:
+                attention_output, attention_bias = self.attention(
+                    x, attention_mask, layer_past=layer_past
+                )
+                if self.use_cache:
+                    attention_output, self.layer_past = attention_output
+                x = self._post_norm_residual(
+                    attention_output,
+                    attention_bias,
+                    x,
+                    self.post_attention_layernorm,
+                    bias_dropout_fn,
+                )
+                mlp_output, mlp_bias = self.mlp(x)
+                output = self._post_norm_residual(
+                    mlp_output,
+                    mlp_bias,
+                    x,
+                    self.post_feedforward_layernorm,
+                    bias_dropout_fn,
+                )
             else:
                 # pseudocode:
                 # x = x + attn(ln1(x))
