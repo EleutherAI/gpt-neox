@@ -57,7 +57,7 @@ def gpt2_attention_mask_func(attention_scores, ltor_mask):
     return attention_scores
 
 
-def cross_entropy(output, labels, _fp16=False):
+def cross_entropy(output, labels, _fp16=False, _fused=False):
     """From pretrain_gpt2:forward_step()"""
     """
     if self.fp16_lm_cross_entropy:
@@ -70,6 +70,17 @@ def cross_entropy(output, labels, _fp16=False):
     labels, loss_mask = labels[0], labels[1]
     if _fp16:
         assert output.dtype == torch.half and loss_mask.dtype == torch.half
+    if _fused:
+        from megatron.fused_kernels.fused_cross_entropy import (
+            fused_vocab_parallel_cross_entropy,
+        )
+
+        losses = fused_vocab_parallel_cross_entropy(
+            output.contiguous(), labels, mpu.get_model_parallel_group()
+        )
+        if _fp16:
+            losses = losses.to(output.dtype)
+    elif _fp16:
         losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels)
     else:
         losses = mpu.vocab_parallel_cross_entropy(output.float().contiguous(), labels)
@@ -130,7 +141,11 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
 
         super().__init__(
             layers=self.specs,
-            loss_fn=partial(cross_entropy, _fp16=self.neox_args.fp16_lm_cross_entropy),
+            loss_fn=partial(
+                cross_entropy,
+                _fp16=self.neox_args.fp16_lm_cross_entropy,
+                _fused=self.neox_args.cross_entropy_fusion,
+            ),
             topology=topology,
             activation_checkpoint_interval=self.neox_args.checkpoint_num_layers
             if self.neox_args.checkpoint_activations

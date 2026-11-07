@@ -349,6 +349,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Move the cross entropy unreduced loss calculation for lm head to fp16.
     """
 
+    cross_entropy_fusion: bool = False
+    """
+    Fuse vocabulary-parallel cross entropy operations and reduce its tensor-parallel collectives from three to two.
+    """
+
     init_method_std: float = 0.02
     """
     Standard deviation of the zero mean normal distribution used for weight initialization.

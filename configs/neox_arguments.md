@@ -556,6 +556,12 @@ Model Arguments
 
     Move the cross entropy unreduced loss calculation for lm head to fp16.
 
+- **cross_entropy_fusion**: bool
+
+    Default = False
+
+    Fuse vocabulary-parallel cross entropy operations and reduce its tensor-parallel collectives from three to two.
+
 - **init_method_std**: float
 
     Default = 0.02
