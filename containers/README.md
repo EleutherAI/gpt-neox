@@ -10,6 +10,14 @@ context.
 cd gpt-neox
 ```
 
+All Docker and Apptainer definitions use public PyPI exclusively by setting
+`PIP_CONFIG_FILE=/dev/null`, `PIP_INDEX_URL=https://pypi.org/simple`, and an empty
+`PIP_EXTRA_INDEX_URL` before installing Python packages. These settings are
+retained in the finished image. Disabling inherited pip configuration files
+avoids DNS retries against the legacy `pypi.ngc.nvidia.com` extra index from
+NGC base images. Other file-based pip settings are also disabled; environment
+variables such as `PIP_CONSTRAINT` remain active.
+
 ## Image Matrix
 
 | Image | Dockerfile | Base image | CUDA architecture | Use case |

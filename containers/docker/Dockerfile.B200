@@ -14,7 +14,14 @@
 
 FROM nvcr.io/nvidia/pytorch:25.04-py3
 
-ENV DEBIAN_FRONTEND=noninteractive
+# The NGC base image adds https://pypi.ngc.nvidia.com as an extra package
+# index. That endpoint is no longer resolvable on some clusters, causing pip
+# installs to wait through repeated DNS retries. Ignore the inherited pip
+# configuration and use public PyPI exclusively.
+ENV PIP_CONFIG_FILE=/dev/null \
+    PIP_INDEX_URL=https://pypi.org/simple \
+    PIP_EXTRA_INDEX_URL="" \
+    DEBIAN_FRONTEND=noninteractive
 
 # metainformation
 LABEL org.opencontainers.image.version = "2.0"
