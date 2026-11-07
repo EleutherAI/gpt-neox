@@ -1,11 +1,8 @@
 Arguments for gpt-neox. All of the following can be specified in your .yml config file(s):
 
-
 ## NeoXArgsLRScheduler
 
 LR Scheduler Arguments
-
-
 
 - **lr_decay_style**: typing.Literal['constant', 'linear', 'cosine', 'exponential']
 
@@ -13,20 +10,18 @@ LR Scheduler Arguments
 
     Learning rate decay function. Choose from 'constant', 'linear', 'cosine', 'exponential'.
 
-
 - **lr_decay_iters**: int
 
     Default = None
 
-    Number of iterations to decay learning rate over. If None, defaults to 
-    --train-iters or the equivalent inferred value from train_epochs.
+    Number of iterations to decay learning rate over, If None defaults to
+    --train-iters or the equivalent inferred valued from train_epochs.
 
 - **lr_decay_fraction**: float
 
     Default = None
 
-    Effective fraction of training over which to decay lr. Overrides lr_decay_iters. 
-    Useful when specifying train_epochs.
+    Effective fraction of training over which to decay lr, overrides lr_decay_iters, useful when specifying train_epochs
 
 - **min_lr**: float
 
@@ -34,15 +29,11 @@ LR Scheduler Arguments
 
     Minimum value for learning rate. The scheduler clips values below this threshold.
 
-
-
 - **warmup**: float
 
     Default = 0.01
 
     Percentage of total iterations to warmup on (.01 = 1 percent of all training iters).
-
-
 
 - **override_lr_scheduler**: bool
 
@@ -50,21 +41,15 @@ LR Scheduler Arguments
 
     Reset the values of the scheduler (learning rate,warmup iterations, minimum learning rate, maximum number of iterations, and decay style from input arguments and ignore values from checkpoints. Note that all the above values will be reset.
 
-
-
 - **use_checkpoint_lr_scheduler**: bool
 
     Default = False
 
     Use checkpoint to set the values of the scheduler (learning rate, warmup iterations, minimum learning rate, maximum number of iterations, and decay style from checkpoint and ignore input arguments.
 
-
-
 ## NeoXArgsLogging
 
 Logging Arguments
-
-
 
 - **use_wandb**: bool
 
@@ -72,15 +57,17 @@ Logging Arguments
 
     Flag indicating if wandb is to be used.
 
-
-
 - **wandb_group**: str
 
     Default = None
 
     Weights and Biases group name - used to group together "runs".
 
+- **wandb_run_name**: str
 
+    Default = None
+
+    Weights and Biases run name for the current experiment
 
 - **wandb_team**: str
 
@@ -88,15 +75,11 @@ Logging Arguments
 
     Team name for Weights and Biases.
 
-
-
 - **wandb_project**: str
 
     Default = neox
 
     wandb project name
-
-
 
 - **wandb_host**: str
 
@@ -104,23 +87,17 @@ Logging Arguments
 
     url of the wandb host
 
-
-
 - **wandb_init_all_ranks**: bool
 
     Default = False
 
     Initialize wandb on all ranks.
 
-
-
 - **git_hash**: str
 
-    Default = 613aeb9
+    Default = <dynamic>
 
     current git hash of repository
-
-
 
 - **log_dir**: str
 
@@ -128,15 +105,11 @@ Logging Arguments
 
     Directory to save logs to.
 
-
-
 - **tensorboard_dir**: str
 
     Default = None
 
     Write TensorBoard logs to this directory.
-
-
 
 - **use_comet**: bool
 
@@ -144,47 +117,47 @@ Logging Arguments
 
     Flag indicating if comet is to be used.
 
-
-
-- **comet_workspace**: Optional
+- **comet_workspace**: typing.Optional[str]
 
     Default = None
 
     Comet workspace name, if not configured Comet Experiments will be created in the user configured default workspace.
 
-
-
-- **comet_project**: Optional
+- **comet_project**: typing.Optional[str]
 
     Default = None
 
     Comet project name, if not configured Comet Experiments will be created in the Uncategorized Experiments project.
 
-
-
-- **comet_experiment_name**: Optional
+- **comet_experiment_name**: typing.Optional[str]
 
     Default = None
 
     Custom name for the Comet experiment. If not provided, a random name is used.
 
-
-
-- **comet_tags**: Optional
+- **comet_tags**: typing.Optional[list]
 
     Default = None
 
     List of tags to attach to the created Comet Experiment.
 
-
-
-- **comet_others**: Optional
+- **comet_others**: typing.Optional[dict]
 
     Default = None
 
     Custom metadata to attach to the created Comet Experiment.
 
+- **comet_experiment**: Any
 
+    Default = None
+
+    Initialized comet experiment object used to log data
+
+- **peak_theoretical_tflops**: float
+
+    Default = None
+
+    The peak hardware flops with which to compute MFU and HFU, in units of teraflops. Automatic detection is more trouble than it's worth, so this is left to the user. Helpful table listed at https://github.com/stas00/ml-engineering/tree/master/compute/accelerator#tflops-comparison-table
 
 - **log_interval**: int
 
@@ -192,15 +165,11 @@ Logging Arguments
 
     Interval between logging.
 
-
-
 - **log_grad_pct_zeros**: bool
 
     Default = False
 
     Log the percentage of zeros for the gradient of each parameter to wandb / tensorboard (useful for debugging). Needs wandb_init_all_ranks set to True if using pipeline parallelism to log all ranks.
-
-
 
 - **log_param_norm**: bool
 
@@ -208,17 +177,12 @@ Logging Arguments
 
     Log the frob norm of the parameters to wandb / tensorboard (useful for debugging). Needs wandb_init_all_ranks set to True if using pipeline parallelism to log all ranks.
 
-
-
 - **log_grad_norm**: bool
 
     Default = False
 
     Log the frob norm of the gradients to wandb / tensorboard (useful for debugging).
-    (N.B - this will only work with pp = 0 for now, as we don't have access to the gradients of the model because
-    deepspeed.)
-
-
+    (N.B - this will only work with pp = 0 for now, as we don't have access to the gradients of the model because deepspeed.)
 
 - **log_optimizer_states**: bool
 
@@ -226,15 +190,11 @@ Logging Arguments
 
     Log the frob norm of the optimizer states to wandb / tensorboard (useful for debugging).
 
-
-
 - **log_gradient_noise_scale**: bool
 
     Default = False
 
     Whether to log the gradient noise scale when training (cf. https://arxiv.org/abs/1812.06162 for explanation)
-
-
 
 - **gradient_noise_scale_n_batches**: int
 
@@ -242,15 +202,11 @@ Logging Arguments
 
     Number of batches to accumulate gradients for in the gradient noise scale logger.
 
-
-
 - **gradient_noise_scale_cpu_offload**: bool
 
     Default = False
 
     Whether to offload the buffered gradients to cpu when measuring gradient noise scale.
-
-
 
 - **memory_profiling**: bool
 
@@ -258,22 +214,18 @@ Logging Arguments
 
     Whether to take a memory snapshot of the model. Useful for debugging memory issues.
 
-
-
 - **memory_profiling_path**: str
 
     Default = None
 
     Path to save memory snapshot to.
 
-
-
 - **profile**: bool
 
     Default = False
 
-    Enable nsys profiling. When using this option,
-    nsys options should be specified in commandline.
+    Enable nsys and pytorch profiling. When using this option with nsys,
+    nsys options should be directly specified in commandline.
     An example nsys commandline is
     ```
     nsys profile -s none -t nvtx,cuda -o <path/to/output_file>
@@ -282,15 +234,11 @@ Logging Arguments
     --capture-range-end=stop
     ```
 
-
-
 - **profile_step_start**: int
 
     Default = 10
 
     Step to start profiling at.
-
-
 
 - **profile_step_stop**: int
 
@@ -298,13 +246,9 @@ Logging Arguments
 
     Step to stop profiling at.
 
-
-
 ## NeoXArgsMoE
 
 Mixture of Expert (MoE) Arguments
-
-
 
 - **moe_num_experts**: int
 
@@ -312,23 +256,17 @@ Mixture of Expert (MoE) Arguments
 
     The number of experts in MoE layers. MoE layers not used if set to 1
 
-
-
 - **moe_expert_interval**: int
 
     Default = 1
 
     Have one MoE layer every expert_interval layers
 
-
-
 - **moe_top_k**: int
 
     Default = 1
 
     The number of experts each token is routed to in MoE layers.
-
-
 
 - **moe_router_type**: typing.Literal['sinkhorn', 'topk']
 
@@ -337,15 +275,11 @@ Mixture of Expert (MoE) Arguments
     What token routing algorithm to use. Currently only sinkhorn is supported for training.
     TopK is only used for inference/eval.
 
-
-
 - **moe_lbl_in_fp32**: bool
 
     Default = False
 
     Whether to compute the load balancing loss in fp32.
-
-
 
 - **moe_jitter_eps**: float
 
@@ -354,13 +288,9 @@ Mixture of Expert (MoE) Arguments
     Coefficient for MoE routing jitter. Jitter is
     not used if set to None
 
-
-
 ## NeoXArgsModel
 
 Model Arguments
-
-
 
 - **precision**: typing.Literal['fp16', 'fp32', 'bfloat16']
 
@@ -368,15 +298,11 @@ Model Arguments
 
     description of the used precision, either one of fp16 or fp32 (and in the future bf16).
 
-
-
 - **num_layers**: int
 
     Default = None
 
     Number of transformer layers.
-
-
 
 - **hidden_size**: int
 
@@ -384,15 +310,11 @@ Model Arguments
 
     Transformer hidden size.
 
-
-
 - **intermediate_size**: int
 
     Default = None
 
     Transformer intermediate size. Default = 4h
-
-
 
 - **mlp_multiple_of**: int
 
@@ -400,15 +322,11 @@ Model Arguments
 
     force mlp size to be a multiple of this value
 
-
-
 - **expansion_factor**: float
 
     Default = None
 
     Transformer intermediate size. Default = 4
-
-
 
 - **num_attention_heads**: int
 
@@ -417,8 +335,6 @@ Model Arguments
     Number of transformer attention heads.
 
     If num_kv_heads is set, will control only number of query heads.
-
-
 
 - **num_kv_heads**: int
 
@@ -432,15 +348,11 @@ Model Arguments
 
     Must be < num_attention_heads and divide num_attention_heads evenly.
 
-
-
 - **seq_length**: int
 
     Default = None
 
     Maximum sequence length to process.
-
-
 
 - **sliding_window_width**: int
 
@@ -448,47 +360,83 @@ Model Arguments
 
     Width of the attention sliding window. Only supported with Flash Attention 2.
 
-
-
 - **max_position_embeddings**: int
 
     Default = None
 
     Maximum number of position embeddings to use. This is the size of position embedding.
 
-
-
-- **norm**: typing.Literal['layernorm', 'rmsnorm', 'scalenorm', 'te_rmsnorm', 'te_layernorm']
+- **norm**: typing.Literal['layernorm', 'rmsnorm', 'non_parametric_layernorm', 'scalenorm', 'te_rmsnorm', 'te_layernorm']
 
     Default = layernorm
 
-    Normalization layer to use. Choose from "layernorm", "rmsnorm", "scalenorm", "te_rmsnorm", "te_layernorm".
-
-
+    Normalization layer to use. Choose from "layernorm", "rmsnorm", "non_parametric_layernorm", "scalenorm", "te_rmsnorm", "te_layernorm".
 
 - **layernorm_fusion**: bool
 
     Default = False
 
-    Use fused layer norm kernel (if `norm` is `layernorm`).
-
-
+    Use the fused layer norm kernel when `norm` or `qk_norm` is `layernorm`.
 
 - **rmsnorm_fusion**: bool
 
     Default = False
 
-    Use fused RMS norm kernel (if `norm` is `rmsnorm`).
+    Use the fused RMS norm kernel when `norm` or `qk_norm` is `rmsnorm`.
 
-
-
-- **use_qk_layernorm**: bool
+- **use_qk_norm**: bool
 
     Default = False
 
     Use QK Normalization
 
+- **qk_norm**: typing.Literal['layernorm', 'rmsnorm', 'non_parametric_layernorm', 'scalenorm', 'te_rmsnorm', 'te_layernorm']
 
+    Default = None
+
+    Normalization to use for Q and K. When unset, this inherits `norm`, so Q/K
+    normalization uses the same normalization as the rest of the model. Set it
+    explicitly to use a different Q/K normalization.
+
+- **qk_norm_type**: typing.Literal['per_head', 'across_heads']
+
+    Default = per_head
+
+    How to apply QK Normalization when `use_qk_norm` is set. Choose from:
+        - "per_head": normalize each head independently over the head dimension,
+          i.e. over [*, H] (Qwen3 / Megatron-core / TorchTitan style). Works for
+          both MHA and GQA.
+        - "across_heads": normalize over all heads jointly, i.e. over [*, N, H]
+          (OLMo2 style). Under tensor parallelism this is rank-local by default;
+          enable `qk_norm_across_tp` to compute the normalization statistics
+          over the full TP-sharded Q/K projections. For GQA the query and key
+          projections have different numbers of heads (N vs. KV heads), so
+          `qk_norm_separate` must be enabled to construct separate query/key
+          norms with differently sized parameters.
+
+- **qk_norm_across_tp**: bool
+
+    Default = False
+
+    Compute full-projection Q and K normalization statistics across
+    tensor-parallel ranks when `qk_norm_type` is "across_heads". Q and K
+    statistics are packed into one tensor and reduced with a single
+    model-parallel all-reduce in forward (with the corresponding autograd
+    reduction in backward), then Q and K are normalized independently. RMSNorm
+    and ScaleNorm reduce sums of squares; LayerNorm variants reduce sums and sums
+    of squares. The default False preserves rank-local normalization. Requires
+    `use_qk_norm`. Fused and Transformer Engine Q/K norms are not supported with
+    this flag because their kernels compute statistics internally; select a
+    native `qk_norm`, disable norm fusion, or leave this flag disabled.
+
+- **qk_norm_separate**: bool
+
+    Default = False
+
+    Use separate (independently learned) norms for the query and key projections
+    when `use_qk_norm` is set. When False, query and key share a single norm.
+    GQA/MQA with "across_heads" QK normalization requires this to be True because
+    the query and key norm parameter shapes differ; otherwise an error is raised.
 
 - **layernorm_epsilon**: float
 
@@ -496,15 +444,11 @@ Model Arguments
 
     Layer norm epsilon.
 
-
-
 - **rms_norm_epsilon**: float
 
     Default = 1e-08
 
     Root mean squared norm epsilon
-
-
 
 - **scalenorm_epsilon**: float
 
@@ -512,15 +456,11 @@ Model Arguments
 
     Scalenorm epsilon
 
-
-
 - **pos_emb**: typing.Literal['learned', 'rotary', 'sinusoidal', 'rpe', 'alibi', 'none']
 
     Default = learned
 
     Type of positional embedding to use - choose from 'learned', 'rotary', 'sinusoidal', 'rpe', 'none'
-
-
 
 - **rpe_num_buckets**: int
 
@@ -528,15 +468,11 @@ Model Arguments
 
     T5 relative positional encoding number of buckets, default 32.
 
-
-
 - **rpe_max_distance**: int
 
     Default = 128
 
     T5 relative positional encoding max distance, default 128.
-
-
 
 - **opt_pos_emb_offset**: int
 
@@ -544,15 +480,11 @@ Model Arguments
 
     Learned position embedding offset (only used by OPT, where it should be set to 2).
 
-
-
 - **no_weight_tying**: bool
 
     Default = False
 
     Disables weight tying between embedding weights and final Linear layer
-
-
 
 - **attention_config**: list
 
@@ -574,8 +506,6 @@ Model Arguments
     If none is specified, this defaults to
         [[[`global`], n_layers]]
 
-
-
 - **sparsity_config**: dict
 
     Default = None
@@ -589,7 +519,7 @@ Model Arguments
     specified in attention_config defining each layer.
 
     An example config is given below:
-          "sparse_attention": {
+          "sparsity_config": {
             "block": 16,
             "different_layout_per_head": true,
             "num_local_blocks": 4,
@@ -602,15 +532,11 @@ Model Arguments
             "num_sliding_window_blocks": 3
           }
 
-
-
 - **num_unique_layers**: int
 
     Default = None
 
     Number of unique transformer layers. num-layers should be divisible by this value. Currently only has an effect when pipe_parallel_size=0.
-
-
 
 - **param_sharing_style**: str
 
@@ -618,15 +544,11 @@ Model Arguments
 
     Ordering of the shared parameters. For example, for a num-layers=4 and --num-unique-layers=2, we will have the following ordering for two unique layers 1 and 2-: grouped: [1, 2, 1, 2] and spaced: [1, 1, 2, 2].
 
-
-
 - **make_vocab_size_divisible_by**: int
 
     Default = 128
 
     Pad the vocab size to be divisible by this value. This is added for computational efficiency reasons.
-
-
 
 - **activation**: typing.Literal['gelu', 'geglu', 'relu', 'softsign', 'swish', 'mish', 'silu', 'reglu', 'swiglu', 'bilinear', 'glu']
 
@@ -634,15 +556,11 @@ Model Arguments
 
     Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish", "silu", "reglu", "swiglu", "bilinear", "glu"]
 
-
-
 - **use_flashattn_swiglu**: bool
 
     Default = False
 
     Use flash attention's version of swiglu
-
-
 
 - **scaled_upper_triang_masked_softmax_fusion**: bool
 
@@ -650,15 +568,11 @@ Model Arguments
 
     Enable fusion of query_key_value_scaling time (upper diagonal) masking and softmax.
 
-
-
 - **scaled_masked_softmax_fusion**: bool
 
     Default = False
 
     Enable fusion of query_key_value_scaling general masking and softmax.
-
-
 
 - **bias_gelu_fusion**: bool
 
@@ -666,15 +580,11 @@ Model Arguments
 
     Enable bias and gelu fusion.
 
-
-
 - **bias_dropout_fusion**: bool
 
     Default = False
 
     Enable bias and dropout fusion.
-
-
 
 - **rope_fusion**: bool
 
@@ -682,15 +592,11 @@ Model Arguments
 
     Enable rotary embedding fusion.
 
-
-
 - **fused_kernels_build_path**: typing.Optional[str]
 
     Default = None
 
     Optional override for the fused kernels build directory. If unset, defaults to `megatron/fused_kernels/build` relative to the package.
-
-
 
 - **fp16_lm_cross_entropy**: bool
 
@@ -698,15 +604,11 @@ Model Arguments
 
     Move the cross entropy unreduced loss calculation for lm head to fp16.
 
-
-
 - **init_method_std**: float
 
     Default = 0.02
 
     Standard deviation of the zero mean normal distribution used for weight initialization.
-
-
 
 - **apply_query_key_layer_scaling**: bool
 
@@ -714,15 +616,11 @@ Model Arguments
 
     Scale Q * K^T by 1 / layer-number. If this flag is set, then it will automatically set attention-softmax-in-fp32 to true
 
-
-
 - **use_cpu_initialization**: bool
 
     Default = False
 
     If set, affine parallel weights initialization uses CPU
-
-
 
 - **attention_softmax_in_fp32**: bool
 
@@ -730,23 +628,17 @@ Model Arguments
 
     Run attention masking and softmax in fp32.
 
-
-
 - **rotary_pct**: float
 
     Default = 1.0
 
     pct of hidden dims to apply rotary positional embedding to
 
-
-
 - **rotary_emb_base**: int
 
     Default = 10000
 
     Base for rotary positional embedding
-
-
 
 - **rotary_save_freqs_buffer**: bool
 
@@ -758,16 +650,12 @@ Model Arguments
     Defaults to false, but is left configurable to maintain backward-compatibility
     with GPT-NeoX checkpoints that were trained with this flag.
 
-
-
 - **init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init', 'single_residual_scaled_normal']
 
     Default = normal
 
     Init function used on all layers except ff residual outputs - choose from
     ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
-
-
 
 - **output_layer_init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init', 'single_residual_scaled_normal']
 
@@ -776,16 +664,12 @@ Model Arguments
     Init function used for ff residual outputs - choose from
     ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
 
-
-
 - **gmlp_attn_dim**: int
 
     Default = 64
 
     the dimension of the single head self attention in gmlp model (not used in gpt models).
     If None - gmlp model doesn't use attention.
-
-
 
 - **gpt_j_residual**: bool
 
@@ -798,8 +682,6 @@ Model Arguments
       x = ln(x)
       x = x + attn(x) + mlp(x)
 
-
-
 - **gpt_j_tied**: bool
 
     Default = False
@@ -810,15 +692,11 @@ Model Arguments
       y = ln(x)
       x = x + attn(y) + mlp(y)
 
-
-
 - **use_bias_in_norms**: bool
 
     Default = True
 
     If false, norms (e.g. LayerNorm) will not have bias terms
-
-
 
 - **use_bias_in_attn_linear**: bool
 
@@ -826,15 +704,11 @@ Model Arguments
 
     If false, attn_linear (e.g. QKVO) will not have bias terms
 
-
-
 - **use_bias_in_mlp**: bool
 
     Default = True
 
     If false, mlps will not have bias terms
-
-
 
 - **soft_prompt_tuning**: dict
 
@@ -848,15 +722,11 @@ Model Arguments
         'init_string': str = '' # if provided, initialize the soft prompt with the word embeddings of this string
         'init_range': float = 0.5 # if no init string is provided, initialize the soft prompt with a uniform distribution between -init_range and init_rang
 
-
-
 - **mamba_selective_scan_fusion**: bool
 
     Default = False
 
     Enable fused kernels for Mamba selective scan.
-
-
 
 - **mamba_causal_conv_fusion**: bool
 
@@ -864,15 +734,11 @@ Model Arguments
 
     Enable fused kernels for Mamba causal Conv1d.
 
-
-
 - **mamba_inner_func_fusion**: bool
 
     Default = False
 
     Enable fused inner operator for Mamba. (Supersedes conv. and selective scan fusion flags, requires each of those kernels to be installed.)
-
-
 
 - **mamba_selective_fp32_params**: bool
 
@@ -881,15 +747,11 @@ Model Arguments
     Keep selected parameters in fp32 for Mamba (A and D).
     Requires https://github.com/EleutherAI/DeeperSpeed/pull/61 .
 
-
-
 - **mamba_use_bias_in_conv**: bool
 
     Default = True
 
     If false, conv1d in mamba block will not have bias term
-
-
 
 - **mamba_use_bias_in_linears**: bool
 
@@ -897,15 +759,101 @@ Model Arguments
 
     Enable bias terms in mamba block up- and down- projections (in_proj and out_proj).
 
-
-
 - **output_layer_parallelism**: typing.Literal['column']
 
     Default = column
 
     Parameter controlling whether the output layer is parallelized over the hidden dim (row) or the vocab dim (column)
 
+- **serve_model_weights**: bool
 
+    Default = False
+
+    If true, serve model weight pointers over a socket connection
+
+- **weight_server_port**: typing.Union[int, typing.List[int]]
+
+    Default = 6000
+
+    Port(s) to serve model weights over
+    If an integer is provided, the port for each GPU will be 6000 + global rank
+    If a list is provided, the ports will be used in order, e.g. rank0 will be weight_server_port[0]
+
+- **online_dataserver_ips**: typing.Union[str, typing.List[str]]
+
+    Default = localhost
+
+    ip addresses to connect to for online data serving, defaults to localhost
+
+- **online_dataserver_ports**: typing.Union[int, typing.List[int]]
+
+    Default = 10000
+
+    Port(s) to connect to for online data serving, defaults to 10000
+
+- **te_columnparallel**: bool
+
+    Default = False
+
+    Use TransformerEngine for RowParallelLinear layer.
+
+- **te_rowparallel**: bool
+
+    Default = False
+
+    Use TransformerEngine for ColumnParallelLinear layer.
+
+- **te_layernorm_mlp**: bool
+
+    Default = False
+
+    Use TransformerEngine for LayerNormMLP layer.
+
+- **te_mha**: bool
+
+    Default = False
+
+    Use TransformerEngine for MultiheadAttention layer.
+
+- **te_fp8_format**: typing.Literal['e4m3', 'hybrid']
+
+    Default = hybrid
+
+    Controls the FP8 data format used during forward and backward pass by TransformerEngine.
+    Hybrid uses E4M3 during forward pass, E5M2 during backward pass.
+
+- **te_fp8_wgrad**: bool
+
+    Default = True
+
+    When set to False, override FP8 config options and do the wgrad computation
+    in higher precision.
+
+- **te_fp8_amax_history_len**: int
+
+    Default = 1
+
+    The length of the amax history window used for scaling factor computation.
+
+- **te_fp8_amax_compute_algo**: str
+
+    Default = most_recent
+
+    Algorithm used for choosing the `amax` value for the scaling factor computation. There are 2
+    predefined choices: `max` chooses the largest `amax` in the history window, while `most_recent`
+    always chooses the most recently seen value.
+
+- **te_fp8_margin**: int
+
+    Default = 0
+
+    Margin for the scaling factor computation.
+
+- **te_fp8_mha**: bool
+
+    Default = False
+
+    When set to True, use the FP8 implementation of Multi Head Attention.
 
 - **dim_att**: int
 
@@ -913,15 +861,11 @@ Model Arguments
 
     Total dimension of the attention mechanism for RWKV. If not set, defaults to hidden_size.
 
-
-
 - **head_size**: int
 
     Default = None
 
     Size of each attention head for RWKV. Calculated as dim_att // num_attention_heads.
-
-
 
 - **ffn_dim**: int
 
@@ -929,12 +873,9 @@ Model Arguments
 
     Dimension of the feed-forward network for RWKV. If not set, calculated based on hidden_size and expansion_factor.
 
-
 ## NeoXArgsOptimizer
 
 Optimizer Arguments
-
-
 
 - **optimizer_type**: typing.Literal['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd', 'sgd', 'lion']
 
@@ -943,15 +884,11 @@ Optimizer Arguments
     Type of optimizer to use. Choose from ['adam', 'onebitadam', 'cpu_adam', 'cpu_torch_adam', 'sm3', 'madgrad_wd', 'sgd', 'lion']
     NOTE: sgd will use MuSGD from Mup. Mup must be enabled for this optimizer.
 
-
-
 - **use_bnb_optimizer**: bool
 
     Default = False
 
     Whether to enable the bitsandbytes optimizers
-
-
 
 - **zero_stage**: typing.Union[int, typing.List[int], typing.Literal['all']]
 
@@ -959,53 +896,15 @@ Optimizer Arguments
 
     Zero Optimizer stage
 
-
-
-- **zero_reduce_scatter**: bool
-
-    Default = None
-
-    Zero: Uses reduce or reduce scatter instead of allreduce to average gradients
-
-
-
-- **zero_contiguous_gradients**: bool
-
-    Default = None
-
-    Zero: Copies the gradients to a contiguous buffer as they are produced. Avoids memory fragmentation during backward pass. Only useful when running very large models.
-
-
-
-- **zero_reduce_bucket_size**: int
-
-    Default = None
-
-    Zero: Number of elements reduced/allreduced at a time. Limits the memory required for the allgather for large model sizes
-
-
-
-- **zero_allgather_bucket_size**: int
-
-    Default = None
-
-    Zero: Number of elements allgathered at a time. Limits the memory required for the allgather for large model sizes
-
-
-
 - **lr**: float
 
     Default = None
 
     Max Learning rate during training
 
-
-
 ## NeoXArgsOther
 
 Misc. Arguments
-
-
 
 - **distributed_backend**: str
 
@@ -1013,15 +912,11 @@ Misc. Arguments
 
     Which backend to use for distributed training.
 
-
-
 - **local_rank**: int
 
     Default = None
 
     local rank passed from distributed launcher.
-
-
 
 - **rank**: int
 
@@ -1029,15 +924,11 @@ Misc. Arguments
 
     global rank of process being run (passed in via distributed launcher)
 
-
-
 - **lazy_mpu_init**: bool
 
     Default = False
 
     If set to True, initialize_megatron() skips DDP initialization and returns function to complete it instead. Also turns on use-cpu-initialization flag. This is for external DDP manager.
-
-
 
 - **short_seq_prob**: float
 
@@ -1045,15 +936,11 @@ Misc. Arguments
 
     Probability of producing a short sequence.
 
-
-
 - **eod_mask_loss**: bool
 
     Default = False
 
     Mask loss for the end of document tokens.
-
-
 
 - **adlr_autoresume**: bool
 
@@ -1061,15 +948,11 @@ Misc. Arguments
 
     Enable auto-resume on adlr cluster.
 
-
-
 - **adlr_autoresume_interval**: int
 
     Default = 1000
 
     Intervals over which check for auto-resume termination signal
-
-
 
 - **seed**: int
 
@@ -1077,15 +960,11 @@ Misc. Arguments
 
     Random seed used for python, numpy, pytorch, and cuda.
 
-
-
 - **onnx_safe**: bool
 
     Default = False
 
     Use workarounds for known problems with Torch ONNX exporter
-
-
 
 - **deepscale**: bool
 
@@ -1093,15 +972,11 @@ Misc. Arguments
 
     (Deprecated) enable DeepSpeed (helper flag for user code, no impact on DeepSpeed backend)'
 
-
-
 - **deepscale_config**: str
 
     Default = None
 
     (Deprecated) deepscale json configuration file.
-
-
 
 - **deepspeed_mpi**: bool
 
@@ -1109,15 +984,11 @@ Misc. Arguments
 
     Run via MPI, this will attempt to discover the necessary variables to initialize torch distributed from the MPI environment
 
-
-
 - **deepspeed_slurm**: bool
 
     Default = False
 
     Run via SLURM, this will attempt to discover the necessary variables to initialize torch distributed from the SLURM environment
-
-
 
 - **user_script**: str
 
@@ -1125,15 +996,11 @@ Misc. Arguments
 
     user script to be run
 
-
-
 - **iteration**: int
 
     Default = None
 
     Set during training
-
-
 
 - **do_train**: bool
 
@@ -1141,15 +1008,11 @@ Misc. Arguments
 
     Set during training
 
-
-
 - **do_valid**: bool
 
     Default = None
 
     Set during training
-
-
 
 - **do_test**: bool
 
@@ -1157,29 +1020,15 @@ Misc. Arguments
 
     Set during training
 
-
-
-- **save_iters**: list
-
-    Default = None
-
-    Set during training
-
-
-
 - **global_num_gpus**: int
 
     Default = None
 
     Set during launching
 
-
-
 ## NeoXArgsParallelism
 
 Parallelism Arguments
-
-
 
 - **pipe_parallel_size**: int
 
@@ -1187,15 +1036,11 @@ Parallelism Arguments
 
     Number of pipeline parallel stages. Disable with 0.
 
-
-
 - **model_parallel_size**: int
 
     Default = 1
 
     Size of the model parallelism.
-
-
 
 - **pipe_partition_method**: str
 
@@ -1205,15 +1050,11 @@ Parallelism Arguments
     of parameters on each pipeline stage, "uniform", which naively balances the number of layers per stage, or
     "type:[regex]", which balances layers whose class names match [regex]
 
-
-
 - **world_size**: int
 
     Default = None
 
     Total world size (i.e number of gpus in cluster). Configured post-launch using distributed launcher
-
-
 
 - **is_pipe_parallel**: bool
 
@@ -1221,8 +1062,6 @@ Parallelism Arguments
 
     flag to determine whether pipeline parallelism is on - shouldn't be set by user, is automatically determined
     according to pipeline parallel size.
-
-
 
 - **sequence_parallel**: bool
 
@@ -1232,19 +1071,9 @@ Parallelism Arguments
     (Layernorm inputs and activations are sharded across model parallel group) will be used. Has no effect when model_parallel_size is 1.
     **Set by user, in contrast to neox_args.is_pipe_parallel.**
 
-
-
-## NeoXArgsTemplate
-
-NeoXArgsTemplate()
-
-
-
 ## NeoXArgsTextgen
 
 Text Generation arguments
-
-
 
 - **text_gen_type**: str
 
@@ -1253,15 +1082,11 @@ Text Generation arguments
     How to generate text/sample the model.
     Options: `unconditional`, `input-file`, `interactive`, `precompute`
 
-
-
 - **precompute_model_name**: str
 
     Default = None
 
     Model name to use for saving precomputed logprobs
-
-
 
 - **temperature**: float
 
@@ -1269,15 +1094,11 @@ Text Generation arguments
 
     exponential scaling output distribution ("higher == more risk")
 
-
-
 - **top_p**: float
 
     Default = 0.0
 
     Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
-
-
 
 - **top_k**: int
 
@@ -1285,15 +1106,11 @@ Text Generation arguments
 
     integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
 
-
-
 - **return_logits**: bool
 
     Default = False
 
     Boolean for whether to return the logits for generated tokens
-
-
 
 - **maximum_tokens**: int
 
@@ -1301,16 +1118,11 @@ Text Generation arguments
 
     maximum number of tokens to be generated
 
-
-
 - **prompt_end**: str
 
-    Default = 
-
+    Default = '\n'
 
     a single prompt's end. Defaults to newline
-
-
 
 - **sample_input_file**: str
 
@@ -1318,23 +1130,17 @@ Text Generation arguments
 
     Get input from file instead of interactive mode, each line is an input.
 
-
-
 - **sample_output_file**: str
 
     Default = samples.txt
 
     Output file
 
-
-
 - **num_samples**: int
 
     Default = 1
 
     Number of samples to generate unconditionally, defaults to 1 and interactive conditional sampling
-
-
 
 - **recompute**: bool
 
@@ -1343,15 +1149,11 @@ Text Generation arguments
     During generation recompute all attention instead of using previously computed keys/values.
     Should be set to true for sparse attention models
 
-
-
 - **eval_results_prefix**: str
 
-    Default = 
+    Default = ''
 
     prefix to which to save evaluation results - final fp will be {eval_results_prefix}_eval_results_yy-mm-dd-HH-MM.json
-
-
 
 - **eval_tasks**: list
 
@@ -1361,21 +1163,15 @@ Text Generation arguments
 
     NOTE: Requires internet connection
 
-
-
 ## NeoXArgsTokenizer
 
 Tokenizer Arguments
-
-
 
 - **tokenizer_type**: typing.Literal['GPT2BPETokenizer', 'HFTokenizer', 'HFGPT2Tokenizer', 'SPMTokenizer', 'CharLevelTokenizer', 'TiktokenTokenizer']
 
     Default = GPT2BPETokenizer
 
     Type of tokenizer to use - should be one of ["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "SPMTokenizer", "CharLevelTokenizer", "TiktokenTokenizer"]
-
-
 
 - **padded_vocab_size**: int
 
@@ -1384,21 +1180,15 @@ Tokenizer Arguments
     Total (padded) vocabulary size of tokenizer. Configured after launching of training,
     as it's dependent on the parallelism size.
 
-
-
 ## NeoXArgsTraining
 
 Training Arguments
-
-
 
 - **data_path**: str
 
     Default = None
 
     Path to combined dataset to split.
-
-
 
 - **use_shared_fs**: bool
 
@@ -1407,15 +1197,11 @@ Training Arguments
     Whether to use a shared filesystem for data loading. If False, local rank 0 on all nodes will preprocess the data,
     otherwise only global rank 0 will preprocess the data. This is implemented in megatron/data/gpt2_dataset.py::_build_index_mappings.
 
-
-
 - **train_data_paths**: list
 
     Default = None
 
     List of paths to train datasets.
-
-
 
 - **train_label_data_paths**: list
 
@@ -1423,15 +1209,11 @@ Training Arguments
 
     List of paths to train label datasets (not shifted by 1 yet!).
 
-
-
 - **train_reward_data_paths**: list
 
     Default = None
 
     List of paths to train reward datasets
-
-
 
 - **test_data_paths**: list
 
@@ -1439,15 +1221,11 @@ Training Arguments
 
     List of paths to test datasets.
 
-
-
 - **test_label_data_paths**: list
 
     Default = None
 
     List of paths to test label datasets (not shifted by 1 yet!).
-
-
 
 - **test_reward_data_paths**: list
 
@@ -1455,15 +1233,11 @@ Training Arguments
 
     List of paths to test reward datasets
 
-
-
 - **valid_data_paths**: list
 
     Default = None
 
     List of paths to validation datasets.
-
-
 
 - **valid_label_data_paths**: list
 
@@ -1471,23 +1245,29 @@ Training Arguments
 
     List of paths to validation label datasets (not shifted by 1 yet!).
 
-
-
 - **valid_reward_data_paths**: list
 
     Default = None
 
     List of paths to validation reward datasets
 
+- **valid_data_names**: list
 
+    Default = None
+
+    Optional names for validation dataset subsets when eval_loss_logging uses separate logging.
+    Defaults to valid_0, valid_1, ...
+
+- **test_data_names**: list
+
+    Default = None
+
+    Optional names for test dataset subsets when eval_loss_logging uses separate logging.
+    Defaults to test_0, test_1, ...
 
 - **pos_train_data_paths**: list
 
     Default = None
-
-    
-
-
 
 - **neg_train_data_paths**: list
 
@@ -1495,15 +1275,9 @@ Training Arguments
 
     List of paths to positive and negative training datasets.
 
-
-
 - **pos_train_label_data_paths**: list
 
     Default = None
-
-    
-
-
 
 - **neg_train_label_data_paths**: list
 
@@ -1511,15 +1285,9 @@ Training Arguments
 
     List of paths to positive and negative training label datasets (not shifted by 1 yet!).
 
-
-
 - **pos_valid_data_paths**: list
 
     Default = None
-
-    
-
-
 
 - **neg_valid_data_paths**: list
 
@@ -1527,15 +1295,9 @@ Training Arguments
 
     List of paths to positive and negative validation datasets.
 
-
-
 - **pos_valid_label_data_paths**: list
 
     Default = None
-
-    
-
-
 
 - **neg_valid_label_data_paths**: list
 
@@ -1543,15 +1305,9 @@ Training Arguments
 
     List of paths to positive and negative validation label datasets (not shifted by 1 yet!).
 
-
-
 - **pos_test_data_paths**: list
 
     Default = None
-
-    
-
-
 
 - **neg_test_data_paths**: list
 
@@ -1559,23 +1315,15 @@ Training Arguments
 
     List of paths to positive and negative test datasets.
 
-
-
 - **pos_test_label_data_paths**: list
 
     Default = None
-
-    
-
-
 
 - **neg_test_label_data_paths**: list
 
     Default = None
 
     List of paths to positive and negative test label datasets (not shifted by 1 yet!).
-
-
 
 - **train_data_weights**: list
 
@@ -1584,16 +1332,12 @@ Training Arguments
     List of 'weights' that decide how often to sample from each training dataset when blending datasets. If None, defaults to equal weighting.
     Should be a list the same length as `train_data_paths`
 
-
-
 - **valid_data_weights**: list
 
     Default = None
 
     List of 'weights' that decide how often to sample from each validation dataset when blending datasets. If None, defaults to equal weighting.
     Should be a list the same length as `valid_data_paths`
-
-
 
 - **test_data_weights**: list
 
@@ -1602,7 +1346,13 @@ Training Arguments
     List of 'weights' that decide how often to sample from each test dataset when blending datasets. If None, defaults to equal weighting.
     Should be a list the same length as `test_data_paths`
 
+- **eval_loss_logging**: typing.Literal['blended', 'separate', 'blended_and_separate']
 
+    Default = blended
+
+    Validation/test loss logging mode. "blended" preserves the historical blended metric;
+    "separate" logs each validation/test subset independently; "blended_and_separate"
+    logs each subset and synthesizes a blended metric from subset losses.
 
 - **weight_by_num_documents**: bool
 
@@ -1622,8 +1372,6 @@ Training Arguments
 
     See https://arxiv.org/abs/1911.02116 for more details
 
-
-
 - **weighted_sampler_alpha**: float
 
     Default = 1.0
@@ -1634,15 +1382,11 @@ Training Arguments
     as alpha -> 0, the probability of sampling from all groups becomes equal, and number of documents has no effect
     as alpha -> inf, the probability of sampling from the groups with *the most samples* -> 1
 
-
-
 - **data_impl**: typing.Literal['infer', 'mmap', 'cached']
 
     Default = infer
 
     Implementation of indexed datasets, can be one of "infer", "cached", or "mmap"
-
-
 
 - **pack_impl**: typing.Literal['packed', 'pack_until_overflow', 'unpacked']
 
@@ -1652,23 +1396,17 @@ Training Arguments
 
     warning: pack_until_overflow is very naive and will likely have issues with pretraining scale datasets
 
-
-
-- **dataset_impl**: typing.Literal['gpt2', 'pairwise']
+- **dataset_impl**: typing.Literal['gpt2', 'pairwise', 'online']
 
     Default = gpt2
 
-    Dataset implementation, can be one of "gpt2" or "pairwise"
+    Dataset implementation, can be one of "gpt2", "pairwise", or "online"
 
-
-
-- **train_impl**: typing.Literal['normal', 'dpo', 'rm', 'kto']
+- **train_impl**: typing.Literal['normal', 'dpo', 'rm', 'kto', 'reinforce']
 
     Default = normal
 
-    Training implementation, can be one of "normal", "dpo", "kto", or "rm"
-
-
+    Training implementation, can be one of "normal", "dpo", "kto", "reinforce", or "rm"
 
 - **dpo_fp32**: bool
 
@@ -1676,15 +1414,11 @@ Training Arguments
 
     Whether to cast logits to fp32 for DPO loss calculation.
 
-
-
 - **dpo_reference_free**: bool
 
     Default = False
 
     Whether to use reference-free DPO.
-
-
 
 - **dpo_beta**: float
 
@@ -1692,15 +1426,11 @@ Training Arguments
 
     Beta value for DPO
 
-
-
 - **kto_fp32**: bool
 
     Default = True
 
     Whether to cast logits to fp32 for KTO loss calculation.
-
-
 
 - **kto_desirable_weight**: float
 
@@ -1708,15 +1438,19 @@ Training Arguments
 
     Weight for desirable loss in KTO. Might help if you have unbalanced desirable and undesirable classes.
 
-
-
 - **kto_undesirable_weight**: float
 
     Default = 1.0
 
     Weight for undesirable loss in KTO. Might help if you have unbalanced desirable and undesirable classes.
 
+- **z_loss**: float
 
+    Default = 0.0
+
+    Z-loss parameter, only implemented for RM training currently.
+    https://arxiv.org/pdf/2204.02311
+    https://arxiv.org/pdf/2309.10305
 
 - **kto_beta**: float
 
@@ -1724,7 +1458,30 @@ Training Arguments
 
     Beta value for KTO
 
+- **fp32_reinforce**: bool
 
+    Default = True
+
+    Whether to cast logits to fp32 for Reinforce loss calculation.
+
+- **kl_impl**: typing.Literal['abs', 'mse', 'kl', 'full']
+
+    Default = mse
+
+    KL divergence implementation, can be one of "abs", "mse", "kl", or "full"
+
+- **kl_div_beta**: float
+
+    Default = 0.1
+
+    Beta value for KL divergence in Reinforce loss calculation.
+
+- **reinforce_leave_one_out**: bool
+
+    Default = False
+
+    Whether to use reinforce leave one out for training
+    (from https://arxiv.org/abs/2402.14740 and https://api.semanticscholar.org/CorpusID:198489118)
 
 - **allow_chopped**: bool
 
@@ -1735,15 +1492,11 @@ Training Arguments
     Allow chopped samples in the dataset.
     (e.g if your sequence length is 1024 and you have a sample of length 1026, it will be chopped to 1024)
 
-
-
 - **mmap_warmup**: bool
 
     Default = False
 
     Warm up mmap files.
-
-
 
 - **save**: str
 
@@ -1751,15 +1504,11 @@ Training Arguments
 
     Output directory to save checkpoints to.
 
-
-
 - **s3_path**: str
 
     Default = None
 
     Path to s3 bucket for saving checkpoints.
-
-
 
 - **s3_chunk_size**: int
 
@@ -1767,15 +1516,11 @@ Training Arguments
 
     The number of bytes in each file chunk when uploading to s3. Defaults to 100MiB.
 
-
-
 - **config_files**: dict
 
     Default = None
 
     Store of original config files mapping config filename to file contents
-
-
 
 - **load**: str
 
@@ -1783,15 +1528,11 @@ Training Arguments
 
     Directory containing a model checkpoint.
 
-
-
 - **checkpoint_validation_with_forward_pass**: bool
 
     Default = False
 
     save input and output of a forward pass with the checkpoint and validate after load
-
-
 
 - **checkpoint_scale**: typing.Literal['linear', 'log']
 
@@ -1800,9 +1541,7 @@ Training Arguments
     How step at which checkpoints are saved should scale. "linear" implies 1 checkpoint will be saved at every multiple of `checkpoint-factor`,
     while "log" implies that the number of steps between each checkpoint will be multiplied by `checkpoint-factor` at each step, starting from step 1.
 
-
-
-- **checkpoint_factor**: int
+- **checkpoint_factor**: typing.Union[int, float]
 
     Default = None
 
@@ -1816,8 +1555,6 @@ Training Arguments
 
     Note that the last checkpoint step is always saved.
 
-
-
 - **extra_save_iters**: list
 
     Default = None
@@ -1825,15 +1562,11 @@ Training Arguments
     Additional iterations when a checkpoint should be saved.
     Must be a list of ints or `None`.
 
-
-
 - **no_save_optim**: bool
 
     Default = False
 
     Do not save current optimizer.
-
-
 
 - **no_save_rng**: bool
 
@@ -1841,15 +1574,11 @@ Training Arguments
 
     Do not save current rng state.
 
-
-
 - **no_load_optim**: bool
 
     Default = False
 
     Do not load optimizer when loading checkpoint.
-
-
 
 - **no_load_rng**: bool
 
@@ -1857,15 +1586,11 @@ Training Arguments
 
     Do not load rng state when loading checkpoint.
 
-
-
 - **finetune**: bool
 
     Default = False
 
     Load model for finetuning. Do not load optimizer or rng state from checkpoint and set iteration to 0. Assumed when loading a release checkpoint.
-
-
 
 - **batch_size**: int
 
@@ -1873,15 +1598,11 @@ Training Arguments
 
     training microbatch size per gpu
 
-
-
 - **train_iters**: int
 
     Default = None
 
     Number of iterations to run for training.
-
-
 
 - **train_epochs**: int
 
@@ -1890,15 +1611,11 @@ Training Arguments
     Number of epochs to run for training. Do not specify both train_epochs and train_iters.
     Not currently compatible with data reweighing, pairwise datasets, and packing other than 'packed'
 
-
-
 - **eval_iters**: int
 
     Default = 100
 
     Number of iterations to run for evaluation validation/test for.
-
-
 
 - **keep_last_n_checkpoints**: int
 
@@ -1906,15 +1623,11 @@ Training Arguments
 
     Number of last checkpoints to keep
 
-
-
 - **eval_interval**: int
 
     Default = 1000
 
     Interval between running evaluation on validation set.
-
-
 
 - **split**: str
 
@@ -1922,15 +1635,11 @@ Training Arguments
 
     Comma_separated list of proportions for training, validation, and test split. For example the split 90,5,5 will use 90% of data for training, 5% for validation and 5% for test.
 
-
-
 - **vocab_file**: str
 
     Default = None
 
     Path to the vocab file.
-
-
 
 - **merge_file**: str
 
@@ -1938,15 +1647,11 @@ Training Arguments
 
     Path to the BPE merge file.
 
-
-
 - **num_workers**: int
 
     Default = 2
 
     Dataloader number of workers.
-
-
 
 - **exit_interval**: int
 
@@ -1954,15 +1659,11 @@ Training Arguments
 
     Exit the program after the iteration is divisible by this value.
 
-
-
 - **attention_dropout**: float
 
     Default = 0.0
 
     Post attention dropout probability.
-
-
 
 - **hidden_dropout**: float
 
@@ -1970,15 +1671,11 @@ Training Arguments
 
     Dropout probability for hidden state transformer.
 
-
-
 - **weight_decay**: float
 
     Default = 0.1
 
     Weight decay coefficient for L2 regularization.
-
-
 
 - **checkpoint_activations**: bool
 
@@ -1986,15 +1683,11 @@ Training Arguments
 
     Checkpoint activation to allow for training with larger models, sequences, and batch sizes.
 
-
-
 - **checkpoint_num_layers**: int
 
     Default = 1
 
     Chunk size (number of layers) for checkpointing.
-
-
 
 - **deepspeed_activation_checkpointing**: bool
 
@@ -2003,15 +1696,11 @@ Training Arguments
     DEPRECATED - TODO: remove
     Uses activation checkpointing from deepspeed
 
-
-
 - **contiguous_checkpointing**: bool
 
     Default = False
 
     Contiguous memory checkpointing for activations.
-
-
 
 - **checkpoint_in_cpu**: bool
 
@@ -2019,15 +1708,11 @@ Training Arguments
 
     Move the activation checkpoints to CPU.
 
-
-
 - **synchronize_each_layer**: bool
 
     Default = False
 
     does a synchronize at the beginning and end of each checkpointed layer.
-
-
 
 - **profile_backward**: bool
 
@@ -2035,23 +1720,11 @@ Training Arguments
 
     Enables backward pass profiling for checkpointed layers.
 
-
-
 - **partition_activations**: bool
 
     Default = False
 
     Partition Activations across GPUs before checkpointing.
-
-
-
-- **clip_grad**: float
-
-    Default = 1.0
-
-    Gradient clipping based on global L2 norm.
-
-
 
 - **hysteresis**: int
 
@@ -2059,15 +1732,11 @@ Training Arguments
 
     hysteresis for dynamic loss scaling
 
-
-
 - **dynamic_loss_scale**: bool
 
     Default = None
 
     flag indicating whether dynamic loss scale is used
-
-
 
 - **loss_scale**: float
 
@@ -2076,15 +1745,11 @@ Training Arguments
     Static loss scaling, positive power of 2
     values can improve fp16 convergence. If None, dynamic loss scaling is used.
 
-
-
 - **loss_scale_window**: float
 
     Default = 1000.0
 
     Window over which to raise/lower dynamic scale.
-
-
 
 - **min_scale**: float
 
@@ -2092,15 +1757,11 @@ Training Arguments
 
     Minimum loss scale for dynamic loss scale.
 
-
-
 - **char_level_ppl**: bool
 
     Default = False
 
     Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
-
-
 
 - **use_mup**: bool
 
@@ -2108,15 +1769,11 @@ Training Arguments
 
     Whether to use Microsoft's Mup https://github.com/microsoft/mup
 
-
-
 - **coord_check**: bool
 
     Default = False
 
     Whether to generate a "coord check" plot to verify mup's implementation in neox
-
-
 
 - **save_base_shapes**: bool
 
@@ -2124,15 +1781,11 @@ Training Arguments
 
     Whether to save base shapes for mup. This will save the shapes to the path specified in base-shapes-file.
 
-
-
 - **base_shapes_file**: str
 
     Default = None
 
     Path to the base shapes to save to/load from
-
-
 
 - **mup_init_scale**: float
 
@@ -2140,15 +1793,11 @@ Training Arguments
 
     Initialization scale: All the parameters are multiplied by this value
 
-
-
 - **mup_attn_temp**: float
 
     Default = 1.0
 
     Attention temperature: Reciprocal of the multiplier applied to the input to attention softmax
-
-
 
 - **mup_output_temp**: float
 
@@ -2157,15 +1806,11 @@ Training Arguments
     Output temperature: Reciprocal of the multiplier applied to the input to softmax that
     produces the distribution over output tokens.
 
-
-
 - **mup_embedding_mult**: float
 
     Default = 1.0
 
     Scalar by which we multiply the output of the embedding layer
-
-
 
 - **mup_rp_embedding_mult**: float
 
@@ -2173,23 +1818,17 @@ Training Arguments
 
     Scalar by which we multiply vectors representing relative position
 
-
-
 - **mup_width_scale**: int
 
     Default = 2
 
     What to scale width by when creating the delta model for mup
 
-
-
 ## NeoXArgsDeepspeedConfig
 
 Args for deepspeed config
-    Every argument included here will be included in deepspeed config json
-    As of Mar 8 2023, up to date compared to https://www.deepspeed.ai/docs/config-json/
-
-
+Every argument included here will be included in deepspeed config json
+As of Mar 8 2023, up to date compared to https://www.deepspeed.ai/docs/config-json/
 
 - **deepspeed**: bool
 
@@ -2197,15 +1836,11 @@ Args for deepspeed config
 
     boolean flag to enable DeepSpeed (Always True)
 
-
-
 - **train_batch_size**: int
 
     Default = None
 
     The effective training batch size. This is the amount of data samples that leads to one step of model update. train_batch_size is aggregated by the batch size that a single GPU processes in one forward/backward pass (a.k.a., train_step_batch_size), the gradient accumulation steps (a.k.a., gradient_accumulation_steps), and the number of GPUs.
-
-
 
 - **train_micro_batch_size_per_gpu**: int
 
@@ -2213,15 +1848,11 @@ Args for deepspeed config
 
     Batch size to be processed by one GPU in one step (without gradient accumulation). When specified, gradient_accumulation_steps is automatically calculated using train_batch_size and number of GPUs. Should not be concurrently specified with gradient_accumulation_steps in the configuration JSON.
 
-
-
 - **gradient_accumulation_steps**: int
 
     Default = 1
 
     Number of training steps to accumulate gradients before averaging and applying them. This feature is sometimes useful to improve scalability since it results in less frequent communication of gradients between steps. Another impact of this feature is the ability to train with larger batch sizes per GPU. When specified, train_step_batch_size is automatically calculated using train_batch_size and number of GPUs. Should not be concurrently specified with train_step_batch_size in the configuration JSON.
-
-
 
 - **optimizer**: dict
 
@@ -2233,8 +1864,6 @@ Args for deepspeed config
 
     params: Dictionary of parameters to instantiate optimizer. The parameter names must match the optimizer constructor signature (e.g., for Adam).
 
-
-
 - **scheduler**: dict
 
     Default = None
@@ -2245,15 +1874,11 @@ Args for deepspeed config
 
     params: Dictionary of parameters to instantiate scheduler. The parameter names should match scheduler constructor signature.
 
-
-
 - **fp32_allreduce**: bool
 
     Default = False
 
     During gradient averaging perform allreduce with 32 bit values
-
-
 
 - **prescale_gradients**: bool
 
@@ -2261,23 +1886,17 @@ Args for deepspeed config
 
     Scale gradients before doing allreduce
 
-
-
 - **gradient_predivide_factor**: float
 
     Default = 1.0
 
     Before gradient averaging predivide gradients by a specified factor, can sometimes help with fp16 stability when scaling to large numbers of GPUs
 
-
-
 - **sparse_gradients**: bool
 
     Default = False
 
     Enable sparse compression of torch.nn.Embedding gradients.
-
-
 
 - **fp16**: dict
 
@@ -2287,8 +1906,6 @@ Args for deepspeed config
 
     Dictionary options as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#fp16-training-options
 
-
-
 - **bf16**: dict
 
     Default = None
@@ -2296,8 +1913,6 @@ Args for deepspeed config
     Configuration for using bfloat16 floating-point format as an alternative to FP16. BFLOAT16 requires hardware support (e.g., NVIDIA A100).
 
     Dictionary options as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#bfloat16-training-options
-
-
 
 - **amp**: dict
 
@@ -2307,15 +1922,11 @@ Args for deepspeed config
 
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#automatic-mixed-precision-amp-training-options
 
-
-
 - **gradient_clipping**: float
 
-    Default = 1.0
+    Default = 0.0
 
-    Enable gradient clipping with provided value
-
-
+    Gradient clipping based on the global L2 norm. A value of 0.0 disables clipping.
 
 - **zero_optimization**: dict
 
@@ -2325,15 +1936,9 @@ Args for deepspeed config
 
     Multi-level dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#zero-optimization-options
 
-
-
 - **curriculum_learning**: dict
 
     Default = None
-
-    
-
-
 
 - **curriculum_seqlen**: int
 
@@ -2341,15 +1946,11 @@ Args for deepspeed config
 
     Internal var for tracking the current seqlen
 
-
-
 - **steps_per_print**: int
 
     Default = 10
 
     Print train loss every N steps.
-
-
 
 - **wall_clock_breakdown**: bool
 
@@ -2357,15 +1958,11 @@ Args for deepspeed config
 
     Enable timing of the latency of forward/backward/update training phases.
 
-
-
 - **dump_state**: bool
 
     Default = False
 
     Print out state information of DeepSpeed object after initialization.
-
-
 
 - **flops_profiler**: dict
 
@@ -2375,25 +1972,11 @@ Args for deepspeed config
 
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#flops-profiler
 
-
-
 - **communication_data_type**: bool
 
     Default = None
 
     During gradient averaging, perform communication with selected data type. By default it will be determined by selected regime
-
-
-
-- **autotuning**: dict
-
-    Default = None
-
-    Configuration for using autotuning.
-
-    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#autotuning
-
-
 
 - **activation_checkpointing**: dict
 
@@ -2403,18 +1986,6 @@ Args for deepspeed config
 
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#activation-checkpointing
 
-
-
-- **sparse_attention**: dict
-
-    Default = None
-
-    Configuration for using sparse attention.
-
-    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#sparse-attention
-
-
-
 - **data_efficiency**: dict
 
     Default = None
@@ -2422,8 +1993,6 @@ Args for deepspeed config
     Configuration for using data efficiency.
 
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#data-efficiency
-
-
 
 - **tensorboard**: dict
 
@@ -2433,23 +2002,17 @@ Args for deepspeed config
 
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#monitoring-module-tensorboard-wandb-csv
 
-
-
 - **wandb**: dict
 
     Default = None
 
     Configuration for using wandb.
 
-
-
 - **csv_monitor**: dict
 
     Default = None
 
     Configuration for using csv_monitor.
-
-
 
 - **elasticity**: dict
 
@@ -2459,8 +2022,6 @@ Args for deepspeed config
 
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#elastic-training-config-v01-and-v02
 
-
-
 - **comms_logger**: dict
 
     Default = None
@@ -2468,8 +2029,6 @@ Args for deepspeed config
     Configuration for using communication logger.
 
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#communication-logging
-
-
 
 - **compression_training**: dict
 
@@ -2479,8 +2038,6 @@ Args for deepspeed config
 
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#compression
 
-
-
 - **checkpoint**: dict
 
     Default = None
@@ -2488,8 +2045,6 @@ Args for deepspeed config
     Configuration for using checkpointing.
 
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#checkpoint-options
-
-
 
 - **data_types**: dict
 
@@ -2499,22 +2054,22 @@ Args for deepspeed config
 
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#data-type-options
 
-
-
 - **deepspeed_extra_args**: dict
 
     Default = None
 
     Dictionary of extra arguments to be included in the yaml config file. This can be used for any argument not included in the above list.
 
+- **autotuning**: dict
 
+    Default = None
+
+    Dictionary as described in DeepSpeed autotuning documentation: https://github.com/microsoft/DeepSpeed/tree/master/deepspeed/autotuning
 
 ## NeoXArgsDeepspeedRunner
 
 Args for deepspeed runner (deepspeed.launcher.runner).
-    Every argument included here will be passed as command line argument to deepspeed.launcher.runner
-
-
+Every argument included here will be passed as command line argument to deepspeed.launcher.runner
 
 - **hostfile**: str
 
@@ -2528,15 +2083,11 @@ Args for deepspeed runner (deepspeed.launcher.runner).
     127.0.0 slots=4
     127.0.1 slots=4
 
-
-
 - **include**: str
 
     Default = None
 
     Specify hardware resources to use during execution. String format is `NODE_SPEC[@NODE_SPEC ...]` where `NODE_SPEC=NAME[:SLOT[,SLOT ...]]`. If `:SLOT` is omitted, include all slots on that host. Example: `"worker-0@worker-1:0,2"` will use all slots. on `worker-0` and slots `[0, 2]` on `worker-1`.
-
-
 
 - **exclude**: str
 
@@ -2544,15 +2095,11 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
     Specify hardware resources to NOT use during execution. Same format as include
 
-
-
 - **num_nodes**: int
 
     Default = -1
 
     Total number of worker nodes to run on, this will use the top N hosts from the given hostfile. -1 will use all.
-
-
 
 - **num_gpus**: int
 
@@ -2560,15 +2107,11 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
     Max number of GPUs to use on each node, will use [0:N) GPU ids on each node. None / not specifying a value will use all.
 
-
-
 - **master_port**: int
 
     Default = 29500
 
     Port used by PyTorch distributed for communication during training.
-
-
 
 - **master_addr**: str
 
@@ -2576,23 +2119,11 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
     IP address of node 0, will be inferred via 'hostname -I' if not specified.
 
-
-
 - **launcher**: typing.Literal['pdsh', 'openmpi', 'mvapich', 'slurm']
 
     Default = pdsh
 
     Launcher backend for multi-node training. Options currently include PDSH, OpenMPI, MVAPICH.
-
-
-
-- **force_multi**: bool
-
-    Default = False
-
-    Force multi-node training even if only one node is specified.
-
-
 
 - **autotuning_run**: str
 
@@ -2600,23 +2131,23 @@ Args for deepspeed runner (deepspeed.launcher.runner).
 
     Either "tune", "run", or `None`.
 
-
-
 - **no_ssh_check**: bool
 
     Default = False
 
     If true, overrides the default check where DeepSpeed confirms that the headnode is accessible via ssh.
 
+- **force_multi**: bool
 
+    Default = False
+
+    If true, Force multi-node launcher mode, helps in cases where user wants to launch on single remote node.
 
 - **comment**: str
 
     Default = None
 
     Adds a `--comment` to the DeepSpeed launch command. In DeeperSpeed this is passed on to the SlurmLauncher as well. Sometimes necessary for cluster rules, or so I've heard.
-
-
 
 - **account**: str
 

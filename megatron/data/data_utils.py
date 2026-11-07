@@ -285,6 +285,31 @@ def get_normalized_weights_and_num_samples(
     return weights, weighted_num_samples
 
 
+def is_separate_eval_enabled(neox_args):
+    return neox_args.eval_loss_logging in ("separate", "blended_and_separate")
+
+
+def get_eval_subset_names(neox_args, split, num_datasets):
+    configured_names = getattr(neox_args, f"{split}_data_names")
+    if configured_names is not None:
+        return list(configured_names)
+    return [f"{split}_{i}" for i in range(num_datasets)]
+
+
+def get_named_eval_datasets(neox_args, split, datasets, weights):
+    names = get_eval_subset_names(neox_args, split, len(datasets))
+    return dict(zip(names, datasets)), dict(zip(names, weights))
+
+
+def make_named_data_loaders(datasets, neox_args):
+    if not datasets:
+        return {}
+    return {
+        name: make_data_loader(dataset, neox_args=neox_args)
+        for name, dataset in datasets.items()
+    }
+
+
 def build_weighted_datasets(
     neox_args,
     train_num_samples,
@@ -517,13 +542,14 @@ def build_train_valid_test_data_loaders(neox_args):
     """XXX"""
 
     if not neox_args.train_epochs and not neox_args.train_iters:
-        raise ValueError(
-            "Must specify either train_epochs or train_iters"
-        )
+        raise ValueError("Must specify either train_epochs or train_iters")
 
     validate_train_epochs(neox_args)
 
     (train_dataloader, valid_dataloader, test_dataloader) = (None, None, None)
+    valid_separate_dataloaders = {}
+    test_separate_dataloaders = {}
+    eval_weights = {"valid": {}, "test": {}}
 
     print_rank_0("> building train, validation, and test datasets ...")
 
@@ -605,6 +631,7 @@ def build_train_valid_test_data_loaders(neox_args):
             train_val_test_num_samples = [None, None, None]
             train_val_test_epochs = [1, 1, 1]
 
+        train_ds, valid_ds, test_ds = None, None, None
         if (neox_args.train_data_paths) or (neox_args.pos_train_data_paths):
             # when individual train / valid / test data paths are provided
             # normalize weight values and get num samples for each dataset
@@ -679,10 +706,26 @@ def build_train_valid_test_data_loaders(neox_args):
 
             if train_datasets:
                 train_ds = BlendableDataset(train_datasets, train_weights)
-            if valid_datasets:
+            if valid_datasets and not is_separate_eval_enabled(neox_args):
                 valid_ds = BlendableDataset(valid_datasets, valid_weights)
-            if test_datasets:
+            if test_datasets and not is_separate_eval_enabled(neox_args):
                 test_ds = BlendableDataset(test_datasets, test_weights)
+            if valid_datasets and is_separate_eval_enabled(neox_args):
+                valid_named_datasets, valid_named_weights = get_named_eval_datasets(
+                    neox_args, "valid", valid_datasets, valid_weights
+                )
+                valid_separate_dataloaders = make_named_data_loaders(
+                    valid_named_datasets, neox_args=neox_args
+                )
+                eval_weights["valid"] = valid_named_weights
+            if test_datasets and is_separate_eval_enabled(neox_args):
+                test_named_datasets, test_named_weights = get_named_eval_datasets(
+                    neox_args, "test", test_datasets, test_weights
+                )
+                test_separate_dataloaders = make_named_data_loaders(
+                    test_named_datasets, neox_args=neox_args
+                )
+                eval_weights["test"] = test_named_weights
         else:
             # when just data_path is provided
             # split dataset into train, valid and test from data_path
@@ -708,12 +751,16 @@ def build_train_valid_test_data_loaders(neox_args):
         # Flags to know if we need to do training/validation/testing.
         if neox_args.train_epochs:
             do_train = train_dataloader is not None
-            do_valid = valid_dataloader is not None
-            do_test = test_dataloader is not None
+            do_valid = valid_dataloader is not None or bool(valid_separate_dataloaders)
+            do_test = test_dataloader is not None or bool(test_separate_dataloaders)
         else:
             do_train = train_dataloader is not None and neox_args.train_iters > 0
-            do_valid = valid_dataloader is not None and neox_args.eval_iters > 0
-            do_test = test_dataloader is not None and neox_args.eval_iters > 0
+            do_valid = (
+                valid_dataloader is not None or bool(valid_separate_dataloaders)
+            ) and neox_args.eval_iters > 0
+            do_test = (
+                test_dataloader is not None or bool(test_separate_dataloaders)
+            ) and neox_args.eval_iters > 0
 
         # Need to broadcast num_tokens and num_type_tokens.
         flags = torch.cuda.LongTensor([int(do_train), int(do_valid), int(do_test)])
@@ -734,10 +781,38 @@ def build_train_valid_test_data_loaders(neox_args):
     neox_args.do_train = flags[0].item()
     neox_args.do_valid = flags[1].item()
     neox_args.do_test = flags[2].item()
+
+    if is_separate_eval_enabled(neox_args):
+        if not valid_separate_dataloaders:
+            valid_names = get_eval_subset_names(
+                neox_args,
+                "valid",
+                len(neox_args.valid_data_paths or neox_args.pos_valid_data_paths or []),
+            )
+            valid_separate_dataloaders = {name: None for name in valid_names}
+            valid_weights = neox_args.valid_data_weights or [1.0] * len(valid_names)
+            valid_weights, _ = get_normalized_weights_and_num_samples(
+                valid_weights, None
+            )
+            eval_weights["valid"] = dict(zip(valid_names, valid_weights))
+        if not test_separate_dataloaders:
+            test_names = get_eval_subset_names(
+                neox_args,
+                "test",
+                len(neox_args.test_data_paths or neox_args.pos_test_data_paths or []),
+            )
+            test_separate_dataloaders = {name: None for name in test_names}
+            test_weights = neox_args.test_data_weights or [1.0] * len(test_names)
+            test_weights, _ = get_normalized_weights_and_num_samples(test_weights, None)
+            eval_weights["test"] = dict(zip(test_names, test_weights))
+
     data_loaders = {
         "train": train_dataloader,
         "valid": valid_dataloader,
         "test": test_dataloader,
+        "valid_separate": valid_separate_dataloaders,
+        "test_separate": test_separate_dataloaders,
+        "eval_weights": eval_weights,
     }
     return data_loaders
 
@@ -747,6 +822,8 @@ def shift_and_wrap_data_loaders(neox_args, data_loaders, loop=True):
     train_dataloader = data_loaders["train"]
     valid_dataloader = data_loaders["valid"]
     test_dataloader = data_loaders["test"]
+    valid_separate_dataloaders = data_loaders.get("valid_separate", {})
+    test_separate_dataloaders = data_loaders.get("test_separate", {})
 
     # Shift the start iterations.
     if train_dataloader is not None:
@@ -769,6 +846,19 @@ def shift_and_wrap_data_loaders(neox_args, data_loaders, loop=True):
         print_rank_0(
             "setting validation data start iteration to {}".format(
                 valid_dataloader.batch_sampler.start_iter
+            )
+        )
+    for name, dataloader in valid_separate_dataloaders.items():
+        if dataloader is None:
+            continue
+        start_iter_val = (
+            (neox_args.iteration * neox_args.gradient_accumulation_steps)
+            // neox_args.eval_interval
+        ) * neox_args.eval_iters
+        dataloader.batch_sampler.start_iter = start_iter_val % len(dataloader)
+        print_rank_0(
+            "setting validation data start iteration for {} to {}".format(
+                name, dataloader.batch_sampler.start_iter
             )
         )
 
@@ -802,6 +892,21 @@ def shift_and_wrap_data_loaders(neox_args, data_loaders, loop=True):
             test_data_iterator = iter(test_dataloader)
     else:
         test_data_iterator = None
+
+    def wrap_named_data_loaders(named_data_loaders):
+        return {
+            name: (loop_iterator(dataloader) if loop else iter(dataloader))
+            if dataloader is not None
+            else None
+            for name, dataloader in named_data_loaders.items()
+        }
+
+    valid_separate_data_iterators = wrap_named_data_loaders(valid_separate_dataloaders)
+    test_separate_data_iterators = wrap_named_data_loaders(test_separate_dataloaders)
+    if valid_separate_data_iterators:
+        valid_data_iterator = valid_separate_data_iterators
+    if test_separate_data_iterators:
+        test_data_iterator = test_separate_data_iterators
 
     return train_data_iterator, valid_data_iterator, test_data_iterator
 

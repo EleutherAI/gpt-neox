@@ -34,13 +34,13 @@ def test_neoxargs_consume_deepy_args_without_config_dir():
     with patch(
         "sys.argv",
         [str(get_root_directory() / "deepy.py"), "train.py"]
-        + get_configs_with_path(["125M.yml", "local_setup.yml"]),
+        + get_configs_with_path(["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]),
     ):
         args_loaded_consume = NeoXArgs.consume_deepy_args()
 
     # load neox args directly from yaml files
     args_loaded_yamls = NeoXArgs.from_ymls(
-        get_configs_with_path(["125M.yml", "local_setup.yml"])
+        get_configs_with_path(["125M.yml", "local_setup.yml", "cpu_mock_config.yml"])
     )
 
     # update values from yaml files that cannot otherwise be matched

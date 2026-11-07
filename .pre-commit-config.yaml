@@ -17,11 +17,11 @@ repos:
           - id: requirements-txt-fixer
           - id: trailing-whitespace
             exclude: ^(docs/CNAME/|configs/neox_arguments.md)
-    - repo: https://gitlab.com/daverona/pre-commit/cpp
-      rev: 0.8.0
+    - repo: https://github.com/pre-commit/mirrors-clang-format
+      rev: v18.1.8
       hooks:
-          - id: clang-format  # formatter of C/C++ code based on a style guide: LLVM, Google, Chromium, Mozilla, and WebKit available
-            args: []
+          - id: clang-format
+            types_or: [c, c++, cuda]
 
     - repo: https://github.com/psf/black
       rev: 22.3.0

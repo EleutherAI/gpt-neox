@@ -43,7 +43,8 @@ from megatron import mpu
 
 # https://github.com/NVIDIA/TransformerEngine/issues/405
 import os
-os.environ['NVTE_TORCH_COMPILE'] = str(0)
+
+os.environ["NVTE_TORCH_COMPILE"] = str(0)
 
 try:
     import transformer_engine as te
@@ -52,7 +53,6 @@ except ImportError:
         "Unable to import transformer-engine. Please refer to "
         "https://github.com/NVIDIA/TransformerEngine for installation instructions."
     )
-
 
 
 class TERMSNorm(torch.nn.Module):
@@ -651,7 +651,7 @@ class TEDelayedScaling(te.common.recipe.DelayedScaling):
         override_linear_precision = (False, False, not neox_args.te_fp8_wgrad)
 
         super().__init__(
-            margin=neox_args.fp8_margin,
+            margin=neox_args.te_fp8_margin,
             fp8_format=te_fp8_format,
             amax_compute_algo=neox_args.te_fp8_amax_compute_algo,
             amax_history_len=neox_args.te_fp8_amax_history_len,

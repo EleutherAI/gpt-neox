@@ -15,7 +15,7 @@
    "pos_emb": "rotary",
    "no_weight_tying": true,
    "gpt_j_residual": false,
-   "output_layer_parallelism": "column",   
+   "output_layer_parallelism": "column",
 
    # moe settings
    "moe_num_experts": 8,
@@ -29,7 +29,7 @@
    # init methods
    "init_method": "small_init",
    "output_layer_init_method": "wang_init",
-   
+
    # optimizer settings
    "optimizer": {
      "type": "Adam",
@@ -39,8 +39,8 @@
        "eps": 1.0e-8,
      }
    },
-   "min_lr": 0.00006,    
-     
+   "min_lr": 0.00006,
+
    # for all zero_optimization options, see https://www.deepspeed.ai/docs/config-json/#zero-optimizations-for-fp16-training
    "zero_optimization": {
     "stage": 1,
@@ -71,7 +71,7 @@
    "precision": "bfloat16",
 
    "fp32_allreduce": True, # without a patch to torch, bf16 models have to do the allreduce in fp32
-   
+
    # misc. training settings
    "train_iters": 320000,
    "lr_decay_iters": 320000,

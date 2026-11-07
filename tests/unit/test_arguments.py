@@ -17,7 +17,11 @@ from tests.common import BASE_CONFIG, DistributedTest
 
 
 def test_main_constructor():
-    input_args = ["train.py", "tests/config/test_setup.yml"]
+    input_args = [
+        "train.py",
+        "tests/config/test_setup.yml",
+        "configs/cpu_mock_config.yml",
+    ]
     neox_args = NeoXArgs.consume_deepy_args(input_args)
     deepspeed_main_args = neox_args.get_deepspeed_main_args()
     neox_args = NeoXArgs.consume_neox_args(input_args=deepspeed_main_args)
@@ -28,7 +32,9 @@ class test_constructor_from_ymls_class(DistributedTest):
     world_size = 2
 
     def test(self):
-        neox_args = NeoXArgs.from_ymls(["tests/config/test_setup.yml"])
+        neox_args = NeoXArgs.from_ymls(
+            ["tests/config/test_setup.yml", "configs/cpu_mock_config.yml"]
+        )
         neox_args.configure_distributed_args()
 
 
@@ -41,7 +47,9 @@ class test_constructor_from_dict_class(DistributedTest):
     world_size = 2
 
     def test(self):
-        neox_args = NeoXArgs.from_dict(BASE_CONFIG)
+        config = BASE_CONFIG.copy()
+        config["global_num_gpus"] = 1
+        neox_args = NeoXArgs.from_dict(config)
 
 
 def test_constructor_from_dict():

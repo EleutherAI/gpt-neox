@@ -1,0 +1,16 @@
+name: NeoX Args Sync
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check-neox-args-sync:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.10.14"
+      - name: Check NeoX argument docs
+        run: python configs/neox_args_sync.py

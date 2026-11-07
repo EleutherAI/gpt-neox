@@ -255,7 +255,7 @@ def pretrain(neox_args):
     timers("model and optimizer").stop()
 
     if neox_args.serve_model_weights:
-        start_server(model)
+        start_server(model, ports=neox_args.weight_server_port)
         # sync...
         torch.distributed.barrier()
 
@@ -310,21 +310,37 @@ def pretrain(neox_args):
             lr_scheduler=lr_scheduler,
             train_data_iterator=train_data_iterator,
             valid_data_iterator=valid_data_iterator,
+            valid_eval_weights=data_loaders.get("eval_weights", {}).get("valid", {}),
         )
 
     if neox_args.do_valid:
         prefix = "the end of training for val data"
-        evaluate_and_print_results(
-            neox_args=neox_args,
-            prefix=prefix,
-            forward_step_func=forward_step,
-            data_iterator=valid_data_iterator,
-            model=model,
-            iteration=iteration,
-            verbose=False,
-            timers=timers,
-            reference_model=reference_model,
-        )
+        if isinstance(valid_data_iterator, dict):
+            evaluate_named_data_iterators(
+                neox_args=neox_args,
+                prefix=prefix,
+                forward_step_func=forward_step,
+                named_data_iterators=valid_data_iterator,
+                model=model,
+                iteration=iteration,
+                verbose=False,
+                timers=timers,
+                chart_name="validation",
+                weights=data_loaders.get("eval_weights", {}).get("valid", {}),
+                reference_model=reference_model,
+            )
+        else:
+            evaluate_and_print_results(
+                neox_args=neox_args,
+                prefix=prefix,
+                forward_step_func=forward_step,
+                data_iterator=valid_data_iterator,
+                model=model,
+                iteration=iteration,
+                verbose=False,
+                timers=timers,
+                reference_model=reference_model,
+            )
 
     if neox_args.save and iteration != 0:
         save_checkpoint(
@@ -338,18 +354,33 @@ def pretrain(neox_args):
     if neox_args.do_test:
         # Run on test data.
         prefix = "the end of training for test data"
-        evaluate_and_print_results(
-            neox_args=neox_args,
-            prefix=prefix,
-            forward_step_func=forward_step,
-            data_iterator=test_data_iterator,
-            model=model,
-            iteration=iteration,
-            verbose=True,
-            timers=timers,
-            chart_name="test",
-            reference_model=reference_model,
-        )
+        if isinstance(test_data_iterator, dict):
+            evaluate_named_data_iterators(
+                neox_args=neox_args,
+                prefix=prefix,
+                forward_step_func=forward_step,
+                named_data_iterators=test_data_iterator,
+                model=model,
+                iteration=iteration,
+                verbose=True,
+                timers=timers,
+                chart_name="test",
+                weights=data_loaders.get("eval_weights", {}).get("test", {}),
+                reference_model=reference_model,
+            )
+        else:
+            evaluate_and_print_results(
+                neox_args=neox_args,
+                prefix=prefix,
+                forward_step_func=forward_step,
+                data_iterator=test_data_iterator,
+                model=model,
+                iteration=iteration,
+                verbose=True,
+                timers=timers,
+                chart_name="test",
+                reference_model=reference_model,
+            )
 
 
 def _get_batch(neox_args, tokenizer, keys, data, datatype, label_mask_zero=False):
@@ -541,7 +572,10 @@ def forward_step(
 ):
     """Forward step."""
     if neox_args.is_pipe_parallel:
-        return model.eval_batch(data_iterator, return_logits=return_logits)
+        eval_batch_result = model.eval_batch(data_iterator, return_logits=return_logits)
+        if return_logits:
+            return eval_batch_result
+        return eval_batch_result, {}
 
     # Get the batch.
     if neox_args.memory_profiling and neox_args.iteration:
@@ -1437,6 +1471,7 @@ def train(
     lr_scheduler,
     train_data_iterator,
     valid_data_iterator,
+    valid_eval_weights=None,
 ):
     """Train the model function."""
 
@@ -1539,17 +1574,32 @@ def train(
             and neox_args.do_valid
         ):
             prefix = "iteration {}".format(iteration)
-            evaluate_and_print_results(
-                neox_args=neox_args,
-                prefix=prefix,
-                forward_step_func=forward_step,
-                data_iterator=valid_data_iterator,
-                model=model,
-                iteration=iteration,
-                verbose=False,
-                timers=timers,
-                reference_model=reference_model,
-            )
+            if isinstance(valid_data_iterator, dict):
+                evaluate_named_data_iterators(
+                    neox_args=neox_args,
+                    prefix=prefix,
+                    forward_step_func=forward_step,
+                    named_data_iterators=valid_data_iterator,
+                    model=model,
+                    iteration=iteration,
+                    verbose=False,
+                    timers=timers,
+                    chart_name="validation",
+                    weights=valid_eval_weights,
+                    reference_model=reference_model,
+                )
+            else:
+                evaluate_and_print_results(
+                    neox_args=neox_args,
+                    prefix=prefix,
+                    forward_step_func=forward_step,
+                    data_iterator=valid_data_iterator,
+                    model=model,
+                    iteration=iteration,
+                    verbose=False,
+                    timers=timers,
+                    reference_model=reference_model,
+                )
 
         if neox_args.exit_interval and iteration % neox_args.exit_interval == 0:
             torch.distributed.barrier()
@@ -1656,33 +1706,39 @@ def evaluate(
     return eval_results
 
 
+def normalize_named_eval_weights(names, weights=None):
+    if weights is None:
+        weights = {}
+    if not names:
+        return {}
+    named_weights = {name: float(weights.get(name, 1.0)) for name in names}
+    weight_sum = sum(named_weights.values())
+    if weight_sum <= 0.0:
+        raise ValueError("Evaluation subset weights must sum to a positive value.")
+    return {name: weight / weight_sum for name, weight in named_weights.items()}
+
+
+def synthesize_weighted_mix_eval_results(named_eval_results, weights=None):
+    names = list(named_eval_results.keys())
+    normalized_weights = normalize_named_eval_weights(names, weights)
+    lm_loss = sum(
+        normalized_weights[name] * named_eval_results[name]["lm_loss"] for name in names
+    )
+    return {"lm_loss": lm_loss, "lm_loss_ppl": math.exp(lm_loss)}
+
+
 def collect_loss_for_unit_test(lm_ss):
     # Logic moved to separate function to allow tracking in unit tests with unittest.mock.patch
     pass
 
 
-def evaluate_and_print_results(
+def log_eval_results(
     neox_args,
     prefix,
-    forward_step_func,
-    data_iterator,
-    model,
+    total_loss_dict,
     iteration,
-    verbose=False,
-    timers=None,
     chart_name="validation",
-    reference_model=None,
 ):
-    """Helper function to evaluate and dump results on screen."""
-    total_loss_dict = evaluate(
-        neox_args=neox_args,
-        forward_step_fn=forward_step_func,
-        data_iterator=data_iterator,
-        model=model,
-        verbose=verbose,
-        timers=timers,
-        reference_model=reference_model,
-    )
     string = f" {chart_name} results at {prefix} | "
     for k, v in total_loss_dict.items():
         if isinstance(v, dict):
@@ -1715,6 +1771,87 @@ def evaluate_and_print_results(
     print_rank_0("-" * length)
     print_rank_0(string)
     print_rank_0("-" * length)
+
+
+def evaluate_named_data_iterators(
+    neox_args,
+    prefix,
+    forward_step_func,
+    named_data_iterators,
+    model,
+    iteration,
+    verbose=False,
+    timers=None,
+    chart_name="validation",
+    weights=None,
+    reference_model=None,
+):
+    """Evaluate each named iterator, log subset metrics, and optionally synthesize a blended result."""
+    named_eval_results = {}
+    for name, data_iterator in named_data_iterators.items():
+        total_loss_dict = evaluate(
+            neox_args=neox_args,
+            forward_step_fn=forward_step_func,
+            data_iterator=data_iterator,
+            model=model,
+            verbose=verbose,
+            timers=timers,
+            reference_model=reference_model,
+        )
+        named_eval_results[name] = total_loss_dict
+        log_eval_results(
+            neox_args=neox_args,
+            prefix=prefix,
+            total_loss_dict=total_loss_dict,
+            iteration=iteration,
+            chart_name=f"{chart_name}/{name}",
+        )
+
+    if neox_args.eval_loss_logging == "blended_and_separate":
+        blended_results = synthesize_weighted_mix_eval_results(
+            named_eval_results, weights=weights
+        )
+        log_eval_results(
+            neox_args=neox_args,
+            prefix=prefix,
+            total_loss_dict=blended_results,
+            iteration=iteration,
+            chart_name=f"{chart_name}/blended",
+        )
+        named_eval_results["blended"] = blended_results
+
+    return named_eval_results
+
+
+def evaluate_and_print_results(
+    neox_args,
+    prefix,
+    forward_step_func,
+    data_iterator,
+    model,
+    iteration,
+    verbose=False,
+    timers=None,
+    chart_name="validation",
+    reference_model=None,
+):
+    """Helper function to evaluate and dump results on screen."""
+    total_loss_dict = evaluate(
+        neox_args=neox_args,
+        forward_step_fn=forward_step_func,
+        data_iterator=data_iterator,
+        model=model,
+        verbose=verbose,
+        timers=timers,
+        reference_model=reference_model,
+    )
+    log_eval_results(
+        neox_args=neox_args,
+        prefix=prefix,
+        total_loss_dict=total_loss_dict,
+        iteration=iteration,
+        chart_name=chart_name,
+    )
 
 
 def save_snapshot(neox_args):
