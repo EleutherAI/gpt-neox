@@ -119,7 +119,11 @@ class DataDownloader(ABC):
 
     def exists(self):
         """Checks if the dataset is present"""
-        return os.path.isdir(f"{self.base_dir}/{self.name}")
+        dataset_dir = os.path.join(self.base_dir, self.name)
+        return all(
+            os.path.isfile(os.path.join(dataset_dir, os.path.basename(url)))
+            for url in self.urls
+        )
 
     def download(self):
         """downloads dataset"""
@@ -157,7 +161,8 @@ class DataDownloader(ABC):
         if self.ftfy:
             cmd += f"--ftfy "
 
-        os.system(cmd)
+        if os.system(cmd) != 0:
+            raise RuntimeError(f"Failed to tokenize dataset {self.name}")
 
     def prepare(self):
         if self._force_redownload:

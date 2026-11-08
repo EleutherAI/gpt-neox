@@ -31,4 +31,4 @@ jobs:
         run: python prepare_data.py
 
       - name: Run CPU Tests
-        run: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pytest tests -m cpu
+        run: pytest tests -m cpu

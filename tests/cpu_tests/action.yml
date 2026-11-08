@@ -10,6 +10,7 @@ runs:
     - uses: actions/checkout@v4
       with:
         ref: ${{ inputs.target_test_ref }}
+        persist-credentials: false
     - name: Install Python
       uses: actions/setup-python@v4
       with:
@@ -52,8 +53,8 @@ runs:
       shell: bash
       run: |
         cp tests/cpu_tests/docker-compose.yml .docker-compose.cpu-tests.yml
-        mkdir -p data/enwik8 data/checkpoints
-        export NEOX_DATA_PATH="${PWD}/data/enwik8"
+        mkdir -p data data/checkpoints
+        export NEOX_DATA_PATH="${PWD}/data"
         export NEOX_CHECKPOINT_PATH="${PWD}/data/checkpoints"
         docker compose -f .docker-compose.cpu-tests.yml run -d --build --name "$CONTAINER" gpt-neox tail -f /dev/null
       env:
@@ -70,19 +71,10 @@ runs:
         docker exec -u root "$CONTAINER" sh -c "cd /workspace/gpt-neox && pip install -r requirements/requirements-dev.txt"
       env:
         CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
-    - name: Execute CPU tests 1
-      id: cpu_tests
-      continue-on-error: true
+    - name: Execute CPU tests
       shell: bash
       run: |
         docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "$CONTAINER" sh -c "cd /workspace/gpt-neox && pytest tests -m cpu"
-      env:
-        CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
-    - name: Retry CPU tests with Python protobuf
-      if: steps.cpu_tests.outcome == 'failure'
-      shell: bash
-      run: |
-        docker exec -u "$(id -u):$(id -g)" -e HOME=/tmp "$CONTAINER" sh -c "cd /workspace/gpt-neox && PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pytest tests -m cpu"
       env:
         CONTAINER: gpt-neox-${{ inputs.target_test_ref }}
 #    - name: Generate report

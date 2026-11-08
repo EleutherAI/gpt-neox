@@ -1,7 +1,7 @@
 import pytest
 import toml
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from packaging.version import parse as parse_version, Version
 from dataclasses import dataclass
 
@@ -80,7 +80,7 @@ class DependencyValidator:
 
     def compare_dependencies(
         self, req_deps: List[Dependency], pyproject_deps: Dict[str, str]
-    ) -> tuple[bool, List[str]]:
+    ) -> Tuple[bool, List[str]]:
         """Compare dependencies between requirements.txt and pyproject.toml."""
         mismatches = []
 
