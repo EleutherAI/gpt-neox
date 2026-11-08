@@ -87,6 +87,10 @@ ENV TORCH_CUDA_ARCH_LIST=10.0
 RUN grep -q '^jinja2==3\.1\.4$' requirements.txt || \
         { echo "ERROR: expected jinja2==3.1.4 in requirements.txt — pin may have changed upstream" >&2; exit 1; } && \
     sed -i 's/^jinja2==3.1.4$/jinja2==3.1.6/' requirements.txt && \
+    protobuf_constraint=$(grep '^protobuf==' requirements-wandb.txt) && \
+    sed -i -e "s/^protobuf==.*/$protobuf_constraint/" \
+        -e 's/^fsspec==2025\.3\.0$/fsspec==2024.6.1/' \
+        -e 's/^dill==0\.3\.9$/dill==0.3.8/' /etc/pip/constraint.txt && \
     python -m pip install --no-cache-dir -r requirements.txt && \
     python -m pip install --no-cache-dir -r requirements-onebitadam.txt && \
     python -m pip install --no-cache-dir -r requirements-wandb.txt && \

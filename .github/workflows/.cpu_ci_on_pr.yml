@@ -7,11 +7,17 @@ on:
     paths:
       - "megatron/**"
       - ".github/workflows/**"
+      - ".dockerignore"
       - "containers/docker/**"
+      - "deepy.py"
+      - "eval.py"
+      - "eval_tasks/**"
+      - "generate.py"
       - "prepare_data.py"
       - "requirements/**"
       - "tests/**"
       - "tools/datasets/**"
+      - "train.py"
 
 permissions:
   contents: read

@@ -12,7 +12,7 @@ jobs:
       - name: Install Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.8"
+          python-version: "3.10"
           cache: "pip"
           cache-dependency-path: "**/requirements*.txt"
 
@@ -22,13 +22,15 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get install libopenmpi-dev -y
-          pip install torch==1.8.2 torchvision==0.9.2 torchaudio==0.8.2 --extra-index-url https://download.pytorch.org/whl/lts/1.8/cpu
-          pip install -r requirements/requirements.txt
-          pip install -r requirements/requirements-dev.txt
-          pip install -r requirements/requirements-wandb.txt
+          constraints="$RUNNER_TEMP/cpu-constraints.txt"
+          printf '%s\n' 'torch==2.6.0+cpu' > "$constraints"
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu -c "$constraints" torch
+          python -m pip install -c "$constraints" -r requirements/requirements.txt \
+            -r requirements/requirements-dev.txt -r requirements/requirements-wandb.txt
+          python -m pip check
 
       - name: Prepare Data
         run: python prepare_data.py
 
       - name: Run CPU Tests
-        run: pytest tests -m cpu
+        run: pytest tests -m cpu --torch_ver 2.6.0+cpu

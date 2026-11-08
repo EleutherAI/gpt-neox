@@ -1,2 +1,2 @@
-wandb==0.16.6
-protobuf==4.25.8
+wandb==0.24.2
+protobuf==5.29.6
