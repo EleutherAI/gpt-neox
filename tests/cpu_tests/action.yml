@@ -11,15 +11,6 @@ runs:
       with:
         ref: ${{ inputs.target_test_ref }}
         persist-credentials: false
-    - name: Install Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.8"
-        cache: "pip"
-        cache-dependency-path: "**/requirements*.txt"
-    - name: Upgrade Pip
-      shell: bash
-      run: python -m pip install --upgrade pip
     - name: Set up Docker repository
       shell: bash
       run: |
