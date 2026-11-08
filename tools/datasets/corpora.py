@@ -15,8 +15,10 @@
 
 
 import os
+import subprocess
 from abc import ABC, abstractmethod
 from multiprocessing import cpu_count
+from tempfile import TemporaryDirectory
 
 """
 This registry is for automatically downloading and extracting datasets.
@@ -119,20 +121,25 @@ class DataDownloader(ABC):
 
     def exists(self):
         """Checks if the dataset is present"""
-        return os.path.isdir(f"{self.base_dir}/{self.name}")
+        dataset_dir = os.path.join(self.base_dir, self.name)
+        return all(
+            os.path.isfile(os.path.join(dataset_dir, os.path.basename(url)))
+            for url in self.urls
+        )
 
     def download(self):
         """downloads dataset"""
-        os.makedirs(os.path.join(self.base_dir, self.name), exist_ok=True)
+        dataset_dir = os.path.join(self.base_dir, self.name)
+        os.makedirs(dataset_dir, exist_ok=True)
         for url in self.urls:
-            try:
-                os_cmd = f"wget {url} -O {os.path.join(self.base_dir, self.name, os.path.basename(url))}"
-                if os.system(os_cmd) != 0:
-                    raise Exception(
-                        f"Cannot download file at URL {url}: server may be down"
-                    )
-            except Exception as e:
-                raise Exception(f"Download error: {e}")
+            filename = os.path.basename(url)
+            with TemporaryDirectory(dir=dataset_dir) as staging_dir:
+                staged_file = os.path.join(staging_dir, filename)
+                try:
+                    subprocess.run(["wget", "-O", staged_file, url], check=True)
+                except subprocess.CalledProcessError as exc:
+                    raise RuntimeError(f"Cannot download dataset file at {url}") from exc
+                os.replace(staged_file, os.path.join(dataset_dir, filename))
 
     def tokenize(self):
         """tokenizes dataset"""
@@ -157,7 +164,8 @@ class DataDownloader(ABC):
         if self.ftfy:
             cmd += f"--ftfy "
 
-        os.system(cmd)
+        if os.system(cmd) != 0:
+            raise RuntimeError(f"Failed to tokenize dataset {self.name}")
 
     def prepare(self):
         if self._force_redownload:

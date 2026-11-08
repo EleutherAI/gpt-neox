@@ -35,7 +35,7 @@ RUN apt-get update -y && \
     apt-get install -y \
     python3-pip sudo pdsh \
     htop tmux zstd software-properties-common \
-    nfs-common pdsh cmake htop iftop iotop ssh \
+    nfs-common pdsh cmake htop iftop iotop ssh libaio-dev \
     iputils-ping net-tools libcupti-dev libmlx4-1 infiniband-diags ibutils \
     rdmacm-utils perftest rdma-core && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3 1 && \
@@ -82,8 +82,18 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
 #### Python packages
 COPY requirements/* ./
 RUN python -m pip install --no-cache-dir -r requirements.txt && pip install -r requirements-onebitadam.txt
-RUN python -m pip install -r requirements-wandb.txt
-RUN python -m pip install protobuf==3.20.*
+# cuDF in NGC 24.02 requires protobuf <5.
+RUN python -m pip install --no-cache-dir wandb==0.16.6 protobuf==4.25.8 && \
+    python -c "import google.protobuf, wandb; from wandb.proto.wandb_telemetry_pb2 import Imports; print(f'wandb={wandb.__version__} protobuf={google.protobuf.__version__}')"
+
+# The base image carries these three known packaging diagnostics.
+RUN if ! python -m pip check > /tmp/neox-pip-check.log 2>&1; then \
+        cat /tmp/neox-pip-check.log && \
+        awk '/^pygobject 3\.42\.1 requires pycairo, which is not installed\.$/ { next } \
+             /^cmake 3\.28\.1 is not supported on this platform$/ { next } \
+             /^ninja 1\.11\.1\.1 is not supported on this platform$/ { next } \
+             { unexpected = 1 } END { exit (NR == 0 || unexpected) }' /tmp/neox-pip-check.log; \
+    fi && rm /tmp/neox-pip-check.log
 
 COPY megatron/fused_kernels/ /megatron/fused_kernels
 WORKDIR /megatron/fused_kernels

@@ -69,8 +69,8 @@ From: nvcr.io/nvidia/pytorch:24.02-py3
     # Note: requirements files need to be copied separately or made available during the build
     python -m pip install --no-cache-dir -r /requirements/requirements.txt
     python -m pip install -r /requirements/requirements-onebitadam.txt
-    python -m pip install -r /requirements/requirements-wandb.txt
-    python -m pip install protobuf==3.20.*
+    # cuDF in NGC 24.02 requires protobuf <5.
+    python -m pip install wandb==0.16.6 protobuf==4.25.8
 
     # Megatron fused kernels
     # You'll need to copy the fused_kernels directory

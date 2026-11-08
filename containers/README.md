@@ -36,14 +36,13 @@ The image:
 - installs `wandb==0.16.6`
 - installs `transformer-engine[pytorch]==1.12`
 - builds `flash-attn==2.5.6` from source
-- pins `protobuf==3.20.*`
+- pins `protobuf==4.25.8` to satisfy the cuDF requirement in NGC 24.02
 - sets `TORCH_CUDA_ARCH_LIST=9.0`
 - builds the GPT-NeoX fused kernels from `megatron/fused_kernels/`
 
 FlashAttention is built from source instead of installed from the wheel path in
 `requirements-transformerengine.txt`, because prebuilt wheels are more likely
-to hit ABI mismatches on the older NGC 24.02 PyTorch base. W&B is pinned to
-`0.16.6` so it stays compatible with the `protobuf==3.20.*` pin.
+to hit ABI mismatches on the older NGC 24.02 PyTorch base.
 
 Build the image:
 
@@ -68,13 +67,13 @@ base.
 The image:
 
 - installs `requirements.txt` and `requirements-onebitadam.txt`
-- installs `wandb==0.16.6`
+- installs W&B and Protobuf from `requirements-wandb.txt`
 - sets `TORCH_CUDA_ARCH_LIST=10.0`
 - relies on the NGC 25.04 base image for Transformer Engine
 - rewrites `jinja2==3.1.4` to `jinja2==3.1.6` during the build to match the
   NGC base-image pip constraint
-- keeps the base image's newer protobuf constraint instead of forcing
-  `protobuf==3.20.*`
+- updates the base image's Protobuf constraint to match `requirements-wandb.txt`
+- pins `fsspec==2024.6.1` and `dill==0.3.8` for compatibility with Datasets 2.x
 - removes `chardet` after installation to avoid the `requests` dependency
   warning emitted during W&B imports in this base image
 - builds the GPT-NeoX fused kernels from `megatron/fused_kernels/`

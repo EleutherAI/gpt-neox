@@ -4,8 +4,23 @@ name: "Pull Request CPU Tests"
 
 on:
   pull_request:
-    paths: # job only triggers when the PR changes files under megatron directory
+    paths:
       - "megatron/**"
+      - ".github/workflows/**"
+      - ".dockerignore"
+      - "containers/docker/**"
+      - "deepy.py"
+      - "eval.py"
+      - "eval_tasks/**"
+      - "generate.py"
+      - "prepare_data.py"
+      - "requirements/**"
+      - "tests/**"
+      - "tools/datasets/**"
+      - "train.py"
+
+permissions:
+  contents: read
 
 jobs:
   run-tests:
@@ -13,7 +28,9 @@ jobs:
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
+      with:
+        persist-credentials: false
     - name: Run CPU tests
       uses: ./tests/cpu_tests
       with:
-        target_test_ref: ${{ github.event.pull_request.base.sha }}
+        target_test_ref: ${{ github.sha }}
