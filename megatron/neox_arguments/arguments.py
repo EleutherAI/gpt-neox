@@ -101,7 +101,11 @@ AUTOTUNING_ARGS = (
 )
 
 # deprecated config key -> its replacement (None if it has none)
-DEPRECATED_ARGS = {"clip_grad": "gradient_clipping", "sparse_attention": None}
+DEPRECATED_ARGS = {
+    "clip_grad": "gradient_clipping",
+    "sparse_attention": None,
+    "deepscale": None,
+}
 
 
 def _validate_qk_norm_args(
