@@ -17,7 +17,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from megatron.model.fused_softmax import FusedScaleMaskSoftmax
+from megatron.model.fused_softmax import (
+    FusedScaleMaskSoftmax,
+    softcap_attention_logits,
+)
 from megatron.model.activations import get_activation
 from megatron.model.norms import get_norm
 from megatron.model.utils import get_fusion_type
@@ -30,6 +33,7 @@ class TinyAttention(nn.Module):
         super().__init__()
         self.proj_qkv = nn.Linear(d_ff * 2, 3 * d_attn)
         self.scale = d_attn**-0.5
+        self.softcap = neox_args.attn_logit_softcapping
         self.proj_ffn = nn.Linear(d_attn, d_ff)
         self.softmax = FusedScaleMaskSoftmax(
             input_in_fp16=neox_args.precision == "fp16",
@@ -43,6 +47,7 @@ class TinyAttention(nn.Module):
     def forward(self, x, attention_mask):
         q, k, v = torch.chunk(self.proj_qkv(x), 3, dim=-1)
         w = torch.einsum("bnd,bmd->bnm", q, k).unsqueeze(1) * self.scale
+        w = softcap_attention_logits(w, self.softcap)
         a = self.softmax(
             w, mask=attention_mask[..., : w.size(-2), : w.size(-1)]
         ).squeeze(1)
