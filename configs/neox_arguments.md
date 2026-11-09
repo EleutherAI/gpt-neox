@@ -1972,11 +1972,11 @@ As of Mar 8 2023, up to date compared to https://www.deepspeed.ai/docs/config-js
 
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#flops-profiler
 
-- **communication_data_type**: bool
+- **communication_data_type**: typing.Literal['fp16', 'bf16', 'fp32']
 
     Default = None
 
-    During gradient averaging, perform communication with selected data type. By default it will be determined by selected regime
+    During gradient averaging, perform communication with selected data type: fp16, bf16 or fp32. By default it will be determined by selected regime
 
 - **activation_checkpointing**: dict
 

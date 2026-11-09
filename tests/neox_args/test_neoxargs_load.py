@@ -111,6 +111,32 @@ def test_gradient_clipping_default_matches_deepspeed():
 
 
 @pytest.mark.cpu
+@pytest.mark.parametrize("value", ["fp16", "bf16", "fp32"])
+def test_communication_data_type_accepts_deepspeed_values(value):
+    from megatron.neox_arguments import NeoXArgs
+
+    args = NeoXArgs.from_ymls(
+        get_configs_with_path(["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]),
+        overwrite_values={"communication_data_type": value},
+    )
+    assert args.communication_data_type == value
+
+
+@pytest.mark.cpu
+@pytest.mark.parametrize("value", ["fp64", True, "invalid"])
+def test_communication_data_type_rejects_invalid_values(value):
+    from megatron.neox_arguments import NeoXArgs
+
+    with pytest.raises(ValueError):
+        NeoXArgs.from_ymls(
+            get_configs_with_path(
+                ["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]
+            ),
+            overwrite_values={"communication_data_type": value},
+        )
+
+
+@pytest.mark.cpu
 def test_neoxargs_load_arguments_125M_local_setup():
     """
     verify 125M.yml can be loaded without raising validation errors
