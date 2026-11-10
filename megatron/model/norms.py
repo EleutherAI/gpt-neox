@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from functools import partial
 import torch
 from torch.nn import LayerNorm as LayerNorm
 
@@ -25,7 +26,7 @@ def get_norm(neox_args, norm_type=None):
 
             norm = MixedFusedRMSNorm
         else:
-            norm = RMSNorm
+            norm = partial(RMSNorm, bias=neox_args.use_bias_in_norms)
     elif norm_type == "layernorm":
         eps = neox_args.layernorm_epsilon
         if neox_args.layernorm_fusion:
@@ -33,7 +34,7 @@ def get_norm(neox_args, norm_type=None):
 
             norm = MixedFusedLayerNorm
         else:
-            norm = LayerNorm
+            norm = partial(LayerNorm, bias=neox_args.use_bias_in_norms)
     elif norm_type == "non_parametric_layernorm":
         eps = neox_args.layernorm_epsilon
         if neox_args.layernorm_fusion and norm_type == neox_args.norm:
@@ -53,7 +54,7 @@ def get_norm(neox_args, norm_type=None):
     elif norm_type == "te_layernorm":
         from .transformer_engine import TELayerNorm
 
-        norm = TELayerNorm
+        norm = partial(TELayerNorm, bias=neox_args.use_bias_in_norms)
         eps = neox_args.layernorm_epsilon
     else:
         raise ValueError(f"norm {norm_type} not recognized")
