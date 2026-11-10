@@ -111,6 +111,58 @@ def test_gradient_clipping_default_matches_deepspeed():
 
 
 @pytest.mark.cpu
+def test_use_bias_in_norms_layernorm_fusion_conflict():
+    from megatron.neox_arguments import NeoXArgs
+
+    with pytest.raises(
+        ValueError, match="MixedFusedLayerNorm does not support use_bias_in_norms=False"
+    ):
+        NeoXArgs.from_ymls(
+            get_configs_with_path(["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]),
+            overwrite_values={
+                "norm": "layernorm",
+                "layernorm_fusion": True,
+                "use_bias_in_norms": False,
+            },
+        )
+
+
+@pytest.mark.cpu
+@pytest.mark.parametrize("use_bias", [True, False])
+def test_get_norm_respects_use_bias_in_norms(use_bias):
+    from types import SimpleNamespace
+    from megatron.model.norms import get_norm
+
+    args = SimpleNamespace(
+        norm="layernorm",
+        layernorm_epsilon=1e-5,
+        layernorm_fusion=False,
+        use_bias_in_norms=use_bias,
+    )
+    norm_fn, eps = get_norm(args)
+    norm_instance = norm_fn(64, eps=eps)
+    if use_bias:
+        assert norm_instance.bias is not None
+    else:
+        assert norm_instance.bias is None
+
+    args_rms = SimpleNamespace(
+        norm="rmsnorm",
+        rms_norm_epsilon=1e-5,
+        rmsnorm_fusion=False,
+        use_bias_in_norms=use_bias,
+    )
+    rms_fn, eps = get_norm(args_rms)
+    rms_instance = rms_fn(64, eps=eps)
+    if use_bias:
+        assert hasattr(rms_instance, "offset")
+        assert rms_instance.bias is True
+    else:
+        assert not hasattr(rms_instance, "offset")
+        assert rms_instance.bias is False
+
+
+@pytest.mark.cpu
 def test_neoxargs_load_arguments_125M_local_setup():
     """
     verify 125M.yml can be loaded without raising validation errors
