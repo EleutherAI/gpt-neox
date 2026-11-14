@@ -664,7 +664,7 @@ The generated output file can then by viewed with the Nsight Systems GUI:
 To use the built-in PyTorch profiler, set config options `profile`, `profile_step_start`, and `profile_step_stop` (see [here](https://github.com/EleutherAI/gpt-neox/blob/main/configs/neox_arguments.md) for argument usage, and [here](https://github.com/EleutherAI/gpt-neox/blob/main/configs/prof.yml) for a sample config).
 
 The PyTorch profiler will save traces to your `tensorboard` log directory.  You can view these traces within
-TensorBoard by following the steps [here](https://pytorch.org/tutorials/intermediate/tensorboard_profiler_tutorial.html).
+TensorBoard by following the steps here.
 
 ![torch-prof](images/pytorch_profiling.png)
 
