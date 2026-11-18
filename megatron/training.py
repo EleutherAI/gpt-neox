@@ -1521,6 +1521,9 @@ def train_step(
                 model.step()
                 if gram_boundary:
                     model.module._gram_controller.finish_step()
+                    model.module._gram_controller.record_grad_norms(
+                        getattr(model, "get_global_grad_norm", lambda: None)(), neox_args.gradient_clipping
+                    )
             else:
                 raise ValueError("Must be using deepspeed to run neox")
             timers("optimizer").stop()

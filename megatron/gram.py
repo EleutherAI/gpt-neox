@@ -73,6 +73,12 @@ class RoutingController:
         self.participation = [False] * self.num_roles
         self.step_active = None
         self.handles = []
+        # Data-parallel rank: part of the routing key, so each rank draws its own route.
+        self.rank = 0
+        # Per-role squared gradient norms of the last optimizer step (after clipping),
+        # and the norms collected since the last training log.
+        self.role_grad_sq = None
+        self.grad_norm_log = {}
 
     def prepare_step(self, device, group=None):
         """One collective per global update, before DeepSpeed visits groups."""
@@ -80,6 +86,29 @@ class RoutingController:
         if torch.distributed.is_initialized():
             torch.distributed.all_reduce(active, op=torch.distributed.ReduceOp.MAX, group=group)
         self.step_active = active.tolist()
+
+    def record_grad_norms(self, global_norm, clip):
+        """Store this update's pre-clipping global and per-role gradient norms for the training log.
+
+        RoutedAdamW sees gradients after DeepSpeed's global clipping, so per-role norms are scaled back by the
+        clipping coefficient. Tensor-parallel replicas of a parameter are counted once per replica.
+        """
+        if global_norm is None:
+            return
+        global_norm = float(global_norm)
+        coef = min(1.0, clip / (global_norm + 1e-6)) if clip else 1.0
+        values = {"grad_norm": global_norm}
+        if self.role_grad_sq is not None:
+            for role, sq in enumerate(self.role_grad_sq.tolist()):
+                values[f"grad_norm_role{role}"] = sq ** 0.5 / coef
+        log = self.grad_norm_log
+        for key, value in values.items():
+            log[key] = value
+            log[key + "_max"] = max(log.get(key + "_max", 0.0), value)
+
+    def pop_grad_norm_log(self):
+        log, self.grad_norm_log = self.grad_norm_log, {}
+        return log
 
     def finish_step(self):
         self.participation[:] = [False] * self.num_roles
@@ -94,7 +123,7 @@ class RoutingController:
         bank for inner data) are also updated. spread=0 is strict isolation.
         """
         # Stateless draws: resume does not require serializing a second RNG stream.
-        key = f"{seed}:{iteration}:{microstep}".encode()
+        key = f"{seed}:{iteration}:{microstep}:{self.rank}".encode()
         digest = hashlib.sha256(key).digest()
         draw = int.from_bytes(digest[:8], "big") / 2**64
         # Independent of the robustness draw and of the nested prefix choice (bytes 8:16).
@@ -143,7 +172,8 @@ class RoutingController:
 
 
 class AuxiliaryMLP(nn.Module):
-    def __init__(self, core, hidden_size, width, controller, init_std, output_bias=True):
+    def __init__(self, core, hidden_size, width, controller, init_std, output_bias=True,
+                 init_method=None, output_layer_init_method=None, num_layers=None):
         super().__init__()
         self.core = core
         self.controller = controller
@@ -154,12 +184,24 @@ class AuxiliaryMLP(nn.Module):
         self.gram_inner = (nn.Sequential(
             nn.Linear(hidden_size, width), nn.GELU(), nn.Linear(width, hidden_size, bias=output_bias)
         ).to(device=ref.device, dtype=ref.dtype) if controller.nested else None)
+        # Same init as the core MLP: the input projection uses init_method, the output projection
+        # (which feeds the residual stream) uses output_layer_init_method. Without NeoX's init
+        # functions, fall back to normal(init_std) and scaled_normal(init_std, num_layers).
+        if init_method is None:
+            def init_method(w):
+                return nn.init.normal_(w, std=init_std)
+        if output_layer_init_method is None:
+            out_std = init_std / (2.0 * num_layers) ** 0.5 if num_layers else init_std
+            def output_layer_init_method(w):
+                return nn.init.normal_(w, std=out_std)
         branches = [self.gram_aux] + ([self.gram_inner] if self.gram_inner is not None else [])
-        for module in (m for branch in branches for m in branch):
-            if isinstance(module, nn.Linear):
-                nn.init.normal_(module.weight, std=init_std)
-                if module.bias is not None:
-                    nn.init.zeros_(module.bias)
+        for branch in branches:
+            with torch.no_grad():
+                init_method(branch[0].weight)
+                output_layer_init_method(branch[2].weight)
+            for linear in (branch[0], branch[2]):
+                if linear.bias is not None:
+                    nn.init.zeros_(linear.bias)
 
     def forward(self, hidden_states):
         output, bias = self.core(hidden_states)
@@ -194,6 +236,10 @@ def role_parameter_groups(params):
                     split["name"] = ("core_", "aux_", "inner_")[role] + split["name"]
                 result.append(split)
     return result
+
+
+def param_device(groups):
+    return next(p for group in groups for p in group["params"]).device
 
 
 class RoutedAdamW(torch.optim.AdamW):
@@ -239,6 +285,14 @@ class RoutedAdamW(torch.optim.AdamW):
             param = next(p for group in self.param_groups for p in group["params"])
             self.controller.prepare_step(param.device)
         active = self.controller.step_active
+        sq = torch.zeros(self.controller.num_roles, dtype=torch.float32, device=param_device(self.param_groups))
+        for group in self.param_groups:
+            for p in group["params"]:
+                if p.grad is not None:
+                    sq[group["gram_role"]] += p.grad.detach().float().pow(2).sum()
+        if torch.distributed.is_initialized():
+            torch.distributed.all_reduce(sq)
+        self.controller.role_grad_sq = sq
         for group in self.param_groups:
             for p in group["params"]:
                 # BF16 and ZeRO replace p with a new flat/partitioned FP32
@@ -318,6 +372,18 @@ def validate_config(args):
         raise ValueError("GRAM ZeRO-1 requires zero_allow_untested_optimizer: true for RoutedAdamW")
 
 
+def data_parallel_rank():
+    """This process's data-parallel rank (0 outside distributed runs)."""
+    if not torch.distributed.is_initialized():
+        return 0
+    try:
+        from megatron import mpu
+
+        return mpu.get_data_parallel_rank()
+    except Exception:
+        return torch.distributed.get_rank()
+
+
 def install(model, args):
     validate_config(args)
     controller = RoutingController(nested=getattr(args, "gram_nested", False),
@@ -328,11 +394,19 @@ def install(model, args):
             replacements.append(module)
     if len(replacements) != args.num_layers:
         raise ValueError("GRAM expected one ordinary ParallelMLP per transformer layer")
+    controller.rank = data_parallel_rank()
+    init_method = output_layer_init_method = None
+    if hasattr(args, "init_method") and hasattr(args, "output_layer_init_method"):
+        from megatron.model.init_functions import get_init_methods
+
+        init_method, output_layer_init_method = get_init_methods(args)
     for module in replacements:
         module.mlp = AuxiliaryMLP(module.mlp, args.hidden_size, args.gram_aux_width,
                                   controller, args.init_method_std,
                                   output_bias=(getattr(args, "gram_aux_output_bias", True)
-                                               and not getattr(args, "gram_absorb_auxiliary_width", False)))
+                                               and not getattr(args, "gram_absorb_auxiliary_width", False)),
+                                  init_method=init_method, output_layer_init_method=output_layer_init_method,
+                                  num_layers=args.num_layers)
     controller.attach(model)
     controller.select(0, 0, getattr(args, "seed", 0), 0, 0, training=False,
                       level=getattr(args, "gram_eval_level", 0))
@@ -375,6 +449,7 @@ def grouped_batches(batches, args):
     reproduces the group's complete routing state when forward_step selects it.
     """
     probe = RoutingController(nested=args.gram_nested)
+    probe.rank = data_parallel_rank()
     buckets = {}
     for micro, batch in enumerate(batches):
         if batch['text'].shape[0] != 1 or batch['gram_flag'].numel() != 1:
@@ -439,6 +514,9 @@ def grouped_train_step(args, timers, data_iterator, model, optimizer, lr_schedul
             model.step()
             if last:
                 model.module._gram_controller.finish_step()
+                model.module._gram_controller.record_grad_norms(
+                    getattr(model, "get_global_grad_norm", lambda: None)(), getattr(args, "gradient_clipping", 0.0)
+                )
             timers('optimizer').stop()
         # micro_steps tracks consumed singleton examples, not grouped launches.
         model.micro_steps = initial_micro_steps + logical_steps

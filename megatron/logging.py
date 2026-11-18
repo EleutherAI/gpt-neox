@@ -546,6 +546,18 @@ def training_log(
                 avg = v / float(num_iterations)
                 log_string += " {}: {:.6E} |".format(key, avg)
                 total_loss_dict[key] = 0.0
+        controller = getattr(getattr(model, "module", None), "_gram_controller", None)
+        if controller is not None:
+            for key, value in controller.pop_grad_norm_log().items():
+                log_string += " {}: {:.4E} |".format(key, value)
+                tb_wandb_log(
+                    f"gram/{key}",
+                    value,
+                    iteration,
+                    use_wandb=neox_args.use_wandb,
+                    tensorboard_writer=neox_args.tensorboard_writer,
+                    comet_experiment=neox_args.comet_experiment,
+                )
         if neox_args.precision == "fp16":
             log_string += " loss scale: {:.1f} |".format(loss_scale)
         log_string += " number of skipped iterations: {:3d} |".format(
