@@ -204,12 +204,12 @@ class SoftEmbedding(torch.nn.Module):
             self.initialize_embedding(wte)
         )
 
-    def initialize_embedding(self):
+    def initialize_embedding(self, wte):
         if self.init_string:
             embeds = torch.LongTensor(
                 self.neox_args.tokenizer.tokenize(self.init_string)
-            ).to(self.embedding_module.weight.device)
-            embeds = self.embedding_module(embeds)
+            ).to(wte.weight.device)
+            embeds = wte(embeds)
             if embeds.shape[0] >= self.n_tokens:
                 embeds = embeds[: self.n_tokens, :]  # slice
             else:
@@ -217,8 +217,8 @@ class SoftEmbedding(torch.nn.Module):
                     : self.n_tokens, :
                 ]  # pad up to n_tokens
             return embeds
-        return torch.Tensor(n_tokens, neox_args.hidden_size).uniform_(
-            -self.random_range, self.random_range
+        return torch.Tensor(self.n_tokens, self.neox_args.hidden_size).uniform_(
+            -self.init_range, self.init_range
         )
 
     def forward(self, args: tuple):
@@ -237,7 +237,7 @@ class SoftEmbedding(torch.nn.Module):
             embedding = embedding[:, : self.neox_args.seq_length, ...]
             return embedding, attention_mask
         else:
-            if not (exists(layer_past) and layer_past.numel() > 0):
+            if not (layer_past is not None and layer_past.numel() > 0):
                 # if in inference, on the first forward pass, we want to do the same as in training (append soft embedding)
                 embedding = torch.cat((soft_embedding, embedding), dim=1)
                 embedding = embedding[:, : self.neox_args.seq_length, ...]
