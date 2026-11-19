@@ -95,7 +95,12 @@ RUN if ! python -m pip check > /tmp/neox-pip-check.log 2>&1; then \
 
 COPY megatron/fused_kernels/ /megatron/fused_kernels
 WORKDIR /megatron/fused_kernels
-RUN python setup.py install && \
+ARG BUILD_FUSED_KERNELS=true
+RUN case "$BUILD_FUSED_KERNELS" in \
+        true) python setup.py install ;; \
+        false) ;; \
+        *) echo "BUILD_FUSED_KERNELS must be true or false" >&2; exit 1 ;; \
+    esac && \
     mkdir -p /tmp && chmod 0777 /tmp
 
 #### SWITCH TO mchorse USER

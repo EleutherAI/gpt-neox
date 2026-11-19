@@ -95,7 +95,12 @@ RUN grep -q '^jinja2==3\.1\.4$' requirements.txt || \
 
 
 COPY megatron/fused_kernels/ /megatron/fused_kernels
-RUN pip install --no-cache-dir --no-build-isolation /megatron/fused_kernels && \
+ARG BUILD_FUSED_KERNELS=true
+RUN case "$BUILD_FUSED_KERNELS" in \
+        true) pip install --no-cache-dir --no-build-isolation /megatron/fused_kernels ;; \
+        false) ;; \
+        *) echo "BUILD_FUSED_KERNELS must be true or false" >&2; exit 1 ;; \
+    esac && \
     rm -rf /megatron/fused_kernels && \
     mkdir -p /tmp && chmod 0777 /tmp
 

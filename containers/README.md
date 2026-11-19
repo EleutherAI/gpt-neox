@@ -92,6 +92,31 @@ docker run --rm --gpus all --ipc=host gpt-neox:b200 \
   python -c "import torch, wandb, transformer_engine; print(torch.__version__)"
 ```
 
+## Skipping the GPT-NeoX Fused Kernel Build
+
+All Docker images and the Apptainer definition build the GPT-NeoX fused kernels
+by default. Pass `--build-arg BUILD_FUSED_KERNELS=false` to skip this step.
+Run either command from the repository root.
+
+```bash
+docker build --build-arg BUILD_FUSED_KERNELS=false \
+  -f containers/docker/Dockerfile -t gpt-neox:no-fused-kernels .
+```
+
+For Apptainer 1.2 or later, bind the requirements directory during the build.
+With this setting, the definition can build without a fused kernel source tree.
+
+```bash
+apptainer build --build-arg BUILD_FUSED_KERNELS=false \
+  --bind "$PWD/requirements:/requirements:ro" \
+  gpt-neox-no-fused-kernels.sif containers/apptainer/gpt-neox.def
+```
+
+The flag controls GPT-NeoX's own extensions. The TE image still builds
+FlashAttention from source. To avoid compiling the GPT-NeoX extensions at
+runtime, set `scaled_upper_triang_masked_softmax_fusion`,
+`scaled_masked_softmax_fusion`, and `rope_fusion` to `false` in the model config.
+
 ## Running a Container
 
 Set the host paths that should be mounted into the container:

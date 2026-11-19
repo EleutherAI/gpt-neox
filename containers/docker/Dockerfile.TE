@@ -89,7 +89,12 @@ RUN python -m pip install --no-cache-dir -r requirements.txt && \
     python -m pip install --no-cache-dir --no-build-isolation --no-binary flash-attn flash-attn==2.5.6
 
 COPY megatron/fused_kernels/ /megatron/fused_kernels
-RUN pip install --no-cache-dir --no-build-isolation /megatron/fused_kernels && \
+ARG BUILD_FUSED_KERNELS=true
+RUN case "$BUILD_FUSED_KERNELS" in \
+        true) pip install --no-cache-dir --no-build-isolation /megatron/fused_kernels ;; \
+        false) ;; \
+        *) echo "BUILD_FUSED_KERNELS must be true or false" >&2; exit 1 ;; \
+    esac && \
     rm -rf /megatron/fused_kernels && \
     mkdir -p /tmp && chmod 0777 /tmp
 
