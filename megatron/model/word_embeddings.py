@@ -161,8 +161,7 @@ class Embedding(torch.nn.Module):
         embeddings = self.embedding_dropout(embeddings)
 
         if self.use_mup:
-            with torch.no_grad():
-                embeddings.mul_(self.mup_embedding_mult)
+            embeddings = embeddings * self.mup_embedding_mult
 
         if self.sequence_parallel:
             # TODO: megatron-lm does dropout using the scattered embs. This would save a tiny bit of time, perhaps?
