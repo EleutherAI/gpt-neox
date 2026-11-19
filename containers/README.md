@@ -10,7 +10,7 @@ context.
 cd gpt-neox
 ```
 
-All Docker and Apptainer definitions use public PyPI exclusively by setting
+The pip-based Docker and Apptainer definitions use public PyPI by setting
 `PIP_CONFIG_FILE=/dev/null`, `PIP_INDEX_URL=https://pypi.org/simple`, and an empty
 `PIP_EXTRA_INDEX_URL` before installing Python packages. These settings are
 retained in the finished image. Disabling inherited pip configuration files
@@ -116,6 +116,50 @@ The flag controls GPT-NeoX's own extensions. The TE image still builds
 FlashAttention from source. To avoid compiling the GPT-NeoX extensions at
 runtime, set `scaled_upper_triang_masked_softmax_fusion`,
 `scaled_masked_softmax_fusion`, and `rope_fusion` to `false` in the model config.
+
+## Building with uv
+
+The uv variants install Python packages into the base image's Python
+environment and honor its package constraints. Build from the repository root.
+
+| Variant | Build definition | Example image |
+| --- | --- | --- |
+| Standard | `containers/docker/Dockerfile.uv` | `gpt-neox:uv` |
+| Transformer Engine | `containers/docker/Dockerfile.TE.uv` | `gpt-neox:te-uv` |
+| B200 | `containers/docker/Dockerfile.B200.uv` | `gpt-neox:b200-uv` |
+| Apptainer 1.2+ | `containers/apptainer/gpt-neox.uv.def` | `gpt-neox-uv.sif` |
+
+```bash
+docker build -f containers/docker/Dockerfile.uv -t gpt-neox:uv .
+apptainer build gpt-neox-uv.sif containers/apptainer/gpt-neox.uv.def
+```
+
+The `BUILD_FUSED_KERNELS` argument works in these variants too.
+
+### Astral FlashAttention wheels
+
+Pass `--build-arg USE_ASTRAL_FLASH_ATTENTION=true` with a `PYTORCH_IMAGE` that
+provides OpenMPI under `/usr/local/mpi` and a stable PyTorch build with a
+matching [Astral wheel](https://wheels.astral.sh/). For B200, the base also needs
+to provide Transformer Engine. The default NGC 24.02 and 25.04
+images contain PyTorch prereleases outside Astral's FlashAttention wheel matrix.
+One published combination is PyTorch 2.8, CUDA 12.9, and Python 3.12.
+The wheel install uses the base image's PyTorch and checks that FlashAttention
+imports successfully. A missing or incompatible wheel fails the build.
+
+```bash
+docker build --build-arg PYTORCH_IMAGE="$COMPATIBLE_PYTORCH_IMAGE" \
+  --build-arg USE_ASTRAL_FLASH_ATTENTION=true \
+  -f containers/docker/Dockerfile.uv -t gpt-neox:uv-astral .
+
+apptainer build --build-arg PYTORCH_IMAGE="$COMPATIBLE_PYTORCH_IMAGE" \
+  --build-arg USE_ASTRAL_FLASH_ATTENTION=true \
+  gpt-neox-uv-astral.sif containers/apptainer/gpt-neox.uv.def
+```
+
+With the flag omitted, the Transformer Engine uv variant builds its pinned
+FlashAttention from source. The other variants keep their base image's
+FlashAttention setup.
 
 ## Running a Container
 
