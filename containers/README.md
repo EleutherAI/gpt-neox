@@ -1,10 +1,9 @@
 # GPT-NeoX Container Image Guide
 
-This guide covers the custom Docker images in `containers/docker/` and the
-matching Apptainer conversion workflow. Build these images from the
-`gpt-neox` repository root, not from `containers/docker`, because the
-Dockerfiles copy `requirements/*` and `megatron/fused_kernels/` from the build
-context.
+This guide covers the Docker images and native Apptainer definitions, plus
+conversion from Docker to Apptainer. Run the build commands from the
+`gpt-neox` repository root so the recipes can access the requirements and
+fused kernel sources.
 
 ```bash
 cd gpt-neox
@@ -22,6 +21,7 @@ variables such as `PIP_CONSTRAINT` remain active.
 
 | Image | Dockerfile | Base image | CUDA architecture | Use case |
 | --- | --- | --- | --- | --- |
+| `gpt-neox:latest` | `containers/docker/Dockerfile` | `nvcr.io/nvidia/pytorch:24.02-py3` | Base defaults | Standard GPT-NeoX image. |
 | `gpt-neox:te` | `containers/docker/Dockerfile.TE` | `nvcr.io/nvidia/pytorch:24.02-py3` | `9.0` | Transformer Engine and FlashAttention on Hopper-class GPUs such as H100. |
 | `gpt-neox:b200` | `containers/docker/Dockerfile.B200` | `nvcr.io/nvidia/pytorch:25.04-py3` | `10.0` | B200 systems that require the newer PyTorch and CUDA stack from NGC 25.04. |
 
@@ -40,9 +40,7 @@ The image:
 - sets `TORCH_CUDA_ARCH_LIST=9.0`
 - builds the GPT-NeoX fused kernels from `megatron/fused_kernels/`
 
-FlashAttention is built from source instead of installed from the wheel path in
-`requirements-transformerengine.txt`, because prebuilt wheels are more likely
-to hit ABI mismatches on the older NGC 24.02 PyTorch base.
+The FlashAttention source build targets the PyTorch ABI in NGC 24.02.
 
 Build the image:
 
@@ -94,17 +92,17 @@ docker run --rm --gpus all --ipc=host gpt-neox:b200 \
 
 ## Skipping the GPT-NeoX Fused Kernel Build
 
-All Docker images and the Apptainer definition build the GPT-NeoX fused kernels
-by default. Pass `--build-arg BUILD_FUSED_KERNELS=false` to skip this step.
-Run either command from the repository root.
+All Docker images and both native Apptainer definitions build the GPT-NeoX
+fused kernels by default. Pass `--build-arg BUILD_FUSED_KERNELS=false` to skip
+this step. The examples below use the pip-based recipes.
 
 ```bash
 docker build --build-arg BUILD_FUSED_KERNELS=false \
   -f containers/docker/Dockerfile -t gpt-neox:no-fused-kernels .
 ```
 
-For Apptainer 1.2 or later, bind the requirements directory during the build.
-With this setting, the definition can build without a fused kernel source tree.
+With Apptainer 1.2 or later, bind the requirements directory for the pip-based
+recipe. The kernel flag lets you omit the fused kernel source bind.
 
 ```bash
 apptainer build --build-arg BUILD_FUSED_KERNELS=false \
@@ -112,9 +110,9 @@ apptainer build --build-arg BUILD_FUSED_KERNELS=false \
   gpt-neox-no-fused-kernels.sif containers/apptainer/gpt-neox.def
 ```
 
-The flag controls GPT-NeoX's own extensions. The TE image still builds
-FlashAttention from source. To avoid compiling the GPT-NeoX extensions at
-runtime, set `scaled_upper_triang_masked_softmax_fusion`,
+The flag controls GPT-NeoX's own extensions. The Transformer Engine image
+builds FlashAttention from source by default. To avoid compiling the GPT-NeoX
+extensions at runtime, set `scaled_upper_triang_masked_softmax_fusion`,
 `scaled_masked_softmax_fusion`, and `rope_fusion` to `false` in the model config.
 
 ## Building with uv
@@ -131,21 +129,28 @@ environment and honor its package constraints. Build from the repository root.
 
 ```bash
 docker build -f containers/docker/Dockerfile.uv -t gpt-neox:uv .
+docker build -f containers/docker/Dockerfile.TE.uv -t gpt-neox:te-uv .
+docker build -f containers/docker/Dockerfile.B200.uv -t gpt-neox:b200-uv .
 apptainer build gpt-neox-uv.sif containers/apptainer/gpt-neox.uv.def
 ```
 
-The `BUILD_FUSED_KERNELS` argument works in these variants too.
+The uv Apptainer definition copies the build inputs from the checkout. Both
+the Docker and Apptainer uv recipes accept `BUILD_FUSED_KERNELS=false`.
 
 ### Astral FlashAttention wheels
 
 Pass `--build-arg USE_ASTRAL_FLASH_ATTENTION=true` with a `PYTORCH_IMAGE` that
 provides OpenMPI under `/usr/local/mpi` and a stable PyTorch build with a
 matching [Astral wheel](https://wheels.astral.sh/). For B200, the base also needs
-to provide Transformer Engine. The default NGC 24.02 and 25.04
-images contain PyTorch prereleases outside Astral's FlashAttention wheel matrix.
-One published combination is PyTorch 2.8, CUDA 12.9, and Python 3.12.
-The wheel install uses the base image's PyTorch and checks that FlashAttention
-imports successfully. A missing or incompatible wheel fails the build.
+to provide Transformer Engine. The default NGC 24.02 and 25.04 images contain
+PyTorch prereleases outside Astral's FlashAttention wheel matrix. The recipes
+request Astral's FlashAttention 2.8.3 wheel for the base image's Python, PyTorch,
+and CUDA combination. One published combination is Python 3.12, PyTorch 2.8,
+and CUDA 12.9. The build checks that the wheel imports against the base image's
+PyTorch. A missing or incompatible wheel fails the build.
+
+Set `COMPATIBLE_PYTORCH_IMAGE` to your compatible base image reference before
+running either command.
 
 ```bash
 docker build --build-arg PYTORCH_IMAGE="$COMPATIBLE_PYTORCH_IMAGE" \
@@ -157,7 +162,7 @@ apptainer build --build-arg PYTORCH_IMAGE="$COMPATIBLE_PYTORCH_IMAGE" \
   gpt-neox-uv-astral.sif containers/apptainer/gpt-neox.uv.def
 ```
 
-With the flag omitted, the Transformer Engine uv variant builds its pinned
+With the flag omitted or set to `false`, the Transformer Engine uv variant builds its pinned
 FlashAttention from source. The other variants keep their base image's
 FlashAttention setup.
 
