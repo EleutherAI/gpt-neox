@@ -194,7 +194,9 @@ def get_init_methods(args):
                 args.init_method_std, args.num_layers, args.use_mup, args.mup_init_scale
             )
         elif name == "orthogonal":
-            return orthogonal_init_method(args.use_mup, args.mup_init_scale)
+            return orthogonal_init_method(
+                use_mup=args.use_mup, mup_init_scale=args.mup_init_scale
+            )
         elif name == "scaled_orthogonal":
             return orthogonal_init_method(
                 args.num_layers, args.use_mup, args.mup_init_scale
