@@ -14,6 +14,13 @@ from mup import coord_check as mup_coord_check
 from megatron.training import train_step
 
 
+def _float_outputs(output):
+    # mup's hook rejects the None biases and bool attention masks that NeoX layers return.
+    if isinstance(output, tuple):
+        return tuple(o for o in output if torch.is_tensor(o) and o.is_floating_point())
+    return output
+
+
 def _get_coord_data(
     neox_args,
     timers,
@@ -51,16 +58,19 @@ def _get_coord_data(
                 for name, module in model.named_modules():
                     if filter_module_by_name and not filter_module_by_name(name):
                         continue
+                    record = mup_coord_check._record_coords(
+                        df,
+                        width,
+                        name,
+                        step + 1,
+                        output_fdict=output_fdict,
+                        input_fdict=input_fdict,
+                        param_fdict=param_fdict,
+                    )
                     remove_hooks.append(
                         module.register_forward_hook(
-                            mup_coord_check._record_coords(
-                                df,
-                                width,
-                                name,
-                                step + 1,
-                                output_fdict=output_fdict,
-                                input_fdict=input_fdict,
-                                param_fdict=param_fdict,
+                            lambda m, i, o, record=record: record(
+                                m, i, _float_outputs(o)
                             )
                         )
                     )
