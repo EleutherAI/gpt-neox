@@ -22,6 +22,7 @@ import json
 import math
 import os
 import time
+from contextlib import ExitStack
 from typing import List, Union
 
 import numpy as np
@@ -339,7 +340,8 @@ def stream_tokens(
     eta_cutoff: float = 0.0,
 ):
     """
-    iterator producing text completions
+    Iterator producing text completions. Each call owns the model's KV cache.
+    Exhaust or close the iterator before using the same model for another request.
 
     neox_args: NeoXArgs.
     model: a Megatron model.
@@ -351,7 +353,7 @@ def stream_tokens(
     maximum_tokens: maximum number of tokens to be generated; careful! if a batch input is provided maximum_tokens specifies the maximum number of forwards.
                     longer batch items get less generated tokens.
     minimum_tokens: minimum number of tokens to be generated before allowing an end-of-sequence token
-    recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
+    recompute: if True, run a full forward pass at every step; if False (default), reuse this prompt's KV cache.
     temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
     top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
     top_p (default 0.0): float -> Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
@@ -365,7 +367,7 @@ def stream_tokens(
                 tokens (completions from model),
                 token_generation_start_index (token index per batch item for the first generated token),
                 token_generation_end_index (token index per batch item for the last generated token),
-                logits (logits which are so far computed, zeros otherwise),
+                logits (scores for the first batch item, indexed by decode step starting at zero),
                 is_done (flag for each bach item indicating whether an eod token was generated)
             )
 
@@ -437,7 +439,9 @@ def stream_tokens(
         token_index_to_generate + maximum_tokens - 1,
     )
 
-    with torch.no_grad():
+    with torch.no_grad(), ExitStack() as cleanup:
+        # Release this rank's cache on exhaustion, explicit close, or a forward error.
+        cleanup.callback(model.module.clear_cache)
         # initialize generation variables
         state_is_done = torch.zeros([batch_size]).byte().cuda()
         token_generation_end_index = torch.ones([batch_size]).long().cuda() * (-1)
@@ -446,6 +450,9 @@ def stream_tokens(
         )
 
         while token_index_to_generate <= last_token_index_to_generate:
+            # A full-context forward must never append to an earlier prefix.
+            if recompute or token_index_to_generate == first_token_index_to_generate:
+                model.module.clear_cache()
             if recompute:  # recompute all tokens
                 model_inputs = (
                     context_tokens,
@@ -527,7 +534,7 @@ def stream_tokens(
 
                 if neox_args.return_logits:
                     generation_logits[
-                        token_index_to_generate - 1
+                        token_index_to_generate - first_token_index_to_generate
                     ] = generated_token_logits[0]
 
             if neox_args.is_pipe_parallel:
@@ -609,7 +616,7 @@ def generate_samples_from_prompt(
     maximum_tokens: maximum number of tokens to be generated
     minimum_tokens: minimum number of tokens to be generated before allowing an end-of-sequence token
 
-    recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
+    recompute: if True, run a full forward pass at every step; if False (default), reuse this prompt's KV cache.
 
     temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
     top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
@@ -785,7 +792,7 @@ def generate_samples_input_from_file(
     minimum_tokens: minimum number of tokens to be generated before allowing an end-of-sequence token
     prompt_end: end of a single input prompt. Defaults to newline character '\n'. Other prompt-end sequences may be useful when generating indent-aware completions (e.g. code)
 
-    recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
+    recompute: if True, run a full forward pass at every step; if False (default), reuse this prompt's KV cache.
 
     temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
     top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
@@ -889,7 +896,7 @@ def generate_samples_unconditional(
     minimum_tokens: minimum number of tokens to be generated before allowing an end-of-sequence token
     prompt_end: end of a single input prompt. Defaults to newline character '\n'. Other prompt-end sequences may be useful when generating indent-aware completions (e.g. code). The interactive mode will reroll the user-input request until the stop-char is met
 
-    recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
+    recompute: if True, run a full forward pass at every step; if False (default), reuse this prompt's KV cache.
 
     temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
     top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
@@ -967,7 +974,7 @@ def generate_samples_interactive(
     minimum_tokens: minimum number of tokens to be generated before allowing an end-of-sequence token
     eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
 
-    recompute: flag indicating whether a cache is used for already forwarded tokens (true) or whether all tokens are recomputed at every iteration (false)
+    recompute: if True, run a full forward pass at every step; if False (default), reuse this prompt's KV cache.
 
     temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
     top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
@@ -990,7 +997,6 @@ def generate_samples_interactive(
     """
 
     while True:
-        model.module.clear_cache()  # clear kv cache between batches
         torch.distributed.barrier(group=mpu.get_model_parallel_group())
         terminate_runs = 0
 
