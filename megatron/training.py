@@ -904,11 +904,6 @@ def get_model(neox_args, use_cache=False):
     # Build model on cpu.
     print_rank_0("building GPT2 model ...")
 
-    # Temporarily disable mup so that the base model does not use the mup init functions before set_base_shapes is called below.
-    # If mup isn't being used anyways, this has no effect.
-    old_use_mup = neox_args.use_mup
-    neox_args.use_mup = False
-
     if neox_args.zero_stage in [2, 3]:
         if neox_args.pipe_parallel_size == 1:
             print_rank_0(
@@ -960,8 +955,6 @@ def get_model(neox_args, use_cache=False):
     if not neox_args.is_pipe_parallel:
         # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
         model = model.to_sequential()
-
-    neox_args.use_mup = old_use_mup
 
     if neox_args.use_mup:
         try:
