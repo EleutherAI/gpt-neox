@@ -79,7 +79,7 @@ def _orthogonal(tensor, gain=1):
     # Compute the qr factorization
     dt = flattened.dtype
     flattened = flattened.to(torch.float32)  # orthogonal init does not support fp16
-    q, r = torch.qr(flattened)
+    q, r = torch.linalg.qr(flattened)
     q, r = q.to(dtype=dt), r.to(dtype=dt)
     # Make Q uniform according to https://arxiv.org/pdf/math-ph/0609050.pdf
     d = torch.diag(r, 0)
