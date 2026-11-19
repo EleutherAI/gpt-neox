@@ -21,6 +21,7 @@
 import os
 import pathlib
 import subprocess
+import sys
 import torch
 from torch.utils import cpp_extension
 
@@ -77,7 +78,7 @@ def load(neox_args=None):
                 + cc_flag
             )
 
-        return cpp_extension.load(
+        module = cpp_extension.load(
             name=name,
             sources=sources,
             build_directory=buildpath,
@@ -88,6 +89,9 @@ def load(neox_args=None):
             extra_include_paths=extra_include_paths,
             verbose=verbose,
         )
+        # cpp_extension.load does not register the module, and the kernels are imported by name.
+        sys.modules[name] = module
+        return module
 
     # ==============
     # Fused softmax.
