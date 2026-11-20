@@ -1281,6 +1281,9 @@ class NeoXArgs(*BASE_CLASSES):
                 "inter_document_attention_masking is not compatible with "
                 "curriculum sequence-length training"
             )
+            assert (
+                not self.sequence_parallel
+            ), "inter_document_attention_masking does not support sequence_parallel"
 
             assert not self.te_fp8_mha, (
                 "inter_document_attention_masking does not currently support "
