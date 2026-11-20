@@ -21,6 +21,15 @@ import enum
 from ..fused_kernels import load_fused_kernels
 
 
+def softclip_attention_probs(attention_probs, zeta, gamma):
+    """Stretch and clip attention probabilities using the soft_clip formula."""
+    return torch.clamp(
+        (zeta - gamma) * attention_probs + gamma,
+        min=0.0,
+        max=1.0,
+    )
+
+
 class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):
     """
     Fused operation which performs following three operations in sequence
@@ -99,6 +108,9 @@ class FusedScaleMaskSoftmax(nn.Module):
         mask_func: mask function to be applied.
         softmax_in_fp32: if true, softmax in performed at fp32 precision.
         scale: scaling factor used in input tensor scaling.
+        soft_clip: apply the soft_clip transform to the softmax output.
+        soft_clip_zeta: upper stretch bound for soft_clip.
+        soft_clip_gamma: lower stretch bound for soft_clip.
 
     """
 
@@ -110,6 +122,9 @@ class FusedScaleMaskSoftmax(nn.Module):
         mask_func,
         softmax_in_fp32,
         scale,
+        soft_clip=False,
+        soft_clip_zeta=None,
+        soft_clip_gamma=None,
     ):
         super().__init__()
         self.input_in_fp16 = input_in_fp16
@@ -132,6 +147,17 @@ class FusedScaleMaskSoftmax(nn.Module):
         self.mask_func = mask_func
         self.softmax_in_fp32 = softmax_in_fp32
         self.scale = scale
+        self.soft_clip = soft_clip
+        self.soft_clip_zeta = soft_clip_zeta
+        self.soft_clip_gamma = soft_clip_gamma
+
+        if self.soft_clip and (
+            self.soft_clip_zeta is None or self.soft_clip_gamma is None
+        ):
+            raise ValueError(
+                "soft_clip_zeta and soft_clip_gamma are required when "
+                "soft_clip is enabled."
+            )
 
         assert (
             self.scale is None or softmax_in_fp32
@@ -141,9 +167,17 @@ class FusedScaleMaskSoftmax(nn.Module):
         # [b, np, sq, sk]
         assert input.dim() == 4
         if self.is_kernel_available(mask, *input.size()):
-            return self.forward_fused_softmax(input, mask)
+            probs = self.forward_fused_softmax(input, mask)
         else:
-            return self.forward_torch_softmax(input, mask)
+            probs = self.forward_torch_softmax(input, mask)
+
+        if self.soft_clip:
+            probs = softclip_attention_probs(
+                probs,
+                zeta=self.soft_clip_zeta,
+                gamma=self.soft_clip_gamma,
+            )
+        return probs
 
     def is_kernel_available(self, mask, b, np, sq, sk):
         attn_batches = b * np
