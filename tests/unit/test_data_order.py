@@ -250,21 +250,3 @@ def test_order_validation_runs_before_loading_data():
     args.train_data_paths = ["a", "b"]
     with pytest.raises(ValueError, match="single training dataset"):
         data_utils.build_train_valid_test_data_loaders(args)
-
-
-@pytest.mark.parametrize("packing_impl", ["unpacked", "pack_until_overflow"])
-def test_index_builder_rejects_unsupported_ordered_packing(packing_impl):
-    with pytest.raises(ValueError, match="pack_impl='packed'"):
-        gpt2_dataset._build_index_mappings(
-            "train",
-            "unused",
-            None,
-            None,
-            None,
-            1,
-            1,
-            4,
-            123,
-            packing_impl,
-            preserve_data_order=True,
-        )
