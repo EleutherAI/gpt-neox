@@ -78,8 +78,6 @@ def cross_entropy(output, labels, _fp16=False, _fused=False):
         losses = fused_vocab_parallel_cross_entropy(
             output.contiguous(), labels, mpu.get_model_parallel_group()
         )
-        if _fp16:
-            losses = losses.to(output.dtype)
     elif _fp16:
         losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels)
     else:
