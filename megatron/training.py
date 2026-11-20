@@ -629,7 +629,10 @@ def forward_step(
             loss_mask = loss_mask[:, : neox_args.curriculum_seqlen].contiguous()
             labels = labels[:, : neox_args.curriculum_seqlen].contiguous()
         loss = cross_entropy(
-            outputs, (labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy
+            outputs,
+            (labels, loss_mask),
+            _fp16=neox_args.fp16_lm_cross_entropy,
+            _fused=neox_args.cross_entropy_fusion,
         )
     elif neox_args.train_impl == "rm":
         maybe_tuple = model((tokens, position_ids, attention_mask), neox_args=neox_args)
