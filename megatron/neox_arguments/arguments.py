@@ -22,7 +22,7 @@ import copy
 import torch
 import argparse
 from pkg_resources import packaging
-from importlib.metadata import PackageNotFoundError, version
+from importlib.metadata import version
 
 from dataclasses import dataclass
 from typing import List, Dict
@@ -90,25 +90,6 @@ OPT_PARAMS_DEFAULTS = {
     "momentum": 0.0,
     "cuda_aware": False,
 }
-
-TRANSFORMER_ENGINE_THD_MIN_VERSION = packaging.version.Version("1.12.0")
-
-
-def _validate_transformer_engine_thd_support():
-    try:
-        te_version = packaging.version.Version(version("transformer-engine"))
-    except PackageNotFoundError as error:
-        raise AssertionError(
-            "inter_document_attention_masking with te_mha "
-            "requires Transformer Engine >= 1.12.0 with THD attention support, "
-            "but Transformer Engine is not installed"
-        ) from error
-
-    assert te_version >= TRANSFORMER_ENGINE_THD_MIN_VERSION, (
-        "inter_document_attention_masking with te_mha requires "
-        f"Transformer Engine >= {TRANSFORMER_ENGINE_THD_MIN_VERSION} with THD "
-        f"attention support; found {te_version}"
-    )
 
 
 AUTOTUNING_ARGS = (
@@ -1261,65 +1242,38 @@ class NeoXArgs(*BASE_CLASSES):
             ), "RWKV does not yet have dropout implemented"
 
         if self.inter_document_attention_masking:
-            assert self.dataset_impl == "gpt2", (
-                "inter_document_attention_masking currently requires "
-                "dataset_impl='gpt2'"
-            )
-            assert self.train_impl == "normal", (
-                "inter_document_attention_masking currently requires "
-                "train_impl='normal'"
-            )
-
-            soft_prompt_enabled = self.soft_prompt_tuning is not None and (
-                self.soft_prompt_tuning.get("enabled", False)
-            )
-            assert not soft_prompt_enabled, (
-                "inter_document_attention_masking is not compatible with "
-                "soft prompt tuning"
-            )
-            assert not self.curriculum_learning, (
-                "inter_document_attention_masking is not compatible with "
-                "curriculum sequence-length training"
-            )
+            assert (
+                self.dataset_impl == "gpt2" and self.train_impl == "normal"
+            ), "inter_document_attention_masking requires dataset_impl gpt2 and train_impl normal"
+            assert not (self.soft_prompt_tuning or {}).get(
+                "enabled", False
+            ), "inter_document_attention_masking does not support soft_prompt_tuning"
+            assert (
+                not self.curriculum_learning
+            ), "inter_document_attention_masking does not support curriculum_learning"
             assert (
                 not self.sequence_parallel
             ), "inter_document_attention_masking does not support sequence_parallel"
-
-            assert not self.te_fp8_mha, (
-                "inter_document_attention_masking does not currently support "
-                "te_fp8_mha"
-            )
             if self.te_mha:
-                _validate_transformer_engine_thd_support()
-                supported_te_attention_types = {"global", "flash"}
-                unsupported_attention_types = sorted(
-                    set(self.attention_config) - supported_te_attention_types
-                )
-                assert not unsupported_attention_types, (
-                    "inter_document_attention_masking with Transformer Engine "
-                    "does not support attention types: "
-                    f"{unsupported_attention_types}"
-                )
+                assert set(self.attention_config) <= {"global", "flash"}
+                assert (
+                    self.pos_emb == "rotary" and not self.te_fp8_mha
+                ), "inter_document_attention_masking with te_mha requires rotary pos_emb and no te_fp8_mha"
+                assert packaging.version.Version(
+                    version("transformer-engine")
+                ) >= packaging.version.Version(
+                    "1.12.0"
+                ), "inter_document_attention_masking requires Transformer Engine >= 1.12.0"
             else:
-                assert all(
-                    attention_type == "flash"
-                    for attention_type in self.attention_config
-                ), (
-                    "inter_document_attention_masking requires native "
-                    "FlashAttention for every transformer layer unless te_mha "
-                    "is enabled"
-                )
-
-            supported_position_embedding_types = {
-                "learned",
-                "rotary",
-                "alibi",
-                "none",
-            }
-            assert self.pos_emb in supported_position_embedding_types, (
-                "inter_document_attention_masking does not yet support positional "
-                f"embedding type '{self.pos_emb}'"
-            )
+                assert set(self.attention_config) == {
+                    "flash"
+                }, "inter_document_attention_masking requires flash attention in every layer"
+                assert self.pos_emb in (
+                    "learned",
+                    "rotary",
+                    "alibi",
+                    "none",
+                ), f"inter_document_attention_masking does not support pos_emb {self.pos_emb}"
 
         # Sparsity config
         if self.sparsity_config is None:
@@ -1346,7 +1300,7 @@ class NeoXArgs(*BASE_CLASSES):
                     self.num_kv_heads % self.model_parallel_size == 0
                 ), "Number of KV heads must be at least model_parallel_size for now!"
         # Flash attention version >=2.3.0 required to combine Flash + Sliding Window Attention
-        if "flash" in self.attention_config and not self.te_mha:
+        if "flash" in self.attention_config:
             _flash_version = packaging.version.Version(version("flash-attn"))
             if self.sliding_window_width is not None:
                 assert _flash_version >= packaging.version.Version(
