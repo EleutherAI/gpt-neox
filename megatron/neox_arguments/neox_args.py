@@ -1250,7 +1250,7 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     """
     Prevent tokens in packed gpt2 dataset samples from attending across document
     boundaries, and restart position ids at each boundary. Requires flash attention
-    in every layer, or te_mha with rotary pos_emb.
+    in every layer or te_mha.
     """
 
     dataset_impl: Literal["gpt2", "pairwise", "online"] = "gpt2"

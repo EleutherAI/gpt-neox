@@ -110,7 +110,9 @@ def test_flash_packed_attention_matches_per_document(mode):
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
-@pytest.mark.parametrize("rotary_dim", [8, 4], ids=["rotary-full", "rotary-partial"])
+@pytest.mark.parametrize(
+    "rotary_dim", [8, 4, None], ids=["rotary-full", "rotary-partial", "none"]
+)
 @pytest.mark.parametrize("num_gqa_groups", [None, 2], ids=["mha", "gqa"])
 def test_te_packed_attention_matches_per_document(rotary_dim, num_gqa_groups):
     pytest.importorskip("transformer_engine")
@@ -130,9 +132,12 @@ def test_te_packed_attention_matches_per_document(rotary_dim, num_gqa_groups):
         fuse_qkv_params=True,
         return_bias=True,
     )
-    attention.rope_emb = RotaryEmbedding(
-        rotary_dim, max_seq_len=3, precision=torch.bfloat16
-    ).get_emb()
+    attention.rope_emb = (
+        rotary_dim
+        and RotaryEmbedding(
+            rotary_dim, max_seq_len=3, precision=torch.bfloat16
+        ).get_emb()
+    )
     hidden_states = torch.randn(5, 1, 32, device="cuda", dtype=torch.bfloat16) * 0.2
     _assert_packed_matches_per_document(
         attention, hidden_states.requires_grad_(), atol=1e-2

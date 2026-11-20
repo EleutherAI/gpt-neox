@@ -1262,11 +1262,17 @@ class NeoXArgs(*BASE_CLASSES):
             assert (
                 not self.sequence_parallel
             ), "inter_document_attention_masking does not support sequence_parallel"
+            assert (
+                not self.te_fp8_mha
+            ), "inter_document_attention_masking does not support te_fp8_mha"
+            assert self.pos_emb in (
+                "learned",
+                "rotary",
+                "alibi",
+                "none",
+            ), f"inter_document_attention_masking does not support pos_emb {self.pos_emb}"
             if self.te_mha:
                 assert set(self.attention_config) <= {"global", "flash"}
-                assert (
-                    self.pos_emb == "rotary" and not self.te_fp8_mha
-                ), "inter_document_attention_masking with te_mha requires rotary pos_emb and no te_fp8_mha"
                 assert packaging.version.Version(
                     version("transformer-engine")
                 ) >= packaging.version.Version(
@@ -1276,12 +1282,6 @@ class NeoXArgs(*BASE_CLASSES):
                 assert set(self.attention_config) == {
                     "flash"
                 }, "inter_document_attention_masking requires flash attention in every layer"
-                assert self.pos_emb in (
-                    "learned",
-                    "rotary",
-                    "alibi",
-                    "none",
-                ), f"inter_document_attention_masking does not support pos_emb {self.pos_emb}"
 
         # Sparsity config
         if self.sparsity_config is None:
