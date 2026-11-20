@@ -1241,6 +1241,14 @@ class NeoXArgs(*BASE_CLASSES):
                 self.hidden_dropout == 0.0
             ), "RWKV does not yet have dropout implemented"
 
+        if self.te_mha or self.te_fp8_mha:
+            assert self.pos_emb in (
+                "rotary",
+                "learned",
+                "sinusoidal",
+                "none",
+            ), f"te_mha does not support pos_emb {self.pos_emb}"
+
         # Sparsity config
         if self.sparsity_config is None:
             # Can't have a default value as an empty dict so need to set it here
