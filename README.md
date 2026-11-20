@@ -239,11 +239,9 @@ We provide containers for [Apptainer](#apptainer) (formerly Singularity) and
 
 The [container image guide](containers/README.md) covers the Standard,
 Transformer Engine, and B200 variants. See
-[Building with uv](containers/README.md#building-with-uv) for uv recipes,
+[Building with uv](containers/README.md#building-with-uv) for uv recipes and
 [Skipping the GPT-NeoX fused kernel build](containers/README.md#skipping-the-gpt-neox-fused-kernel-build)
-for the kernel build flag, and
-[Astral FlashAttention wheels](containers/README.md#astral-flashattention-wheels)
-for the wheel option and compatible base image requirements.
+for the kernel build flag.
 
 #### Docker
 

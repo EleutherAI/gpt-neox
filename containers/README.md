@@ -111,7 +111,7 @@ apptainer build --build-arg BUILD_FUSED_KERNELS=false \
 ```
 
 The flag controls GPT-NeoX's own extensions. The Transformer Engine image
-builds FlashAttention from source by default. To avoid compiling the GPT-NeoX
+builds FlashAttention from source. To avoid compiling the GPT-NeoX
 extensions at runtime, set `scaled_upper_triang_masked_softmax_fusion`,
 `scaled_masked_softmax_fusion`, and `rope_fusion` to `false` in the model config.
 
@@ -137,34 +137,7 @@ apptainer build gpt-neox-uv.sif containers/apptainer/gpt-neox.uv.def
 The uv Apptainer definition copies the build inputs from the checkout. Both
 the Docker and Apptainer uv recipes accept `BUILD_FUSED_KERNELS=false`.
 
-### Astral FlashAttention wheels
-
-Pass `--build-arg USE_ASTRAL_FLASH_ATTENTION=true` with a `PYTORCH_IMAGE` that
-provides OpenMPI under `/usr/local/mpi` and a stable PyTorch build with a
-matching [Astral wheel](https://wheels.astral.sh/). For B200, the base also needs
-to provide Transformer Engine. The default NGC 24.02 and 25.04 images contain
-PyTorch prereleases outside Astral's FlashAttention wheel matrix. The recipes
-request Astral's FlashAttention 2.8.3 wheel for the base image's Python, PyTorch,
-and CUDA combination. One published combination is Python 3.12, PyTorch 2.8,
-and CUDA 12.9. The build checks that the wheel imports against the base image's
-PyTorch. A missing or incompatible wheel fails the build.
-
-Set `COMPATIBLE_PYTORCH_IMAGE` to your compatible base image reference before
-running either command.
-
-```bash
-docker build --build-arg PYTORCH_IMAGE="$COMPATIBLE_PYTORCH_IMAGE" \
-  --build-arg USE_ASTRAL_FLASH_ATTENTION=true \
-  -f containers/docker/Dockerfile.uv -t gpt-neox:uv-astral .
-
-apptainer build --build-arg PYTORCH_IMAGE="$COMPATIBLE_PYTORCH_IMAGE" \
-  --build-arg USE_ASTRAL_FLASH_ATTENTION=true \
-  gpt-neox-uv-astral.sif containers/apptainer/gpt-neox.uv.def
-```
-
-With the flag omitted or set to `false`, the Transformer Engine uv variant builds its pinned
-FlashAttention from source. The other variants keep their base image's
-FlashAttention setup.
+The Transformer Engine uv image builds `flash-attn==2.5.6` from source.
 
 ## Running a Container
 

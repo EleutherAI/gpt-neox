@@ -92,14 +92,6 @@ RUN uv pip install --system -r requirements.txt && \
     uv pip install --system -r requirements-wandb.txt && \
     uv pip install --system 'protobuf==3.20.*'
 
-COPY containers/uv/install_astral_flash_attention.py /usr/local/share/gpt-neox/
-ARG USE_ASTRAL_FLASH_ATTENTION=false
-RUN case "$USE_ASTRAL_FLASH_ATTENTION" in \
-        true) python /usr/local/share/gpt-neox/install_astral_flash_attention.py ;; \
-        false) ;; \
-        *) echo "USE_ASTRAL_FLASH_ATTENTION must be true or false" >&2; exit 1 ;; \
-    esac
-
 COPY megatron/fused_kernels/ /megatron/fused_kernels
 WORKDIR /megatron/fused_kernels
 ARG BUILD_FUSED_KERNELS=true

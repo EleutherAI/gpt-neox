@@ -96,13 +96,8 @@ RUN uv pip install --system -r requirements.txt && \
     uv pip install --system wandb==0.16.6 && \
     uv pip install --system --no-build-isolation 'transformer-engine[pytorch]==1.12'
 
-COPY containers/uv/install_astral_flash_attention.py /usr/local/share/gpt-neox/
-ARG USE_ASTRAL_FLASH_ATTENTION=false
-RUN case "$USE_ASTRAL_FLASH_ATTENTION" in \
-        true) python /usr/local/share/gpt-neox/install_astral_flash_attention.py ;; \
-        false) FLASH_ATTENTION_FORCE_BUILD=TRUE uv pip install --system --no-build-isolation --no-binary flash-attn flash-attn==2.5.6 ;; \
-        *) echo "USE_ASTRAL_FLASH_ATTENTION must be true or false" >&2; exit 1 ;; \
-    esac && \
+RUN FLASH_ATTENTION_FORCE_BUILD=TRUE uv pip install --system --no-build-isolation \
+        --no-binary flash-attn flash-attn==2.5.6 && \
     uv pip install --system 'protobuf==3.20.*'
 
 COPY megatron/fused_kernels/ /megatron/fused_kernels

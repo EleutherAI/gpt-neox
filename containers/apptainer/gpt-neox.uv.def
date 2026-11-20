@@ -9,7 +9,6 @@ Stage: gpt-neox
 %arguments
     PYTORCH_IMAGE=nvcr.io/nvidia/pytorch:24.02-py3
     BUILD_FUSED_KERNELS=true
-    USE_ASTRAL_FLASH_ATTENTION=false
 
 %files from uv
     /uv /usr/local/bin/uv
@@ -17,7 +16,6 @@ Stage: gpt-neox
 %files
     requirements/*.txt /requirements/
     megatron/fused_kernels /megatron/fused_kernels
-    containers/uv/install_astral_flash_attention.py /usr/local/share/gpt-neox/install_astral_flash_attention.py
 
 %labels
     org.opencontainers.image.version "2.0"
@@ -93,12 +91,6 @@ Stage: gpt-neox
     uv pip install --system -r /requirements/requirements-onebitadam.txt
     uv pip install --system -r /requirements/requirements-wandb.txt
     uv pip install --system 'protobuf==3.20.*'
-
-    case '{{ USE_ASTRAL_FLASH_ATTENTION }}' in
-        true) python /usr/local/share/gpt-neox/install_astral_flash_attention.py ;;
-        false) ;;
-        *) echo "USE_ASTRAL_FLASH_ATTENTION must be true or false" >&2; exit 1 ;;
-    esac
 
     case '{{ BUILD_FUSED_KERNELS }}' in
         true)
