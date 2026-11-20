@@ -139,11 +139,9 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         self.hidden_size = self.neox_args.hidden_size
         self.num_tokentypes = num_tokentypes
         self.output_multiplier = output_multiplier(self.neox_args)
-        (
-            self.init_method,
-            self.hidden_init_method,
-            self.output_layer_init_method,
-        ) = get_init_methods_for_parameterization(self.neox_args)
+        self.init_method = get_init_methods_for_parameterization(
+            self.neox_args, layer_number=0
+        )[0]
         self.__topology__ = topology
 
         self.specs = []
@@ -268,13 +266,18 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         # Transformer layers
         for i in range(self.neox_args.num_layers):
             layer_type = self.neox_args.attention_config[i]
+            (
+                _,
+                hidden_init_method,
+                output_layer_init_method,
+            ) = get_init_methods_for_parameterization(self.neox_args, layer_number=i)
             if layer_type in ["gmlp", "amlp"]:
                 self.specs.append(
                     LayerSpec(
                         GMLPBlock,
-                        init_method=self.hidden_init_method,
+                        init_method=hidden_init_method,
                         layer_number=i,
-                        output_layer_init_method=self.output_layer_init_method,
+                        output_layer_init_method=output_layer_init_method,
                         neox_args=self.neox_args,
                         mask_fn=gpt2_attention_mask_func,
                     )
@@ -292,8 +295,8 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                     LayerSpec(
                         ParallelMambaResidualLayerPipe,
                         neox_args=self.neox_args,
-                        init_method=self.hidden_init_method,
-                        output_layer_init_method=self.output_layer_init_method,
+                        init_method=hidden_init_method,
+                        output_layer_init_method=output_layer_init_method,
                         layer_number=i,
                     )
                 )
@@ -303,8 +306,8 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                         ParallelTransformerLayerPipe,
                         neox_args=self.neox_args,
                         attention_mask_func=gpt2_attention_mask_func,
-                        init_method=self.hidden_init_method,
-                        output_layer_init_method=self.output_layer_init_method,
+                        init_method=hidden_init_method,
+                        output_layer_init_method=output_layer_init_method,
                         layer_number=i,
                         rpe=rpe_emb if self.neox_args.pos_emb == "rpe" else None,
                         rotary=self.neox_args.pos_emb == "rotary",

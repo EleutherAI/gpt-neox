@@ -410,6 +410,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Standard deviation of the zero mean normal distribution used for weight initialization.
     """
 
+    init_truncation: float = None
+    """
+    Truncate normal inits at +/- init_truncation standard deviations. OLMo uses 3.
+    """
+
     apply_query_key_layer_scaling: bool = False
     """
     Scale Q * K^T by 1 / layer-number. If this flag is set, then it will automatically set attention-softmax-in-fp32 to true
@@ -477,10 +482,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
         "wang_init",
         "small_init",
         "single_residual_scaled_normal",
+        "fan_in",
     ] = "normal"
     """
-    Init function used on all layers except ff residual outputs - choose from
-    ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
+    Init function used on embeddings, the readout, and the input weights of each layer.
+    "fan_in" uses std = fan_in ** -0.5 from each weight's full input dimension.
     """
 
     output_layer_init_method: Literal[
@@ -493,10 +499,14 @@ class NeoXArgsModel(NeoXArgsTemplate):
         "wang_init",
         "small_init",
         "single_residual_scaled_normal",
+        "fan_in",
+        "layer_scaled_normal",
+        "zero",
     ] = "scaled_normal"
     """
-    Init function used for ff residual outputs - choose from
-    ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
+    Init function used on the output weights of each layer, which write to the residual stream.
+    "layer_scaled_normal" uses std = init_method_std / sqrt(2 * (layer_number + 1)).
+    "zero" initializes them to zero.
     """
 
     gmlp_attn_dim: int = 64

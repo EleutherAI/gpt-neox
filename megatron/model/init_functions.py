@@ -17,22 +17,47 @@ import math
 import torch
 
 
-def init_method_normal(sigma):
-    """Init method based on N(0, sigma)."""
+def _normal_(tensor, std, truncation=None):
+    if truncation is None:
+        return torch.nn.init.normal_(tensor, mean=0.0, std=std)
+    bound = truncation * std
+    return torch.nn.init.trunc_normal_(tensor, mean=0.0, std=std, a=-bound, b=bound)
+
+
+def init_method_normal(sigma, truncation=None):
+    """Init method based on N(0, sigma), optionally truncated at +/- truncation * sigma."""
 
     def init_(tensor):
-        return torch.nn.init.normal_(tensor, mean=0.0, std=sigma)
+        return _normal_(tensor, sigma, truncation)
 
     return init_
 
 
-def scaled_init_method_normal(sigma, num_layers, num_residuals_per_layer=2):
+def scaled_init_method_normal(
+    sigma, num_layers, num_residuals_per_layer=2, truncation=None
+):
     """Init method based on N(0, sigma/sqrt(2*num_layers).
 
     Also allows for N(0, sigma/sqrt(x*num_layers)) where
     x=number of residuals per layer (e.g. 1 for Mamba.)
     """
-    return init_method_normal(sigma / math.sqrt(num_residuals_per_layer * num_layers))
+    return init_method_normal(
+        sigma / math.sqrt(num_residuals_per_layer * num_layers), truncation
+    )
+
+
+def fan_in_init_method(truncation=None):
+    """N(0, 1/fan_in), with fan_in taken from the full weight when it is sharded along its input dimension."""
+
+    def init_(tensor):
+        from megatron import mpu
+
+        fan_in = tensor.shape[1]
+        if getattr(tensor, "partition_dim", None) == 1:
+            fan_in *= mpu.get_model_parallel_world_size()
+        return _normal_(tensor, fan_in**-0.5, truncation)
+
+    return init_
 
 
 def scaled_init_method(init_method, scale):
@@ -101,27 +126,39 @@ def xavier_normal_init_method():
     return torch.nn.init.xavier_normal_
 
 
-def small_init_init_method(dim):
+def small_init_init_method(dim, truncation=None):
     """Fills the input Tensor with values according to the method described in Transformers without Tears: Improving
     the Normalization of Self-Attention - Nguyen, T. & Salazar, J. (2019), using a normal distribution."""
-    return init_method_normal(math.sqrt(2 / (5 * dim)))
+    return init_method_normal(math.sqrt(2 / (5 * dim)), truncation)
 
 
-def wang_init_method(n_layers, dim):
-    return init_method_normal(2 / n_layers / math.sqrt(dim))
+def wang_init_method(n_layers, dim, truncation=None):
+    return init_method_normal(2 / n_layers / math.sqrt(dim), truncation)
 
 
-def get_init_methods(args, hidden_size=None, num_layers=None):
+def get_init_methods(args, hidden_size=None, num_layers=None, layer_number=None):
     """Returns (init_method, output_layer_init_method). hidden_size and num_layers default to the
-    model's and are overridden to evaluate width- and depth-dependent inits at a mup base size."""
+    model's and are overridden to evaluate width- and depth-dependent inits at a mup base size.
+    layer_number is required by layer_scaled_normal."""
     hidden_size = hidden_size or args.hidden_size
     num_layers = num_layers or args.num_layers
+    truncation = args.init_truncation
 
     def _get(name):
         if name == "normal":
-            return init_method_normal(args.init_method_std)
+            return init_method_normal(args.init_method_std, truncation)
         elif name == "scaled_normal":
-            return scaled_init_method_normal(args.init_method_std, num_layers)
+            return scaled_init_method_normal(
+                args.init_method_std, num_layers, truncation=truncation
+            )
+        elif name == "layer_scaled_normal":
+            return init_method_normal(
+                args.init_method_std / math.sqrt(2 * (layer_number + 1)), truncation
+            )
+        elif name == "fan_in":
+            return fan_in_init_method(truncation)
+        elif name == "zero":
+            return torch.nn.init.zeros_
         elif name == "orthogonal":
             return orthogonal_init_method()
         elif name == "scaled_orthogonal":
@@ -131,14 +168,17 @@ def get_init_methods(args, hidden_size=None, num_layers=None):
         elif name == "xavier_normal":
             return xavier_normal_init_method()
         elif name == "wang_init":
-            return wang_init_method(num_layers, hidden_size)
+            return wang_init_method(num_layers, hidden_size, truncation)
         elif name == "small_init":
-            return small_init_init_method(hidden_size)
+            return small_init_init_method(hidden_size, truncation)
         elif name == "single_residual_scaled_normal":
             # mamba init uses scaled_normal but no need for 2 * num_layers
             # since only one residual per layer
             return scaled_init_method_normal(
-                args.init_method_std, num_layers, num_residuals_per_layer=1
+                args.init_method_std,
+                num_layers,
+                num_residuals_per_layer=1,
+                truncation=truncation,
             )
         else:
             raise NotImplementedError(f"Unknown init method {name}")

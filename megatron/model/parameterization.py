@@ -55,10 +55,12 @@ def output_multiplier(neox_args):
     return 1.0 / (neox_args.mup_output_temp * width_mult(neox_args))
 
 
-def get_init_methods_for_parameterization(neox_args):
+def get_init_methods_for_parameterization(neox_args, layer_number=None):
     """Returns init methods for (embeddings and readout, hidden inputs, hidden outputs)."""
     if neox_args.parameterization == "sp":
-        init_method, output_init_method = get_init_methods(neox_args)
+        init_method, output_init_method = get_init_methods(
+            neox_args, layer_number=layer_number
+        )
         return init_method, init_method, output_init_method
     num_layers = (
         neox_args.mup_base_num_layers
@@ -66,7 +68,7 @@ def get_init_methods_for_parameterization(neox_args):
         else neox_args.num_layers
     )
     init_method, output_init_method = get_init_methods(
-        neox_args, neox_args.mup_base_hidden_size, num_layers
+        neox_args, neox_args.mup_base_hidden_size, num_layers, layer_number
     )
     scale = width_mult(neox_args) ** -0.5
     return (
