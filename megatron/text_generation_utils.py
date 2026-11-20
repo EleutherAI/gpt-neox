@@ -438,6 +438,8 @@ def stream_tokens(
 ):
     """Yield one decode step at a time for a batch of unpadded token-ID lists.
 
+    Decoding runs without gradients; each yield restores the caller's grad mode.
+
     Supply at least one prompt with at least one token in each row. The engine
     must be in inference mode with use_cache=not recompute. Exhaust or close
     the iterator before reusing it on the same engine. All participating ranks
@@ -536,6 +538,7 @@ def _bind_token_stream(
     )
 
 
+@torch.no_grad()
 def _stream_tokens(
     neox_args,
     model,
@@ -618,7 +621,7 @@ def _stream_tokens(
     )
     max_steps = last_token_index_to_generate - first_token_index_to_generate + 1
 
-    with torch.no_grad(), ExitStack() as cleanup:
+    with ExitStack() as cleanup:
         # Release this rank's cache on exhaustion, explicit close, or a forward error.
         cleanup.callback(model.module.clear_cache)
         if neox_args.is_pipe_parallel and max_steps > 0:
@@ -788,9 +791,10 @@ def generate_samples_from_prompt(
     Returns a list of records on the prompt owner (global rank zero with
     pipeline parallelism, otherwise tensor-parallel rank zero); peers return [].
     Each record contains context, text (completion only, or None), length in
-    tokens, finished, message and duration_seconds. If return_logits is enabled,
-    logits contains one processed score row per executed step, including EOS;
-    zero steps produces an empty list.
+    tokens, finished, message and duration_seconds. Immediate EOS is a normal
+    finish: text and message are None. If return_logits is enabled, logits
+    contains one processed score row per executed step, including EOS; zero
+    steps produces an empty list.
     """
     generate = _prompt_generator(
         neox_args,
@@ -888,8 +892,6 @@ def _generate_prompts(neox_args, model, eos_token_id, stream, text):
                 message = "WARNING: generated token which doesn't exist."
         elif last_step is None:
             message = "No decode steps: the token budget or available context is zero."
-        else:
-            message = "WARNING: text generation did not start; try different batching or adjust parameters"
         data = {
             "context": raw_text,
             "text": generated_text,

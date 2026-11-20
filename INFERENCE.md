@@ -135,8 +135,10 @@ Each file-mode record contains `context` (the prompt), `text` (the completion
 only), `length` (its token count), `finished`, `message`, and `duration_seconds`.
 Reaching EOS marks a result finished; reaching the token or context cap alone
 does not. EOS is not part of the completion. An immediate EOS therefore gives
-`text: null`, `length: 0`, and `finished: true`. A zero token budget or
-an exactly full prompt instead gives `finished: false` and no score rows.
+`text: null`, `length: 0`, `finished: true`, and `message: null`. It has one
+score row if scores are requested. A zero token budget or an exactly full
+prompt instead gives `finished: false`, no score rows, and a message explaining
+that no decode steps ran.
 
 Set `return_logits: true` only if you need scores: it adds one row of
 **processed scores over the full padded vocabulary** for each executed decode
@@ -166,9 +168,9 @@ after termination. Python's JSON writer represents negative infinity as
   Supply a nonempty batch and at least one token per row. Unequal-length
   prompts share a budget starting at the shortest prompt; longer prompts get
   fewer new tokens. Exhaust or close the iterator before reusing the model.
-  PyTorch gradient recording is disabled in the calling thread while the
-  iterator is suspended at a yielded step; finish or close it before doing
-  work that requires gradients.
+  Decoding runs without gradients. Between tokens, the caller keeps its own
+  PyTorch grad mode, so it can backpropagate through unrelated work without
+  closing the stream. The returned scores have no gradient history.
 - Use `model_parallel_size` for tensor parallelism and `pipe_parallel_size`
   for pipeline stages. Match the checkpoint layout. Every participating rank
   must enter generation: tensor-parallel scores are gathered before sampling,

@@ -14,6 +14,7 @@
 
 import json
 import warnings
+from contextlib import closing
 from datetime import timedelta
 from functools import partial
 from types import SimpleNamespace
@@ -587,8 +588,13 @@ def test_precompute_and_unknown_modes_do_not_build_a_sampling_stream(monkeypatch
         generation.generate_from_config(args, model)
 
 
-def test_early_eos_file_has_only_executed_processed_scores(
-    args, cached_model, monkeypatch, tmp_path
+@pytest.mark.parametrize(
+    "minimum,budget,text,steps",
+    [(0, 8, None, 1), (2, 8, "00", 3), (0, 0, None, 0)],
+    ids=["immediate-eos", "delayed-eos", "zero-budget"],
+)
+def test_file_record_distinguishes_eos_from_no_decode_steps(
+    args, cached_model, monkeypatch, tmp_path, minimum, budget, text, steps
 ):
     monkeypatch.setattr(torch.distributed, "get_rank", lambda: 0)
     args.tokenizer.tokenize = lambda _: [1]
@@ -602,17 +608,23 @@ def test_early_eos_file_has_only_executed_processed_scores(
         prompts,
         output_file=output,
         eos_token_id=1,
-        minimum_tokens=2,
-        maximum_tokens=8,
+        minimum_tokens=minimum,
+        maximum_tokens=budget,
     )
     row = json.loads(output.read_text())
-    assert row["finished"] and row["length"] == 2
-    scores = torch.tensor(row["logits"])
-    assert scores.shape == (
-        3,
-        2,
-    )  # Two generated tokens and the EOS decision, not eight.
-    assert scores[:2, 1].isneginf().all() and scores[2, 1].isfinite()
+    assert (row["text"], row["length"], row["finished"]) == (
+        text, len(text or ""), steps > 0
+    )
+    assert len(row["logits"]) == steps
+    if steps:
+        assert row["message"] is None
+        scores = torch.tensor(row["logits"])
+        assert scores.shape == (steps, 2)
+        assert scores[:minimum, 1].isneginf().all() and scores[-1, 1].isfinite()
+    else:
+        assert row["message"] == (
+            "No decode steps: the token budget or available context is zero."
+        )
 
 
 def test_minimum_cannot_exceed_explicit_or_inferred_maximum(args, cached_model):
@@ -654,6 +666,43 @@ def test_cache_is_scoped_to_one_prompt(args, cached_model, recompute):
         expected = [sum(prompt) + i for i in range(3)]
         torch.testing.assert_close(scores, scores.new_tensor(expected))
         assert layer.layer_past is None
+
+
+@pytest.mark.parametrize("caller_grad", [True, False], ids=["grad", "no-grad"])
+@pytest.mark.parametrize("exit_kind", ["exhaust", "close", "error"])
+def test_stream_preserves_caller_grad_mode(args, caller_grad, exit_kind):
+    weight = torch.nn.Parameter(torch.tensor(1.0))
+
+    def forward(inputs):
+        assert not torch.is_grad_enabled()
+        tokens = inputs[0].float() * weight
+        return torch.stack((tokens, tokens + 1), dim=-1)  # Always generate ID 1.
+
+    model = Mock(device=torch.device("cpu"), module=Mock(side_effect=forward))
+    budget = 2 if exit_kind == "exhaust" else 3
+    stream = generation.stream_tokens(args, model, [[1]], maximum_tokens=budget)
+    with torch.set_grad_enabled(caller_grad), closing(stream):
+        # The caller can change its grad mode between successive decode steps.
+        for enabled in (caller_grad, not caller_grad):
+            with torch.set_grad_enabled(enabled):
+                scores = next(stream)[3]
+                assert torch.is_grad_enabled() == enabled
+                assert not scores.requires_grad
+                if enabled:
+                    x = torch.tensor(3.0, requires_grad=True)
+                    x.square().backward()
+                    assert x.grad.item() == 6.0
+
+        if exit_kind == "close":
+            stream.close()
+        elif exit_kind == "error":
+            model.module.side_effect = RuntimeError("forward failed")
+            with pytest.raises(RuntimeError, match="forward failed"):
+                next(stream)
+        else:
+            with pytest.raises(StopIteration):
+                next(stream)
+        assert torch.is_grad_enabled() == caller_grad
 
 
 @pytest.mark.parametrize("stop", ["eos", "close", "error"])
