@@ -157,6 +157,39 @@ def test_communication_data_type_rejects_invalid_values(value):
 
 
 @pytest.mark.cpu
+@pytest.mark.parametrize("use_bias", [True, False])
+def test_use_bias_in_norms(use_bias):
+    from types import SimpleNamespace
+    from megatron.model.norms import get_norm
+
+    args = SimpleNamespace(
+        norm="layernorm",
+        layernorm_epsilon=1e-5,
+        layernorm_fusion=False,
+        use_bias_in_norms=use_bias,
+    )
+    norm, eps = get_norm(args)
+    assert (norm(64, eps=eps).bias is not None) == use_bias
+
+
+@pytest.mark.cpu
+def test_use_bias_in_norms_rejects_fused_layernorm():
+    from megatron.neox_arguments import NeoXArgs
+
+    with pytest.raises(ValueError, match="use_bias_in_norms"):
+        NeoXArgs.from_ymls(
+            get_configs_with_path(
+                ["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]
+            ),
+            overwrite_values={
+                "norm": "layernorm",
+                "layernorm_fusion": True,
+                "use_bias_in_norms": False,
+            },
+        )
+
+
+@pytest.mark.cpu
 def test_neoxargs_load_arguments_125M_local_setup():
     """
     verify 125M.yml can be loaded without raising validation errors

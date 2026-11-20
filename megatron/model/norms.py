@@ -26,7 +26,7 @@ def get_norm(neox_args, norm_type=None):
 
             norm = MixedFusedRMSNorm
         else:
-            norm = partial(RMSNorm, bias=neox_args.use_bias_in_norms)
+            norm = RMSNorm
     elif norm_type == "layernorm":
         eps = neox_args.layernorm_epsilon
         if neox_args.layernorm_fusion:
@@ -34,7 +34,11 @@ def get_norm(neox_args, norm_type=None):
 
             norm = MixedFusedLayerNorm
         else:
-            norm = partial(LayerNorm, bias=neox_args.use_bias_in_norms)
+            norm = (
+                LayerNorm
+                if neox_args.use_bias_in_norms
+                else partial(LayerNorm, bias=False)
+            )
     elif norm_type == "non_parametric_layernorm":
         eps = neox_args.layernorm_epsilon
         if neox_args.layernorm_fusion and norm_type == neox_args.norm:
@@ -54,7 +58,7 @@ def get_norm(neox_args, norm_type=None):
     elif norm_type == "te_layernorm":
         from .transformer_engine import TELayerNorm
 
-        norm = partial(TELayerNorm, bias=neox_args.use_bias_in_norms)
+        norm = TELayerNorm
         eps = neox_args.layernorm_epsilon
     else:
         raise ValueError(f"norm {norm_type} not recognized")

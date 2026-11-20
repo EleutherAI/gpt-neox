@@ -1667,25 +1667,14 @@ class NeoXArgs(*BASE_CLASSES):
                     "explicit validation dataset paths."
                 )
 
-        if (
-            self.norm == "layernorm"
-            and self.layernorm_fusion
-            and not self.use_bias_in_norms
+        norms = {self.norm}
+        if self.use_qk_norm:
+            norms.add(self.qk_norm or self.norm)
+        if not self.use_bias_in_norms and (
+            "te_layernorm" in norms or ("layernorm" in norms and self.layernorm_fusion)
         ):
             raise ValueError(
-                "MixedFusedLayerNorm does not support use_bias_in_norms=False. "
-                "Please set layernorm_fusion=False to use bias-free LayerNorm."
-            )
-
-        if (
-            self.use_qk_norm
-            and (self.qk_norm or self.norm) == "layernorm"
-            and self.layernorm_fusion
-            and not self.use_bias_in_norms
-        ):
-            raise ValueError(
-                "MixedFusedLayerNorm does not support use_bias_in_norms=False for Q/K norm. "
-                "Please set layernorm_fusion=False or select a different qk_norm."
+                "use_bias_in_norms=False requires layernorm with layernorm_fusion=False"
             )
 
         return True
