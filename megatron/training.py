@@ -388,46 +388,6 @@ def pretrain(neox_args):
             )
 
 
-def _broadcast_packed_sequence_metadata(neox_args, data, text):
-    """Broadcast and validate collated packed-sequence metadata."""
-    if not neox_args.inter_document_attention_masking:
-        return None, None
-
-    metadata = mpu.broadcast_data(["cu_seqlens", "max_seqlen"], data, torch.int32)
-    cu_seqlens = metadata["cu_seqlens"]
-    max_seqlen = metadata["max_seqlen"]
-
-    assert text.dim() == 2, (
-        "inter_document_attention_masking expects collated text with shape "
-        f"[B, S + 1], but got {tuple(text.shape)}"
-    )
-    batch_size, text_length = text.shape
-    expected_text_length = neox_args.seq_length + 1
-    assert text_length == expected_text_length, (
-        "inter_document_attention_masking expects collated text with shape "
-        f"[B, {expected_text_length}], but got {tuple(text.shape)}"
-    )
-    assert tuple(cu_seqlens.shape) == (batch_size, expected_text_length), (
-        "inter_document_attention_masking expects cu_seqlens with shape "
-        f"[{batch_size}, {expected_text_length}], but got "
-        f"{tuple(cu_seqlens.shape)}"
-    )
-    assert tuple(max_seqlen.shape) == (batch_size,), (
-        "inter_document_attention_masking expects max_seqlen with shape "
-        f"[{batch_size}], but got {tuple(max_seqlen.shape)}"
-    )
-    assert cu_seqlens.dtype == torch.int32, (
-        "inter_document_attention_masking expects cu_seqlens to be int32, "
-        f"but got {cu_seqlens.dtype}"
-    )
-    assert max_seqlen.dtype == torch.int32, (
-        "inter_document_attention_masking expects max_seqlen to be int32, "
-        f"but got {max_seqlen.dtype}"
-    )
-
-    return cu_seqlens, max_seqlen
-
-
 def _get_batch(neox_args, tokenizer, keys, data, datatype, label_mask_zero=False):
     """Support function for get_batch / get_batch pipe (to avoid code repetition)"""
     data_b = mpu.broadcast_data(keys, data, datatype)
@@ -435,9 +395,6 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype, label_mask_zero=False
     label_key = keys[1] if len(keys) > 1 else None
     # Unpack.
     tokens_ = data_b[token_key].long()
-    cu_seqlens, max_seqlen = _broadcast_packed_sequence_metadata(
-        neox_args, data, tokens_
-    )
     if label_key in data_b:
         label_mask = (data_b[label_key].long() >= 0)[:, 1:].contiguous()
         labels = torch.where(
@@ -452,17 +409,19 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype, label_mask_zero=False
             labels = labels * label_mask
     tokens = tokens_[:, :-1].contiguous()
 
-    if cu_seqlens is not None:
+    if neox_args.inter_document_attention_masking:
+        metadata = mpu.broadcast_data(["cu_seqlens", "max_seqlen"], data, torch.int32)
         return normalize_packed_sequence_batch(
             tokens=tokens,
             labels=labels,
             label_mask=label_mask,
-            cu_seqlens=cu_seqlens,
-            max_seqlen=max_seqlen,
+            cu_seqlens=metadata["cu_seqlens"],
+            max_seqlen=metadata["max_seqlen"],
             eod_token=neox_args.tokenizer.eod,
             eod_mask_loss=neox_args.eod_mask_loss,
         )
 
+    # Get the masks and position ids.
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
         data=tokens,
         eod_token=neox_args.tokenizer.eod,
@@ -470,7 +429,7 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype, label_mask_zero=False
         sliding_window_width=neox_args.sliding_window_width,
     )
 
-    # Combine EOD masking with the validity mask from token/label data.
+    # combine loss masks from get_ltor_masks_and_position_ids with loss masks from data
     loss_mask = label_mask.to(loss_mask.dtype) * loss_mask
     return tokens, labels, loss_mask, attention_mask, position_ids
 
@@ -614,8 +573,6 @@ def get_batch_pipe(data, neox_args, curr_scheduler=None):
 def get_batch_sequential(forward_input, neox_args):
     """A modification of get_batch() to work with the latest batch instead of an iterator."""
     if isinstance(forward_input, PackedSequenceModelInputs):
-        # Packed model inputs already contain document-local positions, metadata,
-        # and the mask sentinel. Preserve the complete tensor-only context.
         return forward_input
 
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
@@ -650,12 +607,8 @@ def forward_step(
     if neox_args.train_impl == "normal":
         batch = get_batch(neox_args=neox_args, data_iterator=data_iterator)
         if isinstance(batch, PackedSequenceBatch):
-            tokens = batch.tokens
-            labels = batch.labels
-            loss_mask = batch.loss_mask
-            attention_mask = batch.attention_mask
-            position_ids = batch.position_ids
             model_inputs = batch.model_inputs()
+            labels, loss_mask = batch.loss_inputs()
         else:
             tokens, labels, loss_mask, attention_mask, position_ids = batch
             model_inputs = (tokens, position_ids, attention_mask)

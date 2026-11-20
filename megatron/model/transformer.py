@@ -795,7 +795,6 @@ class ParallelSelfAttention(nn.Module):
         return context_layer
 
     def _flash_attention_kwargs(self, device):
-        """Return optional arguments shared by fixed and packed FlashAttention."""
         extra_kwargs = (
             {"window_size": (self.sliding_window_width, -1)}
             if self.sliding_window_width is not None
@@ -815,10 +814,6 @@ class ParallelSelfAttention(nn.Module):
         cu_seqlens,
         max_seqlen,
     ):
-        """Run native FlashAttention over a flattened batch of documents."""
-        # The microbatch has already been flattened into token-major order.
-        # FlashAttention's varlen API consumes [T, H, D] tensors together with
-        # one cumulative-length vector shared by Q, K, and V.
         query_layer = query_layer.squeeze(1).contiguous()
         key_layer = key_layer.squeeze(1).contiguous()
         value_layer = value_layer.squeeze(1).contiguous()
@@ -835,9 +830,6 @@ class ParallelSelfAttention(nn.Module):
             causal=True,
             **self._flash_attention_kwargs(query_layer.device),
         )
-
-        # Match the [b, heads, sq, head_dim] contract returned by the existing
-        # fixed-shape implementation. The caller restores [sq, b, hidden].
         return output.transpose(0, 1).unsqueeze(0)
 
     def flash_attention(
@@ -1116,21 +1108,9 @@ class ParallelSelfAttention(nn.Module):
     ):
         is_packed = cu_seqlens is not None
         if is_packed:
-            if self.use_cache or (exists(layer_past) and layer_past.numel() > 0):
-                raise RuntimeError(
-                    "Packed-sequence FlashAttention does not support KV-cache "
-                    "execution"
-                )
-
-            # Pipeline transport pads the cumulative lengths to a fixed width.
-            # Trim only at the backend boundary, where FlashAttention needs the
-            # actual number of sequences and Python maximum length.
-            document_count = int(num_documents.item())
-            packed_cu_seqlens = cu_seqlens[: document_count + 1].contiguous()
-            packed_max_seqlen = int(max_seqlen.item())
-        else:
-            packed_cu_seqlens = None
-            packed_max_seqlen = None
+            assert not self.use_cache, "packed sequences do not support use_cache"
+            cu_seqlens = cu_seqlens[: int(num_documents.item()) + 1]
+            max_seqlen = int(max_seqlen.item())
 
         # hidden_states: [sq, b, h]
 
@@ -1180,11 +1160,8 @@ class ParallelSelfAttention(nn.Module):
                 query_rot, key_rot = query_layer, key_layer
 
             if is_packed:
-                # The flat token dimension can be larger than the configured
-                # sequence length, while each document is not. Build only the
-                # cache required by the longest document and let FlashAttention
-                # reset positions at every cumulative-length boundary.
-                cos, sin = self.rotary_emb(value_layer, seq_len=packed_max_seqlen)
+                # Rotary positions restart at every document boundary in cu_seqlens.
+                cos, sin = self.rotary_emb(value_layer, seq_len=max_seqlen)
                 rotary_dim = cos.size(-1)
                 flash_cos = cos[:, 0, 0, : rotary_dim // 2].contiguous()
                 flash_sin = sin[:, 0, 0, : rotary_dim // 2].contiguous()
@@ -1193,8 +1170,8 @@ class ParallelSelfAttention(nn.Module):
                         rot.squeeze(1).contiguous(),
                         flash_cos,
                         flash_sin,
-                        cu_seqlens=packed_cu_seqlens,
-                        max_seqlen=packed_max_seqlen,
+                        cu_seqlens=cu_seqlens,
+                        max_seqlen=max_seqlen,
                     ).unsqueeze(1)
                     for rot in (query_rot, key_rot)
                 )
@@ -1242,8 +1219,8 @@ class ParallelSelfAttention(nn.Module):
                 query_layer,
                 key_layer,
                 value_layer,
-                cu_seqlens=packed_cu_seqlens,
-                max_seqlen=packed_max_seqlen,
+                cu_seqlens=cu_seqlens,
+                max_seqlen=max_seqlen,
             )
         elif not self.sparse:
             context_layer = self.attention(
@@ -1567,13 +1544,11 @@ class ParallelTransformerLayer(nn.Module):
 
 
 class ParallelTransformerLayerPipe(ParallelTransformerLayer):
-    """Extends ParallelTransformerLayer to forward model context through the pipeline."""
+    """Extends ParallelTransformerLayer to forward attention_mask through the pipeline."""
 
     def forward(self, args):
         hidden_states, *packed_metadata, attention_mask = args
-        cu_seqlens = num_documents = max_seqlen = None
-        if packed_metadata:
-            cu_seqlens, num_documents, max_seqlen = packed_metadata
+        cu_seqlens, num_documents, max_seqlen = packed_metadata or (None, None, None)
         output = super().forward(
             hidden_states,
             attention_mask,
