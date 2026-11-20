@@ -275,7 +275,6 @@ def _get_attention_scaling(
     use_mup,
     mup_attn_temp,
 ):
-    """Compute QK normalization and softmax scaling."""
     coeff = None
     norm_factor = math.sqrt(hidden_size_per_attention_head)
 
