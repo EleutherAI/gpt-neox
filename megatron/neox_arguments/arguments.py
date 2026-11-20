@@ -37,7 +37,7 @@ from megatron.logging import Tee
 from megatron.tokenizer import build_tokenizer
 from megatron.utils import obtain_resource_pool, expand_attention_types
 from .deepspeed_args import NeoXArgsDeepspeedConfig, NeoXArgsDeepspeedRunner
-from .sampling import SAMPLING_RANGES, validate_sampling_options
+from .sampling import SAMPLING_RANGES, prepare_sampling_options
 from .neox_args import (
     NeoXArgsModel,
     NeoXArgsTokenizer,
@@ -1335,7 +1335,7 @@ class NeoXArgs(*BASE_CLASSES):
             return False
 
         sampling_options = {name: getattr(self, name) for name in SAMPLING_RANGES}
-        validate_sampling_options(sampling_options)
+        prepare_sampling_options(sampling_options)
         # NeoXArgs is mutable. Keep what actually passed, not a reference to
         # its current attributes, so a later programmatic override is checked.
         self._validated_sampling_options = sampling_options

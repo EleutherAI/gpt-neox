@@ -23,6 +23,7 @@ import math
 import os
 import time
 from contextlib import ExitStack
+from functools import partial
 from typing import List, Union
 
 import numpy as np
@@ -34,7 +35,11 @@ from megatron import mpu
 from megatron.utils import get_ltor_masks_and_position_ids, is_mp_rank_0
 from megatron.data.indexed_dataset import make_builder, make_dataset
 from megatron.mpu.mappings import gather_from_model_parallel_region
-from megatron.neox_arguments.sampling import validate_sampling_options
+from megatron.neox_arguments.sampling import (
+    cap_top_k,
+    prepare_sampling_options,
+    validate_sampling_options,
+)
 
 
 def get_batch(neox_args, context_tokens: torch.Tensor):
@@ -90,7 +95,7 @@ def pad_batch(
 def filter_logits(
     logits,
     top_k=0,
-    top_p=0.0,
+    top_p=1.0,
     filter_value=-float("Inf"),
     min_p=0.0,
     top_h=0.0,
@@ -111,13 +116,13 @@ def filter_logits(
     https://github.com/huggingface/transformers/blob/v5.14.0/src/transformers/generation/utils.py#L1273
 
     logits: torch.Tensor -> logits of megatron model.
-    top_k: integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
-    top_p: float -> Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+    top_k: keep the k highest-scoring tokens (including ties); 0 disables it. Values above vocabulary size are capped with a warning.
+    top_p: float -> Keep the most probable tokens up to this cumulative probability; 1 (or legacy 0) disables nucleus filtering.
     min_p: float -> Keeps tokens whose probability is at least min_p times the probability of the most likely token. Must be between 0 and 1; 0 disables min-p sampling.
     top_h: float -> Keeps a high-probability prefix of at most 100 tokens within an entropy budget. Enabled values must be greater than 0 and at most 1; 0 disables top-h sampling.
     typical_p: float -> Keeps tokens closest to the expected surprisal until their cumulative probability reaches typical_p. Must be greater than 0 and at most 1; 1 disables locally typical sampling.
-    epsilon_cutoff: float -> Keeps tokens with conditional probability at least epsilon_cutoff, while always retaining a highest-probability token. Must be between 0 and 1; 0 disables epsilon sampling.
-    eta_cutoff: float -> Keeps tokens whose probability is at least min(eta_cutoff, sqrt(eta_cutoff) * exp(-entropy)), while always retaining a highest-probability token. Must be between 0 and 1; 0 disables eta sampling.
+    epsilon_cutoff: float -> Keeps tokens with conditional probability at least epsilon_cutoff, while always retaining a highest-probability token. Valid range: [0, 1); 0 disables epsilon sampling.
+    eta_cutoff: float -> Keeps tokens whose probability is at least min(eta_cutoff, sqrt(eta_cutoff) * exp(-entropy)), while always retaining a highest-probability token. Valid range: [0, 1); 0 disables eta sampling.
 
     returns: (filtered) logits"""
 
@@ -131,6 +136,7 @@ def filter_logits(
         eta_cutoff=eta_cutoff,
     )
     validate_sampling_options(filters)
+    filters["top_k"] = cap_top_k(top_k, logits.size(-1))
     return _apply_logits_filters(logits, filter_value=filter_value, **filters)
 
 
@@ -171,13 +177,13 @@ def _apply_logits_filters(
         keep_mask.scatter_(dim=1, index=top_indices, src=selected_tokens)
         logits[~keep_mask] = filter_value
 
-    if top_k > 0:
+    if 0 < top_k < logits.size(-1):
         # Remove all tokens with a probability less than the
         # last token of the top-k
         indices_to_remove = logits < torch.topk(logits, top_k)[0][..., -1, None]
         logits[indices_to_remove] = filter_value
 
-    if top_p > 0.0:
+    if 0.0 < top_p < 1.0:
         # convert to 1D
         sorted_logits, sorted_indices = torch.sort(logits, descending=True, dim=-1)
         cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
@@ -366,7 +372,7 @@ def stream_tokens(
     recompute: bool = False,
     temperature: float = 0.0,
     top_k: int = 0,
-    top_p: float = 0.0,
+    top_p: float = 1.0,
     stop_tokens=None,
     minimum_tokens: int = 0,
     min_p: float = 0.0,
@@ -391,23 +397,26 @@ def stream_tokens(
     position_ids: position ids for positional encoding.
     maximum_tokens: maximum number of tokens to be generated; careful! if a batch input is provided maximum_tokens specifies the maximum number of forwards.
                     longer batch items get less generated tokens.
-    minimum_tokens: minimum number of tokens to be generated before allowing an end-of-sequence token
+    minimum_tokens: minimum number of tokens before EOS is eligible; cannot exceed maximum_tokens when specified
     recompute: if True, run a full forward pass at every step; if False (default), reuse this prompt's KV cache.
-    temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
-    top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
-    top_p (default 0.0): float -> Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+    temperature (default 0.0): zero selects greedy argmax and ignores sampling filters.
+        A positive value samples from the temperature-scaled, filtered distribution.
+    top_k (default 0): keep the k highest-scoring tokens (including ties); 0 disables it. Values above vocabulary size are capped with a warning.
+    top_p (default 1.0): nucleus filter; 1 and the legacy value 0 both disable it.
     min_p (default 0.0): float -> Keeps tokens whose probability is at least min_p times the probability of the most likely token. Must be between 0 and 1; 0 disables min-p sampling.
     top_h (default 0.0): float -> Keeps a high-probability prefix of at most 100 tokens within an entropy budget. Enabled values must be greater than 0 and at most 1; 0 disables top-h sampling.
     typical_p (default 1.0): float -> Keeps tokens closest to the expected surprisal until their cumulative probability reaches typical_p. Must be greater than 0 and at most 1; 1 disables locally typical sampling.
-    epsilon_cutoff (default 0.0): float -> Keeps tokens with conditional probability at least epsilon_cutoff, while always retaining a highest-probability token. Enabled values must be strictly between 0 and 1; 0 disables epsilon sampling.
-    eta_cutoff (default 0.0): float -> Keeps tokens above an entropy-adaptive probability cutoff, while always retaining a highest-probability token. Enabled values must be strictly between 0 and 1; 0 disables eta sampling.
-    note: greedy decoding is used if temperature, top_h, top_k, top_p, min_p, epsilon_cutoff and eta_cutoff are 0 and typical_p is 1
+    epsilon_cutoff (default 0.0): float -> Keeps tokens with conditional probability at least epsilon_cutoff, while always retaining a highest-probability token. Valid range: [0, 1); 0 disables epsilon sampling.
+    eta_cutoff (default 0.0): float -> Keeps tokens above an entropy-adaptive probability cutoff, while always retaining a highest-probability token. Valid range: [0, 1); 0 disables eta sampling.
+
     yields: (
                 tokens (completions from model),
                 token_generation_start_index (token index per batch item for the first generated token),
                 token_generation_end_index (token index per batch item for the last generated token),
-                logits (one full-vocabulary score row per completed decode step,
-                        including the EOS decision, for batch item zero; None if disabled),
+                logits (processed scores for batch item zero: one row per executed step,
+                        including the EOS decision, with no unused rows. EOS is -inf for
+                        the first minimum_tokens generated positions. Sampling also applies
+                        temperature and filters. None if return_logits is disabled),
                 is_done (flag for each bach item indicating whether an eod token was generated)
             )
 
@@ -416,7 +425,15 @@ def stream_tokens(
             * if batch items have different lengths, the iterator will start at the first completion and return the unchanged input context token otherwise
     """
 
-    filters = dict(
+    stream = _prepare_token_stream(
+        neox_args,
+        model,
+        eos_token_id=eos_token_id,
+        recompute=recompute,
+        stop_tokens=stop_tokens,
+        maximum_tokens=maximum_tokens,
+        minimum_tokens=minimum_tokens,
+        temperature=temperature,
         top_k=top_k,
         top_p=top_p,
         min_p=min_p,
@@ -425,7 +442,23 @@ def stream_tokens(
         epsilon_cutoff=epsilon_cutoff,
         eta_cutoff=eta_cutoff,
     )
-    validate_sampling_options(
+    return stream(context_tokens)
+
+
+def _prepare_token_stream(
+    neox_args,
+    model,
+    *,
+    eos_token_id,
+    recompute,
+    maximum_tokens,
+    minimum_tokens,
+    temperature,
+    stop_tokens=None,
+    **filters,
+):
+    """Resolve the request once; its prompts share the same checked options."""
+    prepare_sampling_options(
         dict(
             filters,
             minimum_tokens=minimum_tokens,
@@ -434,6 +467,35 @@ def stream_tokens(
         ),
         already_validated=getattr(neox_args, "_validated_sampling_options", None),
     )
+    if temperature > 0 and filters["top_k"]:
+        filters["top_k"] = cap_top_k(filters["top_k"], neox_args.padded_vocab_size)
+    return partial(
+        _stream_tokens,
+        neox_args,
+        model,
+        eos_token_id=eos_token_id,
+        recompute=recompute,
+        stop_tokens=stop_tokens,
+        maximum_tokens=maximum_tokens,
+        minimum_tokens=minimum_tokens,
+        temperature=temperature,
+        filters=filters,
+    )
+
+
+def _stream_tokens(
+    neox_args,
+    model,
+    context_tokens,
+    *,
+    eos_token_id,
+    recompute,
+    stop_tokens,
+    maximum_tokens,
+    minimum_tokens,
+    temperature,
+    filters,
+):
     model.eval()
 
     if neox_args.is_pipe_parallel:
@@ -477,6 +539,11 @@ def stream_tokens(
         maximum_tokens = (
             neox_args.seq_length - token_generation_start_index.max().item()
         )
+        if minimum_tokens > maximum_tokens:
+            raise ValueError(
+                f"minimum_tokens ({minimum_tokens}) exceeds the inferred maximum_tokens "
+                f"({maximum_tokens}) available in the context window"
+            )
     batch_size = context_tokens.size(0)
 
     decode_tp_size = mpu.get_model_parallel_world_size()
@@ -490,16 +557,7 @@ def stream_tokens(
         sample_src = mpu.get_model_parallel_src_rank()
         sample_group = mpu.get_model_parallel_group()
         sample_here = decode_tp_size == 1 or mpu.get_model_parallel_rank() == 0
-    greedy = (
-        temperature == 0.0
-        and top_k == 0
-        and top_p == 0.0
-        and min_p == 0.0
-        and top_h == 0.0
-        and typical_p == 1.0
-        and epsilon_cutoff == 0.0
-        and eta_cutoff == 0.0
-    )
+    greedy = temperature == 0.0
 
     # get the context_index at which generation is to start
     # we start generation at the position where the smallest context ends
@@ -518,7 +576,9 @@ def stream_tokens(
         state_is_done = context_tokens.new_zeros(batch_size, dtype=torch.uint8)
         token_generation_end_index = context_tokens.new_full((batch_size,), -1)
         generation_logits = (
-            torch.empty(
+            # Yield only the executed prefix below. A serialized tensor view
+            # can also include its backing storage, so don't leave the tail uninitialized.
+            torch.zeros(
                 last_token_index_to_generate - first_token_index_to_generate + 1,
                 neox_args.padded_vocab_size,
                 device=context_tokens.device,
@@ -592,8 +652,7 @@ def stream_tokens(
 
                 if not greedy:
                     generated_token_logits = generated_token_logits.float()
-                    if temperature > 0.0:
-                        generated_token_logits /= temperature
+                    generated_token_logits /= temperature
                     generated_token_logits = _apply_logits_filters(
                         generated_token_logits, **filters
                     )
@@ -661,7 +720,7 @@ def generate_samples_from_prompt(
     recompute: bool = False,
     temperature: float = 0.0,
     top_k: int = 0,
-    top_p: float = 0.0,
+    top_p: float = 1.0,
     stop_tokens=None,
     minimum_tokens: int = 0,
     min_p: float = 0.0,
@@ -679,19 +738,19 @@ def generate_samples_from_prompt(
 
     eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
     maximum_tokens: maximum number of tokens to be generated
-    minimum_tokens: minimum number of tokens to be generated before allowing an end-of-sequence token
+    minimum_tokens: minimum number of tokens before EOS is eligible; cannot exceed maximum_tokens when specified
 
     recompute: if True, run a full forward pass at every step; if False (default), reuse this prompt's KV cache.
 
-    temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
-    top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
-    top_p (default 0.0): float -> Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+    temperature (default 0.0): zero selects greedy argmax and ignores sampling filters.
+        A positive value samples from the temperature-scaled, filtered distribution.
+    top_k (default 0): keep the k highest-scoring tokens (including ties); 0 disables it. Values above vocabulary size are capped with a warning.
+    top_p (default 1.0): nucleus filter; 1 and the legacy value 0 both disable it.
     min_p (default 0.0): float -> Keeps tokens whose probability is at least min_p times the probability of the most likely token. Must be between 0 and 1; 0 disables min-p sampling.
     top_h (default 0.0): float -> Keeps a high-probability prefix of at most 100 tokens within an entropy budget. Enabled values must be greater than 0 and at most 1; 0 disables top-h sampling.
     typical_p (default 1.0): float -> Keeps tokens closest to the expected surprisal until their cumulative probability reaches typical_p. Must be greater than 0 and at most 1; 1 disables locally typical sampling.
-    epsilon_cutoff (default 0.0): float -> Keeps tokens with conditional probability at least epsilon_cutoff, while always retaining a highest-probability token. Enabled values must be strictly between 0 and 1; 0 disables epsilon sampling.
-    eta_cutoff (default 0.0): float -> Keeps tokens above an entropy-adaptive probability cutoff, while always retaining a highest-probability token. Enabled values must be strictly between 0 and 1; 0 disables eta sampling.
-    note: greedy decoding is used if temperature, top_h, top_k, top_p, min_p, epsilon_cutoff and eta_cutoff are 0 and typical_p is 1
+    epsilon_cutoff (default 0.0): float -> Keeps tokens with conditional probability at least epsilon_cutoff, while always retaining a highest-probability token. Valid range: [0, 1); 0 disables epsilon sampling.
+    eta_cutoff (default 0.0): float -> Keeps tokens above an entropy-adaptive probability cutoff, while always retaining a highest-probability token. Valid range: [0, 1); 0 disables eta sampling.
 
     returns: List[dict] on the prompt owner (global rank zero for pipeline
         generation, otherwise TP rank zero), and an empty list on its peers:
@@ -701,6 +760,8 @@ def generate_samples_from_prompt(
         - 'finished':
         - 'message': a messaged associated with the generation procedure, can be a warning or error
         - 'duration_seconds': duration of the generation in seconds
+        - 'logits' (if requested): processed scores for each executed step including
+          EOS; EOS is -inf until minimum_tokens is reached. No post-EOS rows are written.
 
     """
     if eos_token_id is None:
@@ -713,6 +774,23 @@ def generate_samples_from_prompt(
     if isinstance(text, str):
         text = [text]
 
+    stream = _prepare_token_stream(
+        neox_args,
+        model,
+        eos_token_id=eos_token_id,
+        recompute=recompute,
+        stop_tokens=stop_tokens,
+        maximum_tokens=maximum_tokens,
+        minimum_tokens=minimum_tokens,
+        temperature=temperature,
+        top_k=top_k,
+        top_p=top_p,
+        min_p=min_p,
+        top_h=top_h,
+        typical_p=typical_p,
+        epsilon_cutoff=epsilon_cutoff,
+        eta_cutoff=eta_cutoff,
+    )
     input_count = len(text)
     input_pos = 0
     owns_prompts = (
@@ -756,24 +834,7 @@ def generate_samples_from_prompt(
             return generated_texts
 
         last_step = None
-        for last_step in stream_tokens(
-            neox_args=neox_args,
-            model=model,
-            context_tokens=[context_tokens],
-            eos_token_id=eos_token_id,
-            maximum_tokens=maximum_tokens,
-            minimum_tokens=minimum_tokens,
-            recompute=recompute,
-            temperature=temperature,
-            top_k=top_k,
-            top_p=top_p,
-            stop_tokens=stop_tokens,
-            min_p=min_p,
-            top_h=top_h,
-            typical_p=typical_p,
-            epsilon_cutoff=epsilon_cutoff,
-            eta_cutoff=eta_cutoff,
-        ):
+        for last_step in stream([context_tokens]):
             pass  # finish generation and use all results below
 
         if not owns_prompts:
@@ -821,7 +882,7 @@ def generate_samples_input_from_file(
     recompute: bool = False,
     temperature: float = 0.0,
     top_k: int = 0,
-    top_p: float = 0.0,
+    top_p: float = 1.0,
     minimum_tokens: int = 0,
     min_p: float = 0.0,
     top_h: float = 0.0,
@@ -842,22 +903,20 @@ def generate_samples_input_from_file(
 
     eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
     maximum_tokens: maximum number of tokens to be generated
-    minimum_tokens: minimum number of tokens to be generated before allowing an end-of-sequence token
+    minimum_tokens: minimum number of tokens before EOS is eligible; cannot exceed maximum_tokens when specified
     prompt_end: end of a single input prompt. Defaults to newline character '\n'. Other prompt-end sequences may be useful when generating indent-aware completions (e.g. code)
 
     recompute: if True, run a full forward pass at every step; if False (default), reuse this prompt's KV cache.
 
-    temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
-    top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
-    top_p (default 0.0): float -> Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+    temperature (default 0.0): zero selects greedy argmax and ignores sampling filters.
+        A positive value samples from the temperature-scaled, filtered distribution.
+    top_k (default 0): keep the k highest-scoring tokens (including ties); 0 disables it. Values above vocabulary size are capped with a warning.
+    top_p (default 1.0): nucleus filter; 1 and the legacy value 0 both disable it.
     min_p (default 0.0): float -> Keeps tokens whose probability is at least min_p times the probability of the most likely token. Must be between 0 and 1; 0 disables min-p sampling.
     top_h (default 0.0): float -> Keeps a high-probability prefix of at most 100 tokens within an entropy budget. Enabled values must be greater than 0 and at most 1; 0 disables top-h sampling.
     typical_p (default 1.0): float -> Keeps tokens closest to the expected surprisal until their cumulative probability reaches typical_p. Must be greater than 0 and at most 1; 1 disables locally typical sampling.
-    epsilon_cutoff (default 0.0): float -> Keeps tokens with conditional probability at least epsilon_cutoff, while always retaining a highest-probability token. Enabled values must be strictly between 0 and 1; 0 disables epsilon sampling.
-    eta_cutoff (default 0.0): float -> Keeps tokens above an entropy-adaptive probability cutoff, while always retaining a highest-probability token. Enabled values must be strictly between 0 and 1; 0 disables eta sampling.
-
-    note: greedy decoding is used if temperature, top_h, top_k, top_p, min_p, epsilon_cutoff and eta_cutoff are 0 and typical_p is 1
-
+    epsilon_cutoff (default 0.0): float -> Keeps tokens with conditional probability at least epsilon_cutoff, while always retaining a highest-probability token. Valid range: [0, 1); 0 disables epsilon sampling.
+    eta_cutoff (default 0.0): float -> Keeps tokens above an entropy-adaptive probability cutoff, while always retaining a highest-probability token. Valid range: [0, 1); 0 disables eta sampling.
 
     returns: List[dict] -> a list of dicts containing the following fields:
         - 'context' (the input)
@@ -925,7 +984,7 @@ def generate_samples_unconditional(
     recompute: bool = False,
     temperature: float = 0.0,
     top_k: int = 0,
-    top_p: float = 0.0,
+    top_p: float = 1.0,
     minimum_tokens: int = 0,
     min_p: float = 0.0,
     top_h: float = 0.0,
@@ -945,21 +1004,20 @@ def generate_samples_unconditional(
 
     eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
     maximum_tokens: maximum number of tokens to be generated
-    minimum_tokens: minimum number of tokens to be generated before allowing an end-of-sequence token
+    minimum_tokens: minimum number of tokens before EOS is eligible; cannot exceed maximum_tokens when specified
     prompt_end: end of a single input prompt. Defaults to newline character '\n'. Other prompt-end sequences may be useful when generating indent-aware completions (e.g. code). The interactive mode will reroll the user-input request until the stop-char is met
 
     recompute: if True, run a full forward pass at every step; if False (default), reuse this prompt's KV cache.
 
-    temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
-    top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
-    top_p (default 0.0): float -> Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+    temperature (default 0.0): zero selects greedy argmax and ignores sampling filters.
+        A positive value samples from the temperature-scaled, filtered distribution.
+    top_k (default 0): keep the k highest-scoring tokens (including ties); 0 disables it. Values above vocabulary size are capped with a warning.
+    top_p (default 1.0): nucleus filter; 1 and the legacy value 0 both disable it.
     min_p (default 0.0): float -> Keeps tokens whose probability is at least min_p times the probability of the most likely token. Must be between 0 and 1; 0 disables min-p sampling.
     top_h (default 0.0): float -> Keeps a high-probability prefix of at most 100 tokens within an entropy budget. Enabled values must be greater than 0 and at most 1; 0 disables top-h sampling.
     typical_p (default 1.0): float -> Keeps tokens closest to the expected surprisal until their cumulative probability reaches typical_p. Must be greater than 0 and at most 1; 1 disables locally typical sampling.
-    epsilon_cutoff (default 0.0): float -> Keeps tokens with conditional probability at least epsilon_cutoff, while always retaining a highest-probability token. Enabled values must be strictly between 0 and 1; 0 disables epsilon sampling.
-    eta_cutoff (default 0.0): float -> Keeps tokens above an entropy-adaptive probability cutoff, while always retaining a highest-probability token. Enabled values must be strictly between 0 and 1; 0 disables eta sampling.
-
-    note: greedy decoding is used if temperature, top_h, top_k, top_p, min_p, epsilon_cutoff and eta_cutoff are 0 and typical_p is 1
+    epsilon_cutoff (default 0.0): float -> Keeps tokens with conditional probability at least epsilon_cutoff, while always retaining a highest-probability token. Valid range: [0, 1); 0 disables epsilon sampling.
+    eta_cutoff (default 0.0): float -> Keeps tokens above an entropy-adaptive probability cutoff, while always retaining a highest-probability token. Valid range: [0, 1); 0 disables eta sampling.
 
     yields: dict containing the following fields:
         - 'context' (the input)
@@ -1007,7 +1065,7 @@ def generate_samples_interactive(
     recompute: bool = False,
     temperature: float = 0.0,
     top_k: int = 0,
-    top_p: float = 0.0,
+    top_p: float = 1.0,
     minimum_tokens: int = 0,
     min_p: float = 0.0,
     top_h: float = 0.0,
@@ -1022,21 +1080,20 @@ def generate_samples_interactive(
     model: a Megatron model
 
     maximum_tokens: maximum number of tokens to be generated
-    minimum_tokens: minimum number of tokens to be generated before allowing an end-of-sequence token
+    minimum_tokens: minimum number of tokens before EOS is eligible; cannot exceed maximum_tokens when specified
     eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
 
     recompute: if True, run a full forward pass at every step; if False (default), reuse this prompt's KV cache.
 
-    temperature (default 0.0): exponential scaling output distribution ("higher == more risk")
-    top_k (default 0): integer -> integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
-    top_p (default 0.0): float -> Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+    temperature (default 0.0): zero selects greedy argmax and ignores sampling filters.
+        A positive value samples from the temperature-scaled, filtered distribution.
+    top_k (default 0): keep the k highest-scoring tokens (including ties); 0 disables it. Values above vocabulary size are capped with a warning.
+    top_p (default 1.0): nucleus filter; 1 and the legacy value 0 both disable it.
     min_p (default 0.0): float -> Keeps tokens whose probability is at least min_p times the probability of the most likely token. Must be between 0 and 1; 0 disables min-p sampling.
     top_h (default 0.0): float -> Keeps a high-probability prefix of at most 100 tokens within an entropy budget. Enabled values must be greater than 0 and at most 1; 0 disables top-h sampling.
     typical_p (default 1.0): float -> Keeps tokens closest to the expected surprisal until their cumulative probability reaches typical_p. Must be greater than 0 and at most 1; 1 disables locally typical sampling.
-    epsilon_cutoff (default 0.0): float -> Keeps tokens with conditional probability at least epsilon_cutoff, while always retaining a highest-probability token. Enabled values must be strictly between 0 and 1; 0 disables epsilon sampling.
-    eta_cutoff (default 0.0): float -> Keeps tokens above an entropy-adaptive probability cutoff, while always retaining a highest-probability token. Enabled values must be strictly between 0 and 1; 0 disables eta sampling.
-
-    note: greedy decoding is used if temperature, top_h, top_k, top_p, min_p, epsilon_cutoff and eta_cutoff are 0 and typical_p is 1
+    epsilon_cutoff (default 0.0): float -> Keeps tokens with conditional probability at least epsilon_cutoff, while always retaining a highest-probability token. Valid range: [0, 1); 0 disables epsilon sampling.
+    eta_cutoff (default 0.0): float -> Keeps tokens above an entropy-adaptive probability cutoff, while always retaining a highest-probability token. Valid range: [0, 1); 0 disables eta sampling.
 
     yields: dict containing the following fields:
         - 'context' (the input)
@@ -1047,6 +1104,22 @@ def generate_samples_interactive(
         - 'duration_seconds': duration of the generation in seconds
     """
 
+    stream = _prepare_token_stream(
+        neox_args,
+        model,
+        eos_token_id=eos_token_id,
+        recompute=recompute,
+        maximum_tokens=maximum_tokens,
+        minimum_tokens=minimum_tokens,
+        temperature=temperature,
+        top_k=top_k,
+        top_p=top_p,
+        min_p=min_p,
+        top_h=top_h,
+        typical_p=typical_p,
+        epsilon_cutoff=epsilon_cutoff,
+        eta_cutoff=eta_cutoff,
+    )
     reader = torch.distributed.get_rank() == 0
     first_prompt = True
     while True:
@@ -1080,23 +1153,7 @@ def generate_samples_interactive(
             batch_token_generation_end_index,
             batch_generated_token_logits,
             is_done,
-        ) in stream_tokens(
-            neox_args=neox_args,
-            model=model,
-            context_tokens=prompt,
-            eos_token_id=eos_token_id,
-            maximum_tokens=maximum_tokens,
-            minimum_tokens=minimum_tokens,
-            recompute=recompute,
-            temperature=temperature,
-            top_k=top_k,
-            top_p=top_p,
-            min_p=min_p,
-            top_h=top_h,
-            typical_p=typical_p,
-            epsilon_cutoff=epsilon_cutoff,
-            eta_cutoff=eta_cutoff,
-        ):
+        ) in stream(prompt):
             if reader:
                 generated_tokens = (
                     batch_context_tokens[0]

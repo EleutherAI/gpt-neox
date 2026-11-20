@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+import warnings
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -20,6 +22,7 @@ import torch
 
 from megatron import text_generation_utils as generation
 from megatron.model.utils import SequentialWrapper
+from megatron.neox_arguments import sampling
 
 pytestmark = pytest.mark.cpu
 
@@ -31,6 +34,13 @@ def test_standalone_filter_validates_before_modifying_logits():
     torch.testing.assert_close(logits, torch.tensor([[1.0, 2.0]]))
     result = generation.filter_logits(logits, 1, 0.0, -100.0)
     torch.testing.assert_close(result, torch.tensor([[-100.0, 2.0]]))
+
+
+def test_oversize_top_k_uses_full_vocab_and_still_applies_top_p():
+    logits = torch.tensor([[1.0, 2.0]])
+    with pytest.warns(UserWarning, match=r"top_k=99.*truncating top_k to 2"):
+        result = generation.filter_logits(logits, top_k=99, top_p=0.5)
+    torch.testing.assert_close(result, torch.tensor([[-float("inf"), 2.0]]))
 
 
 def test_gather_generation_logits(monkeypatch):
@@ -146,6 +156,63 @@ def cached_model():
     return Mock(device=torch.device("cpu"), module=module), layer
 
 
+@pytest.mark.parametrize(
+    "filters",
+    [
+        {"min_p": 0.01},
+        {"top_p": 1.0},
+        dict(
+            top_k=1,
+            top_p=0.5,
+            min_p=0.9,
+            top_h=0.4,
+            typical_p=0.2,
+            epsilon_cutoff=0.3,
+            eta_cutoff=0.3,
+        ),
+    ],
+    ids=["reported-min-p", "neutral-top-p", "all-filters"],
+)
+def test_zero_temperature_ignores_filters_and_rng(args, cached_model, filters):
+    model, _ = cached_model
+    with torch.random.fork_rng(devices=[]):
+        for seed in range(20):
+            torch.random.default_generator.manual_seed(seed)
+            before = torch.get_rng_state()
+            (step,) = generation.stream_tokens(
+                args, model, [[1]], temperature=0.0, maximum_tokens=1, **filters
+            )
+            tokens, start, _, scores, _ = step
+            assert tokens[0, start.item()].item() == 1
+            torch.testing.assert_close(scores, torch.tensor([[1.0, 2.0]]))
+            assert torch.equal(torch.get_rng_state(), before)
+
+
+@pytest.mark.parametrize("top_p", [0.0, 1.0])
+def test_neutral_top_p_skips_nucleus_filtering(monkeypatch, top_p):
+    # Both the legacy and HF sentinels leave all logits alone, without sorting.
+    monkeypatch.setattr(torch, "sort", Mock(side_effect=AssertionError("sorted")))
+    logits = torch.tensor([[3.0, 1.0, -90.0]])
+    torch.testing.assert_close(
+        generation.filter_logits(logits.clone(), top_p=top_p), logits
+    )
+
+
+def test_positive_temperature_samples_scaled_filtered_logits(
+    args, cached_model, monkeypatch
+):
+    model, _ = cached_model
+    draw = Mock(wraps=torch.multinomial)
+    monkeypatch.setattr(torch, "multinomial", draw)
+    (step,) = generation.stream_tokens(
+        args, model, [[1]], maximum_tokens=1, temperature=0.5, top_p=0.7
+    )
+    draw.assert_called_once()
+    probabilities, _ = draw.call_args.args
+    torch.testing.assert_close(probabilities, torch.tensor([[0.0, 1.0]]))
+    torch.testing.assert_close(step[3], torch.tensor([[-float("inf"), 4.0]]))
+
+
 def test_prompt_generation_honors_stop_sequence_on_cpu(args, cached_model):
     args.tokenizer.tokenize = lambda _: [0]
     args.tokenizer.detokenize = lambda tokens: "".join(map(str, tokens))
@@ -157,14 +224,91 @@ def test_prompt_generation_honors_stop_sequence_on_cpu(args, cached_model):
     assert all(result["finished"] and len(result["logits"]) == 2 for result in results)
 
 
+@pytest.mark.parametrize(
+    "options,message",
+    [
+        (
+            dict(temperature=0.0, top_p=0.9, min_p=0.01),
+            r"will be ignored: top_p=0.9, min_p=0.01",
+        ),
+        (dict(temperature=1.0, top_k=99), r"truncating top_k to 2"),
+        (dict(temperature=0.0, top_p=1.0), None),
+        (dict(temperature=0.0, top_p=0.0), None),
+        (dict(temperature=1.0, top_k=2), None),
+    ],
+)
+def test_multi_prompt_request_validates_and_warns_once(
+    args, cached_model, monkeypatch, options, message
+):
+    args.tokenizer.tokenize = lambda _: [1]
+    args.tokenizer.detokenize = lambda tokens: "".join(map(str, tokens))
+    model, _ = cached_model
+    validate = Mock(wraps=sampling.validate_sampling_options)
+    monkeypatch.setattr(sampling, "validate_sampling_options", validate)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        rows = generation.generate_samples_from_prompt(
+            args, model, ["one", "two"], minimum_tokens=2, maximum_tokens=3, **options
+        )
+    assert len(rows) == 2
+    validate.assert_called_once()
+    messages = [str(w.message) for w in caught if w.category is UserWarning]
+    assert len(messages) == int(message is not None)
+    if message:
+        assert message in messages[0]
+
+
+def test_early_eos_file_has_only_executed_processed_scores(
+    args, cached_model, monkeypatch, tmp_path
+):
+    monkeypatch.setattr(torch.distributed, "get_rank", lambda: 0)
+    args.tokenizer.tokenize = lambda _: [1]
+    args.tokenizer.detokenize = lambda tokens: "".join(map(str, tokens))
+    prompts, output = tmp_path / "in.txt", tmp_path / "out.jsonl"
+    prompts.write_text("x\n")
+    model, _ = cached_model
+    generation.generate_samples_input_from_file(
+        args,
+        model,
+        prompts,
+        output_file=output,
+        eos_token_id=1,
+        minimum_tokens=2,
+        maximum_tokens=8,
+    )
+    row = json.loads(output.read_text())
+    assert row["finished"] and row["length"] == 2
+    scores = torch.tensor(row["logits"])
+    assert scores.shape == (
+        3,
+        2,
+    )  # Two generated tokens and the EOS decision, not eight.
+    assert scores[:2, 1].isneginf().all() and scores[2, 1].isfinite()
+
+
+def test_minimum_cannot_exceed_explicit_or_inferred_maximum(args, cached_model):
+    model, _ = cached_model
+    with pytest.raises(ValueError, match=r"minimum_tokens \(4\).*maximum_tokens \(3\)"):
+        generation.stream_tokens(args, model, [[1]], minimum_tokens=4, maximum_tokens=3)
+    model.eval.assert_not_called()
+    with pytest.raises(ValueError, match="inferred maximum_tokens"):
+        next(
+            generation.stream_tokens(
+                args, model, [[1] * (args.seq_length - 1)], minimum_tokens=2
+            )
+        )
+
+
 def test_sampling_validation_is_outside_the_decode_loop(
     args, cached_model, monkeypatch
 ):
-    validate = Mock(wraps=generation.validate_sampling_options)
-    monkeypatch.setattr(generation, "validate_sampling_options", validate)
+    validate = Mock(wraps=sampling.validate_sampling_options)
+    monkeypatch.setattr(sampling, "validate_sampling_options", validate)
     model, _ = cached_model
     steps = list(
-        generation.stream_tokens(args, model, [[1]], maximum_tokens=3, top_k=1)
+        generation.stream_tokens(
+            args, model, [[1]], maximum_tokens=3, temperature=1.0, top_k=1
+        )
     )
     assert len(steps) == 3
     validate.assert_called_once()

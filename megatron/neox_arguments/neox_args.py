@@ -1628,12 +1628,14 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
 
     temperature: float = 0.0
     """
-    exponential scaling output distribution ("higher == more risk")
+    Zero selects greedy decoding and ignores sampling filters. Positive values
+    enable sampling and scale the logits before filtering (1 leaves them unchanged).
     """
 
-    top_p: float = 0.0
+    top_p: float = 1.0
     """
-    Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+    Nucleus sampling: keep the smallest high-probability prefix reaching top_p.
+    Both 1 (default) and 0 (legacy NeoX) disable this filter.
     """
 
     min_p: float = 0.0
@@ -1653,22 +1655,24 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
 
     epsilon_cutoff: float = 0.0
     """
-    Minimum conditional probability required for epsilon sampling. Enabled values must be strictly between 0 and 1; 0 disables epsilon sampling. Suggested values range from 3e-4 to 9e-4.
+    Minimum conditional probability required for epsilon sampling. Valid range: [0, 1); 0 disables epsilon sampling. Suggested values range from 3e-4 to 9e-4.
     """
 
     eta_cutoff: float = 0.0
     """
-    Entropy-adaptive probability cutoff for eta sampling. Enabled values must be strictly between 0 and 1; 0 disables eta sampling. Suggested values range from 3e-4 to 2e-3.
+    Entropy-adaptive probability cutoff for eta sampling. Valid range: [0, 1); 0 disables eta sampling. Suggested values range from 3e-4 to 2e-3.
     """
 
     top_k: int = 0
     """
-    integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
+    Keep the k highest-scoring tokens (including ties); 0 disables the filter. Values above vocabulary size are capped with a warning.
     """
 
     return_logits: bool = False
     """
-    Boolean for whether to return the logits for generated tokens
+    Return processed scores (not raw model logits) for batch item zero, one row per
+    executed decode step, including the EOS decision. EOS is -inf while minimum_tokens
+    prevents it. When sampling, scores also include temperature scaling and filtering.
     """
 
     maximum_tokens: int = 64
@@ -1678,7 +1682,7 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
 
     minimum_tokens: int = 0
     """
-    minimum number of tokens to be generated before allowing an end-of-sequence token
+    minimum number of tokens before EOS is eligible; cannot exceed maximum_tokens when specified
     """
 
     prompt_end: str = "\n"

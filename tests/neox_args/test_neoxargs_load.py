@@ -108,6 +108,23 @@ def test_config_rejects_invalid_sampling_before_model_setup(name, value):
 
 
 @pytest.mark.cpu
+def test_config_rejects_minimum_above_maximum():
+    from megatron.neox_arguments import NeoXArgs
+
+    with pytest.raises(ValueError, match=r"minimum_tokens \(5\).*maximum_tokens \(4\)"):
+        NeoXArgs.from_ymls(
+            get_configs_with_path(
+                ["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]
+            ),
+            overwrite_values={
+                "log_dir": None,
+                "minimum_tokens": 5,
+                "maximum_tokens": 4,
+            },
+        )
+
+
+@pytest.mark.cpu
 def test_sampling_boundaries_and_runtime_overrides(monkeypatch):
     from megatron.neox_arguments import NeoXArgs
     from megatron.neox_arguments.sampling import SAMPLING_RANGES
@@ -125,10 +142,15 @@ def test_sampling_boundaries_and_runtime_overrides(monkeypatch):
         epsilon_cutoff=0.0,
         eta_cutoff=0.999,
     )
-    args = NeoXArgs.from_ymls(
-        get_configs_with_path(["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]),
-        overwrite_values={"log_dir": None, **options},
-    )
+    with pytest.warns(
+        UserWarning, match="will be ignored: top_h=1.0, eta_cutoff=0.999"
+    ):
+        args = NeoXArgs.from_ymls(
+            get_configs_with_path(
+                ["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]
+            ),
+            overwrite_values={"log_dir": None, **options},
+        )
     # No range predicate should run again for unchanged options. A mutated
     # config or a request override must still fail before touching the model.
     for name, (accepts, domain) in SAMPLING_RANGES.items():

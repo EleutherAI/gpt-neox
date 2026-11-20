@@ -40,6 +40,7 @@ PARAMS_TO_TEST = {
     ],
     "top_p,temperature,top_k,min_p,top_h,typical_p,epsilon_cutoff,eta_cutoff": [
         [0.0, 0.5, 0, 0.1, 0.0, 0.9, 0.0, 0.001],
+        # Greedy even with active filters. Only the positive-temperature rows sample.
         [0.5, 0.0, 100, 0.0, 0.4, 1.0, 0.001, 0.0],
         [0.5, 0.5, 0, 0.1, 0.4, 0.9, 0.001, 0.001],
     ],
@@ -288,7 +289,7 @@ def _check_parallel_generation(rank, tmpdir, target_pp, target_tp, world_size):
                     123 if reference_layout or rank == sampler else 456
                 )
                 rng_before = torch.cuda.get_rng_state()
-                options = dict(temperature=1.0, top_k=2, top_p=0.95) if sample else {}
+                options = dict(temperature=1.0 if sample else 0.0, top_k=2, top_p=0.95)
                 steps = list(
                     stream_tokens(
                         args,
@@ -307,7 +308,7 @@ def _check_parallel_generation(rank, tmpdir, target_pp, target_tp, world_size):
                 assert all(row[-1] == 400 for row in ids)
                 if not sample:
                     assert ids == [[263, 263, 263, 400]] * 2
-                if not reference_layout and rank != sampler:
+                if not sample or (not reference_layout and rank != sampler):
                     assert torch.equal(torch.cuda.get_rng_state(), rng_before)
                 key = (tied, recompute, sample, scores)
                 if not scores:

@@ -8,8 +8,8 @@
   "maximum_tokens": 102,
   "minimum_tokens": 0,
   "prompt_end": "\n",
-  "temperature": 1.0,
-  "top_p": 0.0,
+  "temperature": 1.0,  # Positive enables sampling; 0 is greedy and ignores the filters below.
+  "top_p": 1.0,  # No nucleus filtering (legacy 0.0 also disables it).
   "min_p": 0.0,
   "top_h": 0.0,
   "typical_p": 1.0,
