@@ -10,8 +10,7 @@ multinomial sampling, not beam search.
 
 Run the commands below from the NeoX repository root, in an environment with the
 NeoX dependencies, DeepSpeed, and the GPUs needed for your checkpoint. No
-training dataset or optimizer state is needed for text generation. For tests
-that do not require GPUs or a checkpoint, see [Testing on CPU](#testing-on-cpu).
+training dataset or optimizer state is needed for text generation.
 
 1. Start with the **model config used to train the checkpoint**. Match its
    architecture, tokenizer (including vocabulary and merge files, if applicable),
@@ -165,31 +164,3 @@ python deepy.py eval.py -d configs 125M.yml local_setup.yml --iteration 10000 --
 This uses the installed task's own settings. To use the sampling example above,
 put it in the definition of the task you run. Generation settings do not affect
 tasks that score existing continuations by log likelihood.
-
-## Testing on CPU
-
-With the [repository's dependencies](requirements/requirements.txt) installed,
-run these tests without a GPU or a checkpoint:
-
-```bash
-CUDA_VISIBLE_DEVICES="" python -m pytest -q tests/neox_args/test_neoxargs_load.py \
-  tests/unit/test_text_generation_utils.py tests/unit/test_eval_generation.py
-```
-
-If you also have the separate [Inference-Args-NeoX test suite](https://github.com/aflah02/Inference-Args-NeoX)
-checked out under `logs/Inference_Testing`, run these from the NeoX root:
-
-```bash
-python logs/Inference_Testing/run_matrix.py --list
-python logs/Inference_Testing/run_matrix.py --cpu-filters
-python logs/Inference_Testing/run_matrix.py --cpu-decode
-```
-
-`--cpu-filters` compares the logit masks against independently specified
-expected masks. `--cpu-decode` feeds known scores into the production decoder
-on one CPU Gloo rank and checks the completion, every score row, and whether
-the RNG advanced across 20 seeds per case. The cases exercise each filter
-with positive and zero temperature, both neutral top-p values, oversized
-top-k, and EOS masking. Neither CPU mode loads a checkpoint or tests multi-GPU
-execution. To exercise the actual checkpoint and file-generation path on one
-GPU, run the same matrix with no mode flag.
