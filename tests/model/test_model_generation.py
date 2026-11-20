@@ -22,8 +22,10 @@ to run in order to perform follow up tests. Joining in one test reduces runtime 
 
 import os
 import json
+from contextlib import closing
 from datetime import timedelta
 from itertools import product
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -139,7 +141,7 @@ class run_generate_test_class(DistributedTest):
             assert output == []
 
 
-def _fixed_generation_model(tp_size, pp_size, tied):
+def _fixed_generation_model(tp_size, pp_size, tied, *, training=False):
     from megatron import mpu
     from megatron.initialize import initialize_megatron
     from megatron.model.transformer import NormPipe, ParallelLinearPipe
@@ -164,15 +166,16 @@ def _fixed_generation_model(tp_size, pp_size, tied):
             opt_pos_emb_offset=2 if tied else 0,
             precision="fp32",
             tokenizer_type="CharLevelTokenizer",
-            no_load_optim=True,
+            no_load_optim=not training,
+            optimizer={"type": "Adam", "params": {"lr": 0.001}} if training else None,
             train_micro_batch_size_per_gpu=1,
-            train_iters=1,
+            train_iters=3 if training else 1,
         )
     )
     args.configure_distributed_args()
     args.build_tokenizer()
     initialize_megatron(args)
-    model, *_ = setup_model_and_optimizer(args, use_cache=True)
+    model, *_ = setup_model_and_optimizer(args, use_cache=not training)
     # Identical global weights for all layouts. The winner is always 263 while
     # EOS is masked, but its score reveals whether cached position IDs restart.
     with torch.no_grad():
@@ -254,10 +257,8 @@ def _check_pipeline_io(args, model, rank, tmpdir):
     assert stdin.call_count == (2 if rank == 0 else 0)
 
 
-def _check_parallel_generation(rank, tmpdir, target_pp, target_tp, world_size):
+def _init_generation_ranks(rank, tmpdir, world_size):
     import deepspeed
-    from megatron import mpu
-    from megatron.text_generation_utils import stream_tokens
 
     os.environ.update(LOCAL_RANK=str(rank), RANK=str(rank), WORLD_SIZE=str(world_size))
     torch.cuda.set_device(rank)
@@ -269,6 +270,16 @@ def _check_parallel_generation(rank, tmpdir, target_pp, target_tp, world_size):
         world_size=world_size,
         timeout=timedelta(seconds=90),
     )
+
+
+def _check_parallel_generation(rank, tmpdir, target_pp, target_tp, world_size):
+    from megatron import mpu
+    from megatron.text_generation_utils import (
+        generate_samples_from_prompt,
+        stream_tokens,
+    )
+
+    _init_generation_ranks(rank, tmpdir, world_size)
     reference = {}
     try:
         for (pp_size, tp_size), tied in product(
@@ -276,6 +287,15 @@ def _check_parallel_generation(rank, tmpdir, target_pp, target_tp, world_size):
         ):
             reference_layout = (pp_size, tp_size) == (0, 1)
             args, model = _fixed_generation_model(tp_size, pp_size, tied)
+            if not pp_size and tp_size > 1 and not tied:
+                # Both NCCL ranks must reject the owner's text prompt, then
+                # continue with the valid requests below on the same engine.
+                with pytest.raises(
+                    ValueError, match=r"9 tokens.*seq_length \(8 tokens\)"
+                ):
+                    generate_samples_from_prompt(
+                        args, model, "X" * 9 if rank == 0 else []
+                    )
             sampler = (
                 model.grid.stage_to_global(pp_size - 1, data=0, model=0)
                 if pp_size
@@ -323,6 +343,24 @@ def _check_parallel_generation(rank, tmpdir, target_pp, target_tp, world_size):
                         torch.testing.assert_close(logits.cpu(), expected_logits)
                         if not sample:
                             assert logits[0, 263] != logits[1, 263]
+            if not reference_layout and not tied:
+                # A stop on the second generated token must have the same
+                # inclusive end on every rank, even when that ID is on a TP shard.
+                model.module.inference_mode(use_cache=True)
+                steps = list(
+                    stream_tokens(
+                        args,
+                        model,
+                        [[81]] if not pp_size or rank == 0 else [],
+                        eos_token_id=400,
+                        minimum_tokens=3,
+                        maximum_tokens=3,
+                        stop_tokens=[[263, 263]],
+                    )
+                )
+                tokens, start, end, _, done = steps[-1]
+                assert len(steps) == 2 and done.item()
+                assert tokens[0, start.item() : end.item() + 1].tolist() == [263, 263]
             if pp_size and not tied:
                 _check_pipeline_io(args, model, rank, tmpdir)
             mpu.destroy_model_parallel()
@@ -334,6 +372,52 @@ def _check_parallel_generation(rank, tmpdir, target_pp, target_tp, world_size):
 def test_non_pipeline_tp_generation_matches_single_rank(tmp_path):
     torch.multiprocessing.spawn(
         _check_parallel_generation, args=(tmp_path, 0, 2, 2), nprocs=2
+    )
+
+
+def _check_pipeline_generation_handoff(rank, tmpdir):
+    from eval_tasks.eval_adapter import EvalHarnessAdapter
+    from megatron.text_generation_utils import stream_tokens
+    from megatron.training import forward_step
+
+    _init_generation_ranks(rank, tmpdir, world_size=2)
+    try:
+        args, model = _fixed_generation_model(1, 2, False, training=True)
+        # A full training sequence plus its shifted next-token label.
+        text = torch.arange(1, args.seq_length + 2, device=model.device).unsqueeze(0)
+
+        def batch():
+            return iter([{"text": text}])
+
+        start_step = model.global_steps
+        assert model.train_batch(batch()).isfinite().all()
+        model.eval()
+        adapter = EvalHarnessAdapter(model, forward_step, args)
+        adapter.generate_until(
+            [SimpleNamespace(args=("hi", {"minimum_tokens": 3, "max_gen_toks": 3}))]
+        )
+        model.train()
+        assert model.train_batch(batch()).isfinite().all()
+        assert model.global_steps == start_step + 2
+
+        # Closing after an incremental forward must also leave a normal
+        # pipeline eval_batch with the same loss as before generation.
+        expected_loss = model.eval_batch(batch()).detach().clone()
+        model.module.inference_mode(use_cache=True)
+        stream = stream_tokens(args, model, [[81, 90]], minimum_tokens=3, maximum_tokens=3)
+        with closing(stream):
+            next(stream)
+            next(stream)
+        model.module.train_mode()
+        torch.testing.assert_close(model.eval_batch(batch()), expected_loss)
+    finally:
+        torch.distributed.destroy_process_group()
+
+
+@pytest.mark.skipif(torch.cuda.device_count() < 2, reason="requires two CUDA devices")
+def test_pipeline_generation_handoff(tmp_path):
+    torch.multiprocessing.spawn(
+        _check_pipeline_generation_handoff, args=(tmp_path,), nprocs=2
     )
 
 

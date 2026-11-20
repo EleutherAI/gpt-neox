@@ -64,33 +64,65 @@ def get_batch(neox_args, context_tokens: torch.Tensor):
     return tokens, attention_mask, position_ids
 
 
+def _check_context_length(length, limit):
+    if length > limit:
+        raise ValueError(
+            f"Prompt context_length ({length} tokens) exceeds "
+            f"seq_length ({limit} tokens)."
+        )
+
+
 def pad_batch(
     context_tokens: List[List[int]], pad_id: int, pad_len: int, truncate: bool = False
 ):
-    """
-    pads context lengths in context_tokens with pad_id to equal neox_args.seq_length,
-    and returns the padded batch and the new lengths.
+    """Pad rows in place to pad_len and return (rows, unpadded lengths).
 
-    context_tokens: list of lists of tokens
-    pad_id: int, integer to use as padding token
-    pad_len: int, context length to be padded; all batch items will be padded to the same length
-    truncate: bool, if True, truncate context tokens to pad_len if they are longer than pad_len
-
-    returns: tuple of padded context tokens and a list of unpadded token count
+    With truncate=True, a longer row is cut to pad_len and its reported length
+    is capped. Otherwise an overlong row raises before the batch is modified.
     """
 
-    context_lengths = []
-    for i, tokens in enumerate(context_tokens):
-        context_length = len(tokens)
+    context_lengths = [len(tokens) for tokens in context_tokens]
+    if not truncate:
+        _check_context_length(max(context_lengths, default=0), pad_len)
+    for i, (tokens, context_length) in enumerate(zip(context_tokens, context_lengths)):
         if context_length < pad_len:
             tokens.extend([pad_id] * (pad_len - context_length))
         elif context_length > pad_len:
-            if not truncate:
-                raise ValueError("context_length is bigger than to be padded length")
             context_tokens[i] = tokens[:pad_len]
-            context_length = pad_len
-        context_lengths.append(context_length)
+            context_lengths[i] = pad_len
     return context_tokens, context_lengths
+
+
+def _broadcast_tp_prompt_batch(context_tokens, pad_id, seq_length, device):
+    """Validate the owner's batch on all TP ranks before broadcasting any token IDs."""
+    src = mpu.get_model_parallel_src_rank()
+    group = mpu.get_model_parallel_group()
+    owner = is_mp_rank_0()
+    if owner:
+        lengths = [len(row) for row in context_tokens]
+        header = torch.tensor(
+            [len(lengths), max(lengths, default=0)], dtype=torch.long, device=device
+        )
+    else:
+        header = torch.empty(2, dtype=torch.long, device=device)
+    torch.distributed.broadcast(header, src=src, group=group)
+    batch_size, width = header.tolist()
+    _check_context_length(width, seq_length)
+
+    # One more collective for a valid batch: each row carries its length and
+    # token IDs. Pad to the model's context window locally, not on the wire.
+    if owner:
+        rows = [
+            [length, *row] + [pad_id] * (width - length)
+            for row, length in zip(context_tokens, lengths)
+        ]
+        payload = header.new_tensor(rows).view(batch_size, width + 1)
+    else:
+        payload = header.new_empty((batch_size, width + 1))
+    torch.distributed.broadcast(payload, src=src, group=group)
+    tokens = F.pad(payload[:, 1:], (0, seq_length - width), value=pad_id)
+    # Keep only the lengths, not a view that pins the packed payload during decoding.
+    return tokens, payload[:, 0].clone()
 
 
 def filter_logits(
@@ -314,6 +346,7 @@ def forward_model(model, model_inputs, is_pipe_parallel=False) -> torch.Tensor:
         # shaped forwards and tries to log a scalar loss even on non-output stages.
         model.total_loss = None
         model.monitor.enabled = False
+        # A training batch, prompt prefill and incremental decode have different shapes.
         model.reset_activation_shape()
         _, logits = model.eval_batch(
             iter([(model_inputs, ())]),
@@ -408,23 +441,30 @@ def stream_tokens(
     Supply at least one prompt with at least one token in each row. The engine
     must be in inference mode with use_cache=not recompute. Exhaust or close
     the iterator before reusing it on the same engine. All participating ranks
-    must enter the call; for pipeline generation, global rank zero supplies
-    the batch and all ranks receive the same selected IDs and requested scores.
+    must enter the call. For pipeline generation, global rank zero supplies
+    the batch; otherwise each tensor-parallel group's rank zero supplies it.
+    Peers may pass an empty batch; TP ranks must still use the same decoding
+    options. Pipeline stages receive the same selected IDs and requested scores.
+    An owner's prompt longer than seq_length raises ValueError on every
+    participating rank in that group before running a forward for that batch.
+    Exhausting or closing the iterator also releases the pipeline's cached
+    activation shapes so the next ordinary batch can use its own sequence length.
 
     maximum_tokens limits forward steps from the shortest prompt, so longer
     rows can receive fewer tokens. None uses the space left by the longest
     prompt. minimum_tokens counts new tokens separately for each row and masks
     EOS (default: tokenizer.eod), not explicit stop sequences. stop_tokens may
     be one list of IDs or a list of such lists; a match must be wholly generated.
+    The native completion includes the full matched sequence, but excludes EOS.
     Temperature zero is greedy; a positive temperature samples. See filter_logits
     for filter order, valid ranges and neutral values.
 
     Each yield is (tokens, start, end, scores, done). tokens is the padded
     prompt-and-completion buffer; start and end are per-row inclusive indices
-    for the returned completion. end is -1 until a nonterminal token is emitted.
-    done marks EOS or a matched stop sequence, not budget exhaustion. A terminal
-    step does not advance end. These tensors can be updated by later steps;
-    clone them to retain a snapshot.
+    for the returned completion. end is -1 until a non-EOS token is emitted.
+    done marks EOS or a matched stop sequence, not budget exhaustion. Once a
+    row is done its end index does not advance. These tensors can be updated
+    by later steps; clone them to retain a snapshot.
 
     If neox_args.return_logits is enabled, scores has shape [steps_so_far,
     padded_vocab_size] and describes batch row zero only, including terminal
@@ -518,31 +558,25 @@ def _stream_tokens(
         torch.distributed.broadcast_object_list(request, src=0)
         context_tokens, stop_tokens = request
 
-    # pad batch in order to allow conversion to tensor
-    context_tokens, context_lengths = pad_batch(
-        copy.deepcopy(context_tokens),
-        pad_id=neox_args.tokenizer.eod,
-        pad_len=neox_args.seq_length,
-    )
-
-    # convert to tensor and broadcast
-    context_tokens = torch.tensor(context_tokens, dtype=torch.long, device=model.device)
+    decode_tp_size = mpu.get_model_parallel_world_size()
+    if not neox_args.is_pipe_parallel and decode_tp_size > 1:
+        context_tokens, token_generation_start_index = _broadcast_tp_prompt_batch(
+            context_tokens, neox_args.tokenizer.eod, neox_args.seq_length, model.device
+        )
+    else:
+        context_tokens, context_lengths = pad_batch(
+            copy.deepcopy(context_tokens), neox_args.tokenizer.eod, neox_args.seq_length
+        )
+        context_tokens = torch.tensor(
+            context_tokens, dtype=torch.long, device=model.device
+        )
+        token_generation_start_index = context_tokens.new_tensor(context_lengths)
     if stop_tokens:
         if not isinstance(stop_tokens[0], list):
             stop_tokens = [stop_tokens]
         stop_tokens = [
             context_tokens.new_tensor(group) for group in stop_tokens if group
         ]
-
-    # Make sure context tokens + start tokens are the same across all ranks
-    token_generation_start_index = context_tokens.new_tensor(context_lengths)
-    if not neox_args.is_pipe_parallel:
-        for tensor in (context_tokens, token_generation_start_index):
-            torch.distributed.broadcast(
-                tensor,
-                mpu.get_model_parallel_src_rank(),
-                group=mpu.get_model_parallel_group(),
-            )
 
     # get attention mask / position ids
     context_tokens, attention_mask, position_ids = get_batch(neox_args, context_tokens)
@@ -561,7 +595,6 @@ def _stream_tokens(
             )
     batch_size = context_tokens.size(0)
 
-    decode_tp_size = mpu.get_model_parallel_world_size()
     # PipelineEngine synchronizes the entire job at each forward. Share even
     # the EOS decision across replicas so no stage leaves that collective early.
     if neox_args.is_pipe_parallel:
@@ -583,18 +616,22 @@ def _stream_tokens(
         - 1,  # never generate more than the model's sequence length
         token_index_to_generate + maximum_tokens - 1,
     )
+    max_steps = last_token_index_to_generate - first_token_index_to_generate + 1
 
     with torch.no_grad(), ExitStack() as cleanup:
         # Release this rank's cache on exhaustion, explicit close, or a forward error.
         cleanup.callback(model.module.clear_cache)
+        if neox_args.is_pipe_parallel and max_steps > 0:
+            # The next train_batch/eval_batch must not reuse a one-token receive buffer.
+            cleanup.callback(model.reset_activation_shape)
         # initialize generation variables
-        state_is_done = context_tokens.new_zeros(batch_size, dtype=torch.uint8)
+        state_is_done = context_tokens.new_zeros(batch_size, dtype=torch.bool)
         token_generation_end_index = context_tokens.new_full((batch_size,), -1)
         generation_logits = (
             # Yield only the executed prefix below. A serialized tensor view
             # can also include its backing storage, so don't leave the tail uninitialized.
             torch.zeros(
-                last_token_index_to_generate - first_token_index_to_generate + 1,
+                max_steps,
                 neox_args.padded_vocab_size,
                 device=context_tokens.device,
                 dtype=torch.float32,
@@ -702,11 +739,13 @@ def _stream_tokens(
                 state_started,
             )
 
-            # determine if state has finished for each batch item
-            state_done = (
-                generated_tokens == eos_token_id
-            ).byte() & state_started.byte()  # check which batch items produce an eos_token in the current iteration
-            state_is_done = state_is_done | state_done
+            # EOS is not text. An explicit stop, on the other hand, must be
+            # complete in the decoded text so lm-eval can strip the delimiter.
+            eos = state_started & (generated_tokens == eos_token_id)
+            state_is_done = state_is_done | eos
+            token_generation_end_index[
+                state_started & ~state_is_done
+            ] = token_index_to_generate
             if stop_tokens:
                 state_is_done |= _generated_stop_mask(
                     stop_tokens,
@@ -715,14 +754,10 @@ def _stream_tokens(
                     token_generation_start_index,
                 )
 
-            token_generation_end_index[
-                (state_started.byte() & ~state_is_done).bool()
-            ] = token_index_to_generate
-
             token_index_to_generate += 1
 
             scores = generation_logits[: step + 1] if neox_args.return_logits else None
-            yield context_tokens, token_generation_start_index, token_generation_end_index, scores, state_is_done.bool()
+            yield context_tokens, token_generation_start_index, token_generation_end_index, scores, state_is_done
             if torch.all(state_is_done):
                 break
 

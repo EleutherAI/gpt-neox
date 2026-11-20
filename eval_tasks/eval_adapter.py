@@ -129,7 +129,8 @@ class EvalHarnessAdapter(HFLM):
         Each request supplies its own generation kwargs. Missing or false
         do_sample selects greedy decoding; true requires a positive temperature
         (default 1). max_gen_toks sets the new-token budget and until accepts a
-        string or list of stop strings. Only greedy results go to the adapter's
+        string or list of stop strings. The result excludes the earliest stop
+        string and everything after it. Only greedy results go to the adapter's
         response-cache hook. The model KV cache is controlled by recompute.
         """
         self.model.module.inference_mode(use_cache=not self.neox_args.recompute)
@@ -177,9 +178,15 @@ class EvalHarnessAdapter(HFLM):
             **kwargs,
         )
         text = (cont[0]["text"] or "") if cont else ""
+        # Search the original text: trimming "3" first would hide an
+        # overlapping "23" in "123", leaving a fragment of the earlier stop.
+        end = len(text)
         for term in until:
             if term:
-                text = text.split(term, 1)[0]
+                start = text.find(term)
+                if start != -1:
+                    end = min(end, start)
+        text = text[:end]
         if not do_sample:
             self.cache_hook.add_partial("generate_until", (context, gen_kwargs), text)
         return text

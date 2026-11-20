@@ -125,8 +125,11 @@ Their config defaults are 0 and 64. Both must be nonnegative integers, and
 the minimum cannot exceed the maximum. The minimum suppresses EOS (the
 end-of-sequence token) for the first N decisions **in both modes**; it does not
 disable explicit stop sequences or enlarge the model's context window. A stop
-sequence must occur entirely in newly generated tokens for that prompt. Leave
-room for generation: a prompt using all of `seq_length` has no decode step.
+sequence must occur entirely in newly generated tokens for that prompt. When
+you pass `stop_tokens` to the native Python API, its completion and token count
+include the entire matched sequence, but never EOS. The lm-eval adapter trims
+stop strings before returning its response. Leave room for generation: a
+prompt using all of `seq_length` has no decode step.
 
 Each file-mode record contains `context` (the prompt), `text` (the completion
 only), `length` (its token count), `finished`, `message`, and `duration_seconds`.
@@ -189,15 +192,21 @@ records = generate_samples_from_prompt(
 The prompt owner receives the records; other ranks return an empty list.
 An empty **string** is supported here and starts from the tokenizer's EOS token.
 In a non-pipeline tensor-parallel job, check tokenized prompt lengths before
-launching: an overlong prompt can raise on the owner while peers wait in a
-collective. Do not rely on it being truncated automatically.
+launching if you want to truncate or skip oversized inputs. NeoX itself does
+not truncate them: when the owner's longest prompt exceeds `seq_length`,
+every rank in that TP group raises the same `ValueError` before a model
+forward. After catching it on every participating rank, you can submit a
+shorter prompt using the same engine and process group. Other data-parallel
+replicas can process their own requests independently. A prompt exactly as
+long as `seq_length` is valid, but leaves no room to generate.
 
-If you reuse a DeepSpeed pipeline engine for ordinary evaluation or training
-after cached generation, exhaust the stream, call `model.module.train_mode()`
-to exit the module's inference mode, and call `model.reset_activation_shape()`
-**on every pipeline rank** before the next full-sequence batch. Clearing the
-KV cache alone does not reset DeepSpeed's receive buffers: they may still have
-the shape of a one-token decode step.
+If you reuse a DeepSpeed pipeline engine, exhaust or explicitly close the
+token stream on **every pipeline rank** before starting the next batch. NeoX
+clears the KV cache and resets DeepSpeed's activation shapes so the next
+training or evaluation batch can use the full sequence length. No manual
+`reset_activation_shape()` is needed. If you called `inference_mode()` yourself,
+call `model.module.train_mode()` before resuming training; the lm-eval adapter
+does this automatically.
 
 ## Evaluation harness
 
@@ -230,11 +239,11 @@ affect tasks that score existing continuations by log likelihood.
 
 - `max_gen_toks` sets the request's new-token budget (adapter default: 128).
   The native CLI's `maximum_tokens` default of 64 is not the adapter default.
-- `until` takes a string or list of strings. Omitting it leaves EOS and the
-  token/context budget as the stopping conditions. A known limitation affects
-  multi-token stops: generation stops on a match but can return the leading
-  tokens of the stop string. For example, a two-token stop `AA` can leave
-  `A` in the response. Use a single-token delimiter when exact trimming matters.
+- `until` takes a string or list of strings. The response ends before the
+  earliest occurrence of any listed stop string in the decoded completion.
+  For example, generating tokens `1, 2, 3` with `until: "23"` returns `"1"`;
+  generating just `1, 2` before EOS or the token limit returns `"12"`.
+  Omitting `until` leaves EOS and the token/context budget as the stopping conditions.
 - Requests run sequentially, in order. The adapter only adds greedy results to
   the lm-eval **response cache**; sampled repeats are independent draws, not
   guaranteed different strings. This cache is separate from the model's KV cache.

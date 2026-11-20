@@ -14,6 +14,8 @@
 
 import json
 import warnings
+from datetime import timedelta
+from functools import partial
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -65,6 +67,99 @@ def test_gather_generation_logits_rejects_wrong_width():
         generation._gather_generation_logits(torch.empty(1, 3), 8, 2)
 
 
+def test_overlong_row_is_only_truncated_when_requested():
+    rows = [[1], [2, 3, 4]]
+    with pytest.raises(ValueError, match="3 tokens.*2 tokens"):
+        generation.pad_batch(rows, pad_id=0, pad_len=2)
+    assert rows == [[1], [2, 3, 4]]
+    assert generation.pad_batch(rows, pad_id=0, pad_len=2, truncate=True) == (
+        [[1, 0], [2, 3]], [1, 2]
+    )
+
+
+def _check_tp_prompt_recovery(rank, rendezvous):
+    dist = torch.distributed
+    dist.init_process_group(
+        "gloo",
+        init_method=rendezvous,
+        rank=rank,
+        world_size=4,
+        timeout=timedelta(seconds=30),
+    )
+    try:
+        generation.mpu.initialize_model_parallel(2)
+        owner = generation.mpu.get_model_parallel_rank() == 0
+        args = SimpleNamespace(
+            seq_length=4,
+            padded_vocab_size=2,
+            is_pipe_parallel=False,
+            return_logits=False,
+            eod_mask_loss=False,
+            sliding_window_width=None,
+            tokenizer=SimpleNamespace(
+                eod=0,
+                tokenize=lambda s: [1] * len(s),
+                detokenize=lambda ids: "".join(map(str, ids)),
+            ),
+        )
+
+        def logits(inputs):
+            tokens = inputs[0].float()
+            return torch.stack((tokens, tokens + 1), dim=-1)  # Always generate ID 1.
+
+        model = Mock(device=torch.device("cpu"), module=Mock(side_effect=logits))
+        generate = partial(
+            generation.generate_samples_from_prompt, args, model, maximum_tokens=1
+        )
+        # TP group [0, 1] rejects its owner's request. Group [2, 3] must not
+        # share that error: its own prompt exactly fills the context window.
+        if rank < 2:
+            with pytest.raises(ValueError) as exc:
+                generate("12345" if owner else [])
+            assert str(exc.value) == (
+                "Prompt context_length (5 tokens) exceeds seq_length (4 tokens)."
+            )
+        else:
+            records = generate("1234" if owner else [])
+            assert [r["length"] for r in records] == ([0] if owner else [])
+        model.module.assert_not_called()
+
+        # A bad later row in the raw API is rejected on every rank, too.
+        with pytest.raises(ValueError) as exc:
+            list(generation.stream_tokens(args, model, [[1], [1] * 6] if owner else []))
+        assert str(exc.value) == (
+            "Prompt context_length (6 tokens) exceeds seq_length (4 tokens)."
+        )
+        model.module.assert_not_called()
+
+        # Reuse the same groups and model. Non-owners' placeholders are not
+        # validated, and both the ragged row lengths and prompt IDs come from the owner.
+        prompts = [[0], [1, 0, 1]] if rank < 2 else [[1, 0], [0]]
+        steps = list(
+            generation.stream_tokens(
+                args, model, prompts if owner else [[0] * 9], maximum_tokens=1
+            )
+        )
+        tokens, start, *_ = steps[-1]
+        assert start.tolist() == list(map(len, prompts))
+        assert [
+            row[: len(prompt)].tolist() for row, prompt in zip(tokens, prompts)
+        ] == prompts
+        records = generate("ok" if owner else [])
+        assert [r["text"] for r in records] == (["1"] if owner else [])
+    finally:
+        generation.mpu.destroy_model_parallel()
+        dist.destroy_process_group()
+
+
+def test_overlong_prompt_is_recoverable_and_scoped_to_each_tp_group(tmp_path):
+    torch.multiprocessing.spawn(
+        _check_tp_prompt_recovery,
+        args=((tmp_path / "rendezvous").as_uri(),),
+        nprocs=4,
+    )
+
+
 @pytest.fixture
 def args(monkeypatch):
     # A single rank needs no communication.
@@ -104,6 +199,57 @@ def test_pipeline_forward_preserves_inputs_and_restores_engine_on_error():
         generation.forward_model(engine, inputs, is_pipe_parallel=True)
     assert engine.set_batch_fn.call_args_list == [((None,),), ((original_batch_fn,),)]
     assert engine.total_loss == 17 and engine.monitor.enabled
+
+
+@pytest.mark.parametrize("exit_kind", ["exhaust", "eos", "close", "error", "no_steps"])
+def test_pipeline_stream_releases_activation_shapes(
+    args, cached_model, monkeypatch, exit_kind
+):
+    args.is_pipe_parallel = True
+    monkeypatch.setattr(torch.distributed, "get_rank", lambda: 0)
+    monkeypatch.setattr(
+        torch.distributed, "broadcast_object_list", lambda *args, **kwargs: None
+    )
+    model, _ = cached_model
+    model.num_stages = 1
+    model.grid.stage_to_global.return_value = 0
+    model.pipe_recv_buf = (1, args.seq_length)  # Shape cached by a normal batch.
+    model.reset_activation_shape.side_effect = lambda: setattr(
+        model, "pipe_recv_buf", None
+    )
+
+    def eval_batch(batches, **kwargs):
+        inputs, _ = next(batches)
+        assert model.pipe_recv_buf is None  # Cannot reuse the previous batch's shape.
+        model.pipe_recv_buf = tuple(inputs[0].shape)
+        if exit_kind == "error" and model.pipe_recv_buf == (1, 1):
+            raise RuntimeError("decode forward failed")
+        return None, model.module(inputs)
+
+    model.eval_batch.side_effect = eval_batch
+    stream = generation.stream_tokens(
+        args,
+        model,
+        [[1, 1]],
+        maximum_tokens=0 if exit_kind == "no_steps" else 3,
+        eos_token_id=1 if exit_kind == "eos" else 0,
+        minimum_tokens=1 if exit_kind == "eos" else 0,
+    )
+    if exit_kind == "no_steps":
+        assert list(stream) == []
+        assert model.pipe_recv_buf == (1, args.seq_length)
+        return
+    if exit_kind in ("exhaust", "eos"):
+        assert len(list(stream)) == (2 if exit_kind == "eos" else 3)
+    elif exit_kind == "close":
+        next(stream)  # Prefill
+        next(stream)  # One-token decode
+        stream.close()
+    else:
+        next(stream)
+        with pytest.raises(RuntimeError, match="decode forward failed"):
+            next(stream)
+    assert model.pipe_recv_buf is None
 
 
 @pytest.mark.parametrize("prompt", [[1], [1, 1]], ids=["one-token", "two-token"])
@@ -262,24 +408,77 @@ def test_prompt_generation_honors_stop_sequence_on_cpu(args, cached_model):
     )
     assert [result["context"] for result in results] == ["first", "second"]
     assert all(result["finished"] and len(result["logits"]) == 2 for result in results)
+    assert [(result["text"], result["length"]) for result in results] == [("11", 2)] * 2
+
+
+@pytest.mark.parametrize("recompute", [False, True], ids=["cached", "recompute"])
+@pytest.mark.parametrize(
+    "prompt,draws,until,expected,steps",
+    [
+        ("4", "1234", "23", "1", 3),         # Two-token delimiter after an answer.
+        ("4", "234", "23", "", 2),           # The completion starts with the delimiter.
+        ("4", "1234", ["4", "3"], "12", 3),  # Alternative single-token delimiter.
+        ("4", "1234", ["3", "23"], "1", 3),  # Two suffixes match on the same step.
+        ("2", "3104", "23", "31", 3),        # The prompt's 2 cannot start a match.
+        ("4", "1204", "23", "12", 3),        # EOS after a partial match; keep the 2.
+        ("4", "12", "23", "12", 2),          # Token budget after a partial match.
+        ("4", "01", "23", "", 1),            # EOS on the first step stays excluded.
+    ],
+)
+def test_lm_eval_strips_complete_stop(
+    args, recompute, prompt, draws, until, expected, steps
+):
+    from eval_tasks.eval_adapter import EvalHarnessAdapter
+
+    args.tokenizer.tokenize = args.tokenizer.encode = lambda text: list(map(int, text))
+    args.tokenizer.detokenize = lambda ids: "".join(map(str, ids))
+    args.recompute = recompute
+    args.padded_vocab_size = 5
+    sequence = iter(map(int, draws))
+
+    def next_scores(inputs):
+        scores = torch.zeros(*inputs[0].shape, args.padded_vocab_size)
+        scores[..., next(sequence)] = 1
+        return scores
+
+    model = Mock(device=torch.device("cpu"), module=Mock(side_effect=next_scores))
+    adapter = EvalHarnessAdapter.__new__(EvalHarnessAdapter)
+    adapter._model, adapter.neox_args, adapter.tokenizer = model, args, args.tokenizer
+    adapter._max_gen_toks, adapter.cache_hook = len(draws), Mock()
+    adapter.generate = partial(generation.generate_samples_from_prompt, args, model)
+    request = SimpleNamespace(args=(prompt, {"until": until}))
+    assert adapter.generate_until([request]) == [expected]
+    assert model.module.call_count == steps
+    adapter.cache_hook.add_partial.assert_called_once_with(
+        "generate_until", request.args, expected
+    )
 
 
 @pytest.mark.parametrize("recompute", [False, True], ids=["cached", "recompute"])
 def test_stop_suffix_must_be_generated_by_each_row(args, cached_model, recompute):
     model, _ = cached_model  # Generates only ones.
-    steps = generation.stream_tokens(
-        args,
-        model,
-        [[0], [1, 1, 1]],
-        maximum_tokens=5,
-        recompute=recompute,
-        stop_tokens=[[], [1, 1]],
+    steps = list(
+        generation.stream_tokens(
+            args,
+            model,
+            [[0], [1, 1, 1]],
+            maximum_tokens=5,
+            recompute=recompute,
+            stop_tokens=[[], [1, 1]],
+        )
     )
     assert [done.tolist() for *_, done in steps] == [
         [False, False],  # Second row contains a stop inside its prompt.
         [True, False],  # Only the first row has generated two ones.
         [True, False],  # A prompt token plus one generated token is not a stop.
         [True, True],
+    ]
+    # The first row's inclusive end stays put while the second finishes.
+    tokens, starts, ends, *_ = steps[-1]
+    assert ends.tolist() == [2, 4]
+    assert [row[a : b + 1].tolist() for row, a, b in zip(tokens, starts, ends)] == [
+        [1, 1],
+        [1, 1],
     ]
 
 
