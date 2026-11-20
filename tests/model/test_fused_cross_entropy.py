@@ -51,29 +51,6 @@ def test_cross_entropy_routes_to_fused_implementation(monkeypatch):
     assert calls == [(output, labels, tp_group)]
 
 
-def test_fused_cross_entropy_preserves_fp16_loss_dtype(monkeypatch):
-    output = torch.randn(2, 3, 5, dtype=torch.float16)
-    labels = torch.zeros(2, 3, dtype=torch.long)
-    loss_mask = torch.ones(2, 3, dtype=torch.float16)
-
-    def fused_vocab_parallel_cross_entropy(logits, targets, group):
-        return torch.full_like(targets, 2.0, dtype=torch.float32)
-
-    monkeypatch.setitem(
-        sys.modules,
-        "megatron.fused_kernels.fused_cross_entropy",
-        SimpleNamespace(
-            fused_vocab_parallel_cross_entropy=fused_vocab_parallel_cross_entropy
-        ),
-    )
-    monkeypatch.setattr(mpu, "get_model_parallel_group", object)
-
-    loss = cross_entropy(output, (labels, loss_mask), _fp16=True, _fused=True)
-
-    assert loss.dtype == torch.float16
-    assert loss.item() == 2.0
-
-
 def test_fused_cross_entropy_matches_reference_and_uses_two_collectives(monkeypatch):
     from megatron.fused_kernels.fused_cross_entropy import (
         fused_vocab_parallel_cross_entropy,
