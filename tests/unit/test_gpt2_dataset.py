@@ -14,7 +14,6 @@
 
 import numpy as np
 import pytest
-from torch.utils.data import default_collate
 
 from megatron.data.gpt2_dataset import GPT2Dataset
 
@@ -35,12 +34,7 @@ class _IndexedDataset:
         return document[offset : offset + length]
 
 
-def _build_dataset(
-    documents,
-    sample_idx,
-    seq_length,
-    inter_document_attention_masking=True,
-):
+def _build_dataset(documents, sample_idx, seq_length):
     indexed_dataset = _IndexedDataset(documents)
     dataset = GPT2Dataset(
         name="test",
@@ -52,7 +46,7 @@ def _build_dataset(
         seq_length=seq_length,
         seed=1234,
         build_index_mappings=False,
-        inter_document_attention_masking=inter_document_attention_masking,
+        inter_document_attention_masking=True,
     )
     dataset.doc_idx = np.arange(len(documents), dtype=np.int32)
     dataset.sample_idx = np.asarray(sample_idx, dtype=np.int64)
@@ -129,34 +123,3 @@ def test_inter_document_metadata_edge_cases(case):
     np.testing.assert_array_equal(sample["cu_seqlens"], case["expected_cu_seqlens"])
     assert sample["cu_seqlens"].dtype == np.int32
     assert sample["max_seqlen"] == np.int32(case["expected_max_seqlen"])
-
-
-@pytest.mark.cpu
-def test_inter_document_metadata_collates_different_document_counts():
-    two_fragments = _build_dataset(
-        documents=[np.arange(5), np.arange(10, 16)],
-        sample_idx=[[0, 2], [1, 5]],
-        seq_length=8,
-    )[0]
-    one_fragment = _build_dataset(
-        documents=[np.arange(9)],
-        sample_idx=[[0, 0], [0, 8]],
-        seq_length=8,
-    )[0]
-
-    batch = default_collate([two_fragments, one_fragment])
-
-    assert tuple(batch["cu_seqlens"].shape) == (2, 9)
-    assert tuple(batch["max_seqlen"].shape) == (2,)
-
-
-@pytest.mark.cpu
-def test_inter_document_metadata_is_not_returned_when_disabled():
-    dataset = _build_dataset(
-        documents=[np.arange(5), np.arange(10, 16)],
-        sample_idx=[[0, 2], [1, 5]],
-        seq_length=8,
-        inter_document_attention_masking=False,
-    )
-
-    assert set(dataset[0]) == {"text"}

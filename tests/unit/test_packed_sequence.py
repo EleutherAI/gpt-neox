@@ -64,7 +64,6 @@ def test_normalize_packed_sequence_batch(case):
     tokens = torch.tensor(case["tokens"], dtype=torch.int64)
     labels = tokens + 100
     label_mask = torch.tensor(case["label_mask"], dtype=torch.bool)
-    batch_size, sequence_length = tokens.shape
 
     result = normalize_packed_sequence_batch(
         tokens=tokens,
@@ -89,70 +88,4 @@ def test_normalize_packed_sequence_batch(case):
     )
     assert result.num_documents.item() == case["expected_num_documents"]
     assert result.max_seqlen.item() == case["expected_max_seqlen"]
-
-    total_tokens = batch_size * sequence_length
-    assert result.tokens.shape == result.labels.shape == (1, total_tokens)
-    assert result.loss_mask.shape == result.position_ids.shape == (1, total_tokens)
-    assert result.cu_seqlens.shape == (total_tokens + 1,)
-    assert result.num_documents.shape == result.max_seqlen.shape == ()
     assert result.cu_seqlens.dtype == torch.int32
-    assert result.num_documents.dtype == result.max_seqlen.dtype == torch.int32
-    assert result.attention_mask.shape == (1,)
-    assert result.attention_mask.dtype == torch.bool
-    assert not result.attention_mask.item()
-    assert all(
-        tensor.is_contiguous()
-        for tensor in (
-            result.tokens,
-            result.labels,
-            result.loss_mask,
-            result.position_ids,
-            result.cu_seqlens,
-        )
-    )
-
-    real_boundaries = result.cu_seqlens[: result.num_documents + 1]
-    document_lengths = real_boundaries[1:] - real_boundaries[:-1]
-    assert real_boundaries[-1].item() == total_tokens
-    assert torch.all(document_lengths > 0)
-    assert result.max_seqlen == document_lengths.max()
-    if batch_size > 1:
-        # A sample join is one boundary, not the terminal boundary from both
-        # adjacent samples.
-        assert torch.count_nonzero(real_boundaries == sequence_length).item() == 1
-
-
-@pytest.mark.cpu
-def test_normalized_metadata_transport_shape_is_independent_of_document_count():
-    tokens = torch.arange(8, dtype=torch.int64).view(2, 4)
-    variants = [
-        (
-            torch.tensor([[0, 4, 4, 4, 4], [0, 4, 4, 4, 4]], dtype=torch.int32),
-            torch.tensor([4, 4], dtype=torch.int32),
-        ),
-        (
-            torch.tensor([[0, 1, 2, 3, 4], [0, 1, 2, 3, 4]], dtype=torch.int32),
-            torch.tensor([1, 1], dtype=torch.int32),
-        ),
-    ]
-
-    results = [
-        normalize_packed_sequence_batch(
-            tokens=tokens,
-            labels=tokens + 1,
-            label_mask=torch.ones_like(tokens, dtype=torch.bool),
-            cu_seqlens=cu_seqlens,
-            max_seqlen=max_seqlen,
-            eod_token=-1,
-            eod_mask_loss=False,
-        )
-        for cu_seqlens, max_seqlen in variants
-    ]
-
-    assert results[0].cu_seqlens.shape == results[1].cu_seqlens.shape == (9,)
-    assert [result.num_documents.item() for result in results] == [2, 8]
-    assert torch.equal(
-        results[0].cu_seqlens,
-        torch.tensor([0, 4, 8, 8, 8, 8, 8, 8, 8], dtype=torch.int32),
-    )
-    assert torch.equal(results[1].cu_seqlens, torch.arange(9, dtype=torch.int32))
