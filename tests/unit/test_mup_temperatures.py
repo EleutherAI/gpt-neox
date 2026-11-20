@@ -30,42 +30,22 @@ def cpu_arg_config():
 
 @pytest.mark.cpu
 @pytest.mark.parametrize("apply_query_key_layer_scaling", [False, True])
-@pytest.mark.parametrize("mup_attn_temp", [1.0, 2.0])
-def test_mup_attention_scaling(
-    apply_query_key_layer_scaling,
-    mup_attn_temp,
+@pytest.mark.parametrize(
+    "use_mup, mup_attn_temp, expected_scale",
+    [(False, 1.0, 1.0 / math.sqrt(64)), (True, 1.0, 1.0 / 64), (True, 2.0, 1.0 / 128)],
+)
+def test_attention_scaling(
+    apply_query_key_layer_scaling, use_mup, mup_attn_temp, expected_scale
 ):
-    head_dim = 64
     norm_factor, coeff = _get_attention_scaling(
-        hidden_size_per_attention_head=head_dim,
+        hidden_size_per_attention_head=64,
         layer_number=4,
         apply_query_key_layer_scaling=apply_query_key_layer_scaling,
-        use_mup=True,
+        use_mup=use_mup,
         mup_attn_temp=mup_attn_temp,
     )
-
     effective_scale = (coeff if coeff is not None else 1.0) / norm_factor
-
-    assert effective_scale == pytest.approx(1.0 / (head_dim * mup_attn_temp))
-
-
-@pytest.mark.cpu
-@pytest.mark.parametrize("apply_query_key_layer_scaling", [False, True])
-def test_standard_attention_scaling_is_unchanged(
-    apply_query_key_layer_scaling,
-):
-    head_dim = 64
-    norm_factor, coeff = _get_attention_scaling(
-        hidden_size_per_attention_head=head_dim,
-        layer_number=4,
-        apply_query_key_layer_scaling=apply_query_key_layer_scaling,
-        use_mup=False,
-        mup_attn_temp=1.0,
-    )
-
-    effective_scale = (coeff if coeff is not None else 1.0) / norm_factor
-
-    assert effective_scale == pytest.approx(1.0 / math.sqrt(head_dim))
+    assert effective_scale == pytest.approx(expected_scale)
 
 
 @pytest.mark.cpu
@@ -84,9 +64,7 @@ def test_mup_temperatures_must_be_positive(name):
 
 @pytest.mark.cpu
 def test_mup_rejects_flash_attention(monkeypatch):
-    monkeypatch.setattr(
-        "megatron.neox_arguments.arguments.version", lambda _: "2.4.0"
-    )
+    monkeypatch.setattr("megatron.neox_arguments.arguments.version", lambda _: "2.4.0")
     config = cpu_arg_config()
     config["use_mup"] = True
     config["attention_config"] = [[["flash"], "all"]]
