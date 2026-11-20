@@ -213,50 +213,13 @@ class GPT2Dataset(torch.utils.data.Dataset):
 
 
 def _build_inter_document_attention_metadata(document_lengths, seq_length):
-    """Build fixed-width packed-sequence metadata for one GPT sample."""
-    assert document_lengths is not None
-
-    # GPT2Dataset fetches seq_length + 1 tokens so that the final token can be
-    # used as the next-token label. Trim defensively before removing that extra
-    # token in case a packing implementation returned a longer final fragment.
-    remaining = seq_length + 1
-    input_document_lengths = []
-    for document_length in document_lengths:
-        fragment_length = min(int(document_length), remaining)
-        if fragment_length > 0:
-            input_document_lengths.append(fragment_length)
-            remaining -= fragment_length
-        if remaining == 0:
-            break
-
-    if input_document_lengths:
-        # The last token is only used as final label and hence not part of tokens
-        input_document_lengths[-1] -= 1
-
-        # Remove last entry if it is now empty
-        if input_document_lengths[-1] == 0:
-            input_document_lengths.pop()
-
-    # Partial samples are padded to seq_length + 1 in __getitem__. Treat input
-    # padding as part of the final fragment so the last cumulative offset always
-    # equals seq_length.
-    shortfall = seq_length - sum(input_document_lengths)
-    if shortfall > 0:
-        if input_document_lengths:
-            input_document_lengths[-1] += shortfall
-        else:
-            input_document_lengths.append(shortfall)
-
-    # We use int32 here as FA expects them to be int32 - https://github.com/Dao-AILab/flash-attention/blob/main/csrc/flash_attn/flash_api.cpp#L579
-    cu_seqlens = np.cumsum(
-        np.array([0] + input_document_lengths, dtype=np.int32), dtype=np.int32
-    )
-    assert cu_seqlens[-1] == seq_length
-
-    max_seqlen = np.max(cu_seqlens[1:] - cu_seqlens[:-1]).astype(np.int32)
+    """Return the [seq_length + 1] cu_seqlens and longest document of one sample."""
+    # The last fragment also holds the label token and any padding, so it ends at seq_length.
+    starts = np.minimum(np.cumsum(document_lengths[:-1]), seq_length)
+    cu_seqlens = np.unique(np.concatenate([[0], starts, [seq_length]])).astype(np.int32)
     padded_cu_seqlens = np.full(seq_length + 1, seq_length, dtype=np.int32)
     padded_cu_seqlens[: len(cu_seqlens)] = cu_seqlens
-    return padded_cu_seqlens, max_seqlen
+    return padded_cu_seqlens, np.diff(cu_seqlens).max().astype(np.int32)
 
 
 def _build_index_mappings(

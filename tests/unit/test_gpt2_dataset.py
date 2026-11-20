@@ -104,6 +104,16 @@ def _build_dataset(
             },
             id="sample-padding",
         ),
+        pytest.param(
+            {
+                "documents": [np.arange(3), np.arange(10, 11)],
+                "sample_idx": [[0, 0], [1, 0]],
+                "expected_text": [0, 1, 2, 10, 0, 0, 0, 0, 0],
+                "expected_cu_seqlens": [0, 3, 8, 8, 8, 8, 8, 8, 8],
+                "expected_max_seqlen": 5,
+            },
+            id="sample-padding-after-single-token-document",
+        ),
     ],
 )
 def test_inter_document_metadata_edge_cases(case):
