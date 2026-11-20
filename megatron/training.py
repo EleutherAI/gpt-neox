@@ -990,14 +990,14 @@ def get_model(neox_args, use_cache=False):
             layers=soft_prompt, idx=1
         )  # insert the soft prompt layer directly after the word embeddings
 
-        # freeze everything but the soft prompt
-        for name, param in model.named_parameters():
-            if not "soft_embedding" in name:
-                param.requires_grad = False
-
     if not neox_args.is_pipe_parallel:
         # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
         model = model.to_sequential()
+
+    # freeze everything but the soft prompt, after to_sequential rebuilds the layers
+    if (neox_args.soft_prompt_tuning or {}).get("enabled", False):
+        for name, param in model.named_parameters():
+            param.requires_grad = "soft_embedding" in name
 
     if neox_args.use_mup:
         try:
