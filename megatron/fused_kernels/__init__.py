@@ -192,5 +192,5 @@ def load_fused_kernels():
             f"ERROR: Fused kernels configured but not properly installed. Please run `from megatron.fused_kernels import load()` then `load()` to load them correctly"
         )
         print("=" * 100)
-        exit()
+        raise SystemExit(1)
     return
