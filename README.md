@@ -80,6 +80,7 @@ pip install -r requirements/requirements.txt
 pip install -r requirements/requirements-wandb.txt # optional, if logging using WandB
 pip install -r requirements/requirements-tensorboard.txt # optional, if logging via tensorboard
 pip install -r requirements/requirements-comet.txt # optional, if logging via Comet
+pip install -r requirements/requirements-mup.txt # optional, if training with μP (use_mup)
 ```
 
 from the repository root.
