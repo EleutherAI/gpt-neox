@@ -198,6 +198,46 @@ def test_neutral_top_p_skips_nucleus_filtering(monkeypatch, top_p):
     )
 
 
+@pytest.mark.parametrize("top_p,count", [(0.49, 2), (0.5, 2), (0.51, 3)])
+def test_top_p_keeps_shortest_prefix_reaching_mass(top_p, count):
+    # Test two independent rows: uniform probabilities and a unique top token.
+    logits = torch.tensor([[0.0] * 4, [10.0, 0.0, -10.0, 0.0]])
+    kept = generation.filter_logits(logits, top_p=top_p).isfinite()
+    assert kept[0].sum().item() == count
+    assert kept[1].tolist() == [True, False, False, False]
+
+
+@pytest.mark.parametrize("temperature", [1e-37, 1e-300, 5e-324])
+def test_cold_sampling_preserves_ties_masks_and_distinct_maxima(temperature):
+    logits = torch.tensor(
+        [[100.0, 100.0, 90.0], [-101.0, -100.0, -float("inf")], [0.0, 0.0, 0.0]]
+    )
+    scores = generation._scale_sampling_logits(logits, temperature)
+    assert scores.dtype == torch.float32 and scores[1, 2].isneginf()
+    torch.testing.assert_close(
+        scores.softmax(-1),
+        torch.tensor([[0.5, 0.5, 0.0], [0.0, 1.0, 0.0], [1 / 3] * 3]),
+    )
+
+
+@pytest.mark.parametrize(
+    "logits,temperature",
+    [
+        ([0.0, 1e-39, 2e-39], 1e-39),
+        ([-float("inf"), -3.0, 4.0], 1e300),
+        ([-3.0, 0.0, 4.0], 0.25),
+        ([-3.0, 0.0, 4.0], 1.0),
+        ([-3.0, 0.0, 4.0], 2.0),
+    ],
+)
+def test_temperature_preserves_representable_scores(logits, temperature):
+    logits = torch.tensor([logits])
+    expected = (logits.double() / temperature).float()
+    torch.testing.assert_close(
+        generation._scale_sampling_logits(logits, temperature), expected
+    )
+
+
 def test_positive_temperature_samples_scaled_filtered_logits(
     args, cached_model, monkeypatch
 ):
@@ -222,6 +262,25 @@ def test_prompt_generation_honors_stop_sequence_on_cpu(args, cached_model):
     )
     assert [result["context"] for result in results] == ["first", "second"]
     assert all(result["finished"] and len(result["logits"]) == 2 for result in results)
+
+
+@pytest.mark.parametrize("recompute", [False, True], ids=["cached", "recompute"])
+def test_stop_suffix_must_be_generated_by_each_row(args, cached_model, recompute):
+    model, _ = cached_model  # Generates only ones.
+    steps = generation.stream_tokens(
+        args,
+        model,
+        [[0], [1, 1, 1]],
+        maximum_tokens=5,
+        recompute=recompute,
+        stop_tokens=[[], [1, 1]],
+    )
+    assert [done.tolist() for *_, done in steps] == [
+        [False, False],  # Second row contains a stop inside its prompt.
+        [True, False],  # Only the first row has generated two ones.
+        [True, False],  # A prompt token plus one generated token is not a stop.
+        [True, True],
+    ]
 
 
 @pytest.mark.parametrize(

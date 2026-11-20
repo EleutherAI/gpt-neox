@@ -29,9 +29,9 @@ from typing import List, Dict
 from socket import gethostname
 
 try:
-    from typing import Literal, Union
+    from typing import Literal, Union, get_origin
 except ImportError:
-    from typing_extensions import Literal, Union
+    from typing_extensions import Literal, Union, get_origin
 from deepspeed.launcher.runner import DLTS_HOSTFILE
 from megatron.logging import Tee
 from megatron.tokenizer import build_tokenizer
@@ -1636,13 +1636,14 @@ class NeoXArgs(*BASE_CLASSES):
 
             actual_type = type(actual_value)
             if actual_type != field_def.type:
+                origin = get_origin(field_def.type)  # None for builtins like int/float
                 if (
                     actual_type == int and field_def.type == float
                 ):  # floats should be able to be configured as ints
                     continue
 
                 # for typing.Literal (i.e a list of choices) - checks that actual value is in accepted values
-                elif field_def.type.__origin__ == Literal:
+                elif origin is Literal:
                     accepted_values = field_def.type.__args__
                     if actual_value in accepted_values:
                         continue
@@ -1660,7 +1661,7 @@ class NeoXArgs(*BASE_CLASSES):
                         + f"{field_name}: '{actual_value}' Not in accepted values: '{accepted_values}'"
                     )
                     return False
-                elif field_def.type.__origin__ == Union:
+                elif origin is Union:
                     accepted_types = field_def.type.__args__
                     if actual_type in accepted_types:
                         continue
@@ -1673,13 +1674,10 @@ class NeoXArgs(*BASE_CLASSES):
                         )
                         return False
 
-                logging.error(
-                    f"{FAIL}"
-                    + self.__class__.__name__
-                    + ".validate_types() "
-                    + f"{field_name}: '{actual_type}' instead of '{field_def.type}'"
+                expected = getattr(field_def.type, "__name__", str(field_def.type))
+                raise ValueError(
+                    f"{field_name} must be {expected}, got {actual_type.__name__}"
                 )
-                return False
 
         # validate deepspeed dicts
         for field_name in ["optimizer", "scheduler"]:

@@ -91,7 +91,7 @@ equivalent to applying them independently to the raw model probabilities.
 | `temperature` | Finite number ≥ 0; default `0` | `0`: greedy. Positive: sample; `1` leaves the scale unchanged. |
 | `top_h` | `[0, 1]`; `0` disables | Keeps a high-probability prefix within an entropy budget, considering at most 100 candidates. `1` is **not** the off switch. |
 | `top_k` | Nonnegative integer; `0` disables | Keeps the highest-scoring k tokens, including ties. Values above the model's vocabulary width are capped with a warning when sampling. |
-| `top_p` | `[0, 1]`; default `1` | Keeps a high-probability prefix through the token that crosses the cumulative probability threshold. Both `1` and legacy NeoX `0` disable it. |
+| `top_p` | `[0, 1]`; default `1` | Keeps the smallest high-probability prefix reaching the requested mass. An exact match does not keep another token. Both `1` and legacy NeoX `0` disable it. |
 | `min_p` | `[0, 1]`; `0` disables | Keeps tokens whose probability is at least `min_p × p(most likely token)`. |
 | `typical_p` | `(0, 1]`; `1` disables | Keeps tokens whose surprisal is closest to the distribution's entropy until the requested probability mass is reached. These need not be the most probable tokens. |
 | `epsilon_cutoff` | `[0, 1)`; `0` disables | Keeps tokens at or above the probability cutoff, always retaining a highest-probability token. |
@@ -103,7 +103,8 @@ equivalent to applying them independently to the raw model probabilities.
 Their config defaults are 0 and 64. Both must be nonnegative integers, and
 the minimum cannot exceed the maximum. The minimum suppresses EOS (the
 end-of-sequence token) for the first N decisions **in both modes**; it does not
-disable explicit stop sequences or enlarge the model's context window. Leave
+disable explicit stop sequences or enlarge the model's context window. A stop
+sequence must occur entirely in newly generated tokens for that prompt. Leave
 room for generation: a prompt using all of `seq_length` has no decode step.
 
 Each file-mode record contains `context` (the prompt), `text` (the completion
@@ -116,6 +117,9 @@ Set `return_logits: true` only if you need scores: it adds one row of
 **processed scores over the full padded vocabulary** for each executed decode
 step. They are neither raw model logits nor probabilities. Masked tokens have
 score `-inf`; in sampling mode the scores also reflect temperature and filtering.
+If a row's highest logit reaches the FP32 magnitude limit under temperature
+scaling, NeoX can subtract that logit first. This changes the score offset, not the
+sampling probabilities, and preserves ties.
 For example, if `minimum_tokens: 2` and EOS wins as soon as it is allowed, the
 completion has length **2** but `logits` has **3 rows**. The EOS column is
 `-inf` in rows 0 and 1, and row 2 records the EOS decision. There are no rows

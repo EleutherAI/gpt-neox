@@ -108,6 +108,29 @@ def test_config_rejects_invalid_sampling_before_model_setup(name, value):
 
 
 @pytest.mark.cpu
+@pytest.mark.parametrize(
+    "name,value,expected",
+    [
+        ("top_k", True, "int"),
+        ("temperature", "0.5", "float"),
+        ("minimum_tokens", 1.5, "int"),
+    ],
+)
+def test_config_reports_mistyped_sampling_option(name, value, expected):
+    from megatron.neox_arguments import NeoXArgs
+
+    with pytest.raises(
+        ValueError, match=f"{name} must be {expected}, got {type(value).__name__}"
+    ):
+        NeoXArgs.from_ymls(
+            get_configs_with_path(
+                ["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]
+            ),
+            overwrite_values={"log_dir": None, name: value},
+        )
+
+
+@pytest.mark.cpu
 def test_config_rejects_minimum_above_maximum():
     from megatron.neox_arguments import NeoXArgs
 

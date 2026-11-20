@@ -117,7 +117,7 @@ def filter_logits(
 
     logits: torch.Tensor -> logits of megatron model.
     top_k: keep the k highest-scoring tokens (including ties); 0 disables it. Values above vocabulary size are capped with a warning.
-    top_p: float -> Keep the most probable tokens up to this cumulative probability; 1 (or legacy 0) disables nucleus filtering.
+    top_p: float -> Keep the shortest high-probability prefix reaching this cumulative probability; 1 (or legacy 0) disables nucleus filtering.
     min_p: float -> Keeps tokens whose probability is at least min_p times the probability of the most likely token. Must be between 0 and 1; 0 disables min-p sampling.
     top_h: float -> Keeps a high-probability prefix of at most 100 tokens within an entropy budget. Enabled values must be greater than 0 and at most 1; 0 disables top-h sampling.
     typical_p: float -> Keeps tokens closest to the expected surprisal until their cumulative probability reaches typical_p. Must be greater than 0 and at most 1; 1 disables locally typical sampling.
@@ -184,19 +184,11 @@ def _apply_logits_filters(
         logits[indices_to_remove] = filter_value
 
     if 0.0 < top_p < 1.0:
-        # convert to 1D
-        sorted_logits, sorted_indices = torch.sort(logits, descending=True, dim=-1)
-        cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
-
-        # Remove tokens with cumulative probability above the threshold
-        sorted_indices_to_remove = cumulative_probs > top_p
-        # Shift the indices to the right to keep also the first token
-        # above the threshold
-        sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
-        sorted_indices_to_remove[..., 0] = 0
-        for i in range(sorted_indices.size(0)):
-            indices_to_remove = sorted_indices[i][sorted_indices_to_remove[i]]
-            logits[i][indices_to_remove] = filter_value
+        # HF removes the least likely tail, including a tail of mass exactly 1 - p.
+        sorted_logits, sorted_indices = torch.sort(logits, dim=-1)
+        remove = sorted_logits.softmax(dim=-1).cumsum(dim=-1) <= 1.0 - top_p
+        remove[..., -1] = False  # Keep at least one token even at rounding limits.
+        logits.masked_fill_(remove.scatter(-1, sorted_indices, remove), filter_value)
 
     if min_p > 0.0:
         probabilities = F.softmax(logits, dim=-1)
@@ -349,18 +341,47 @@ def broadcast_terminate_signal(terminate_runs: int, *, device="cuda", across_job
     return terminate_runs_tensor[0].item()
 
 
-def stop_tokens_in_completion(stop_tokens, context_tokens, batch_index, current_index):
-    if stop_tokens is None:
-        return False
-    res = []
-    for token_group in stop_tokens:
-        context = context_tokens[batch_index, : current_index + 1]
-        context = context[-len(token_group) :]
-        if context.shape[0] == token_group.shape[0]:
-            res.append(all(token_group == context))
-        else:
-            res.append(False)
-    return any(res)
+def _generated_stop_mask(stop_tokens, tokens, end, generation_start):
+    """Match suffixes in tokens[..., :end] that start at or after each prompt's end."""
+    matched = tokens.new_zeros(tokens.shape[:-1], dtype=torch.bool)
+    for group in stop_tokens or ():
+        start = end - group.numel()
+        if 0 <= start < end:
+            matched |= (start >= generation_start) & (
+                tokens[..., start:end] == group
+            ).all(-1)
+    return matched
+
+
+def stop_tokens_in_completion(
+    stop_tokens, context_tokens, batch_index, current_index, *, generation_start=0
+):
+    """Check one row through current_index (inclusive); optionally exclude its prompt."""
+    return _generated_stop_mask(
+        stop_tokens, context_tokens[batch_index], current_index + 1, generation_start
+    ).item()
+
+
+def _scale_sampling_logits(logits, temperature):
+    """Return FP32 scores, shifting rows only at the FP32 scaling limit."""
+    fp32 = torch.finfo(torch.float32)
+    if temperature == 1.0 and logits.dtype != torch.float64:
+        return logits.float()
+    # A valid Python float can round to zero (or infinity) as an FP32 divisor.
+    wide = logits.dtype == torch.float64 or not fp32.tiny <= temperature <= fp32.max
+    scores = logits.to(torch.float64 if wide else torch.float32)
+    limit = fp32.max * temperature
+    if torch.finfo(logits.dtype).max > limit:
+        # If a row's maximum reaches the FP32 scaling limit, first subtract it.
+        # Softmax and all sampling filters are invariant to this row-wise shift.
+        peak = scores.amax(dim=-1, keepdim=True)
+        scores = scores - torch.where(peak.abs() >= limit, peak, 0.0)
+    if temperature < torch.finfo(torch.float64).tiny:
+        # Even the reciprocal of the divisor can overflow FP64. Two normal
+        # divisors keep a tied maximum at zero rather than producing 0 * inf.
+        root = math.sqrt(temperature)
+        return ((scores / root) / root).float()
+    return (scores / temperature).float()
 
 
 def stream_tokens(
@@ -398,6 +419,8 @@ def stream_tokens(
     maximum_tokens: maximum number of tokens to be generated; careful! if a batch input is provided maximum_tokens specifies the maximum number of forwards.
                     longer batch items get less generated tokens.
     minimum_tokens: minimum number of tokens before EOS is eligible; cannot exceed maximum_tokens when specified
+    stop_tokens: a sequence of token IDs, or a list of sequences. A match must be
+        entirely within the new tokens generated for that batch item.
     recompute: if True, run a full forward pass at every step; if False (default), reuse this prompt's KV cache.
     temperature (default 0.0): zero selects greedy argmax and ignores sampling filters.
         A positive value samples from the temperature-scaled, filtered distribution.
@@ -417,7 +440,7 @@ def stream_tokens(
                         including the EOS decision, with no unused rows. EOS is -inf for
                         the first minimum_tokens generated positions. Sampling also applies
                         temperature and filters. None if return_logits is disabled),
-                is_done (flag for each bach item indicating whether an eod token was generated)
+                is_done (per-item flag indicating EOS or a generated stop sequence)
             )
 
             * each iteration adds a generated token to the context_tokens
@@ -515,9 +538,11 @@ def _stream_tokens(
     # convert to tensor and broadcast
     context_tokens = torch.tensor(context_tokens, dtype=torch.long, device=model.device)
     if stop_tokens:
-        if len(stop_tokens) > 0 and type(stop_tokens[0]) is not list:
+        if not isinstance(stop_tokens[0], list):
             stop_tokens = [stop_tokens]
-        stop_tokens = [context_tokens.new_tensor(group) for group in stop_tokens]
+        stop_tokens = [
+            context_tokens.new_tensor(group) for group in stop_tokens if group
+        ]
 
     # Make sure context tokens + start tokens are the same across all ranks
     token_generation_start_index = context_tokens.new_tensor(context_lengths)
@@ -651,8 +676,9 @@ def _stream_tokens(
                 )
 
                 if not greedy:
-                    generated_token_logits = generated_token_logits.float()
-                    generated_token_logits /= temperature
+                    generated_token_logits = _scale_sampling_logits(
+                        generated_token_logits, temperature
+                    )
                     generated_token_logits = _apply_logits_filters(
                         generated_token_logits, **filters
                     )
@@ -690,14 +716,14 @@ def _stream_tokens(
             state_done = (
                 generated_tokens == eos_token_id
             ).byte() & state_started.byte()  # check which batch items produce an eos_token in the current iteration
-            state_just_finished = (state_done & ~state_is_done).bool()
             state_is_done = state_is_done | state_done
-            stop_tokens_produced = torch.zeros_like(state_is_done)
-            for batch_idx, ctx in enumerate(context_tokens):
-                stop_tokens_produced[batch_idx] = stop_tokens_in_completion(
-                    stop_tokens, context_tokens, batch_idx, token_index_to_generate
+            if stop_tokens:
+                state_is_done |= _generated_stop_mask(
+                    stop_tokens,
+                    context_tokens,
+                    token_index_to_generate + 1,
+                    token_generation_start_index,
                 )
-            state_is_done = state_is_done | stop_tokens_produced
 
             token_generation_end_index[
                 (state_started.byte() & ~state_is_done).bool()
