@@ -43,7 +43,8 @@ from megatron import mpu
 
 # https://github.com/NVIDIA/TransformerEngine/issues/405
 import os
-os.environ['NVTE_TORCH_COMPILE'] = str(0)
+
+os.environ["NVTE_TORCH_COMPILE"] = str(0)
 
 try:
     import transformer_engine as te
@@ -52,7 +53,6 @@ except ImportError:
         "Unable to import transformer-engine. Please refer to "
         "https://github.com/NVIDIA/TransformerEngine for installation instructions."
     )
-
 
 
 class TERMSNorm(torch.nn.Module):
@@ -144,7 +144,7 @@ class TELinear(te.pytorch.Linear):
 
     def forward(self, inp, **kwargs):
         if self.use_mup and self.mup_rescale_parameters:
-            input_ /= self.width_mult()
+            inp = inp / self.width_mult()
 
         output = super(TELinear, self).forward(inp, **kwargs)
 
@@ -372,7 +372,7 @@ class TEColumnParallelLinear(te.pytorch.Linear):
 
     def forward(self, inp, **kwargs):
         if self.use_mup and self.mup_rescale_parameters:
-            input_ /= self.width_mult()
+            inp = inp / self.width_mult()
 
         output = super(TEColumnParallelLinear, self).forward(inp, **kwargs)
         if self.skip_bias_add:
@@ -507,7 +507,7 @@ class TERowParallelLinear(te.pytorch.Linear):
 
     def forward(self, inp, **kwargs):
         if self.use_mup and self.mup_rescale_parameters:
-            input_ /= self.width_mult()
+            inp = inp / self.width_mult()
 
         output = super(TERowParallelLinear, self).forward(inp, **kwargs)
 
@@ -578,7 +578,11 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
             init_method=self.init_method,
             output_layer_init_method=self.output_layer_init_method,
             layer_number=self.layer_number,
-            window_size=neox_args.sliding_window_width,
+            window_size=(
+                (neox_args.sliding_window_width, 0)
+                if neox_args.sliding_window_width is not None
+                else None
+            ),
             num_gqa_groups=self.num_kv_heads,
             input_layernorm=False,
             normalization=self.normalization,
@@ -595,6 +599,7 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
             fuse_qkv_params=True,
         )
 
+        self.rope_emb = None
         if neox_args.pos_emb == "rotary":
             self.hidden_size_per_attention_head = mpu.divide(
                 neox_args.hidden_size, neox_args.num_attention_heads
@@ -622,12 +627,40 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
             self.rope_emb = self.rotary_embeddings.get_emb()
 
     def forward(
-        self, hidden_states, attention_mask, layer_past=None, rope_emb=None, **kwargs
+        self,
+        hidden_states,
+        attention_mask,
+        layer_past=None,
+        rope_emb=None,
+        *,
+        cu_seqlens=None,
+        num_documents=None,
+        max_seqlen=None,
+        **kwargs,
     ):
-        output = super(TEMultiheadAttention, self).forward(
-            hidden_states, attention_mask, rotary_pos_emb=self.rope_emb, **kwargs
-        )
-        return output
+        if cu_seqlens is None:
+            return super(TEMultiheadAttention, self).forward(
+                hidden_states, attention_mask, rotary_pos_emb=self.rope_emb, **kwargs
+            )
+        cu_seqlens = cu_seqlens[: int(num_documents.item()) + 1]
+        max_seqlen = int(max_seqlen.item())
+        self.qkv_format = "thd"
+        try:
+            output, bias = super(TEMultiheadAttention, self).forward(
+                hidden_states,
+                None,
+                rotary_pos_emb=self.rope_emb,
+                attn_mask_type="padding_causal",
+                cu_seqlens_q=cu_seqlens,
+                cu_seqlens_kv=cu_seqlens,
+                max_seqlen_q=max_seqlen,
+                max_seqlen_kv=max_seqlen,
+                **kwargs,
+            )
+        finally:
+            self.qkv_format = "sbhd"
+        # THD output is [T, H]; restore the singleton batch dimension.
+        return output.unsqueeze(1), bias
 
 
 class TEDelayedScaling(te.common.recipe.DelayedScaling):
@@ -651,7 +684,7 @@ class TEDelayedScaling(te.common.recipe.DelayedScaling):
         override_linear_precision = (False, False, not neox_args.te_fp8_wgrad)
 
         super().__init__(
-            margin=neox_args.fp8_margin,
+            margin=neox_args.te_fp8_margin,
             fp8_format=te_fp8_format,
             amax_compute_algo=neox_args.te_fp8_amax_compute_algo,
             amax_history_len=neox_args.te_fp8_amax_history_len,

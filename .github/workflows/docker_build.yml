@@ -31,6 +31,7 @@ jobs:
 
       -
         name: Login to DockerHub
+        if: github.repository == 'EleutherAI/gpt-neox'
         uses: docker/login-action@v1
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -41,7 +42,9 @@ jobs:
         id: docker_build
         uses: docker/build-push-action@v2
         with:
-          push: ${{ github.event_name != 'pull_request' }}
+          context: .
+          file: containers/docker/Dockerfile
+          push: ${{ github.repository == 'EleutherAI/gpt-neox' }}
           tags: ${{ steps.docker_meta.outputs.tags }}
           labels: ${{ steps.docker_meta.outputs.labels }}
 

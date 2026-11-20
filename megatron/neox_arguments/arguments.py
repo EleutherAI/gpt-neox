@@ -100,6 +100,108 @@ AUTOTUNING_ARGS = (
     "autotuning",
 )
 
+# deprecated config key -> its replacement (None if it has none)
+DEPRECATED_ARGS = {"clip_grad": "gradient_clipping", "sparse_attention": None}
+
+
+def _validate_qk_norm_args(
+    use_qk_norm,
+    qk_norm,
+    qk_norm_type,
+    qk_norm_separate,
+    qk_norm_across_tp,
+    norm,
+    layernorm_fusion,
+    rmsnorm_fusion,
+    hidden_size,
+    num_attention_heads,
+    num_kv_heads,
+    model_parallel_size,
+    te_mha=False,
+):
+    """Validate QK normalization options before model construction."""
+    if use_qk_norm and te_mha:
+        raise ValueError(
+            "`use_qk_norm=True` is not supported with `te_mha`/`te_fp8_mha`: "
+            "Transformer Engine attention does not apply Q/K normalization."
+        )
+
+    if qk_norm_type not in ("per_head", "across_heads"):
+        raise ValueError(
+            f"Invalid qk_norm_type {qk_norm_type!r}; expected "
+            "'per_head' or 'across_heads'."
+        )
+
+    if qk_norm is not None and not use_qk_norm:
+        raise ValueError("Setting `qk_norm` requires `use_qk_norm=True`.")
+    if qk_norm_separate and not use_qk_norm:
+        raise ValueError("`qk_norm_separate=True` requires `use_qk_norm=True`.")
+
+    resolved_qk_norm = qk_norm or norm
+    if qk_norm_across_tp:
+        if not use_qk_norm:
+            raise ValueError("`qk_norm_across_tp=True` requires `use_qk_norm=True`.")
+        if qk_norm_type != "across_heads":
+            raise ValueError(
+                "`qk_norm_across_tp=True` requires "
+                "`qk_norm_type='across_heads'`. Disable the flag to use "
+                "per-head QK normalization."
+            )
+        if resolved_qk_norm in ("te_rmsnorm", "te_layernorm"):
+            native_qk_norm = resolved_qk_norm[3:]
+            raise ValueError(
+                f"`qk_norm_across_tp=True` does not support "
+                f"`qk_norm={resolved_qk_norm!r}` because Transformer Engine "
+                "computes normalization statistics inside its kernel. Set "
+                f"`qk_norm={native_qk_norm!r}`, or disable "
+                "`qk_norm_across_tp`."
+            )
+        if resolved_qk_norm == "rmsnorm" and rmsnorm_fusion:
+            raise ValueError(
+                "`qk_norm_across_tp=True` cannot be combined with "
+                "`rmsnorm_fusion=True` for Q/K because the fused kernel computes "
+                "its statistics internally. Set `rmsnorm_fusion=False`, select "
+                "a different native `qk_norm`, or disable `qk_norm_across_tp`."
+            )
+        if resolved_qk_norm == "layernorm" and layernorm_fusion:
+            raise ValueError(
+                "`qk_norm_across_tp=True` cannot be combined with "
+                "`layernorm_fusion=True` for Q/K because the fused kernel "
+                "computes its statistics internally. Set "
+                "`layernorm_fusion=False`, select a different native `qk_norm`, "
+                "or disable `qk_norm_across_tp`."
+            )
+
+    effective_num_kv_heads = num_kv_heads or num_attention_heads
+    if (
+        use_qk_norm
+        and qk_norm_type == "across_heads"
+        and effective_num_kv_heads != num_attention_heads
+        and not qk_norm_separate
+    ):
+        head_size = hidden_size // num_attention_heads
+        q_norm_size = num_attention_heads // model_parallel_size * head_size
+        k_norm_size = effective_num_kv_heads // model_parallel_size * head_size
+        raise ValueError(
+            "QK normalization cannot share query and key norm parameters because "
+            f"their normalized sizes differ (query={q_norm_size}, "
+            f"key={k_norm_size}). This happens when "
+            "`qk_norm_type='across_heads'` is used with GQA/MQA. Set "
+            "`qk_norm_separate=True`, use `qk_norm_type='per_head'`, or set "
+            "`num_kv_heads` equal to "
+            "`num_attention_heads`."
+        )
+
+
+def _reject_renamed_args(config):
+    if "use_qk_layernorm" in config:
+        raise ValueError(
+            "`use_qk_layernorm` was renamed to `use_qk_norm`. Q/K norm weights are "
+            "now stored as `q_layernorm`/`k_layernorm` with a different shape, so "
+            "checkpoints trained with the old flag will not load."
+        )
+
+
 BASE_CLASSES = [
     NeoXArgsDeepspeedRunner,
     NeoXArgsDeepspeedConfig,
@@ -220,6 +322,31 @@ class NeoXArgs(*BASE_CLASSES):
                 )
                 raise e
 
+    @staticmethod
+    def _strip_deprecated_config_keys(config: Dict) -> Dict:
+        config = config.copy()
+        for old, new in DEPRECATED_ARGS.items():
+            if old not in config:
+                continue
+            value = config.pop(old)
+            if new is None:
+                raise ValueError(
+                    f"Configuration option '{old}' has been removed; "
+                    f"delete it from your config."
+                )
+            if new in config:
+                raise ValueError(
+                    f"Configuration sets both '{old}: {value}' and "
+                    f"'{new}: {config[new]}'. '{old}' is deprecated: "
+                    f"remove it and keep only '{new}'."
+                )
+            config[new] = value
+            logging.warning(
+                f"Configuration option '{old}' is deprecated and used as "
+                f"'{new}: {value}'; use '{new}' instead."
+            )
+        return config
+
     @classmethod
     def from_ymls(cls, paths_to_yml_files: List[str], overwrite_values: Dict = None):
         """
@@ -280,8 +407,12 @@ class NeoXArgs(*BASE_CLASSES):
             for k, v in overwrite_values.items():
                 config[k] = v
 
+        # Accept obsolete configuration keys so older configs continue to load.
+        config = cls._strip_deprecated_config_keys(config)
+
         # instantiate class and return
         # duplicate values and unrecognized keys are again checked upon instantiation
+        _reject_renamed_args(config)
         return cls(**config)
 
     @classmethod
@@ -289,7 +420,9 @@ class NeoXArgs(*BASE_CLASSES):
         """
         instantiates NeoXArgs while reading values from input dict
         """
-        return cls(**args_dict)
+        config = cls._strip_deprecated_config_keys(args_dict)
+        _reject_renamed_args(config)
+        return cls(**config)
 
     ############################################################################################################################
     # start of command line args interface
@@ -958,8 +1091,6 @@ class NeoXArgs(*BASE_CLASSES):
                 "train_micro_batch_size_per_gpu": train_micro_batch_size_per_gpu,
                 "gradient_accumulation_steps": gradient_accumulation_steps,
                 "batch_size": train_micro_batch_size_per_gpu,
-                # duplicate items
-                "clip_grad": self.gradient_clipping,
             }
         )
 
@@ -1023,20 +1154,6 @@ class NeoXArgs(*BASE_CLASSES):
                         "zero_stage": self.zero_optimization.get(
                             "stage", ZERO_DEFAULTS["stage"]
                         ),
-                        "zero_reduce_scatter": self.zero_optimization.get(
-                            "reduce_scatter", ZERO_DEFAULTS["reduce_scatter"]
-                        ),
-                        "zero_contiguous_gradients": self.zero_optimization.get(
-                            "contiguous_gradients",
-                            ZERO_DEFAULTS["contiguous_gradients"],
-                        ),
-                        "zero_reduce_bucket_size": self.zero_optimization.get(
-                            "reduce_bucket_size", ZERO_DEFAULTS["reduce_bucket_size"]
-                        ),
-                        "zero_allgather_bucket_size": self.zero_optimization.get(
-                            "allgather_bucket_size",
-                            ZERO_DEFAULTS["allgather_bucket_size"],
-                        ),
                     }
                 )
             else:
@@ -1086,7 +1203,9 @@ class NeoXArgs(*BASE_CLASSES):
 
         # MoE config
         if self.moe_num_experts > 1:
-            assert self.zero_optimization["stage"] < 2, "MoE is not compatible with zero stages 2 and 3"
+            assert (
+                self.zero_optimization["stage"] < 2
+            ), "MoE is not compatible with zero stages 2 and 3"
 
         # Attention config
         if self.attention_config is None:
@@ -1110,7 +1229,7 @@ class NeoXArgs(*BASE_CLASSES):
             if isinstance(self.zero_stage, int):
                 assert self.zero_stage <= 2, "Zero stage 3 not compatible with Mamba"
             assert (
-                self.hidden_dropout == 0.0,
+                self.hidden_dropout == 0.0
             ), "Mamba does not yet have dropout implemented"
         if "rwkv" in self.attention_config:
             assert (
@@ -1119,8 +1238,50 @@ class NeoXArgs(*BASE_CLASSES):
             if isinstance(self.zero_stage, int):
                 assert self.zero_stage <= 2, "Zero stage 3 not compatible with RWKV"
             assert (
-                self.hidden_dropout == 0.0,
+                self.hidden_dropout == 0.0
             ), "RWKV does not yet have dropout implemented"
+
+        if self.te_mha or self.te_fp8_mha:
+            assert self.pos_emb in (
+                "rotary",
+                "learned",
+                "sinusoidal",
+                "none",
+            ), f"te_mha does not support pos_emb {self.pos_emb}"
+
+        if self.inter_document_attention_masking:
+            assert (
+                self.dataset_impl == "gpt2" and self.train_impl == "normal"
+            ), "inter_document_attention_masking requires dataset_impl gpt2 and train_impl normal"
+            assert not (self.soft_prompt_tuning or {}).get(
+                "enabled", False
+            ), "inter_document_attention_masking does not support soft_prompt_tuning"
+            assert (
+                not self.curriculum_learning
+            ), "inter_document_attention_masking does not support curriculum_learning"
+            assert (
+                not self.sequence_parallel
+            ), "inter_document_attention_masking does not support sequence_parallel"
+            assert (
+                not self.te_fp8_mha
+            ), "inter_document_attention_masking does not support te_fp8_mha"
+            assert self.pos_emb in (
+                "learned",
+                "rotary",
+                "alibi",
+                "none",
+            ), f"inter_document_attention_masking does not support pos_emb {self.pos_emb}"
+            if self.te_mha:
+                assert set(self.attention_config) <= {"global", "flash"}
+                assert packaging.version.Version(
+                    version("transformer-engine")
+                ) >= packaging.version.Version(
+                    "1.12.0"
+                ), "inter_document_attention_masking requires Transformer Engine >= 1.12.0"
+            else:
+                assert set(self.attention_config) == {
+                    "flash"
+                }, "inter_document_attention_masking requires flash attention in every layer"
 
         # Sparsity config
         if self.sparsity_config is None:
@@ -1212,6 +1373,39 @@ class NeoXArgs(*BASE_CLASSES):
         if not self.deepspeed:
             return False
 
+        if self.attn_softmax_clipping:
+            if self.attn_softmax_clipping_zeta < 1.0:
+                raise ValueError(
+                    "`attn_softmax_clipping_zeta` must be greater than or equal "
+                    "to 1.0."
+                )
+            if self.attn_softmax_clipping_gamma > 0.0:
+                raise ValueError(
+                    "`attn_softmax_clipping_gamma` must be less than or equal "
+                    "to 0.0."
+                )
+            if self.te_mha or self.te_fp8_mha:
+                raise ValueError(
+                    "`attn_softmax_clipping` is not supported with "
+                    "`te_mha` or `te_fp8_mha`."
+                )
+            unsupported_attention = sorted(
+                set(self.attention_config)
+                & {
+                    "flash",
+                    "local",
+                    "sparse_fixed",
+                    "sparse_variable",
+                    "bigbird",
+                    "bslongformer",
+                }
+            )
+            if unsupported_attention:
+                raise ValueError(
+                    "`attn_softmax_clipping` is not supported by attention "
+                    f"types: {', '.join(unsupported_attention)}."
+                )
+
         # learning rate
         if self.lr is None:
             error_message = (
@@ -1241,6 +1435,38 @@ class NeoXArgs(*BASE_CLASSES):
                 raise ValueError(error_message)
                 return False
 
+        if self.use_mup:
+            for name in ("mup_attn_temp", "mup_output_temp"):
+                if getattr(self, name) <= 0:
+                    raise ValueError(
+                        f"{name} must be greater than zero when use_mup is enabled"
+                    )
+
+            if self.te_mha or self.te_fp8_mha:
+                raise ValueError(
+                    "μP attention scaling does not support Transformer Engine "
+                    "attention"
+                )
+
+            attention_types = set(self.attention_config)
+            unsupported_attention_types = sorted(
+                attention_types
+                & {
+                    "local",
+                    "sparse_fixed",
+                    "sparse_variable",
+                    "bigbird",
+                    "bslongformer",
+                    "flash",
+                }
+            )
+            if unsupported_attention_types:
+                raise ValueError(
+                    "μP attention scaling supports global attention only. "
+                    "Unsupported attention types: "
+                    + ", ".join(unsupported_attention_types)
+                )
+
         # Checks.
         if self.hidden_size % self.num_attention_heads != 0 and not (
             "mamba" in self.attention_config
@@ -1253,6 +1479,26 @@ class NeoXArgs(*BASE_CLASSES):
             logging.error(error_message)
             raise ValueError(error_message)
             return False
+
+        # mup scaling is implemented for ParallelSelfAttention only.
+        if self.use_mup and {"gmlp", "amlp"} & set(self.attention_config):
+            raise ValueError("use_mup does not support gmlp or amlp attention.")
+
+        _validate_qk_norm_args(
+            use_qk_norm=self.use_qk_norm,
+            qk_norm=self.qk_norm,
+            qk_norm_type=self.qk_norm_type,
+            qk_norm_separate=self.qk_norm_separate,
+            qk_norm_across_tp=self.qk_norm_across_tp,
+            norm=self.norm,
+            layernorm_fusion=self.layernorm_fusion,
+            rmsnorm_fusion=self.rmsnorm_fusion,
+            hidden_size=self.hidden_size,
+            num_attention_heads=self.num_attention_heads,
+            num_kv_heads=self.num_kv_heads,
+            model_parallel_size=self.model_parallel_size,
+            te_mha=self.te_mha or self.te_fp8_mha,
+        )
 
         if self.seq_length is not None:
             if not (self.max_position_embeddings >= self.seq_length):
@@ -1321,6 +1567,16 @@ class NeoXArgs(*BASE_CLASSES):
             raise ValueError(error_message)
             return False
 
+        if self.fp16_lm_cross_entropy and self.cross_entropy_fusion:
+            error_message = (
+                f"{FAIL}"
+                + self.__class__.__name__
+                + ".validate_values() fp16_lm_cross_entropy is not supported with cross_entropy_fusion, which computes in fp32."
+            )
+            logging.error(error_message)
+            raise ValueError(error_message)
+            return False
+
         # assert that if one of train/test/valid_data_path are provided, data_path should not be
         has_separate_path = [
             data_path is not None
@@ -1359,6 +1615,43 @@ class NeoXArgs(*BASE_CLASSES):
             assert len(self.valid_data_paths) == len(self.valid_data_weights)
         if self.test_data_paths is not None:
             assert len(self.test_data_paths) == len(self.test_data_weights)
+
+        eval_subset_path_fields = {
+            "valid": self.valid_data_paths or self.pos_valid_data_paths,
+            "test": self.test_data_paths or self.pos_test_data_paths,
+        }
+        for split, paths in eval_subset_path_fields.items():
+            names = getattr(self, f"{split}_data_names")
+            if names is None:
+                continue
+            if paths is None:
+                raise ValueError(
+                    f"{split}_data_names requires explicit {split}_data_paths."
+                )
+            if len(names) != len(paths):
+                raise ValueError(
+                    f"{split}_data_names length ({len(names)}) must match "
+                    f"{split}_data_paths length ({len(paths)})."
+                )
+            if len(set(names)) != len(names):
+                raise ValueError(f"{split}_data_names entries must be unique.")
+            if not all(isinstance(name, str) and name for name in names):
+                raise ValueError(
+                    f"{split}_data_names entries must be non-empty strings."
+                )
+
+        if self.eval_loss_logging != "blended":
+            if self.data_path is not None:
+                raise ValueError(
+                    "eval_loss_logging='separate' or 'blended_and_separate' requires "
+                    "explicit train/valid/test data path lists; data_path plus split only "
+                    "supports blended evaluation."
+                )
+            if self.valid_data_paths is None and self.pos_valid_data_paths is None:
+                raise ValueError(
+                    "eval_loss_logging='separate' or 'blended_and_separate' requires "
+                    "explicit validation dataset paths."
+                )
 
         return True
 

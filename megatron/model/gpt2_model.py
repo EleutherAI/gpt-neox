@@ -57,7 +57,7 @@ def gpt2_attention_mask_func(attention_scores, ltor_mask):
     return attention_scores
 
 
-def cross_entropy(output, labels, _fp16=False):
+def cross_entropy(output, labels, _fp16=False, _fused=False):
     """From pretrain_gpt2:forward_step()"""
     """
     if self.fp16_lm_cross_entropy:
@@ -70,6 +70,15 @@ def cross_entropy(output, labels, _fp16=False):
     labels, loss_mask = labels[0], labels[1]
     if _fp16:
         assert output.dtype == torch.half and loss_mask.dtype == torch.half
+    if _fused:
+        from megatron.fused_kernels.fused_cross_entropy import (
+            fused_vocab_parallel_cross_entropy,
+        )
+
+        losses = fused_vocab_parallel_cross_entropy(
+            output.contiguous(), labels, mpu.get_model_parallel_group()
+        )
+    elif _fp16:
         losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels)
     else:
         losses = mpu.vocab_parallel_cross_entropy(output.float().contiguous(), labels)
@@ -80,7 +89,10 @@ def cross_entropy(output, labels, _fp16=False):
 
 def _pre_transformer_block(args):
     # data format change for hidden_states to avoid explicit tranposes : [b s h] --> [s b h]
-    assert len(args) == 2, "Incorrect number of arguments to _pre_transformer_block"
+    assert len(args) in (
+        2,
+        5,
+    ), "Incorrect number of arguments to _pre_transformer_block"
     fn = lambda _args: (_args[0].transpose(0, 1).contiguous(), *_args[1:])
     return fn(args)
 
@@ -88,7 +100,10 @@ def _pre_transformer_block(args):
 def _post_transformer_block(args):
     # from (hidden_states, attention_mask)
     # to (hidden_states.T)
-    assert len(args) == 2, "Incorrect number of arguments to _post_transformer_block"
+    assert len(args) in (
+        2,
+        5,
+    ), "Incorrect number of arguments to _post_transformer_block"
     fn = lambda _args: (_args[0].transpose(0, 1).contiguous())
     return fn(args)
 
@@ -130,7 +145,11 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
 
         super().__init__(
             layers=self.specs,
-            loss_fn=partial(cross_entropy, _fp16=self.neox_args.fp16_lm_cross_entropy),
+            loss_fn=partial(
+                cross_entropy,
+                _fp16=self.neox_args.fp16_lm_cross_entropy,
+                _fused=self.neox_args.cross_entropy_fusion,
+            ),
             topology=topology,
             activation_checkpoint_interval=self.neox_args.checkpoint_num_layers
             if self.neox_args.checkpoint_activations
@@ -186,7 +205,8 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         self.specs = []
 
         # Embedding layer
-        # input will be (input_ids, position_ids, attention_mask)
+        # input will be (input_ids, position_ids, attention_mask), with
+        # (cu_seqlens, num_documents, max_seqlen) before attention_mask for packed sequences
 
         if weight_tying:
             self.specs.append(
@@ -306,6 +326,7 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                     lm_output
                     / self.tied_modules.embed.word_embeddings.weight.infshape.width_mult()
                 )
+                lm_output = lm_output / self.neox_args.mup_output_temp
 
             logits = parallel_lm_logits(
                 lm_output,
