@@ -317,6 +317,77 @@ def test_multi_prompt_request_validates_and_warns_once(
         assert message in messages[0]
 
 
+@pytest.mark.parametrize("mode", ["input-file", "unconditional", "interactive"])
+def test_cli_uses_config_without_duplicate_checks_or_warnings(
+    mode, args, cached_model, monkeypatch, tmp_path, capsys
+):
+    import generate as cli
+    from megatron.neox_arguments import NeoXArgs
+    from tests.common import get_configs_with_path
+
+    prompts, output = tmp_path / "prompts", tmp_path / "answers"
+    prompts.write_text("one\ntwo\n")
+    model, _ = cached_model
+    args.tokenizer.tokenize = lambda _: [1]
+    args.tokenizer.detokenize = lambda ids: "".join(map(str, ids))
+    monkeypatch.setattr(torch.distributed, "get_rank", lambda: 0)
+    monkeypatch.setattr(
+        torch.distributed, "broadcast_object_list", lambda *a, **kw: None
+    )
+    monkeypatch.setattr(generation.os, "system", lambda _: 0)
+    monkeypatch.setattr("builtins.input", Mock(side_effect=["one", EOFError()]))
+    validate = Mock(wraps=sampling.validate_sampling_options)
+    monkeypatch.setattr(sampling, "validate_sampling_options", validate)
+    sample = mode == "unconditional"
+    warning = "truncating top_k to 2" if sample else "will be ignored: top_k=1"
+    with pytest.warns(UserWarning, match=warning) as caught:
+        config = NeoXArgs.from_ymls(
+            get_configs_with_path(
+                ["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]
+            ),
+            overwrite_values=dict(
+                log_dir=None,
+                text_gen_type=mode,
+                sample_input_file=str(prompts),
+                sample_output_file=str(output),
+                num_samples=2,
+                pipe_parallel_size=0,
+                padded_vocab_size=2,
+                seq_length=16,
+                minimum_tokens=2,
+                maximum_tokens=2,
+                temperature=1.0 if sample else 0.0,
+                top_k=99 if sample else 1,
+            ),
+        )
+        config.tokenizer = args.tokenizer
+        monkeypatch.setattr(
+            cli, "setup_for_inference_or_eval", lambda **kw: (model, config)
+        )
+        cli.main()
+    assert sum(warning in str(w.message) for w in caught) == 1
+    validate.assert_called_once()
+    if mode == "interactive":
+        assert "Generated Text: 11" in capsys.readouterr().out
+    else:
+        rows = [json.loads(line) for line in output.read_text().splitlines()]
+        assert [r["context"] for r in rows] == (
+            ["one", "two"] if mode == "input-file" else ["", ""]
+        )
+        assert [r["text"] for r in rows] == ["11", "11"]
+
+
+def test_precompute_and_unknown_modes_do_not_build_a_sampling_stream(monkeypatch):
+    precompute = Mock()
+    monkeypatch.setattr(generation, "precompute_logits", precompute)
+    args, model = SimpleNamespace(text_gen_type="precompute"), Mock()
+    generation.generate_from_config(args, model)
+    precompute.assert_called_once_with(args, model)
+    args.text_gen_type = "unknown"
+    with pytest.raises(ValueError, match="unknown"):
+        generation.generate_from_config(args, model)
+
+
 def test_early_eos_file_has_only_executed_processed_scores(
     args, cached_model, monkeypatch, tmp_path
 ):

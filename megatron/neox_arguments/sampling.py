@@ -48,7 +48,7 @@ _NEUTRAL_FILTERS = {
 
 
 def validate_sampling_options(options):
-    """Range-check previously unseen values."""
+    """Range-check the supplied sampling fields."""
     for name, value in options.items():
         if name == "maximum_tokens" and value is None:
             continue  # Infer the budget from the prompt and context window.
@@ -57,30 +57,15 @@ def validate_sampling_options(options):
             raise ValueError(f"{name} must be {domain}; got {value!r}")
 
 
-def prepare_sampling_options(options, *, already_validated=None):
-    """Check a config or request at entry; leave unchanged config values alone."""
-    changed = (
-        options
-        if already_validated is None
-        else {
-            name: value
-            for name, value in options.items()
-            if type(value) is not type(already_validated[name])
-            or value != already_validated[name]
-        }
-    )
-    if not changed:
-        return
-    validate_sampling_options(changed)
-    if "minimum_tokens" in changed or "maximum_tokens" in changed:
-        minimum, maximum = options["minimum_tokens"], options["maximum_tokens"]
-        if maximum is not None and minimum > maximum:
-            raise ValueError(
-                f"minimum_tokens ({minimum}) cannot exceed maximum_tokens ({maximum})"
-            )
-    if options["temperature"] == 0 and (
-        "temperature" in changed or _NEUTRAL_FILTERS.keys() & changed.keys()
-    ):
+def validate_generation_options(options):
+    """Validate a complete set of options at config load or public request entry."""
+    validate_sampling_options(options)
+    minimum, maximum = options["minimum_tokens"], options["maximum_tokens"]
+    if maximum is not None and minimum > maximum:
+        raise ValueError(
+            f"minimum_tokens ({minimum}) cannot exceed maximum_tokens ({maximum})"
+        )
+    if options["temperature"] == 0:
         ignored = [
             f"{name}={options[name]}"
             for name, neutral in _NEUTRAL_FILTERS.items()
@@ -93,6 +78,10 @@ def prepare_sampling_options(options, *, already_validated=None):
                 UserWarning,
                 stacklevel=2,
             )
+
+
+def sampling_options_from_config(neox_args):
+    return {name: getattr(neox_args, name) for name in SAMPLING_RANGES}
 
 
 def cap_top_k(top_k, vocab_size):

@@ -37,7 +37,7 @@ from megatron.logging import Tee
 from megatron.tokenizer import build_tokenizer
 from megatron.utils import obtain_resource_pool, expand_attention_types
 from .deepspeed_args import NeoXArgsDeepspeedConfig, NeoXArgsDeepspeedRunner
-from .sampling import SAMPLING_RANGES, prepare_sampling_options
+from .sampling import sampling_options_from_config, validate_generation_options
 from .neox_args import (
     NeoXArgsModel,
     NeoXArgsTokenizer,
@@ -894,8 +894,6 @@ class NeoXArgs(*BASE_CLASSES):
             print("-------------------- arguments --------------------", flush=True)
             str_list = []
             for arg in vars(self):
-                if arg.startswith("_"):
-                    continue  # Internal state, not a user-configurable argument.
                 # add arg + value
                 dots = "." * (32 - len(arg))
                 value = getattr(self, arg)
@@ -1334,11 +1332,7 @@ class NeoXArgs(*BASE_CLASSES):
         if not self.deepspeed:
             return False
 
-        sampling_options = {name: getattr(self, name) for name in SAMPLING_RANGES}
-        prepare_sampling_options(sampling_options)
-        # NeoXArgs is mutable. Keep what actually passed, not a reference to
-        # its current attributes, so a later programmatic override is checked.
-        self._validated_sampling_options = sampling_options
+        validate_generation_options(sampling_options_from_config(self))
 
         if self.attn_softmax_clipping:
             if self.attn_softmax_clipping_zeta < 1.0:

@@ -37,7 +37,8 @@ from megatron.data.indexed_dataset import make_builder, make_dataset
 from megatron.mpu.mappings import gather_from_model_parallel_region
 from megatron.neox_arguments.sampling import (
     cap_top_k,
-    prepare_sampling_options,
+    sampling_options_from_config,
+    validate_generation_options,
     validate_sampling_options,
 )
 
@@ -469,27 +470,33 @@ def stream_tokens(
 
 
 def _prepare_token_stream(
+    neox_args, model, *, recompute, eos_token_id=None, stop_tokens=None, **options
+):
+    """Validate an independent Python or eval request once, before its first prompt."""
+    validate_generation_options(options)
+    return _bind_token_stream(
+        neox_args,
+        model,
+        recompute=recompute,
+        eos_token_id=eos_token_id,
+        stop_tokens=stop_tokens,
+        **options,
+    )
+
+
+def _bind_token_stream(
     neox_args,
     model,
     *,
-    eos_token_id,
     recompute,
     maximum_tokens,
     minimum_tokens,
     temperature,
+    eos_token_id=None,
     stop_tokens=None,
     **filters,
 ):
-    """Resolve the request once; its prompts share the same checked options."""
-    prepare_sampling_options(
-        dict(
-            filters,
-            minimum_tokens=minimum_tokens,
-            maximum_tokens=maximum_tokens,
-            temperature=temperature,
-        ),
-        already_validated=getattr(neox_args, "_validated_sampling_options", None),
-    )
+    """Bind already-validated settings; only the vocabulary bound needs the model."""
     if temperature > 0 and filters["top_k"]:
         filters["top_k"] = cap_top_k(filters["top_k"], neox_args.padded_vocab_size)
     return partial(
@@ -790,17 +797,7 @@ def generate_samples_from_prompt(
           EOS; EOS is -inf until minimum_tokens is reached. No post-EOS rows are written.
 
     """
-    if eos_token_id is None:
-        eos_token_id = neox_args.tokenizer.eod
-
-    # type check
-    assert any(
-        [isinstance(text, str), isinstance(text, list)]
-    ), "Text should be in string or list form"
-    if isinstance(text, str):
-        text = [text]
-
-    stream = _prepare_token_stream(
+    generate = _prompt_generator(
         neox_args,
         model,
         eos_token_id=eos_token_id,
@@ -817,6 +814,22 @@ def generate_samples_from_prompt(
         epsilon_cutoff=epsilon_cutoff,
         eta_cutoff=eta_cutoff,
     )
+    return generate(text)
+
+
+def _prompt_generator(neox_args, model, *, eos_token_id=None, **options):
+    if eos_token_id is None:
+        eos_token_id = neox_args.tokenizer.eod
+    stream = _prepare_token_stream(
+        neox_args, model, eos_token_id=eos_token_id, **options
+    )
+    return partial(_generate_prompts, neox_args, model, eos_token_id, stream)
+
+
+def _generate_prompts(neox_args, model, eos_token_id, stream, text):
+    assert isinstance(text, (str, list)), "Text should be in string or list form"
+    if isinstance(text, str):
+        text = [text]
     input_count = len(text)
     input_pos = 0
     owns_prompts = (
@@ -952,7 +965,26 @@ def generate_samples_input_from_file(
         - 'message': a messaged associated with the generation procedure, can be a warning or error
         - 'duration_seconds': duration of the generation in seconds
     """
-    # Read the sample file
+    generate = _prompt_generator(
+        neox_args,
+        model,
+        eos_token_id=eos_token_id,
+        maximum_tokens=maximum_tokens,
+        minimum_tokens=minimum_tokens,
+        recompute=recompute,
+        temperature=temperature,
+        top_k=top_k,
+        top_p=top_p,
+        min_p=min_p,
+        top_h=top_h,
+        typical_p=typical_p,
+        epsilon_cutoff=epsilon_cutoff,
+        eta_cutoff=eta_cutoff,
+    )
+    return _generate_from_file(generate, input_file, output_file, prompt_end)
+
+
+def _generate_from_file(generate, input_file, output_file, prompt_end):
     print_rank_0(
         "generate_samples_input_from_file() loading input from {}".format(input_file)
     )
@@ -974,23 +1006,7 @@ def generate_samples_input_from_file(
         )
 
     print_rank_0("generate_samples_input_from_file() generating...")
-    generated_texts = generate_samples_from_prompt(
-        neox_args=neox_args,
-        model=model,
-        text=prompts,
-        eos_token_id=eos_token_id,
-        maximum_tokens=maximum_tokens,
-        minimum_tokens=minimum_tokens,
-        recompute=recompute,
-        temperature=temperature,
-        top_k=top_k,
-        top_p=top_p,
-        min_p=min_p,
-        top_h=top_h,
-        typical_p=typical_p,
-        epsilon_cutoff=epsilon_cutoff,
-        eta_cutoff=eta_cutoff,
-    )
+    generated_texts = generate(prompts)
 
     if torch.distributed.get_rank() == 0:
         with open(output_file, "w") as f_out:
@@ -1054,12 +1070,9 @@ def generate_samples_unconditional(
         - 'duration_seconds': duration of the generation in seconds
     """
 
-    print_rank_0("generate_samples_unconditional() generating...")
-    assert number_of_samples > 0, "number_of_samples must be > 0"
-    generated_texts = generate_samples_from_prompt(
-        neox_args=neox_args,
-        model=model,
-        text=["" for _ in range(number_of_samples)],
+    generate = _prompt_generator(
+        neox_args,
+        model,
         eos_token_id=eos_token_id,
         maximum_tokens=maximum_tokens,
         minimum_tokens=minimum_tokens,
@@ -1073,7 +1086,13 @@ def generate_samples_unconditional(
         epsilon_cutoff=epsilon_cutoff,
         eta_cutoff=eta_cutoff,
     )
+    return _generate_unconditional(generate, number_of_samples, output_file)
 
+
+def _generate_unconditional(generate, number_of_samples, output_file):
+    print_rank_0("generate_samples_unconditional() generating...")
+    assert number_of_samples > 0, "number_of_samples must be > 0"
+    generated_texts = generate([""] * number_of_samples)
     if output_file is not None and torch.distributed.get_rank() == 0:
         with open(output_file, "w") as f_out:
             for item in generated_texts:
@@ -1146,6 +1165,10 @@ def generate_samples_interactive(
         epsilon_cutoff=epsilon_cutoff,
         eta_cutoff=eta_cutoff,
     )
+    return _generate_interactive(neox_args, stream, prompt_end)
+
+
+def _generate_interactive(neox_args, stream, prompt_end):
     reader = torch.distributed.get_rank() == 0
     first_prompt = True
     while True:
@@ -1194,6 +1217,45 @@ def generate_samples_interactive(
                 )
                 generated_text = neox_args.tokenizer.detokenize(generated_tokens)
                 print_rank_0("Generated Text: " + generated_text)
+
+
+def generate_from_config(neox_args, model):
+    """Run the CLI mode using only the options validated by NeoXArgs at load time."""
+    mode = neox_args.text_gen_type
+    if mode == "precompute":
+        return precompute_logits(neox_args, model)
+    if mode not in ("interactive", "input-file", "unconditional"):
+        raise ValueError(
+            f"`text_gen_type` either not specified or not recognised: {mode}"
+        )
+    stream = _bind_token_stream(
+        neox_args,
+        model,
+        recompute=neox_args.recompute,
+        **sampling_options_from_config(neox_args),
+    )
+    if mode == "interactive":
+        return _generate_interactive(neox_args, stream, neox_args.prompt_end)
+    generate = partial(
+        _generate_prompts, neox_args, model, neox_args.tokenizer.eod, stream
+    )
+    if mode == "input-file":
+        assert neox_args.sample_input_file is not None
+        print_rank_0(
+            f"Generating samples from input file {neox_args.sample_input_file}"
+        )
+        return _generate_from_file(
+            generate,
+            neox_args.sample_input_file,
+            neox_args.sample_output_file,
+            neox_args.prompt_end,
+        )
+    print_rank_0(
+        f"Generating samples unconditionally and saving results to {neox_args.sample_output_file}"
+    )
+    return _generate_unconditional(
+        generate, neox_args.num_samples, neox_args.sample_output_file
+    )
 
 
 def get_logp(logits, labels, force_fp32=False):

@@ -148,9 +148,9 @@ def test_config_rejects_minimum_above_maximum():
 
 
 @pytest.mark.cpu
-def test_sampling_boundaries_and_runtime_overrides(monkeypatch):
+def test_python_request_validates_independently_of_loaded_config(monkeypatch):
     from megatron.neox_arguments import NeoXArgs
-    from megatron.neox_arguments.sampling import SAMPLING_RANGES
+    from megatron.neox_arguments import sampling
     from megatron.text_generation_utils import stream_tokens
 
     options = dict(
@@ -165,6 +165,8 @@ def test_sampling_boundaries_and_runtime_overrides(monkeypatch):
         epsilon_cutoff=0.0,
         eta_cutoff=0.999,
     )
+    validate = Mock(wraps=sampling.validate_sampling_options)
+    monkeypatch.setattr(sampling, "validate_sampling_options", validate)
     with pytest.warns(
         UserWarning, match="will be ignored: top_h=1.0, eta_cutoff=0.999"
     ):
@@ -174,21 +176,19 @@ def test_sampling_boundaries_and_runtime_overrides(monkeypatch):
             ),
             overwrite_values={"log_dir": None, **options},
         )
-    # No range predicate should run again for unchanged options. A mutated
-    # config or a request override must still fail before touching the model.
-    for name, (accepts, domain) in SAMPLING_RANGES.items():
-        monkeypatch.setitem(SAMPLING_RANGES, name, (Mock(wraps=accepts), domain))
+    validate.assert_called_once_with(options)
+    validate.reset_mock()
     model = Mock()
-    model.eval.side_effect = RuntimeError("reached model")
-    with pytest.raises(RuntimeError, match="reached model"):
-        next(stream_tokens(args, model, [[1]], **options))
-    assert all(check.call_count == 0 for check, _ in SAMPLING_RANGES.values())
-
-    args.top_h = options["top_h"] = -0.1
+    # Equal values supplied through the public API are still an independent request.
+    with pytest.warns(UserWarning, match="will be ignored"):
+        stream_tokens(args, model, [[1]], **options).close()
+    validate.assert_called_once_with(options)
+    validate.reset_mock()
     with pytest.raises(ValueError, match="top_h"):
-        next(stream_tokens(args, model, [[1]], **options))
-    assert SAMPLING_RANGES["top_h"][0].call_count == 1
-    assert model.eval.call_count == 1
+        stream_tokens(args, model, [[1]], top_h=-0.1)
+    validate.assert_called_once()
+    model.eval.assert_not_called()
+    assert args.top_h == 1.0  # Request settings never modify the loaded config.
 
 
 @pytest.mark.cpu

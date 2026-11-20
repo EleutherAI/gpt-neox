@@ -71,6 +71,11 @@ cannot turn sampling on. At a positive temperature, NeoX divides the logits by
 temperature, applies the active filters, and samples a token. The shipped
 `text_generation.yml` example sets temperature to **1.0**, so it samples.
 
+The CLI checks sampling ranges and the minimum/maximum token budget when it
+loads the config, before loading the checkpoint. Python and lm-eval requests
+check their own settings once per request, not once per prompt or token.
+The `top_k` cap is applied once the padded vocabulary size is known.
+
 For example, to sample from a nucleus while enforcing a minimum output length,
 edit the values in your generation config:
 
