@@ -707,8 +707,7 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
     ):
         if cu_seqlens is not None:
             layer_past_is_set = layer_past is not None and (
-                not isinstance(layer_past, torch.Tensor)
-                or layer_past.numel() > 0
+                not isinstance(layer_past, torch.Tensor) or layer_past.numel() > 0
             )
             if (
                 self.use_cache

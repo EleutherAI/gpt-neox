@@ -116,9 +116,7 @@ def test_inter_document_metadata_edge_cases(case):
     sample = dataset[0]
 
     np.testing.assert_array_equal(sample["text"], case["expected_text"])
-    np.testing.assert_array_equal(
-        sample["cu_seqlens"], case["expected_cu_seqlens"]
-    )
+    np.testing.assert_array_equal(sample["cu_seqlens"], case["expected_cu_seqlens"])
     assert sample["cu_seqlens"].dtype == np.int32
     assert sample["max_seqlen"] == np.int32(case["expected_max_seqlen"])
 

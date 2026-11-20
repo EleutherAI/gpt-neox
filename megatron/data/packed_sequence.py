@@ -142,9 +142,7 @@ def _pad_metadata(merged_cu_seqlens, batch_size, sequence_length):
     padded_cu_seqlens = torch.cat(
         [merged_cu_seqlens, merged_cu_seqlens[-1:].expand(padding_length)]
     )
-    num_documents = merged_cu_seqlens.new_tensor(
-        merged_cu_seqlens.numel() - 1
-    )
+    num_documents = merged_cu_seqlens.new_tensor(merged_cu_seqlens.numel() - 1)
     return padded_cu_seqlens, num_documents
 
 
@@ -268,9 +266,7 @@ def normalize_packed_sequence_batch(
     """
     batch_size, sequence_length = tokens.shape
     document_lengths = _get_document_lengths(cu_seqlens)
-    merged_cu_seqlens, max_seqlen = _merge_metadata(
-        document_lengths, max_seqlen
-    )
+    merged_cu_seqlens, max_seqlen = _merge_metadata(document_lengths, max_seqlen)
     cu_seqlens, num_documents = _pad_metadata(
         merged_cu_seqlens,
         batch_size=batch_size,

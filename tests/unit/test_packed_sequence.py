@@ -50,9 +50,7 @@ from megatron.data.packed_sequence import normalize_packed_sequence_batch
                 ],
                 "max_seqlen": [3, 2],
                 "eod_token": 5,
-                "expected_loss_mask": [
-                    [1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0]
-                ],
+                "expected_loss_mask": [[1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0]],
                 "expected_position_ids": [[0, 0, 1, 2, 0, 1, 0, 0]],
                 "expected_cu_seqlens": [0, 1, 4, 6, 7, 8, 8, 8, 8],
                 "expected_num_documents": 5,
@@ -80,9 +78,7 @@ def test_normalize_packed_sequence_batch(case):
 
     assert torch.equal(result.tokens, tokens.reshape(1, -1))
     assert torch.equal(result.labels, labels.reshape(1, -1))
-    assert torch.equal(
-        result.loss_mask, torch.tensor(case["expected_loss_mask"])
-    )
+    assert torch.equal(result.loss_mask, torch.tensor(case["expected_loss_mask"]))
     assert torch.equal(
         result.position_ids,
         torch.tensor(case["expected_position_ids"], dtype=torch.int64),
@@ -131,15 +127,11 @@ def test_normalized_metadata_transport_shape_is_independent_of_document_count():
     tokens = torch.arange(8, dtype=torch.int64).view(2, 4)
     variants = [
         (
-            torch.tensor(
-                [[0, 4, 4, 4, 4], [0, 4, 4, 4, 4]], dtype=torch.int32
-            ),
+            torch.tensor([[0, 4, 4, 4, 4], [0, 4, 4, 4, 4]], dtype=torch.int32),
             torch.tensor([4, 4], dtype=torch.int32),
         ),
         (
-            torch.tensor(
-                [[0, 1, 2, 3, 4], [0, 1, 2, 3, 4]], dtype=torch.int32
-            ),
+            torch.tensor([[0, 1, 2, 3, 4], [0, 1, 2, 3, 4]], dtype=torch.int32),
             torch.tensor([1, 1], dtype=torch.int32),
         ),
     ]

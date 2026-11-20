@@ -584,9 +584,7 @@ def get_batch_pipe(data, neox_args, curr_scheduler=None):
     keys = ["text", "label"] if neox_args.train_label_data_paths else ["text"]
     datatype = torch.int64
 
-    batch = _get_batch(
-        neox_args, neox_args.tokenizer, keys, data, datatype
-    )
+    batch = _get_batch(neox_args, neox_args.tokenizer, keys, data, datatype)
     if isinstance(batch, PackedSequenceBatch):
         return batch.model_inputs(), batch.loss_inputs()
 
@@ -650,9 +648,7 @@ def forward_step(
     if timers is not None:
         timers("batch generator").start()
     if neox_args.train_impl == "normal":
-        batch = get_batch(
-            neox_args=neox_args, data_iterator=data_iterator
-        )
+        batch = get_batch(neox_args=neox_args, data_iterator=data_iterator)
         if isinstance(batch, PackedSequenceBatch):
             tokens = batch.tokens
             labels = batch.labels

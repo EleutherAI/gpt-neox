@@ -68,8 +68,7 @@ def test_embedding_and_gpt_transforms_preserve_model_context(monkeypatch, packed
     embedded = embedding(model_inputs)
     assert embedded[0] is hidden_states
     assert all(
-        actual is expected
-        for actual, expected in zip(embedded[1:], model_inputs[2:])
+        actual is expected for actual, expected in zip(embedded[1:], model_inputs[2:])
     )
 
     transformer_input = _pre_transformer_block(embedded)
@@ -144,9 +143,7 @@ def test_transformer_layer_pipe_threads_model_context(monkeypatch, packed):
             )
         )
     assert torch.equal(output[0], hidden_states + len(layers))
-    assert all(
-        actual is expected for actual, expected in zip(output[1:], context)
-    )
+    assert all(actual is expected for actual, expected in zip(output[1:], context))
 
 
 @pytest.mark.cpu
@@ -313,9 +310,7 @@ def test_te_attention_dispatches_packed_thd_without_mutating_fixed_format(
     def te_forward(module, hidden_states, attention_mask=None, **kwargs):
         calls.append((module, hidden_states, attention_mask, kwargs))
         output = (
-            hidden_states.squeeze(1)
-            if module.qkv_format == "thd"
-            else hidden_states
+            hidden_states.squeeze(1) if module.qkv_format == "thd" else hidden_states
         )
         return output, module.probe
 
@@ -323,9 +318,7 @@ def test_te_attention_dispatches_packed_thd_without_mutating_fixed_format(
 
     hidden_states = torch.zeros((5, 1, 4), dtype=torch.bfloat16)
     attention_mask = torch.zeros(1, dtype=torch.bool)
-    padded_cu_seqlens = torch.tensor(
-        [0, 2, 5, 5, 5, 5], dtype=torch.int32
-    )
+    padded_cu_seqlens = torch.tensor([0, 2, 5, 5, 5, 5], dtype=torch.int32)
     packed_output, packed_bias = attention(
         hidden_states,
         attention_mask,
@@ -530,8 +523,7 @@ def test_te_packed_thd_matches_per_document_reference(mode, num_gqa_groups):
         allow_unused=True,
     )
     assert any(
-        gradient is not None
-        for gradient in packed_grads[-len(attention_parameters) :]
+        gradient is not None for gradient in packed_grads[-len(attention_parameters) :]
     )
     for packed_grad, reference_grad in zip(packed_grads, reference_grads):
         if packed_grad is None or reference_grad is None:
@@ -978,9 +970,7 @@ def _make_cuda_native_flash_attention(mode):
 
     class QKV(torch.nn.Module):
         def forward(self, hidden_states):
-            shaped = hidden_states.view(
-                *hidden_states.shape[:-1], num_heads, head_dim
-            )
+            shaped = hidden_states.view(*hidden_states.shape[:-1], num_heads, head_dim)
             mixed = torch.cat(
                 (shaped, shaped * 0.75 + 0.1, shaped * 1.25 - 0.2), dim=-1
             )
@@ -1036,9 +1026,7 @@ def _make_cuda_native_flash_attention(mode):
 def _make_cuda_learned_embedding(dtype=torch.float16):
     embedding = Embedding.__new__(Embedding)
     torch.nn.Module.__init__(embedding)
-    embedding.word_embeddings = torch.nn.Embedding(
-        2, 32, device="cuda", dtype=dtype
-    )
+    embedding.word_embeddings = torch.nn.Embedding(2, 32, device="cuda", dtype=dtype)
     embedding.position_embeddings = torch.nn.Embedding(
         3, 32, device="cuda", dtype=dtype
     )
@@ -1082,9 +1070,7 @@ def test_packed_positional_modes_match_real_flash_attention_reference(mode):
     if mode == "learned":
         embedding = _make_cuda_learned_embedding()
         token_ids = torch.zeros((1, 5), dtype=torch.long, device="cuda")
-        position_ids = torch.tensor(
-            [[0, 1, 2, 0, 1]], dtype=torch.long, device="cuda"
-        )
+        position_ids = torch.tensor([[0, 1, 2, 0, 1]], dtype=torch.long, device="cuda")
         hidden_states = embedding(token_ids, position_ids).transpose(0, 1)
         assert torch.equal(hidden_states[0], hidden_states[3])
         assert torch.equal(hidden_states[1], hidden_states[4])
@@ -1107,9 +1093,7 @@ def test_packed_positional_modes_match_real_flash_attention_reference(mode):
     )
 
     assert packed_bias is None
-    torch.testing.assert_close(
-        packed_output, reference_output, atol=5e-3, rtol=5e-3
-    )
+    torch.testing.assert_close(packed_output, reference_output, atol=5e-3, rtol=5e-3)
 
     probe = torch.randn_like(packed_output)
     packed_grads = torch.autograd.grad(
@@ -1121,9 +1105,7 @@ def test_packed_positional_modes_match_real_flash_attention_reference(mode):
         (reference_output.float() * probe.float()).sum(), gradient_targets
     )
     for packed_grad, reference_grad in zip(packed_grads, reference_grads):
-        torch.testing.assert_close(
-            packed_grad, reference_grad, atol=1e-2, rtol=1e-2
-        )
+        torch.testing.assert_close(packed_grad, reference_grad, atol=1e-2, rtol=1e-2)
 
     changed_first_document = hidden_states.detach().clone()
     changed_first_document[: boundaries[1]].add_(1.0)
@@ -1145,9 +1127,7 @@ def test_packed_positional_modes_match_real_flash_attention_reference(mode):
     evaluation_output, _ = attention(hidden_states.detach(), attention_mask)
     attention.train()
     training_output, _ = attention(hidden_states.detach(), attention_mask)
-    torch.testing.assert_close(
-        evaluation_output, training_output, atol=5e-3, rtol=5e-3
-    )
+    torch.testing.assert_close(evaluation_output, training_output, atol=5e-3, rtol=5e-3)
 
 
 def _dense_block_diagonal_attention(query, key, value, document_lengths):
@@ -1233,9 +1213,7 @@ def test_packed_flash_attention_head_partitions_match_dense_reference(
         (query, key, value),
         retain_graph=True,
     )
-    dense_grads = torch.autograd.grad(
-        (dense_output * probe).sum(), (query, key, value)
-    )
+    dense_grads = torch.autograd.grad((dense_output * probe).sum(), (query, key, value))
     for packed_grad, dense_grad in zip(packed_grads, dense_grads):
         torch.testing.assert_close(
             packed_grad.float(), dense_grad.float(), atol=3e-3, rtol=3e-3

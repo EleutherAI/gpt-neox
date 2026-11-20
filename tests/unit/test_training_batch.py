@@ -116,15 +116,11 @@ def test_get_batch_packed_path_skips_dense_mask_and_preserves_loss_masking(
     assert attention_mask.shape == (1,)
     assert attention_mask.dtype == torch.bool
     assert not attention_mask.item()
-    assert torch.equal(
-        labels, torch.tensor([[1, 0, 3, 4, 6, 7, 8, 9]])
-    )
+    assert torch.equal(labels, torch.tensor([[1, 0, 3, 4, 6, 7, 8, 9]]))
     assert torch.equal(
         loss_mask, torch.tensor([[1.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0]])
     )
-    assert torch.equal(
-        position_ids, torch.tensor([[0, 1, 0, 1, 0, 1, 2, 3]])
-    )
+    assert torch.equal(position_ids, torch.tensor([[0, 1, 0, 1, 0, 1, 2, 3]]))
     assert torch.equal(
         batch.cu_seqlens,
         torch.tensor([0, 2, 4, 8, 8, 8, 8, 8, 8], dtype=torch.int32),
@@ -235,9 +231,7 @@ def test_get_batch_pipe_keeps_metadata_in_model_inputs(
     assert isinstance(model_inputs, PackedSequenceModelInputs)
     assert all(
         actual is expected
-        for actual, expected in zip(
-            model_inputs, packed_batch_result.model_inputs()
-        )
+        for actual, expected in zip(model_inputs, packed_batch_result.model_inputs())
     )
     assert all(
         actual is expected
@@ -297,9 +291,7 @@ def test_forward_step_builds_model_inputs_and_keeps_loss_inputs_separate(
 
     assert all(
         actual is expected
-        for actual, expected in zip(
-            observed["model_inputs"], expected_model_inputs
-        )
+        for actual, expected in zip(observed["model_inputs"], expected_model_inputs)
     )
     assert all(
         actual is expected
@@ -346,6 +338,4 @@ def test_packed_metadata_shape_validation(monkeypatch, field, value, error):
     )
 
     with pytest.raises(AssertionError, match=error):
-        training._broadcast_packed_sequence_metadata(
-            _neox_args(), data, data["text"]
-        )
+        training._broadcast_packed_sequence_metadata(_neox_args(), data, data["text"])
