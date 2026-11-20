@@ -22,14 +22,34 @@ from megatron import text_generation_utils as generation
 from megatron.model.utils import SequentialWrapper
 
 
-pytestmark = pytest.mark.skipif(
-    not torch.cuda.is_available(), reason="stream_tokens uses CUDA"
-)
+def test_gather_generation_logits(monkeypatch):
+    # Recompute can select a non-contiguous [batch, shard] view.
+    shard = torch.arange(24).reshape(2, 3, 4)[:, 1, :]
+    assert not shard.is_contiguous()
+    full = torch.cat((shard, shard + 100), dim=-1)
+    gather = Mock(return_value=full)
+    monkeypatch.setattr(generation, "gather_from_model_parallel_region", gather)
+    assert generation._gather_generation_logits(shard, 8, 2) is full
+    (sent,) = gather.call_args.args
+    torch.testing.assert_close(sent, shard)
+    assert sent.is_contiguous()
+
+    # A head that already gathers must not double the vocabulary or communicate.
+    assert generation._gather_generation_logits(full, 8, 2) is full
+    gather.assert_called_once()
+
+
+def test_gather_generation_logits_rejects_wrong_width():
+    with pytest.raises(ValueError, match="width 3 for TP=2"):
+        generation._gather_generation_logits(torch.empty(1, 3), 8, 2)
 
 
 @pytest.fixture
 def args(monkeypatch):
+    if not torch.cuda.is_available():
+        pytest.skip("stream_tokens uses CUDA")
     # A single rank needs no communication.
+    monkeypatch.setattr(generation.mpu, "get_model_parallel_world_size", lambda: 1)
     monkeypatch.setattr(generation.mpu, "get_model_parallel_src_rank", lambda: 0)
     monkeypatch.setattr(generation.mpu, "get_model_parallel_group", lambda: None)
     monkeypatch.setattr(torch.distributed, "broadcast", lambda *args, **kwargs: None)
@@ -38,9 +58,32 @@ def args(monkeypatch):
         seq_length=16,
         padded_vocab_size=2,
         eod_mask_loss=False,
+        sliding_window_width=None,
         is_pipe_parallel=False,
         return_logits=True,
     )
+
+
+def test_pipeline_forward_preserves_inputs_and_restores_engine_on_error():
+    engine = Mock()
+    original_batch_fn = object()
+    engine.batch_fn = original_batch_fn
+    engine.total_loss = 17
+    engine.monitor.enabled = True
+    inputs = (torch.tensor([[7]]), torch.tensor([[4]]), torch.zeros(1, 1, 1, 5))
+
+    def fail(batches, **kwargs):
+        batch_inputs, labels = next(batches)
+        assert batch_inputs is inputs and labels == ()
+        assert kwargs["compute_loss"] is False and kwargs["num_micro_batches"] == 1
+        assert engine.total_loss is None and not engine.monitor.enabled
+        raise RuntimeError("pipeline forward failed")
+
+    engine.eval_batch.side_effect = fail
+    with pytest.raises(RuntimeError, match="pipeline forward failed"):
+        generation.forward_model(engine, inputs, is_pipe_parallel=True)
+    assert engine.set_batch_fn.call_args_list == [((None,),), ((original_batch_fn,),)]
+    assert engine.total_loss == 17 and engine.monitor.enabled
 
 
 @pytest.mark.parametrize("prompt", [[1], [1, 1]], ids=["one-token", "two-token"])
