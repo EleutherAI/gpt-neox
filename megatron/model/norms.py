@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from functools import partial
 import torch
 from torch.nn import LayerNorm as LayerNorm
 
@@ -33,7 +34,11 @@ def get_norm(neox_args, norm_type=None):
 
             norm = MixedFusedLayerNorm
         else:
-            norm = LayerNorm
+            norm = (
+                LayerNorm
+                if neox_args.use_bias_in_norms
+                else partial(LayerNorm, bias=False)
+            )
     elif norm_type == "non_parametric_layernorm":
         eps = neox_args.layernorm_epsilon
         if neox_args.layernorm_fusion and norm_type == neox_args.norm:

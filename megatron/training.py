@@ -518,10 +518,12 @@ def get_batch(neox_args, data_iterator):
             ref_data = mpu.broadcast_data(["pos_ref", "neg_ref"], data, torch.float)
         else:
             ref_data = {"pos_ref": None}
-        return [
+        tokens, labels, loss_mask, _, position_ids = [
             torch.cat((pos_item, neg_item), dim=0)
             for pos_item, neg_item in zip(pos_tup, neg_tup)
-        ] + [
+        ]
+        # pos and neg share one [1, 1, s, s] causal mask, which broadcasts over the batch
+        return [tokens, labels, loss_mask, pos_tup[3], position_ids] + [
             torch.cat((ref_data["pos_ref"], ref_data["neg_ref"]), dim=0)[
                 :, :-1
             ].contiguous()
@@ -581,6 +583,20 @@ def get_batch_sequential(forward_input, neox_args):
         eod_mask_loss=neox_args.eod_mask_loss,
     )
     return (forward_input[0], forward_input[1], attention_mask)
+
+
+def get_logp(logits, labels, force_fp32=False):
+    # Rather than reimplementing logp, cross entropy loss is actually logp, just inverted.
+    if force_fp32:
+        logits = logits.float()
+    return -vocab_parallel_cross_entropy(logits, labels)
+
+
+def get_pos_neg_logp(logits, labels, force_fp32=False):
+    # Rather than reimplementing logp, cross entropy loss is actually logp, just inverted.
+    if force_fp32:
+        logits = logits.float()
+    return torch.chunk(-vocab_parallel_cross_entropy(logits, labels), 2, 0)
 
 
 def forward_step(
@@ -976,14 +992,14 @@ def get_model(neox_args, use_cache=False):
             layers=soft_prompt, idx=1
         )  # insert the soft prompt layer directly after the word embeddings
 
-        # freeze everything but the soft prompt
-        for name, param in model.named_parameters():
-            if not "soft_embedding" in name:
-                param.requires_grad = False
-
     if not neox_args.is_pipe_parallel:
         # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
         model = model.to_sequential()
+
+    # freeze everything but the soft prompt, after to_sequential rebuilds the layers
+    if (neox_args.soft_prompt_tuning or {}).get("enabled", False):
+        for name, param in model.named_parameters():
+            param.requires_grad = "soft_embedding" in name
 
     if neox_args.use_mup:
         try:

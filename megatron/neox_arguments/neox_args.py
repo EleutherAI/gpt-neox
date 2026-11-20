@@ -543,7 +543,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     If enabled, will train *only* the soft prompt, and freezes the rest of the model.
     parameters in the dict are:
         'enabled': bool = True # enables soft prompting
-        'num_tokens': int = 10 # length of the soft prompt in tokens
+        'n_tokens': int = 10 # length of the soft prompt in tokens
         'init_string': str = '' # if provided, initialize the soft prompt with the word embeddings of this string
         'init_range': float = 0.5 # if no init string is provided, initialize the soft prompt with a uniform distribution between -init_range and init_rang
     """
@@ -983,11 +983,6 @@ class NeoXArgsOther(NeoXArgsTemplate):
     onnx_safe: bool = False
     """
     Use workarounds for known problems with Torch ONNX exporter
-    """
-
-    deepscale: bool = False
-    """
-    (Deprecated) enable DeepSpeed (helper flag for user code, no impact on DeepSpeed backend)'
     """
 
     deepscale_config: str = None
@@ -1721,7 +1716,9 @@ class NeoXArgsMoE(NeoXArgsTemplate):
     moe_router_type: Literal["sinkhorn", "topk"] = "sinkhorn"
     """
     What token routing algorithm to use. Currently only sinkhorn is supported for training.
-    TopK is only used for inference/eval.
+    TopK is only intended for inference/eval: it does not apply a load balancing loss,
+    so configuring it with moe_num_experts > 1 logs a warning that training with it
+    will silently produce a poorly balanced MoE model.
     """
 
     moe_lbl_in_fp32: bool = False

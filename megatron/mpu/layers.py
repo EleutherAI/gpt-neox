@@ -434,6 +434,7 @@ class ColumnParallelLinear(torch.nn.Module):
 
         self.init_method = init_method
         self.stride = stride
+        self.keep_master_weight_for_test = keep_master_weight_for_test
         self.mup_rescale_parameters = mup_rescale_parameters
         self.use_mup = neox_args.use_mup
 
@@ -537,7 +538,7 @@ class ColumnParallelLinear(torch.nn.Module):
                 0,
                 partial(self.init_method, use_mup=True),
                 stride=self.stride,
-                return_master_weight=keep_master_weight_for_test,
+                return_master_weight=self.keep_master_weight_for_test,
             )
         else:
             _initialize_affine_weight_gpu(

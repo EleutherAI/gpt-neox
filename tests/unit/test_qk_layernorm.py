@@ -151,6 +151,7 @@ def test_get_norm_allows_qk_norm_to_override_model_norm():
         norm="rmsnorm",
         layernorm_epsilon=1.0e-5,
         layernorm_fusion=False,
+        use_bias_in_norms=True,
     )
 
     norm, eps = get_norm(neox_args, norm_type="layernorm")

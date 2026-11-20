@@ -101,7 +101,11 @@ AUTOTUNING_ARGS = (
 )
 
 # deprecated config key -> its replacement (None if it has none)
-DEPRECATED_ARGS = {"clip_grad": "gradient_clipping", "sparse_attention": None}
+DEPRECATED_ARGS = {
+    "clip_grad": "gradient_clipping",
+    "sparse_attention": None,
+    "deepscale": None,
+}
 
 
 def _validate_qk_norm_args(
@@ -1207,6 +1211,16 @@ class NeoXArgs(*BASE_CLASSES):
                 self.zero_optimization["stage"] < 2
             ), "MoE is not compatible with zero stages 2 and 3"
 
+            if self.moe_router_type == "topk":
+                logging.warning(
+                    self.__class__.__name__
+                    + ".calculate_derived() "
+                    + "moe_router_type 'topk' does not apply a load balancing loss "
+                    "and is only intended for inference/eval. Training with it can "
+                    "silently produce a poorly balanced (misconfigured) MoE model. "
+                    "Use moe_router_type 'sinkhorn' for training."
+                )
+
         # Attention config
         if self.attention_config is None:
             self.update_value("attention_config", [[["global"], self.num_layers]])
@@ -1652,6 +1666,16 @@ class NeoXArgs(*BASE_CLASSES):
                     "eval_loss_logging='separate' or 'blended_and_separate' requires "
                     "explicit validation dataset paths."
                 )
+
+        norms = {self.norm}
+        if self.use_qk_norm:
+            norms.add(self.qk_norm or self.norm)
+        if not self.use_bias_in_norms and (
+            "te_layernorm" in norms or ("layernorm" in norms and self.layernorm_fusion)
+        ):
+            raise ValueError(
+                "use_bias_in_norms=False requires layernorm with layernorm_fusion=False"
+            )
 
         return True
 
