@@ -138,7 +138,9 @@ class DataDownloader(ABC):
                 try:
                     subprocess.run(["wget", "-O", staged_file, url], check=True)
                 except subprocess.CalledProcessError as exc:
-                    raise RuntimeError(f"Cannot download dataset file at {url}") from exc
+                    raise RuntimeError(
+                        f"Cannot download dataset file at {url}"
+                    ) from exc
                 os.replace(staged_file, os.path.join(dataset_dir, filename))
 
     def tokenize(self):
