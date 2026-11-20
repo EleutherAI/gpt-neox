@@ -1339,6 +1339,16 @@ class NeoXArgs(*BASE_CLASSES):
             raise ValueError(error_message)
             return False
 
+        if self.fp16_lm_cross_entropy and self.cross_entropy_fusion:
+            error_message = (
+                f"{FAIL}"
+                + self.__class__.__name__
+                + ".validate_values() fp16_lm_cross_entropy is not supported with cross_entropy_fusion, which computes in fp32."
+            )
+            logging.error(error_message)
+            raise ValueError(error_message)
+            return False
+
         # assert that if one of train/test/valid_data_path are provided, data_path should not be
         has_separate_path = [
             data_path is not None
