@@ -103,8 +103,6 @@ class ParallelDroplessMLP(torch.nn.Module):
 
         ```python
         def forward(self, input_):
-            if self.use_mup and self.mup_rescale_parameters:
-                input_ /= self.width_mult()
             # Set up backprop all-reduce.
             input_parallel = copy_to_model_parallel_region(input_)
             # Matrix multiply.
