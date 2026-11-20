@@ -96,7 +96,7 @@ RUN uv pip install --system -r requirements.txt && \
     uv pip install --system wandb==0.16.6 && \
     uv pip install --system --no-build-isolation 'transformer-engine[pytorch]==1.12'
 
-RUN FLASH_ATTENTION_FORCE_BUILD=TRUE uv pip install --system --no-build-isolation \
+RUN uv pip install --system --no-build-isolation \
         --no-binary flash-attn flash-attn==2.5.6 && \
     uv pip install --system 'protobuf==3.20.*'
 

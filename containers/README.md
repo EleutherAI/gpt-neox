@@ -35,12 +35,14 @@ The image:
 - installs `requirements.txt` and `requirements-onebitadam.txt`
 - installs `wandb==0.16.6`
 - installs `transformer-engine[pytorch]==1.12`
-- builds `flash-attn==2.5.6` from source
+- installs `flash-attn==2.5.6`
 - pins `protobuf==4.25.8` to satisfy the cuDF requirement in NGC 24.02
 - sets `TORCH_CUDA_ARCH_LIST=9.0`
 - builds the GPT-NeoX fused kernels from `megatron/fused_kernels/`
 
-The FlashAttention source build targets the PyTorch ABI in NGC 24.02.
+In both the pip and uv TE images, the FlashAttention setup script tries to
+download a matching upstream wheel. If none is available, it compiles against
+the PyTorch in the base image.
 
 Build the image:
 
@@ -111,7 +113,7 @@ apptainer build --build-arg BUILD_FUSED_KERNELS=false \
 ```
 
 The flag controls GPT-NeoX's own extensions. The Transformer Engine image
-builds FlashAttention from source. To avoid compiling the GPT-NeoX
+installs FlashAttention with either setting. To avoid compiling the GPT-NeoX
 extensions at runtime, set `scaled_upper_triang_masked_softmax_fusion`,
 `scaled_masked_softmax_fusion`, and `rope_fusion` to `false` in the model config.
 
@@ -136,8 +138,6 @@ apptainer build gpt-neox-uv.sif containers/apptainer/gpt-neox.uv.def
 
 The uv Apptainer definition copies the build inputs from the checkout. Both
 the Docker and Apptainer uv recipes accept `BUILD_FUSED_KERNELS=false`.
-
-The Transformer Engine uv image builds `flash-attn==2.5.6` from source.
 
 ## Running a Container
 
