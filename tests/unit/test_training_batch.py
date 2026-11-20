@@ -38,6 +38,7 @@ def _neox_args(enabled=True, seq_length=4):
         iteration=0,
         curriculum_learning=False,
         fp16_lm_cross_entropy=False,
+        cross_entropy_fusion=False,
     )
 
 
@@ -276,7 +277,7 @@ def test_forward_step_builds_model_inputs_and_keeps_loss_inputs_separate(
         observed["model_inputs"] = model_inputs
         return torch.tensor(0.0)
 
-    def cross_entropy(output, loss_inputs, _fp16):
+    def cross_entropy(output, loss_inputs, _fp16, _fused):
         observed["loss_inputs"] = loss_inputs
         return torch.tensor(1.5)
 
