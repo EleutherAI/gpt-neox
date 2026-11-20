@@ -184,14 +184,17 @@ def get_init_methods(args):
             print("Please install mup https://github.com/microsoft/mup")
             raise Exception
 
+    # mup init needs set_base_shapes, so mup_weights_reinit applies it after construction.
     def _get(name):
         if name == "normal":
             return init_method_normal(
-                args.init_method_std, args.use_mup, args.mup_init_scale
+                args.init_method_std, mup_init_scale=args.mup_init_scale
             )
         elif name == "scaled_normal":
             return scaled_init_method_normal(
-                args.init_method_std, args.num_layers, args.use_mup, args.mup_init_scale
+                args.init_method_std,
+                args.num_layers,
+                mup_init_scale=args.mup_init_scale,
             )
         elif name == "orthogonal":
             return orthogonal_init_method(args.use_mup, args.mup_init_scale)
@@ -200,16 +203,16 @@ def get_init_methods(args):
                 args.num_layers, args.use_mup, args.mup_init_scale
             )
         elif name == "xavier_uniform":
-            return xavier_uniform_init_method(args.use_mup, args.mup_init_scale)
+            return xavier_uniform_init_method(mup_init_scale=args.mup_init_scale)
         elif name == "xavier_normal":
-            return xavier_normal_init_method(args.use_mup, args.mup_init_scale)
+            return xavier_normal_init_method(mup_init_scale=args.mup_init_scale)
         elif name == "wang_init":
             return wang_init_method(
-                args.num_layers, args.hidden_size, args.use_mup, args.mup_init_scale
+                args.num_layers, args.hidden_size, mup_init_scale=args.mup_init_scale
             )
         elif name == "small_init":
             return small_init_init_method(
-                args.hidden_size, args.use_mup, args.mup_init_scale
+                args.hidden_size, mup_init_scale=args.mup_init_scale
             )
         elif name == "single_residual_scaled_normal":
             # mamba init uses scaled_normal but no need for 2 * num_layers
@@ -217,8 +220,7 @@ def get_init_methods(args):
             return scaled_init_method_normal(
                 args.init_method_std,
                 args.num_layers,
-                args.use_mup,
-                args.mup_init_scale,
+                mup_init_scale=args.mup_init_scale,
                 num_residuals_per_layer=1,
             )
         else:

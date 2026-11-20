@@ -144,7 +144,7 @@ class TELinear(te.pytorch.Linear):
 
     def forward(self, inp, **kwargs):
         if self.use_mup and self.mup_rescale_parameters:
-            input_ /= self.width_mult()
+            inp = inp / self.width_mult()
 
         output = super(TELinear, self).forward(inp, **kwargs)
 
@@ -372,7 +372,7 @@ class TEColumnParallelLinear(te.pytorch.Linear):
 
     def forward(self, inp, **kwargs):
         if self.use_mup and self.mup_rescale_parameters:
-            input_ /= self.width_mult()
+            inp = inp / self.width_mult()
 
         output = super(TEColumnParallelLinear, self).forward(inp, **kwargs)
         if self.skip_bias_add:
@@ -507,7 +507,7 @@ class TERowParallelLinear(te.pytorch.Linear):
 
     def forward(self, inp, **kwargs):
         if self.use_mup and self.mup_rescale_parameters:
-            input_ /= self.width_mult()
+            inp = inp / self.width_mult()
 
         output = super(TERowParallelLinear, self).forward(inp, **kwargs)
 

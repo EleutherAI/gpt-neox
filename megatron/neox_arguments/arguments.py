@@ -1373,6 +1373,10 @@ class NeoXArgs(*BASE_CLASSES):
             raise ValueError(error_message)
             return False
 
+        # mup scaling is implemented for ParallelSelfAttention only.
+        if self.use_mup and {"gmlp", "amlp"} & set(self.attention_config):
+            raise ValueError("use_mup does not support gmlp or amlp attention.")
+
         _validate_qk_norm_args(
             use_qk_norm=self.use_qk_norm,
             qk_norm=self.qk_norm,
