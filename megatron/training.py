@@ -518,10 +518,12 @@ def get_batch(neox_args, data_iterator):
             ref_data = mpu.broadcast_data(["pos_ref", "neg_ref"], data, torch.float)
         else:
             ref_data = {"pos_ref": None}
-        return [
+        tokens, labels, loss_mask, _, position_ids = [
             torch.cat((pos_item, neg_item), dim=0)
             for pos_item, neg_item in zip(pos_tup, neg_tup)
-        ] + [
+        ]
+        # pos and neg share one [1, 1, s, s] causal mask, which broadcasts over the batch
+        return [tokens, labels, loss_mask, pos_tup[3], position_ids] + [
             torch.cat((ref_data["pos_ref"], ref_data["neg_ref"]), dim=0)[
                 :, :-1
             ].contiguous()
