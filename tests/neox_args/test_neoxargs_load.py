@@ -16,6 +16,7 @@
 load all confings in neox/configs in order to perform validations implemented in NeoXArgs
 """
 from unittest.mock import Mock
+import warnings
 
 import pytest
 import yaml
@@ -189,6 +190,38 @@ def test_python_request_validates_independently_of_loaded_config(monkeypatch):
     validate.assert_called_once()
     model.eval.assert_not_called()
     assert args.top_h == 1.0  # Request settings never modify the loaded config.
+
+
+@pytest.mark.cpu
+def test_worker_does_not_repeat_launcher_sampling_warning():
+    from megatron.neox_arguments import NeoXArgs
+    from megatron.neox_arguments.sampling import IgnoredSamplingFiltersWarning
+
+    with pytest.warns(IgnoredSamplingFiltersWarning, match="top_k=2"):
+        launcher = NeoXArgs.from_ymls(
+            get_configs_with_path(
+                ["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]
+            ),
+            overwrite_values={
+                "log_dir": None,
+                "user_script": "generate.py",
+                "temperature": 0.0,
+                "top_k": 2,
+            },
+        )
+    argv = launcher.get_deepspeed_main_args()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", IgnoredSamplingFiltersWarning)
+        worker = NeoXArgs.consume_neox_args(
+            input_args=argv, overwrite_values={"maximum_tokens": 10}
+        )
+    assert worker.top_k == 2 and worker.maximum_tokens == 10
+    with pytest.warns(IgnoredSamplingFiltersWarning, match="top_k=3"):
+        NeoXArgs.consume_neox_args(input_args=argv, overwrite_values={"top_k": 3})
+    with pytest.raises(ValueError, match="maximum_tokens"):
+        NeoXArgs.consume_neox_args(
+            input_args=argv, overwrite_values={"maximum_tokens": -1}
+        )
 
 
 @pytest.mark.cpu

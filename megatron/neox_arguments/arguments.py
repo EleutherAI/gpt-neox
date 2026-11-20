@@ -21,6 +21,7 @@ import logging
 import copy
 import torch
 import argparse
+import warnings
 from pkg_resources import packaging
 from importlib.metadata import version
 
@@ -37,7 +38,12 @@ from megatron.logging import Tee
 from megatron.tokenizer import build_tokenizer
 from megatron.utils import obtain_resource_pool, expand_attention_types
 from .deepspeed_args import NeoXArgsDeepspeedConfig, NeoXArgsDeepspeedRunner
-from .sampling import sampling_options_from_config, validate_generation_options
+from .sampling import (
+    GREEDY_WARNING_FIELDS,
+    IgnoredSamplingFiltersWarning,
+    sampling_options_from_config,
+    validate_generation_options,
+)
 from .neox_args import (
     NeoXArgsModel,
     NeoXArgsTokenizer,
@@ -626,7 +632,12 @@ class NeoXArgs(*BASE_CLASSES):
             )
         if overwrite_values is not None:
             megatron_config.update(overwrite_values)
-        return cls.from_dict(args_dict=megatron_config)
+        # deepy already warned about the serialized config. A worker can supply
+        # its own overrides; always validate them, but don't replay the launcher's warning.
+        with warnings.catch_warnings():
+            if GREEDY_WARNING_FIELDS.isdisjoint(overwrite_values or ()):
+                warnings.simplefilter("ignore", IgnoredSamplingFiltersWarning)
+            return cls.from_dict(args_dict=megatron_config)
 
     @staticmethod
     def set_up_autotuning(encoded_config, overwrite_values):

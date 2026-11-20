@@ -46,6 +46,13 @@ _NEUTRAL_FILTERS = {
     "eta_cutoff": (0,),
 }
 
+# Only these worker overrides can change which sampling filters greedy ignores.
+GREEDY_WARNING_FIELDS = {"temperature", *_NEUTRAL_FILTERS}
+
+
+class IgnoredSamplingFiltersWarning(UserWarning):
+    """Greedy decoding was requested with active sampling filters."""
+
 
 def validate_sampling_options(options):
     """Range-check the supplied sampling fields."""
@@ -75,7 +82,7 @@ def validate_generation_options(options):
             warnings.warn(
                 "temperature=0 selects greedy decoding; these sampling filters will be ignored: "
                 f"{', '.join(ignored)}. Use a positive temperature to enable sampling.",
-                UserWarning,
+                IgnoredSamplingFiltersWarning,
                 stacklevel=2,
             )
 

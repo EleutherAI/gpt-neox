@@ -311,7 +311,7 @@ def test_multi_prompt_request_validates_and_warns_once(
         )
     assert len(rows) == 2
     validate.assert_called_once()
-    messages = [str(w.message) for w in caught if w.category is UserWarning]
+    messages = [str(w.message) for w in caught if issubclass(w.category, UserWarning)]
     assert len(messages) == int(message is not None)
     if message:
         assert message in messages[0]
