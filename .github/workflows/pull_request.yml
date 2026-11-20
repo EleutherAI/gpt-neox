@@ -23,6 +23,9 @@ jobs:
         name: Docker build
         id: docker_build
         uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: containers/docker/Dockerfile
 
   update-documentation:
     runs-on: ubuntu-22.04
@@ -51,7 +54,9 @@ jobs:
       - name: prepare data
         run: python3 prepare_data.py
       - name: install pytest
-        run: python3 -m pip install pytest pytest-forked pyyaml requests wandb
+        run: |
+          python3 -m pip install pytest pytest-forked pyyaml requests
+          python3 -m pip install -r requirements/requirements-wandb.txt
       - name: install torch
         run: python3 -m pip install torch
       - name: install requirements

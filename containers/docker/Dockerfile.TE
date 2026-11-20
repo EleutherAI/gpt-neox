@@ -84,12 +84,12 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
 COPY requirements/* ./
 ENV TORCH_CUDA_ARCH_LIST=9.0
 
+# cuDF in NGC 24.02 requires protobuf <5.
 RUN python -m pip install --no-cache-dir -r requirements.txt && \
     python -m pip install --no-cache-dir -r requirements-onebitadam.txt && \
-    python -m pip install --no-cache-dir wandb==0.16.6 && \
+    python -m pip install --no-cache-dir wandb==0.16.6 protobuf==4.25.8 && \
     python -m pip install --no-cache-dir --no-build-isolation transformer-engine[pytorch]==1.12 && \
-    python -m pip install --no-cache-dir --no-build-isolation --no-binary flash-attn flash-attn==2.5.6 && \
-    python -m pip install --no-cache-dir protobuf==3.20.*
+    python -m pip install --no-cache-dir --no-build-isolation --no-binary flash-attn flash-attn==2.5.6
 
 COPY megatron/fused_kernels/ /megatron/fused_kernels
 RUN pip install --no-cache-dir --no-build-isolation /megatron/fused_kernels && \

@@ -1,3 +1,4 @@
+datasets<3.0.0
 deepspeed@git+https://github.com/EleutherAI/DeeperSpeed.git@91d1c55ba037b5ada99ae14884dff87a4dc5b9ea#egg=deepspeed
 ftfy>=6.0.1
 huggingface_hub>=0.11.0
@@ -6,6 +7,7 @@ lm_dataformat@git+https://github.com/EleutherAI/lm_dataformat.git@4eec0534997707
 lm_eval>=0.4.0,<=0.4.1
 mpi4py>=3.0.3
 numpy<2.0
+peft==0.9.0
 pybind11>=2.6.2
 regex
 sentencepiece

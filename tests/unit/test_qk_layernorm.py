@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import copy
-import socket
+import faulthandler
 from contextlib import contextmanager
+from datetime import timedelta
+from time import monotonic
 from types import SimpleNamespace
 
 import pytest
@@ -35,9 +37,11 @@ from megatron.model.transformer import (
 
 pytestmark = pytest.mark.cpu
 
+_TP_GROUP_TIMEOUT = timedelta(seconds=60)
+_TP_TEST_TIMEOUT_SECONDS = 120
+
 
 def assert_close(actual, expected, rtol=1.3e-6, atol=1.0e-5):
-    # torch.testing.assert_close needs torch>=1.9; CPU CI pins 1.8.
     assert actual.shape == expected.shape
     assert torch.allclose(actual, expected, rtol=rtol, atol=atol), (actual, expected)
 
@@ -410,34 +414,59 @@ def _assert_norm_parameter_grads_match_full_projection(
 
 
 @contextmanager
-def _tp_rank(rank, world_size, port):
+def _tp_rank(rank, world_size, store_path):
     # NCCL on GPUs when available, otherwise gloo on CPU so this runs in CPU CI.
     use_cuda = torch.cuda.device_count() >= world_size
     if use_cuda:
         torch.cuda.set_device(rank)
+    else:
+        torch.set_num_threads(1)
+    store = dist.FileStore(str(store_path), world_size)
+    store.set_timeout(_TP_GROUP_TIMEOUT)
     dist.init_process_group(
         backend="nccl" if use_cuda else "gloo",
-        init_method=f"tcp://127.0.0.1:{port}",
+        store=store,
         rank=rank,
         world_size=world_size,
+        timeout=_TP_GROUP_TIMEOUT,
     )
-    mpu.initialize_model_parallel(world_size)
     try:
+        mpu.initialize_model_parallel(world_size)
         yield torch.device("cuda", rank) if use_cuda else torch.device("cpu")
     finally:
         mpu.destroy_model_parallel()
         dist.destroy_process_group()
 
 
-def _spawn_two_ranks(worker):
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as test_socket:
-        test_socket.bind(("127.0.0.1", 0))
-        port = test_socket.getsockname()[1]
-    mp.spawn(worker, args=(2, port), nprocs=2, join=True)
+def _run_tp_worker(rank, worker, store_path):
+    faulthandler.dump_traceback_later(_TP_GROUP_TIMEOUT.total_seconds())
+    try:
+        worker(rank, 2, store_path)
+    finally:
+        faulthandler.cancel_dump_traceback_later()
 
 
-def _run_distributed_qk_norm_test(rank, world_size, port):
-    with _tp_rank(rank, world_size, port) as device:
+def _spawn_two_ranks(worker, tmp_path):
+    deadline = monotonic() + _TP_TEST_TIMEOUT_SECONDS
+    context = mp.spawn(
+        _run_tp_worker, args=(worker, tmp_path / "tp-store"), nprocs=2, join=False
+    )
+    try:
+        while not context.join(timeout=max(0, deadline - monotonic())):
+            if monotonic() >= deadline:
+                pytest.fail(
+                    f"{worker.__name__} timed out after {_TP_TEST_TIMEOUT_SECONDS}s"
+                )
+    finally:
+        for process in context.processes:
+            if process.is_alive():
+                process.kill()
+        for process in context.processes:
+            process.join(timeout=5)
+
+
+def _run_distributed_qk_norm_test(rank, world_size, store_path):
+    with _tp_rank(rank, world_size, store_path) as device:
         full_query_values = torch.tensor([[[1.0, 2.0, 4.0, 8.0]]], device=device)
         full_key_values = torch.tensor([[[3.0, 6.0]]], device=device)
         full_query_coefficients = torch.tensor(
@@ -523,12 +552,12 @@ def _run_distributed_qk_norm_test(rank, world_size, port):
             )
 
 
-def test_qk_norm_across_tp_matches_full_projection_forward_and_backward():
-    _spawn_two_ranks(_run_distributed_qk_norm_test)
+def test_qk_norm_across_tp_matches_full_projection_forward_and_backward(tmp_path):
+    _spawn_two_ranks(_run_distributed_qk_norm_test, tmp_path)
 
 
-def _run_distributed_qk_norm_grad_sync_test(rank, world_size, port):
-    with _tp_rank(rank, world_size, port) as device:
+def _run_distributed_qk_norm_grad_sync_test(rank, world_size, store_path):
+    with _tp_rank(rank, world_size, store_path) as device:
         # [heads, head_dim]; each rank holds one head.
         query = torch.tensor([[1.0, 2.0], [4.0, 8.0]], device=device)
         key = torch.tensor([[3.0, 6.0], [5.0, -2.0]], device=device)
@@ -561,5 +590,5 @@ def _run_distributed_qk_norm_grad_sync_test(rank, world_size, port):
                 assert_close(parameter.grad, expected.grad)
 
 
-def test_qk_norm_grads_are_synced_per_mode_across_tp():
-    _spawn_two_ranks(_run_distributed_qk_norm_grad_sync_test)
+def test_qk_norm_grads_are_synced_per_mode_across_tp(tmp_path):
+    _spawn_two_ranks(_run_distributed_qk_norm_grad_sync_test, tmp_path)
