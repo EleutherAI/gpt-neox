@@ -282,7 +282,9 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
             self.model_parallel_size = get_key(neox_config, "model-parallel-size")
             self.vocab_file = get_key(neox_config, "vocab-file")
             self.merge_file = get_key(neox_config, "merge-file")
-            self.tokenizer_type = get_key(neox_config, "tokenizer-type")
+            self.tokenizer_type = get_key(
+                neox_config, "tokenizer-type", default="GPT2BPETokenizer"
+            )
 
             self.rank = 0
 
@@ -907,7 +909,9 @@ def main(input_args=None, overwrite_values=None):
 
     if not args.no_save_tokenizer:
         # save tokenizer to directory as well, for easy loading of model as a HF model.
-        tokenizer_type = get_key(loaded_config, "tokenizer-type")
+        tokenizer_type = get_key(
+            loaded_config, "tokenizer-type", default="GPT2BPETokenizer"
+        )
         if args.vocab_is_hf_tokenizer:
             from transformers import AutoTokenizer
 
