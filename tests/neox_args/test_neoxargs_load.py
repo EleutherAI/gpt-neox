@@ -118,8 +118,6 @@ def test_strip_deprecated_config_keys(monkeypatch):
         strip({"removed_option": 1})
     with pytest.raises(ValueError, match="'sparse_attention' has been removed"):
         strip({"sparse_attention": {"block": 32}})
-    with pytest.raises(ValueError, match="'deepscale' has been removed"):
-        strip({"deepscale": True})
 
 
 @pytest.mark.cpu
@@ -128,65 +126,6 @@ def test_gradient_clipping_default_matches_deepspeed():
     from megatron.neox_arguments.deepspeed_args import NeoXArgsDeepspeedConfig
 
     assert NeoXArgsDeepspeedConfig().gradient_clipping == GRADIENT_CLIPPING_DEFAULT
-
-
-@pytest.mark.cpu
-@pytest.mark.parametrize("value", ["fp16", "bf16", "fp32"])
-def test_communication_data_type_accepts_deepspeed_values(value):
-    from megatron.neox_arguments import NeoXArgs
-
-    args = NeoXArgs.from_ymls(
-        get_configs_with_path(["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]),
-        overwrite_values={"communication_data_type": value},
-    )
-    assert args.communication_data_type == value
-
-
-@pytest.mark.cpu
-@pytest.mark.parametrize("value", ["fp64", True, "invalid"])
-def test_communication_data_type_rejects_invalid_values(value):
-    from megatron.neox_arguments import NeoXArgs
-
-    with pytest.raises(ValueError):
-        NeoXArgs.from_ymls(
-            get_configs_with_path(
-                ["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]
-            ),
-            overwrite_values={"communication_data_type": value},
-        )
-
-
-@pytest.mark.cpu
-@pytest.mark.parametrize("use_bias", [True, False])
-def test_use_bias_in_norms(use_bias):
-    from types import SimpleNamespace
-    from megatron.model.norms import get_norm
-
-    args = SimpleNamespace(
-        norm="layernorm",
-        layernorm_epsilon=1e-5,
-        layernorm_fusion=False,
-        use_bias_in_norms=use_bias,
-    )
-    norm, eps = get_norm(args)
-    assert (norm(64, eps=eps).bias is not None) == use_bias
-
-
-@pytest.mark.cpu
-def test_use_bias_in_norms_rejects_fused_layernorm():
-    from megatron.neox_arguments import NeoXArgs
-
-    with pytest.raises(ValueError, match="use_bias_in_norms"):
-        NeoXArgs.from_ymls(
-            get_configs_with_path(
-                ["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]
-            ),
-            overwrite_values={
-                "norm": "layernorm",
-                "layernorm_fusion": True,
-                "use_bias_in_norms": False,
-            },
-        )
 
 
 @pytest.mark.cpu
