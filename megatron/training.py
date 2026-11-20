@@ -1027,7 +1027,7 @@ def get_optimizer(model, neox_args, dummy=False):
     ), f"If use_mup == True, you must specify either the adam or sgd optimizers. You passed: {neox_args.optimizer_type.lower()}"
 
     if neox_args.optimizer_type.lower() in ["cpu_adam", "cpu_torch_adam"]:
-        if neox_args.optimizer == "cpu_torch_adam":
+        if neox_args.optimizer_type.lower() == "cpu_torch_adam":
             cpu_adam_optimizer = torch.optim.Adam
         else:
             from deepspeed.ops.adam import DeepSpeedCPUAdam
