@@ -14,7 +14,6 @@
 
 from megatron.utils import is_local_main, print_rank_0
 
-import copy
 import os
 import sys
 import dataclasses
@@ -125,77 +124,72 @@ class EvalHarnessAdapter(HFLM):
         return self.tokenizer.decode(tokens)
 
     def generate_until(self, requests):
+        """Return completions in request order, processing one prompt at a time.
+
+        Each request supplies its own generation kwargs. Missing or false
+        do_sample selects greedy decoding; true requires a positive temperature
+        (default 1). max_gen_toks sets the new-token budget and until accepts a
+        string or list of stop strings. The result excludes the earliest stop
+        string and everything after it. Only greedy results go to the adapter's
+        response-cache hook. The model KV cache is controlled by recompute.
         """
-        Generate until is lm_eval harness' way to say "do greedy generation" - necessary for some tasks.
-        the eval harness dispatches requests to the model, and the model does argmax generation, the results of which
-        are returned to the eval harness to evaluate.
+        self.model.module.inference_mode(use_cache=not self.neox_args.recompute)
+        try:
+            # Generation is unbatched. Do not group identical prompts: their
+            # decoding options can differ, and repeats may request independent draws.
+            return [
+                self._generate_until_request(*req.args)
+                for req in tqdm(requests, desc="Running generation")
+            ]
+        finally:
+            self.model.module.train_mode()
 
-        TODO: batched / data parallel generation
-
-        :param requests: Dictionary of requests containing the context (prompt) and 'until' - a token or
-                         list of stop tokens.
-        """
-        self.model.module.inference_mode(use_cache=True)  # tell model to cache kv pairs
-        res = []
-
-        # get only the args from each Instance object
-        reqs = [req.args for req in requests]
-
-        def _collate(x):
-            toks = self.tokenizer.encode(x[0])
-            return (len(toks), x[0])
-
-        reord = utils.Reorderer(reqs, _collate)
-        for context, gen_kwargs in tqdm(
-            reord.get_reordered(), "Running greedy generation"
-        ):
-            if isinstance(gen_kwargs, dict):
-                kwargs = copy.deepcopy(gen_kwargs)  # edge case for repeats > 1
-                if "until" in kwargs.keys():
-                    until = kwargs.pop("until")
-                    if isinstance(until, str):
-                        until = [kwargs]
-                    elif not isinstance(until, list):
-                        raise ValueError(
-                            f"Expected `kwargs['until']` to be of type Union[str,list] but got {until}"
-                        )
-            else:
-                raise ValueError(
-                    f"Expected `kwargs` to be of type `dict` but got {kwargs}"
-                )
-            if not until:
-                until = [self.tok_decode(self.eot_token_id)]
-            if "max_gen_toks" in kwargs.keys():
-                max_gen_toks = kwargs.pop("max_gen_toks")
-            else:
-                max_gen_toks = self.max_gen_toks
-
-            if "do_sample" in kwargs.keys():
-                kwargs.pop("do_sample")
-
-            stop_tokens = [self.tokenizer.encode(i) for i in until]
-            cont = self.generate(
-                text=context,
-                stop_tokens=stop_tokens,
-                recompute=self.neox_args.recompute,
-                maximum_tokens=max_gen_toks,
-                **kwargs,
+    def _generate_until_request(self, context, gen_kwargs):
+        if not isinstance(gen_kwargs, dict):
+            raise ValueError(
+                f"Expected generation kwargs to be a dict, got {gen_kwargs!r}"
             )
-            if cont:
-                s = cont[0]["text"] or ""
-            else:
-                s = ""
+        kwargs = gen_kwargs.copy()
+        until = kwargs.pop("until", [])
+        if isinstance(until, str):
+            until = [until]
+        elif not isinstance(until, list):
+            raise ValueError(f"Expected until to be a string or list, got {until!r}")
 
-            for term in until:
-                s = s.split(term)[0]
+        # Translate the HF mode flag once. Native NeoX uses temperature to
+        # select the mode; no logits filter should ever enable sampling.
+        do_sample = kwargs.pop("do_sample", False)
+        if not isinstance(do_sample, bool):
+            raise ValueError(f"do_sample must be a boolean, got {do_sample!r}")
+        if not do_sample:
+            kwargs["temperature"] = 0.0
+        elif kwargs.setdefault("temperature", 1.0) == 0.0:
+            raise ValueError(
+                "do_sample=True requires a positive temperature; use do_sample=False for greedy decoding"
+            )
 
-            # partial caching
-            self.cache_hook.add_partial("generate_until", (context, until), s)
-
-            res.append(s)
-
-        self.model.module.train_mode()  # set back to train mode
-        return reord.get_original(res)
+        # NeoX always stops on EOS, even when the task supplies no stop strings.
+        stop_tokens = [self.tokenizer.encode(term) for term in until if term]
+        cont = self.generate(
+            text=context,
+            stop_tokens=stop_tokens,
+            recompute=self.neox_args.recompute,
+            maximum_tokens=kwargs.pop("max_gen_toks", self.max_gen_toks),
+            **kwargs,
+        )
+        text = (cont[0]["text"] or "") if cont else ""
+        # Search the original text: trimming "3" first would hide an
+        # overlapping "23" in "123", leaving a fragment of the earlier stop.
+        end = len(text)
+        for term in until:
+            if term:
+                start = text.find(term)
+                if start != -1:
+                    end = min(end, start)
+        text = text[:end]
+        if not do_sample:
+            self.cache_hook.add_partial("generate_until", (context, gen_kwargs), text)
+        return text
 
     def _loglikelihood_tokens(self, requests, disable_tqdm=False):
         """

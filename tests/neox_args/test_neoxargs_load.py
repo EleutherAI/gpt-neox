@@ -15,6 +15,9 @@
 """
 load all confings in neox/configs in order to perform validations implemented in NeoXArgs
 """
+from unittest.mock import Mock
+import warnings
+
 import pytest
 import yaml
 from ..common import get_configs_with_path
@@ -73,6 +76,152 @@ def test_gradient_clipping_is_passed_to_deepspeed():
 
     assert args_loaded.gradient_clipping == 1.0
     assert args_loaded.deepspeed_config["gradient_clipping"] == 1.0
+
+
+@pytest.mark.cpu
+@pytest.mark.parametrize(
+    "name,value",
+    [
+        ("minimum_tokens", -1),
+        ("maximum_tokens", -1),
+        ("temperature", -0.1),
+        ("top_k", -1),
+        ("top_p", 1.01),
+        ("min_p", -0.01),
+        ("top_h", 1.01),
+        ("typical_p", 0.0),
+        ("typical_p", 1.01),
+        ("epsilon_cutoff", 1.0),
+        ("eta_cutoff", 1.0),
+        ("eta_cutoff", float("nan")),
+    ],
+)
+def test_config_rejects_invalid_sampling_before_model_setup(name, value):
+    from megatron.neox_arguments import NeoXArgs
+
+    with pytest.raises(ValueError, match=name):
+        NeoXArgs.from_ymls(
+            get_configs_with_path(
+                ["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]
+            ),
+            overwrite_values={"log_dir": None, name: value},
+        )
+
+
+@pytest.mark.cpu
+@pytest.mark.parametrize(
+    "name,value,expected",
+    [
+        ("top_k", True, "int"),
+        ("temperature", "0.5", "float"),
+        ("minimum_tokens", 1.5, "int"),
+    ],
+)
+def test_config_reports_mistyped_sampling_option(name, value, expected):
+    from megatron.neox_arguments import NeoXArgs
+
+    with pytest.raises(
+        ValueError, match=f"{name} must be {expected}, got {type(value).__name__}"
+    ):
+        NeoXArgs.from_ymls(
+            get_configs_with_path(
+                ["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]
+            ),
+            overwrite_values={"log_dir": None, name: value},
+        )
+
+
+@pytest.mark.cpu
+def test_config_rejects_minimum_above_maximum():
+    from megatron.neox_arguments import NeoXArgs
+
+    with pytest.raises(ValueError, match=r"minimum_tokens \(5\).*maximum_tokens \(4\)"):
+        NeoXArgs.from_ymls(
+            get_configs_with_path(
+                ["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]
+            ),
+            overwrite_values={
+                "log_dir": None,
+                "minimum_tokens": 5,
+                "maximum_tokens": 4,
+            },
+        )
+
+
+@pytest.mark.cpu
+def test_python_request_validates_independently_of_loaded_config(monkeypatch):
+    from megatron.neox_arguments import NeoXArgs
+    from megatron.neox_arguments import sampling
+    from megatron.text_generation_utils import stream_tokens
+
+    options = dict(
+        minimum_tokens=0,
+        maximum_tokens=0,
+        temperature=0.0,
+        top_k=0,
+        top_p=1.0,
+        min_p=0.0,
+        top_h=1.0,
+        typical_p=1.0,
+        epsilon_cutoff=0.0,
+        eta_cutoff=0.999,
+    )
+    validate = Mock(wraps=sampling.validate_sampling_options)
+    monkeypatch.setattr(sampling, "validate_sampling_options", validate)
+    with pytest.warns(
+        UserWarning, match="will be ignored: top_h=1.0, eta_cutoff=0.999"
+    ):
+        args = NeoXArgs.from_ymls(
+            get_configs_with_path(
+                ["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]
+            ),
+            overwrite_values={"log_dir": None, **options},
+        )
+    validate.assert_called_once_with(options)
+    validate.reset_mock()
+    model = Mock()
+    # Equal values supplied through the public API are still an independent request.
+    with pytest.warns(UserWarning, match="will be ignored"):
+        stream_tokens(args, model, [[1]], **options).close()
+    validate.assert_called_once_with(options)
+    validate.reset_mock()
+    with pytest.raises(ValueError, match="top_h"):
+        stream_tokens(args, model, [[1]], top_h=-0.1)
+    validate.assert_called_once()
+    model.eval.assert_not_called()
+    assert args.top_h == 1.0  # Request settings never modify the loaded config.
+
+
+@pytest.mark.cpu
+def test_worker_does_not_repeat_launcher_sampling_warning():
+    from megatron.neox_arguments import NeoXArgs
+    from megatron.neox_arguments.sampling import IgnoredSamplingFiltersWarning
+
+    with pytest.warns(IgnoredSamplingFiltersWarning, match="top_k=2"):
+        launcher = NeoXArgs.from_ymls(
+            get_configs_with_path(
+                ["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]
+            ),
+            overwrite_values={
+                "log_dir": None,
+                "user_script": "generate.py",
+                "temperature": 0.0,
+                "top_k": 2,
+            },
+        )
+    argv = launcher.get_deepspeed_main_args()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", IgnoredSamplingFiltersWarning)
+        worker = NeoXArgs.consume_neox_args(
+            input_args=argv, overwrite_values={"maximum_tokens": 10}
+        )
+    assert worker.top_k == 2 and worker.maximum_tokens == 10
+    with pytest.warns(IgnoredSamplingFiltersWarning, match="top_k=3"):
+        NeoXArgs.consume_neox_args(input_args=argv, overwrite_values={"top_k": 3})
+    with pytest.raises(ValueError, match="maximum_tokens"):
+        NeoXArgs.consume_neox_args(
+            input_args=argv, overwrite_values={"maximum_tokens": -1}
+        )
 
 
 @pytest.mark.cpu

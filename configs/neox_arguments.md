@@ -1111,8 +1111,9 @@ Text Generation arguments
 
     Default = None
 
-    How to generate text/sample the model.
-    Options: `unconditional`, `input-file`, `interactive`, `precompute`
+    Generation mode: `input-file`, `unconditional`, or `interactive`.
+    If omitted, a sample_input_file selects input-file mode; otherwise generation is unconditional.
+    `precompute` is a separate mode that writes indexed-dataset log probabilities.
 
 - **precompute_model_name**: str
 
@@ -1124,62 +1125,101 @@ Text Generation arguments
 
     Default = 0.0
 
-    exponential scaling output distribution ("higher == more risk")
+    Zero selects greedy decoding and ignores sampling filters. Positive values
+    enable sampling and scale the logits before filtering (1 leaves them unchanged).
 
 - **top_p**: float
 
+    Default = 1.0
+
+    Nucleus sampling: keep the smallest high-probability prefix reaching top_p.
+    Both 1 (default) and 0 (legacy NeoX) disable this filter.
+
+- **min_p**: float
+
     Default = 0.0
 
-    Top-p (nucleus) sampling chooses from the smallest possible set of tokens whose cumulative probability exceeds the probability top_p.
+    Keep tokens with probability at least min_p times that of the most likely token. Valid range: [0, 1]; 0 disables the filter.
+
+- **top_h**: float
+
+    Default = 0.0
+
+    Entropy budget scaling factor for top-h sampling, considering at most the 100 most likely tokens. Enabled values must be greater than 0 and at most 1; 0 disables top-h sampling.
+
+- **typical_p**: float
+
+    Default = 1.0
+
+    Probability mass of tokens closest to the distribution's expected surprisal. Enabled values must be greater than 0 and less than 1; 1 disables locally typical sampling.
+
+- **epsilon_cutoff**: float
+
+    Default = 0.0
+
+    Minimum conditional probability required for epsilon sampling. Valid range: [0, 1); 0 disables epsilon sampling. Suggested values range from 3e-4 to 9e-4.
+
+- **eta_cutoff**: float
+
+    Default = 0.0
+
+    Entropy-adaptive probability cutoff for eta sampling. Valid range: [0, 1); 0 disables eta sampling. Suggested values range from 3e-4 to 2e-3.
 
 - **top_k**: int
 
     Default = 0
 
-    integer between 0 and the models vocab size. Filters out any logits with a probability less than that of the top_kth token.
+    Keep the k highest-scoring tokens, including ties; 0 disables the filter. When sampling, values above the padded vocabulary size are capped with a warning.
 
 - **return_logits**: bool
 
     Default = False
 
-    Boolean for whether to return the logits for generated tokens
+    Return processed scores (not raw model logits) for batch item zero, one row per
+    executed decode step, including the EOS decision. EOS is -inf while minimum_tokens
+    prevents it. When sampling, scores also include temperature scaling and filtering.
 
 - **maximum_tokens**: int
 
     Default = 64
 
-    maximum number of tokens to be generated
+    Maximum number of new token decisions per prompt, subject to the space left in the context window. Zero performs no decode steps.
+
+- **minimum_tokens**: int
+
+    Default = 0
+
+    Suppress EOS for this many new token decisions, in greedy and sampling modes. Cannot exceed maximum_tokens. Does not override explicit stop sequences or the context window.
 
 - **prompt_end**: str
 
     Default = '\n'
 
-    a single prompt's end. Defaults to newline
+    Delimiter between input-file prompts or at the end of an interactive prompt. Defaults to newline.
 
 - **sample_input_file**: str
 
     Default = None
 
-    Get input from file instead of interactive mode, each line is an input.
+    UTF-8 prompt file for input-file mode. Prompts are split on prompt_end, stripped of surrounding whitespace, and empty entries are skipped.
 
 - **sample_output_file**: str
 
     Default = samples.txt
 
-    Output file
+    JSONL destination for input-file or unconditional generation. Global rank zero overwrites the file.
 
 - **num_samples**: int
 
     Default = 1
 
-    Number of samples to generate unconditionally, defaults to 1 and interactive conditional sampling
+    Number of completions in unconditional mode. Must be positive.
 
 - **recompute**: bool
 
     Default = False
 
-    During generation recompute all attention instead of using previously computed keys/values.
-    Should be set to true for sparse attention models
+    False reuses cached attention keys/values during generation. True recomputes the full sequence at every step; use it for sparse attention models.
 
 - **eval_results_prefix**: str
 

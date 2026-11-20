@@ -15,9 +15,11 @@ If training from scratch, set `finetune=False` in `./configs/llama/train_config.
 ## Inference
 
 
-LLaMA generation can be launched with
+Follow the [inference guide](../../INFERENCE.md) to set the tokenizer and
+checkpoint paths and create `configs/infer.yml` with `text_gen_type: input-file`.
+Then run from the NeoX root, using the model config and step matching your checkpoint:
 ```sh
 python ./deepy.py ./generate.py -d configs  \
-  llama/7B.yml llama/train_config.yml local_setup.yml text_generation.yml \
-  -i input_prompt.txt -o prompt_out.txt
+  llama/7B.yml llama/train_config.yml local_setup.yml infer.yml \
+  --iteration 10000 -i input_prompt.txt -o completions.jsonl
 ```
