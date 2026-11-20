@@ -731,7 +731,7 @@ def _make_native_flash_attention(*, rotary_ndims=None):
     attention.num_kv_heads_per_partition = 1
     attention.hidden_size_per_attention_head = 4
     attention.hidden_size_per_partition = 4
-    attention.use_qk_layernorm = False
+    attention.use_qk_norm = False
     attention.rotary_ndims = rotary_ndims
     attention.use_cache = False
     attention.use_flash_attention = True
@@ -999,7 +999,7 @@ def _make_cuda_native_flash_attention(mode):
     attention.num_kv_heads_per_partition = num_heads
     attention.hidden_size_per_attention_head = head_dim
     attention.hidden_size_per_partition = num_heads * head_dim
-    attention.use_qk_layernorm = False
+    attention.use_qk_norm = False
     attention.use_cache = False
     attention.use_flash_attention = True
     attention.use_triton = False
