@@ -1248,7 +1248,7 @@ class NeoXArgs(*BASE_CLASSES):
             if isinstance(self.zero_stage, int):
                 assert self.zero_stage <= 2, "Zero stage 3 not compatible with Mamba"
             assert (
-                self.hidden_dropout == 0.0,
+                self.hidden_dropout == 0.0
             ), "Mamba does not yet have dropout implemented"
         if "rwkv" in self.attention_config:
             assert (
@@ -1257,7 +1257,7 @@ class NeoXArgs(*BASE_CLASSES):
             if isinstance(self.zero_stage, int):
                 assert self.zero_stage <= 2, "Zero stage 3 not compatible with RWKV"
             assert (
-                self.hidden_dropout == 0.0,
+                self.hidden_dropout == 0.0
             ), "RWKV does not yet have dropout implemented"
 
         if self.inter_document_attention_masking:
