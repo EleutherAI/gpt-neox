@@ -21,6 +21,17 @@ import torch
 from megatron import text_generation_utils as generation
 from megatron.model.utils import SequentialWrapper
 
+pytestmark = pytest.mark.cpu
+
+
+def test_standalone_filter_validates_before_modifying_logits():
+    logits = torch.tensor([[1.0, 2.0]])
+    with pytest.raises(ValueError, match="epsilon_cutoff"):
+        generation.filter_logits(logits, top_k=1, epsilon_cutoff=1.0)
+    torch.testing.assert_close(logits, torch.tensor([[1.0, 2.0]]))
+    result = generation.filter_logits(logits, 1, 0.0, -100.0)
+    torch.testing.assert_close(result, torch.tensor([[-100.0, 2.0]]))
+
 
 def test_gather_generation_logits(monkeypatch):
     # Recompute can select a non-contiguous [batch, shard] view.
@@ -46,9 +57,8 @@ def test_gather_generation_logits_rejects_wrong_width():
 
 @pytest.fixture
 def args(monkeypatch):
-    if not torch.cuda.is_available():
-        pytest.skip("stream_tokens uses CUDA")
     # A single rank needs no communication.
+    monkeypatch.setattr(generation.mpu, "get_model_parallel_rank", lambda: 0)
     monkeypatch.setattr(generation.mpu, "get_model_parallel_world_size", lambda: 1)
     monkeypatch.setattr(generation.mpu, "get_model_parallel_src_rank", lambda: 0)
     monkeypatch.setattr(generation.mpu, "get_model_parallel_group", lambda: None)
@@ -97,7 +107,7 @@ def test_return_logits_starts_at_first_decode_step(args, prompt, recompute):
     steps = list(
         generation.stream_tokens(
             args,
-            Mock(module=Mock(side_effect=position_logits)),
+            Mock(device=torch.device("cpu"), module=Mock(side_effect=position_logits)),
             [prompt],
             maximum_tokens=maximum_tokens,
             recompute=recompute,
@@ -133,7 +143,31 @@ def cached_model():
     module = SequentialWrapper(
         [layer], activation_checkpoint_interval=0, activation_checkpoint_func=None
     )
-    return Mock(module=module), layer
+    return Mock(device=torch.device("cpu"), module=module), layer
+
+
+def test_prompt_generation_honors_stop_sequence_on_cpu(args, cached_model):
+    args.tokenizer.tokenize = lambda _: [0]
+    args.tokenizer.detokenize = lambda tokens: "".join(map(str, tokens))
+    model, _ = cached_model  # Generates token 1 at every step.
+    results = generation.generate_samples_from_prompt(
+        args, model, ["first", "second"], maximum_tokens=4, stop_tokens=[[1, 1]]
+    )
+    assert [result["context"] for result in results] == ["first", "second"]
+    assert all(result["finished"] and len(result["logits"]) == 2 for result in results)
+
+
+def test_sampling_validation_is_outside_the_decode_loop(
+    args, cached_model, monkeypatch
+):
+    validate = Mock(wraps=generation.validate_sampling_options)
+    monkeypatch.setattr(generation, "validate_sampling_options", validate)
+    model, _ = cached_model
+    steps = list(
+        generation.stream_tokens(args, model, [[1]], maximum_tokens=3, top_k=1)
+    )
+    assert len(steps) == 3
+    validate.assert_called_once()
 
 
 @pytest.mark.parametrize("recompute", [False, True], ids=["cached", "recompute"])

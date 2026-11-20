@@ -15,6 +15,8 @@
 """
 load all confings in neox/configs in order to perform validations implemented in NeoXArgs
 """
+from unittest.mock import Mock
+
 import pytest
 import yaml
 from ..common import get_configs_with_path
@@ -73,6 +75,75 @@ def test_gradient_clipping_is_passed_to_deepspeed():
 
     assert args_loaded.gradient_clipping == 1.0
     assert args_loaded.deepspeed_config["gradient_clipping"] == 1.0
+
+
+@pytest.mark.cpu
+@pytest.mark.parametrize(
+    "name,value",
+    [
+        ("minimum_tokens", -1),
+        ("maximum_tokens", -1),
+        ("temperature", -0.1),
+        ("top_k", -1),
+        ("top_p", 1.01),
+        ("min_p", -0.01),
+        ("top_h", 1.01),
+        ("typical_p", 0.0),
+        ("typical_p", 1.01),
+        ("epsilon_cutoff", 1.0),
+        ("eta_cutoff", 1.0),
+        ("eta_cutoff", float("nan")),
+    ],
+)
+def test_config_rejects_invalid_sampling_before_model_setup(name, value):
+    from megatron.neox_arguments import NeoXArgs
+
+    with pytest.raises(ValueError, match=name):
+        NeoXArgs.from_ymls(
+            get_configs_with_path(
+                ["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]
+            ),
+            overwrite_values={"log_dir": None, name: value},
+        )
+
+
+@pytest.mark.cpu
+def test_sampling_boundaries_and_runtime_overrides(monkeypatch):
+    from megatron.neox_arguments import NeoXArgs
+    from megatron.neox_arguments.sampling import SAMPLING_RANGES
+    from megatron.text_generation_utils import stream_tokens
+
+    options = dict(
+        minimum_tokens=0,
+        maximum_tokens=0,
+        temperature=0.0,
+        top_k=0,
+        top_p=1.0,
+        min_p=0.0,
+        top_h=1.0,
+        typical_p=1.0,
+        epsilon_cutoff=0.0,
+        eta_cutoff=0.999,
+    )
+    args = NeoXArgs.from_ymls(
+        get_configs_with_path(["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]),
+        overwrite_values={"log_dir": None, **options},
+    )
+    # No range predicate should run again for unchanged options. A mutated
+    # config or a request override must still fail before touching the model.
+    for name, (accepts, domain) in SAMPLING_RANGES.items():
+        monkeypatch.setitem(SAMPLING_RANGES, name, (Mock(wraps=accepts), domain))
+    model = Mock()
+    model.eval.side_effect = RuntimeError("reached model")
+    with pytest.raises(RuntimeError, match="reached model"):
+        next(stream_tokens(args, model, [[1]], **options))
+    assert all(check.call_count == 0 for check, _ in SAMPLING_RANGES.values())
+
+    args.top_h = options["top_h"] = -0.1
+    with pytest.raises(ValueError, match="top_h"):
+        next(stream_tokens(args, model, [[1]], **options))
+    assert SAMPLING_RANGES["top_h"][0].call_count == 1
+    assert model.eval.call_count == 1
 
 
 @pytest.mark.cpu

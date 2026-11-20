@@ -34,20 +34,20 @@ from megatron import mpu
 from megatron.utils import get_ltor_masks_and_position_ids, is_mp_rank_0
 from megatron.data.indexed_dataset import make_builder, make_dataset
 from megatron.mpu.mappings import gather_from_model_parallel_region
+from megatron.neox_arguments.sampling import validate_sampling_options
 
 
 def get_batch(neox_args, context_tokens: torch.Tensor):
     """
-    Generate batch from context tokens. Attention mask and position ids are created. Returned tensors will be on CUDA.
+    Generate a batch, attention mask, and position IDs on the context tokens' device.
 
     neox_args: NeoXArgs.
     context_tokens: torch tensor with dimensions [batch, context_size]
 
-    returns: tuple of torch tensors (tokens, attention_mask, position_ids) on CUDA
+    returns: tuple of torch tensors (tokens, attention_mask, position_ids)
     """
 
-    # Move to GPU.
-    tokens = context_tokens.contiguous().cuda()
+    tokens = context_tokens.contiguous()
     # Get the attention mask and position ids.
     attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
         data=tokens,
@@ -107,7 +107,7 @@ def filter_logits(
     When multiple sampling transforms are specified, they are applied in the
     same order as Hugging Face Transformers v5.14.0: temperature, top_h,
     top_k, top_p, min_p, typical_p, epsilon_cutoff, then eta_cutoff.
-    Temperature is applied by ``stream_tokens`` before this function is called. See:
+    Temperature is applied by ``stream_tokens`` before the logits filters. See:
     https://github.com/huggingface/transformers/blob/v5.14.0/src/transformers/generation/utils.py#L1273
 
     logits: torch.Tensor -> logits of megatron model.
@@ -121,16 +121,32 @@ def filter_logits(
 
     returns: (filtered) logits"""
 
-    if not 0.0 <= min_p <= 1.0:
-        raise ValueError("min_p must be between 0 and 1")
-    if not 0.0 <= top_h <= 1.0:
-        raise ValueError("top_h must be between 0 and 1")
-    if not 0.0 < typical_p <= 1.0:
-        raise ValueError("typical_p must be greater than 0 and at most 1")
-    if not 0.0 <= epsilon_cutoff < 1.0:
-        raise ValueError("epsilon_cutoff must be at least 0 and less than 1")
-    if not 0.0 <= eta_cutoff < 1.0:
-        raise ValueError("eta_cutoff must be at least 0 and less than 1")
+    filters = dict(
+        top_k=top_k,
+        top_p=top_p,
+        min_p=min_p,
+        top_h=top_h,
+        typical_p=typical_p,
+        epsilon_cutoff=epsilon_cutoff,
+        eta_cutoff=eta_cutoff,
+    )
+    validate_sampling_options(filters)
+    return _apply_logits_filters(logits, filter_value=filter_value, **filters)
+
+
+def _apply_logits_filters(
+    logits,
+    *,
+    top_k,
+    top_p,
+    min_p,
+    top_h,
+    typical_p,
+    epsilon_cutoff,
+    eta_cutoff,
+    filter_value=-float("Inf"),
+):
+    """Apply already-validated filters; called once per decode step."""
 
     if top_h > 0.0:
         batch_size, vocab_size = logits.shape
@@ -314,9 +330,11 @@ def forward_model(model, model_inputs, is_pipe_parallel=False) -> torch.Tensor:
         model.monitor.enabled = monitor_enabled
 
 
-def broadcast_terminate_signal(terminate_runs: int, *, across_job=False):
+def broadcast_terminate_signal(terminate_runs: int, *, device="cuda", across_job=False):
     """Send signal to all workers to terminate if we've finished the process"""
-    terminate_runs_tensor = torch.cuda.LongTensor([terminate_runs])
+    terminate_runs_tensor = torch.tensor(
+        [terminate_runs], dtype=torch.long, device=device
+    )
     torch.distributed.broadcast(
         terminate_runs_tensor,
         0 if across_job else mpu.get_model_parallel_src_rank(),
@@ -365,7 +383,7 @@ def stream_tokens(
     full vocabulary; every rank receives those IDs and any requested scores.
 
     neox_args: NeoXArgs.
-    model: a Megatron model.
+    model: a NeoX engine; prompts and decode state are allocated on its device.
     context_tokens: the prompt to complete; unpadded list of lists of tokens ids
     context_lengths: lengths of context tokens of dimension [batch]; the context length records for each bach item how many non-padded tokens are provided
     eos_token_id: end of text token at which completion is terminated, even if max_tokes count has not been reached
@@ -398,20 +416,25 @@ def stream_tokens(
             * if batch items have different lengths, the iterator will start at the first completion and return the unchanged input context token otherwise
     """
 
+    filters = dict(
+        top_k=top_k,
+        top_p=top_p,
+        min_p=min_p,
+        top_h=top_h,
+        typical_p=typical_p,
+        epsilon_cutoff=epsilon_cutoff,
+        eta_cutoff=eta_cutoff,
+    )
+    validate_sampling_options(
+        dict(
+            filters,
+            minimum_tokens=minimum_tokens,
+            maximum_tokens=maximum_tokens,
+            temperature=temperature,
+        ),
+        already_validated=getattr(neox_args, "_validated_sampling_options", None),
+    )
     model.eval()
-
-    if minimum_tokens < 0:
-        raise ValueError("minimum_tokens must be >= 0")
-    if not 0.0 <= min_p <= 1.0:
-        raise ValueError("min_p must be between 0 and 1")
-    if not 0.0 <= top_h <= 1.0:
-        raise ValueError("top_h must be between 0 and 1")
-    if not 0.0 < typical_p <= 1.0:
-        raise ValueError("typical_p must be greater than 0 and at most 1")
-    if not 0.0 <= epsilon_cutoff < 1.0:
-        raise ValueError("epsilon_cutoff must be at least 0 and less than 1")
-    if not 0.0 <= eta_cutoff < 1.0:
-        raise ValueError("eta_cutoff must be at least 0 and less than 1")
 
     if neox_args.is_pipe_parallel:
         # Synchronize the ragged batch once, before padding: a peer need not
@@ -428,14 +451,14 @@ def stream_tokens(
     )
 
     # convert to tensor and broadcast
-    context_tokens = torch.cuda.LongTensor(context_tokens)
+    context_tokens = torch.tensor(context_tokens, dtype=torch.long, device=model.device)
     if stop_tokens:
         if len(stop_tokens) > 0 and type(stop_tokens[0]) is not list:
             stop_tokens = [stop_tokens]
-        stop_tokens = [torch.cuda.LongTensor(group) for group in stop_tokens]
+        stop_tokens = [context_tokens.new_tensor(group) for group in stop_tokens]
 
     # Make sure context tokens + start tokens are the same across all ranks
-    token_generation_start_index = torch.cuda.LongTensor(context_lengths)
+    token_generation_start_index = context_tokens.new_tensor(context_lengths)
     if not neox_args.is_pipe_parallel:
         for tensor in (context_tokens, token_generation_start_index):
             torch.distributed.broadcast(
@@ -454,8 +477,6 @@ def stream_tokens(
         maximum_tokens = (
             neox_args.seq_length - token_generation_start_index.max().item()
         )
-    elif maximum_tokens < 0:
-        raise ValueError("maximum_tokens must be >= 0")
     batch_size = context_tokens.size(0)
 
     decode_tp_size = mpu.get_model_parallel_world_size()
@@ -494,8 +515,8 @@ def stream_tokens(
         # Release this rank's cache on exhaustion, explicit close, or a forward error.
         cleanup.callback(model.module.clear_cache)
         # initialize generation variables
-        state_is_done = torch.zeros([batch_size]).byte().cuda()
-        token_generation_end_index = torch.ones([batch_size]).long().cuda() * (-1)
+        state_is_done = context_tokens.new_zeros(batch_size, dtype=torch.uint8)
+        token_generation_end_index = context_tokens.new_full((batch_size,), -1)
         generation_logits = (
             torch.empty(
                 last_token_index_to_generate - first_token_index_to_generate + 1,
@@ -573,15 +594,8 @@ def stream_tokens(
                     generated_token_logits = generated_token_logits.float()
                     if temperature > 0.0:
                         generated_token_logits /= temperature
-                    generated_token_logits = filter_logits(
-                        generated_token_logits,
-                        top_k=top_k,
-                        top_p=top_p,
-                        min_p=min_p,
-                        top_h=top_h,
-                        typical_p=typical_p,
-                        epsilon_cutoff=epsilon_cutoff,
-                        eta_cutoff=eta_cutoff,
+                    generated_token_logits = _apply_logits_filters(
+                        generated_token_logits, **filters
                     )
                 if sample_here:
                     if greedy:
@@ -736,7 +750,7 @@ def generate_samples_from_prompt(
                     "max sequence length)!",
                 )
         terminate_runs = broadcast_terminate_signal(
-            terminate_runs, across_job=neox_args.is_pipe_parallel
+            terminate_runs, device=model.device, across_job=neox_args.is_pipe_parallel
         )
         if terminate_runs == 1:
             return generated_texts
