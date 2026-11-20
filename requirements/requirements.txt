@@ -1,5 +1,5 @@
 datasets<3.0.0
-deepspeed@git+https://github.com/EleutherAI/DeeperSpeed.git@91d1c55ba037b5ada99ae14884dff87a4dc5b9ea#egg=deepspeed
+deepspeed@git+https://github.com/EleutherAI/DeeperSpeed.git@0c91f20406b27e5eb3e3eada16ea25f30149c7ff#egg=deepspeed
 ftfy>=6.0.1
 huggingface_hub>=0.11.0
 jinja2==3.1.4
