@@ -1241,6 +1241,14 @@ class NeoXArgs(*BASE_CLASSES):
                 self.hidden_dropout == 0.0
             ), "RWKV does not yet have dropout implemented"
 
+        if self.te_mha or self.te_fp8_mha:
+            assert self.pos_emb in (
+                "rotary",
+                "learned",
+                "sinusoidal",
+                "none",
+            ), f"te_mha does not support pos_emb {self.pos_emb}"
+
         if self.inter_document_attention_masking:
             assert (
                 self.dataset_impl == "gpt2" and self.train_impl == "normal"

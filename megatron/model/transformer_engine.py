@@ -578,7 +578,11 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
             init_method=self.init_method,
             output_layer_init_method=self.output_layer_init_method,
             layer_number=self.layer_number,
-            window_size=neox_args.sliding_window_width,
+            window_size=(
+                (neox_args.sliding_window_width, 0)
+                if neox_args.sliding_window_width is not None
+                else None
+            ),
             num_gqa_groups=self.num_kv_heads,
             input_layernorm=False,
             normalization=self.normalization,
@@ -595,6 +599,7 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
             fuse_qkv_params=True,
         )
 
+        self.rope_emb = None
         if neox_args.pos_emb == "rotary":
             self.hidden_size_per_attention_head = mpu.divide(
                 neox_args.hidden_size, neox_args.num_attention_heads

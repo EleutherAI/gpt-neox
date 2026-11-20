@@ -61,7 +61,7 @@ def test_neoxargs_usage():
             continue
 
         # load file
-        with open(filename, "r") as f:
+        with open(filename, "r", encoding="utf-8") as f:
             file_contents = f.read()
 
         # find args matches
