@@ -53,6 +53,11 @@ from megatron.data.data_utils import (
     build_train_valid_test_data_loaders,
     shift_and_wrap_data_loaders,
 )
+from megatron.data.packed_sequence import (
+    PackedSequenceBatch,
+    PackedSequenceModelInputs,
+    normalize_packed_sequence_batch,
+)
 from megatron.initialize import initialize_megatron
 from megatron.learning_rates import AnnealingLR
 from megatron.logging import tb_wandb_log, training_log
@@ -404,6 +409,18 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype, label_mask_zero=False
             labels = labels * label_mask
     tokens = tokens_[:, :-1].contiguous()
 
+    if neox_args.inter_document_attention_masking:
+        metadata = mpu.broadcast_data(["cu_seqlens", "max_seqlen"], data, torch.int32)
+        return normalize_packed_sequence_batch(
+            tokens=tokens,
+            labels=labels,
+            label_mask=label_mask,
+            cu_seqlens=metadata["cu_seqlens"],
+            max_seqlen=metadata["max_seqlen"],
+            eod_token=neox_args.tokenizer.eod,
+            eod_mask_loss=neox_args.eod_mask_loss,
+        )
+
     # Get the masks and position ids.
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
         data=tokens,
@@ -526,9 +543,11 @@ def get_batch_pipe(data, neox_args, curr_scheduler=None):
     keys = ["text", "label"] if neox_args.train_label_data_paths else ["text"]
     datatype = torch.int64
 
-    tokens, labels, loss_mask, attention_mask, position_ids = _get_batch(
-        neox_args, neox_args.tokenizer, keys, data, datatype
-    )
+    batch = _get_batch(neox_args, neox_args.tokenizer, keys, data, datatype)
+    if isinstance(batch, PackedSequenceBatch):
+        return batch.model_inputs(), batch.loss_inputs()
+
+    tokens, labels, loss_mask, attention_mask, position_ids = batch
     if curr_scheduler is not None:
         # iteration + 1 to align with how/when DeepSpeed updates the buffers
         curriculum_seqlen = curr_scheduler.update_difficulty(neox_args.iteration + 1)
@@ -553,6 +572,9 @@ def get_batch_pipe(data, neox_args, curr_scheduler=None):
 
 def get_batch_sequential(forward_input, neox_args):
     """A modification of get_batch() to work with the latest batch instead of an iterator."""
+    if isinstance(forward_input, PackedSequenceModelInputs):
+        return forward_input
+
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
         data=forward_input[0],
         eod_token=neox_args.tokenizer.eod,
@@ -583,9 +605,13 @@ def forward_step(
     if timers is not None:
         timers("batch generator").start()
     if neox_args.train_impl == "normal":
-        tokens, labels, loss_mask, attention_mask, position_ids = get_batch(
-            neox_args=neox_args, data_iterator=data_iterator
-        )
+        batch = get_batch(neox_args=neox_args, data_iterator=data_iterator)
+        if isinstance(batch, PackedSequenceBatch):
+            model_inputs = batch.model_inputs()
+            labels, loss_mask = batch.loss_inputs()
+        else:
+            tokens, labels, loss_mask, attention_mask, position_ids = batch
+            model_inputs = (tokens, position_ids, attention_mask)
     elif neox_args.train_impl == "kto":
         (
             tokens,
@@ -620,7 +646,7 @@ def forward_step(
         torch.cuda.nvtx.range_push(f"Forward pass")
     metrics = {}
     if neox_args.train_impl == "normal":
-        outputs = model((tokens, position_ids, attention_mask), neox_args=neox_args)
+        outputs = model(model_inputs, neox_args=neox_args)
         if (
             is_train
             and neox_args.curriculum_learning

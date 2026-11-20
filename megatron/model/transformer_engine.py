@@ -627,12 +627,40 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
             self.rope_emb = self.rotary_embeddings.get_emb()
 
     def forward(
-        self, hidden_states, attention_mask, layer_past=None, rope_emb=None, **kwargs
+        self,
+        hidden_states,
+        attention_mask,
+        layer_past=None,
+        rope_emb=None,
+        *,
+        cu_seqlens=None,
+        num_documents=None,
+        max_seqlen=None,
+        **kwargs,
     ):
-        output = super(TEMultiheadAttention, self).forward(
-            hidden_states, attention_mask, rotary_pos_emb=self.rope_emb, **kwargs
-        )
-        return output
+        if cu_seqlens is None:
+            return super(TEMultiheadAttention, self).forward(
+                hidden_states, attention_mask, rotary_pos_emb=self.rope_emb, **kwargs
+            )
+        cu_seqlens = cu_seqlens[: int(num_documents.item()) + 1]
+        max_seqlen = int(max_seqlen.item())
+        self.qkv_format = "thd"
+        try:
+            output, bias = super(TEMultiheadAttention, self).forward(
+                hidden_states,
+                None,
+                rotary_pos_emb=self.rope_emb,
+                attn_mask_type="padding_causal",
+                cu_seqlens_q=cu_seqlens,
+                cu_seqlens_kv=cu_seqlens,
+                max_seqlen_q=max_seqlen,
+                max_seqlen_kv=max_seqlen,
+                **kwargs,
+            )
+        finally:
+            self.qkv_format = "sbhd"
+        # THD output is [T, H]; restore the singleton batch dimension.
+        return output.unsqueeze(1), bias
 
 
 class TEDelayedScaling(te.common.recipe.DelayedScaling):

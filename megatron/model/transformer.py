@@ -655,6 +655,11 @@ class ParallelSelfAttention(nn.Module):
                     flash_attn_func as flash_attn_unpadded_unpacked_func_triton,
                 )
 
+                if self.rotary_emb is not None:
+                    from flash_attn.layers.rotary import apply_rotary_emb
+
+                    self.flash_apply_rotary_fn = apply_rotary_emb
+
                 self.flash_triton_fn = flash_attn_unpadded_unpacked_func_triton
                 self.flash_qkv_fn = flash_attn_func
                 self.flash_varlen_qkv_fn = flash_attn_varlen_func
@@ -789,7 +794,61 @@ class ParallelSelfAttention(nn.Module):
         context_layer = context_layer.view(*output_size)
         return context_layer
 
-    def flash_attention(self, query_layer, key_layer, value_layer):
+    def _flash_attention_kwargs(self, device):
+        extra_kwargs = (
+            {"window_size": (self.sliding_window_width, -1)}
+            if self.sliding_window_width is not None
+            else {}
+        )
+        if self.pos_emb == "alibi":
+            extra_kwargs["alibi_slopes"] = self.alibi_embed.slopes.to(
+                device=device, dtype=torch.float32
+            )
+        return extra_kwargs
+
+    def _flash_attention_packed(
+        self,
+        query_layer,
+        key_layer,
+        value_layer,
+        cu_seqlens,
+        max_seqlen,
+    ):
+        query_layer = query_layer.squeeze(1).contiguous()
+        key_layer = key_layer.squeeze(1).contiguous()
+        value_layer = value_layer.squeeze(1).contiguous()
+        output = self.flash_varlen_qkv_fn(
+            query_layer,
+            key_layer,
+            value_layer,
+            cu_seqlens,
+            cu_seqlens,
+            max_seqlen,
+            max_seqlen,
+            dropout_p=self.dropout_p if self.training else 0.0,
+            softmax_scale=None,
+            causal=True,
+            **self._flash_attention_kwargs(query_layer.device),
+        )
+        return output.transpose(0, 1).unsqueeze(0)
+
+    def flash_attention(
+        self,
+        query_layer,
+        key_layer,
+        value_layer,
+        cu_seqlens=None,
+        max_seqlen=None,
+    ):
+        if cu_seqlens is not None:
+            return self._flash_attention_packed(
+                query_layer,
+                key_layer,
+                value_layer,
+                cu_seqlens=cu_seqlens,
+                max_seqlen=max_seqlen,
+            )
+
         # [b, np, sq, sk]
         output_size = (
             query_layer.size(1),
@@ -817,15 +876,7 @@ class ParallelSelfAttention(nn.Module):
             # if we use Sliding Window Attention / AliBi.
             # Flash attn defaults to (-1,-1), or
             # does not have this kwarg prior to v2.3.0
-            extra_kwargs = (
-                {"window_size": (self.sliding_window_width, -1)}
-                if self.sliding_window_width is not None
-                else {}
-            )
-            if self.pos_emb == "alibi":
-                extra_kwargs["alibi_slopes"] = self.alibi_embed.slopes.to(
-                    query_layer.device
-                ).to(torch.float32)
+            extra_kwargs = self._flash_attention_kwargs(query_layer.device)
 
             if not self.training:
                 batch_size = output_size[0]
@@ -1045,7 +1096,21 @@ class ParallelSelfAttention(nn.Module):
 
         return query_layer, key_layer, value_layer
 
-    def forward(self, hidden_states, attention_mask, layer_past=None):
+    def forward(
+        self,
+        hidden_states,
+        attention_mask,
+        layer_past=None,
+        *,
+        cu_seqlens=None,
+        num_documents=None,
+        max_seqlen=None,
+    ):
+        is_packed = cu_seqlens is not None
+        if is_packed:
+            assert not self.use_cache, "packed sequences do not support use_cache"
+            cu_seqlens = cu_seqlens[: int(num_documents.item()) + 1]
+            max_seqlen = int(max_seqlen.item())
 
         # hidden_states: [sq, b, h]
 
@@ -1094,25 +1159,42 @@ class ParallelSelfAttention(nn.Module):
                 # full rotary
                 query_rot, key_rot = query_layer, key_layer
 
-            seq_len = key_layer.shape[0]
-            offset = 0
-            if exists(layer_past) and layer_past.numel() > 0:
-                offset = layer_past[0].shape[0]
-                seq_len += offset
-            cos, sin = self.rotary_emb(value_layer, seq_len=seq_len)
-            if self.rope_fusion:
+            if is_packed:
+                # Rotary positions restart at every document boundary in cu_seqlens.
+                cos, sin = self.rotary_emb(value_layer, seq_len=max_seqlen)
+                rotary_dim = cos.size(-1)
+                flash_cos = cos[:, 0, 0, : rotary_dim // 2].contiguous()
+                flash_sin = sin[:, 0, 0, : rotary_dim // 2].contiguous()
                 query_layer, key_layer = (
-                    fused_apply_rotary_pos_emb_cached(rot, cos, sin)
-                    for rot in [query_rot, key_rot]
+                    self.flash_apply_rotary_fn(
+                        rot.squeeze(1).contiguous(),
+                        flash_cos,
+                        flash_sin,
+                        cu_seqlens=cu_seqlens,
+                        max_seqlen=max_seqlen,
+                    ).unsqueeze(1)
+                    for rot in (query_rot, key_rot)
                 )
             else:
-                if self.bf16:
-                    apply_rotary_fn = apply_rotary_pos_emb_torch
+                seq_len = key_layer.shape[0]
+                offset = 0
+                if exists(layer_past) and layer_past.numel() > 0:
+                    offset = layer_past[0].shape[0]
+                    seq_len += offset
+                cos, sin = self.rotary_emb(value_layer, seq_len=seq_len)
+                if self.rope_fusion:
+                    query_layer, key_layer = (
+                        fused_apply_rotary_pos_emb_cached(rot, cos, sin)
+                        for rot in [query_rot, key_rot]
+                    )
                 else:
-                    apply_rotary_fn = apply_rotary_pos_emb
-                query_layer, key_layer = apply_rotary_fn(
-                    query_rot, key_rot, cos, sin, offset=offset
-                )
+                    if self.bf16:
+                        apply_rotary_fn = apply_rotary_pos_emb_torch
+                    else:
+                        apply_rotary_fn = apply_rotary_pos_emb
+                    query_layer, key_layer = apply_rotary_fn(
+                        query_rot, key_rot, cos, sin, offset=offset
+                    )
 
             if exists(self.rotary_ndims):
                 query_layer = torch.cat((query_layer, query_pass), dim=-1)
@@ -1133,7 +1215,13 @@ class ParallelSelfAttention(nn.Module):
             present = torch.stack((key_layer, value_layer))
 
         if self.use_flash_attention:
-            context_layer = self.flash_attention(query_layer, key_layer, value_layer)
+            context_layer = self.flash_attention(
+                query_layer,
+                key_layer,
+                value_layer,
+                cu_seqlens=cu_seqlens,
+                max_seqlen=max_seqlen,
+            )
         elif not self.sparse:
             context_layer = self.attention(
                 query_layer, key_layer, value_layer, layer_past, attention_mask
@@ -1301,7 +1389,16 @@ class ParallelTransformerLayer(nn.Module):
             fn = get_bias_dropout_add(self.training)
         return fn
 
-    def forward(self, x, attention_mask, layer_past=None):
+    def forward(
+        self,
+        x,
+        attention_mask,
+        layer_past=None,
+        *,
+        cu_seqlens=None,
+        num_documents=None,
+        max_seqlen=None,
+    ):
         layer_past = layer_past if layer_past is not None else self.layer_past
         bias_dropout_fn = self._get_bias_dropout()
 
@@ -1343,7 +1440,12 @@ class ParallelTransformerLayer(nn.Module):
 
                 # attention operator
                 attention_output, attention_bias = self.attention(
-                    x1, attention_mask, layer_past=layer_past
+                    x1,
+                    attention_mask,
+                    layer_past=layer_past,
+                    cu_seqlens=cu_seqlens,
+                    num_documents=num_documents,
+                    max_seqlen=max_seqlen,
                 )
                 if self.use_cache:
                     attention_output, presents = attention_output
@@ -1382,7 +1484,12 @@ class ParallelTransformerLayer(nn.Module):
 
                 # x = x + attn(ln1(x))
                 attention_output, attention_bias = self.attention(
-                    self.input_layernorm(x), attention_mask, layer_past=layer_past
+                    self.input_layernorm(x),
+                    attention_mask,
+                    layer_past=layer_past,
+                    cu_seqlens=cu_seqlens,
+                    num_documents=num_documents,
+                    max_seqlen=max_seqlen,
                 )
 
                 if self.use_cache:
@@ -1440,12 +1547,16 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
     """Extends ParallelTransformerLayer to forward attention_mask through the pipeline."""
 
     def forward(self, args):
-        assert (
-            len(args) == 2
-        ), "ParallelTransformerLayerPipe expects 2 arguments - hidden_states and attention_mask"
-        hidden_states, attention_mask = args
-        # we are returning just [hidden_states, mask]
-        return super().forward(hidden_states, attention_mask), attention_mask
+        hidden_states, *packed_metadata, attention_mask = args
+        cu_seqlens, num_documents, max_seqlen = packed_metadata or (None, None, None)
+        output = super().forward(
+            hidden_states,
+            attention_mask,
+            cu_seqlens=cu_seqlens,
+            num_documents=num_documents,
+            max_seqlen=max_seqlen,
+        )
+        return (output, *packed_metadata, attention_mask)
 
 
 class ParallelLinearPipe(ParallelLinear):

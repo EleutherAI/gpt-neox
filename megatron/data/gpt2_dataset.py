@@ -44,6 +44,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
         label_dataset=None,
         reward_dataset=None,
         ref_dataset=None,
+        inter_document_attention_masking=False,
         preserve_data_order=False,
     ):
 
@@ -55,6 +56,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
         self.reward_dataset = reward_dataset
         self.ref_dataset = ref_dataset
         self.seq_length = seq_length
+        self.inter_document_attention_masking = inter_document_attention_masking
 
         # Checks
         assert self.reward_dataset is None or (
@@ -114,6 +116,7 @@ class GPT2Dataset(torch.utils.data.Dataset):
                 datasets.append(self.ref_dataset)
             samples = []
             sample_lengths = []
+            document_lengths = None
             # If we are within the same document, just extract the chunk.
             for n, dataset in enumerate(datasets):
                 if doc_index_f == doc_index_l:
@@ -124,13 +127,14 @@ class GPT2Dataset(torch.utils.data.Dataset):
                             np.array([rw[0] for _ in range(len(samples[-1]))])
                         )
                     else:
-                        samples.append(
-                            dataset.get(
-                                self.doc_idx[doc_index_f],
-                                offset=offset_f,
-                                length=offset_l - offset_f + 1,
-                            )
+                        sample = dataset.get(
+                            self.doc_idx[doc_index_f],
+                            offset=offset_f,
+                            length=offset_l - offset_f + 1,
                         )
+                        samples.append(sample)
+                        if self.inter_document_attention_masking and n == 0:
+                            document_lengths = [len(sample)]
                 else:
                     if n != rw_indx:
                         # reset
@@ -167,6 +171,8 @@ class GPT2Dataset(torch.utils.data.Dataset):
                             dataset.get(self.doc_idx[doc_index_l], length=offset_l + 1)
                         )
                         sample_lengths.append(len(sample_list[-1]))
+                    if self.inter_document_attention_masking and n == 0:
+                        document_lengths = [len(fragment) for fragment in sample_list]
                     samples.append(np.concatenate(sample_list))
             for i in range(len(samples)):
                 mask = (self.label_dataset is not None) and (i == 1)
@@ -182,6 +188,12 @@ class GPT2Dataset(torch.utils.data.Dataset):
                     # Truncate
                     samples[i] = samples[i][: (self.seq_length + 1)]
             ret = {"text": np.array(samples[0], dtype=np.int64)}
+            if self.inter_document_attention_masking:
+                cu_seqlens, max_seqlen = _build_inter_document_attention_metadata(
+                    document_lengths, self.seq_length
+                )
+                ret["cu_seqlens"] = cu_seqlens
+                ret["max_seqlen"] = max_seqlen
             next_idx = 1
             if self.label_dataset is not None:
                 ret["label"] = np.array(samples[next_idx], dtype=np.int64)
@@ -198,6 +210,16 @@ class GPT2Dataset(torch.utils.data.Dataset):
                 f"WARNING: Got index out of bounds error with index {idx} - taking modulo of index instead ({new_idx}), error: {err}"
             )
             return self[new_idx]
+
+
+def _build_inter_document_attention_metadata(document_lengths, seq_length):
+    """Return the [seq_length + 1] cu_seqlens and longest document of one sample."""
+    # The last fragment also holds the label token and any padding, so it ends at seq_length.
+    starts = np.minimum(np.cumsum(document_lengths[:-1]), seq_length)
+    cu_seqlens = np.unique(np.concatenate([[0], starts, [seq_length]])).astype(np.int32)
+    padded_cu_seqlens = np.full(seq_length + 1, seq_length, dtype=np.int32)
+    padded_cu_seqlens[: len(cu_seqlens)] = cu_seqlens
+    return padded_cu_seqlens, np.diff(cu_seqlens).max().astype(np.int32)
 
 
 def _build_index_mappings(

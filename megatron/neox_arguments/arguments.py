@@ -1249,6 +1249,40 @@ class NeoXArgs(*BASE_CLASSES):
                 "none",
             ), f"te_mha does not support pos_emb {self.pos_emb}"
 
+        if self.inter_document_attention_masking:
+            assert (
+                self.dataset_impl == "gpt2" and self.train_impl == "normal"
+            ), "inter_document_attention_masking requires dataset_impl gpt2 and train_impl normal"
+            assert not (self.soft_prompt_tuning or {}).get(
+                "enabled", False
+            ), "inter_document_attention_masking does not support soft_prompt_tuning"
+            assert (
+                not self.curriculum_learning
+            ), "inter_document_attention_masking does not support curriculum_learning"
+            assert (
+                not self.sequence_parallel
+            ), "inter_document_attention_masking does not support sequence_parallel"
+            assert (
+                not self.te_fp8_mha
+            ), "inter_document_attention_masking does not support te_fp8_mha"
+            assert self.pos_emb in (
+                "learned",
+                "rotary",
+                "alibi",
+                "none",
+            ), f"inter_document_attention_masking does not support pos_emb {self.pos_emb}"
+            if self.te_mha:
+                assert set(self.attention_config) <= {"global", "flash"}
+                assert packaging.version.Version(
+                    version("transformer-engine")
+                ) >= packaging.version.Version(
+                    "1.12.0"
+                ), "inter_document_attention_masking requires Transformer Engine >= 1.12.0"
+            else:
+                assert set(self.attention_config) == {
+                    "flash"
+                }, "inter_document_attention_masking requires flash attention in every layer"
+
         # Sparsity config
         if self.sparsity_config is None:
             # Can't have a default value as an empty dict so need to set it here

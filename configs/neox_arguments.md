@@ -1436,6 +1436,14 @@ Training Arguments
 
     warning: pack_until_overflow is very naive and will likely have issues with pretraining scale datasets
 
+- **inter_document_attention_masking**: bool
+
+    Default = False
+
+    Prevent tokens in packed gpt2 dataset samples from attending across document
+    boundaries, and restart position ids at each boundary. Requires flash attention
+    in every layer or te_mha.
+
 - **dataset_impl**: typing.Literal['gpt2', 'pairwise', 'online']
 
     Default = gpt2

@@ -180,15 +180,10 @@ class EmbeddingPipe(Embedding):
         return self.word_embeddings.weight
 
     def forward(self, args):
-        assert (
-            len(args) == 3
-        ), f"Expected 3 arguments (input_ids, position_ids, attention_mask), but got {len(args)}."
-
-        input_ids = args[0]
-        position_ids = args[1]
-        attention_mask = args[2]
+        assert len(args) in (3, 6), f"Expected 3 or 6 arguments, but got {len(args)}."
+        input_ids, position_ids, *context = args
         embeddings = super().forward(input_ids, position_ids)
-        return embeddings, attention_mask
+        return (embeddings, *context)
 
 
 class SoftEmbedding(torch.nn.Module):
