@@ -57,8 +57,6 @@ class GPT2Dataset(torch.utils.data.Dataset):
         self.seq_length = seq_length
 
         # Checks
-        if preserve_data_order and pack_impl != "packed":
-            raise ValueError("preserve_data_order requires pack_impl='packed'.")
         assert self.reward_dataset is None or (
             pack_impl == "unpacked"
         ), "Reward dataset only supported with unpacked data."
@@ -223,8 +221,6 @@ def _build_index_mappings(
        training sample.
     shuffle-idx: maps the sample index into sample-idx (identity when preserving order).
     """
-    if preserve_data_order and packing_impl != "packed":
-        raise ValueError("preserve_data_order requires pack_impl='packed'.")
     # Number of tokens in each epoch and number of required epochs.
     tokens_per_epoch = _num_tokens(documents, sizes)
     if not num_epochs:
