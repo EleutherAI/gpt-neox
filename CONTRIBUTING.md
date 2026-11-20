@@ -48,6 +48,24 @@ pytest run_sanity_check.py
 ```
 Note that the `--forked` flag is not necessary for the model tests.
 
+### NeoX Argument Documentation
+`configs/neox_arguments.md` is generated from the Python argument definitions in
+`megatron/neox_arguments/neox_args.py` and
+`megatron/neox_arguments/deepspeed_args.py`. When adding, removing, or changing an
+argument in those files, sync the markdown before opening a PR:
+```bash
+python configs/neox_args_sync.py --sync
+```
+
+The pull request workflow runs the same utility in check-only mode:
+```bash
+python configs/neox_args_sync.py
+```
+
+That check fails if the markdown argument names, types, defaults, or descriptions are
+out of sync with the Python source of truth. The dynamic `git_hash` argument is ignored
+during validation and rendered as `<dynamic>` when syncing.
+
 ## Contributor License Agreement
 This project welcomes contributions and suggestions. Most contributions require you to
 agree to a Contributor License Agreement (CLA) declaring that you have the right to, and

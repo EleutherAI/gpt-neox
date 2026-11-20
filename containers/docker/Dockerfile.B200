@@ -14,10 +14,14 @@
 
 FROM nvcr.io/nvidia/pytorch:25.04-py3
 
-ENV DEBIAN_FRONTEND=noninteractive \
-    PIP_CONFIG_FILE=/dev/null \
+# The NGC base image adds https://pypi.ngc.nvidia.com as an extra package
+# index. That endpoint is no longer resolvable on some clusters, causing pip
+# installs to wait through repeated DNS retries. Ignore the inherited pip
+# configuration and use public PyPI exclusively.
+ENV PIP_CONFIG_FILE=/dev/null \
     PIP_INDEX_URL=https://pypi.org/simple \
-    PIP_EXTRA_INDEX_URL=
+    PIP_EXTRA_INDEX_URL="" \
+    DEBIAN_FRONTEND=noninteractive
 
 # metainformation
 LABEL org.opencontainers.image.version = "2.0"
@@ -83,9 +87,13 @@ ENV TORCH_CUDA_ARCH_LIST=10.0
 RUN grep -q '^jinja2==3\.1\.4$' requirements.txt || \
         { echo "ERROR: expected jinja2==3.1.4 in requirements.txt — pin may have changed upstream" >&2; exit 1; } && \
     sed -i 's/^jinja2==3.1.4$/jinja2==3.1.6/' requirements.txt && \
+    protobuf_constraint=$(grep '^protobuf==' requirements-wandb.txt) && \
+    sed -i -e "s/^protobuf==.*/$protobuf_constraint/" \
+        -e 's/^fsspec==2025\.3\.0$/fsspec==2024.6.1/' \
+        -e 's/^dill==0\.3\.9$/dill==0.3.8/' /etc/pip/constraint.txt && \
     python -m pip install --no-cache-dir -r requirements.txt && \
     python -m pip install --no-cache-dir -r requirements-onebitadam.txt && \
-    python -m pip install --no-cache-dir wandb==0.16.6 && \
+    python -m pip install --no-cache-dir -r requirements-wandb.txt && \
     python -m pip uninstall -y chardet
 
 

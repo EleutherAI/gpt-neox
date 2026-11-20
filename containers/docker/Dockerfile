@@ -14,10 +14,14 @@
 
 FROM nvcr.io/nvidia/pytorch:24.02-py3
 
-ENV DEBIAN_FRONTEND=noninteractive \
-    PIP_CONFIG_FILE=/dev/null \
+# The NGC base image adds https://pypi.ngc.nvidia.com as an extra package
+# index. That endpoint is no longer resolvable on some clusters, causing pip
+# installs to wait through repeated DNS retries. Ignore the inherited pip
+# configuration and use public PyPI exclusively.
+ENV PIP_CONFIG_FILE=/dev/null \
     PIP_INDEX_URL=https://pypi.org/simple \
-    PIP_EXTRA_INDEX_URL=
+    PIP_EXTRA_INDEX_URL="" \
+    DEBIAN_FRONTEND=noninteractive
 
 # metainformation
 LABEL org.opencontainers.image.version = "2.0"
@@ -78,9 +82,18 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
 #### Python packages
 COPY requirements/* ./
 RUN python -m pip install --no-cache-dir -r requirements.txt && pip install -r requirements-onebitadam.txt
-RUN python -m pip install --no-cache-dir --force-reinstall \
-        -r requirements-wandb.txt && \
+# cuDF in NGC 24.02 requires protobuf <5.
+RUN python -m pip install --no-cache-dir wandb==0.16.6 protobuf==4.25.8 && \
     python -c "import google.protobuf, wandb; from wandb.proto.wandb_telemetry_pb2 import Imports; print(f'wandb={wandb.__version__} protobuf={google.protobuf.__version__}')"
+
+# The base image carries these three known packaging diagnostics.
+RUN if ! python -m pip check > /tmp/neox-pip-check.log 2>&1; then \
+        cat /tmp/neox-pip-check.log && \
+        awk '/^pygobject 3\.42\.1 requires pycairo, which is not installed\.$/ { next } \
+             /^cmake 3\.28\.1 is not supported on this platform$/ { next } \
+             /^ninja 1\.11\.1\.1 is not supported on this platform$/ { next } \
+             { unexpected = 1 } END { exit (NR == 0 || unexpected) }' /tmp/neox-pip-check.log; \
+    fi && rm /tmp/neox-pip-check.log
 
 COPY megatron/fused_kernels/ /megatron/fused_kernels
 WORKDIR /megatron/fused_kernels

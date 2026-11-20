@@ -176,17 +176,68 @@ class NeoXArgsModel(NeoXArgsTemplate):
 
     layernorm_fusion: bool = False
     """
-    Use fused layer norm kernel (if `norm` is `layernorm`).
+    Use the fused layer norm kernel when `norm` or `qk_norm` is `layernorm`.
     """
 
     rmsnorm_fusion: bool = False
     """
-    Use fused RMS norm kernel (if `norm` is `rmsnorm`).
+    Use the fused RMS norm kernel when `norm` or `qk_norm` is `rmsnorm`.
     """
 
-    use_qk_layernorm: bool = False
+    use_qk_norm: bool = False
     """
     Use QK Normalization
+    """
+
+    qk_norm: Literal[
+        "layernorm",
+        "rmsnorm",
+        "non_parametric_layernorm",
+        "scalenorm",
+        "te_rmsnorm",
+        "te_layernorm",
+    ] = None
+    """
+    Normalization to use for Q and K. When unset, this inherits `norm`, so Q/K
+    normalization uses the same normalization as the rest of the model. Set it
+    explicitly to use a different Q/K normalization.
+    """
+
+    qk_norm_type: Literal["per_head", "across_heads"] = "per_head"
+    """
+    How to apply QK Normalization when `use_qk_norm` is set. Choose from:
+        - "per_head": normalize each head independently over the head dimension,
+          i.e. over [*, H] (Qwen3 / Megatron-core / TorchTitan style). Works for
+          both MHA and GQA.
+        - "across_heads": normalize over all heads jointly, i.e. over [*, N, H]
+          (OLMo2 style). Under tensor parallelism this is rank-local by default;
+          enable `qk_norm_across_tp` to compute the normalization statistics
+          over the full TP-sharded Q/K projections. For GQA the query and key
+          projections have different numbers of heads (N vs. KV heads), so
+          `qk_norm_separate` must be enabled to construct separate query/key
+          norms with differently sized parameters.
+    """
+
+    qk_norm_across_tp: bool = False
+    """
+    Compute full-projection Q and K normalization statistics across
+    tensor-parallel ranks when `qk_norm_type` is "across_heads". Q and K
+    statistics are packed into one tensor and reduced with a single
+    model-parallel all-reduce in forward (with the corresponding autograd
+    reduction in backward), then Q and K are normalized independently. RMSNorm
+    and ScaleNorm reduce sums of squares; LayerNorm variants reduce sums and sums
+    of squares. The default False preserves rank-local normalization. Requires
+    `use_qk_norm`. Fused and Transformer Engine Q/K norms are not supported with
+    this flag because their kernels compute statistics internally; select a
+    native `qk_norm`, disable norm fusion, or leave this flag disabled.
+    """
+
+    qk_norm_separate: bool = False
+    """
+    Use separate (independently learned) norms for the query and key projections
+    when `use_qk_norm` is set. When False, query and key share a single norm.
+    GQA/MQA with "across_heads" QK normalization requires this to be True because
+    the query and key norm parameter shapes differ; otherwise an error is raised.
     """
 
     layernorm_epsilon: float = 1.0e-5
@@ -263,7 +314,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     specified in attention_config defining each layer.
 
     An example config is given below:
-          "sparse_attention": {
+          "sparsity_config": {
             "block": 16,
             "different_layout_per_head": true,
             "num_local_blocks": 4,
@@ -349,6 +400,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Move the cross entropy unreduced loss calculation for lm head to fp16.
     """
 
+    cross_entropy_fusion: bool = False
+    """
+    Fuse vocabulary-parallel cross entropy operations and reduce its tensor-parallel collectives from three to two.
+    """
+
     init_method_std: float = 0.02
     """
     Standard deviation of the zero mean normal distribution used for weight initialization.
@@ -367,6 +423,29 @@ class NeoXArgsModel(NeoXArgsTemplate):
     attention_softmax_in_fp32: bool = False
     """
     Run attention masking and softmax in fp32.
+    """
+
+    attn_softmax_clipping: bool = False
+    """
+    Apply soft_clip to attention probabilities using
+    ``clip((zeta - gamma) * softmax(logits) + gamma, 0, 1)``. This is supported
+    by global attention and aMLP tiny attention, but not by Flash, Transformer
+    Engine, or sparse attention backends. When false, the zeta and gamma
+    arguments are ignored.
+    """
+
+    attn_softmax_clipping_zeta: float = 1.03
+    """
+    Upper stretch bound for attention softmax clipping. Must be at least 1.0.
+    The soft_clip experiments in https://arxiv.org/abs/2410.16682 use 1.03.
+    This argument is only used when ``attn_softmax_clipping`` is true.
+    """
+
+    attn_softmax_clipping_gamma: float = -0.03
+    """
+    Lower stretch bound for attention softmax clipping. Must be at most 0.0.
+    The soft_clip experiments in https://arxiv.org/abs/2410.16682 use -0.03.
+    This argument is only used when ``attn_softmax_clipping`` is true.
     """
 
     rotary_pct: float = 1.0
@@ -628,26 +707,6 @@ class NeoXArgsOptimizer(NeoXArgsTemplate):
     zero_stage: Union[int, List[int], Literal["all"]] = None
     """
     Zero Optimizer stage
-    """
-
-    zero_reduce_scatter: bool = None
-    """
-    Zero: Uses reduce or reduce scatter instead of allreduce to average gradients
-    """
-
-    zero_contiguous_gradients: bool = None
-    """
-    Zero: Copies the gradients to a contiguous buffer as they are produced. Avoids memory fragmentation during backward pass. Only useful when running very large models.
-    """
-
-    zero_reduce_bucket_size: int = None
-    """
-    Zero: Number of elements reduced/allreduced at a time. Limits the memory required for the allgather for large model sizes
-    """
-
-    zero_allgather_bucket_size: int = None
-    """
-    Zero: Number of elements allgathered at a time. Limits the memory required for the allgather for large model sizes
     """
 
     lr: float = None
@@ -1016,6 +1075,13 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Path to combined dataset to split.
     """
 
+    preserve_data_order: bool = False
+    """
+    Preserve source document and sample order for training, repeating that order each epoch.
+    Requires dataset_impl='gpt2', pack_impl='packed', and a single training dataset.
+    Validation and test datasets retain their default ordering. Ordered index maps are cached separately.
+    """
+
     use_shared_fs: bool = True
     """
     Whether to use a shared filesystem for data loading. If False, local rank 0 on all nodes will preprocess the data,
@@ -1065,6 +1131,18 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     valid_reward_data_paths: list = None
     """
     List of paths to validation reward datasets
+    """
+
+    valid_data_names: list = None
+    """
+    Optional names for validation dataset subsets when eval_loss_logging uses separate logging.
+    Defaults to valid_0, valid_1, ...
+    """
+
+    test_data_names: list = None
+    """
+    Optional names for test dataset subsets when eval_loss_logging uses separate logging.
+    Defaults to test_0, test_1, ...
     """
 
     pos_train_data_paths: list = None
@@ -1119,6 +1197,15 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     """
     List of 'weights' that decide how often to sample from each test dataset when blending datasets. If None, defaults to equal weighting.
     Should be a list the same length as `test_data_paths`
+    """
+
+    eval_loss_logging: Literal[
+        "blended", "separate", "blended_and_separate"
+    ] = "blended"
+    """
+    Validation/test loss logging mode. "blended" preserves the historical blended metric;
+    "separate" logs each validation/test subset independently; "blended_and_separate"
+    logs each subset and synthesizes a blended metric from subset losses.
     """
 
     weight_by_num_documents: bool = False
@@ -1445,11 +1532,6 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Partition Activations across GPUs before checkpointing.
     """
 
-    clip_grad: float = 1.0
-    """
-    Gradient clipping based on global L2 norm.
-    """
-
     hysteresis: int = 2
     """
     hysteresis for dynamic loss scaling
@@ -1508,13 +1590,15 @@ class NeoXArgsTraining(NeoXArgsTemplate):
 
     mup_attn_temp: float = 1.0
     """
-    Attention temperature: Reciprocal of the multiplier applied to the input to attention softmax
+    μP attention temperature. Used when use_mup is enabled. Attention scores are
+    scaled by 1 / (head_dim * mup_attn_temp) before softmax. Must be greater than
+    zero. Global attention is currently the only supported attention backend.
     """
 
     mup_output_temp: float = 1.0
     """
-    Output temperature: Reciprocal of the multiplier applied to the input to softmax that
-    produces the distribution over output tokens.
+    μP output temperature. Used when use_mup is enabled. Language-model logits
+    are divided by this value. Must be greater than zero.
     """
 
     mup_embedding_mult: float = 1.0

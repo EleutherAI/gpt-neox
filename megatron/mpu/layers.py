@@ -555,7 +555,7 @@ class ColumnParallelLinear(torch.nn.Module):
 
     def forward(self, input_):
         if self.use_mup and self.mup_rescale_parameters:
-            input_ /= self.width_mult()
+            input_ = input_ / self.width_mult()
 
         if self.sequence_parallel:
             input_parallel = input_
@@ -763,7 +763,7 @@ class RowParallelLinear(torch.nn.Module):
 
     def forward(self, input_):
         if self.use_mup and self.mup_rescale_parameters:
-            input_ /= self.width_mult()
+            input_ = input_ / self.width_mult()
         # Set up backprop all-reduce.
         if self.input_is_parallel:
             input_parallel = input_
