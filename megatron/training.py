@@ -196,6 +196,7 @@ def pretrain(neox_args):
     timers("train/valid/test data loaders").stop()
 
     if neox_args.coord_check:
+        neox_args.iteration = 0
         train_data_iterator, _, _ = shift_and_wrap_data_loaders(
             neox_args=neox_args, data_loaders=data_loaders
         )
