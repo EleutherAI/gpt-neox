@@ -126,10 +126,11 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         partition_vocab_size = vocab_parallel_logits.size(-1)
         rank = torch.distributed.get_rank(group=tp_group)
         world_size = torch.distributed.get_world_size(group=tp_group)
-        vocab_start_index, vocab_end_index = (
-            VocabUtility.vocab_range_from_per_partition_vocab_size(
-                partition_vocab_size, rank, world_size
-            )
+        (
+            vocab_start_index,
+            vocab_end_index,
+        ) = VocabUtility.vocab_range_from_per_partition_vocab_size(
+            partition_vocab_size, rank, world_size
         )
 
         (
