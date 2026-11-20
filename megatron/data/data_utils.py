@@ -76,8 +76,6 @@ def build_the_dataset(
     preserve_data_order=False,
 ):
     """Build train/valid/test datasets."""
-    if preserve_data_order and dataset_impl != "gpt2":
-        raise ValueError("preserve_data_order requires dataset_impl='gpt2'.")
     if dataset_impl == "gpt2":
         indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup)
         if label_prefix is None:
