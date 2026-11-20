@@ -124,7 +124,14 @@ class EvalHarnessAdapter(HFLM):
         return self.tokenizer.decode(tokens)
 
     def generate_until(self, requests):
-        """Generate each task request independently; only explicit do_sample=True samples."""
+        """Return completions in request order, processing one prompt at a time.
+
+        Each request supplies its own generation kwargs. Missing or false
+        do_sample selects greedy decoding; true requires a positive temperature
+        (default 1). max_gen_toks sets the new-token budget and until accepts a
+        string or list of stop strings. Only greedy results go to the adapter's
+        response-cache hook. The model KV cache is controlled by recompute.
+        """
         self.model.module.inference_mode(use_cache=not self.neox_args.recompute)
         try:
             # Generation is unbatched. Do not group identical prompts: their

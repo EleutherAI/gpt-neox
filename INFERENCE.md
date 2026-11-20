@@ -49,6 +49,7 @@ Replace the model/site filenames and `10000` with your own. An explicit
 DeepSpeed for the latest checkpoint; if the log says `Unable to load checkpoint.`,
 do not treat the output as coming from trained weights. Use `-i other-prompts.txt`
 and `-o other-results.jsonl` to override the input/output paths without editing YAML.
+These flags do not switch an explicitly configured `unconditional` run to file mode.
 The output directory must exist; the writer **overwrites** the output file.
 
 ## Choose a generation mode
@@ -59,8 +60,16 @@ The output directory must exist; the writer **overwrites** the output file.
 | `interactive` | Reads a prompt from the terminal on rank zero and prints the growing completion. Press Enter to start another prompt; send EOF (Ctrl-D on Linux) to exit. |
 | `unconditional` | Starts each generation from the tokenizer's end-of-document token. Set `num_samples` to the number of completions and `sample_output_file` for JSONL output. With greedy decoding, repeated empty prompts need not produce different text. |
 
-There is also a separate `precompute` mode for writing log probabilities for
-indexed datasets. It does not take text prompts or produce completion JSONL.
+If you omit `text_gen_type`, NeoX chooses `input-file` when you supply
+`sample_input_file` and `unconditional` otherwise. Select `interactive` explicitly.
+
+`precompute` is a separate mode for indexed datasets; it does not take text
+prompts, sample tokens, or write completion JSONL. Use the split dataset
+paths and set `precompute_model_name` for a predictable output suffix.
+The current writer has known limitations: a microbatch of one can lose its
+batch dimension, and the final batch can wrap back to the start of the dataset.
+Check the output document count and lengths against the input before using
+precomputed scores.
 
 ## Choose greedy decoding or sampling
 
@@ -71,10 +80,12 @@ cannot turn sampling on. At a positive temperature, NeoX divides the logits by
 temperature, applies the active filters, and samples a token. The shipped
 `text_generation.yml` example sets temperature to **1.0**, so it samples.
 
-The CLI checks sampling ranges and the minimum/maximum token budget when it
-loads the config, before loading the checkpoint. Python and lm-eval requests
-check their own settings once per request, not once per prompt or token.
-The `top_k` cap is applied once the padded vocabulary size is known.
+The CLI checks sampling ranges and the minimum/maximum token budget at config
+load, before loading the checkpoint. Native generation reuses those settings;
+it does not validate again inside the decode loop. A direct Python call or
+lm-eval request can supply different settings, so each checks its own options
+before its first prompt. When sampling, NeoX caps `top_k` once it knows the
+padded vocabulary width.
 
 For example, to sample from a nucleus while enforcing a minimum output length,
 edit the values in your generation config:
@@ -102,6 +113,11 @@ equivalent to applying them independently to the raw model probabilities.
 | `epsilon_cutoff` | `[0, 1)`; `0` disables | Keeps tokens at or above the probability cutoff, always retaining a highest-probability token. |
 | `eta_cutoff` | `[0, 1)`; `0` disables | With `H` the entropy of the current distribution, uses `min(eta_cutoff, sqrt(eta_cutoff) × exp(-H))` as the probability cutoff; always retains a highest-probability token. |
 
+For deterministic output, use zero rather than a tiny positive temperature.
+Besides enabling sampling, very small temperatures can make the FP32 entropy
+calculation inaccurate for tied logits: for example, `top_h: 0.75` can keep
+one of four equally likely tokens at `temperature: 1e-9` instead of three.
+
 ## Token budgets and output scores
 
 `minimum_tokens` and `maximum_tokens` count **new tokens**, not the prompt.
@@ -115,8 +131,9 @@ room for generation: a prompt using all of `seq_length` has no decode step.
 Each file-mode record contains `context` (the prompt), `text` (the completion
 only), `length` (its token count), `finished`, `message`, and `duration_seconds`.
 Reaching EOS marks a result finished; reaching the token or context cap alone
-does not. EOS is not part of the completion. An immediate EOS can therefore
-produce `text: null`, `length: 0`, and `finished: true`.
+does not. EOS is not part of the completion. An immediate EOS therefore gives
+`text: null`, `length: 0`, and `finished: true`. A zero token budget or
+an exactly full prompt instead gives `finished: false` and no score rows.
 
 Set `return_logits: true` only if you need scores: it adds one row of
 **processed scores over the full padded vocabulary** for each executed decode
@@ -134,17 +151,53 @@ after termination. Python's JSON writer represents negative infinity as
 ## KV caching, batching, and parallelism
 
 - `recompute: false` (default) reuses the prompt's key/value cache between
-  decode steps. `true` runs a full forward pass for every step instead.
+  decode steps. `true` runs a full forward pass for every step instead. Use
+  `true` for sparse attention or sinusoidal position embeddings: the sinusoidal
+  implementation starts positions at zero on each forward. For rotary models
+  using the cache, set `rope_fusion: false`; the fused kernel expects its rotary
+  table and query to have the same sequence length, which incremental decoding
+  does not provide. Alternatively, use `recompute: true`.
 - File and list-of-prompts generation serve prompts sequentially. The
   lower-level [stream_tokens API](megatron/text_generation_utils.py) accepts a
   batch of tokenized prompts, but returns scores for **batch item zero only**.
-  Unequal-length prompts share a decode-step budget. Exhaust or close the
-  iterator before starting another request on the same model so its cache is released.
+  Supply a nonempty batch and at least one token per row. Unequal-length
+  prompts share a budget starting at the shortest prompt; longer prompts get
+  fewer new tokens. Exhaust or close the iterator before reusing the model.
+  PyTorch gradient recording is disabled in the calling thread while the
+  iterator is suspended at a yielded step; finish or close it before doing
+  work that requires gradients.
 - Use `model_parallel_size` for tensor parallelism and `pipe_parallel_size`
   for pipeline stages. Match the checkpoint layout. Every participating rank
   must enter generation: tensor-parallel scores are gathered before sampling,
   and pipeline stages share the selected token. Only global rank zero writes
   the CLI output file.
+
+The CLI and evaluation adapter configure the model's cache for you. If you
+already have a NeoX engine in Python, set its inference mode yourself on
+**every participating rank**. For example:
+
+```python
+from megatron.text_generation_utils import generate_samples_from_prompt
+
+recompute = neox_args.recompute
+model.module.inference_mode(use_cache=not recompute)
+records = generate_samples_from_prompt(
+    neox_args, model, ["Hello", "Goodbye"], maximum_tokens=16, recompute=recompute
+)
+```
+
+The prompt owner receives the records; other ranks return an empty list.
+An empty **string** is supported here and starts from the tokenizer's EOS token.
+In a non-pipeline tensor-parallel job, check tokenized prompt lengths before
+launching: an overlong prompt can raise on the owner while peers wait in a
+collective. Do not rely on it being truncated automatically.
+
+If you reuse a DeepSpeed pipeline engine for ordinary evaluation or training
+after cached generation, exhaust the stream, call `model.module.train_mode()`
+to exit the module's inference mode, and call `model.reset_activation_shape()`
+**on every pipeline rank** before the next full-sequence batch. Clearing the
+KV cache alone does not reset DeepSpeed's receive buffers: they may still have
+the shape of a one-token decode step.
 
 ## Evaluation harness
 
@@ -170,6 +223,18 @@ with the checkpoint's model/site configs:
 python deepy.py eval.py -d configs 125M.yml local_setup.yml --iteration 10000 --eval_tasks gsm8k
 ```
 
-This uses the installed task's own settings. To use the sampling example above,
-put it in the definition of the task you run. Generation settings do not affect
-tasks that score existing continuations by log likelihood.
+This uses the installed task's own settings. The adapter currently evaluates
+**at most 10 examples per task** regardless of the reported `limit`; this
+command is a smoke check, not a full benchmark. Generation settings do not
+affect tasks that score existing continuations by log likelihood.
+
+- `max_gen_toks` sets the request's new-token budget (adapter default: 128).
+  The native CLI's `maximum_tokens` default of 64 is not the adapter default.
+- `until` takes a string or list of strings. Omitting it leaves EOS and the
+  token/context budget as the stopping conditions. A known limitation affects
+  multi-token stops: generation stops on a match but can return the leading
+  tokens of the stop string. For example, a two-token stop `AA` can leave
+  `A` in the response. Use a single-token delimiter when exact trimming matters.
+- Requests run sequentially, in order. The adapter only adds greedy results to
+  the lm-eval **response cache**; sampled repeats are independent draws, not
+  guaranteed different strings. This cache is separate from the model's KV cache.

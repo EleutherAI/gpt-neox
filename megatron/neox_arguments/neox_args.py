@@ -1617,8 +1617,9 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
 
     text_gen_type: str = None
     """
-    How to generate text/sample the model.
-    Options: `unconditional`, `input-file`, `interactive`, `precompute`
+    Generation mode: `input-file`, `unconditional`, or `interactive`.
+    If omitted, a sample_input_file selects input-file mode; otherwise generation is unconditional.
+    `precompute` is a separate mode that writes indexed-dataset log probabilities.
     """
 
     precompute_model_name: str = None
@@ -1640,7 +1641,7 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
 
     min_p: float = 0.0
     """
-    Minimum token probability, scaled by the probability of the most likely token. Values must be between 0 and 1; 0 disables min-p sampling.
+    Keep tokens with probability at least min_p times that of the most likely token. Valid range: [0, 1]; 0 disables the filter.
     """
 
     top_h: float = 0.0
@@ -1665,7 +1666,7 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
 
     top_k: int = 0
     """
-    Keep the k highest-scoring tokens (including ties); 0 disables the filter. Values above vocabulary size are capped with a warning.
+    Keep the k highest-scoring tokens, including ties; 0 disables the filter. When sampling, values above the padded vocabulary size are capped with a warning.
     """
 
     return_logits: bool = False
@@ -1677,38 +1678,37 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
 
     maximum_tokens: int = 64
     """
-    maximum number of tokens to be generated
+    Maximum number of new token decisions per prompt, subject to the space left in the context window. Zero performs no decode steps.
     """
 
     minimum_tokens: int = 0
     """
-    minimum number of tokens before EOS is eligible; cannot exceed maximum_tokens when specified
+    Suppress EOS for this many new token decisions, in greedy and sampling modes. Cannot exceed maximum_tokens. Does not override explicit stop sequences or the context window.
     """
 
     prompt_end: str = "\n"
     """
-    a single prompt's end. Defaults to newline
+    Delimiter between input-file prompts or at the end of an interactive prompt. Defaults to newline.
     """
 
     sample_input_file: str = None
     """
-    Get input from file instead of interactive mode, each line is an input.
+    UTF-8 prompt file for input-file mode. Prompts are split on prompt_end, stripped of surrounding whitespace, and empty entries are skipped.
     """
 
     sample_output_file: str = "samples.txt"
     """
-    Output file
+    JSONL destination for input-file or unconditional generation. Global rank zero overwrites the file.
     """
 
     num_samples: int = 1
     """
-    Number of samples to generate unconditionally, defaults to 1 and interactive conditional sampling
+    Number of completions in unconditional mode. Must be positive.
     """
 
     recompute: bool = False
     """
-    During generation recompute all attention instead of using previously computed keys/values.
-    Should be set to true for sparse attention models
+    False reuses cached attention keys/values during generation. True recomputes the full sequence at every step; use it for sparse attention models.
     """
 
     eval_results_prefix: str = ""
