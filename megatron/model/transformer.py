@@ -556,6 +556,12 @@ class ParallelSelfAttention(nn.Module):
                 world_size,
             )
 
+        # NeoXArgs resolves use_bias_in_qkv in calculate_derived; fall back for
+        # args objects that were not built through NeoXArgs.
+        qkv_bias = getattr(neox_args, "use_bias_in_qkv", None)
+        if qkv_bias is None:
+            qkv_bias = neox_args.use_bias_in_attn_linear
+
         if not self.gqa:
             # Strided linear layer.
             self.query_key_value = ColumnParallelLinear(
@@ -564,7 +570,7 @@ class ParallelSelfAttention(nn.Module):
                 output_size=3 * neox_args.hidden_size,
                 gather_output=False,
                 init_method=init_method,
-                bias=neox_args.use_bias_in_attn_linear,
+                bias=qkv_bias,
             )
         else:
             # QKV proj is smaller if we are using GQA / MQA
@@ -574,7 +580,7 @@ class ParallelSelfAttention(nn.Module):
                 output_size=neox_args.hidden_size + 2 * self.kv_hidden_size,
                 gather_output=False,
                 init_method=init_method,
-                bias=neox_args.use_bias_in_attn_linear,
+                bias=qkv_bias,
             )
 
         self.norm_factor, coeff = _get_attention_scaling(

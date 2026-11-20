@@ -1207,6 +1207,10 @@ class NeoXArgs(*BASE_CLASSES):
                 self.zero_optimization["stage"] < 2
             ), "MoE is not compatible with zero stages 2 and 3"
 
+        # The Q/K/V projection bias follows use_bias_in_attn_linear unless set explicitly
+        if self.use_bias_in_qkv is None:
+            self.update_value("use_bias_in_qkv", self.use_bias_in_attn_linear)
+
         # Attention config
         if self.attention_config is None:
             self.update_value("attention_config", [[["global"], self.num_layers]])

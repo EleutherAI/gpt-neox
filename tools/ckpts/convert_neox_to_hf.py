@@ -258,6 +258,18 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
     Returns: GPTNeoXConfig() object
     """
 
+    # The HF GPT-NeoX, Llama and Mistral classes use one setting for the Q/K/V and
+    # output-projection biases, so they cannot represent a Q/K/V-only bias.
+    use_bias_in_attn_linear = get_key(neox_config, "use_bias_in_attn_linear", True)
+    use_bias_in_qkv = get_key(neox_config, "use_bias_in_qkv", None)
+    if use_bias_in_qkv is not None and use_bias_in_qkv != use_bias_in_attn_linear:
+        raise NotImplementedError(
+            f"use_bias_in_qkv={use_bias_in_qkv} differs from "
+            f"use_bias_in_attn_linear={use_bias_in_attn_linear}, which the "
+            f"'{architecture}' export does not support: its HF model class uses the "
+            "same bias setting for the Q/K/V and attention output projections."
+        )
+
     def gated_size(hidden_dim):
         # takes in a hidden dim and calculates intermediate dim of a LLaMAParallelMLP.
         # (only used if intermediate_size not specified in config)
