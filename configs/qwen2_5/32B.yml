@@ -1,8 +1,7 @@
 # Based on https://huggingface.co/Qwen/Qwen2.5-32B/blob/main/config.json
 #
-# NOTE: Qwen2.5 uses a bias on the Q/K/V projections but not on the attention
-# output projection. `use_bias_in_attn_linear` toggles both together, so the
-# Q/K/V bias is omitted here.
+# Qwen2.5 has a bias on the Q/K/V projections but not on the attention
+# output projection.
 
 {
   "pipe_parallel_size": 1,
@@ -36,7 +35,7 @@
   "scaled_upper_triang_masked_softmax_fusion": true,
   "bias_gelu_fusion": false,
   "use_bias_in_norms": false,
-  "use_bias_in_attn_linear": false,
+  "use_bias_in_attn_linear": "qkv",
   "use_bias_in_mlp": false,
   "activation": "swiglu",
   "mlp_multiple_of": 256,
