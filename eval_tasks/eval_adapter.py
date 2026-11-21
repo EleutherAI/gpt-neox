@@ -455,7 +455,7 @@ class EvalHarnessAdapter(HFLM):
                 + ".db"
             )
             print(f"Using cache at {use_cache}...")
-            lm = lm_eval.api.model.CachingLM(
+            lm = api.model.CachingLM(
                 lm,
                 use_cache
                 # each rank receives a different cache db.
