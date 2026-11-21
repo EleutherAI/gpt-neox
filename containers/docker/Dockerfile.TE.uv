@@ -91,14 +91,14 @@ RUN mv /usr/local/mpi/bin/mpirun /usr/local/mpi/bin/mpirun.real && \
 COPY requirements/* ./
 ENV TORCH_CUDA_ARCH_LIST=9.0
 
+# cuDF in NGC 24.02 requires protobuf <5.
 RUN uv pip install --system -r requirements.txt && \
     uv pip install --system -r requirements-onebitadam.txt && \
-    uv pip install --system wandb==0.16.6 && \
+    uv pip install --system wandb==0.16.6 protobuf==4.25.8 && \
     uv pip install --system --no-build-isolation 'transformer-engine[pytorch]==1.12'
 
 RUN uv pip install --system --no-build-isolation \
-        --no-binary flash-attn flash-attn==2.5.6 && \
-    uv pip install --system 'protobuf==3.20.*'
+        --no-binary flash-attn flash-attn==2.5.6
 
 COPY megatron/fused_kernels/ /megatron/fused_kernels
 ARG BUILD_FUSED_KERNELS=true

@@ -89,8 +89,8 @@ Stage: gpt-neox
     # Python packages
     uv pip install --system -r /requirements/requirements.txt
     uv pip install --system -r /requirements/requirements-onebitadam.txt
-    uv pip install --system -r /requirements/requirements-wandb.txt
-    uv pip install --system 'protobuf==3.20.*'
+    # cuDF in NGC 24.02 requires protobuf <5.
+    uv pip install --system wandb==0.16.6 protobuf==4.25.8
 
     case '{{ BUILD_FUSED_KERNELS }}' in
         true)
