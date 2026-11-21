@@ -730,18 +730,15 @@ Model Arguments
 
     If false, norms (e.g. LayerNorm) will not have bias terms
 
-- **use_bias_in_attn_linear**: bool
+- **use_bias_in_attn_linear**: typing.Literal['all', 'none', 'qkv']
 
-    Default = True
+    Default = all
 
-    If false, attn_linear (e.g. QKVO) will not have bias terms. Use use_bias_in_qkv to set the Q/K/V projection bias separately.
-
-- **use_bias_in_qkv**: bool
-
-    Default = None
-
-    If set, overrides use_bias_in_attn_linear for the fused Q/K/V projection only; the attention output projection still follows use_bias_in_attn_linear.
-    Defaults to the value of use_bias_in_attn_linear. Set use_bias_in_qkv=True and use_bias_in_attn_linear=False for models with Q/K/V bias but no output-projection bias (e.g. Qwen 1 through Qwen 2.5).
+    Which attention linear layers have bias terms:
+    "all": the fused Q/K/V projection and the attention output projection;
+    "none": neither;
+    "qkv": the Q/K/V projection only (e.g. Qwen 1 through Qwen 2.5).
+    For backward compatibility, true and false are accepted and mean "all" and "none".
 
 - **use_bias_in_mlp**: bool
 

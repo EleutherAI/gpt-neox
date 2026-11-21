@@ -258,16 +258,19 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
     Returns: GPTNeoXConfig() object
     """
 
+    # use_bias_in_attn_linear is "all", "none" or "qkv"; older configs use true/false.
+    use_bias_in_attn_linear = get_key(neox_config, "use_bias_in_attn_linear", "all")
+    if isinstance(use_bias_in_attn_linear, bool):
+        use_bias_in_attn_linear = "all" if use_bias_in_attn_linear else "none"
+    use_bias_in_attn_linear = str(use_bias_in_attn_linear).lower()
+
     # The HF GPT-NeoX, Llama and Mistral classes use one setting for the Q/K/V and
     # output-projection biases, so they cannot represent a Q/K/V-only bias.
-    use_bias_in_attn_linear = get_key(neox_config, "use_bias_in_attn_linear", True)
-    use_bias_in_qkv = get_key(neox_config, "use_bias_in_qkv", None)
-    if use_bias_in_qkv is not None and use_bias_in_qkv != use_bias_in_attn_linear:
+    if use_bias_in_attn_linear == "qkv":
         raise NotImplementedError(
-            f"use_bias_in_qkv={use_bias_in_qkv} differs from "
-            f"use_bias_in_attn_linear={use_bias_in_attn_linear}, which the "
-            f"'{architecture}' export does not support: its HF model class uses the "
-            "same bias setting for the Q/K/V and attention output projections."
+            "use_bias_in_attn_linear='qkv' is not supported by the "
+            f"'{architecture}' export: its HF model class uses the same bias "
+            "setting for the Q/K/V and attention output projections."
         )
 
     def gated_size(hidden_dim):
@@ -363,9 +366,8 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
             args.update(
                 {
                     # NeoX library defaults to using bias in attention
-                    "attention_bias": get_key(
-                        neox_config, "use_bias_in_attn_linear", True
-                    ),
+                    "attention_bias": use_bias_in_attn_linear
+                    == "all",
                 }
             )
             hf_config = LlamaConfig(**args)

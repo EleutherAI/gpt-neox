@@ -438,6 +438,23 @@ def _get_attention_scaling(
     return norm_factor, coeff
 
 
+def _attention_linear_biases(use_bias_in_attn_linear):
+    """Return (qkv_bias, dense_bias) for a use_bias_in_attn_linear value.
+
+    NeoXArgs turns the older true/false values into "all"/"none", but args
+    objects built some other way may still hold a bool.
+    """
+    if isinstance(use_bias_in_attn_linear, bool):
+        return use_bias_in_attn_linear, use_bias_in_attn_linear
+    value = str(use_bias_in_attn_linear).lower()
+    if value not in ("all", "none", "qkv"):
+        raise ValueError(
+            f"Invalid use_bias_in_attn_linear {use_bias_in_attn_linear!r}; "
+            "expected 'all', 'none' or 'qkv'."
+        )
+    return value in ("all", "qkv"), value == "all"
+
+
 class ParallelSelfAttention(nn.Module):
     """Parallel self-attention layer abstract class.
 
@@ -556,11 +573,9 @@ class ParallelSelfAttention(nn.Module):
                 world_size,
             )
 
-        # NeoXArgs resolves use_bias_in_qkv in calculate_derived; fall back for
-        # args objects that were not built through NeoXArgs.
-        qkv_bias = getattr(neox_args, "use_bias_in_qkv", None)
-        if qkv_bias is None:
-            qkv_bias = neox_args.use_bias_in_attn_linear
+        qkv_bias, dense_bias = _attention_linear_biases(
+            neox_args.use_bias_in_attn_linear
+        )
 
         if not self.gqa:
             # Strided linear layer.
@@ -697,7 +712,7 @@ class ParallelSelfAttention(nn.Module):
             init_method=output_layer_init_method,
             skip_bias_add=True,
             parallel_output=parallel_output,
-            bias=neox_args.use_bias_in_attn_linear,
+            bias=dense_bias,
         )
 
     def attention(

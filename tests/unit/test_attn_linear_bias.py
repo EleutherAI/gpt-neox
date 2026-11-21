@@ -21,7 +21,10 @@ import torch
 import torch.distributed as dist
 
 from megatron import mpu
-from megatron.model.transformer import ParallelSelfAttention
+from megatron.model.transformer import (
+    ParallelSelfAttention,
+    _attention_linear_biases,
+)
 from megatron.neox_arguments import NeoXArgs
 from tests.common import BASE_CONFIG
 
@@ -55,49 +58,71 @@ def _single_rank_model_parallel(tmp_path):
         dist.destroy_process_group()
 
 
-@pytest.mark.parametrize("use_bias_in_attn_linear", [True, False])
-def test_use_bias_in_qkv_defaults_to_use_bias_in_attn_linear(use_bias_in_attn_linear):
-    neox_args = _make_neox_args(use_bias_in_attn_linear=use_bias_in_attn_linear)
-
-    assert neox_args.use_bias_in_qkv is use_bias_in_attn_linear
+def test_use_bias_in_attn_linear_defaults_to_all():
+    assert _make_neox_args().use_bias_in_attn_linear == "all"
 
 
 @pytest.mark.parametrize(
-    ("use_bias_in_attn_linear", "use_bias_in_qkv"), [(False, True), (True, False)]
+    ("value", "expected"),
+    [
+        (True, "all"),
+        (False, "none"),
+        ("all", "all"),
+        ("none", "none"),
+        ("qkv", "qkv"),
+        ("QKV", "qkv"),
+    ],
 )
-def test_use_bias_in_qkv_overrides_use_bias_in_attn_linear(
-    use_bias_in_attn_linear, use_bias_in_qkv
-):
-    neox_args = _make_neox_args(
-        use_bias_in_attn_linear=use_bias_in_attn_linear,
-        use_bias_in_qkv=use_bias_in_qkv,
-    )
+def test_use_bias_in_attn_linear_is_normalized(value, expected):
+    neox_args = _make_neox_args(use_bias_in_attn_linear=value)
 
-    assert neox_args.use_bias_in_attn_linear is use_bias_in_attn_linear
-    assert neox_args.use_bias_in_qkv is use_bias_in_qkv
+    assert neox_args.use_bias_in_attn_linear == expected
+
+
+def test_use_bias_in_attn_linear_rejects_unknown_values():
+    with pytest.raises(ValueError, match="types cannot be validated"):
+        _make_neox_args(use_bias_in_attn_linear="out")
+
+
+def test_qkv_only_bias_is_rejected_with_te_attention():
+    with pytest.raises(ValueError, match="'qkv'. is not supported with .te_mha."):
+        _make_neox_args(use_bias_in_attn_linear="qkv", te_mha=True)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (True, (True, True)),
+        (False, (False, False)),
+        ("all", (True, True)),
+        ("none", (False, False)),
+        ("qkv", (True, False)),
+    ],
+)
+def test_attention_linear_biases(value, expected):
+    assert _attention_linear_biases(value) == expected
+
+
+def test_attention_linear_biases_rejects_unknown_values():
+    with pytest.raises(ValueError, match="use_bias_in_attn_linear"):
+        _attention_linear_biases("out")
 
 
 @pytest.mark.parametrize("num_kv_heads", [None, 2])
 @pytest.mark.parametrize(
-    ("use_bias_in_attn_linear", "use_bias_in_qkv", "expect_qkv_bias", "expect_o_bias"),
+    ("value", "expect_qkv_bias", "expect_o_bias"),
     [
-        (True, None, True, True),
-        (False, None, False, False),
-        (False, True, True, False),
-        (True, False, False, True),
+        ("all", True, True),
+        ("none", False, False),
+        ("qkv", True, False),
+        (True, True, True),
+        (False, False, False),
     ],
 )
 def test_attention_projection_biases(
-    tmp_path,
-    num_kv_heads,
-    use_bias_in_attn_linear,
-    use_bias_in_qkv,
-    expect_qkv_bias,
-    expect_o_bias,
+    tmp_path, num_kv_heads, value, expect_qkv_bias, expect_o_bias
 ):
-    updates = {"use_bias_in_attn_linear": use_bias_in_attn_linear}
-    if use_bias_in_qkv is not None:
-        updates["use_bias_in_qkv"] = use_bias_in_qkv
+    updates = {"use_bias_in_attn_linear": value}
     if num_kv_heads is not None:
         updates["num_kv_heads"] = num_kv_heads
     neox_args = _make_neox_args(**updates)
@@ -118,3 +143,12 @@ def test_attention_projection_biases(
     else:
         assert qkv_bias is None
     assert (attention.dense.bias is not None) is expect_o_bias
+
+
+def test_hf_export_rejects_qkv_only_bias():
+    from tools.ckpts import convert_neox_to_hf
+
+    with pytest.raises(NotImplementedError, match="qkv"):
+        convert_neox_to_hf.create_config(
+            {"use_bias_in_attn_linear": "qkv"}, architecture="llama"
+        )
