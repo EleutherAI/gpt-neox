@@ -35,7 +35,7 @@ The image:
 - installs `requirements.txt` and `requirements-onebitadam.txt`
 - installs `wandb==0.16.6`
 - installs `transformer-engine[pytorch]==1.12`
-- builds `flash-attn==2.5.6` from source
+- builds `flash-attn==2.6.3` from source
 - pins `protobuf==4.25.8` to satisfy the cuDF requirement in NGC 24.02
 - sets `TORCH_CUDA_ARCH_LIST=9.0`
 - builds the GPT-NeoX fused kernels from `megatron/fused_kernels/`

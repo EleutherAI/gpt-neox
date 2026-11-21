@@ -1342,6 +1342,14 @@ class NeoXArgs(*BASE_CLASSES):
         # Flash attention version >=2.3.0 required to combine Flash + Sliding Window Attention
         if "flash" in self.attention_config:
             _flash_version = packaging.version.Version(version("flash-attn"))
+            if (
+                self.attn_logit_softcapping is not None
+                and _flash_version < packaging.version.Version("2.6.0")
+            ):
+                raise ValueError(
+                    "`attn_logit_softcapping` with FlashAttention requires "
+                    f"flash-attn >= 2.6.0; found {_flash_version}."
+                )
             if self.sliding_window_width is not None:
                 assert _flash_version >= packaging.version.Version(
                     "2.3.0"
@@ -1480,6 +1488,30 @@ class NeoXArgs(*BASE_CLASSES):
             if unsupported_attention:
                 raise ValueError(
                     "`attn_softmax_clipping` is not supported by attention "
+                    f"types: {', '.join(unsupported_attention)}."
+                )
+
+        if self.attn_logit_softcapping is not None:
+            if self.attn_logit_softcapping <= 0:
+                raise ValueError("`attn_logit_softcapping` must be greater than 0.")
+            if self.te_mha or self.te_fp8_mha:
+                raise ValueError(
+                    "`attn_logit_softcapping` is not supported with "
+                    "`te_mha` or `te_fp8_mha`."
+                )
+            unsupported_attention = sorted(
+                set(self.attention_config)
+                & {
+                    "local",
+                    "sparse_fixed",
+                    "sparse_variable",
+                    "bigbird",
+                    "bslongformer",
+                }
+            )
+            if unsupported_attention:
+                raise ValueError(
+                    "`attn_logit_softcapping` is not supported by sparse attention "
                     f"types: {', '.join(unsupported_attention)}."
                 )
 

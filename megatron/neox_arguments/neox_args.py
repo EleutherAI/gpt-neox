@@ -453,6 +453,13 @@ class NeoXArgsModel(NeoXArgsTemplate):
     This argument is only used when ``attn_softmax_clipping`` is true.
     """
 
+    attn_logit_softcapping: float = None
+    """
+    If set, cap attention logits before softmax with
+    ``cap * tanh(logits / cap)``. The value must be positive. The soft_cap
+    experiments in https://arxiv.org/abs/2410.16682 use a value of 50.0.
+    """
+
     rotary_pct: float = 1.0
     """
     pct of hidden dims to apply rotary positional embedding to

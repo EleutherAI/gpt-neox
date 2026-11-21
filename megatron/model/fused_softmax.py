@@ -30,6 +30,13 @@ def softclip_attention_probs(attention_probs, zeta, gamma):
     )
 
 
+def softcap_attention_logits(logits, softcap):
+    """Smoothly bound attention logits to ``[-softcap, softcap]``."""
+    if softcap is None:
+        return logits
+    return softcap * torch.tanh(logits / softcap)
+
+
 class ScaledUpperTriangMaskedSoftmax(torch.autograd.Function):
     """
     Fused operation which performs following three operations in sequence
