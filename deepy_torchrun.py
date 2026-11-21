@@ -30,7 +30,6 @@ def main(input_args=None):
     neox_args = NeoXArgs.consume_deepy_args(input_args)
     deepspeed_main_args = neox_args.get_deepspeed_main_args()
 
-    # Extract wandb API key and inject into worker environments
     wandb_token = get_wandb_api_key(neox_args=neox_args)
     if wandb_token is not None:
         os.environ["WANDB_API_KEY"] = wandb_token
@@ -40,7 +39,7 @@ def main(input_args=None):
         "nproc_per_node": os.environ.get("SLURM_GPUS_ON_NODE"),
         "master_addr": os.environ.get("MASTER_ADDR"),
         "master_port": os.environ.get("MASTER_PORT"),
-        "node_rank": os.environ.get("RANK")
+        "node_rank": os.environ.get("SLURM_NODEID"),
     }
     missing = [name for name, value in slurm_env.items() if not value]
     if missing:
@@ -49,8 +48,7 @@ def main(input_args=None):
             f"missing: {', '.join(missing)}"
         )
 
-    # DeepSpeed launcher args come first; torchrun only needs the target script and
-    # the arguments that would normally be forwarded to it.
+    # torchrun takes the script and its arguments, without the DeepSpeed launcher args
     user_script_idx = deepspeed_main_args.index(neox_args.user_script)
     cmd = [
         "torchrun",
@@ -64,8 +62,6 @@ def main(input_args=None):
         slurm_env["master_port"],
         "--node-rank",
         slurm_env["node_rank"],
-        "--log-dir",
-        os.path.join(os.getcwd(), "logs"),
         *deepspeed_main_args[user_script_idx:],
     ]
 
@@ -79,11 +75,7 @@ def main(input_args=None):
     logging.info("Running command: %s", " ".join(cmd))
     result = subprocess.run(cmd, env=env, check=False)
 
-    # In case of failure must propagate the error-condition back to the caller (usually shell). The
-    # actual error and traceback should have been printed in the subprocess, so in order to avoid
-    # unnecessary noise we just quietly exit here with the same code as the subprocess
-    if result.returncode != 0:
-        sys.exit(result.returncode)
+    sys.exit(result.returncode)
 
 
 if __name__ == "__main__":

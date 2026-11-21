@@ -163,9 +163,9 @@ If you do not have ssh access to the compute nodes in your Slurm cluster you nee
 
 ##### Torchrun Based Slurm Launching
 
-If you prefers `torchrun` over DeepSpeed's multinode launcher, use `deepy_torchrun.py`. It keeps the same command-line interface as `deepy.py`, parses the same YAML config files, and forwards the args directly to `train.py`.
+If you prefer `torchrun` over DeepSpeed's multinode launcher, use `deepy_torchrun.py`. It keeps the same command-line interface as `deepy.py`, parses the same YAML config files, and forwards the args directly to `train.py`.
 
-This launcher currently assumes a Slurm allocation. It expects `MASTER_ADDR` and `MASTER_PORT` to be exported ahead of time, and it derives `--nnodes`, `--nproc-per-node`, and `--node-rank` from Slurm environment variables (`SLURM_JOB_NUM_NODES`, `SLURM_GPUS_ON_NODE`, and `RANK`).
+This launcher currently assumes a Slurm allocation. It expects `MASTER_ADDR` and `MASTER_PORT` to be exported ahead of time, and it derives `--nnodes`, `--nproc-per-node`, and `--node-rank` from `SLURM_JOB_NUM_NODES`, `SLURM_GPUS_ON_NODE`, and `SLURM_NODEID`. NeoX derives the batch size from the GPU count in the hostfile, so multi-node jobs also need `DLTS_HOSTFILE` set.
 
 Launch one `deepy_torchrun.py` process per node, for example with `srun --ntasks-per-node=1`:
 
