@@ -101,7 +101,9 @@ class AnnealingLR(object):
                 lr = self.start_lr
             else:
                 # Decay phase: cosine anneal from start_lr to min_lr
-                decay_progress = (num_iters_ - stable_iters) / max(decay_iters, 1)
+                decay_progress = min(
+                    (num_iters_ - stable_iters) / max(decay_iters, 1), 1.0
+                )
                 lr = self.min_lr + (
                     (self.start_lr - self.min_lr)
                     / 2.0
