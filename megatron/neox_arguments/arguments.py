@@ -1416,12 +1416,18 @@ class NeoXArgs(*BASE_CLASSES):
             "scaled_orthogonal",
             "xavier_uniform",
             "xavier_normal",
+            "fan_in",
         }
         for init in (self.init_method, self.output_layer_init_method):
             if init in unsupported_inits:
                 raise ValueError(
                     f"parameterization: {name} does not support {init} init"
                 )
+        if (
+            name == "completep"
+            and self.output_layer_init_method == "layer_scaled_normal"
+        ):
+            raise ValueError("completep does not support layer_scaled_normal init")
         if self.moe_num_experts > 1:
             raise ValueError(f"parameterization: {name} does not support MoE")
         if self.te_mha or self.te_fp8_mha:
