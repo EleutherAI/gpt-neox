@@ -1,9 +1,15 @@
 # Based on https://huggingface.co/Qwen/Qwen1.5-32B/blob/main/config.json
+#
+# Qwen1.5 has a bias on the Q/K/V projections but not on the attention
+# output projection.
 
 {
   "pipe_parallel_size": 1,
+  # model_parallel_size must evenly divide num_kv_heads (8)
   "model_parallel_size": 1,
-  "make_vocab_size_divisible_by": 1,
+  # The Qwen1.5 tokenizer has 151,646 tokens; 128 pads it to 151,680.
+  # (HF checkpoints for this size pad the embedding to 152,064.)
+  "make_vocab_size_divisible_by": 128,
 
   # model settings
   "num_layers": 64,
@@ -15,19 +21,24 @@
   "max_position_embeddings": 32768,
   "pos_emb": "rotary",
   "rotary_pct": 1,
-  "rotary_emb_base": 1000000.0,
-  "no_weight_tying": false,
+  "rotary_emb_base": 1000000,
+  "no_weight_tying": true,
   "gpt_j_residual": false,
   "output_layer_parallelism": "column",
   "norm": "rmsnorm",
   "rms_norm_epsilon": 1.0e-6,
+  "attention_config": [[["flash"], 64]],
 
   "scaled_upper_triang_masked_softmax_fusion": true,
   "bias_gelu_fusion": false,
   "use_bias_in_norms": false,
-  "use_bias_in_attn_linear": false,
-  "activation": "swiglu", # Mentioned here - https://huggingface.co/Qwen/Qwen1.5-0.5B#model-details
+  "use_bias_in_attn_linear": "qkv",
+  "use_bias_in_mlp": false,
+  "activation": "swiglu",
   "mlp_multiple_of": 256,
+
+  "tokenizer_type": "HFTokenizer",
+  # "vocab-file": "/path/to/Qwen1.5-32B/tokenizer.json",
 
   "init_method_std": 0.02
 }
