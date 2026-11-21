@@ -1207,6 +1207,12 @@ Text Generation arguments
 
     NOTE: Requires internet connection
 
+- **eval_tasks_limit**: int
+
+    Default = None
+
+    Number of examples per lm_eval_harness task. None runs every example.
+
 ## NeoXArgsTokenizer
 
 Tokenizer Arguments

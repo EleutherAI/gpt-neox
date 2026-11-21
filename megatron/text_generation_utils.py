@@ -457,7 +457,7 @@ def generate_samples_from_prompt(
     # generate completions
     generated_texts = []
     while True:
-
+        model.module.clear_cache()  # clear kv cache between prompts
         start_time = time.time()
         # Tokenize text, and check whether we should terminate process
         terminate_runs = 0

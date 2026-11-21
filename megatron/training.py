@@ -1647,7 +1647,11 @@ def evaluate(
 
         eval_results.update(
             run_eval_harness(
-                model, forward_step_fn, neox_args, eval_tasks=neox_args.eval_tasks
+                model,
+                forward_step_fn,
+                neox_args,
+                eval_tasks=neox_args.eval_tasks,
+                limit=neox_args.eval_tasks_limit,
             ).get("results")
         )
     # Move model back to the train mode.
