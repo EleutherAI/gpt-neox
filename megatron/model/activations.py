@@ -27,9 +27,11 @@ torch._C._jit_override_can_fuse_on_gpu(True)
 def get_activation(neox_args):
     """retrieves the activation function specified in neox_args and whether or not the activation is gated"""
     is_gated = False
+    # args objects that were not built through NeoXArgs may not have this field
+    gelu_approximate = getattr(neox_args, "gelu_approximate", "none")
     if neox_args.activation == "geglu":
         is_gated = True
-        activation_func = F.gelu
+        activation_func = gelu_tanh if gelu_approximate == "tanh" else F.gelu
     elif neox_args.activation == "reglu":
         is_gated = True
         activation_func = F.relu
@@ -49,6 +51,8 @@ def get_activation(neox_args):
             activation_func = erf_gelu
         elif neox_args.bias_gelu_fusion:
             activation_func = bias_gelu_impl
+        elif gelu_approximate == "tanh":
+            activation_func = gelu_tanh
         else:
             activation_func = F.gelu
     elif neox_args.activation == "relu":
@@ -110,6 +114,11 @@ class GeLUFunction(torch.autograd.Function):
 
 
 bias_gelu_impl = GeLUFunction.apply
+
+
+def gelu_tanh(x):
+    """Tanh approximation of GELU (Hugging Face's gelu_pytorch_tanh)."""
+    return F.gelu(x, approximate="tanh")
 
 
 # This is actually Python equivalent of torch.nn.functional.gelu(), also with type hints for ONNX exporter

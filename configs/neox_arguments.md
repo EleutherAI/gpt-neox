@@ -503,6 +503,14 @@ Model Arguments
 
     Disables weight tying between embedding weights and final Linear layer
 
+- **scale_embeddings_by_sqrt_hidden_size**: bool
+
+    Default = False
+
+    Multiply the word embeddings by sqrt(hidden_size) after the lookup, as Gemma does.
+    The multiplier is rounded to the embedding dtype first, matching the Hugging Face implementation.
+    The output layer is not scaled, including when its weights are tied to the embedding.
+
 - **attention_config**: list
 
     Default = None
@@ -572,6 +580,15 @@ Model Arguments
     Default = gelu
 
     Activation function to use - choose from ["gelu", "geglu", "relu", "softsign", "swish", "mish", "silu", "reglu", "swiglu", "bilinear", "glu"]
+
+- **gelu_approximate**: typing.Literal['none', 'tanh']
+
+    Default = none
+
+    GELU used by the gelu and geglu activations: "none" is the exact (erf) GELU and "tanh" is the tanh
+    approximation (Hugging Face's gelu_pytorch_tanh, used by Gemma). Same meaning as the approximate
+    argument of torch.nn.functional.gelu. bias_gelu_fusion always uses the tanh approximation, and
+    the gelu activation can't combine "tanh" with onnx_safe.
 
 - **use_flashattn_swiglu**: bool
 

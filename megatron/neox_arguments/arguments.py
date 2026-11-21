@@ -1528,6 +1528,19 @@ class NeoXArgs(*BASE_CLASSES):
             raise ValueError(error_message)
             return False
 
+        if (
+            self.activation == "gelu"
+            and self.gelu_approximate == "tanh"
+            and self.onnx_safe
+        ):
+            error_message = (
+                f"{FAIL}"
+                + self.__class__.__name__
+                + ".validate_values() gelu_approximate='tanh' is not supported with onnx_safe, which uses the exact (erf) GELU"
+            )
+            logging.error(error_message)
+            raise ValueError(error_message)
+
         _validate_qk_norm_args(
             use_qk_norm=self.use_qk_norm,
             qk_norm=self.qk_norm,
