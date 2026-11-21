@@ -64,6 +64,11 @@ Use `containers/docker/Dockerfile.B200` for B200 systems. B200 support requires
 a newer PyTorch and CUDA stack, so this image moves to the NGC PyTorch 25.04
 base.
 
+Both B200 recipes run as `mchorse`. They use UID 1000 when it is free and
+allocate an available UID when the base image already has a user at 1000.
+For bind-mount permissions, check the resulting UID with
+`docker run --rm gpt-neox:b200 id -u` (use `gpt-neox:b200-uv` for the uv image).
+
 The image:
 
 - installs `requirements.txt` and `requirements-onebitadam.txt`
