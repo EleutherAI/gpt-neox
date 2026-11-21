@@ -1,9 +1,34 @@
 # Based on https://huggingface.co/Qwen/Qwen2-0.5B/blob/main/config.json
+#
+# Qwen2 has a bias on the Q/K/V projections but not on the attention
+# output projection.
 
 {
   "pipe_parallel_size": 1,
+  # model_parallel_size must evenly divide num_kv_heads (2)
   "model_parallel_size": 1,
-  "make_vocab_size_divisible_by": 1,
+  # Pad the embedding to 151,936 rows so it has the same shape as the HF
+  # checkpoint (vocab_size in the config.json linked at the top).
+  #
+  # Why HF uses 151,936: the first-generation Qwen tokenizer had 151,851
+  # tokens (151,643 BPE tokens, then <|endoftext|>, <|im_start|>, <|im_end|> and 205
+  # reserved <|extra_N|> tokens), and the embedding was padded to the next
+  # multiple of 128 for tensor-core efficiency. The padded rows are never used.
+  #   https://huggingface.co/Qwen/Qwen-7B/blob/main/tokenization_qwen.py
+  #   https://huggingface.co/Qwen/Qwen-7B-Chat/discussions/41
+  # Qwen2 uses this embedding size, but its tokenizer has only the three named
+  # special tokens, so it has 151,646 tokens (151,643 + 3).
+  #   https://huggingface.co/Qwen/Qwen2-0.5B/blob/main/tokenizer_config.json
+  #   https://arxiv.org/abs/2407.10671 (Section 2.1)
+  #
+  # Why 1187: NeoX rounds the tokenizer size up to a multiple of
+  # make_vocab_size_divisible_by * model_parallel_size (_vocab_size_with_padding
+  # in megatron/tokenizer/tokenizer.py). 151,936 = 128 * 1187, and the multiple
+  # below it, 127 * 1187 = 150,749, is smaller than 151,646, so 151,646 rounds
+  # up to exactly 151,936. This also holds for model_parallel_size 2, 4, ..., 128.
+  # 151,936 is itself a multiple of 128, so the output layer stays tensor-core
+  # friendly.
+  "make_vocab_size_divisible_by": 1187,
 
   # model settings
   "num_layers": 24,
@@ -11,23 +36,31 @@
   "intermediate_size": 14592, # 4864*3 as 3x needed for swiglu with neox
   "num_attention_heads": 14,
   "num_kv_heads": 2,
-  "seq_length": 131072,
+  # Qwen2 is pretrained at 4,096 tokens (RoPE base 10,000), then extended to
+  # 32,768 tokens (RoPE base 1,000,000) in the final pretraining stage.
+  # This config matches the final stage.
+  "seq_length": 32768,
   "max_position_embeddings": 131072,
   "pos_emb": "rotary",
   "rotary_pct": 1,
-  "rotary_emb_base": 1000000.0,
+  "rotary_emb_base": 1000000,
   "no_weight_tying": false,
   "gpt_j_residual": false,
   "output_layer_parallelism": "column",
   "norm": "rmsnorm",
   "rms_norm_epsilon": 1.0e-6,
+  "attention_config": [[["flash"], 24]],
 
   "scaled_upper_triang_masked_softmax_fusion": true,
   "bias_gelu_fusion": false,
   "use_bias_in_norms": false,
-  "use_bias_in_attn_linear": false,
+  "use_bias_in_attn_linear": "qkv",
+  "use_bias_in_mlp": false,
   "activation": "swiglu", # Mentioned here - https://huggingface.co/Qwen/Qwen2-72B#model-details
   "mlp_multiple_of": 256,
+
+  "tokenizer_type": "HFTokenizer",
+  # "vocab-file": "/path/to/Qwen2-0.5B/tokenizer.json",
 
   "init_method_std": 0.02
 }
