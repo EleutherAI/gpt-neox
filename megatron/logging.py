@@ -80,6 +80,53 @@ def human_readable_flops(num) -> str:
     return "%.1f%s" % (num, "Yi")
 
 
+def _attention_width_ratios(neox_args):
+    """Return the query and key/value projection widths relative to hidden_size.
+
+    The transformer FLOPs formula below assumes square attention projections
+    (4 * hidden_size**2 parameters). An explicit head_dim and GQA change the
+    query width (num_attention_heads * head_dim) and the key/value width
+    (num_kv_heads * head_dim) independently of hidden_size.
+    """
+    hidden_size = neox_args.hidden_size
+    num_heads = neox_args.num_attention_heads
+    head_dim = getattr(neox_args, "head_dim", None) or hidden_size // num_heads
+    num_kv_heads = getattr(neox_args, "num_kv_heads", None) or num_heads
+    return (
+        num_heads * head_dim / hidden_size,
+        num_kv_heads * head_dim / hidden_size,
+    )
+
+
+def _transformer_flops_per_iteration(neox_args, pass_factor):
+    """Megatron's dense-transformer FLOPs estimate with independent attention widths.
+
+    Per layer and token, the forward pass costs 4 * h * (q + kv) for the Q/K/V and
+    output projections, 4 * s * q for attention scores and context, and 16 * h**2
+    for the MLP; the vocabulary term is unchanged. With q == kv == h this reduces
+    exactly to 24 * h**2 * (1 + s / (6 * h) + V / (16 * l * h)).
+    """
+    vocab_size = neox_args.padded_vocab_size
+    batch_size = neox_args.train_batch_size
+    seq_len = neox_args.seq_length
+    hidden_size = neox_args.hidden_size
+    num_layers = neox_args.num_layers
+    query_ratio, kv_ratio = _attention_width_ratios(neox_args)
+    return (
+        24
+        * pass_factor
+        * batch_size
+        * seq_len
+        * num_layers
+        * (hidden_size**2)
+        * (
+            (query_ratio + kv_ratio + 4.0) / 6.0
+            + (seq_len / (6.0 * hidden_size)) * query_ratio
+            + (vocab_size / (16.0 * num_layers * hidden_size))
+        )
+    )
+
+
 def get_actual_flops(neox_args, iter_time_s) -> float:
     """
     This function finds the actual FLOPs achieved accounting for implementation and hardware details. Also used for HFU.
@@ -144,18 +191,8 @@ def get_actual_flops(neox_args, iter_time_s) -> float:
         embedding_flops = 6 * seq_len * batch_size * hidden_size * vocab_size
         flops_per_iteration = mamba_flops * num_layers + embedding_flops
     else:
-        flops_per_iteration = (
-            24
-            * ckpt_activations_factor
-            * batch_size
-            * seq_len
-            * num_layers
-            * (hidden_size**2)
-            * (
-                1.0
-                + (seq_len / (6.0 * hidden_size))
-                + (vocab_size / (16.0 * num_layers * hidden_size))
-            )
+        flops_per_iteration = _transformer_flops_per_iteration(
+            neox_args, ckpt_activations_factor
         )
     return flops_per_iteration / (iter_time_s * world_size)
 
@@ -221,18 +258,8 @@ def get_forward_backward_flops(neox_args, iter_time_s) -> float:
         embedding_flops = 6 * seq_len * batch_size * hidden_size * vocab_size
         flops_per_iteration = mamba_flops * num_layers + embedding_flops
     else:
-        flops_per_iteration = (
-            24
-            * fwd_bwd_factor
-            * batch_size
-            * seq_len
-            * num_layers
-            * (hidden_size**2)
-            * (
-                1.0
-                + (seq_len / (6.0 * hidden_size))
-                + (vocab_size / (16.0 * num_layers * hidden_size))
-            )
+        flops_per_iteration = _transformer_flops_per_iteration(
+            neox_args, fwd_bwd_factor
         )
     return flops_per_iteration / (iter_time_s * world_size)
 

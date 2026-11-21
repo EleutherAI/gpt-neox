@@ -70,7 +70,7 @@ def _make_flash_attention(mode, num_heads=2, head_dim=16):
         num_attention_heads_per_partition=num_heads,
         num_kv_heads_per_partition=num_heads,
         hidden_size_per_attention_head=head_dim,
-        hidden_size_per_partition=num_heads * head_dim,
+        query_hidden_size_per_partition=num_heads * head_dim,
         use_qk_norm=False,
         use_cache=False,
         use_flash_attention=True,
