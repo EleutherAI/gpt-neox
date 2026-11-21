@@ -1,0 +1,53 @@
+# Based on https://huggingface.co/google/gemma-7b/blob/main/config.json
+#
+# Gemma differs from Llama in using a GeGLU MLP with the tanh-approximate GELU,
+# multiplying the word embeddings by sqrt(hidden_size), and tying the input and
+# output embeddings. Gemma 1.1 7B and CodeGemma 7B have the same architecture.
+#
+# HF's Gemma RMSNorm multiplies by (1 + weight), so its norm weights are stored
+# as offsets from 1. NeoX's RMSNorm multiplies by the weight itself, so a
+# checkpoint conversion has to add 1 to every norm weight.
+
+{
+  "pipe_parallel_size": 1,
+  # model_parallel_size must evenly divide num_attention_heads (16)
+  "model_parallel_size": 1,
+  # The Gemma tokenizer has 256,000 tokens (2^11 * 125), so no extra padding is
+  # needed and the embedding matches HF for model_parallel_size <= 16.
+  "make_vocab_size_divisible_by": 1,
+
+  # model settings
+  "num_layers": 28,
+  "hidden_size": 3072,
+  "intermediate_size": 73728, # 24576*3 as 3x needed for geglu with neox
+  "num_attention_heads": 16,
+  # Gemma 7B's attention heads are wider than hidden_size / num_attention_heads
+  # (192): 16 heads of 256 give Q/K/V projections of width 4096.
+  "head_dim": 256,
+  "seq_length": 8192,
+  "max_position_embeddings": 8192,
+  "pos_emb": "rotary",
+  "rotary_pct": 1,
+  "rotary_emb_base": 10000,
+  "no_weight_tying": false,
+  "scale_embeddings_by_sqrt_hidden_size": true,
+  "gpt_j_residual": false,
+  "output_layer_parallelism": "column",
+  "norm": "rmsnorm",
+  "rms_norm_epsilon": 1.0e-6,
+  "attention_config": [[["flash"], 28]],
+
+  "scaled_upper_triang_masked_softmax_fusion": true,
+  "bias_gelu_fusion": false,
+  "use_bias_in_norms": false,
+  "use_bias_in_attn_linear": false,
+  "use_bias_in_mlp": false,
+  "activation": "geglu",
+  "gelu_approximate": "tanh",
+  "mlp_multiple_of": 256,
+
+  "tokenizer_type": "HFTokenizer",
+  # "vocab-file": "/path/to/gemma-7b/tokenizer.json",
+
+  "init_method_std": 0.02
+}
