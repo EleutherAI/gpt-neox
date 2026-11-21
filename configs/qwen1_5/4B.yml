@@ -1,0 +1,62 @@
+# Based on https://huggingface.co/Qwen/Qwen1.5-4B/blob/main/config.json
+#
+# Qwen1.5 has a bias on the Q/K/V projections but not on the attention
+# output projection.
+
+{
+  "pipe_parallel_size": 1,
+  # model_parallel_size must evenly divide num_attention_heads (20)
+  "model_parallel_size": 1,
+  # Pad the embedding to 151,936 rows so it has the same shape as the HF
+  # checkpoint (vocab_size in the config.json linked at the top).
+  #
+  # Why HF uses 151,936: the first-generation Qwen tokenizer had 151,851
+  # tokens (151,643 BPE tokens, then <|endoftext|>, <|im_start|>, <|im_end|> and 205
+  # reserved <|extra_N|> tokens), and the embedding was padded to the next
+  # multiple of 128 for tensor-core efficiency. The padded rows are never used.
+  #   https://huggingface.co/Qwen/Qwen-7B/blob/main/tokenization_qwen.py
+  #   https://huggingface.co/Qwen/Qwen-7B-Chat/discussions/41
+  # Qwen1.5 uses this embedding size, but its tokenizer has only the three named
+  # special tokens, so it has 151,646 tokens (151,643 + 3).
+  #   https://huggingface.co/Qwen/Qwen1.5-4B/blob/main/tokenizer_config.json
+  #
+  # Why 1187: NeoX rounds the tokenizer size up to a multiple of
+  # make_vocab_size_divisible_by * model_parallel_size (_vocab_size_with_padding
+  # in megatron/tokenizer/tokenizer.py). 151,936 = 128 * 1187, and the multiple
+  # below it, 127 * 1187 = 150,749, is smaller than 151,646, so 151,646 rounds
+  # up to exactly 151,936. This also holds for model_parallel_size 2, 4, ..., 128.
+  # 151,936 is itself a multiple of 128, so the output layer stays tensor-core
+  # friendly.
+  "make_vocab_size_divisible_by": 1187,
+
+  # model settings
+  "num_layers": 40,
+  "hidden_size": 2560,
+  "intermediate_size": 20736, # 6912*3 as 3x needed for swiglu with neox
+  "num_attention_heads": 20,
+  "seq_length": 32768,
+  "max_position_embeddings": 32768,
+  "pos_emb": "rotary",
+  "rotary_pct": 1,
+  # 4B uses a RoPE base of 5,000,000; the other Qwen1.5 sizes use 1,000,000
+  "rotary_emb_base": 5000000,
+  "no_weight_tying": true,
+  "gpt_j_residual": false,
+  "output_layer_parallelism": "column",
+  "norm": "rmsnorm",
+  "rms_norm_epsilon": 1.0e-6,
+  "attention_config": [[["flash"], 40]],
+
+  "scaled_upper_triang_masked_softmax_fusion": true,
+  "bias_gelu_fusion": false,
+  "use_bias_in_norms": false,
+  "use_bias_in_attn_linear": "qkv",
+  "use_bias_in_mlp": false,
+  "activation": "swiglu",
+  "mlp_multiple_of": 256,
+
+  "tokenizer_type": "HFTokenizer",
+  # "vocab-file": "/path/to/Qwen1.5-4B/tokenizer.json",
+
+  "init_method_std": 0.02
+}
