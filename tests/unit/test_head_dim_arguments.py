@@ -156,3 +156,14 @@ def test_mamba_retains_attention_dimension_exemption():
     )
 
     assert neox_args.head_dim is None
+
+
+@pytest.mark.cpu
+def test_mamba_hybrid_validates_transformer_rotary_width():
+    config = head_dim_config(
+        attention_config=[[["mamba", "global"], "all"]], head_dim=5
+    )
+    with pytest.raises(ValueError, match="positive even number"):
+        NeoXArgs.from_dict(config)
+    config["head_dim"] = 6
+    assert NeoXArgs.from_dict(config).head_dim == 6

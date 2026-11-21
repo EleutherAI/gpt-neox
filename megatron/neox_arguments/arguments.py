@@ -1518,9 +1518,11 @@ class NeoXArgs(*BASE_CLASSES):
         if self.parameterization != "sp":
             self._validate_parameterization()
 
-        # Attention dimensions. Mamba does not use these values, so retain the
-        # existing exemption for Mamba attention configurations.
-        uses_attention_head_dimensions = "mamba" not in self.attention_config
+        # Only a Mamba-only model gets the exemption. A hybrid must still
+        # validate the dimensions used by its other layers.
+        uses_attention_head_dimensions = any(
+            kind != "mamba" for kind in self.attention_config
+        )
 
         if self.head_dim is not None and self.head_dim <= 0:
             error_message = (
