@@ -962,7 +962,7 @@ def get_optimizer(model, neox_args, dummy=False):
         # Required to have something so...
         dummy = True
         neox_args.optimizer = {"params": {"lr": 0.0}}
-        neox_args.optimizer_type = "adam"
+        neox_args.optimizer_type = "sgd"
     elif neox_args.no_load_optim:
         return None, None
 

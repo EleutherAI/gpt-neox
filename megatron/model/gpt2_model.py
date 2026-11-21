@@ -84,7 +84,10 @@ def cross_entropy(output, labels, _fp16=False, _fused=False):
     elif _fp16:
         losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels)
     else:
-        losses = mpu.vocab_parallel_cross_entropy(output.float().contiguous(), labels)
+        # vocab_parallel_cross_entropy overwrites its input, so fp32 logits need a copy
+        losses = mpu.vocab_parallel_cross_entropy(
+            output.to(torch.float32, copy=True).contiguous(), labels
+        )
     loss_mask = loss_mask.view(-1)
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
     return loss
