@@ -207,6 +207,14 @@ def get_args():
         action="store_true",
         help="Append an <eod> token to the end of a document.",
     )
+    group.add_argument(
+        "--eod-token",
+        dest="tokenizer_eod_token",
+        type=str,
+        default=None,
+        help="End-of-document token for HFTokenizer and SPMTokenizer, e.g. <eos> for Gemma. "
+        "Defaults to <|endoftext|>. Use the same value as tokenizer_eod_token in the training config.",
+    )
     group.add_argument("--ftfy", action="store_true", help="Use ftfy to clean text")
     group = parser.add_argument_group(title="output data")
     group.add_argument(
