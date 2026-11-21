@@ -113,9 +113,7 @@ def test_rotary_dimensions_must_be_positive_and_even(
         ValueError,
         match=f"rotary attention dimensions must be a positive even number, got {expected_rotary_ndims}",
     ):
-        NeoXArgs.from_dict(
-            head_dim_config(head_dim=head_dim, rotary_pct=rotary_pct)
-        )
+        NeoXArgs.from_dict(head_dim_config(head_dim=head_dim, rotary_pct=rotary_pct))
 
 
 @pytest.mark.cpu
@@ -126,6 +124,25 @@ def test_rotary_pct_must_be_in_supported_range(rotary_pct):
         match="rotary_pct must be greater than 0 and less than or equal to 1",
     ):
         NeoXArgs.from_dict(head_dim_config(head_dim=8, rotary_pct=rotary_pct))
+
+
+@pytest.mark.cpu
+def test_shared_qk_norm_error_reports_explicit_head_dim_sizes():
+    # Qwen3-0.6B geometry at TP=2: 8 local query heads and 4 local KV heads of
+    # width 128, not the 1024 // 16 = 64 quotient.
+    with pytest.raises(ValueError, match=r"query=1024, key=512"):
+        NeoXArgs.from_dict(
+            head_dim_config(
+                hidden_size=1024,
+                num_attention_heads=16,
+                num_kv_heads=8,
+                head_dim=128,
+                model_parallel_size=2,
+                use_qk_norm=True,
+                qk_norm_type="across_heads",
+                qk_norm_separate=False,
+            )
+        )
 
 
 @pytest.mark.cpu

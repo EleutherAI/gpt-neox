@@ -262,9 +262,9 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Scalenorm epsilon
     """
 
-    pos_emb: Literal["learned", "rotary", "sinusoidal", "rpe", "alibi", "none"] = (
-        "learned"
-    )
+    pos_emb: Literal[
+        "learned", "rotary", "sinusoidal", "rpe", "alibi", "none"
+    ] = "learned"
     """
     Type of positional embedding to use - choose from 'learned', 'rotary', 'sinusoidal', 'rpe', 'none'
     """
@@ -1226,9 +1226,9 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Should be a list the same length as `test_data_paths`
     """
 
-    eval_loss_logging: Literal["blended", "separate", "blended_and_separate"] = (
-        "blended"
-    )
+    eval_loss_logging: Literal[
+        "blended", "separate", "blended_and_separate"
+    ] = "blended"
     """
     Validation/test loss logging mode. "blended" preserves the historical blended metric;
     "separate" logs each validation/test subset independently; "blended_and_separate"

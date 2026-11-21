@@ -55,9 +55,11 @@ def make_config(
 
 
 def make_hf_state_dict(hf_config, *, include_bias=True):
-    num_q_heads, num_kv_heads, head_dim = (
-        convert_hf_llama_to_neox.get_attention_dimensions(hf_config)
-    )
+    (
+        num_q_heads,
+        num_kv_heads,
+        head_dim,
+    ) = convert_hf_llama_to_neox.get_attention_dimensions(hf_config)
     hidden_size = hf_config.hidden_size
     query_hidden_size = num_q_heads * head_dim
     kv_hidden_size = num_kv_heads * head_dim
@@ -204,6 +206,37 @@ def test_create_config_propagates_explicit_head_dim(monkeypatch):
     hf_config = convert_neox_to_hf.create_config(neox_config, architecture="llama")
 
     assert hf_config.head_dim == 128
+
+
+@pytest.mark.cpu
+def test_gpt_neox_export_rejects_independent_head_dim(monkeypatch):
+    def fail_build_tokenizer(args):
+        raise AssertionError("head_dim must be rejected before building a tokenizer")
+
+    monkeypatch.setattr(convert_neox_to_hf, "build_tokenizer", fail_build_tokenizer)
+    neox_config = {
+        "hidden-size": 1024,
+        "num-attention-heads": 16,
+        "head-dim": 128,
+    }
+
+    with pytest.raises(
+        ValueError, match="cannot be exported to the Huggingface GPT-NeoX"
+    ):
+        convert_neox_to_hf.create_config(neox_config, architecture="neox")
+
+
+@pytest.mark.cpu
+@pytest.mark.parametrize(
+    ("architecture", "head_dim"),
+    [("neox", None), ("neox", 64), ("llama", 128), ("mistral", 128)],
+)
+def test_export_head_dim_accepted_when_target_can_represent_it(architecture, head_dim):
+    neox_config = {"hidden-size": 1024, "num-attention-heads": 16}
+    if head_dim is not None:
+        neox_config["head-dim"] = head_dim
+
+    convert_neox_to_hf.validate_export_head_dim(neox_config, architecture)
 
 
 @pytest.mark.cpu

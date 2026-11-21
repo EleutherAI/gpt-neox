@@ -38,9 +38,7 @@ class FakeTEMultiheadAttention(torch.nn.Module):
             kwargs["num_attention_heads"] * self.hidden_size_per_attention_head
         )
         num_gqa_groups = kwargs["num_gqa_groups"] or kwargs["num_attention_heads"]
-        self.hidden_size_kv = (
-            num_gqa_groups * self.hidden_size_per_attention_head
-        )
+        self.hidden_size_kv = num_gqa_groups * self.hidden_size_per_attention_head
         tp_size = kwargs["tp_size"]
         self.qkv = SimpleNamespace(
             weight=torch.empty(
@@ -237,9 +235,20 @@ def test_real_te_attention_forward_backward_when_available(monkeypatch):
     if not torch.cuda.is_available():
         pytest.skip("CUDA is required for Transformer Engine")
     pytest.importorskip("transformer_engine")
+    from deepspeed.runtime.activation_checkpointing.checkpointing import (
+        CudaRNGStatesTracker,
+    )
+    from megatron.mpu.random import _MODEL_PARALLEL_RNG_TRACKER_NAME
+
     wrapper = importlib.import_module("megatron.model.transformer_engine")
     monkeypatch.setattr(wrapper, "get_model_parallel_world_size", lambda: 1)
     monkeypatch.setattr(wrapper, "get_tensor_model_parallel_group", lambda: None)
+    # TE initializes weights under the model-parallel CUDA RNG state, which
+    # training seeds during setup. Use a private seeded tracker so this test
+    # neither depends on test order nor leaks state into the global tracker.
+    rng_tracker = CudaRNGStatesTracker()
+    rng_tracker.add(_MODEL_PARALLEL_RNG_TRACKER_NAME, 1234)
+    monkeypatch.setattr(wrapper, "get_cuda_rng_tracker", lambda: rng_tracker)
     neox_args = te_attention_args(
         hidden_size=32,
         num_attention_heads=4,

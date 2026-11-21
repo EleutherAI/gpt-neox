@@ -214,9 +214,9 @@ def convert_model(hf_state_dict, hf_config, tp_ranks):
                 ),
             )
         ):
-            conv_state_dicts[i][f"sequential.{layer_num+2}.mlp.linear1.weight"] = (
-                torch.cat([w3.clone().detach(), w1.clone().detach()], dim=0)
-            )
+            conv_state_dicts[i][
+                f"sequential.{layer_num+2}.mlp.linear1.weight"
+            ] = torch.cat([w3.clone().detach(), w1.clone().detach()], dim=0)
         print(
             f"model.layers.{layer_num}.mlp.gate_proj.weight",
             hf_state_dict[f"model.layers.{layer_num}.mlp.gate_proj.weight"].shape,

@@ -142,21 +142,32 @@ def test_large_qwen_attention_geometry_without_parameter_allocation(
     expected_kv_hidden_size,
     expected_qkv_hidden_size,
 ):
+    model_parallel_size = 2
     neox_args = attention_args(
         hidden_size=hidden_size,
         num_attention_heads=num_attention_heads,
         num_kv_heads=num_kv_heads,
         head_dim=128,
-        model_parallel_size=2,
+        model_parallel_size=model_parallel_size,
     )
 
-    head_dim = get_attention_head_dim(neox_args)
-    query_hidden_size = neox_args.num_attention_heads * head_dim
-    kv_hidden_size = neox_args.num_kv_heads * head_dim
+    # Build the real module on the meta device: shapes are computed by the model
+    # code, but the multi-hundred-megabyte weights are never materialized.
+    with model_parallel_context(model_parallel_size), torch.device("meta"):
+        attention = build_attention(neox_args)
 
-    assert query_hidden_size == expected_query_hidden_size
-    assert kv_hidden_size == expected_kv_hidden_size
-    assert query_hidden_size + 2 * kv_hidden_size == expected_qkv_hidden_size
+    assert attention.query_key_value.weight.is_meta
+    assert attention.query_hidden_size == expected_query_hidden_size
+    assert attention.kv_hidden_size == expected_kv_hidden_size
+    assert attention.query_key_value.output_size == expected_qkv_hidden_size
+    assert attention.query_key_value.weight.shape == (
+        expected_qkv_hidden_size // model_parallel_size,
+        hidden_size,
+    )
+    assert attention.dense.weight.shape == (
+        hidden_size,
+        expected_query_hidden_size // model_parallel_size,
+    )
 
 
 @pytest.mark.cpu

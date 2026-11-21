@@ -328,10 +328,36 @@ def validate_attention_tp(num_q_heads, num_kv_heads, tensor_parallel_size):
         )
 
 
+def validate_export_head_dim(neox_config, architecture):
+    """Reject an explicit head_dim that the target HF architecture cannot represent.
+
+    GPTNeoXForCausalLM always derives its head size as
+    hidden_size // num_attention_heads, so only a head_dim equal to that quotient
+    can be exported to it.
+    """
+    head_dim = get_key(neox_config, "head-dim")
+    if head_dim is None or architecture != "neox":
+        return
+    hidden_size = get_key(neox_config, "hidden-size")
+    num_attention_heads = get_key(neox_config, "num-attention-heads")
+    if hidden_size % num_attention_heads == 0 and (
+        head_dim == hidden_size // num_attention_heads
+    ):
+        return
+    raise ValueError(
+        f"head_dim={head_dim} cannot be exported to the Huggingface GPT-NeoX "
+        "architecture, which always uses hidden_size // num_attention_heads "
+        f"(hidden_size={hidden_size}, num_attention_heads={num_attention_heads}). "
+        "Use --architecture llama or mistral if the model otherwise matches one "
+        "of them; those classes honor head_dim."
+    )
+
+
 def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1):
     """take in a loaded yaml from NeoX and assign relevant values to HF config.
     Returns: GPTNeoXConfig() object
     """
+    validate_export_head_dim(neox_config, architecture)
 
     def gated_size(hidden_dim):
         # takes in a hidden dim and calculates intermediate dim of a LLaMAParallelMLP.
@@ -391,7 +417,7 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
         "use_cache": True,
     }
     configured_head_dim = get_key(neox_config, "head-dim")
-    if configured_head_dim is not None:
+    if configured_head_dim is not None and architecture in ("mistral", "llama"):
         args["head_dim"] = configured_head_dim
     if architecture == "mistral" or architecture == "llama":
         args.update(

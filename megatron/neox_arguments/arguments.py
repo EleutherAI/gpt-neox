@@ -133,6 +133,7 @@ def _validate_qk_norm_args(
     num_kv_heads,
     model_parallel_size,
     te_mha=False,
+    head_dim=None,
 ):
     """Validate QK normalization options before model construction."""
     if use_qk_norm and te_mha:
@@ -194,7 +195,9 @@ def _validate_qk_norm_args(
         and effective_num_kv_heads != num_attention_heads
         and not qk_norm_separate
     ):
-        head_size = hidden_size // num_attention_heads
+        head_size = (
+            head_dim if head_dim is not None else hidden_size // num_attention_heads
+        )
         q_norm_size = num_attention_heads // model_parallel_size * head_size
         k_norm_size = effective_num_kv_heads // model_parallel_size * head_size
         raise ValueError(
@@ -1597,6 +1600,7 @@ class NeoXArgs(*BASE_CLASSES):
             num_kv_heads=self.num_kv_heads,
             model_parallel_size=self.model_parallel_size,
             te_mha=self.te_mha or self.te_fp8_mha,
+            head_dim=self.head_dim,
         )
 
         if self.seq_length is not None:
