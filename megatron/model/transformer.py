@@ -26,7 +26,7 @@ import torch.nn as nn
 from torch.distributed.nn.functional import (
     all_reduce as differentiable_all_reduce,
 )
-from pkg_resources import packaging
+import packaging.version
 from importlib.metadata import version
 
 from .norms import get_norm
