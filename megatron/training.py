@@ -254,20 +254,6 @@ def pretrain(neox_args):
             lr_scheduler=lr_scheduler,
         )
 
-    # Evaluate the untrained model when iteration 0 was explicitly requested.
-    if neox_args.do_valid and iteration == 0 and is_eval_iter(neox_args, iteration):
-        evaluate_and_print_results(
-            neox_args=neox_args,
-            prefix="iteration 0",
-            forward_step_func=forward_step,
-            data_iterator=valid_data_iterator,
-            model=model,
-            iteration=iteration,
-            verbose=False,
-            timers=timers,
-            reference_model=reference_model,
-        )
-
     if neox_args.do_train and neox_args.train_iters > 0:
         iteration = train(
             neox_args=neox_args,
@@ -1457,6 +1443,39 @@ def train(
     # to monitor if we've skipped many iterations in a row and trigger an early exit
     overflow_monitor = OverflowMonitor(optimizer)
 
+    def evaluate_valid(iteration):
+        prefix = "iteration {}".format(iteration)
+        if isinstance(valid_data_iterator, dict):
+            evaluate_named_data_iterators(
+                neox_args=neox_args,
+                prefix=prefix,
+                forward_step_func=forward_step,
+                named_data_iterators=valid_data_iterator,
+                model=model,
+                iteration=iteration,
+                verbose=False,
+                timers=timers,
+                chart_name="validation",
+                weights=valid_eval_weights,
+                reference_model=reference_model,
+            )
+        else:
+            evaluate_and_print_results(
+                neox_args=neox_args,
+                prefix=prefix,
+                forward_step_func=forward_step,
+                data_iterator=valid_data_iterator,
+                model=model,
+                iteration=iteration,
+                verbose=False,
+                timers=timers,
+                reference_model=reference_model,
+            )
+
+    # extra_eval_iters can include 0 to evaluate the untrained model
+    if neox_args.do_valid and iteration == 0 and is_eval_iter(neox_args, iteration):
+        evaluate_valid(iteration)
+
     if neox_args.profile:
         schedule = torch.profiler.schedule(
             wait=neox_args.profile_step_start,
@@ -1533,33 +1552,7 @@ def train(
             )
         # Evaluation
         if neox_args.do_valid and is_eval_iter(neox_args, iteration):
-            prefix = "iteration {}".format(iteration)
-            if isinstance(valid_data_iterator, dict):
-                evaluate_named_data_iterators(
-                    neox_args=neox_args,
-                    prefix=prefix,
-                    forward_step_func=forward_step,
-                    named_data_iterators=valid_data_iterator,
-                    model=model,
-                    iteration=iteration,
-                    verbose=False,
-                    timers=timers,
-                    chart_name="validation",
-                    weights=valid_eval_weights,
-                    reference_model=reference_model,
-                )
-            else:
-                evaluate_and_print_results(
-                    neox_args=neox_args,
-                    prefix=prefix,
-                    forward_step_func=forward_step,
-                    data_iterator=valid_data_iterator,
-                    model=model,
-                    iteration=iteration,
-                    verbose=False,
-                    timers=timers,
-                    reference_model=reference_model,
-                )
+            evaluate_valid(iteration)
 
         if neox_args.exit_interval and iteration % neox_args.exit_interval == 0:
             torch.distributed.barrier()
