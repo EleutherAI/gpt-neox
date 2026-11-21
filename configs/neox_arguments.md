@@ -4,11 +4,13 @@ Arguments for gpt-neox. All of the following can be specified in your .yml confi
 
 LR Scheduler Arguments
 
-- **lr_decay_style**: typing.Literal['constant', 'linear', 'cosine', 'exponential']
+- **lr_decay_style**: typing.Literal['constant', 'linear', 'cosine', 'exponential', 'wsd']
 
     Default = linear
 
-    Learning rate decay function. Choose from 'constant', 'linear', 'cosine', 'exponential'.
+    Learning rate decay function. Choose from 'constant', 'linear', 'cosine', 'exponential', 'wsd'.
+    'wsd' implements the Warmup-Stable-Decay schedule from the MiniCPM paper
+    (https://arxiv.org/abs/2404.06395): linear warmup, constant LR, then cosine decay.
 
 - **lr_decay_iters**: int
 
@@ -34,6 +36,13 @@ LR Scheduler Arguments
     Default = 0.01
 
     Percentage of total iterations to warmup on (.01 = 1 percent of all training iters).
+
+- **wsd_decay_ratio**: float
+
+    Default = 0.1
+
+    Fraction of the iterations after warmup spent in the final cosine decay to min_lr
+    when lr_decay_style is 'wsd'.
 
 - **override_lr_scheduler**: bool
 
