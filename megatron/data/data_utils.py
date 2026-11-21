@@ -30,7 +30,7 @@ from megatron.data.samplers import DistributedBatchSampler
 
 def is_eval_iter(neox_args, iteration):
     """Return whether validation is scheduled at ``iteration``."""
-    extra_eval_iters = getattr(neox_args, "extra_eval_iters", None)
+    extra_eval_iters = neox_args.extra_eval_iters
     if extra_eval_iters and iteration in extra_eval_iters:
         return True
 
@@ -50,7 +50,7 @@ def get_num_eval_events(neox_args, max_iteration):
     if eval_interval and eval_interval > 0:
         eval_iterations.update(range(eval_interval, max_iteration + 1, eval_interval))
 
-    extra_eval_iters = getattr(neox_args, "extra_eval_iters", None)
+    extra_eval_iters = neox_args.extra_eval_iters
     if extra_eval_iters:
         eval_iterations.update(
             iteration
