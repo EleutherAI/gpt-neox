@@ -510,6 +510,13 @@ def convert(
             " supported by these Huggingface model classes."
         )
 
+    if get_key(loaded_config, "scale_embeddings_by_sqrt_hidden_size", False):
+        raise NotImplementedError(
+            "ERROR: Provided config sets scale_embeddings_by_sqrt_hidden_size, but none of the"
+            " Huggingface architectures this script exports to scale the input embeddings, so the"
+            " exported model would not match the NeoX model."
+        )
+
     hf_config = create_config(
         loaded_config, architecture=architecture, is_rm=is_rm, pad_token_id=pad_token_id
     )

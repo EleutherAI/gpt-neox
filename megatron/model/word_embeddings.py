@@ -59,6 +59,10 @@ class Embedding(torch.nn.Module):
             neox_args.mup_embedding_mult if neox_args.parameterization != "sp" else 1.0
         )
         self.mup_rp_embedding_mult = neox_args.mup_rp_embedding_mult
+        # args objects that were not built through NeoXArgs may not have this field
+        self.scale_embeddings_by_sqrt_hidden_size = getattr(
+            neox_args, "scale_embeddings_by_sqrt_hidden_size", False
+        )
 
         # Word embeddings (parallel).
         self.word_embeddings = mpu.VocabParallelEmbedding(
@@ -140,6 +144,13 @@ class Embedding(torch.nn.Module):
     def forward(self, input_ids, position_ids, tokentype_ids=None):
         # Embeddings.
         words_embeddings = self.word_embeddings(input_ids)
+        if self.scale_embeddings_by_sqrt_hidden_size:
+            # Gemma rounds the multiplier to the embedding dtype before multiplying
+            words_embeddings = words_embeddings * torch.tensor(
+                self.hidden_size**0.5,
+                dtype=words_embeddings.dtype,
+                device=words_embeddings.device,
+            )
         if self.use_pos_emb and self.embedding_type in ["learned", "sinusoidal"]:
             if self.opt_pos_emb_offset:
                 if self.layer_past is not None:
