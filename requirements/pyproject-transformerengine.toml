@@ -7,7 +7,8 @@ license = "Apache-2.0"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-transformer-engine = {git = "https://github.com/NVIDIA/TransformerEngine.git", rev = "stable"}
+flash-attn = "2.6.3"
+transformer-engine = {version = "1.12", extras = ["pytorch"]}
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

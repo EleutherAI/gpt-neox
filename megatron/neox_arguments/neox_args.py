@@ -176,17 +176,68 @@ class NeoXArgsModel(NeoXArgsTemplate):
 
     layernorm_fusion: bool = False
     """
-    Use fused layer norm kernel (if `norm` is `layernorm`).
+    Use the fused layer norm kernel when `norm` or `qk_norm` is `layernorm`.
     """
 
     rmsnorm_fusion: bool = False
     """
-    Use fused RMS norm kernel (if `norm` is `rmsnorm`).
+    Use the fused RMS norm kernel when `norm` or `qk_norm` is `rmsnorm`.
     """
 
-    use_qk_layernorm: bool = False
+    use_qk_norm: bool = False
     """
     Use QK Normalization
+    """
+
+    qk_norm: Literal[
+        "layernorm",
+        "rmsnorm",
+        "non_parametric_layernorm",
+        "scalenorm",
+        "te_rmsnorm",
+        "te_layernorm",
+    ] = None
+    """
+    Normalization to use for Q and K. When unset, this inherits `norm`, so Q/K
+    normalization uses the same normalization as the rest of the model. Set it
+    explicitly to use a different Q/K normalization.
+    """
+
+    qk_norm_type: Literal["per_head", "across_heads"] = "per_head"
+    """
+    How to apply QK Normalization when `use_qk_norm` is set. Choose from:
+        - "per_head": normalize each head independently over the head dimension,
+          i.e. over [*, H] (Qwen3 / Megatron-core / TorchTitan style). Works for
+          both MHA and GQA.
+        - "across_heads": normalize over all heads jointly, i.e. over [*, N, H]
+          (OLMo2 style). Under tensor parallelism this is rank-local by default;
+          enable `qk_norm_across_tp` to compute the normalization statistics
+          over the full TP-sharded Q/K projections. For GQA the query and key
+          projections have different numbers of heads (N vs. KV heads), so
+          `qk_norm_separate` must be enabled to construct separate query/key
+          norms with differently sized parameters.
+    """
+
+    qk_norm_across_tp: bool = False
+    """
+    Compute full-projection Q and K normalization statistics across
+    tensor-parallel ranks when `qk_norm_type` is "across_heads". Q and K
+    statistics are packed into one tensor and reduced with a single
+    model-parallel all-reduce in forward (with the corresponding autograd
+    reduction in backward), then Q and K are normalized independently. RMSNorm
+    and ScaleNorm reduce sums of squares; LayerNorm variants reduce sums and sums
+    of squares. The default False preserves rank-local normalization. Requires
+    `use_qk_norm`. Fused and Transformer Engine Q/K norms are not supported with
+    this flag because their kernels compute statistics internally; select a
+    native `qk_norm`, disable norm fusion, or leave this flag disabled.
+    """
+
+    qk_norm_separate: bool = False
+    """
+    Use separate (independently learned) norms for the query and key projections
+    when `use_qk_norm` is set. When False, query and key share a single norm.
+    GQA/MQA with "across_heads" QK normalization requires this to be True because
+    the query and key norm parameter shapes differ; otherwise an error is raised.
     """
 
     layernorm_epsilon: float = 1.0e-5
@@ -263,7 +314,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     specified in attention_config defining each layer.
 
     An example config is given below:
-          "sparse_attention": {
+          "sparsity_config": {
             "block": 16,
             "different_layout_per_head": true,
             "num_local_blocks": 4,
@@ -349,9 +400,19 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Move the cross entropy unreduced loss calculation for lm head to fp16.
     """
 
+    cross_entropy_fusion: bool = False
+    """
+    Fuse vocabulary-parallel cross entropy operations and reduce its tensor-parallel collectives from three to two.
+    """
+
     init_method_std: float = 0.02
     """
     Standard deviation of the zero mean normal distribution used for weight initialization.
+    """
+
+    init_truncation: float = None
+    """
+    Truncate normal inits at +/- init_truncation standard deviations. OLMo uses 3.
     """
 
     apply_query_key_layer_scaling: bool = False
@@ -367,6 +428,29 @@ class NeoXArgsModel(NeoXArgsTemplate):
     attention_softmax_in_fp32: bool = False
     """
     Run attention masking and softmax in fp32.
+    """
+
+    attn_softmax_clipping: bool = False
+    """
+    Apply soft_clip to attention probabilities using
+    ``clip((zeta - gamma) * softmax(logits) + gamma, 0, 1)``. This is supported
+    by global attention and aMLP tiny attention, but not by Flash, Transformer
+    Engine, or sparse attention backends. When false, the zeta and gamma
+    arguments are ignored.
+    """
+
+    attn_softmax_clipping_zeta: float = 1.03
+    """
+    Upper stretch bound for attention softmax clipping. Must be at least 1.0.
+    The soft_clip experiments in https://arxiv.org/abs/2410.16682 use 1.03.
+    This argument is only used when ``attn_softmax_clipping`` is true.
+    """
+
+    attn_softmax_clipping_gamma: float = -0.03
+    """
+    Lower stretch bound for attention softmax clipping. Must be at most 0.0.
+    The soft_clip experiments in https://arxiv.org/abs/2410.16682 use -0.03.
+    This argument is only used when ``attn_softmax_clipping`` is true.
     """
 
     rotary_pct: float = 1.0
@@ -398,10 +482,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
         "wang_init",
         "small_init",
         "single_residual_scaled_normal",
+        "fan_in",
     ] = "normal"
     """
-    Init function used on all layers except ff residual outputs - choose from
-    ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
+    Init function used on embeddings, the readout, and the input weights of each layer.
+    "fan_in" uses std = fan_in ** -0.5 from each weight's full input dimension.
     """
 
     output_layer_init_method: Literal[
@@ -414,10 +499,14 @@ class NeoXArgsModel(NeoXArgsTemplate):
         "wang_init",
         "small_init",
         "single_residual_scaled_normal",
+        "fan_in",
+        "layer_scaled_normal",
+        "zero",
     ] = "scaled_normal"
     """
-    Init function used for ff residual outputs - choose from
-    ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
+    Init function used on the output weights of each layer, which write to the residual stream.
+    "layer_scaled_normal" uses std = init_method_std / sqrt(2 * (layer_number + 1)).
+    "zero" initializes them to zero.
     """
 
     gmlp_attn_dim: int = 64
@@ -464,7 +553,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     If enabled, will train *only* the soft prompt, and freezes the rest of the model.
     parameters in the dict are:
         'enabled': bool = True # enables soft prompting
-        'num_tokens': int = 10 # length of the soft prompt in tokens
+        'n_tokens': int = 10 # length of the soft prompt in tokens
         'init_string': str = '' # if provided, initialize the soft prompt with the word embeddings of this string
         'init_range': float = 0.5 # if no init string is provided, initialize the soft prompt with a uniform distribution between -init_range and init_rang
     """
@@ -630,26 +719,6 @@ class NeoXArgsOptimizer(NeoXArgsTemplate):
     Zero Optimizer stage
     """
 
-    zero_reduce_scatter: bool = None
-    """
-    Zero: Uses reduce or reduce scatter instead of allreduce to average gradients
-    """
-
-    zero_contiguous_gradients: bool = None
-    """
-    Zero: Copies the gradients to a contiguous buffer as they are produced. Avoids memory fragmentation during backward pass. Only useful when running very large models.
-    """
-
-    zero_reduce_bucket_size: int = None
-    """
-    Zero: Number of elements reduced/allreduced at a time. Limits the memory required for the allgather for large model sizes
-    """
-
-    zero_allgather_bucket_size: int = None
-    """
-    Zero: Number of elements allgathered at a time. Limits the memory required for the allgather for large model sizes
-    """
-
     lr: float = None
     """
     Max Learning rate during training
@@ -662,9 +731,13 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
     LR Scheduler Arguments
     """
 
-    lr_decay_style: Literal["constant", "linear", "cosine", "exponential"] = "linear"
+    lr_decay_style: Literal[
+        "constant", "linear", "cosine", "exponential", "wsd"
+    ] = "linear"
     """
-    Learning rate decay function. Choose from 'constant', 'linear', 'cosine', 'exponential'.
+    Learning rate decay function. Choose from 'constant', 'linear', 'cosine', 'exponential', 'wsd'.
+    'wsd' implements the Warmup-Stable-Decay schedule from the MiniCPM paper
+    (https://arxiv.org/abs/2404.06395): linear warmup, constant LR, then cosine decay.
     """
 
     lr_decay_iters: int = None
@@ -686,6 +759,12 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
     warmup: float = 0.01
     """
     Percentage of total iterations to warmup on (.01 = 1 percent of all training iters).
+    """
+
+    wsd_decay_ratio: float = 0.1
+    """
+    Fraction of the iterations after warmup spent in the final cosine decay to min_lr
+    when lr_decay_style is 'wsd'.
     """
 
     override_lr_scheduler: bool = False
@@ -734,6 +813,11 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     log_dir: str = None
     """
     Directory to save logs to.
+    """
+
+    quiet: bool = False
+    """
+    Skip the argument printout at launch and only show DeepSpeed warnings and errors.
     """
 
     ### BEGIN TENSORBOARD ARGS ###
@@ -926,11 +1010,6 @@ class NeoXArgsOther(NeoXArgsTemplate):
     Use workarounds for known problems with Torch ONNX exporter
     """
 
-    deepscale: bool = False
-    """
-    (Deprecated) enable DeepSpeed (helper flag for user code, no impact on DeepSpeed backend)'
-    """
-
     deepscale_config: str = None
     """(Deprecated) deepscale json configuration file."""
 
@@ -1016,6 +1095,13 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Path to combined dataset to split.
     """
 
+    preserve_data_order: bool = False
+    """
+    Preserve source document and sample order for training, repeating that order each epoch.
+    Requires dataset_impl='gpt2', pack_impl='packed', and a single training dataset.
+    Validation and test datasets retain their default ordering. Ordered index maps are cached separately.
+    """
+
     use_shared_fs: bool = True
     """
     Whether to use a shared filesystem for data loading. If False, local rank 0 on all nodes will preprocess the data,
@@ -1065,6 +1151,18 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     valid_reward_data_paths: list = None
     """
     List of paths to validation reward datasets
+    """
+
+    valid_data_names: list = None
+    """
+    Optional names for validation dataset subsets when eval_loss_logging uses separate logging.
+    Defaults to valid_0, valid_1, ...
+    """
+
+    test_data_names: list = None
+    """
+    Optional names for test dataset subsets when eval_loss_logging uses separate logging.
+    Defaults to test_0, test_1, ...
     """
 
     pos_train_data_paths: list = None
@@ -1121,6 +1219,15 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Should be a list the same length as `test_data_paths`
     """
 
+    eval_loss_logging: Literal[
+        "blended", "separate", "blended_and_separate"
+    ] = "blended"
+    """
+    Validation/test loss logging mode. "blended" preserves the historical blended metric;
+    "separate" logs each validation/test subset independently; "blended_and_separate"
+    logs each subset and synthesizes a blended metric from subset losses.
+    """
+
     weight_by_num_documents: bool = False
     """
     If True, Builds dataset weights from a multinomial distribution over groups of data according to the number of
@@ -1157,6 +1264,13 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Packing implementation, can be one of "packed", "pack_until_overflow", or "unpacked".
 
     warning: pack_until_overflow is very naive and will likely have issues with pretraining scale datasets
+    """
+
+    inter_document_attention_masking: bool = False
+    """
+    Prevent tokens in packed gpt2 dataset samples from attending across document
+    boundaries, and restart position ids at each boundary. Requires flash attention
+    in every layer or te_mha.
     """
 
     dataset_impl: Literal["gpt2", "pairwise", "online"] = "gpt2"
@@ -1437,11 +1551,6 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Partition Activations across GPUs before checkpointing.
     """
 
-    clip_grad: float = 1.0
-    """
-    Gradient clipping based on global L2 norm.
-    """
-
     hysteresis: int = 2
     """
     hysteresis for dynamic loss scaling
@@ -1473,55 +1582,61 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
     """
 
-    use_mup: bool = False
+    parameterization: Literal["sp", "mup", "completep"] = "sp"
     """
-    Whether to use Microsoft's Mup https://github.com/microsoft/mup
+    How initialization, forward multipliers, and per-layer learning rates scale with model size.
+    "sp" is the standard parameterization. "mup" scales with width relative to mup_base_hidden_size.
+    "completep" also scales with depth relative to mup_base_num_layers (https://arxiv.org/abs/2505.01618).
+    """
+
+    mup_base_hidden_size: int = None
+    """
+    Hidden size of the base model whose hyperparameters transfer. Required for mup and completep.
+    """
+
+    mup_base_num_layers: int = None
+    """
+    Number of layers of the base model whose hyperparameters transfer. Required for completep.
+    """
+
+    completep_alpha: float = 1.0
+    """
+    Depth exponent for completep, between 0.5 and 1. Residual branches are multiplied by
+    (num_layers / mup_base_num_layers) ** -completep_alpha. 1.0 is CompleteP and 0.5 is depth-muP.
+    """
+
+    mup_independent_weight_decay: bool = False
+    """
+    Multiply the weight decay of hidden weight matrices by the width multiplier, so the product of
+    learning rate and weight decay stays constant across width.
     """
 
     coord_check: bool = False
     """
-    Whether to generate a "coord check" plot to verify mup's implementation in neox
-    """
-
-    save_base_shapes: bool = False
-    """
-    Whether to save base shapes for mup. This will save the shapes to the path specified in base-shapes-file.
-    """
-
-    base_shapes_file: str = None
-    """
-    Path to the base shapes to save to/load from
-    """
-
-    mup_init_scale: float = 1.0
-    """
-    Initialization scale: All the parameters are multiplied by this value
+    Train models of several widths for a few steps, save the mean absolute activation of each layer
+    to coord_check.<rank>.csv, and exit. Used to check that activations stay the same size across width.
     """
 
     mup_attn_temp: float = 1.0
     """
-    Attention temperature: Reciprocal of the multiplier applied to the input to attention softmax
+    Attention temperature for mup and completep. Attention scores are scaled by
+    1 / (head_dim * mup_attn_temp) before softmax. Must be greater than zero.
     """
 
     mup_output_temp: float = 1.0
     """
-    Output temperature: Reciprocal of the multiplier applied to the input to softmax that
-    produces the distribution over output tokens.
+    Output temperature for mup and completep. Logits are divided by mup_output_temp times the
+    width multiplier. Must be greater than zero.
     """
 
     mup_embedding_mult: float = 1.0
     """
-    Scalar by which we multiply the output of the embedding layer
+    Multiplier on the embedding output for mup and completep.
     """
 
     mup_rp_embedding_mult: float = 1.0
     """
-    Scalar by which we multiply vectors representing relative position
-    """
-
-    mup_width_scale: int = 2
-    """
-    What to scale width by when creating the delta model for mup
+    Multiplier on learned position embeddings.
     """
 
 
@@ -1605,6 +1720,11 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     NOTE: Requires internet connection
     """
 
+    eval_tasks_limit: int = None
+    """
+    Number of examples per lm_eval_harness task. None runs every example.
+    """
+
 
 @dataclass
 class NeoXArgsMoE(NeoXArgsTemplate):
@@ -1630,7 +1750,9 @@ class NeoXArgsMoE(NeoXArgsTemplate):
     moe_router_type: Literal["sinkhorn", "topk"] = "sinkhorn"
     """
     What token routing algorithm to use. Currently only sinkhorn is supported for training.
-    TopK is only used for inference/eval.
+    TopK is only intended for inference/eval: it does not apply a load balancing loss,
+    so configuring it with moe_num_experts > 1 logs a warning that training with it
+    will silently produce a poorly balanced MoE model.
     """
 
     moe_lbl_in_fp32: bool = False

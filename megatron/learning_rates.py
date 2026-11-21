@@ -36,7 +36,7 @@ class AnnealingLR(object):
         min_lr=0.0,
         use_checkpoint_lr_scheduler=True,
         override_lr_scheduler=False,
-        use_mup=False,
+        wsd_decay_ratio=0.1,
     ):
 
         # Class values.
@@ -50,7 +50,7 @@ class AnnealingLR(object):
         self.decay_style = decay_style
         self.override_lr_scheduler = override_lr_scheduler
         self.use_checkpoint_lr_scheduler = use_checkpoint_lr_scheduler
-        self.use_mup = use_mup
+        self.wsd_decay_ratio = wsd_decay_ratio
         if self.override_lr_scheduler:
             assert not self.use_checkpoint_lr_scheduler, (
                 "both override and " "use-checkpoint are set."
@@ -75,6 +75,9 @@ class AnnealingLR(object):
             lr = self.start_lr * (end_iter_ - num_iters_) / end_iter_
         elif self.decay_style == "cosine":
             end_iter_ = self.end_iter - self.warmup_iter
+            # Hold at min_lr once decay is done (e.g. lr_decay_iters < train_iters),
+            # otherwise the cosine would climb back up to start_lr.
+            num_iters_ = min(num_iters_, end_iter_)
             lr = self.min_lr + (
                 (self.start_lr - self.min_lr)
                 / 2.0
@@ -84,6 +87,28 @@ class AnnealingLR(object):
             # exp(-0.693) = 1/2
             end_iter = self.end_iter - self.warmup_iter
             lr = self.start_lr * math.exp(-0.693 * num_iters_ / end_iter)
+        elif self.decay_style == "wsd":
+            # Warmup-Stable-Decay schedule from the MiniCPM paper
+            # (https://arxiv.org/abs/2404.06395)
+            # After warmup: hold at start_lr (stable phase), then cosine
+            # decay to min_lr over the final wsd_decay_ratio fraction of
+            # total post-warmup iterations.
+            end_iter_ = self.end_iter - self.warmup_iter
+            decay_iters = int(end_iter_ * self.wsd_decay_ratio)
+            stable_iters = end_iter_ - decay_iters
+            if num_iters_ <= stable_iters:
+                # Stable phase: constant learning rate
+                lr = self.start_lr
+            else:
+                # Decay phase: cosine anneal from start_lr to min_lr
+                decay_progress = min(
+                    (num_iters_ - stable_iters) / max(decay_iters, 1), 1.0
+                )
+                lr = self.min_lr + (
+                    (self.start_lr - self.min_lr)
+                    / 2.0
+                    * (math.cos(math.pi * decay_progress) + 1)
+                )
         else:
             lr = self.start_lr
         return max(lr, self.min_lr)
@@ -95,10 +120,7 @@ class AnnealingLR(object):
         self.num_iters = step_num
         new_lr = self.get_lr()
         for group in self.optimizer.param_groups:
-            if self.use_mup and "width_mult" in group:
-                group["lr"] = new_lr / group["width_mult"]
-            else:
-                group["lr"] = new_lr
+            group["lr"] = new_lr * group.get("lr_scale", 1.0)
 
     def state_dict(self):
         state_dict = {
@@ -108,6 +130,7 @@ class AnnealingLR(object):
             "decay_style": self.decay_style,
             "end_iter": self.end_iter,
             "min_lr": self.min_lr,
+            "wsd_decay_ratio": self.wsd_decay_ratio,
         }
         return state_dict
 
@@ -143,6 +166,12 @@ class AnnealingLR(object):
         self.decay_style = self._check_and_set(
             self.decay_style, sd["decay_style"], "decay style"
         )
+        if "wsd_decay_ratio" in sd:
+            self.wsd_decay_ratio = self._check_and_set(
+                self.wsd_decay_ratio,
+                sd["wsd_decay_ratio"],
+                "WSD decay ratio",
+            )
 
         self.num_iters = sd["num_iters"]
         self.step(self.num_iters)

@@ -44,14 +44,19 @@ from megatron import print_rank_0, mpu
 from megatron.model import (
     GPT2ModelPipe,
     SoftEmbedding,
-    get_params_for_weight_decay_optimization,
     mark_norms_for_sequence_parallel_grad_sync,
 )
+from megatron.model.parameterization import get_param_groups
 from megatron.mpu.mappings import gather_from_model_parallel_region
 from megatron.checkpointing import load_checkpoint, save_checkpoint
 from megatron.data.data_utils import (
     build_train_valid_test_data_loaders,
     shift_and_wrap_data_loaders,
+)
+from megatron.data.packed_sequence import (
+    PackedSequenceBatch,
+    PackedSequenceModelInputs,
+    normalize_packed_sequence_batch,
 )
 from megatron.initialize import initialize_megatron
 from megatron.learning_rates import AnnealingLR
@@ -70,111 +75,54 @@ from pickle import dump
 import os
 
 
-def mup_weights_reinit(neox_args, model):
-    def has_method(o, name):
-        return callable(getattr(o, name, None))
-
-    for layer in model.modules():
-        # This normally would happen in set_base_shapes if we actually were able to use the MuReadout class
-        if hasattr(layer, "mup_rescale_parameters") and layer.mup_rescale_parameters:
-            layer._rescale_parameters()
-
-        if has_method(layer, "mup_reinitialize_weights"):
-            layer.mup_reinitialize_weights(neox_args)
-
-
-def save_base_shapes(neox_args, base_shapes, use_cache):
-
-    # Instantiation of the base model fails in the init function (init_functions.py) because we haven't called set_base_shapes on it at this point, so disable it temporarily here
-    neox_args.use_mup = False
-
-    base_model = GPT2ModelPipe(
-        neox_args=neox_args,
-        num_tokentypes=0,
-        parallel_output=True if neox_args.train_impl != "rm" else False,
-        topology=mpu.get_topology(),
-        use_cache=use_cache,
+def _first_float_tensor(output):
+    outputs = output if isinstance(output, (tuple, list)) else (output,)
+    return next(
+        (o for o in outputs if torch.is_tensor(o) and o.is_floating_point()), None
     )
 
-    if not neox_args.is_pipe_parallel:
-        base_model = base_model.to_sequential()
 
-    try:
-        import mup
-    except ModuleNotFoundError:
-        print("Please install mup https://github.com/microsoft/mup")
-        raise Exception
+def coord_check(neox_args, timers, train_data_iterator, nsteps=4):
+    """Trains models of several widths for nsteps each and saves the mean absolute output
+    of every module at every step to coord_check.<rank>.csv."""
+    import csv
 
-    base_shapes = mup.get_shapes(base_model)
+    rows = []
 
-    del base_model
+    def record(width, step, name, module, inputs, output):
+        output = _first_float_tensor(output)
+        if output is not None:
+            rows.append((width, step, name, output.detach().abs().mean().item()))
 
-    old_hidden_size = neox_args.hidden_size
-    neox_args.hidden_size = neox_args.hidden_size * neox_args.mup_width_scale
-
-    delta_model = GPT2ModelPipe(
-        neox_args=neox_args,
-        num_tokentypes=0,
-        parallel_output=True if neox_args.train_impl != "rm" else False,
-        topology=mpu.get_topology(),
-        use_cache=use_cache,
-    )
-
-    if not neox_args.is_pipe_parallel:
-        delta_model = delta_model.to_sequential()
-
-    delta_shapes = mup.get_shapes(delta_model)
-
-    # change back
-    neox_args.use_mup = True
-    neox_args.hidden_size = old_hidden_size
-
-    save_shapes = f"{neox_args.base_shapes_file}.{torch.distributed.get_rank()}"
-    print(f"saving base shapes at {save_shapes}")
-    mup.make_base_shapes(base_shapes, delta_shapes, savefile=save_shapes)
-    print(f"base shapes saved...exiting")
-    sys.exit(1)
-
-
-def mup_coord_check(neox_args, timers, lr_scheduler, train_data_iterator):
-    from megatron.mup_substitute import get_coord_data
-    from mup.coord_check import plot_coord_data
-
-    def lazy_model(hidden_size):
-        def gen():
-            old_hidden_size = neox_args.hidden_size
-            neox_args.hidden_size = hidden_size
-
-            model, optimizer, _, _ = setup_model_and_optimizer(
-                neox_args=neox_args, use_cache=False
+    hidden_size = neox_args.hidden_size
+    for width in (neox_args.num_attention_heads * 2**p for p in range(3, 9)):
+        neox_args.hidden_size = width
+        model, optimizer, lr_scheduler, _ = setup_model_and_optimizer(
+            neox_args=neox_args, use_cache=False
+        )
+        for step in range(nsteps):
+            hooks = [
+                module.register_forward_hook(partial(record, width, step, name))
+                for name, module in model.module.named_modules()
+            ]
+            train_step(
+                neox_args=neox_args,
+                timers=timers,
+                data_iterator=train_data_iterator,
+                model=model,
+                optimizer=optimizer,
+                lr_scheduler=lr_scheduler,
             )
+            for hook in hooks:
+                hook.remove()
+        del model, optimizer, lr_scheduler
+        torch.cuda.empty_cache()
+    neox_args.hidden_size = hidden_size
 
-            neox_args.hidden_size = old_hidden_size
-
-            return model
-
-        return gen
-
-    models = {}
-
-    # Hidden size needs to be divisible by num attention heads
-    for hidden_size in (neox_args.num_attention_heads * (2**p) for p in range(2, 9)):
-        models[hidden_size] = lazy_model(hidden_size)
-
-    neox_args.use_mup = True
-    df_up = get_coord_data(
-        neox_args, timers, lr_scheduler, models, train_data_iterator, mup=True
-    )
-    neox_args.use_mup = False
-    df_sp = get_coord_data(
-        neox_args, timers, lr_scheduler, models, train_data_iterator, mup=False
-    )
-
-    plot_coord_data(df_up, save_to=f"coord_check_up.{torch.distributed.get_rank()}.jpg")
-    plot_coord_data(df_sp, save_to=f"coord_check_sp.{torch.distributed.get_rank()}.jpg")
-
-    print_rank_0("Saved coord check plots... exiting")
-    sys.exit(1)
+    path = f"coord_check.{torch.distributed.get_rank()}.csv"
+    with open(path, "w", newline="") as f:
+        csv.writer(f).writerows([("width", "step", "module", "l1"), *rows])
+    print_rank_0(f"saved coord check data to {path}")
 
 
 def update_iterations(neox_args, data_loaders):
@@ -247,6 +195,14 @@ def pretrain(neox_args):
     update_iterations(neox_args=neox_args, data_loaders=data_loaders)
     timers("train/valid/test data loaders").stop()
 
+    if neox_args.coord_check:
+        neox_args.iteration = 0
+        train_data_iterator, _, _ = shift_and_wrap_data_loaders(
+            neox_args=neox_args, data_loaders=data_loaders
+        )
+        coord_check(neox_args, timers, train_data_iterator)
+        return
+
     # Model, optimizer, and learning rate.
     timers("model and optimizer").start()
     model, optimizer, lr_scheduler, reference_model = setup_model_and_optimizer(
@@ -255,7 +211,7 @@ def pretrain(neox_args):
     timers("model and optimizer").stop()
 
     if neox_args.serve_model_weights:
-        start_server(model)
+        start_server(model, ports=neox_args.weight_server_port)
         # sync...
         torch.distributed.barrier()
 
@@ -269,9 +225,6 @@ def pretrain(neox_args):
         test_data_iterator,
     ) = shift_and_wrap_data_loaders(neox_args=neox_args, data_loaders=data_loaders)
     timers("train/valid/test data iterators").stop()
-
-    if neox_args.use_mup and neox_args.coord_check:
-        mup_coord_check(neox_args, timers, lr_scheduler, train_data_iterator)
 
     # Print setup timing.
     print_rank_0("done with setups ...")
@@ -310,21 +263,37 @@ def pretrain(neox_args):
             lr_scheduler=lr_scheduler,
             train_data_iterator=train_data_iterator,
             valid_data_iterator=valid_data_iterator,
+            valid_eval_weights=data_loaders.get("eval_weights", {}).get("valid", {}),
         )
 
     if neox_args.do_valid:
         prefix = "the end of training for val data"
-        evaluate_and_print_results(
-            neox_args=neox_args,
-            prefix=prefix,
-            forward_step_func=forward_step,
-            data_iterator=valid_data_iterator,
-            model=model,
-            iteration=iteration,
-            verbose=False,
-            timers=timers,
-            reference_model=reference_model,
-        )
+        if isinstance(valid_data_iterator, dict):
+            evaluate_named_data_iterators(
+                neox_args=neox_args,
+                prefix=prefix,
+                forward_step_func=forward_step,
+                named_data_iterators=valid_data_iterator,
+                model=model,
+                iteration=iteration,
+                verbose=False,
+                timers=timers,
+                chart_name="validation",
+                weights=data_loaders.get("eval_weights", {}).get("valid", {}),
+                reference_model=reference_model,
+            )
+        else:
+            evaluate_and_print_results(
+                neox_args=neox_args,
+                prefix=prefix,
+                forward_step_func=forward_step,
+                data_iterator=valid_data_iterator,
+                model=model,
+                iteration=iteration,
+                verbose=False,
+                timers=timers,
+                reference_model=reference_model,
+            )
 
     if neox_args.save and iteration != 0:
         save_checkpoint(
@@ -338,18 +307,33 @@ def pretrain(neox_args):
     if neox_args.do_test:
         # Run on test data.
         prefix = "the end of training for test data"
-        evaluate_and_print_results(
-            neox_args=neox_args,
-            prefix=prefix,
-            forward_step_func=forward_step,
-            data_iterator=test_data_iterator,
-            model=model,
-            iteration=iteration,
-            verbose=True,
-            timers=timers,
-            chart_name="test",
-            reference_model=reference_model,
-        )
+        if isinstance(test_data_iterator, dict):
+            evaluate_named_data_iterators(
+                neox_args=neox_args,
+                prefix=prefix,
+                forward_step_func=forward_step,
+                named_data_iterators=test_data_iterator,
+                model=model,
+                iteration=iteration,
+                verbose=True,
+                timers=timers,
+                chart_name="test",
+                weights=data_loaders.get("eval_weights", {}).get("test", {}),
+                reference_model=reference_model,
+            )
+        else:
+            evaluate_and_print_results(
+                neox_args=neox_args,
+                prefix=prefix,
+                forward_step_func=forward_step,
+                data_iterator=test_data_iterator,
+                model=model,
+                iteration=iteration,
+                verbose=True,
+                timers=timers,
+                chart_name="test",
+                reference_model=reference_model,
+            )
 
 
 def _get_batch(neox_args, tokenizer, keys, data, datatype, label_mask_zero=False):
@@ -372,6 +356,18 @@ def _get_batch(neox_args, tokenizer, keys, data, datatype, label_mask_zero=False
         if label_mask_zero:
             labels = labels * label_mask
     tokens = tokens_[:, :-1].contiguous()
+
+    if neox_args.inter_document_attention_masking:
+        metadata = mpu.broadcast_data(["cu_seqlens", "max_seqlen"], data, torch.int32)
+        return normalize_packed_sequence_batch(
+            tokens=tokens,
+            labels=labels,
+            label_mask=label_mask,
+            cu_seqlens=metadata["cu_seqlens"],
+            max_seqlen=metadata["max_seqlen"],
+            eod_token=neox_args.tokenizer.eod,
+            eod_mask_loss=neox_args.eod_mask_loss,
+        )
 
     # Get the masks and position ids.
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
@@ -470,10 +466,12 @@ def get_batch(neox_args, data_iterator):
             ref_data = mpu.broadcast_data(["pos_ref", "neg_ref"], data, torch.float)
         else:
             ref_data = {"pos_ref": None}
-        return [
+        tokens, labels, loss_mask, _, position_ids = [
             torch.cat((pos_item, neg_item), dim=0)
             for pos_item, neg_item in zip(pos_tup, neg_tup)
-        ] + [
+        ]
+        # pos and neg share one [1, 1, s, s] causal mask, which broadcasts over the batch
+        return [tokens, labels, loss_mask, pos_tup[3], position_ids] + [
             torch.cat((ref_data["pos_ref"], ref_data["neg_ref"]), dim=0)[
                 :, :-1
             ].contiguous()
@@ -495,9 +493,11 @@ def get_batch_pipe(data, neox_args, curr_scheduler=None):
     keys = ["text", "label"] if neox_args.train_label_data_paths else ["text"]
     datatype = torch.int64
 
-    tokens, labels, loss_mask, attention_mask, position_ids = _get_batch(
-        neox_args, neox_args.tokenizer, keys, data, datatype
-    )
+    batch = _get_batch(neox_args, neox_args.tokenizer, keys, data, datatype)
+    if isinstance(batch, PackedSequenceBatch):
+        return batch.model_inputs(), batch.loss_inputs()
+
+    tokens, labels, loss_mask, attention_mask, position_ids = batch
     if curr_scheduler is not None:
         # iteration + 1 to align with how/when DeepSpeed updates the buffers
         curriculum_seqlen = curr_scheduler.update_difficulty(neox_args.iteration + 1)
@@ -522,12 +522,29 @@ def get_batch_pipe(data, neox_args, curr_scheduler=None):
 
 def get_batch_sequential(forward_input, neox_args):
     """A modification of get_batch() to work with the latest batch instead of an iterator."""
+    if isinstance(forward_input, PackedSequenceModelInputs):
+        return forward_input
+
     attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
         data=forward_input[0],
         eod_token=neox_args.tokenizer.eod,
         eod_mask_loss=neox_args.eod_mask_loss,
     )
     return (forward_input[0], forward_input[1], attention_mask)
+
+
+def get_logp(logits, labels, force_fp32=False):
+    # Rather than reimplementing logp, cross entropy loss is actually logp, just inverted.
+    if force_fp32:
+        logits = logits.float()
+    return -vocab_parallel_cross_entropy(logits, labels)
+
+
+def get_pos_neg_logp(logits, labels, force_fp32=False):
+    # Rather than reimplementing logp, cross entropy loss is actually logp, just inverted.
+    if force_fp32:
+        logits = logits.float()
+    return torch.chunk(-vocab_parallel_cross_entropy(logits, labels), 2, 0)
 
 
 def forward_step(
@@ -541,7 +558,10 @@ def forward_step(
 ):
     """Forward step."""
     if neox_args.is_pipe_parallel:
-        return model.eval_batch(data_iterator, return_logits=return_logits)
+        eval_batch_result = model.eval_batch(data_iterator, return_logits=return_logits)
+        if return_logits:
+            return eval_batch_result
+        return eval_batch_result, {}
 
     # Get the batch.
     if neox_args.memory_profiling and neox_args.iteration:
@@ -549,9 +569,13 @@ def forward_step(
     if timers is not None:
         timers("batch generator").start()
     if neox_args.train_impl == "normal":
-        tokens, labels, loss_mask, attention_mask, position_ids = get_batch(
-            neox_args=neox_args, data_iterator=data_iterator
-        )
+        batch = get_batch(neox_args=neox_args, data_iterator=data_iterator)
+        if isinstance(batch, PackedSequenceBatch):
+            model_inputs = batch.model_inputs()
+            labels, loss_mask = batch.loss_inputs()
+        else:
+            tokens, labels, loss_mask, attention_mask, position_ids = batch
+            model_inputs = (tokens, position_ids, attention_mask)
     elif neox_args.train_impl == "kto":
         (
             tokens,
@@ -586,7 +610,7 @@ def forward_step(
         torch.cuda.nvtx.range_push(f"Forward pass")
     metrics = {}
     if neox_args.train_impl == "normal":
-        outputs = model((tokens, position_ids, attention_mask), neox_args=neox_args)
+        outputs = model(model_inputs, neox_args=neox_args)
         if (
             is_train
             and neox_args.curriculum_learning
@@ -595,7 +619,10 @@ def forward_step(
             loss_mask = loss_mask[:, : neox_args.curriculum_seqlen].contiguous()
             labels = labels[:, : neox_args.curriculum_seqlen].contiguous()
         loss = cross_entropy(
-            outputs, (labels, loss_mask), _fp16=neox_args.fp16_lm_cross_entropy
+            outputs,
+            (labels, loss_mask),
+            _fp16=neox_args.fp16_lm_cross_entropy,
+            _fused=neox_args.cross_entropy_fusion,
         )
     elif neox_args.train_impl == "rm":
         maybe_tuple = model((tokens, position_ids, attention_mask), neox_args=neox_args)
@@ -870,11 +897,6 @@ def get_model(neox_args, use_cache=False):
     # Build model on cpu.
     print_rank_0("building GPT2 model ...")
 
-    # Temporarily disable mup so that the base model does not use the mup init functions before set_base_shapes is called below.
-    # If mup isn't being used anyways, this has no effect.
-    old_use_mup = neox_args.use_mup
-    neox_args.use_mup = False
-
     if neox_args.zero_stage in [2, 3]:
         if neox_args.pipe_parallel_size == 1:
             print_rank_0(
@@ -918,33 +940,14 @@ def get_model(neox_args, use_cache=False):
             layers=soft_prompt, idx=1
         )  # insert the soft prompt layer directly after the word embeddings
 
-        # freeze everything but the soft prompt
-        for name, param in model.named_parameters():
-            if not "soft_embedding" in name:
-                param.requires_grad = False
-
     if not neox_args.is_pipe_parallel:
         # Export PipeParallel model to nn.Sequential model to avoid the overhead of deepspeed's pipe parallel training
         model = model.to_sequential()
 
-    neox_args.use_mup = old_use_mup
-
-    if neox_args.use_mup:
-        try:
-            import mup
-        except ModuleNotFoundError:
-            print("Please install mup https://github.com/microsoft/mup")
-            raise Exception
-
-        base_shapes = f"{neox_args.base_shapes_file}.{torch.distributed.get_rank()}"
-
-        if neox_args.save_base_shapes:
-            save_base_shapes(neox_args, base_shapes, use_cache)
-
-        mup.set_base_shapes(model, base_shapes)
-
-        # Call the mup replacement init functions on the model now that set_base_shapes has given each weight a .infshape attribute
-        mup_weights_reinit(neox_args, model)
+    # freeze everything but the soft prompt, after to_sequential rebuilds the layers
+    if (neox_args.soft_prompt_tuning or {}).get("enabled", False):
+        for name, param in model.named_parameters():
+            param.requires_grad = "soft_embedding" in name
 
     if neox_args.deepspeed:
         # DeepSpeed handles CUDA, FP16, and DDP components.
@@ -959,7 +962,7 @@ def get_optimizer(model, neox_args, dummy=False):
         # Required to have something so...
         dummy = True
         neox_args.optimizer = {"params": {"lr": 0.0}}
-        neox_args.optimizer_type = "adam"
+        neox_args.optimizer_type = "sgd"
     elif neox_args.no_load_optim:
         return None, None
 
@@ -969,7 +972,7 @@ def get_optimizer(model, neox_args, dummy=False):
         )
         exit()
     # Build parameter groups (weight decay and non-decay).
-    param_groups = get_params_for_weight_decay_optimization(model, neox_args)
+    param_groups = get_param_groups(model, neox_args)
     print_rank_0(
         f'Configuring Optimizer type: {neox_args.optimizer_type} with params: {neox_args.optimizer["params"]}'
     )
@@ -993,14 +996,8 @@ def get_optimizer(model, neox_args, dummy=False):
             break
     param_groups = _param_groups
 
-    # If we're using mup, then the optimizer must be adam or sgd
-    assert not neox_args.use_mup or (
-        neox_args.optimizer_type.lower() == "adam"
-        or neox_args.optimizer_type.lower() == "sgd"
-    ), f"If use_mup == True, you must specify either the adam or sgd optimizers. You passed: {neox_args.optimizer_type.lower()}"
-
     if neox_args.optimizer_type.lower() in ["cpu_adam", "cpu_torch_adam"]:
-        if neox_args.optimizer == "cpu_torch_adam":
+        if neox_args.optimizer_type.lower() == "cpu_torch_adam":
             cpu_adam_optimizer = torch.optim.Adam
         else:
             from deepspeed.ops.adam import DeepSpeedCPUAdam
@@ -1046,48 +1043,34 @@ def get_optimizer(model, neox_args, dummy=False):
         )
     elif neox_args.optimizer_type.lower() == "adam":
         # Use Adam
-        if neox_args.use_mup:
+        if neox_args.use_bnb_optimizer:
             try:
-                from mup import MuAdam
+                import bitsandbytes as bnb
 
-                adam_optimizer = MuAdam
+                adam_optimizer = bnb.optim.Adam8bit
             except ModuleNotFoundError:
-                print("Please install mup https://github.com/microsoft/mup")
+                print(
+                    "Please install bitsandbytes following https://github.com/facebookresearch/bitsandbytes."
+                )
                 raise Exception
         else:
-            if neox_args.use_bnb_optimizer:
-                try:
-                    import bitsandbytes as bnb
-
-                    adam_optimizer = bnb.optim.Adam8bit
-                except ModuleNotFoundError:
-                    print(
-                        "Please install bitsandbytes following https://github.com/facebookresearch/bitsandbytes."
-                    )
-                    raise Exception
-            else:
-                try:
-                    # default to apex as it's slightly faster
-                    from apex.optimizers import FusedAdam as Adam
-                except ImportError:
-                    # if apex isn't installed, use deepspeed's FusedAdam
-                    print(
-                        "WARNING: APEX not installed - defaulting to deepspeed's fused adam"
-                    )
-                    from deepspeed.ops.adam import FusedAdam as Adam
-                adam_optimizer = Adam
+            try:
+                # default to apex as it's slightly faster
+                from apex.optimizers import FusedAdam as Adam
+            except ImportError:
+                # if apex isn't installed, use deepspeed's FusedAdam
+                print(
+                    "WARNING: APEX not installed - defaulting to deepspeed's fused adam"
+                )
+                from deepspeed.ops.adam import FusedAdam as Adam
+            adam_optimizer = Adam
         optimizer = adam_optimizer(
             param_groups,
             weight_decay=neox_args.weight_decay,
             **neox_args.optimizer["params"],
         )
     elif neox_args.optimizer_type.lower() == "sgd":
-        try:
-            from mup import MuSGD
-        except ModuleNotFoundError:
-            print("Please install mup https://github.com/microsoft/mup")
-            raise Exception
-        optimizer = MuSGD(
+        optimizer = torch.optim.SGD(
             param_groups,
             weight_decay=neox_args.weight_decay,
             **neox_args.optimizer["params"],
@@ -1134,7 +1117,7 @@ def get_learning_rate_scheduler(optimizer, neox_args):
         min_lr=neox_args.min_lr,
         use_checkpoint_lr_scheduler=neox_args.use_checkpoint_lr_scheduler,
         override_lr_scheduler=neox_args.override_lr_scheduler,
-        use_mup=neox_args.use_mup,
+        wsd_decay_ratio=neox_args.wsd_decay_ratio,
     )
 
     return lr_scheduler
@@ -1437,6 +1420,7 @@ def train(
     lr_scheduler,
     train_data_iterator,
     valid_data_iterator,
+    valid_eval_weights=None,
 ):
     """Train the model function."""
 
@@ -1539,17 +1523,32 @@ def train(
             and neox_args.do_valid
         ):
             prefix = "iteration {}".format(iteration)
-            evaluate_and_print_results(
-                neox_args=neox_args,
-                prefix=prefix,
-                forward_step_func=forward_step,
-                data_iterator=valid_data_iterator,
-                model=model,
-                iteration=iteration,
-                verbose=False,
-                timers=timers,
-                reference_model=reference_model,
-            )
+            if isinstance(valid_data_iterator, dict):
+                evaluate_named_data_iterators(
+                    neox_args=neox_args,
+                    prefix=prefix,
+                    forward_step_func=forward_step,
+                    named_data_iterators=valid_data_iterator,
+                    model=model,
+                    iteration=iteration,
+                    verbose=False,
+                    timers=timers,
+                    chart_name="validation",
+                    weights=valid_eval_weights,
+                    reference_model=reference_model,
+                )
+            else:
+                evaluate_and_print_results(
+                    neox_args=neox_args,
+                    prefix=prefix,
+                    forward_step_func=forward_step,
+                    data_iterator=valid_data_iterator,
+                    model=model,
+                    iteration=iteration,
+                    verbose=False,
+                    timers=timers,
+                    reference_model=reference_model,
+                )
 
         if neox_args.exit_interval and iteration % neox_args.exit_interval == 0:
             torch.distributed.barrier()
@@ -1648,7 +1647,11 @@ def evaluate(
 
         eval_results.update(
             run_eval_harness(
-                model, forward_step_fn, neox_args, eval_tasks=neox_args.eval_tasks
+                model,
+                forward_step_fn,
+                neox_args,
+                eval_tasks=neox_args.eval_tasks,
+                limit=neox_args.eval_tasks_limit,
             ).get("results")
         )
     # Move model back to the train mode.
@@ -1656,33 +1659,39 @@ def evaluate(
     return eval_results
 
 
+def normalize_named_eval_weights(names, weights=None):
+    if weights is None:
+        weights = {}
+    if not names:
+        return {}
+    named_weights = {name: float(weights.get(name, 1.0)) for name in names}
+    weight_sum = sum(named_weights.values())
+    if weight_sum <= 0.0:
+        raise ValueError("Evaluation subset weights must sum to a positive value.")
+    return {name: weight / weight_sum for name, weight in named_weights.items()}
+
+
+def synthesize_weighted_mix_eval_results(named_eval_results, weights=None):
+    names = list(named_eval_results.keys())
+    normalized_weights = normalize_named_eval_weights(names, weights)
+    lm_loss = sum(
+        normalized_weights[name] * named_eval_results[name]["lm_loss"] for name in names
+    )
+    return {"lm_loss": lm_loss, "lm_loss_ppl": math.exp(lm_loss)}
+
+
 def collect_loss_for_unit_test(lm_ss):
     # Logic moved to separate function to allow tracking in unit tests with unittest.mock.patch
     pass
 
 
-def evaluate_and_print_results(
+def log_eval_results(
     neox_args,
     prefix,
-    forward_step_func,
-    data_iterator,
-    model,
+    total_loss_dict,
     iteration,
-    verbose=False,
-    timers=None,
     chart_name="validation",
-    reference_model=None,
 ):
-    """Helper function to evaluate and dump results on screen."""
-    total_loss_dict = evaluate(
-        neox_args=neox_args,
-        forward_step_fn=forward_step_func,
-        data_iterator=data_iterator,
-        model=model,
-        verbose=verbose,
-        timers=timers,
-        reference_model=reference_model,
-    )
     string = f" {chart_name} results at {prefix} | "
     for k, v in total_loss_dict.items():
         if isinstance(v, dict):
@@ -1715,6 +1724,87 @@ def evaluate_and_print_results(
     print_rank_0("-" * length)
     print_rank_0(string)
     print_rank_0("-" * length)
+
+
+def evaluate_named_data_iterators(
+    neox_args,
+    prefix,
+    forward_step_func,
+    named_data_iterators,
+    model,
+    iteration,
+    verbose=False,
+    timers=None,
+    chart_name="validation",
+    weights=None,
+    reference_model=None,
+):
+    """Evaluate each named iterator, log subset metrics, and optionally synthesize a blended result."""
+    named_eval_results = {}
+    for name, data_iterator in named_data_iterators.items():
+        total_loss_dict = evaluate(
+            neox_args=neox_args,
+            forward_step_fn=forward_step_func,
+            data_iterator=data_iterator,
+            model=model,
+            verbose=verbose,
+            timers=timers,
+            reference_model=reference_model,
+        )
+        named_eval_results[name] = total_loss_dict
+        log_eval_results(
+            neox_args=neox_args,
+            prefix=prefix,
+            total_loss_dict=total_loss_dict,
+            iteration=iteration,
+            chart_name=f"{chart_name}/{name}",
+        )
+
+    if neox_args.eval_loss_logging == "blended_and_separate":
+        blended_results = synthesize_weighted_mix_eval_results(
+            named_eval_results, weights=weights
+        )
+        log_eval_results(
+            neox_args=neox_args,
+            prefix=prefix,
+            total_loss_dict=blended_results,
+            iteration=iteration,
+            chart_name=f"{chart_name}/blended",
+        )
+        named_eval_results["blended"] = blended_results
+
+    return named_eval_results
+
+
+def evaluate_and_print_results(
+    neox_args,
+    prefix,
+    forward_step_func,
+    data_iterator,
+    model,
+    iteration,
+    verbose=False,
+    timers=None,
+    chart_name="validation",
+    reference_model=None,
+):
+    """Helper function to evaluate and dump results on screen."""
+    total_loss_dict = evaluate(
+        neox_args=neox_args,
+        forward_step_fn=forward_step_func,
+        data_iterator=data_iterator,
+        model=model,
+        verbose=verbose,
+        timers=timers,
+        reference_model=reference_model,
+    )
+    log_eval_results(
+        neox_args=neox_args,
+        prefix=prefix,
+        total_loss_dict=total_loss_dict,
+        iteration=iteration,
+        chart_name=chart_name,
+    )
 
 
 def save_snapshot(neox_args):

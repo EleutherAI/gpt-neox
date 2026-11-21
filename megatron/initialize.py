@@ -19,11 +19,12 @@
 
 import random
 import os
+import sys
 
 import numpy as np
 import torch
 
-from megatron import fused_kernels
+from megatron import fused_kernels, print_rank_0
 from megatron import mpu
 from megatron.mpu import set_model_parallel_rank, set_model_parallel_world_size
 

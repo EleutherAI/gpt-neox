@@ -25,7 +25,10 @@ from collections import defaultdict
 from functools import partial
 from megatron.model.utils import Lambda, SequentialWrapper, recursive_setattr
 from megatron.model.norms import get_norm
-from megatron.model.init_functions import get_init_methods
+from megatron.model.parameterization import (
+    get_init_methods_for_parameterization,
+    output_multiplier,
+)
 
 from megatron import mpu
 from megatron.mpu import ParallelRelativePositionBias
@@ -57,7 +60,7 @@ def gpt2_attention_mask_func(attention_scores, ltor_mask):
     return attention_scores
 
 
-def cross_entropy(output, labels, _fp16=False):
+def cross_entropy(output, labels, _fp16=False, _fused=False):
     """From pretrain_gpt2:forward_step()"""
     """
     if self.fp16_lm_cross_entropy:
@@ -70,9 +73,21 @@ def cross_entropy(output, labels, _fp16=False):
     labels, loss_mask = labels[0], labels[1]
     if _fp16:
         assert output.dtype == torch.half and loss_mask.dtype == torch.half
+    if _fused:
+        from megatron.fused_kernels.fused_cross_entropy import (
+            fused_vocab_parallel_cross_entropy,
+        )
+
+        losses = fused_vocab_parallel_cross_entropy(
+            output.contiguous(), labels, mpu.get_model_parallel_group()
+        )
+    elif _fp16:
         losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels)
     else:
-        losses = mpu.vocab_parallel_cross_entropy(output.float().contiguous(), labels)
+        # vocab_parallel_cross_entropy overwrites its input, so fp32 logits need a copy
+        losses = mpu.vocab_parallel_cross_entropy(
+            output.to(torch.float32, copy=True).contiguous(), labels
+        )
     loss_mask = loss_mask.view(-1)
     loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
     return loss
@@ -80,7 +95,10 @@ def cross_entropy(output, labels, _fp16=False):
 
 def _pre_transformer_block(args):
     # data format change for hidden_states to avoid explicit tranposes : [b s h] --> [s b h]
-    assert len(args) == 2, "Incorrect number of arguments to _pre_transformer_block"
+    assert len(args) in (
+        2,
+        5,
+    ), "Incorrect number of arguments to _pre_transformer_block"
     fn = lambda _args: (_args[0].transpose(0, 1).contiguous(), *_args[1:])
     return fn(args)
 
@@ -88,7 +106,10 @@ def _pre_transformer_block(args):
 def _post_transformer_block(args):
     # from (hidden_states, attention_mask)
     # to (hidden_states.T)
-    assert len(args) == 2, "Incorrect number of arguments to _post_transformer_block"
+    assert len(args) in (
+        2,
+        5,
+    ), "Incorrect number of arguments to _post_transformer_block"
     fn = lambda _args: (_args[0].transpose(0, 1).contiguous())
     return fn(args)
 
@@ -120,9 +141,10 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         self.parallel_output = parallel_output
         self.hidden_size = self.neox_args.hidden_size
         self.num_tokentypes = num_tokentypes
-        self.init_method, self.output_layer_init_method = get_init_methods(
-            self.neox_args
-        )
+        self.output_multiplier = output_multiplier(self.neox_args)
+        self.init_method = get_init_methods_for_parameterization(
+            self.neox_args, layer_number=0
+        )[0]
         self.__topology__ = topology
 
         self.specs = []
@@ -130,7 +152,11 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
 
         super().__init__(
             layers=self.specs,
-            loss_fn=partial(cross_entropy, _fp16=self.neox_args.fp16_lm_cross_entropy),
+            loss_fn=partial(
+                cross_entropy,
+                _fp16=self.neox_args.fp16_lm_cross_entropy,
+                _fused=self.neox_args.cross_entropy_fusion,
+            ),
             topology=topology,
             activation_checkpoint_interval=self.neox_args.checkpoint_num_layers
             if self.neox_args.checkpoint_activations
@@ -186,7 +212,8 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         self.specs = []
 
         # Embedding layer
-        # input will be (input_ids, position_ids, attention_mask)
+        # input will be (input_ids, position_ids, attention_mask), with
+        # (cu_seqlens, num_documents, max_seqlen) before attention_mask for packed sequences
 
         if weight_tying:
             self.specs.append(
@@ -242,13 +269,18 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
         # Transformer layers
         for i in range(self.neox_args.num_layers):
             layer_type = self.neox_args.attention_config[i]
+            (
+                _,
+                hidden_init_method,
+                output_layer_init_method,
+            ) = get_init_methods_for_parameterization(self.neox_args, layer_number=i)
             if layer_type in ["gmlp", "amlp"]:
                 self.specs.append(
                     LayerSpec(
                         GMLPBlock,
-                        init_method=self.init_method,
+                        init_method=hidden_init_method,
                         layer_number=i,
-                        output_layer_init_method=self.output_layer_init_method,
+                        output_layer_init_method=output_layer_init_method,
                         neox_args=self.neox_args,
                         mask_fn=gpt2_attention_mask_func,
                     )
@@ -266,8 +298,8 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                     LayerSpec(
                         ParallelMambaResidualLayerPipe,
                         neox_args=self.neox_args,
-                        init_method=self.init_method,
-                        output_layer_init_method=self.output_layer_init_method,
+                        init_method=hidden_init_method,
+                        output_layer_init_method=output_layer_init_method,
                         layer_number=i,
                     )
                 )
@@ -277,8 +309,8 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                         ParallelTransformerLayerPipe,
                         neox_args=self.neox_args,
                         attention_mask_func=gpt2_attention_mask_func,
-                        init_method=self.init_method,
-                        output_layer_init_method=self.output_layer_init_method,
+                        init_method=hidden_init_method,
+                        output_layer_init_method=output_layer_init_method,
                         layer_number=i,
                         rpe=rpe_emb if self.neox_args.pos_emb == "rpe" else None,
                         rotary=self.neox_args.pos_emb == "rotary",
@@ -299,13 +331,8 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
 
         def _logits_helper(embedding, lm_output):
             """Just a wrapper to massage inputs/outputs from pipeline."""
-            if self.neox_args.use_mup:
-                # Since we're using pipeline parallelism, we can't directly use MuReadout. Instead, use this workaround that does the same thing as MuReadout.
-                # https://github.com/microsoft/mup/issues/6#issuecomment-1082156274
-                lm_output = (
-                    lm_output
-                    / self.tied_modules.embed.word_embeddings.weight.infshape.width_mult()
-                )
+            if self.output_multiplier != 1.0:
+                lm_output = lm_output * self.output_multiplier
 
             logits = parallel_lm_logits(
                 lm_output,
@@ -338,7 +365,6 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                     neox_args=self.neox_args,
                     init_method=self.init_method,
                     parallel_output=self.parallel_output,
-                    is_last_layer=True,
                 )
             )
 

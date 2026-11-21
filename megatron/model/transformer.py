@@ -23,14 +23,22 @@ from contextlib import nullcontext
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
-from pkg_resources import packaging
+from torch.distributed.nn.functional import (
+    all_reduce as differentiable_all_reduce,
+)
+import packaging.version
 from importlib.metadata import version
 
 from .norms import get_norm
 from megatron import mpu
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
+from megatron.model.parameterization import output_multiplier, residual_multiplier
 from megatron.model.activations import get_activation
-from megatron.model.utils import exists, get_fusion_type
+from megatron.model.utils import (
+    exists,
+    get_fusion_type,
+    reduce_weight_grads_from_model_parallel_region,
+)
 from megatron.model.positional_embeddings import (
     RotaryEmbedding,
     apply_rotary_pos_emb_torch,
@@ -83,6 +91,144 @@ torch._C._jit_override_can_fuse_on_gpu(True)
                masked-attention-scores = attention_mask_func(
                                      unmasked-attention-scores, attention-mask)
 """
+
+
+def _qk_norm_family(norm_type):
+    if norm_type == "rmsnorm":
+        return "rmsnorm"
+    if norm_type in ("layernorm", "non_parametric_layernorm"):
+        return "layernorm"
+    if norm_type == "scalenorm":
+        return "scalenorm"
+    raise ValueError(f"norm {norm_type} not recognized")
+
+
+def _configure_qk_norm_tp_grads(
+    q_norm, k_norm, qk_norm_type, norm_type, across_tp, world_size
+):
+    """Set how each Q/K norm parameter's gradient is handled across TP ranks."""
+    parameters = list(q_norm.parameters())
+    if k_norm is not q_norm:
+        parameters += list(k_norm.parameters())
+    for parameter in parameters:
+        # Handled per mode below, so opt out of the generic sequence-parallel hook.
+        parameter.skip_sequence_parallel_grad_sync = True
+        if world_size == 1:
+            continue
+        if qk_norm_type == "per_head":
+            # Replicated on every rank, but each rank only sees its own heads.
+            parameter.register_hook(reduce_weight_grads_from_model_parallel_region)
+        elif not (across_tp and norm_type == "scalenorm"):
+            # Each rank owns a slice. (Cross-TP ScaleNorm's g is replicated and
+            # already summed in _apply_qk_norm_across_tp.)
+            parameter.model_parallel = True
+            parameter.partition_dim = 0
+            parameter.partition_stride = 1
+
+
+def _apply_qk_norm_across_tp(
+    query_layer,
+    key_layer,
+    q_layernorm,
+    k_layernorm,
+    norm_type,
+    model_parallel_world_size,
+    model_parallel_group=None,
+):
+    """Normalize TP-sharded Q and K with one packed statistics all-reduce.
+
+    The differentiable collective performs the corresponding packed reduction
+    in backward so gradients include contributions from every TP shard.
+    """
+    if query_layer.shape[:-1] != key_layer.shape[:-1]:
+        raise ValueError(
+            "Query and key tensors must have matching leading dimensions for "
+            "cross-TP QK normalization."
+        )
+
+    norm_family = _qk_norm_family(norm_type)
+    query_dtype = query_layer.dtype
+    key_dtype = key_layer.dtype
+    query_float = query_layer.float()
+    key_float = key_layer.float()
+    if norm_family == "layernorm":
+        # LayerNorm needs both first and second moments. Keep Q and K separate
+        # while packing all four statistics into the same collective.
+        # Raw moments allow all statistics to use one standard SUM all-reduce.
+        packed_stats = torch.stack(
+            (
+                query_float.sum(dim=-1),
+                query_float.pow(2).sum(dim=-1),
+                key_float.sum(dim=-1),
+                key_float.pow(2).sum(dim=-1),
+            ),
+            dim=-1,
+        )
+    else:
+        # RMSNorm and ScaleNorm only need the second moment / squared L2 norm.
+        packed_stats = torch.stack(
+            (
+                query_float.pow(2).sum(dim=-1),
+                key_float.pow(2).sum(dim=-1),
+            ),
+            dim=-1,
+        )
+    if model_parallel_world_size > 1:
+        packed_stats = differentiable_all_reduce(
+            packed_stats,
+            op=torch.distributed.ReduceOp.SUM,
+            group=model_parallel_group,
+        )
+
+    query_count = query_layer.size(-1) * model_parallel_world_size
+    key_count = key_layer.size(-1) * model_parallel_world_size
+
+    if norm_family == "layernorm":
+        query_mean = packed_stats[..., 0:1] / query_count
+        # Raw-moment variance can be slightly negative from floating-point cancellation.
+        query_variance = (
+            packed_stats[..., 1:2] / query_count - query_mean.pow(2)
+        ).clamp_min(0.0)
+        key_mean = packed_stats[..., 2:3] / key_count
+        key_variance = (packed_stats[..., 3:4] / key_count - key_mean.pow(2)).clamp_min(
+            0.0
+        )
+        query_normed = (query_float - query_mean) * torch.rsqrt(
+            query_variance + q_layernorm.eps
+        )
+        key_normed = (key_float - key_mean) * torch.rsqrt(
+            key_variance + k_layernorm.eps
+        )
+        if q_layernorm.weight is not None:
+            query_normed = query_normed * q_layernorm.weight
+        if q_layernorm.bias is not None:
+            query_normed = query_normed + q_layernorm.bias
+        if k_layernorm.weight is not None:
+            key_normed = key_normed * k_layernorm.weight
+        if k_layernorm.bias is not None:
+            key_normed = key_normed + k_layernorm.bias
+    elif norm_family == "rmsnorm":
+        query_mean_square = packed_stats[..., 0:1] / query_count
+        key_mean_square = packed_stats[..., 1:2] / key_count
+        query_normed = query_float * torch.rsqrt(query_mean_square + q_layernorm.eps)
+        key_normed = key_float * torch.rsqrt(key_mean_square + k_layernorm.eps)
+        query_normed = query_normed * q_layernorm.scale
+        key_normed = key_normed * k_layernorm.scale
+    else:
+        query_l2_norm = packed_stats[..., 0:1].sqrt().clamp_min(q_layernorm.eps)
+        key_l2_norm = packed_stats[..., 1:2].sqrt().clamp_min(k_layernorm.eps)
+
+        # ScaleNorm's scalar g is replicated, unlike the vector affine
+        # parameters above. Copy it through the TP autograd region so its
+        # gradient is summed across ranks. Packing Q and K keeps this to one
+        # additional backward-only reduction even when their norms are separate.
+        scale = torch.stack((q_layernorm.g[0], k_layernorm.g[0]))
+        if model_parallel_world_size > 1:
+            scale = mpu.copy_to_model_parallel_region(scale)
+        query_normed = query_float / query_l2_norm * scale[0]
+        key_normed = key_float / key_l2_norm * scale[1]
+
+    return query_normed.to(query_dtype), key_normed.to(key_dtype)
 
 
 class ParallelMLP(nn.Module):
@@ -208,13 +354,13 @@ class ParallelLinear(nn.Module):
         neox_args,
         parallel_output=True,
         init_method=nn.init.xavier_normal_,
-        is_last_layer=False,
     ):
         super().__init__()
 
         ColumnParallelLinear, RowParallelLinear = get_parallel_linear(neox_args)
 
         self.is_rm = neox_args.train_impl == "rm"
+        self.output_multiplier = output_multiplier(neox_args)
         parallelism = neox_args.output_layer_parallelism if not self.is_rm else "row"
         if parallelism == "column":
             self.final_linear = ColumnParallelLinear(
@@ -225,7 +371,6 @@ class ParallelLinear(nn.Module):
                 init_method=init_method,
                 gather_output=not parallel_output,
                 skip_bias_add=False,
-                mup_rescale_parameters=is_last_layer,  # rescale params only called if neox_args.use_mup = True, despite it not being included here
                 seq_dim=1,  # important: must mark that this layer receives shape [b, s, h] not [s, b, h] and so Seq. Parallel comms must gather along dim=1 rather than dim=0
             )
         else:
@@ -243,7 +388,6 @@ class ParallelLinear(nn.Module):
                 #     init_method=init_method,
                 #     parallel_output=parallel_output,
                 #     skip_bias_add=False,
-                #     mup_rescale_parameters=is_last_layer,  # only called if neox_args.use_mup = True, despite it not being included here
                 # )
             else:  # Not using cross entropy loss for RMs
                 self.rm_linear = RowParallelLinear(
@@ -255,14 +399,40 @@ class ParallelLinear(nn.Module):
                     init_method=init_method,
                     parallel_output=False,
                     skip_bias_add=False,
-                    mup_rescale_parameters=is_last_layer,  # only called if neox_args.use_mup = True, despite it not being included here
                 )
 
     def forward(self, hidden_states):
+        if self.output_multiplier != 1.0:
+            hidden_states = hidden_states * self.output_multiplier
         if not self.is_rm:
             return self.final_linear(hidden_states)
         else:
             return self.rm_linear(hidden_states)
+
+
+def _get_attention_scaling(
+    hidden_size_per_attention_head,
+    layer_number,
+    apply_query_key_layer_scaling,
+    mup,
+    mup_attn_temp,
+):
+    coeff = None
+    norm_factor = math.sqrt(hidden_size_per_attention_head)
+
+    if apply_query_key_layer_scaling:
+        coeff = max(1, layer_number)
+        norm_factor *= coeff
+
+    if mup:
+        # μP uses 1 / head_dim attention scaling.
+        norm_factor = hidden_size_per_attention_head
+        if coeff is not None:
+            norm_factor *= coeff
+        if mup_attn_temp != 1.0:
+            coeff = (coeff if coeff is not None else 1.0) / mup_attn_temp
+
+    return norm_factor, coeff
 
 
 class ParallelSelfAttention(nn.Module):
@@ -296,6 +466,9 @@ class ParallelSelfAttention(nn.Module):
         self.attention_softmax_in_fp32 = neox_args.attention_softmax_in_fp32
         if self.apply_query_key_layer_scaling:
             self.attention_softmax_in_fp32 = True
+        if neox_args.parameterization != "sp" and neox_args.mup_attn_temp != 1.0:
+            # FusedScaleMaskSoftmax requires fp32 softmax when a scale is set.
+            self.attention_softmax_in_fp32 = True
         self.layer_number = layer_number
         # Per attention head and per partition values.
         world_size = mpu.get_model_parallel_world_size()
@@ -308,16 +481,11 @@ class ParallelSelfAttention(nn.Module):
         )
         self.pos_emb = neox_args.pos_emb
 
-        self.use_qk_layernorm = neox_args.use_qk_layernorm
-        if self.use_qk_layernorm:
-            norm, eps = get_norm(neox_args)
-            self.qk_layernorm = norm(
-                [
-                    self.num_attention_heads_per_partition,
-                    self.hidden_size_per_attention_head,
-                ],
-                eps=eps,
-            )
+        self.use_qk_norm = neox_args.use_qk_norm
+        self.qk_norm_type = neox_args.qk_norm_type
+        self.qk_norm_across_tp = neox_args.qk_norm_across_tp
+        self.qk_norm_model_parallel_world_size = world_size
+        self.qk_norm_name = neox_args.qk_norm or neox_args.norm
 
         self.sliding_window_width = neox_args.sliding_window_width
 
@@ -338,6 +506,52 @@ class ParallelSelfAttention(nn.Module):
         else:
             self.num_kv_heads_per_partition = self.num_attention_heads_per_partition
             self.kv_hidden_size = neox_args.hidden_size
+
+        # QK Normalization https://arxiv.org/abs/2302.05442
+        if self.use_qk_norm:
+            norm, eps = get_norm(neox_args, self.qk_norm_name)
+            # All neox norms reduce over the *last* dimension, so the normalized
+            # size is expressed as a 1-D shape
+
+            if self.qk_norm_type == "per_head":
+                # "per_head": normalize over [*, H]
+                q_norm_size = self.hidden_size_per_attention_head
+                k_norm_size = self.hidden_size_per_attention_head
+
+            elif self.qk_norm_type == "across_heads":
+                # "across_heads": normalize over [*, N * H]
+                # With GQA the query and key have different head counts, so the
+                # two norm sizes differ. Without GQA q_norm_size == k_norm_size
+                q_norm_size = (
+                    self.num_attention_heads_per_partition
+                    * self.hidden_size_per_attention_head
+                )
+                k_norm_size = (
+                    self.num_kv_heads_per_partition
+                    * self.hidden_size_per_attention_head
+                )
+
+            else:
+                raise ValueError(
+                    f"Invalid qk_norm_type {self.qk_norm_type!r}; "
+                    "expected 'per_head' or 'across_heads'."
+                )
+
+            self.qk_norm_separate = neox_args.qk_norm_separate
+            self.q_layernorm = norm([q_norm_size], eps=eps)
+            if self.qk_norm_separate:
+                self.k_layernorm = norm([k_norm_size], eps=eps)
+            else:
+                # Shared: checkpoints store the same tensors under both names.
+                self.k_layernorm = self.q_layernorm
+            _configure_qk_norm_tp_grads(
+                self.q_layernorm,
+                self.k_layernorm,
+                self.qk_norm_type,
+                self.qk_norm_name,
+                self.qk_norm_across_tp,
+                world_size,
+            )
 
         if not self.gqa:
             # Strided linear layer.
@@ -360,14 +574,13 @@ class ParallelSelfAttention(nn.Module):
                 bias=neox_args.use_bias_in_attn_linear,
             )
 
-        coeff = None
-        self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
-        if self.apply_query_key_layer_scaling:
-            coeff = max(1, self.layer_number)
-            self.norm_factor *= coeff
-
-        if neox_args.use_mup:
-            self.norm_factor = self.hidden_size_per_attention_head
+        self.norm_factor, coeff = _get_attention_scaling(
+            hidden_size_per_attention_head=self.hidden_size_per_attention_head,
+            layer_number=self.layer_number,
+            apply_query_key_layer_scaling=self.apply_query_key_layer_scaling,
+            mup=neox_args.parameterization != "sp",
+            mup_attn_temp=neox_args.mup_attn_temp,
+        )
 
         self.rpe = rpe
 
@@ -439,6 +652,11 @@ class ParallelSelfAttention(nn.Module):
                     flash_attn_func as flash_attn_unpadded_unpacked_func_triton,
                 )
 
+                if self.rotary_emb is not None:
+                    from flash_attn.layers.rotary import apply_rotary_emb
+
+                    self.flash_apply_rotary_fn = apply_rotary_emb
+
                 self.flash_triton_fn = flash_attn_unpadded_unpacked_func_triton
                 self.flash_qkv_fn = flash_attn_func
                 self.flash_varlen_qkv_fn = flash_attn_varlen_func
@@ -450,6 +668,9 @@ class ParallelSelfAttention(nn.Module):
                     mask_func=self.attention_mask_func,
                     softmax_in_fp32=self.attention_softmax_in_fp32,
                     scale=coeff,
+                    soft_clip=neox_args.attn_softmax_clipping,
+                    soft_clip_zeta=neox_args.attn_softmax_clipping_zeta,
+                    soft_clip_gamma=neox_args.attn_softmax_clipping_gamma,
                 )
 
             # Dropout. Note that for a single iteration, this layer will generate
@@ -495,7 +716,7 @@ class ParallelSelfAttention(nn.Module):
             output_size[2],
             output_size[3],
             dtype=query_layer.dtype,
-            device=torch.cuda.current_device(),
+            device=query_layer.device,
         )
 
         # Raw attention scores. [b * np, sq, sk]
@@ -570,7 +791,61 @@ class ParallelSelfAttention(nn.Module):
         context_layer = context_layer.view(*output_size)
         return context_layer
 
-    def flash_attention(self, query_layer, key_layer, value_layer):
+    def _flash_attention_kwargs(self, device):
+        extra_kwargs = (
+            {"window_size": (self.sliding_window_width, -1)}
+            if self.sliding_window_width is not None
+            else {}
+        )
+        if self.pos_emb == "alibi":
+            extra_kwargs["alibi_slopes"] = self.alibi_embed.slopes.to(
+                device=device, dtype=torch.float32
+            )
+        return extra_kwargs
+
+    def _flash_attention_packed(
+        self,
+        query_layer,
+        key_layer,
+        value_layer,
+        cu_seqlens,
+        max_seqlen,
+    ):
+        query_layer = query_layer.squeeze(1).contiguous()
+        key_layer = key_layer.squeeze(1).contiguous()
+        value_layer = value_layer.squeeze(1).contiguous()
+        output = self.flash_varlen_qkv_fn(
+            query_layer,
+            key_layer,
+            value_layer,
+            cu_seqlens,
+            cu_seqlens,
+            max_seqlen,
+            max_seqlen,
+            dropout_p=self.dropout_p if self.training else 0.0,
+            softmax_scale=None,
+            causal=True,
+            **self._flash_attention_kwargs(query_layer.device),
+        )
+        return output.transpose(0, 1).unsqueeze(0)
+
+    def flash_attention(
+        self,
+        query_layer,
+        key_layer,
+        value_layer,
+        cu_seqlens=None,
+        max_seqlen=None,
+    ):
+        if cu_seqlens is not None:
+            return self._flash_attention_packed(
+                query_layer,
+                key_layer,
+                value_layer,
+                cu_seqlens=cu_seqlens,
+                max_seqlen=max_seqlen,
+            )
+
         # [b, np, sq, sk]
         output_size = (
             query_layer.size(1),
@@ -598,15 +873,7 @@ class ParallelSelfAttention(nn.Module):
             # if we use Sliding Window Attention / AliBi.
             # Flash attn defaults to (-1,-1), or
             # does not have this kwarg prior to v2.3.0
-            extra_kwargs = (
-                {"window_size": (self.sliding_window_width, -1)}
-                if self.sliding_window_width is not None
-                else {}
-            )
-            if self.pos_emb == "alibi":
-                extra_kwargs["alibi_slopes"] = self.alibi_embed.slopes.to(
-                    query_layer.device
-                ).to(torch.float32)
+            extra_kwargs = self._flash_attention_kwargs(query_layer.device)
 
             if not self.training:
                 batch_size = output_size[0]
@@ -711,6 +978,45 @@ class ParallelSelfAttention(nn.Module):
             attn_scores = self.attention_dropout(attn_scores)
         return attn_scores
 
+    def qk_norm(self, query_layer, key_layer):
+        # [sq, b, np, hn], [sq, b, kvp, hn]
+        if not self.use_qk_norm:
+            return query_layer, key_layer
+        if self.qk_norm_type == "per_head":
+            query_layer = self.q_layernorm(query_layer)
+            key_layer = self.k_layernorm(key_layer)
+        elif self.qk_norm_type == "across_heads":
+            # Flatten heads into the last dim so the norm reduces over [*, N * H]
+            q_shape, k_shape = query_layer.shape, key_layer.shape
+            query_layer = query_layer.reshape(*q_shape[:-2], -1)
+            key_layer = key_layer.reshape(*k_shape[:-2], -1)
+            if self.qk_norm_across_tp:
+                model_parallel_group = (
+                    mpu.get_model_parallel_group()
+                    if self.qk_norm_model_parallel_world_size > 1
+                    else None
+                )
+                query_layer, key_layer = _apply_qk_norm_across_tp(
+                    query_layer,
+                    key_layer,
+                    self.q_layernorm,
+                    self.k_layernorm,
+                    self.qk_norm_name,
+                    self.qk_norm_model_parallel_world_size,
+                    model_parallel_group,
+                )
+            else:
+                query_layer = self.q_layernorm(query_layer)
+                key_layer = self.k_layernorm(key_layer)
+            query_layer = query_layer.view(*q_shape)
+            key_layer = key_layer.view(*k_shape)
+        else:
+            raise ValueError(
+                f"Invalid qk_norm_type {self.qk_norm_type!r}; "
+                "expected 'per_head' or 'across_heads'."
+            )
+        return query_layer, key_layer
+
     def gqa_project(self, hidden_states, attention_mask, layer_past=None):
         # QKV projection and separation into separate Q/K/V layers for GQA,
         # where KV projections may be smaller than Q projection.
@@ -763,6 +1069,9 @@ class ParallelSelfAttention(nn.Module):
 
         value_layer = value_layer.view(*new_kv_shape)
 
+        # QK norm before repeating KV heads
+        query_layer, key_layer = self.qk_norm(query_layer, key_layer)
+
         # if not using Flash attention, we repeat K/V heads to match Q head counts
         if not self.use_flash_attention:
             key_layer = torch.repeat_interleave(
@@ -784,7 +1093,21 @@ class ParallelSelfAttention(nn.Module):
 
         return query_layer, key_layer, value_layer
 
-    def forward(self, hidden_states, attention_mask, layer_past=None):
+    def forward(
+        self,
+        hidden_states,
+        attention_mask,
+        layer_past=None,
+        *,
+        cu_seqlens=None,
+        num_documents=None,
+        max_seqlen=None,
+    ):
+        is_packed = cu_seqlens is not None
+        if is_packed:
+            assert not self.use_cache, "packed sequences do not support use_cache"
+            cu_seqlens = cu_seqlens[: int(num_documents.item()) + 1]
+            max_seqlen = int(max_seqlen.item())
 
         # hidden_states: [sq, b, h]
 
@@ -807,18 +1130,16 @@ class ParallelSelfAttention(nn.Module):
             (query_layer, key_layer, value_layer) = mpu.split_tensor_along_last_dim(
                 mixed_x_layer, 3
             )
+            query_layer, key_layer = self.qk_norm(query_layer, key_layer)
         else:
             # Grouped Query Attention (GQA) - specific logic for performing QKV proj
             # and separating out Q, K, and V outputs.
 
+            # gqa_project does qk layernorm inside
             # output shapes: 1 x [sq, b, np, hn], 2 x [sq, b, kvp, hn] if using flash
             query_layer, key_layer, value_layer = self.gqa_project(
                 hidden_states, attention_mask, layer_past=layer_past
             )
-        # QK Normalization https://arxiv.org/abs/2302.05442
-        if self.use_qk_layernorm:
-            query_layer = self.qk_layernorm(query_layer)
-            key_layer = self.qk_layernorm(key_layer)
 
         if exists(self.rotary_emb):
             if exists(self.rotary_ndims):
@@ -835,25 +1156,42 @@ class ParallelSelfAttention(nn.Module):
                 # full rotary
                 query_rot, key_rot = query_layer, key_layer
 
-            seq_len = key_layer.shape[0]
-            offset = 0
-            if exists(layer_past) and layer_past.numel() > 0:
-                offset = layer_past[0].shape[0]
-                seq_len += offset
-            cos, sin = self.rotary_emb(value_layer, seq_len=seq_len)
-            if self.rope_fusion:
+            if is_packed:
+                # Rotary positions restart at every document boundary in cu_seqlens.
+                cos, sin = self.rotary_emb(value_layer, seq_len=max_seqlen)
+                rotary_dim = cos.size(-1)
+                flash_cos = cos[:, 0, 0, : rotary_dim // 2].contiguous()
+                flash_sin = sin[:, 0, 0, : rotary_dim // 2].contiguous()
                 query_layer, key_layer = (
-                    fused_apply_rotary_pos_emb_cached(rot, cos, sin)
-                    for rot in [query_rot, key_rot]
+                    self.flash_apply_rotary_fn(
+                        rot.squeeze(1).contiguous(),
+                        flash_cos,
+                        flash_sin,
+                        cu_seqlens=cu_seqlens,
+                        max_seqlen=max_seqlen,
+                    ).unsqueeze(1)
+                    for rot in (query_rot, key_rot)
                 )
             else:
-                if self.bf16:
-                    apply_rotary_fn = apply_rotary_pos_emb_torch
+                seq_len = key_layer.shape[0]
+                offset = 0
+                if exists(layer_past) and layer_past.numel() > 0:
+                    offset = layer_past[0].shape[0]
+                    seq_len += offset
+                cos, sin = self.rotary_emb(value_layer, seq_len=seq_len)
+                if self.rope_fusion:
+                    query_layer, key_layer = (
+                        fused_apply_rotary_pos_emb_cached(rot, cos, sin)
+                        for rot in [query_rot, key_rot]
+                    )
                 else:
-                    apply_rotary_fn = apply_rotary_pos_emb
-                query_layer, key_layer = apply_rotary_fn(
-                    query_rot, key_rot, cos, sin, offset=offset
-                )
+                    if self.bf16:
+                        apply_rotary_fn = apply_rotary_pos_emb_torch
+                    else:
+                        apply_rotary_fn = apply_rotary_pos_emb
+                    query_layer, key_layer = apply_rotary_fn(
+                        query_rot, key_rot, cos, sin, offset=offset
+                    )
 
             if exists(self.rotary_ndims):
                 query_layer = torch.cat((query_layer, query_pass), dim=-1)
@@ -874,7 +1212,13 @@ class ParallelSelfAttention(nn.Module):
             present = torch.stack((key_layer, value_layer))
 
         if self.use_flash_attention:
-            context_layer = self.flash_attention(query_layer, key_layer, value_layer)
+            context_layer = self.flash_attention(
+                query_layer,
+                key_layer,
+                value_layer,
+                cu_seqlens=cu_seqlens,
+                max_seqlen=max_seqlen,
+            )
         elif not self.sparse:
             context_layer = self.attention(
                 query_layer, key_layer, value_layer, layer_past, attention_mask
@@ -903,6 +1247,12 @@ class ParallelSelfAttention(nn.Module):
             output = [output, present]
 
         return output, bias
+
+
+def _scale_branch(output, bias, multiplier):
+    if multiplier == 1.0:
+        return output, bias
+    return output * multiplier, None if bias is None else bias * multiplier
 
 
 class ParallelTransformerLayer(nn.Module):
@@ -938,6 +1288,7 @@ class ParallelTransformerLayer(nn.Module):
         self.bias_dropout_fusion = neox_args.bias_dropout_fusion
         self.gpt_j_residual = neox_args.gpt_j_residual
         self.gpt_j_tied = neox_args.gpt_j_tied
+        self.residual_multiplier = residual_multiplier(neox_args)
         self.activation = neox_args.activation
         self.num_experts = (
             neox_args.moe_num_experts
@@ -1042,7 +1393,16 @@ class ParallelTransformerLayer(nn.Module):
             fn = get_bias_dropout_add(self.training)
         return fn
 
-    def forward(self, x, attention_mask, layer_past=None):
+    def forward(
+        self,
+        x,
+        attention_mask,
+        layer_past=None,
+        *,
+        cu_seqlens=None,
+        num_documents=None,
+        max_seqlen=None,
+    ):
         layer_past = layer_past if layer_past is not None else self.layer_past
         bias_dropout_fn = self._get_bias_dropout()
 
@@ -1084,11 +1444,19 @@ class ParallelTransformerLayer(nn.Module):
 
                 # attention operator
                 attention_output, attention_bias = self.attention(
-                    x1, attention_mask, layer_past=layer_past
+                    x1,
+                    attention_mask,
+                    layer_past=layer_past,
+                    cu_seqlens=cu_seqlens,
+                    num_documents=num_documents,
+                    max_seqlen=max_seqlen,
                 )
                 if self.use_cache:
                     attention_output, presents = attention_output
                     self.layer_past = presents
+                attention_output, attention_bias = _scale_branch(
+                    attention_output, attention_bias, self.residual_multiplier
+                )
 
                 if attention_bias is not None:
                     with torch.enable_grad() if not self.eval else nullcontext():
@@ -1101,6 +1469,9 @@ class ParallelTransformerLayer(nn.Module):
 
                 # mlp operator
                 mlp_output, mlp_bias = self.mlp(x2)
+                mlp_output, mlp_bias = _scale_branch(
+                    mlp_output, mlp_bias, self.residual_multiplier
+                )
                 if mlp_bias is not None:
                     with torch.enable_grad() if not self.eval else nullcontext():
                         output = bias_dropout_fn(
@@ -1123,12 +1494,20 @@ class ParallelTransformerLayer(nn.Module):
 
                 # x = x + attn(ln1(x))
                 attention_output, attention_bias = self.attention(
-                    self.input_layernorm(x), attention_mask, layer_past=layer_past
+                    self.input_layernorm(x),
+                    attention_mask,
+                    layer_past=layer_past,
+                    cu_seqlens=cu_seqlens,
+                    num_documents=num_documents,
+                    max_seqlen=max_seqlen,
                 )
 
                 if self.use_cache:
                     attention_output, presents = attention_output
                     self.layer_past = presents
+                attention_output, attention_bias = _scale_branch(
+                    attention_output, attention_bias, self.residual_multiplier
+                )
                 with torch.enable_grad() if not self.eval else nullcontext():
                     if attention_bias is not None:
                         # Use special bias_dropout_fn if we have a bias term from the above attention layer
@@ -1160,6 +1539,9 @@ class ParallelTransformerLayer(nn.Module):
 
                 # call signatures of both dense and MoE are the same
                 mlp_output, mlp_bias = self.mlp(layernorm_output)
+                mlp_output, mlp_bias = _scale_branch(
+                    mlp_output, mlp_bias, self.residual_multiplier
+                )
 
                 with torch.enable_grad() if not self.eval else nullcontext():
                     if mlp_bias == None or (self.num_experts > 1):
@@ -1181,12 +1563,16 @@ class ParallelTransformerLayerPipe(ParallelTransformerLayer):
     """Extends ParallelTransformerLayer to forward attention_mask through the pipeline."""
 
     def forward(self, args):
-        assert (
-            len(args) == 2
-        ), "ParallelTransformerLayerPipe expects 2 arguments - hidden_states and attention_mask"
-        hidden_states, attention_mask = args
-        # we are returning just [hidden_states, mask]
-        return super().forward(hidden_states, attention_mask), attention_mask
+        hidden_states, *packed_metadata, attention_mask = args
+        cu_seqlens, num_documents, max_seqlen = packed_metadata or (None, None, None)
+        output = super().forward(
+            hidden_states,
+            attention_mask,
+            cu_seqlens=cu_seqlens,
+            num_documents=num_documents,
+            max_seqlen=max_seqlen,
+        )
+        return (output, *packed_metadata, attention_mask)
 
 
 class ParallelLinearPipe(ParallelLinear):

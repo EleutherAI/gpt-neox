@@ -1,7 +1,7 @@
 import pytest
 import toml
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from packaging.version import parse as parse_version, Version
 from dataclasses import dataclass
 
@@ -16,6 +16,7 @@ class Dependency:
         """Parse a requirement string into a Dependency object."""
         # Common version specifiers
         specifiers = ["==", ">=", ">", "<=", "<"]
+        requirement = requirement.split(" #")[0]
         name = requirement
         version = None
 
@@ -25,7 +26,7 @@ class Dependency:
                 version = version.strip()
                 break
 
-        return cls(name.lower().strip(), version)
+        return cls(name.split("[")[0].lower().strip(), version)
 
     def matches_version(self, other_version: str) -> bool:
         """Check if this dependency's version matches another version string."""
@@ -35,7 +36,7 @@ class Dependency:
         try:
             # Convert versions to comparable objects
             our_version = parse_version(self.version)
-            their_version = parse_version(other_version.replace("*", "0"))
+            their_version = parse_version(other_version.lstrip("=<>").replace("*", "0"))
             return our_version == their_version
         except ValueError:
             # If versions can't be parsed, fall back to string comparison
@@ -67,7 +68,9 @@ class DependencyValidator:
             with open(file_path, "r") as f:
                 pyproject_data = toml.load(f)
                 return {
-                    name.lower(): str(version)
+                    name.lower(): str(
+                        version["version"] if isinstance(version, dict) else version
+                    )
                     for name, version in pyproject_data["tool"]["poetry"][
                         "dependencies"
                     ].items()
@@ -80,7 +83,7 @@ class DependencyValidator:
 
     def compare_dependencies(
         self, req_deps: List[Dependency], pyproject_deps: Dict[str, str]
-    ) -> tuple[bool, List[str]]:
+    ) -> Tuple[bool, List[str]]:
         """Compare dependencies between requirements.txt and pyproject.toml."""
         mismatches = []
 
@@ -103,7 +106,8 @@ class DependencyValidator:
 
 def get_corresponding_pyproject(req_file: Path) -> Path:
     """Get the corresponding pyproject.toml file for a requirements file."""
-    env_name = req_file.stem.split("-")[1]
+    env_name = req_file.stem.split("-", 1)[1]
+    env_name = {"dev": "neox-dev"}.get(env_name, env_name)
     return req_file.parent / f"pyproject-{env_name}.toml"
 
 

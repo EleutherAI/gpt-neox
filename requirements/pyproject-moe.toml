@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "gpt-neox-moe"
+version = "0.1.0"
+description = "MoE requirements for GPT-NeoX"
+authors = ["EleutherAI <contact@eleuther.ai>"]
+license = "Apache-2.0"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+grouped-gemm = "0.1.6"
+megablocks = "0.7.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

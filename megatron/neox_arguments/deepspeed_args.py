@@ -114,9 +114,9 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#automatic-mixed-precision-amp-training-options
     """
 
-    gradient_clipping: float = 1.0
+    gradient_clipping: float = 0.0
     """
-    Enable gradient clipping with provided value
+    Gradient clipping based on the global L2 norm. A value of 0.0 disables clipping.
     """
 
     # ---ZeRO Optimization Options---
@@ -164,9 +164,9 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
 
     # ---Communication Options---
 
-    communication_data_type: bool = None
+    communication_data_type: Literal["fp16", "bf16", "fp32"] = None
     """
-    During gradient averaging, perform communication with selected data type. By default it will be determined by selected regime
+    During gradient averaging, perform communication with selected data type: fp16, bf16 or fp32. By default it will be determined by selected regime
     """
 
     # ---Autotuning Options---
@@ -184,16 +184,6 @@ class NeoXArgsDeepspeedConfig(NeoXArgsTemplate):
     Configuration for using activation checkpointing.
 
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#activation-checkpointing
-    """
-
-    # ---Sparse Attention Options---
-
-    sparse_attention: dict = None
-    """
-    Configuration for using sparse attention.
-
-    Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#sparse-attention
-
     """
 
     # ---Data Efficiency Options---
