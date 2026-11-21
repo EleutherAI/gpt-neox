@@ -144,6 +144,23 @@ apptainer build gpt-neox-uv.sif containers/apptainer/gpt-neox.uv.def
 The uv Apptainer definition copies the build inputs from the checkout. Both
 the Docker and Apptainer uv recipes accept `BUILD_FUSED_KERNELS=false`.
 
+## Docker build timings
+
+All 12 Docker configurations built successfully across two runs on `sws-2h100-02`. The November 20, 2026 run measured the standard and Transformer Engine images at `f8c01c4`. The November 21 B200 rerun used `88c7227` after the UID fix. Both revisions predate the dependency updates on the rebased branch. [November 20 summary](https://github.com/aflah02/Container-Improvements-NeoX/blob/bfcf568f818cf51143676c05936e0f22f8980e04/run-20261120T211324Z-UafkfP/summary.tsv) · [B200 rerun summary](https://github.com/aflah02/Container-Improvements-NeoX/blob/bfcf568f818cf51143676c05936e0f22f8980e04/run-20261121T082946Z-7K25n5/summary.tsv)
+
+Times are wall-clock minutes and seconds for one `docker build --pull --no-cache` per configuration, including image export. The speedup is pip time divided by uv time. The host lacked `apptainer`, so the native Apptainer cases have no build timings.
+
+| Docker image | NeoX fused kernels | pip | uv | pip time / uv time |
+| --- | --- | ---: | ---: | ---: |
+| Standard | On | 12:06 | 10:39 | 1.14× |
+| Standard | Off | 7:50 | 7:21 | 1.07× |
+| Transformer Engine | On | 15:23 | 13:27 | 1.14× |
+| Transformer Engine | Off | 11:48 | 10:08 | 1.16× |
+| B200 | On | 16:29 | 15:40 | 1.05× |
+| B200 | Off | 7:23 | 5:56 | 1.24× |
+
+![Docker build times and speedups for pip versus uv and fused kernels enabled versus disabled](docker-build-speedups.png)
+
 ## Running a Container
 
 Set the host paths that should be mounted into the container:
