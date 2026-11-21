@@ -1,0 +1,45 @@
+# Based on https://huggingface.co/meta-llama/Meta-Llama-3-8B/blob/main/config.json
+#
+# This is the original Llama 3 release (8K context, no RoPE scaling).
+# Llama 3.1 / 3.2 / 3.3 use the "llama3" RoPE frequency scaling, which
+# NeoX does not implement yet, so they are not covered by these configs.
+
+{
+  "pipe_parallel_size": 1,
+  # model_parallel_size must evenly divide num_kv_heads (8)
+  "model_parallel_size": 1,
+  # The Llama 3 tokenizer has 128,256 tokens (a multiple of 256), so no extra
+  # padding is needed and the embedding matches HF for model_parallel_size <= 8.
+  "make_vocab_size_divisible_by": 1,
+
+  # model settings
+  "num_layers": 32,
+  "hidden_size": 4096,
+  "intermediate_size": 43008, # 14336*3 as 3x needed for swiglu with neox
+  "num_attention_heads": 32,
+  "num_kv_heads": 8,
+  "seq_length": 8192,
+  "max_position_embeddings": 8192,
+  "pos_emb": "rotary",
+  "rotary_pct": 1,
+  "rotary_emb_base": 500000,
+  "no_weight_tying": true,
+  "gpt_j_residual": false,
+  "output_layer_parallelism": "column",
+  "norm": "rmsnorm",
+  "rms_norm_epsilon": 1.0e-5,
+  "attention_config": [[["flash"], 32]],
+
+  "scaled_upper_triang_masked_softmax_fusion": true,
+  "bias_gelu_fusion": false,
+  "use_bias_in_norms": false,
+  "use_bias_in_attn_linear": false,
+  "use_bias_in_mlp": false,
+  "activation": "swiglu",
+  "mlp_multiple_of": 256,
+
+  "tokenizer_type": "HFTokenizer",
+  # "vocab-file": "/path/to/Meta-Llama-3-8B/tokenizer.json",
+
+  "init_method_std": 0.02
+}
