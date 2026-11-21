@@ -2,7 +2,7 @@ version: '3'
 services:
   gpt-neox:
     command: nvidia-smi dmon
-    image: leogao2/gpt-neox:main
+    image: eleutherai/gpt-neox:main
     shm_size: 1g
     ulimits:
       memlock:
