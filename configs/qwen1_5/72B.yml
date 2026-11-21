@@ -7,9 +7,29 @@
   "pipe_parallel_size": 1,
   # model_parallel_size must evenly divide num_attention_heads (64)
   "model_parallel_size": 1,
-  # The Qwen1.5 tokenizer has 151,646 tokens; 128 pads it to 151,680.
-  # (HF checkpoints for this size pad the embedding to 152,064.)
-  "make_vocab_size_divisible_by": 128,
+  # Pad the embedding to 152,064 rows so it has the same shape as the HF
+  # checkpoint (vocab_size in the config.json linked at the top).
+  #
+  # Why HF uses 152,064: the first-generation Qwen tokenizer had 151,851
+  # tokens (151,643 BPE tokens, then <|endoftext|>, <|im_start|>, <|im_end|> and 205
+  # reserved <|extra_N|> tokens). Qwen padded the embedding of its larger models
+  # further for distributed training; 152,064 is the next multiple of 256 above
+  # 151,851. The padded rows are never used.
+  #   https://huggingface.co/Qwen/Qwen-7B/blob/main/tokenization_qwen.py
+  #   https://huggingface.co/Qwen/Qwen1.5-72B-Chat/discussions/1
+  #   https://huggingface.co/Qwen/Qwen-7B-Chat/discussions/41
+  # Qwen1.5 uses this embedding size, but its tokenizer has only the three named
+  # special tokens, so it has 151,646 tokens (151,643 + 3).
+  #   https://huggingface.co/Qwen/Qwen1.5-72B/blob/main/tokenizer_config.json
+  #
+  # Why 432: NeoX rounds the tokenizer size up to a multiple of
+  # make_vocab_size_divisible_by * model_parallel_size (_vocab_size_with_padding
+  # in megatron/tokenizer/tokenizer.py). 152,064 = 352 * 432, and the multiple
+  # below it, 351 * 432 = 151,632, is smaller than 151,646, so 151,646 rounds
+  # up to exactly 152,064. This also holds for model_parallel_size 2, 4, 8, 16
+  # and 32. 152,064 is itself a multiple of 128, so the output layer stays
+  # tensor-core friendly.
+  "make_vocab_size_divisible_by": 432,
 
   # model settings
   "num_layers": 80,
