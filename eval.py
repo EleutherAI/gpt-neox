@@ -41,6 +41,7 @@ def main(input_args=None, overwrite_values=None):
         neox_args,
         eval_tasks=neox_args.eval_tasks,
         bootstrap_iters=10000,
+        limit=neox_args.eval_tasks_limit,
     )
     if neox_args.rank == 0:
         init_wandb(neox_args=neox_args)
