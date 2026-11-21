@@ -1,8 +1,9 @@
 # Based on https://huggingface.co/meta-llama/Meta-Llama-3-70B/blob/main/config.json
 #
-# This is the original Llama 3 release (8K context, no RoPE scaling).
-# Llama 3.1 / 3.2 / 3.3 use the "llama3" RoPE frequency scaling, which
-# NeoX does not implement yet, so they are not covered by these configs.
+# Pretraining config (8K context, plain RoPE). Llama 3.1 70B and Llama 3.3 70B
+# have the same architecture: their HF configs only add "llama3" RoPE scaling
+# and 128K max_position_embeddings, which come from the long-context extension
+# phase that follows pretraining and is not covered here.
 
 {
   "pipe_parallel_size": 1,
