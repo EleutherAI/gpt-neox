@@ -90,7 +90,11 @@ def convert_hf_to_sequential(hf_model, seq_state_dict):
 
             if key in ["attention.bias", "attention.masked_bias"]:
                 continue
-            seq_state_dict[f"sequential.{layer_seq}.{key}"] = hf_layer_sd[key]
+            # #1212 renamed the NeoX MLP layers to linear1 and linear2
+            neox_key = key.replace("mlp.dense_h_to_4h", "mlp.linear1").replace(
+                "mlp.dense_4h_to_h", "mlp.linear2"
+            )
+            seq_state_dict[f"sequential.{layer_seq}.{neox_key}"] = hf_layer_sd[key]
 
     # Load final layer norm
     layer_seq = num_layers + 3
@@ -123,7 +127,7 @@ def shard_sequential_mp(num_mp_ranks, sequential):
             [
                 x in k
                 for x in [
-                    "dense_4h_to_h.bias",
+                    "mlp.linear2.bias",
                     "attention.dense.bias",
                 ]
             ],
@@ -178,7 +182,7 @@ def shard_sequential_mp(num_mp_ranks, sequential):
                         x in k
                         for x in [
                             "attention.dense.weight",
-                            "mlp.dense_4h_to_h.weight",
+                            "mlp.linear2.weight",
                         ]
                     ],
                 ):  # column parallel
@@ -188,8 +192,8 @@ def shard_sequential_mp(num_mp_ranks, sequential):
                     [
                         x in k
                         for x in [
-                            "mlp.dense_h_to_4h.weight",
-                            "mlp.dense_h_to_4h.bias",
+                            "mlp.linear1.weight",
+                            "mlp.linear1.bias",
                             "attention.query_key_value.weight",
                             "attention.query_key_value.bias",
                             "word_embeddings.weight",
@@ -334,7 +338,8 @@ def convert(hf_model, ckpt_dir, output_dir):
     ckpts, layers = {}, {}
     for x in os.listdir(ckpt_dir):
         if x.startswith("mp_rank"):
-            ckpts[x] = torch.load(os.path.join(ckpt_dir, x))
+            # the mp_rank file this script just saved holds numpy objects
+            ckpts[x] = torch.load(os.path.join(ckpt_dir, x), weights_only=False)
         elif x.startswith("layer"):
             layers[x] = torch.load(os.path.join(ckpt_dir, x))
 
@@ -515,7 +520,7 @@ if __name__ == "__main__":
     neox_args.configure_distributed_args()
     neox_args.build_tokenizer()
     neox_args.initialize_tensorboard_writer()
-    neox_args.comet()
+    neox_args.initialize_comet()
 
     # setup logging and timers
     # init_wandb(neox_args=neox_args)
@@ -538,7 +543,7 @@ if __name__ == "__main__":
         dist_init_required=False,
         model_parameters=None,
         config_params=neox_args.deepspeed_config,
-        mpu=mpu,
+        mpu=mpu if not neox_args.is_pipe_parallel else None,
     )
 
     if os.environ.get("OMPI_COMM_WORLD_RANK", "1") == "0":
