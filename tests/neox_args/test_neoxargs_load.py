@@ -89,24 +89,6 @@ def test_clip_grad_with_gradient_clipping_raises():
 
 
 @pytest.mark.cpu
-@pytest.mark.parametrize("attention_type", ["gmlp", "amlp"])
-def test_mup_rejects_gmlp_attention(attention_type):
-    from megatron.neox_arguments import NeoXArgs
-
-    with pytest.raises(ValueError, match="use_mup does not support gmlp or amlp"):
-        NeoXArgs.from_ymls(
-            get_configs_with_path(
-                ["125M.yml", "local_setup.yml", "cpu_mock_config.yml"]
-            ),
-            overwrite_values={
-                "use_mup": True,
-                "partition_activations": False,
-                "attention_config": [[[attention_type], "all"]],
-            },
-        )
-
-
-@pytest.mark.cpu
 def test_strip_deprecated_config_keys(monkeypatch):
     from megatron.neox_arguments import NeoXArgs, arguments
 

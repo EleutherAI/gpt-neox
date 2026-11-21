@@ -37,7 +37,6 @@ from megatron.mpu.layers import (
 from megatron.mpu.random import get_cuda_rng_tracker
 from megatron.mpu.utils import divide
 from megatron.mpu.utils import VocabUtility
-from functools import partial
 from megatron.model.positional_embeddings import RotaryEmbedding
 from megatron import mpu
 
@@ -113,7 +112,6 @@ class TELinear(te.pytorch.Linear):
         init_method=init.xavier_normal_,
         stride=1,
         skip_bias_add=False,
-        mup_rescale_parameters=False,
         seq_dim=0,
     ):
         self.input_size = input_size
@@ -127,8 +125,6 @@ class TELinear(te.pytorch.Linear):
 
         self.init_method = init_method
         self.stride = stride
-        self.mup_rescale_parameters = mup_rescale_parameters
-        self.use_mup = neox_args.use_mup
         self.params_dtype = neox_args.params_dtype
 
         super(TELinear, self).__init__(
@@ -143,9 +139,6 @@ class TELinear(te.pytorch.Linear):
         )
 
     def forward(self, inp, **kwargs):
-        if self.use_mup and self.mup_rescale_parameters:
-            inp = inp / self.width_mult()
-
         output = super(TELinear, self).forward(inp, **kwargs)
 
         if self.skip_bias_add:
@@ -280,7 +273,6 @@ class TEColumnParallelLinear(te.pytorch.Linear):
         skip_bias_add=False,
         MOE=False,
         MoE_mp_size=1,
-        mup_rescale_parameters=False,
         seq_dim=0,
     ):
         # Keep input parameters
@@ -300,8 +292,6 @@ class TEColumnParallelLinear(te.pytorch.Linear):
 
         self.init_method = init_method
         self.stride = stride
-        self.mup_rescale_parameters = mup_rescale_parameters
-        self.use_mup = neox_args.use_mup
         self.params_dtype = neox_args.params_dtype
         self.parallel_mode = "column"
 
@@ -321,59 +311,7 @@ class TEColumnParallelLinear(te.pytorch.Linear):
         )
 
     # Copied from Mup
-    def width_mult(self):
-        assert hasattr(self.weight, "infshape"), (
-            "Please call set_base_shapes(...). If using torch.nn.DataParallel, "
-            "switch to distributed training with "
-            "torch.nn.parallel.DistributedDataParallel instead"
-        )
-        return self.weight.infshape.width_mult()
-
-    # Copied from Mup
-    def _rescale_parameters(self):
-        """Rescale parameters to convert SP initialization to μP initialization.
-        Warning: This method is NOT idempotent and should be called only once
-        unless you know what you are doing.
-        """
-        if hasattr(self, "_has_rescaled_params") and self._has_rescaled_params:
-            raise RuntimeError(
-                "`_rescale_parameters` has been called once before already. "
-                "Unless you know what you are doing, usually you should not be calling `_rescale_parameters` more than once.\n"
-                "If you called `set_base_shapes` on a model loaded from a checkpoint, "
-                "or just want to re-set the base shapes of an existing model, "
-                "make sure to set the flag `rescale_params=False`.\n"
-                "To bypass this error and *still rescale parameters*, set `self._has_rescaled_params=False` before this call."
-            )
-        if self.bias is not None:
-            self.bias.data *= self.width_mult() ** 0.5
-        self.weight.data *= self.width_mult() ** 0.5
-        self._has_rescaled_params = True
-
-    def mup_reinitialize_weights(self, neox_args):
-        if neox_args.use_cpu_initialization:
-            self.master_weight = _initialize_affine_weight_cpu(
-                neox_args,
-                self.weight,
-                self.output_size,
-                self.input_size,
-                self.input_size_per_partition,
-                1,
-                partial(self.init_method, use_mup=True),
-                stride=self.stride,
-                return_master_weight=self.keep_master_weight_for_test,
-            )
-        else:
-            _initialize_affine_weight_gpu(
-                self.weight,
-                partial(self.init_method, use_mup=True),
-                partition_dim=1,
-                stride=self.stride,
-            )
-
     def forward(self, inp, **kwargs):
-        if self.use_mup and self.mup_rescale_parameters:
-            inp = inp / self.width_mult()
-
         output = super(TEColumnParallelLinear, self).forward(inp, **kwargs)
         if self.skip_bias_add:
             return output
@@ -418,7 +356,6 @@ class TERowParallelLinear(te.pytorch.Linear):
         MOE=False,
         MoE_mp_size=1,
         parallel_output=False,
-        mup_rescale_parameters=False,
     ):
         # Keep input parameters
         self.input_size = input_size
@@ -435,8 +372,6 @@ class TERowParallelLinear(te.pytorch.Linear):
 
         self.init_method = init_method
         self.stride = stride
-        self.mup_rescale_parameters = mup_rescale_parameters
-        self.use_mup = neox_args.use_mup
         self.params_dtype = neox_args.params_dtype
         self.parallel_mode = "row"
 
@@ -456,59 +391,7 @@ class TERowParallelLinear(te.pytorch.Linear):
         )
 
     # Copied from Mup
-    def width_mult(self):
-        assert hasattr(self.weight, "infshape"), (
-            "Please call set_base_shapes(...). If using torch.nn.DataParallel, "
-            "switch to distributed training with "
-            "torch.nn.parallel.DistributedDataParallel instead"
-        )
-        return self.weight.infshape.width_mult()
-
-    # Copied from Mup
-    def _rescale_parameters(self):
-        """Rescale parameters to convert SP initialization to μP initialization.
-        Warning: This method is NOT idempotent and should be called only once
-        unless you know what you are doing.
-        """
-        if hasattr(self, "_has_rescaled_params") and self._has_rescaled_params:
-            raise RuntimeError(
-                "`_rescale_parameters` has been called once before already. "
-                "Unless you know what you are doing, usually you should not be calling `_rescale_parameters` more than once.\n"
-                "If you called `set_base_shapes` on a model loaded from a checkpoint, "
-                "or just want to re-set the base shapes of an existing model, "
-                "make sure to set the flag `rescale_params=False`.\n"
-                "To bypass this error and *still rescale parameters*, set `self._has_rescaled_params=False` before this call."
-            )
-        if self.bias is not None:
-            self.bias.data *= self.width_mult() ** 0.5
-        self.weight.data *= self.width_mult() ** 0.5
-        self._has_rescaled_params = True
-
-    def mup_reinitialize_weights(self, neox_args):
-        if neox_args.use_cpu_initialization:
-            self.master_weight = _initialize_affine_weight_cpu(
-                neox_args,
-                self.weight,
-                self.output_size,
-                self.input_size,
-                self.input_size_per_partition,
-                1,
-                partial(self.init_method, use_mup=True),
-                stride=self.stride,
-                return_master_weight=self.keep_master_weight_for_test,
-            )
-        else:
-            _initialize_affine_weight_gpu(
-                self.weight,
-                partial(self.init_method, use_mup=True),
-                partition_dim=1,
-                stride=self.stride,
-            )
-
     def forward(self, inp, **kwargs):
-        if self.use_mup and self.mup_rescale_parameters:
-            inp = inp / self.width_mult()
-
         output = super(TERowParallelLinear, self).forward(inp, **kwargs)
 
         if self.skip_bias_add:
@@ -685,14 +568,14 @@ class TEDelayedScaling(te.common.recipe.DelayedScaling):
 
         super().__init__(
             margin=neox_args.te_fp8_margin,
-            fp8_format=te_fp8_format,
+            fp8_format=fp8_format,
             amax_compute_algo=neox_args.te_fp8_amax_compute_algo,
             amax_history_len=neox_args.te_fp8_amax_history_len,
             override_linear_precision=override_linear_precision,
             fp8_mha=neox_args.te_fp8_mha,
         )
 
-    def fp8_context(self):
+    def get_context(self):
         fp8_group = None
         if self.tp_group:
             fp8_group = self.tp_group
@@ -700,4 +583,4 @@ class TEDelayedScaling(te.common.recipe.DelayedScaling):
             enabled=True, fp8_recipe=self, fp8_group=fp8_group
         )
 
-        return get_context
+        return fp8_context

@@ -410,6 +410,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
     Standard deviation of the zero mean normal distribution used for weight initialization.
     """
 
+    init_truncation: float = None
+    """
+    Truncate normal inits at +/- init_truncation standard deviations. OLMo uses 3.
+    """
+
     apply_query_key_layer_scaling: bool = False
     """
     Scale Q * K^T by 1 / layer-number. If this flag is set, then it will automatically set attention-softmax-in-fp32 to true
@@ -477,10 +482,11 @@ class NeoXArgsModel(NeoXArgsTemplate):
         "wang_init",
         "small_init",
         "single_residual_scaled_normal",
+        "fan_in",
     ] = "normal"
     """
-    Init function used on all layers except ff residual outputs - choose from
-    ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
+    Init function used on embeddings, the readout, and the input weights of each layer.
+    "fan_in" uses std = fan_in ** -0.5 from each weight's full input dimension.
     """
 
     output_layer_init_method: Literal[
@@ -493,10 +499,14 @@ class NeoXArgsModel(NeoXArgsTemplate):
         "wang_init",
         "small_init",
         "single_residual_scaled_normal",
+        "fan_in",
+        "layer_scaled_normal",
+        "zero",
     ] = "scaled_normal"
     """
-    Init function used for ff residual outputs - choose from
-    ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
+    Init function used on the output weights of each layer, which write to the residual stream.
+    "layer_scaled_normal" uses std = init_method_std / sqrt(2 * (layer_number + 1)).
+    "zero" initializes them to zero.
     """
 
     gmlp_attn_dim: int = 64
@@ -547,7 +557,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
     If enabled, will train *only* the soft prompt, and freezes the rest of the model.
     parameters in the dict are:
         'enabled': bool = True # enables soft prompting
-        'num_tokens': int = 10 # length of the soft prompt in tokens
+        'n_tokens': int = 10 # length of the soft prompt in tokens
         'init_string': str = '' # if provided, initialize the soft prompt with the word embeddings of this string
         'init_range': float = 0.5 # if no init string is provided, initialize the soft prompt with a uniform distribution between -init_range and init_rang
     """
@@ -725,9 +735,13 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
     LR Scheduler Arguments
     """
 
-    lr_decay_style: Literal["constant", "linear", "cosine", "exponential"] = "linear"
+    lr_decay_style: Literal[
+        "constant", "linear", "cosine", "exponential", "wsd"
+    ] = "linear"
     """
-    Learning rate decay function. Choose from 'constant', 'linear', 'cosine', 'exponential'.
+    Learning rate decay function. Choose from 'constant', 'linear', 'cosine', 'exponential', 'wsd'.
+    'wsd' implements the Warmup-Stable-Decay schedule from the MiniCPM paper
+    (https://arxiv.org/abs/2404.06395): linear warmup, constant LR, then cosine decay.
     """
 
     lr_decay_iters: int = None
@@ -749,6 +763,12 @@ class NeoXArgsLRScheduler(NeoXArgsTemplate):
     warmup: float = 0.01
     """
     Percentage of total iterations to warmup on (.01 = 1 percent of all training iters).
+    """
+
+    wsd_decay_ratio: float = 0.1
+    """
+    Fraction of the iterations after warmup spent in the final cosine decay to min_lr
+    when lr_decay_style is 'wsd'.
     """
 
     override_lr_scheduler: bool = False
@@ -797,6 +817,11 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     log_dir: str = None
     """
     Directory to save logs to.
+    """
+
+    quiet: bool = False
+    """
+    Skip the argument printout at launch and only show DeepSpeed warnings and errors.
     """
 
     ### BEGIN TENSORBOARD ARGS ###
@@ -987,11 +1012,6 @@ class NeoXArgsOther(NeoXArgsTemplate):
     onnx_safe: bool = False
     """
     Use workarounds for known problems with Torch ONNX exporter
-    """
-
-    deepscale: bool = False
-    """
-    (Deprecated) enable DeepSpeed (helper flag for user code, no impact on DeepSpeed backend)'
     """
 
     deepscale_config: str = None
@@ -1566,57 +1586,61 @@ class NeoXArgsTraining(NeoXArgsTemplate):
     Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
     """
 
-    use_mup: bool = False
+    parameterization: Literal["sp", "mup", "completep"] = "sp"
     """
-    Whether to use Microsoft's Mup https://github.com/microsoft/mup
+    How initialization, forward multipliers, and per-layer learning rates scale with model size.
+    "sp" is the standard parameterization. "mup" scales with width relative to mup_base_hidden_size.
+    "completep" also scales with depth relative to mup_base_num_layers (https://arxiv.org/abs/2505.01618).
+    """
+
+    mup_base_hidden_size: int = None
+    """
+    Hidden size of the base model whose hyperparameters transfer. Required for mup and completep.
+    """
+
+    mup_base_num_layers: int = None
+    """
+    Number of layers of the base model whose hyperparameters transfer. Required for completep.
+    """
+
+    completep_alpha: float = 1.0
+    """
+    Depth exponent for completep, between 0.5 and 1. Residual branches are multiplied by
+    (num_layers / mup_base_num_layers) ** -completep_alpha. 1.0 is CompleteP and 0.5 is depth-muP.
+    """
+
+    mup_independent_weight_decay: bool = False
+    """
+    Multiply the weight decay of hidden weight matrices by the width multiplier, so the product of
+    learning rate and weight decay stays constant across width.
     """
 
     coord_check: bool = False
     """
-    Whether to generate a "coord check" plot to verify mup's implementation in neox
-    """
-
-    save_base_shapes: bool = False
-    """
-    Whether to save base shapes for mup. This will save the shapes to the path specified in base-shapes-file.
-    """
-
-    base_shapes_file: str = None
-    """
-    Path to the base shapes to save to/load from
-    """
-
-    mup_init_scale: float = 1.0
-    """
-    Initialization scale: All the parameters are multiplied by this value
+    Train models of several widths for a few steps, save the mean absolute activation of each layer
+    to coord_check.<rank>.csv, and exit. Used to check that activations stay the same size across width.
     """
 
     mup_attn_temp: float = 1.0
     """
-    μP attention temperature. Used when use_mup is enabled. Attention scores are
-    scaled by 1 / (head_dim * mup_attn_temp) before softmax. Must be greater than
-    zero. Global attention is currently the only supported attention backend.
+    Attention temperature for mup and completep. Attention scores are scaled by
+    1 / (head_dim * mup_attn_temp) before softmax. Must be greater than zero.
     """
 
     mup_output_temp: float = 1.0
     """
-    μP output temperature. Used when use_mup is enabled. Language-model logits
-    are divided by this value. Must be greater than zero.
+    Output temperature for mup and completep. Logits are divided by mup_output_temp times the
+    width multiplier. Must be greater than zero.
     """
 
     mup_embedding_mult: float = 1.0
     """
-    Scalar by which we multiply the output of the embedding layer
+    Multiplier on the embedding output for mup and completep.
     """
 
     mup_rp_embedding_mult: float = 1.0
     """
-    Scalar by which we multiply vectors representing relative position
-    """
-
-    mup_width_scale: int = 2
-    """
-    What to scale width by when creating the delta model for mup
+    Multiplier on learned position embeddings.
     """
 
 
@@ -1700,6 +1724,11 @@ class NeoXArgsTextgen(NeoXArgsTemplate):
     NOTE: Requires internet connection
     """
 
+    eval_tasks_limit: int = None
+    """
+    Number of examples per lm_eval_harness task. None runs every example.
+    """
+
 
 @dataclass
 class NeoXArgsMoE(NeoXArgsTemplate):
@@ -1725,7 +1754,9 @@ class NeoXArgsMoE(NeoXArgsTemplate):
     moe_router_type: Literal["sinkhorn", "topk"] = "sinkhorn"
     """
     What token routing algorithm to use. Currently only sinkhorn is supported for training.
-    TopK is only used for inference/eval.
+    TopK is only intended for inference/eval: it does not apply a load balancing loss,
+    so configuring it with moe_num_experts > 1 logs a warning that training with it
+    will silently produce a poorly balanced MoE model.
     """
 
     moe_lbl_in_fp32: bool = False

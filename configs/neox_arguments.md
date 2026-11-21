@@ -4,11 +4,13 @@ Arguments for gpt-neox. All of the following can be specified in your .yml confi
 
 LR Scheduler Arguments
 
-- **lr_decay_style**: typing.Literal['constant', 'linear', 'cosine', 'exponential']
+- **lr_decay_style**: typing.Literal['constant', 'linear', 'cosine', 'exponential', 'wsd']
 
     Default = linear
 
-    Learning rate decay function. Choose from 'constant', 'linear', 'cosine', 'exponential'.
+    Learning rate decay function. Choose from 'constant', 'linear', 'cosine', 'exponential', 'wsd'.
+    'wsd' implements the Warmup-Stable-Decay schedule from the MiniCPM paper
+    (https://arxiv.org/abs/2404.06395): linear warmup, constant LR, then cosine decay.
 
 - **lr_decay_iters**: int
 
@@ -34,6 +36,13 @@ LR Scheduler Arguments
     Default = 0.01
 
     Percentage of total iterations to warmup on (.01 = 1 percent of all training iters).
+
+- **wsd_decay_ratio**: float
+
+    Default = 0.1
+
+    Fraction of the iterations after warmup spent in the final cosine decay to min_lr
+    when lr_decay_style is 'wsd'.
 
 - **override_lr_scheduler**: bool
 
@@ -104,6 +113,12 @@ Logging Arguments
     Default = None
 
     Directory to save logs to.
+
+- **quiet**: bool
+
+    Default = False
+
+    Skip the argument printout at launch and only show DeepSpeed warnings and errors.
 
 - **tensorboard_dir**: str
 
@@ -273,7 +288,9 @@ Mixture of Expert (MoE) Arguments
     Default = sinkhorn
 
     What token routing algorithm to use. Currently only sinkhorn is supported for training.
-    TopK is only used for inference/eval.
+    TopK is only intended for inference/eval: it does not apply a load balancing loss,
+    so configuring it with moe_num_experts > 1 logs a warning that training with it
+    will silently produce a poorly balanced MoE model.
 
 - **moe_lbl_in_fp32**: bool
 
@@ -616,6 +633,12 @@ Model Arguments
 
     Standard deviation of the zero mean normal distribution used for weight initialization.
 
+- **init_truncation**: float
+
+    Default = None
+
+    Truncate normal inits at +/- init_truncation standard deviations. OLMo uses 3.
+
 - **apply_query_key_layer_scaling**: bool
 
     Default = False
@@ -682,19 +705,20 @@ Model Arguments
     Defaults to false, but is left configurable to maintain backward-compatibility
     with GPT-NeoX checkpoints that were trained with this flag.
 
-- **init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init', 'single_residual_scaled_normal']
+- **init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init', 'single_residual_scaled_normal', 'fan_in']
 
     Default = normal
 
-    Init function used on all layers except ff residual outputs - choose from
-    ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
+    Init function used on embeddings, the readout, and the input weights of each layer.
+    "fan_in" uses std = fan_in ** -0.5 from each weight's full input dimension.
 
-- **output_layer_init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init', 'single_residual_scaled_normal']
+- **output_layer_init_method**: typing.Literal['normal', 'scaled_normal', 'orthogonal', 'scaled_orthogonal', 'xavier_uniform', 'xavier_normal', 'wang_init', 'small_init', 'single_residual_scaled_normal', 'fan_in', 'layer_scaled_normal', 'zero']
 
     Default = scaled_normal
 
-    Init function used for ff residual outputs - choose from
-    ["normal", "scaled_normal", "orthogonal", "scaled_orthogonal", "xavier_uniform", "xavier_normal", "wang_init", "small_init"]
+    Init function used on the output weights of each layer, which write to the residual stream.
+    "layer_scaled_normal" uses std = init_method_std / sqrt(2 * (layer_number + 1)).
+    "zero" initializes them to zero.
 
 - **gmlp_attn_dim**: int
 
@@ -754,7 +778,7 @@ Model Arguments
     If enabled, will train *only* the soft prompt, and freezes the rest of the model.
     parameters in the dict are:
         'enabled': bool = True # enables soft prompting
-        'num_tokens': int = 10 # length of the soft prompt in tokens
+        'n_tokens': int = 10 # length of the soft prompt in tokens
         'init_string': str = '' # if provided, initialize the soft prompt with the word embeddings of this string
         'init_range': float = 0.5 # if no init string is provided, initialize the soft prompt with a uniform distribution between -init_range and init_rang
 
@@ -1002,12 +1026,6 @@ Misc. Arguments
 
     Use workarounds for known problems with Torch ONNX exporter
 
-- **deepscale**: bool
-
-    Default = False
-
-    (Deprecated) enable DeepSpeed (helper flag for user code, no impact on DeepSpeed backend)'
-
 - **deepscale_config**: str
 
     Default = None
@@ -1198,6 +1216,12 @@ Text Generation arguments
     Tasks to evaluate on using lm_eval_harness
 
     NOTE: Requires internet connection
+
+- **eval_tasks_limit**: int
+
+    Default = None
+
+    Number of examples per lm_eval_harness task. None runs every example.
 
 ## NeoXArgsTokenizer
 
@@ -1815,68 +1839,72 @@ Training Arguments
 
     Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
 
-- **use_mup**: bool
+- **parameterization**: typing.Literal['sp', 'mup', 'completep']
+
+    Default = sp
+
+    How initialization, forward multipliers, and per-layer learning rates scale with model size.
+    "sp" is the standard parameterization. "mup" scales with width relative to mup_base_hidden_size.
+    "completep" also scales with depth relative to mup_base_num_layers (https://arxiv.org/abs/2505.01618).
+
+- **mup_base_hidden_size**: int
+
+    Default = None
+
+    Hidden size of the base model whose hyperparameters transfer. Required for mup and completep.
+
+- **mup_base_num_layers**: int
+
+    Default = None
+
+    Number of layers of the base model whose hyperparameters transfer. Required for completep.
+
+- **completep_alpha**: float
+
+    Default = 1.0
+
+    Depth exponent for completep, between 0.5 and 1. Residual branches are multiplied by
+    (num_layers / mup_base_num_layers) ** -completep_alpha. 1.0 is CompleteP and 0.5 is depth-muP.
+
+- **mup_independent_weight_decay**: bool
 
     Default = False
 
-    Whether to use Microsoft's Mup https://github.com/microsoft/mup
+    Multiply the weight decay of hidden weight matrices by the width multiplier, so the product of
+    learning rate and weight decay stays constant across width.
 
 - **coord_check**: bool
 
     Default = False
 
-    Whether to generate a "coord check" plot to verify mup's implementation in neox
-
-- **save_base_shapes**: bool
-
-    Default = False
-
-    Whether to save base shapes for mup. This will save the shapes to the path specified in base-shapes-file.
-
-- **base_shapes_file**: str
-
-    Default = None
-
-    Path to the base shapes to save to/load from
-
-- **mup_init_scale**: float
-
-    Default = 1.0
-
-    Initialization scale: All the parameters are multiplied by this value
+    Train models of several widths for a few steps, save the mean absolute activation of each layer
+    to coord_check.<rank>.csv, and exit. Used to check that activations stay the same size across width.
 
 - **mup_attn_temp**: float
 
     Default = 1.0
 
-    μP attention temperature. Used when use_mup is enabled. Attention scores are
-    scaled by 1 / (head_dim * mup_attn_temp) before softmax. Must be greater than
-    zero. Global attention is currently the only supported attention backend.
+    Attention temperature for mup and completep. Attention scores are scaled by
+    1 / (head_dim * mup_attn_temp) before softmax. Must be greater than zero.
 
 - **mup_output_temp**: float
 
     Default = 1.0
 
-    μP output temperature. Used when use_mup is enabled. Language-model logits
-    are divided by this value. Must be greater than zero.
+    Output temperature for mup and completep. Logits are divided by mup_output_temp times the
+    width multiplier. Must be greater than zero.
 
 - **mup_embedding_mult**: float
 
     Default = 1.0
 
-    Scalar by which we multiply the output of the embedding layer
+    Multiplier on the embedding output for mup and completep.
 
 - **mup_rp_embedding_mult**: float
 
     Default = 1.0
 
-    Scalar by which we multiply vectors representing relative position
-
-- **mup_width_scale**: int
-
-    Default = 2
-
-    What to scale width by when creating the delta model for mup
+    Multiplier on learned position embeddings.
 
 ## NeoXArgsDeepspeedConfig
 
@@ -2026,11 +2054,11 @@ As of Mar 8 2023, up to date compared to https://www.deepspeed.ai/docs/config-js
 
     Dictionary as described in Deepspeed documentation: https://www.deepspeed.ai/docs/config-json/#flops-profiler
 
-- **communication_data_type**: bool
+- **communication_data_type**: typing.Literal['fp16', 'bf16', 'fp32']
 
     Default = None
 
-    During gradient averaging, perform communication with selected data type. By default it will be determined by selected regime
+    During gradient averaging, perform communication with selected data type: fp16, bf16 or fp32. By default it will be determined by selected regime
 
 - **activation_checkpointing**: dict
 

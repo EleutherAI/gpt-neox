@@ -21,7 +21,7 @@ import logging
 import copy
 import torch
 import argparse
-from pkg_resources import packaging
+import packaging.version
 from importlib.metadata import version
 
 from dataclasses import dataclass
@@ -33,6 +33,7 @@ try:
 except ImportError:
     from typing_extensions import Literal, Union
 from deepspeed.launcher.runner import DLTS_HOSTFILE
+from deepspeed.utils import logger as ds_logger
 from megatron.logging import Tee
 from megatron.tokenizer import build_tokenizer
 from megatron.utils import obtain_resource_pool, expand_attention_types
@@ -101,7 +102,21 @@ AUTOTUNING_ARGS = (
 )
 
 # deprecated config key -> its replacement (None if it has none)
-DEPRECATED_ARGS = {"clip_grad": "gradient_clipping", "sparse_attention": None}
+DEPRECATED_ARGS = {
+    "clip_grad": "gradient_clipping",
+    "sparse_attention": None,
+    "deepscale": None,
+    "use_mup": None,
+    "save_base_shapes": None,
+    "base_shapes_file": None,
+    "mup_width_scale": None,
+    "mup_init_scale": None,
+}
+
+MUP_ARGS_REMOVED = (
+    "μP no longer uses the mup package or base shapes files. "
+    "Set parameterization: mup and mup_base_hidden_size instead."
+)
 
 
 def _validate_qk_norm_args(
@@ -330,9 +345,13 @@ class NeoXArgs(*BASE_CLASSES):
                 continue
             value = config.pop(old)
             if new is None:
+                hint = (
+                    MUP_ARGS_REMOVED
+                    if "mup" in old or "base_shapes" in old
+                    else "delete it from your config."
+                )
                 raise ValueError(
-                    f"Configuration option '{old}' has been removed; "
-                    f"delete it from your config."
+                    f"Configuration option '{old}' has been removed; {hint}"
                 )
             if new in config:
                 raise ValueError(
@@ -585,7 +604,8 @@ class NeoXArgs(*BASE_CLASSES):
 
             neox_args.wandb_group += "_" + wandb.util.generate_id()
 
-        neox_args.print()
+        if not neox_args.quiet:
+            neox_args.print()
 
         return neox_args
 
@@ -880,6 +900,8 @@ class NeoXArgs(*BASE_CLASSES):
         """
         enable Tee logs based on the configured logdir
         """
+        if self.quiet:
+            ds_logger.setLevel(logging.WARNING)
         if self.log_dir:
             os.makedirs(self.log_dir, exist_ok=True)
             hostname = gethostname()
@@ -1207,6 +1229,16 @@ class NeoXArgs(*BASE_CLASSES):
                 self.zero_optimization["stage"] < 2
             ), "MoE is not compatible with zero stages 2 and 3"
 
+            if self.moe_router_type == "topk":
+                logging.warning(
+                    self.__class__.__name__
+                    + ".calculate_derived() "
+                    + "moe_router_type 'topk' does not apply a load balancing loss "
+                    "and is only intended for inference/eval. Training with it can "
+                    "silently produce a poorly balanced (misconfigured) MoE model. "
+                    "Use moe_router_type 'sinkhorn' for training."
+                )
+
         # use_bias_in_attn_linear used to be a boolean; keep accepting true/false
         if isinstance(self.use_bias_in_attn_linear, bool):
             self.update_value(
@@ -1379,6 +1411,51 @@ class NeoXArgs(*BASE_CLASSES):
                     defined_properties[item] = source_class.__name__
         return True
 
+    def _validate_parameterization(self):
+        name = self.parameterization
+        if self.mup_base_hidden_size is None:
+            raise ValueError(f"parameterization: {name} requires mup_base_hidden_size")
+        if name == "completep" and self.mup_base_num_layers is None:
+            raise ValueError("parameterization: completep requires mup_base_num_layers")
+        if not 0.5 <= self.completep_alpha <= 1.0:
+            raise ValueError("completep_alpha must be between 0.5 and 1")
+        for temp in ("mup_attn_temp", "mup_output_temp"):
+            if getattr(self, temp) <= 0:
+                raise ValueError(f"{temp} must be greater than zero")
+        if self.optimizer_type.lower() not in ("adam", "lion"):
+            raise ValueError(
+                f"parameterization: {name} supports the adam and lion optimizers"
+            )
+        unsupported_inits = {
+            "orthogonal",
+            "scaled_orthogonal",
+            "xavier_uniform",
+            "xavier_normal",
+            "fan_in",
+        }
+        for init in (self.init_method, self.output_layer_init_method):
+            if init in unsupported_inits:
+                raise ValueError(
+                    f"parameterization: {name} does not support {init} init"
+                )
+        if (
+            name == "completep"
+            and self.output_layer_init_method == "layer_scaled_normal"
+        ):
+            raise ValueError("completep does not support layer_scaled_normal init")
+        if self.moe_num_experts > 1:
+            raise ValueError(f"parameterization: {name} does not support MoE")
+        if self.te_mha or self.te_fp8_mha:
+            raise ValueError(
+                f"parameterization: {name} does not support Transformer Engine attention"
+            )
+        unsupported_attention = sorted(set(self.attention_config) - {"global"})
+        if unsupported_attention:
+            raise ValueError(
+                f"parameterization: {name} supports global attention only. "
+                "Unsupported attention types: " + ", ".join(unsupported_attention)
+            )
+
     def validate_values(self):
         # the current codebase assumes running with deepspeed only
         if not self.deepspeed:
@@ -1446,37 +1523,8 @@ class NeoXArgs(*BASE_CLASSES):
                 raise ValueError(error_message)
                 return False
 
-        if self.use_mup:
-            for name in ("mup_attn_temp", "mup_output_temp"):
-                if getattr(self, name) <= 0:
-                    raise ValueError(
-                        f"{name} must be greater than zero when use_mup is enabled"
-                    )
-
-            if self.te_mha or self.te_fp8_mha:
-                raise ValueError(
-                    "μP attention scaling does not support Transformer Engine "
-                    "attention"
-                )
-
-            attention_types = set(self.attention_config)
-            unsupported_attention_types = sorted(
-                attention_types
-                & {
-                    "local",
-                    "sparse_fixed",
-                    "sparse_variable",
-                    "bigbird",
-                    "bslongformer",
-                    "flash",
-                }
-            )
-            if unsupported_attention_types:
-                raise ValueError(
-                    "μP attention scaling supports global attention only. "
-                    "Unsupported attention types: "
-                    + ", ".join(unsupported_attention_types)
-                )
+        if self.parameterization != "sp":
+            self._validate_parameterization()
 
         # Checks.
         if self.hidden_size % self.num_attention_heads != 0 and not (
@@ -1490,10 +1538,6 @@ class NeoXArgs(*BASE_CLASSES):
             logging.error(error_message)
             raise ValueError(error_message)
             return False
-
-        # mup scaling is implemented for ParallelSelfAttention only.
-        if self.use_mup and {"gmlp", "amlp"} & set(self.attention_config):
-            raise ValueError("use_mup does not support gmlp or amlp attention.")
 
         if self.use_bias_in_attn_linear == "qkv" and (self.te_mha or self.te_fp8_mha):
             raise ValueError(
@@ -1670,6 +1714,16 @@ class NeoXArgs(*BASE_CLASSES):
                     "eval_loss_logging='separate' or 'blended_and_separate' requires "
                     "explicit validation dataset paths."
                 )
+
+        norms = {self.norm}
+        if self.use_qk_norm:
+            norms.add(self.qk_norm or self.norm)
+        if not self.use_bias_in_norms and (
+            "te_layernorm" in norms or ("layernorm" in norms and self.layernorm_fusion)
+        ):
+            raise ValueError(
+                "use_bias_in_norms=False requires layernorm with layernorm_fusion=False"
+            )
 
         return True
 

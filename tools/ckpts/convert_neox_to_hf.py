@@ -46,6 +46,10 @@ Note that this script does not support all NeoX features.
 Please investigate carefully whether your model is compatible with all architectures supported by the GPTNeoXForCausalLM class in HF.
 
 (e.g. position embeddings such as AliBi may not be supported by Huggingface's GPT-NeoX architecture).
+
+The norm used during training must also match the target HF architecture:
+"layernorm" (or "te_layernorm") for --architecture neox, and "rmsnorm" (or "te_rmsnorm")
+for --architecture llama / mistral.
 """
 
 
@@ -213,6 +217,7 @@ def load_partitions(
                 filename_format.format(i=i),
             ),
             map_location=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+            weights_only=False,
         )
         for i in range(mp_partitions)
     ]
@@ -292,7 +297,9 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
             self.model_parallel_size = get_key(neox_config, "model-parallel-size")
             self.vocab_file = get_key(neox_config, "vocab-file")
             self.merge_file = get_key(neox_config, "merge-file")
-            self.tokenizer_type = get_key(neox_config, "tokenizer-type")
+            self.tokenizer_type = get_key(
+                neox_config, "tokenizer-type", default="GPT2BPETokenizer"
+            )
 
             self.rank = 0
 
@@ -493,6 +500,29 @@ def convert(
     """
 
     ARCH = MODEL_KEYS[architecture]
+
+    # Each target HF architecture hardcodes one norm type (GPTNeoXForCausalLM uses LayerNorm,
+    # Llama/Mistral use RMSNorm), and the NORM_KEYS mappings above assume the matching NeoX
+    # parameter names ("weight"/"bias" for layernorm vs. "scale" for rmsnorm). Fail fast with
+    # an actionable error instead of a mid-conversion KeyError on a norm parameter.
+    # See https://github.com/EleutherAI/gpt-neox/issues/1323 for further details.
+    norm_type = get_key(loaded_config, "norm", "layernorm")
+    if architecture == "neox" and norm_type not in ("layernorm", "te_layernorm"):
+        raise ValueError(
+            f"ERROR: Provided config uses norm '{norm_type}', but Huggingface's GPT-NeoX architecture"
+            " only supports 'layernorm' / 'te_layernorm'. Models trained with other norms cannot be"
+            " exported as GPTNeoXForCausalLM. For llama-style models (rmsnorm + gated silu MLP),"
+            " try '--architecture llama' instead."
+        )
+    elif architecture in ("llama", "mistral") and norm_type not in (
+        "rmsnorm",
+        "te_rmsnorm",
+    ):
+        raise ValueError(
+            f"ERROR: Provided config uses norm '{norm_type}', but conversion to the Huggingface"
+            f" {architecture} architecture requires 'rmsnorm' / 'te_rmsnorm', the only norm"
+            " supported by these Huggingface model classes."
+        )
 
     hf_config = create_config(
         loaded_config, architecture=architecture, is_rm=is_rm, pad_token_id=pad_token_id
@@ -893,7 +923,9 @@ def main(input_args=None, overwrite_values=None):
 
     if not args.no_save_tokenizer:
         # save tokenizer to directory as well, for easy loading of model as a HF model.
-        tokenizer_type = get_key(loaded_config, "tokenizer-type")
+        tokenizer_type = get_key(
+            loaded_config, "tokenizer-type", default="GPT2BPETokenizer"
+        )
         if args.vocab_is_hf_tokenizer:
             from transformers import AutoTokenizer
 
