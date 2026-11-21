@@ -1,0 +1,117 @@
+# Copyright (c) 2025, EleutherAI
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+ARG PYTORCH_IMAGE=nvcr.io/nvidia/pytorch:24.02-py3
+FROM ${PYTORCH_IMAGE}
+ARG PYTORCH_IMAGE
+
+# The NGC base image adds https://pypi.ngc.nvidia.com as an extra package
+# index. That endpoint is no longer resolvable on some clusters, causing pip
+# installs to wait through repeated DNS retries. Ignore the inherited pip
+# configuration and use public PyPI exclusively.
+ENV PIP_CONFIG_FILE=/dev/null \
+    PIP_INDEX_URL=https://pypi.org/simple \
+    PIP_EXTRA_INDEX_URL="" \
+    DEBIAN_FRONTEND=noninteractive
+
+LABEL org.opencontainers.image.version="2.0" \
+      org.opencontainers.image.authors="contact@eleuther.ai" \
+      org.opencontainers.image.source="https://www.github.com/eleutherai/gpt-neox" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.base.name="${PYTORCH_IMAGE}"
+
+# Carry the NGC pip constraint file over to uv.
+ENV UV_DEFAULT_INDEX=https://pypi.org/simple \
+    UV_NO_CONFIG=true \
+    UV_NO_CACHE=true \
+    UV_BREAK_SYSTEM_PACKAGES=true \
+    UV_CONSTRAINT=${PIP_CONSTRAINT:-}
+
+COPY --from=ghcr.io/astral-sh/uv:0.13.9 /uv /usr/local/bin/uv
+
+#### System package (uses default Python 3 version in Ubuntu 20.04)
+RUN apt-get update -y && \
+    apt-get install -y \
+    sudo pdsh \
+    htop tmux zstd software-properties-common \
+    nfs-common pdsh cmake htop iftop iotop ssh libaio-dev \
+    iputils-ping net-tools libcupti-dev libmlx4-1 infiniband-diags ibutils \
+    rdmacm-utils perftest rdma-core && \
+    update-alternatives --install /usr/bin/python python /usr/bin/python3 1 && \
+    uv pip install --system gpustat
+
+### SSH
+RUN mkdir /var/run/sshd && \
+    # Prevent user being kicked off after login
+    sed -i 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' /etc/pam.d/sshd && \
+    echo 'AuthorizedKeysFile     .ssh/authorized_keys' >> /etc/ssh/sshd_config && \
+    echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config && \
+    # FIX SUDO BUG: https://github.com/sudo-project/sudo/issues/42
+    echo "Set disable_coredump false" >> /etc/sudo.conf
+
+# Expose SSH port
+EXPOSE 22
+
+# Needs to be in docker PATH if compiling other items & bashrc PATH (later)
+ENV PATH=/usr/local/mpi/bin:${PATH} \
+    LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:${LD_LIBRARY_PATH}
+
+# Create a wrapper for OpenMPI to allow running as root by default
+RUN mv /usr/local/mpi/bin/mpirun /usr/local/mpi/bin/mpirun.real && \
+    echo '#!/bin/bash' > /usr/local/mpi/bin/mpirun && \
+    echo 'mpirun.real --allow-run-as-root --prefix /usr/local/mpi "$@"' >> /usr/local/mpi/bin/mpirun && \
+    chmod a+x /usr/local/mpi/bin/mpirun && \
+    # Create and configure the user account
+    useradd --create-home --uid 1000 --shell /bin/bash mchorse && \
+    usermod -aG sudo mchorse && \
+    echo "mchorse ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
+    # Set up SSH and the login shell
+    mkdir -p /home/mchorse/.ssh /job && \
+    echo 'Host *' > /home/mchorse/.ssh/config && \
+    echo '    StrictHostKeyChecking no' >> /home/mchorse/.ssh/config && \
+    echo 'export PDSH_RCMD_TYPE=ssh' >> /home/mchorse/.bashrc && \
+    echo 'export PATH=/home/mchorse/.local/bin:$PATH' >> /home/mchorse/.bashrc && \
+    echo 'export PATH=/usr/local/mpi/bin:$PATH' >> /home/mchorse/.bashrc && \
+    echo 'export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:$LD_LIBRARY_PATH' >> /home/mchorse/.bashrc
+
+#### Python packages
+COPY requirements/* ./
+# cuDF in NGC 24.02 requires protobuf <5.
+RUN uv pip install --system -r requirements.txt && \
+    uv pip install --system -r requirements-onebitadam.txt && \
+    uv pip install --system wandb==0.16.6 protobuf==4.25.8 && \
+    python -c "import google.protobuf, wandb; from wandb.proto.wandb_telemetry_pb2 import Imports; print(f'wandb={wandb.__version__} protobuf={google.protobuf.__version__}')"
+
+# The base image carries these three known packaging diagnostics.
+RUN if ! python -m pip check > /tmp/neox-pip-check.log 2>&1; then \
+        cat /tmp/neox-pip-check.log && \
+        awk '/^pygobject 3\.42\.1 requires pycairo, which is not installed\.$/ { next } \
+             /^cmake 3\.28\.1 is not supported on this platform$/ { next } \
+             /^ninja 1\.11\.1\.1 is not supported on this platform$/ { next } \
+             { unexpected = 1 } END { exit (NR == 0 || unexpected) }' /tmp/neox-pip-check.log; \
+    fi && rm /tmp/neox-pip-check.log
+
+COPY megatron/fused_kernels/ /megatron/fused_kernels
+WORKDIR /megatron/fused_kernels
+ARG BUILD_FUSED_KERNELS=true
+RUN case "$BUILD_FUSED_KERNELS" in \
+        true) uv pip install --system --no-build-isolation . ;; \
+        false) ;; \
+        *) echo "BUILD_FUSED_KERNELS must be true or false" >&2; exit 1 ;; \
+    esac && \
+    mkdir -p /tmp && chmod 0777 /tmp
+
+#### SWITCH TO mchorse USER
+USER mchorse
+WORKDIR /home/mchorse

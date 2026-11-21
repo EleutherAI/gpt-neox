@@ -1,0 +1,108 @@
+Bootstrap: docker
+From: ghcr.io/astral-sh/uv:0.13.9
+Stage: uv
+
+Bootstrap: docker
+From: {{ PYTORCH_IMAGE }}
+Stage: gpt-neox
+
+%arguments
+    PYTORCH_IMAGE=nvcr.io/nvidia/pytorch:24.02-py3
+    BUILD_FUSED_KERNELS=true
+
+%files from uv
+    /uv /usr/local/bin/uv
+
+%files
+    requirements/*.txt /requirements/
+    megatron/fused_kernels /megatron/fused_kernels
+
+%labels
+    org.opencontainers.image.version "2.0"
+    org.opencontainers.image.authors "contact@eleuther.ai"
+    org.opencontainers.image.source "https://www.github.com/eleutherai/gpt-neox"
+    org.opencontainers.image.licenses "Apache-2.0"
+    org.opencontainers.image.base.name "{{ PYTORCH_IMAGE }}"
+
+%environment
+    export DEBIAN_FRONTEND=noninteractive
+    export PIP_CONFIG_FILE=/dev/null
+    export PIP_INDEX_URL=https://pypi.org/simple
+    export PIP_EXTRA_INDEX_URL=""
+    export PATH=/usr/local/mpi/bin:${PATH}
+    export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:${LD_LIBRARY_PATH}
+    export PDSH_RCMD_TYPE=ssh
+
+%post
+    export DEBIAN_FRONTEND=noninteractive
+
+    # The NGC base image adds https://pypi.ngc.nvidia.com as an extra package
+    # index. That endpoint is no longer resolvable on some clusters, causing pip
+    # installs to wait through repeated DNS retries. Ignore the inherited pip
+    # configuration and use public PyPI exclusively.
+    export PIP_CONFIG_FILE=/dev/null
+    export PIP_INDEX_URL=https://pypi.org/simple
+    export PIP_EXTRA_INDEX_URL=""
+
+    # Carry the NGC pip constraint file over to uv.
+    export UV_DEFAULT_INDEX=https://pypi.org/simple
+    export UV_NO_CONFIG=true
+    export UV_NO_CACHE=true
+    export UV_BREAK_SYSTEM_PACKAGES=true
+    export UV_CONSTRAINT="${PIP_CONSTRAINT:-}"
+
+    # System packages
+    apt-get update -y
+    apt-get install -y sudo pdsh htop tmux zstd software-properties-common \
+        nfs-common pdsh cmake htop iftop iotop ssh iputils-ping net-tools libcupti-dev \
+        libmlx4-1 infiniband-diags ibutils rdmacm-utils perftest rdma-core
+    update-alternatives --install /usr/bin/python python /usr/bin/python3 1
+    uv pip install --system gpustat
+
+    # SSH setup
+    mkdir /var/run/sshd
+    sed -i 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' /etc/pam.d/sshd
+    echo 'AuthorizedKeysFile     .ssh/authorized_keys' >> /etc/ssh/sshd_config
+    echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config
+    echo "Set disable_coredump false" >> /etc/sudo.conf
+
+    # OpenMPI wrapper
+    mv /usr/local/mpi/bin/mpirun /usr/local/mpi/bin/mpirun.real
+    echo '#!/bin/bash' > /usr/local/mpi/bin/mpirun
+    echo 'mpirun.real --allow-run-as-root --prefix /usr/local/mpi "$@"' >> /usr/local/mpi/bin/mpirun
+    chmod a+x /usr/local/mpi/bin/mpirun
+
+    # User account
+    useradd --create-home --uid 1000 --shell /bin/bash mchorse
+    usermod -aG sudo mchorse
+    echo "mchorse ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+    # SSH config and bashrc
+    mkdir -p /home/mchorse/.ssh /job
+    echo 'Host *' > /home/mchorse/.ssh/config
+    echo '    StrictHostKeyChecking no' >> /home/mchorse/.ssh/config
+    echo 'export PDSH_RCMD_TYPE=ssh' >> /home/mchorse/.bashrc
+    echo 'export PATH=/home/mchorse/.local/bin:$PATH' >> /home/mchorse/.bashrc
+    echo 'export PATH=/usr/local/mpi/bin:$PATH' >> /home/mchorse/.bashrc
+    echo 'export LD_LIBRARY_PATH=/usr/local/lib:/usr/local/mpi/lib:/usr/local/mpi/lib64:$LD_LIBRARY_PATH' >> /home/mchorse/.bashrc
+
+    # Python packages
+    uv pip install --system -r /requirements/requirements.txt
+    uv pip install --system -r /requirements/requirements-onebitadam.txt
+    # cuDF in NGC 24.02 requires protobuf <5.
+    uv pip install --system wandb==0.16.6 protobuf==4.25.8
+
+    case '{{ BUILD_FUSED_KERNELS }}' in
+        true)
+            uv pip install --system --no-build-isolation /megatron/fused_kernels
+            ;;
+        false) ;;
+        *) echo "BUILD_FUSED_KERNELS must be true or false" >&2; exit 1 ;;
+    esac
+
+    # Clear staging
+    mkdir -p /tmp && chmod 0777 /tmp
+
+%runscript
+    cd /home/mchorse
+    exec /bin/bash "$@"

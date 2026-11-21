@@ -1,6 +1,9 @@
 Bootstrap: docker
 From: nvcr.io/nvidia/pytorch:24.02-py3
 
+%arguments
+    BUILD_FUSED_KERNELS=true
+
 %labels
     org.opencontainers.image.version "2.0"
     org.opencontainers.image.authors "contact@eleuther.ai"
@@ -72,11 +75,15 @@ From: nvcr.io/nvidia/pytorch:24.02-py3
     # cuDF in NGC 24.02 requires protobuf <5.
     python -m pip install wandb==0.16.6 protobuf==4.25.8
 
-    # Megatron fused kernels
-    # You'll need to copy the fused_kernels directory
-    mkdir -p /megatron/fused_kernels
-    cd /megatron/fused_kernels
-    python setup.py install
+    # Supply the fused kernel sources when compilation is enabled.
+    case '{{ BUILD_FUSED_KERNELS }}' in
+        true)
+            cd /megatron/fused_kernels
+            python setup.py install
+            ;;
+        false) ;;
+        *) echo "BUILD_FUSED_KERNELS must be true or false" >&2; exit 1 ;;
+    esac
 
     # Clear staging
     mkdir -p /tmp && chmod 0777 /tmp

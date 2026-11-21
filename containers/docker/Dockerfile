@@ -23,12 +23,11 @@ ENV PIP_CONFIG_FILE=/dev/null \
     PIP_EXTRA_INDEX_URL="" \
     DEBIAN_FRONTEND=noninteractive
 
-# metainformation
-LABEL org.opencontainers.image.version = "2.0"
-LABEL org.opencontainers.image.authors = "contact@eleuther.ai"
-LABEL org.opencontainers.image.source = "https://www.github.com/eleutherai/gpt-neox"
-LABEL org.opencontainers.image.licenses = " Apache-2.0"
-LABEL org.opencontainers.image.base.name="nvcr.io/nvidia/pytorch:24.02-py3"
+LABEL org.opencontainers.image.version="2.0" \
+      org.opencontainers.image.authors="contact@eleuther.ai" \
+      org.opencontainers.image.source="https://www.github.com/eleutherai/gpt-neox" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.base.name="nvcr.io/nvidia/pytorch:24.02-py3"
 
 #### System package (uses default Python 3 version in Ubuntu 20.04)
 RUN apt-get update -y && \
@@ -63,15 +62,13 @@ ENV PATH=/usr/local/mpi/bin:${PATH} \
 RUN mv /usr/local/mpi/bin/mpirun /usr/local/mpi/bin/mpirun.real && \
     echo '#!/bin/bash' > /usr/local/mpi/bin/mpirun && \
     echo 'mpirun.real --allow-run-as-root --prefix /usr/local/mpi "$@"' >> /usr/local/mpi/bin/mpirun && \
-    chmod a+x /usr/local/mpi/bin/mpirun
-
-#### User account
-RUN useradd --create-home --uid 1000 --shell /bin/bash mchorse && \
+    chmod a+x /usr/local/mpi/bin/mpirun && \
+    # Create and configure the user account
+    useradd --create-home --uid 1000 --shell /bin/bash mchorse && \
     usermod -aG sudo mchorse && \
-    echo "mchorse ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-
-## SSH config and bashrc
-RUN mkdir -p /home/mchorse/.ssh /job && \
+    echo "mchorse ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
+    # Set up SSH and the login shell
+    mkdir -p /home/mchorse/.ssh /job && \
     echo 'Host *' > /home/mchorse/.ssh/config && \
     echo '    StrictHostKeyChecking no' >> /home/mchorse/.ssh/config && \
     echo 'export PDSH_RCMD_TYPE=ssh' >> /home/mchorse/.bashrc && \
@@ -81,9 +78,10 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
 
 #### Python packages
 COPY requirements/* ./
-RUN python -m pip install --no-cache-dir -r requirements.txt && pip install -r requirements-onebitadam.txt
 # cuDF in NGC 24.02 requires protobuf <5.
-RUN python -m pip install --no-cache-dir wandb==0.16.6 protobuf==4.25.8 && \
+RUN python -m pip install --no-cache-dir -r requirements.txt && \
+    pip install -r requirements-onebitadam.txt && \
+    python -m pip install --no-cache-dir wandb==0.16.6 protobuf==4.25.8 && \
     python -c "import google.protobuf, wandb; from wandb.proto.wandb_telemetry_pb2 import Imports; print(f'wandb={wandb.__version__} protobuf={google.protobuf.__version__}')"
 
 # The base image carries these three known packaging diagnostics.
@@ -97,10 +95,13 @@ RUN if ! python -m pip check > /tmp/neox-pip-check.log 2>&1; then \
 
 COPY megatron/fused_kernels/ /megatron/fused_kernels
 WORKDIR /megatron/fused_kernels
-RUN python setup.py install
-
-# Clear staging
-RUN mkdir -p /tmp && chmod 0777 /tmp
+ARG BUILD_FUSED_KERNELS=true
+RUN case "$BUILD_FUSED_KERNELS" in \
+        true) python setup.py install ;; \
+        false) ;; \
+        *) echo "BUILD_FUSED_KERNELS must be true or false" >&2; exit 1 ;; \
+    esac && \
+    mkdir -p /tmp && chmod 0777 /tmp
 
 #### SWITCH TO mchorse USER
 USER mchorse
