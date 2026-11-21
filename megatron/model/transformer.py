@@ -32,6 +32,7 @@ from importlib.metadata import version
 from .norms import get_norm
 from megatron import mpu
 from megatron.model.fused_softmax import FusedScaleMaskSoftmax
+from megatron.model.parameterization import output_multiplier, residual_multiplier
 from megatron.model.activations import get_activation
 from megatron.model.utils import (
     exists,
@@ -353,14 +354,13 @@ class ParallelLinear(nn.Module):
         neox_args,
         parallel_output=True,
         init_method=nn.init.xavier_normal_,
-        is_last_layer=False,
     ):
         super().__init__()
 
         ColumnParallelLinear, RowParallelLinear = get_parallel_linear(neox_args)
 
         self.is_rm = neox_args.train_impl == "rm"
-        self.mup_output_temp = neox_args.mup_output_temp if neox_args.use_mup else 1.0
+        self.output_multiplier = output_multiplier(neox_args)
         parallelism = neox_args.output_layer_parallelism if not self.is_rm else "row"
         if parallelism == "column":
             self.final_linear = ColumnParallelLinear(
@@ -371,7 +371,6 @@ class ParallelLinear(nn.Module):
                 init_method=init_method,
                 gather_output=not parallel_output,
                 skip_bias_add=False,
-                mup_rescale_parameters=is_last_layer,  # rescale params only called if neox_args.use_mup = True, despite it not being included here
                 seq_dim=1,  # important: must mark that this layer receives shape [b, s, h] not [s, b, h] and so Seq. Parallel comms must gather along dim=1 rather than dim=0
             )
         else:
@@ -389,7 +388,6 @@ class ParallelLinear(nn.Module):
                 #     init_method=init_method,
                 #     parallel_output=parallel_output,
                 #     skip_bias_add=False,
-                #     mup_rescale_parameters=is_last_layer,  # only called if neox_args.use_mup = True, despite it not being included here
                 # )
             else:  # Not using cross entropy loss for RMs
                 self.rm_linear = RowParallelLinear(
@@ -401,13 +399,12 @@ class ParallelLinear(nn.Module):
                     init_method=init_method,
                     parallel_output=False,
                     skip_bias_add=False,
-                    mup_rescale_parameters=is_last_layer,  # only called if neox_args.use_mup = True, despite it not being included here
                 )
 
     def forward(self, hidden_states):
+        if self.output_multiplier != 1.0:
+            hidden_states = hidden_states * self.output_multiplier
         if not self.is_rm:
-            if self.mup_output_temp != 1.0:
-                hidden_states = hidden_states / self.mup_output_temp
             return self.final_linear(hidden_states)
         else:
             return self.rm_linear(hidden_states)
@@ -417,7 +414,7 @@ def _get_attention_scaling(
     hidden_size_per_attention_head,
     layer_number,
     apply_query_key_layer_scaling,
-    use_mup,
+    mup,
     mup_attn_temp,
 ):
     coeff = None
@@ -427,7 +424,7 @@ def _get_attention_scaling(
         coeff = max(1, layer_number)
         norm_factor *= coeff
 
-    if use_mup:
+    if mup:
         # μP uses 1 / head_dim attention scaling.
         norm_factor = hidden_size_per_attention_head
         if coeff is not None:
@@ -469,7 +466,7 @@ class ParallelSelfAttention(nn.Module):
         self.attention_softmax_in_fp32 = neox_args.attention_softmax_in_fp32
         if self.apply_query_key_layer_scaling:
             self.attention_softmax_in_fp32 = True
-        if neox_args.use_mup and neox_args.mup_attn_temp != 1.0:
+        if neox_args.parameterization != "sp" and neox_args.mup_attn_temp != 1.0:
             # FusedScaleMaskSoftmax requires fp32 softmax when a scale is set.
             self.attention_softmax_in_fp32 = True
         self.layer_number = layer_number
@@ -581,7 +578,7 @@ class ParallelSelfAttention(nn.Module):
             hidden_size_per_attention_head=self.hidden_size_per_attention_head,
             layer_number=self.layer_number,
             apply_query_key_layer_scaling=self.apply_query_key_layer_scaling,
-            use_mup=neox_args.use_mup,
+            mup=neox_args.parameterization != "sp",
             mup_attn_temp=neox_args.mup_attn_temp,
         )
 
@@ -719,7 +716,7 @@ class ParallelSelfAttention(nn.Module):
             output_size[2],
             output_size[3],
             dtype=query_layer.dtype,
-            device=torch.cuda.current_device(),
+            device=query_layer.device,
         )
 
         # Raw attention scores. [b * np, sq, sk]
@@ -1252,6 +1249,12 @@ class ParallelSelfAttention(nn.Module):
         return output, bias
 
 
+def _scale_branch(output, bias, multiplier):
+    if multiplier == 1.0:
+        return output, bias
+    return output * multiplier, None if bias is None else bias * multiplier
+
+
 class ParallelTransformerLayer(nn.Module):
     """A single transformer layer.
 
@@ -1285,6 +1288,7 @@ class ParallelTransformerLayer(nn.Module):
         self.bias_dropout_fusion = neox_args.bias_dropout_fusion
         self.gpt_j_residual = neox_args.gpt_j_residual
         self.gpt_j_tied = neox_args.gpt_j_tied
+        self.residual_multiplier = residual_multiplier(neox_args)
         self.activation = neox_args.activation
         self.num_experts = (
             neox_args.moe_num_experts
@@ -1450,6 +1454,9 @@ class ParallelTransformerLayer(nn.Module):
                 if self.use_cache:
                     attention_output, presents = attention_output
                     self.layer_past = presents
+                attention_output, attention_bias = _scale_branch(
+                    attention_output, attention_bias, self.residual_multiplier
+                )
 
                 if attention_bias is not None:
                     with torch.enable_grad() if not self.eval else nullcontext():
@@ -1462,6 +1469,9 @@ class ParallelTransformerLayer(nn.Module):
 
                 # mlp operator
                 mlp_output, mlp_bias = self.mlp(x2)
+                mlp_output, mlp_bias = _scale_branch(
+                    mlp_output, mlp_bias, self.residual_multiplier
+                )
                 if mlp_bias is not None:
                     with torch.enable_grad() if not self.eval else nullcontext():
                         output = bias_dropout_fn(
@@ -1495,6 +1505,9 @@ class ParallelTransformerLayer(nn.Module):
                 if self.use_cache:
                     attention_output, presents = attention_output
                     self.layer_past = presents
+                attention_output, attention_bias = _scale_branch(
+                    attention_output, attention_bias, self.residual_multiplier
+                )
                 with torch.enable_grad() if not self.eval else nullcontext():
                     if attention_bias is not None:
                         # Use special bias_dropout_fn if we have a bias term from the above attention layer
@@ -1526,6 +1539,9 @@ class ParallelTransformerLayer(nn.Module):
 
                 # call signatures of both dense and MoE are the same
                 mlp_output, mlp_bias = self.mlp(layernorm_output)
+                mlp_output, mlp_bias = _scale_branch(
+                    mlp_output, mlp_bias, self.residual_multiplier
+                )
 
                 with torch.enable_grad() if not self.eval else nullcontext():
                     if mlp_bias == None or (self.num_experts > 1):

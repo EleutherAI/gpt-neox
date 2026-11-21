@@ -1807,68 +1807,72 @@ Training Arguments
 
     Whether to calculate character level perplexity as well as token level perplexity. (may incur a time cost)
 
-- **use_mup**: bool
+- **parameterization**: typing.Literal['sp', 'mup', 'completep']
+
+    Default = sp
+
+    How initialization, forward multipliers, and per-layer learning rates scale with model size.
+    "sp" is the standard parameterization. "mup" scales with width relative to mup_base_hidden_size.
+    "completep" also scales with depth relative to mup_base_num_layers (https://arxiv.org/abs/2505.01618).
+
+- **mup_base_hidden_size**: int
+
+    Default = None
+
+    Hidden size of the base model whose hyperparameters transfer. Required for mup and completep.
+
+- **mup_base_num_layers**: int
+
+    Default = None
+
+    Number of layers of the base model whose hyperparameters transfer. Required for completep.
+
+- **completep_alpha**: float
+
+    Default = 1.0
+
+    Depth exponent for completep, between 0.5 and 1. Residual branches are multiplied by
+    (num_layers / mup_base_num_layers) ** -completep_alpha. 1.0 is CompleteP and 0.5 is depth-muP.
+
+- **mup_independent_weight_decay**: bool
 
     Default = False
 
-    Whether to use Microsoft's Mup https://github.com/microsoft/mup
+    Multiply the weight decay of hidden weight matrices by the width multiplier, so the product of
+    learning rate and weight decay stays constant across width.
 
 - **coord_check**: bool
 
     Default = False
 
-    Whether to generate a "coord check" plot to verify mup's implementation in neox
-
-- **save_base_shapes**: bool
-
-    Default = False
-
-    Whether to save base shapes for mup. This will save the shapes to the path specified in base-shapes-file.
-
-- **base_shapes_file**: str
-
-    Default = None
-
-    Path to the base shapes to save to/load from
-
-- **mup_init_scale**: float
-
-    Default = 1.0
-
-    Initialization scale: All the parameters are multiplied by this value
+    Train models of several widths for a few steps, save the mean absolute activation of each layer
+    to coord_check.<rank>.csv, and exit. Used to check that activations stay the same size across width.
 
 - **mup_attn_temp**: float
 
     Default = 1.0
 
-    μP attention temperature. Used when use_mup is enabled. Attention scores are
-    scaled by 1 / (head_dim * mup_attn_temp) before softmax. Must be greater than
-    zero. Global attention is currently the only supported attention backend.
+    Attention temperature for mup and completep. Attention scores are scaled by
+    1 / (head_dim * mup_attn_temp) before softmax. Must be greater than zero.
 
 - **mup_output_temp**: float
 
     Default = 1.0
 
-    μP output temperature. Used when use_mup is enabled. Language-model logits
-    are divided by this value. Must be greater than zero.
+    Output temperature for mup and completep. Logits are divided by mup_output_temp times the
+    width multiplier. Must be greater than zero.
 
 - **mup_embedding_mult**: float
 
     Default = 1.0
 
-    Scalar by which we multiply the output of the embedding layer
+    Multiplier on the embedding output for mup and completep.
 
 - **mup_rp_embedding_mult**: float
 
     Default = 1.0
 
-    Scalar by which we multiply vectors representing relative position
-
-- **mup_width_scale**: int
-
-    Default = 2
-
-    What to scale width by when creating the delta model for mup
+    Multiplier on learned position embeddings.
 
 ## NeoXArgsDeepspeedConfig
 
