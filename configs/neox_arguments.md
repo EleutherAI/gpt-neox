@@ -114,6 +114,12 @@ Logging Arguments
 
     Directory to save logs to.
 
+- **quiet**: bool
+
+    Default = False
+
+    Skip the argument printout at launch and only show DeepSpeed warnings and errors.
+
 - **tensorboard_dir**: str
 
     Default = None

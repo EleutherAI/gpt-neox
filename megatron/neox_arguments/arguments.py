@@ -33,6 +33,7 @@ try:
 except ImportError:
     from typing_extensions import Literal, Union
 from deepspeed.launcher.runner import DLTS_HOSTFILE
+from deepspeed.utils import logger as ds_logger
 from megatron.logging import Tee
 from megatron.tokenizer import build_tokenizer
 from megatron.utils import obtain_resource_pool, expand_attention_types
@@ -603,7 +604,8 @@ class NeoXArgs(*BASE_CLASSES):
 
             neox_args.wandb_group += "_" + wandb.util.generate_id()
 
-        neox_args.print()
+        if not neox_args.quiet:
+            neox_args.print()
 
         return neox_args
 
@@ -898,6 +900,8 @@ class NeoXArgs(*BASE_CLASSES):
         """
         enable Tee logs based on the configured logdir
         """
+        if self.quiet:
+            ds_logger.setLevel(logging.WARNING)
         if self.log_dir:
             os.makedirs(self.log_dir, exist_ok=True)
             hostname = gethostname()
