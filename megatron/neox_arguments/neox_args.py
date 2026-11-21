@@ -815,6 +815,11 @@ class NeoXArgsLogging(NeoXArgsTemplate):
     Directory to save logs to.
     """
 
+    quiet: bool = False
+    """
+    Skip the argument printout at launch and only show DeepSpeed warnings and errors.
+    """
+
     ### BEGIN TENSORBOARD ARGS ###
     tensorboard_writer = None
     """
