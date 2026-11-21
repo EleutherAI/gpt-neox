@@ -161,6 +161,20 @@ Using Slurm can be slightly more involved. Like with MPI, you must add the follo
 ```
 If you do not have ssh access to the compute nodes in your Slurm cluster you need to add `{"no_ssh_check": true}`
 
+##### Torchrun Based Slurm Launching
+
+If you prefer `torchrun` over DeepSpeed's multinode launcher, use `deepy_torchrun.py`. It keeps the same command-line interface as `deepy.py`, parses the same YAML config files, and forwards the args directly to `train.py`.
+
+This launcher currently assumes a Slurm allocation. It expects `MASTER_ADDR` and `MASTER_PORT` to be exported ahead of time, and it derives `--nnodes`, `--nproc-per-node`, and `--node-rank` from `SLURM_JOB_NUM_NODES`, `SLURM_GPUS_ON_NODE`, and `SLURM_NODEID`. NeoX derives the batch size from the GPU count in the hostfile, so multi-node jobs also need `DLTS_HOSTFILE` set.
+
+Launch one `deepy_torchrun.py` process per node, for example with `srun --ntasks-per-node=1`:
+
+```bash
+srun --ntasks-per-node=1 python3 deepy_torchrun.py train.py /path/to/configs/my_model.yml
+```
+
+See `examples/slurm_torchrun/slurm_torchrun_usage.sh` for a complete Slurm-based example.
+
 #### (Advanced) Custom Launching
 
 There are many cases where the above default launching options are not sufficient

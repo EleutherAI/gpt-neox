@@ -683,6 +683,14 @@ Model Arguments
     The soft_clip experiments in https://arxiv.org/abs/2410.16682 use -0.03.
     This argument is only used when ``attn_softmax_clipping`` is true.
 
+- **attn_logit_softcapping**: float
+
+    Default = None
+
+    If set, cap attention logits before softmax with
+    ``cap * tanh(logits / cap)``. The value must be positive. The soft_cap
+    experiments in https://arxiv.org/abs/2410.16682 use a value of 50.0.
+
 - **rotary_pct**: float
 
     Default = 1.0
@@ -1700,6 +1708,14 @@ Training Arguments
     Default = 1000
 
     Interval between running evaluation on validation set.
+
+- **extra_eval_iters**: list
+
+    Default = None
+
+    Additional iterations when evaluation should run on the validation set.
+    Include iteration 0 to evaluate before training starts.
+    Must be a list of ints or `None`.
 
 - **split**: str
 
