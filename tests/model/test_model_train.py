@@ -41,7 +41,7 @@ PARAMS_TO_TEST = {
     ],
     "hidden_dropout": [0, 0.1],
     "weight_decay": [0, 0.1],
-    "use_bias_in_attn_linear": [True, False],
+    "use_bias_in_attn_linear": ["all", "none", "qkv"],
     "use_bias_in_norms": [True, False],
     "precision": ["fp16", "fp32", "bfloat16"],
 }

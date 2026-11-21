@@ -1239,6 +1239,17 @@ class NeoXArgs(*BASE_CLASSES):
                     "Use moe_router_type 'sinkhorn' for training."
                 )
 
+        # use_bias_in_attn_linear used to be a boolean; keep accepting true/false
+        if isinstance(self.use_bias_in_attn_linear, bool):
+            self.update_value(
+                "use_bias_in_attn_linear",
+                "all" if self.use_bias_in_attn_linear else "none",
+            )
+        elif isinstance(self.use_bias_in_attn_linear, str):
+            self.update_value(
+                "use_bias_in_attn_linear", self.use_bias_in_attn_linear.lower()
+            )
+
         # Attention config
         if self.attention_config is None:
             self.update_value("attention_config", [[["global"], self.num_layers]])
@@ -1527,6 +1538,13 @@ class NeoXArgs(*BASE_CLASSES):
             logging.error(error_message)
             raise ValueError(error_message)
             return False
+
+        if self.use_bias_in_attn_linear == "qkv" and (self.te_mha or self.te_fp8_mha):
+            raise ValueError(
+                "`use_bias_in_attn_linear='qkv'` is not supported with `te_mha`/"
+                "`te_fp8_mha`: Transformer Engine attention always uses a bias on "
+                "both the Q/K/V and output projections."
+            )
 
         _validate_qk_norm_args(
             use_qk_norm=self.use_qk_norm,
