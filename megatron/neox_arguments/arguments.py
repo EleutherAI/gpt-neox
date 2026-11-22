@@ -1697,6 +1697,16 @@ class NeoXArgs(*BASE_CLASSES):
                     "explicit validation dataset paths."
                 )
 
+        if (
+            self.activation == "gelu"
+            and self.bias_gelu_fusion
+            and not self.use_bias_in_mlp
+        ):
+            raise ValueError(
+                "bias_gelu_fusion=True requires use_bias_in_mlp=True for GELU. "
+                "Set bias_gelu_fusion=False to use GELU without an MLP bias."
+            )
+
         norms = {self.norm}
         if self.use_qk_norm:
             norms.add(self.qk_norm or self.norm)
