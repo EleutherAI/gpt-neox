@@ -386,7 +386,7 @@ class TERowParallelLinear(te.pytorch.Linear):
             tp_group=self.tp_group,
             tp_size=self.world_size,
             parallel_mode=self.parallel_mode,
-            return_bias=self.skip_bias_add,
+            return_bias=self.skip_bias_add and self.use_bias,
             params_dtype=self.params_dtype,
         )
 
@@ -394,10 +394,9 @@ class TERowParallelLinear(te.pytorch.Linear):
     def forward(self, inp, **kwargs):
         output = super(TERowParallelLinear, self).forward(inp, **kwargs)
 
-        if self.skip_bias_add:
+        if self.return_bias:
             return output
-        else:
-            return output, None
+        return output, None
 
 
 class TEMultiheadAttention(te.pytorch.MultiheadAttention):
@@ -455,7 +454,7 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
 
         # TE uses one bias flag for both the Q/K/V and output projections, so
         # NeoXArgs rejects "qkv" here and only "all" and "none" reach this point.
-        self.use_bias = neox_args.use_bias_in_attn_linear == "all"
+        use_bias = neox_args.use_bias_in_attn_linear == "all"
 
         super(TEMultiheadAttention, self).__init__(
             hidden_size=neox_args.hidden_size,
@@ -473,7 +472,7 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
             num_gqa_groups=self.num_kv_heads,
             input_layernorm=False,
             normalization=self.normalization,
-            bias=self.use_bias,
+            bias=use_bias,
             device=torch.cuda.current_device(),
             get_rng_state_tracker=get_cuda_rng_tracker,
             set_parallel_mode=self.set_parallel_mode,
@@ -481,7 +480,7 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
             tp_group=self.tp_group,
             tp_size=self.world_size,
             params_dtype=self.params_dtype,
-            return_bias=True,
+            return_bias=use_bias,
             qkv_format="sbhd",
             fuse_qkv_params=True,
         )
@@ -526,7 +525,7 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
         **kwargs,
     ):
         if cu_seqlens is None:
-            output, bias = super(TEMultiheadAttention, self).forward(
+            result = super(TEMultiheadAttention, self).forward(
                 hidden_states, attention_mask, rotary_pos_emb=self.rope_emb, **kwargs
             )
         else:
@@ -534,7 +533,7 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
             max_seqlen = int(max_seqlen.item())
             self.qkv_format = "thd"
             try:
-                output, bias = super(TEMultiheadAttention, self).forward(
+                result = super(TEMultiheadAttention, self).forward(
                     hidden_states,
                     None,
                     rotary_pos_emb=self.rope_emb,
@@ -547,13 +546,11 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
                 )
             finally:
                 self.qkv_format = "sbhd"
+
+        output, bias = result if self.return_bias else (result, None)
+        if cu_seqlens is not None:
             # THD output is [T, H]; restore the singleton batch dimension.
             output = output.unsqueeze(1)
-
-        # With bias=False, TE still returns a bias, but as an empty tensor that
-        # the caller's bias.expand_as(output) would fail on, so return None.
-        if not self.use_bias:
-            bias = None
         return output, bias
 
 

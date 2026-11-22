@@ -1473,6 +1473,10 @@ class ParallelTransformerLayer(nn.Module):
                             residual=None,
                             prob=self.hidden_dropout,
                         )
+                else:
+                    attention_output = F.dropout(
+                        attention_output, p=self.hidden_dropout, training=self.training
+                    )
 
                 # mlp operator
                 mlp_output, mlp_bias = self.mlp(x2)

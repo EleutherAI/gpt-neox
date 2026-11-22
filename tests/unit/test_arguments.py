@@ -12,8 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
+
 from megatron.neox_arguments import NeoXArgs
 from tests.common import BASE_CONFIG, DistributedTest
+
+
+@pytest.mark.cpu
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"use_bias_in_attn_linear": None},
+        {"use_bias_in_attn_linear": "qkv", "te_mha": True},
+        {"use_bias_in_attn_linear": "qkv", "te_fp8_mha": True},
+    ],
+)
+def test_invalid_attention_bias(overrides):
+    with pytest.raises(ValueError, match="use_bias_in_attn_linear"):
+        NeoXArgs.from_ymls(
+            ["tests/config/test_setup.yml"],
+            overwrite_values={"global_num_gpus": 1, **overrides},
+        )
 
 
 def test_main_constructor():

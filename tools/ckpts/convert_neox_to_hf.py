@@ -36,6 +36,7 @@ sys.path.append(
         os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir)
     )
 )
+from megatron.neox_arguments.neox_args import normalize_attention_bias
 from megatron.tokenizer import build_tokenizer
 
 
@@ -263,15 +264,15 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
     Returns: GPTNeoXConfig() object
     """
 
-    # use_bias_in_attn_linear is "all", "none" or "qkv"; older configs use true/false.
-    use_bias_in_attn_linear = get_key(neox_config, "use_bias_in_attn_linear", "all")
-    if isinstance(use_bias_in_attn_linear, bool):
-        use_bias_in_attn_linear = "all" if use_bias_in_attn_linear else "none"
-    use_bias_in_attn_linear = str(use_bias_in_attn_linear).lower()
-
-    # The HF GPT-NeoX, Llama and Mistral classes use one setting for the Q/K/V and
-    # output-projection biases, so they cannot represent a Q/K/V-only bias.
-    if use_bias_in_attn_linear == "qkv":
+    bias_mode = normalize_attention_bias(
+        get_key(neox_config, "use_bias_in_attn_linear", "all")
+    )
+    if architecture == "mistral" and bias_mode != "none":
+        raise NotImplementedError(
+            f"use_bias_in_attn_linear={bias_mode!r} cannot be exported to Mistral: "
+            "its Hugging Face attention projections have no biases."
+        )
+    if bias_mode == "qkv":
         raise NotImplementedError(
             "use_bias_in_attn_linear='qkv' is not supported by the "
             f"'{architecture}' export: its HF model class uses the same bias "
@@ -369,15 +370,7 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
             )
             hf_config = MistralConfig(**args)
         elif architecture == "llama":
-            # llama-specific options
-            args.update(
-                {
-                    # NeoX library defaults to using bias in attention
-                    "attention_bias": use_bias_in_attn_linear
-                    == "all",
-                }
-            )
-            hf_config = LlamaConfig(**args)
+            hf_config = LlamaConfig(attention_bias=bias_mode == "all", **args)
     else:
         # GPT-NeoX HF model class-specific options
         args.update(
@@ -395,7 +388,7 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
                 ),
             }
         )
-        hf_config = GPTNeoXConfig(**args)
+        hf_config = GPTNeoXConfig(attention_bias=bias_mode == "all", **args)
     if is_rm:
         hf_config.num_labels = 1
         hf_config.pad_token_id = pad_token_id

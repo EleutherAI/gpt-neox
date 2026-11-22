@@ -50,6 +50,7 @@ from .neox_args import (
     NeoXArgsOptimizer,
     NeoXArgsLRScheduler,
     ATTENTION_TYPE_CHOICES,
+    normalize_attention_bias,
 )
 
 ### ANSI escape codes ###
@@ -1239,16 +1240,10 @@ class NeoXArgs(*BASE_CLASSES):
                     "Use moe_router_type 'sinkhorn' for training."
                 )
 
-        # use_bias_in_attn_linear used to be a boolean; keep accepting true/false
-        if isinstance(self.use_bias_in_attn_linear, bool):
-            self.update_value(
-                "use_bias_in_attn_linear",
-                "all" if self.use_bias_in_attn_linear else "none",
-            )
-        elif isinstance(self.use_bias_in_attn_linear, str):
-            self.update_value(
-                "use_bias_in_attn_linear", self.use_bias_in_attn_linear.lower()
-            )
+        self.update_value(
+            "use_bias_in_attn_linear",
+            normalize_attention_bias(self.use_bias_in_attn_linear),
+        )
 
         # Attention config
         if self.attention_config is None:

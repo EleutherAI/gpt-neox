@@ -41,6 +41,16 @@ ATTENTION_TYPE_CHOICES = [
 ]
 
 
+def normalize_attention_bias(value):
+    if isinstance(value, bool):
+        return "all" if value else "none"
+    if isinstance(value, str) and value.lower() in ("all", "none", "qkv"):
+        return value.lower()
+    raise ValueError(
+        f"Invalid use_bias_in_attn_linear={value!r}. Expected 'all', 'none', 'qkv', or a boolean."
+    )
+
+
 def get_git_commit_hash():
     """Gets the git commit hash of your current repo (if it exists)"""
     try:
