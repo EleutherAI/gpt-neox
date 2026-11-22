@@ -237,11 +237,10 @@ You can then kick off a training run with `sbatch my_sbatch_script.sh`
 We provide containers for [Apptainer](#apptainer) (formerly Singularity) and
 [Docker](#docker) under [containers](containers/).
 
-The [container image guide](containers/README.md) covers the Standard,
-Transformer Engine, and B200 variants. See
-[Building with uv](containers/README.md#building-with-uv) for uv recipes and
-[Skipping the GPT-NeoX fused kernel build](containers/README.md#skipping-the-gpt-neox-fused-kernel-build)
-for the kernel build flag.
+The Docker and Apptainer recipes use uv to install Python packages. The
+[container image guide](containers/README.md) covers the standard, Transformer
+Engine, and B200 images and explains how to
+[skip the fused kernel build](containers/README.md#skipping-the-gpt-neox-fused-kernel-build).
 
 #### Docker
 
@@ -316,11 +315,11 @@ docker compose --project-directory . -f containers/docker/docker-compose-dockerh
 We also support Apptainer (formerly Singularity) deployments. Some users find Apptainer useeful for systems that don't provide root-access, such as shared HPC systems at national labs and universities.
 
 Use Apptainer 1.2 or later and appropriate GPU drivers. From the repository
-root, build the uv image. The definition copies the requirements and fused
+root, build the image. The definition copies the requirements and fused
 kernel sources from the checkout.
 
 ```bash
-apptainer build gpt-neox.sif containers/apptainer/gpt-neox.uv.def
+apptainer build gpt-neox.sif containers/apptainer/gpt-neox.def
 ```
 
 You can use your new image in a few ways:
@@ -336,12 +335,6 @@ Use the --nv flag to enable NVIDIA GPU support.
 ```
 apptainer exec --nv gpt-neox.sif python your_script.py
 ```
-
-The [pip-based Apptainer definition](containers/apptainer/gpt-neox.def) expects
-the requirements files under `/requirements` and the fused kernel sources under
-`/megatron/fused_kernels` when kernel compilation is enabled. The
-[container guide](containers/README.md#skipping-the-gpt-neox-fused-kernel-build)
-shows how to bind the requirements and skip that build step.
 
 Apptainer/Singularity containers run with the user's own UID/GID by default, so some of the user creation parts may be redundant.
 By default, your home directory is automatically mounted in Apptainer/Singularity containers, which differs from Docker behavior.

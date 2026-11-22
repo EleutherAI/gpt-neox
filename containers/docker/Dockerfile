@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM nvcr.io/nvidia/pytorch:24.02-py3
+ARG PYTORCH_IMAGE=nvcr.io/nvidia/pytorch:24.02-py3
+FROM ${PYTORCH_IMAGE}
+ARG PYTORCH_IMAGE
 
 # The NGC base image adds https://pypi.ngc.nvidia.com as an extra package
 # index. That endpoint is no longer resolvable on some clusters, causing pip
@@ -27,20 +29,28 @@ LABEL org.opencontainers.image.version="2.0" \
       org.opencontainers.image.authors="contact@eleuther.ai" \
       org.opencontainers.image.source="https://www.github.com/eleutherai/gpt-neox" \
       org.opencontainers.image.licenses="Apache-2.0" \
-      org.opencontainers.image.base.name="nvcr.io/nvidia/pytorch:24.02-py3"
+      org.opencontainers.image.base.name="${PYTORCH_IMAGE}"
+
+# Carry the NGC pip constraint file over to uv.
+ARG PIP_CONSTRAINT
+ENV UV_DEFAULT_INDEX=https://pypi.org/simple \
+    UV_NO_CONFIG=true \
+    UV_NO_CACHE=true \
+    UV_BREAK_SYSTEM_PACKAGES=true \
+    UV_CONSTRAINT=${PIP_CONSTRAINT:-}
+
+COPY --from=ghcr.io/astral-sh/uv:0.13.9 /uv /usr/local/bin/uv
 
 #### System package (uses default Python 3 version in Ubuntu 20.04)
 RUN apt-get update -y && \
     apt-get install -y \
-    python3-pip sudo pdsh \
+    sudo pdsh \
     htop tmux zstd software-properties-common \
     nfs-common pdsh cmake htop iftop iotop ssh libaio-dev \
     iputils-ping net-tools libcupti-dev libmlx4-1 infiniband-diags ibutils \
     rdmacm-utils perftest rdma-core && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3 1 && \
-    update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1 && \
-    python -m pip install --upgrade pip && \
-    python -m pip install gpustat
+    uv pip install --system gpustat
 
 ### SSH
 RUN mkdir /var/run/sshd && \
@@ -79,9 +89,9 @@ RUN mv /usr/local/mpi/bin/mpirun /usr/local/mpi/bin/mpirun.real && \
 #### Python packages
 COPY requirements/* ./
 # cuDF in NGC 24.02 requires protobuf <5.
-RUN python -m pip install --no-cache-dir -r requirements.txt && \
-    pip install -r requirements-onebitadam.txt && \
-    python -m pip install --no-cache-dir wandb==0.16.6 protobuf==4.25.8 && \
+RUN uv pip install --system -r requirements.txt && \
+    uv pip install --system -r requirements-onebitadam.txt && \
+    uv pip install --system wandb==0.16.6 protobuf==4.25.8 && \
     python -c "import google.protobuf, wandb; from wandb.proto.wandb_telemetry_pb2 import Imports; print(f'wandb={wandb.__version__} protobuf={google.protobuf.__version__}')"
 
 # The base image carries these three known packaging diagnostics.
@@ -97,7 +107,7 @@ COPY megatron/fused_kernels/ /megatron/fused_kernels
 WORKDIR /megatron/fused_kernels
 ARG BUILD_FUSED_KERNELS=true
 RUN case "$BUILD_FUSED_KERNELS" in \
-        true) python setup.py install ;; \
+        true) uv pip install --system --no-build-isolation . ;; \
         false) ;; \
         *) echo "BUILD_FUSED_KERNELS must be true or false" >&2; exit 1 ;; \
     esac && \

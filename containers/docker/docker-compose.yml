@@ -5,7 +5,7 @@ services:
     image: gpt-neox
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: containers/docker/Dockerfile
     shm_size: 1g
     ulimits:
       memlock:
