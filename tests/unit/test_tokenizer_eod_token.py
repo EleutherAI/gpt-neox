@@ -71,6 +71,7 @@ def spm_file(tmp_path):
         model_writer=model,
         vocab_size=20,
         model_type="char",
+        user_defined_symbols=["<doc>"],
     )
     path = tmp_path / "tokenizer.model"
     path.write_bytes(model.getvalue())
@@ -239,6 +240,50 @@ def test_preprocessing_eod_token_flag(
 
     assert args.tokenizer_eod_token == "<eos>"
     assert build_tokenizer(args).eod == 1
+
+
+@pytest.mark.parametrize("eod_token", ["</s>", "<doc>"])
+def test_masked_preprocessing_with_sentencepiece(
+    spm_file, tmp_path, monkeypatch, eod_token
+):
+    import sys
+
+    from megatron.data.indexed_dataset import make_dataset
+    from tools.datasets import preprocess_data_with_mask
+
+    text = "hello world"
+    source = tmp_path / "input.jsonl"
+    source.write_text(json.dumps({"text": text}) + "\n")
+    sp = spm.SentencePieceProcessor(model_file=spm_file)
+    delimiter = sp.encode("hello")
+    prefix = tmp_path / "data"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "preprocess_data_with_mask",
+            "--input",
+            str(source),
+            "--output-prefix",
+            str(prefix),
+            "--tokenizer-type",
+            "SPMTokenizer",
+            "--vocab-file",
+            spm_file,
+            "--mask-before-token",
+            ",".join(map(str, delimiter)),
+            "--append-eod",
+            "--eod-token",
+            eod_token,
+        ],
+    )
+    preprocess_data_with_mask.main()
+
+    tokens = sp.encode(text) + [sp.piece_to_id(eod_token)]
+    text_rows = make_dataset(f"{prefix}_text_document", "mmap", skip_warmup=True)
+    label_rows = make_dataset(f"{prefix}_label_document", "mmap", skip_warmup=True)
+    assert text_rows[0].tolist() == tokens
+    assert label_rows[0].tolist() == [-100] * len(delimiter) + tokens[len(delimiter) :]
 
 
 @pytest.fixture

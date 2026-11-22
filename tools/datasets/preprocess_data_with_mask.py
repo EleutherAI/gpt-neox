@@ -190,6 +190,7 @@ def get_args():
             "HFTokenizer",
             "GPT2BPETokenizer",
             "CharLevelTokenizer",
+            "SPMTokenizer",
         ],
         help="What type of tokenizer to use.",
     )
