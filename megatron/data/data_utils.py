@@ -908,17 +908,17 @@ def shift_and_wrap_data_loaders(neox_args, data_loaders, loop=True):
                 train_dataloader.batch_sampler.start_iter
             )
         )
+    completed_eval_events = (
+        get_num_eval_events(neox_args, neox_args.iteration)
+        if neox_args.iteration > 0
+        else 0
+    )
+    start_iter_val = (
+        completed_eval_events
+        * neox_args.eval_iters
+        * neox_args.gradient_accumulation_steps
+    )
     if valid_dataloader is not None:
-        completed_eval_events = (
-            get_num_eval_events(neox_args, neox_args.iteration)
-            if neox_args.iteration > 0
-            else 0
-        )
-        start_iter_val = (
-            completed_eval_events
-            * neox_args.eval_iters
-            * neox_args.gradient_accumulation_steps
-        )
         valid_dataloader.batch_sampler.start_iter = start_iter_val % len(
             valid_dataloader
         )
@@ -930,10 +930,6 @@ def shift_and_wrap_data_loaders(neox_args, data_loaders, loop=True):
     for name, dataloader in valid_separate_dataloaders.items():
         if dataloader is None:
             continue
-        start_iter_val = (
-            (neox_args.iteration * neox_args.gradient_accumulation_steps)
-            // neox_args.eval_interval
-        ) * neox_args.eval_iters
         dataloader.batch_sampler.start_iter = start_iter_val % len(dataloader)
         print_rank_0(
             "setting validation data start iteration for {} to {}".format(
