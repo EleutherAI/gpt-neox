@@ -642,8 +642,8 @@ def forward_step(
         # indx[:, 0] is the batch index, indx[:, 1] is the token index, we only care about the token index.
         pos_indx = pos_indx[:, 1].unsqueeze(1)
         neg_indx = neg_indx[:, 1].unsqueeze(1)
-        pos = torch.gather(pos.squeeze(), dim=1, index=pos_indx)
-        neg = torch.gather(neg.squeeze(), dim=1, index=neg_indx)
+        pos = torch.gather(pos.squeeze(-1), dim=1, index=pos_indx)
+        neg = torch.gather(neg.squeeze(-1), dim=1, index=neg_indx)
         with torch.no_grad():
             metrics["pos_values"] = pos.clone().detach().mean()
             metrics["neg_values"] = neg.clone().detach().mean()
