@@ -13,12 +13,13 @@
 # limitations under the License.
 
 import io
+import json
 from copy import deepcopy
 from types import SimpleNamespace
 
 import pytest
 import sentencepiece as spm
-from tokenizers import Tokenizer, models, pre_tokenizers
+from tokenizers import AddedToken, Tokenizer, models, pre_tokenizers
 
 from megatron.neox_arguments import NeoXArgs
 from megatron.tokenizer.tokenizer import (
@@ -240,6 +241,20 @@ def test_preprocessing_eod_token_flag(
     assert build_tokenizer(args).eod == 1
 
 
+@pytest.fixture
+def hf_export_config(gemma_like_file):
+    return {
+        "tokenizer-type": "HFTokenizer",
+        "vocab-file": gemma_like_file,
+        "make-vocab-size-divisible-by": 1,
+        "model-parallel-size": 1,
+        "hidden-size": 8,
+        "num-layers": 1,
+        "num-attention-heads": 2,
+        "max-position-embeddings": 16,
+    }
+
+
 @pytest.mark.parametrize(
     ("architecture", "eod_config", "expected_eos_id"),
     [
@@ -250,27 +265,99 @@ def test_preprocessing_eod_token_flag(
     ],
 )
 def test_hf_export_eos_token_id(
-    gemma_like_file, tmp_path, architecture, eod_config, expected_eos_id
+    hf_export_config, tmp_path, architecture, eod_config, expected_eos_id
 ):
     from transformers import AutoConfig
 
     from tools.ckpts import convert_neox_to_hf
 
+    hf_export_config.update(eod_config)
     hf_config = convert_neox_to_hf.create_config(
-        {
-            "tokenizer-type": "HFTokenizer",
-            "vocab-file": gemma_like_file,
-            **eod_config,
-            "make-vocab-size-divisible-by": 1,
-            "model-parallel-size": 1,
-            "hidden-size": 8,
-            "num-layers": 1,
-            "num-attention-heads": 2,
-            "max-position-embeddings": 16,
-            "norm": "layernorm" if architecture == "neox" else "rmsnorm",
-        },
-        architecture=architecture,
+        hf_export_config, architecture=architecture
     )
 
     hf_config.save_pretrained(tmp_path)
     assert AutoConfig.from_pretrained(tmp_path).eos_token_id == expected_eos_id
+
+
+@pytest.fixture
+def export_with_tokenizer(tmp_path, monkeypatch):
+    from transformers import AutoModelForCausalLM
+
+    from tools.ckpts import convert_neox_to_hf
+
+    # Exercise config creation and the CLI save paths with a tiny model.
+    def convert_without_checkpoint(input_dir, config, output_dir, **kwargs):
+        model_config = convert_neox_to_hf.create_config(config)
+        return AutoModelForCausalLM.from_config(model_config)
+
+    monkeypatch.setattr(convert_neox_to_hf, "convert", convert_without_checkpoint)
+
+    def export(config, *flags):
+        config_file = tmp_path / "neox.json"
+        config_file.write_text(json.dumps(config))
+        output = tmp_path / "export"
+        convert_neox_to_hf.main(
+            ["--config_file", str(config_file), "--output_dir", str(output), *flags]
+        )
+        return output
+
+    return export
+
+
+@pytest.mark.parametrize("pretrained", [False, True], ids=["raw-json", "pretrained"])
+@pytest.mark.parametrize("eod_token", ["<eos>", "<pad>", None])
+def test_saved_tokenizer_eos(
+    hf_export_config, tmp_path, export_with_tokenizer, pretrained, eod_token
+):
+    from transformers import AutoConfig, AutoTokenizer, PreTrainedTokenizerFast
+
+    vocab_file = hf_export_config["vocab-file"]
+    backend = Tokenizer.from_file(vocab_file)
+    backend.add_tokens([AddedToken("<eos>", lstrip=True, normalized=False)])
+    backend.save(vocab_file)
+    flags = ["--pad-token-id", "0"]
+    if pretrained:
+        PreTrainedTokenizerFast(
+            tokenizer_file=vocab_file,
+            eos_token="world",
+            bos_token="<bos>",
+        ).save_pretrained(tmp_path)
+        flags.append("--vocab-is-hf-tokenizer")
+    if eod_token is not None:
+        hf_export_config["tokenizer-eod-token"] = eod_token
+
+    output = export_with_tokenizer(hf_export_config, *flags)
+    tokenizer = AutoTokenizer.from_pretrained(output)
+    assert tokenizer.get_vocab() == GEMMA_LIKE_VOCAB
+    assert tokenizer.pad_token_id == 0
+    if eod_token is None:
+        assert tokenizer.eos_token == ("world" if pretrained else None)
+    else:
+        assert tokenizer.eos_token == eod_token
+        eos_id = tokenizer.eos_token_id
+        assert eos_id == AutoConfig.from_pretrained(output).eos_token_id
+        assert eos_id == GEMMA_LIKE_VOCAB[eod_token]
+        assert tokenizer.decode([eos_id], skip_special_tokens=True) == ""
+
+
+def test_export_rejects_different_eos_ids(
+    hf_export_config, tmp_path, export_with_tokenizer
+):
+    from transformers import PreTrainedTokenizerFast
+
+    # The NeoX vocab file and the HF directory can contain different tokenizers.
+    training_vocab = (tmp_path / "tokenizer.json").rename(
+        tmp_path / "training-vocab.json"
+    )
+    hf_vocab = {**GEMMA_LIKE_VOCAB, "<eos>": 4, "hello": 1}
+    PreTrainedTokenizerFast(
+        tokenizer_object=Tokenizer(models.WordLevel(vocab=hf_vocab, unk_token="<unk>"))
+    ).save_pretrained(tmp_path)
+    hf_export_config.update(
+        {"vocab-file": str(training_vocab), "tokenizer_eod_token": "<eos>"}
+    )
+
+    with pytest.raises(ValueError, match="has ID 4 .*model expects 1"):
+        export_with_tokenizer(hf_export_config, "--vocab-is-hf-tokenizer")
+    assert not (tmp_path / "export").exists()

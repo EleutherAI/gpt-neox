@@ -907,40 +907,50 @@ def main(input_args=None, overwrite_values=None):
         pad_token_id=args.pad_token_id,
     )
 
-    # Save to disk.
-    hf_model.save_pretrained(args.output_dir)
-
+    tokenizer = None
     if not args.no_save_tokenizer:
-        # save tokenizer to directory as well, for easy loading of model as a HF model.
         tokenizer_type = get_key(
             loaded_config, "tokenizer-type", default="GPT2BPETokenizer"
         )
+        vocab_file = get_key(loaded_config, "vocab-file")
+        eod_token = get_key(loaded_config, "tokenizer-eod-token")
+        tokenizer_kwargs = {"eos_token": eod_token} if eod_token is not None else {}
         if args.vocab_is_hf_tokenizer:
             from transformers import AutoTokenizer
 
             tokenizer = AutoTokenizer.from_pretrained(
-                os.path.dirname(get_key(loaded_config, "vocab-file"))
+                os.path.dirname(vocab_file) or ".", **tokenizer_kwargs
             )
-            if args.pad_token_id != -1:
-                tokenizer.pad_token_id = args.pad_token_id
-            print("loaded tokenizer: ", tokenizer)
-            tokenizer.save_pretrained(args.output_dir)
-            print("tokenizer saved!")
-        elif tokenizer_type == "HFTokenizer":  # TODO: handle sentencepiece tokenizers?
-            print(f"saving tokenizer from file {get_key(loaded_config, 'vocab-file')}")
+        elif tokenizer_type.lower() == "hftokenizer":
+            print(f"saving tokenizer from file {vocab_file}")
             print(
                 "Warning: please check that your model config and tokenizer end with the correct special tokens (EOS, BOS)."
             )
             from transformers import PreTrainedTokenizerFast
 
             tokenizer = PreTrainedTokenizerFast(
-                tokenizer_file=get_key(loaded_config, "vocab-file")
+                tokenizer_file=vocab_file, **tokenizer_kwargs
             )
-            if args.pad_token_id != -1:
-                tokenizer.pad_token_id = args.pad_token_id
-            print("loaded tokenizer: ", tokenizer)
-            tokenizer.save_pretrained(args.output_dir)
-            print("tokenizer saved!")
+
+        if tokenizer is not None and eod_token is not None:
+            eos_id = tokenizer.eos_token_id
+            if eos_id != hf_model.config.eos_token_id:
+                raise ValueError(
+                    f"Configured EOD token {eod_token!r} has ID {eos_id} "
+                    f"in the export tokenizer, but the model expects {hf_model.config.eos_token_id}."
+                )
+            # An existing added token can still be ordinary in the tokenizer backend.
+            added_token = tokenizer.added_tokens_decoder.get(eos_id)
+            if added_token is not None and not added_token.special:
+                tokenizer.add_special_tokens({"eos_token": added_token})
+
+    hf_model.save_pretrained(args.output_dir)
+    if tokenizer is not None:
+        if args.pad_token_id != -1:
+            tokenizer.pad_token_id = args.pad_token_id
+        print("loaded tokenizer: ", tokenizer)
+        tokenizer.save_pretrained(args.output_dir)
+        print("tokenizer saved!")
 
 
 if __name__ == "__main__":
