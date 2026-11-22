@@ -1,2 +1,5 @@
-protobuf==5.29.6
-wandb==0.24.2
+# cuDF in NGC 24.02 requires protobuf <5.
+protobuf==4.25.8
+# W&B imports TypeIs, which is missing from typing-extensions in NGC 24.02.
+typing-extensions>=4.12.2
+wandb==0.26.1

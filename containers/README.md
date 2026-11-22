@@ -36,7 +36,7 @@ the NGC PyTorch 24.02 base.
 The image:
 
 - installs `requirements.txt` and `requirements-onebitadam.txt`
-- installs `wandb==0.16.6`
+- installs W&B from `requirements-wandb.txt`, shared by all images
 - installs `transformer-engine[pytorch]==1.12`
 - installs `flash-attn==2.5.6`
 - pins `protobuf==4.25.8` to satisfy the cuDF requirement in NGC 24.02

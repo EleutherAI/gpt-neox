@@ -88,10 +88,9 @@ RUN mv /usr/local/mpi/bin/mpirun /usr/local/mpi/bin/mpirun.real && \
 
 #### Python packages
 COPY requirements/* ./
-# cuDF in NGC 24.02 requires protobuf <5.
 RUN uv pip install --system -r requirements.txt && \
     uv pip install --system -r requirements-onebitadam.txt && \
-    uv pip install --system wandb==0.16.6 protobuf==4.25.8 && \
+    uv pip install --system -r requirements-wandb.txt && \
     python -c "import google.protobuf, wandb; from wandb.proto.wandb_telemetry_pb2 import Imports; print(f'wandb={wandb.__version__} protobuf={google.protobuf.__version__}')"
 
 # The base image carries these three known packaging diagnostics.
