@@ -1481,7 +1481,9 @@ class ParallelTransformerLayer(nn.Module):
                             prob=self.hidden_dropout,
                         )
                 else:
-                    output = mlp_output
+                    output = attention_output + F.dropout(
+                        mlp_output, p=self.hidden_dropout, training=self.training
+                    )
 
                 # output = (x + attn(ln(x)) + mlp(ln(x))
                 output = residual + self.reduce(output)
