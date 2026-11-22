@@ -20,25 +20,12 @@ A script for processing a dataset such that corresponding labels are also produc
 (for example, finetuning a model to only output the text following some delimiter in the finetuning dataset such as "Answer: "
 rather than generating the entire "Question: ... Answer: " turns of conversation.
 
-To run this script, first edit `tools/datasets/corpora.py` such that the command to call `tools/datasets/preprocess_data.py` is as follows:
+To use this script with a registered dataset, change the script name in
+`DataDownloader.tokenize()` in `tools/datasets/corpora.py` from `preprocess_data.py`
+to `preprocess_data_with_mask.py`. Add the delimiter to the argument list before running the command.
 
 ```
-cmd = f"python tools/datasets/preprocess_data_with_mask.py \
-    --input {jsonl_filepath} \
-    --output-prefix {parent_folder}/{self.name} \
-    --vocab {self.vocab_file} \
-    --dataset-impl mmap \
-    --tokenizer-type {self.tokenizer_type} \
-    --merge-file {self.merge_file} \
-    --append-eod \
-    --mask-before-token X,Y,Z \
-    --workers {self.num_workers} "
-
-if self.num_docs is not None:
-    cmd += f"--num-docs {self.num_docs} "
-
-if self.ftfy:
-    cmd += f"--ftfy "
+cmd.extend(["--mask-before-token", "X,Y,Z"])
 ```
 where --mask-before-token must be the (comma-separated) list of tokens produced by encoding your delimiter string.
 Up to and including the first occurrence of this token sequence in a document, all tokens will have their loss mask zeroed out when the label dataset is provided to NeoX.

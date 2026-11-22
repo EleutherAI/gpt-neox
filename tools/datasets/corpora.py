@@ -16,6 +16,7 @@
 
 import os
 import subprocess
+import sys
 from abc import ABC, abstractmethod
 from multiprocessing import cpu_count
 from tempfile import TemporaryDirectory
@@ -45,6 +46,7 @@ class DataDownloader(ABC):
         data_dir=None,
         force_redownload=None,
         num_workers=None,
+        tokenizer_eod_token=None,
     ):
         if tokenizer_type is None:
             tokenizer_type = "GPT2BPETokenizer"
@@ -71,6 +73,7 @@ class DataDownloader(ABC):
         self._data_dir = data_dir
         self._force_redownload = force_redownload
         self._num_workers = num_workers
+        self._tokenizer_eod_token = tokenizer_eod_token
 
     @property
     def base_dir(self):
@@ -150,24 +153,36 @@ class DataDownloader(ABC):
             [os.path.join(parent_folder, os.path.basename(url)) for url in self.urls]
         )
 
-        cmd = f"python tools/datasets/preprocess_data.py \
-            --input {jsonl_filepath} \
-            --output-prefix {parent_folder}/{self.name} \
-            --vocab {self.vocab_file} \
-            --dataset-impl mmap \
-            --tokenizer-type {self.tokenizer_type} \
-            --merge-file {self.merge_file} \
-            --append-eod \
-            --workers {self.num_workers} "
-
+        cmd = [
+            sys.executable,
+            os.path.join(os.path.dirname(__file__), "preprocess_data.py"),
+            "--input",
+            jsonl_filepath,
+            "--output-prefix",
+            os.path.join(parent_folder, self.name),
+            "--dataset-impl",
+            "mmap",
+            "--tokenizer-type",
+            self.tokenizer_type,
+            "--merge-file",
+            self.merge_file,
+            "--append-eod",
+            "--workers",
+            str(self.num_workers),
+        ]
+        if self.vocab_file is not None:
+            cmd.extend(["--vocab-file", self.vocab_file])
+        if self._tokenizer_eod_token is not None:
+            cmd.append(f"--eod-token={self._tokenizer_eod_token}")
         if self.num_docs is not None:
-            cmd += f"--num-docs {self.num_docs} "
-
+            cmd.extend(["--num-docs", str(self.num_docs)])
         if self.ftfy:
-            cmd += f"--ftfy "
+            cmd.append("--ftfy")
 
-        if os.system(cmd) != 0:
-            raise RuntimeError(f"Failed to tokenize dataset {self.name}")
+        try:
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(f"Failed to tokenize dataset {self.name}") from exc
 
     def prepare(self):
         if self._force_redownload:
@@ -345,6 +360,7 @@ def prepare_dataset(
     merge_file: str = None,
     force_redownload: bool = None,
     num_workers: int = None,
+    tokenizer_eod_token: str = None,
 ):
     """
     Downloads + tokenizes a dataset in the registry (dataset_name) and saves output .npy files to data_dir.
@@ -370,5 +386,6 @@ def prepare_dataset(
             data_dir=data_dir,
             force_redownload=force_redownload,
             num_workers=num_workers,
+            tokenizer_eod_token=tokenizer_eod_token,
         )
         d.prepare()

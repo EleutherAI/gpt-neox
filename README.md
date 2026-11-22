@@ -403,6 +403,8 @@ or a single shard of the pile (`pile_subset`) with the GPT-NeoX-20B tokenizer (a
 python prepare_data.py -d ./data -t HFTokenizer --vocab-file ./20B_checkpoints/20B_tokenizer.json pile_subset
 ```
 
+With `HFTokenizer` or `SPMTokenizer`, pass `--eod-token '<eos>'` if `<eos>` is the document boundary in your vocabulary. Use the same token for `tokenizer_eod_token` in the training configuration.
+
 The tokenized data will be saved out to two files: `[data-dir]/[dataset-name]/[dataset-name]_text_document.bin`and `[data-dir]/[dataset-name]/[dataset-name]_text_document.idx`. You will need to add the prefix that both these files share to your training configuration file under the `data-path` field. E.G:
 
 ```yaml

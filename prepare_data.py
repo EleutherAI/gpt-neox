@@ -56,6 +56,12 @@ def get_args():
         "-m", "--merge-file", default=None, help=f"Tokenizer merge file (if required)"
     )
     parser.add_argument(
+        "--eod-token",
+        dest="tokenizer_eod_token",
+        help="End-of-document token to append with HFTokenizer or SPMTokenizer. "
+        "Use the same value as tokenizer_eod_token in the training config.",
+    )
+    parser.add_argument(
         "-f",
         "--force-redownload",
         dest="force_redownload",
@@ -74,4 +80,5 @@ if __name__ == "__main__":
         vocab_file=args.vocab_file,
         merge_file=args.merge_file,
         force_redownload=args.force_redownload,
+        tokenizer_eod_token=args.tokenizer_eod_token,
     )

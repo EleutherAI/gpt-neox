@@ -61,7 +61,12 @@ def test_tokenize_raises_when_preprocess_command_fails(monkeypatch, tmp_path):
         tokenizer_type="CharLevelTokenizer",
         num_workers=1,
     )
-    monkeypatch.setattr(corpora.os, "system", lambda cmd: 1)
+
+    def failed_preprocessing(command, *, check):
+        assert check
+        raise CalledProcessError(1, command)
+
+    monkeypatch.setattr(corpora.subprocess, "run", failed_preprocessing)
 
     with pytest.raises(RuntimeError, match="Failed to tokenize dataset dummy"):
         downloader.tokenize()

@@ -242,6 +242,65 @@ def test_preprocessing_eod_token_flag(
     assert build_tokenizer(args).eod == 1
 
 
+@pytest.mark.parametrize(
+    ("tokenizer_type", "eod_token", "expected_id"),
+    [
+        ("HFTokenizer", "<|doc end|>", 0),
+        ("HFTokenizer", None, 1),
+        ("SPMTokenizer", "<doc>", 3),
+    ],
+)
+def test_prepare_data_appends_eod(
+    tmp_path, spm_file, tokenizer_type, eod_token, expected_id
+):
+    import subprocess
+    import sys
+    from pathlib import Path
+    from zipfile import ZipFile
+
+    from megatron.data.indexed_dataset import make_dataset
+
+    data_dir = tmp_path / "cached datasets"
+    corpus = data_dir / "enwik8"
+    corpus.mkdir(parents=True)
+    with ZipFile(corpus / "enwik8.zip", "w") as archive:
+        archive.writestr("first.txt", "hello")
+        archive.writestr("second.txt", "world")
+
+    vocab_file = spm_file
+    if tokenizer_type == "HFTokenizer":
+        vocab_file = _hf_tokenizer_file(
+            tmp_path,
+            {
+                "<|doc end|>": 0,
+                DEFAULT_EOD_TOKEN: 1,
+                "<unk>": 2,
+                "hello": 3,
+                "world": 4,
+            },
+        )
+    cmd = [
+        sys.executable,
+        str(Path(__file__).resolve().parents[2] / "prepare_data.py"),
+        "enwik8",
+        "--data-dir",
+        str(data_dir),
+        "--tokenizer",
+        tokenizer_type,
+        "--vocab-file",
+        vocab_file,
+    ]
+    if eod_token is not None:
+        cmd.extend(["--eod-token", eod_token])
+    subprocess.run(cmd, check=True)
+
+    dataset = make_dataset(
+        str(corpus / "enwik8_text_document"), "mmap", skip_warmup=True
+    )
+    assert dataset.doc_idx.tolist() == [0, 1, 2]
+    assert [dataset[i][-1] for i in range(len(dataset))] == [expected_id, expected_id]
+
+
 @pytest.mark.parametrize("eod_token", ["</s>", "<doc>"])
 def test_masked_preprocessing_with_sentencepiece(
     spm_file, tmp_path, monkeypatch, eod_token

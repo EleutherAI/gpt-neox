@@ -23,23 +23,26 @@ portions of a chatml dataset).
 This follows the same output format as 'preprocess_data_with_mask.py' but using chat templates to generate the data.
 This way we can support multiturn chat data in the finetuning process. instead of relying on a single turn of data.
 
-To run this script, first edit `tools/datasets/corpora.py` such that the command to call
- `tools/datasets/preprocess_data_with_chat_template.py` is as follows:
+To use this script with a registered dataset, replace the preprocessing arguments
+in `DataDownloader.tokenize()` in `tools/datasets/corpora.py` with the ones below.
+Set `hf_tokenizer` to the tokenizer path and `jsonl_keys` to the list of input keys.
 
 ```
-cmd = f"python tools/datasets/preprocess_data_with_with_chat_template.py \
-    --input {jsonl_filepath} \
-    --output-prefix {parent_folder}/{self.name} \
-    --tokenizer-path {hf-tokenizer} \
-    --jsonl-keys {jsonl_keys} \
-    --dataset-impl mmap \
-    --workers {self.num_workers} "
+cmd = [
+    sys.executable, os.path.join(os.path.dirname(__file__), "preprocess_data_with_chat_template.py"),
+    "--input", jsonl_filepath,
+    "--output-prefix", os.path.join(parent_folder, self.name),
+    "--tokenizer-path", hf_tokenizer,
+    "--jsonl-keys", *jsonl_keys,
+    "--dataset-impl", "mmap",
+    "--workers", str(self.num_workers),
+]
 
 if self.only_last:
-    cmd += f"--only-last "
+    cmd.append("--only-last")
 
 if self.no_mask:
-    cmd += f"--no-mask "
+    cmd.append("--no-mask")
 ```
 
 Then, specify
