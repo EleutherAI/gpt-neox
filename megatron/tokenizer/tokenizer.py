@@ -43,10 +43,11 @@ def build_tokenizer(args, *, warn_missing_eod=True):
     # Not every caller passes a NeoXArgs (the preprocessing and conversion
     # scripts build their own args), so read optional fields with getattr.
     eod_token = getattr(args, "tokenizer_eod_token", None)
-    if eod_token is not None and args.tokenizer_type.lower() not in (
+    supports_eod_override = args.tokenizer_type.lower() in (
         "hftokenizer",
         "spmtokenizer",
-    ):
+    )
+    if eod_token is not None and not supports_eod_override:
         raise ValueError(
             "tokenizer_eod_token is only supported with HFTokenizer and "
             f"SPMTokenizer, not {args.tokenizer_type}"
@@ -89,16 +90,21 @@ def build_tokenizer(args, *, warn_missing_eod=True):
             flush=True,
         )
     if tokenizer.eod is None:
+        if supports_eod_override:
+            hint = (
+                f"The vocabulary has no {DEFAULT_EOD_TOKEN}. Set tokenizer_eod_token "
+                "in the config (--eod-token in the preprocessing scripts)."
+            )
+        else:
+            hint = (
+                f"Set eos_token in the saved tokenizer loaded by {args.tokenizer_type}."
+            )
         for flag, name in (
             ("eod_mask_loss", "eod_mask_loss"),
             ("append_eod", "--append-eod"),
         ):
             if getattr(args, flag, False):
-                raise ValueError(
-                    f"{name} needs an end-of-document token, but the tokenizer "
-                    f"has no {DEFAULT_EOD_TOKEN}. Set tokenizer_eod_token in the "
-                    "config (--eod-token in the preprocessing scripts)."
-                )
+                raise ValueError(f"{name} needs an end-of-document token. {hint}")
 
     # Add vocab size.
     args.padded_vocab_size = _vocab_size_with_padding(tokenizer.vocab_size, args)

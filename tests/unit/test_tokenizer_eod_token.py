@@ -145,11 +145,46 @@ def test_warning_is_only_printed_on_rank_0(gemma_like_file, capsys):
 def test_missing_eod_raises_when_it_is_needed(
     gemma_like_file, flag, name, warn_missing_eod
 ):
-    with pytest.raises(ValueError, match=f"{name} needs an end-of-document token"):
+    with pytest.raises(
+        ValueError, match=f"{name} needs an end-of-document token"
+    ) as exc:
         build_tokenizer(
             _args("HFTokenizer", gemma_like_file, **{flag: True}),
             warn_missing_eod=warn_missing_eod,
         )
+    assert "tokenizer_eod_token" in str(exc.value)
+    assert "--eod-token" in str(exc.value)
+
+
+@pytest.mark.parametrize(
+    ("flag", "name"),
+    [("eod_mask_loss", "eod_mask_loss"), ("append_eod", "--append-eod")],
+)
+def test_hfgpt2_missing_eos_uses_pretrained_tokenizer_settings(tmp_path, flag, name):
+    from transformers import GPT2TokenizerFast
+
+    backend = Tokenizer(models.BPE(vocab={DEFAULT_EOD_TOKEN: 0, "a": 1}, merges=[]))
+    backend.pre_tokenizer = pre_tokenizers.ByteLevel()
+    source = GPT2TokenizerFast(tokenizer_object=backend, eos_token=None)
+    source.save_pretrained(tmp_path)
+
+    args = _args("HFGPT2Tokenizer", str(tmp_path))
+    assert build_tokenizer(args).eod is None
+    setattr(args, flag, True)
+    with pytest.raises(
+        ValueError, match=f"{name} needs an end-of-document token"
+    ) as exc:
+        build_tokenizer(args)
+    message = str(exc.value)
+    assert "HFGPT2Tokenizer" in message
+    assert "eos_token" in message
+    assert DEFAULT_EOD_TOKEN not in message
+    assert "tokenizer_eod_token" not in message
+    assert "--eod-token" not in message
+
+    source.eos_token = DEFAULT_EOD_TOKEN
+    source.save_pretrained(tmp_path)
+    assert build_tokenizer(args).eod == 0
 
 
 @pytest.mark.parametrize("flag", ["eod_mask_loss", "append_eod"])
@@ -187,11 +222,12 @@ def test_spm_unknown_eod_token_raises(spm_file):
         SentencePieceTokenizer(spm_file, eod_token="<eos>")
 
 
-def test_eod_token_is_rejected_for_other_tokenizers():
+@pytest.mark.parametrize("tokenizer_type", ["CharLevelTokenizer", "HFGPT2Tokenizer"])
+def test_eod_token_is_rejected_for_other_tokenizers(tokenizer_type):
     with pytest.raises(
         ValueError, match="only supported with HFTokenizer and SPMTokenizer"
     ):
-        build_tokenizer(_args("CharLevelTokenizer", None, tokenizer_eod_token="<eos>"))
+        build_tokenizer(_args(tokenizer_type, None, tokenizer_eod_token="<eos>"))
 
 
 def test_neox_args_pass_the_eod_token_to_the_tokenizer(gemma_like_file):
