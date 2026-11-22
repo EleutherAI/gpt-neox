@@ -316,9 +316,9 @@ class ParallelMLP(nn.Module):
                 intermediate_parallel, bias_parallel
             )
         else:
-            intermediate_parallel = self.activation_func(
-                intermediate_parallel + bias_parallel
-            )
+            if bias_parallel is not None:
+                intermediate_parallel = intermediate_parallel + bias_parallel
+            intermediate_parallel = self.activation_func(intermediate_parallel)
 
         # [s, b, h]
         output, output_bias = self.linear2(intermediate_parallel)
