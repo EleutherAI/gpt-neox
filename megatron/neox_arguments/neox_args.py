@@ -377,7 +377,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
 
     bias_gelu_fusion: bool = False
     """
-    Enable bias and gelu fusion.
+    Fuse the MLP bias addition with GELU. Requires ``use_bias_in_mlp=True``.
     """
 
     bias_dropout_fusion: bool = False
