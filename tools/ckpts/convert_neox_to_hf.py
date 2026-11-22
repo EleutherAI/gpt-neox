@@ -263,9 +263,16 @@ def get_key(loaded_config, key, default=None):
 def create_config(
     neox_config, architecture="neox", is_rm=False, pad_token_id=-1, bos_token_id=None
 ):
-    """take in a loaded yaml from NeoX and assign relevant values to HF config.
-    Returns: GPTNeoXConfig() object
-    """
+    """Build the Hugging Face model config from a NeoX config."""
+    hf_config, _ = _create_config_and_tokenizer(
+        neox_config, architecture, is_rm, pad_token_id, bos_token_id
+    )
+    return hf_config
+
+
+def _create_config_and_tokenizer(
+    neox_config, architecture, is_rm, pad_token_id, bos_token_id
+):
 
     def gated_size(hidden_dim):
         # takes in a hidden dim and calculates intermediate dim of a LLaMAParallelMLP.
@@ -387,7 +394,7 @@ def create_config(
                 ),
             }
         )
-        if tokenizer_args.tokenizer_eod_token is not None:
+        if tokenizer.eod is not None:
             args["eos_token_id"] = tokenizer.eod
         hf_config = GPTNeoXConfig(**args)
     if bos_token_id is not None:
@@ -401,7 +408,7 @@ def create_config(
         hf_config.num_labels = 1
         hf_config.pad_token_id = pad_token_id
 
-    return hf_config
+    return hf_config, tokenizer
 
 
 def reshard_and_split_qkv(
@@ -495,6 +502,8 @@ def convert(
     is_rm: bool = False,
     pad_token_id: int = -1,
     bos_token_id: Optional[int] = None,
+    *,
+    hf_config=None,
 ):
     """convert a NeoX checkpoint to a HF model format.
     should perform model-parallel merging correctly
@@ -526,13 +535,14 @@ def convert(
             " supported by these Huggingface model classes."
         )
 
-    hf_config = create_config(
-        loaded_config,
-        architecture=architecture,
-        is_rm=is_rm,
-        pad_token_id=pad_token_id,
-        bos_token_id=bos_token_id,
-    )
+    if hf_config is None:
+        hf_config = create_config(
+            loaded_config,
+            architecture=architecture,
+            is_rm=is_rm,
+            pad_token_id=pad_token_id,
+            bos_token_id=bos_token_id,
+        )
 
     if not is_rm:
         hf_model = AutoModelForCausalLM.from_config(hf_config)
@@ -920,6 +930,9 @@ def main(input_args=None, overwrite_values=None):
         )
 
     # convert the model to HF.
+    hf_config, training_tokenizer = _create_config_and_tokenizer(
+        loaded_config, args.architecture, is_rm, args.pad_token_id, args.bos_token_id
+    )
     hf_model = convert(
         args.input_dir,
         loaded_config,
@@ -927,8 +940,7 @@ def main(input_args=None, overwrite_values=None):
         sequential=sequential,
         architecture=args.architecture,
         is_rm=is_rm,
-        pad_token_id=args.pad_token_id,
-        bos_token_id=args.bos_token_id,
+        hf_config=hf_config,
     )
 
     tokenizer = None
@@ -937,7 +949,13 @@ def main(input_args=None, overwrite_values=None):
             loaded_config, "tokenizer-type", default="GPT2BPETokenizer"
         )
         vocab_file = get_key(loaded_config, "vocab-file")
-        eod_token = get_key(loaded_config, "tokenizer-eod-token")
+        eod_id = training_tokenizer.eod
+        eod_token = None
+        if eod_id is not None:
+            if tokenizer_type.lower() == "hftokenizer":
+                eod_token = training_tokenizer.tokenizer.id_to_token(eod_id)
+            elif tokenizer_type.lower() == "spmtokenizer":
+                eod_token = training_tokenizer.tokenizer.id_to_piece(eod_id)
         tokenizer_kwargs = {"eos_token": eod_token} if eod_token is not None else {}
         if args.vocab_is_hf_tokenizer:
             tokenizer = AutoTokenizer.from_pretrained(
@@ -952,35 +970,38 @@ def main(input_args=None, overwrite_values=None):
                 tokenizer_file=vocab_file, **tokenizer_kwargs
             )
 
-        if tokenizer is not None and args.bos_token_id is not None:
-            bos_id = args.bos_token_id
-            bos = (
-                tokenizer.convert_ids_to_tokens(bos_id)
-                if bos_id < len(tokenizer)
-                else None
-            )
-            if bos is None or tokenizer.convert_tokens_to_ids(bos) != bos_id:
+        if tokenizer is not None:
+            if eod_token is not None and tokenizer.eos_token_id != eod_id:
                 raise ValueError(
-                    f"--bos-token-id {bos_id} is missing from the export tokenizer."
+                    f"EOD token {eod_token!r} has ID {tokenizer.eos_token_id} "
+                    f"in the export tokenizer, but the model expects {eod_id}."
                 )
-            tokenizer.add_special_tokens(
-                {"bos_token": tokenizer.added_tokens_decoder.get(bos_id, bos)}
-            )
-            # Some fast tokenizer classes build their template from the BOS and EOS roles.
-            if hasattr(tokenizer, "update_post_processor"):
-                tokenizer.update_post_processor()
-
-        if tokenizer is not None and eod_token is not None:
-            eos_id = tokenizer.eos_token_id
-            if eos_id != hf_model.config.eos_token_id:
-                raise ValueError(
-                    f"Configured EOD token {eod_token!r} has ID {eos_id} "
-                    f"in the export tokenizer, but the model expects {hf_model.config.eos_token_id}."
+            special_tokens = {}
+            refresh_template = False
+            for role, token_id, label in (
+                ("eos_token", eod_id, "EOD ID"),
+                ("bos_token", args.bos_token_id, "--bos-token-id"),
+            ):
+                if token_id is None:
+                    continue
+                token = (
+                    tokenizer.convert_ids_to_tokens(token_id)
+                    if token_id < len(tokenizer)
+                    else None
                 )
-            # An existing added token can still be ordinary in the tokenizer backend.
-            added_token = tokenizer.added_tokens_decoder.get(eos_id)
-            if added_token is not None and not added_token.special:
-                tokenizer.add_special_tokens({"eos_token": added_token})
+                if token is None or tokenizer.convert_tokens_to_ids(token) != token_id:
+                    raise ValueError(
+                        f"{label} {token_id} is missing from the export tokenizer."
+                    )
+                if getattr(tokenizer, role + "_id") != token_id:
+                    refresh_template = True
+                special_tokens[role] = tokenizer.added_tokens_decoder.get(
+                    token_id, token
+                )
+            if special_tokens:
+                tokenizer.add_special_tokens(special_tokens)
+                if refresh_template and hasattr(tokenizer, "update_post_processor"):
+                    tokenizer.update_post_processor()
 
     hf_model.save_pretrained(args.output_dir)
     if tokenizer is not None:
