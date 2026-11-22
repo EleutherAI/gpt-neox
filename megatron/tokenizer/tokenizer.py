@@ -31,8 +31,8 @@ from typing import List, Union
 DEFAULT_EOD_TOKEN = "<|endoftext|>"
 
 
-def build_tokenizer(args):
-    """Initialize tokenizer."""
+def build_tokenizer(args, *, warn_missing_eod=True):
+    """Build the tokenizer and optionally report a missing default EOD on rank zero."""
     if args.rank == 0:
         print("> building {} tokenizer ...".format(args.tokenizer_type), flush=True)
 
@@ -79,7 +79,7 @@ def build_tokenizer(args):
             "{} tokenizer is not " "implemented.".format(args.tokenizer_type)
         )
 
-    if tokenizer.default_eod_missing and args.rank == 0:
+    if warn_missing_eod and tokenizer.default_eod_missing and args.rank == 0:
         fallback = "unset" if tokenizer.eod is None else "the unknown token"
         print(
             f"WARNING: {DEFAULT_EOD_TOKEN} is not in the {args.tokenizer_type} "

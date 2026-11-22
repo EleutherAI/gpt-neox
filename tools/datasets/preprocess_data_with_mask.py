@@ -120,7 +120,7 @@ class Encoder(object):
 
     def initializer(self):
         # Use Encoder class as a container for global data
-        Encoder.tokenizer = build_tokenizer(self.args)
+        Encoder.tokenizer = build_tokenizer(self.args, warn_missing_eod=False)
 
     def encode(self, text):
         if self.args.ftfy:
@@ -288,7 +288,7 @@ def main():
         pool = multiprocessing.Pool(args.workers, initializer=encoder.initializer)
         encoded_docs = pool.imap(encoder.encode, fin, chunksize=25)
     else:
-        encoder.initializer()
+        Encoder.tokenizer = tokenizer
         encoded_docs = (encoder.encode(doc) for doc in fin)
 
     if args.mask_before_token is not None:

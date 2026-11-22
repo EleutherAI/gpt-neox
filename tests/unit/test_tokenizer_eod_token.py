@@ -137,13 +137,19 @@ def test_warning_is_only_printed_on_rank_0(gemma_like_file, capsys):
     assert "WARNING" not in capsys.readouterr().out
 
 
+@pytest.mark.parametrize("warn_missing_eod", [True, False])
 @pytest.mark.parametrize(
     ("flag", "name"),
     [("eod_mask_loss", "eod_mask_loss"), ("append_eod", "--append-eod")],
 )
-def test_missing_eod_raises_when_it_is_needed(gemma_like_file, flag, name):
+def test_missing_eod_raises_when_it_is_needed(
+    gemma_like_file, flag, name, warn_missing_eod
+):
     with pytest.raises(ValueError, match=f"{name} needs an end-of-document token"):
-        build_tokenizer(_args("HFTokenizer", gemma_like_file, **{flag: True}))
+        build_tokenizer(
+            _args("HFTokenizer", gemma_like_file, **{flag: True}),
+            warn_missing_eod=warn_missing_eod,
+        )
 
 
 @pytest.mark.parametrize("flag", ["eod_mask_loss", "append_eod"])
@@ -240,6 +246,52 @@ def test_preprocessing_eod_token_flag(
 
     assert args.tokenizer_eod_token == "<eos>"
     assert build_tokenizer(args).eod == 1
+
+
+@pytest.mark.parametrize("workers", [1, 2])
+@pytest.mark.parametrize(
+    ("script", "tokenizer_type", "extra_flags"),
+    [
+        ("preprocess_data", "HFTokenizer", []),
+        (
+            "preprocess_data_with_mask",
+            "SPMTokenizer",
+            ["--mask-before-token", "0", "--append-eod"],
+        ),
+    ],
+)
+def test_preprocessing_warns_once_for_missing_eod(
+    tmp_path, gemma_like_file, spm_file, script, tokenizer_type, extra_flags, workers
+):
+    import subprocess
+    import sys
+
+    source = tmp_path / "input.jsonl"
+    source.write_text(json.dumps({"text": "hello world"}) + "\n")
+    vocab = gemma_like_file if tokenizer_type == "HFTokenizer" else spm_file
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            f"tools.datasets.{script}",
+            "--input",
+            str(source),
+            "--output-prefix",
+            str(tmp_path / "data"),
+            "--tokenizer-type",
+            tokenizer_type,
+            "--vocab-file",
+            vocab,
+            "--workers",
+            str(workers),
+            *extra_flags,
+        ],
+        check=True,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    warning = f"WARNING: {DEFAULT_EOD_TOKEN} is not in the {tokenizer_type} vocabulary"
+    assert result.stdout.count(warning) == 1
 
 
 @pytest.mark.parametrize(
