@@ -1542,8 +1542,8 @@ class NeoXArgs(*BASE_CLASSES):
         if self.use_bias_in_attn_linear == "qkv" and (self.te_mha or self.te_fp8_mha):
             raise ValueError(
                 "`use_bias_in_attn_linear='qkv'` is not supported with `te_mha`/"
-                "`te_fp8_mha`: Transformer Engine attention always uses a bias on "
-                "both the Q/K/V and output projections."
+                "`te_fp8_mha`: Transformer Engine's MultiheadAttention has a single "
+                "`bias` flag for both the Q/K/V and output projections."
             )
 
         _validate_qk_norm_args(
