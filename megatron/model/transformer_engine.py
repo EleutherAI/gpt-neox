@@ -453,6 +453,10 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
             self.gqa = True
             self.num_kv_heads = neox_args.num_kv_heads
 
+        # TE uses one bias flag for both the Q/K/V and output projections, so
+        # NeoXArgs rejects "qkv" here and only "all" and "none" reach this point.
+        self.use_bias = neox_args.use_bias_in_attn_linear == "all"
+
         super(TEMultiheadAttention, self).__init__(
             hidden_size=neox_args.hidden_size,
             num_attention_heads=neox_args.num_attention_heads,
@@ -469,7 +473,7 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
             num_gqa_groups=self.num_kv_heads,
             input_layernorm=False,
             normalization=self.normalization,
-            bias=True,
+            bias=self.use_bias,
             device=torch.cuda.current_device(),
             get_rng_state_tracker=get_cuda_rng_tracker,
             set_parallel_mode=self.set_parallel_mode,
@@ -522,28 +526,35 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
         **kwargs,
     ):
         if cu_seqlens is None:
-            return super(TEMultiheadAttention, self).forward(
+            output, bias = super(TEMultiheadAttention, self).forward(
                 hidden_states, attention_mask, rotary_pos_emb=self.rope_emb, **kwargs
             )
-        cu_seqlens = cu_seqlens[: int(num_documents.item()) + 1]
-        max_seqlen = int(max_seqlen.item())
-        self.qkv_format = "thd"
-        try:
-            output, bias = super(TEMultiheadAttention, self).forward(
-                hidden_states,
-                None,
-                rotary_pos_emb=self.rope_emb,
-                attn_mask_type="padding_causal",
-                cu_seqlens_q=cu_seqlens,
-                cu_seqlens_kv=cu_seqlens,
-                max_seqlen_q=max_seqlen,
-                max_seqlen_kv=max_seqlen,
-                **kwargs,
-            )
-        finally:
-            self.qkv_format = "sbhd"
-        # THD output is [T, H]; restore the singleton batch dimension.
-        return output.unsqueeze(1), bias
+        else:
+            cu_seqlens = cu_seqlens[: int(num_documents.item()) + 1]
+            max_seqlen = int(max_seqlen.item())
+            self.qkv_format = "thd"
+            try:
+                output, bias = super(TEMultiheadAttention, self).forward(
+                    hidden_states,
+                    None,
+                    rotary_pos_emb=self.rope_emb,
+                    attn_mask_type="padding_causal",
+                    cu_seqlens_q=cu_seqlens,
+                    cu_seqlens_kv=cu_seqlens,
+                    max_seqlen_q=max_seqlen,
+                    max_seqlen_kv=max_seqlen,
+                    **kwargs,
+                )
+            finally:
+                self.qkv_format = "sbhd"
+            # THD output is [T, H]; restore the singleton batch dimension.
+            output = output.unsqueeze(1)
+
+        # With bias=False, TE still returns a bias, but as an empty tensor that
+        # the caller's bias.expand_as(output) would fail on, so return None.
+        if not self.use_bias:
+            bias = None
+        return output, bias
 
 
 class TEDelayedScaling(te.common.recipe.DelayedScaling):
