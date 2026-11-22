@@ -185,6 +185,11 @@ class AbstractTokenizer(ABC):
         )
 
     @property
+    def default_eod(self):
+        """End-of-document ID when tokenizer_eod_token is omitted."""
+        return self.eod
+
+    @property
     def mask(self):
         raise NotImplementedError(
             "MASK is not provided for {} " "tokenizer".format(self.name)
@@ -237,7 +242,7 @@ class SentencePieceTokenizer(AbstractTokenizer):
         if eod_token is None:
             # piece_to_id returns the unknown token's id for a missing piece.
             # Keep that as before, but let build_tokenizer warn about it.
-            self.eod_id = self.tokenizer.piece_to_id(DEFAULT_EOD_TOKEN)
+            self.eod_id = self.default_eod
             self.default_eod_missing = not self._has_piece(DEFAULT_EOD_TOKEN)
         elif self._has_piece(eod_token):
             self.eod_id = self.tokenizer.piece_to_id(eod_token)
@@ -248,6 +253,10 @@ class SentencePieceTokenizer(AbstractTokenizer):
 
     def _has_piece(self, piece):
         return self.tokenizer.id_to_piece(self.tokenizer.piece_to_id(piece)) == piece
+
+    @property
+    def default_eod(self):
+        return self.tokenizer.piece_to_id(DEFAULT_EOD_TOKEN)
 
     @property
     def vocab_size(self):
@@ -287,7 +296,7 @@ class HFTokenizer(AbstractTokenizer):
         self.tokenizer = Tokenizer.from_file(vocab_file)
         # token_to_id returns None for a token that is not in the vocabulary
         if eod_token is None:
-            self.eod_id = self.tokenizer.token_to_id(DEFAULT_EOD_TOKEN)
+            self.eod_id = self.default_eod
             self.default_eod_missing = self.eod_id is None
         else:
             self.eod_id = self.tokenizer.token_to_id(eod_token)
@@ -296,6 +305,10 @@ class HFTokenizer(AbstractTokenizer):
                     f"tokenizer_eod_token {eod_token!r} is not in the vocabulary of {vocab_file}"
                 )
         self.pad_id = self.tokenizer.token_to_id("<|padding|>")
+
+    @property
+    def default_eod(self):
+        return self.tokenizer.token_to_id(DEFAULT_EOD_TOKEN)
 
     @property
     def vocab_size(self):

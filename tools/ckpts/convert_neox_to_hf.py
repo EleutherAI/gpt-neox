@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import os
 import sys
-from pathlib import Path
 
 import yaml
 import argparse
@@ -33,7 +31,7 @@ from transformers import (
     PreTrainedTokenizerFast,
 )
 
-from typing import List, Literal
+from typing import List, Literal, Optional
 
 sys.path.append(
     os.path.abspath(
@@ -41,7 +39,6 @@ sys.path.append(
     )
 )
 from megatron.tokenizer import build_tokenizer
-from megatron.tokenizer.tokenizer import DEFAULT_EOD_TOKEN
 
 
 """
@@ -263,53 +260,9 @@ def get_key(loaded_config, key, default=None):
             return default
 
 
-def _source_bos_id(tokenizer, tokenizer_args):
-    if tokenizer_args.tokenizer_eod_token is None:
-        return tokenizer.eod  # Legacy NeoX exports use the same boundary at both ends.
-
-    if tokenizer_args.tokenizer_type.lower() == "spmtokenizer":
-        bos_id = tokenizer.tokenizer.bos_id()
-        return bos_id if bos_id >= 0 else None
-
-    vocab_dir = Path(tokenizer_args.vocab_file).parent
-
-    def read_metadata(filename):
-        path = vocab_dir / filename
-        if path.is_file():
-            with path.open(encoding="utf-8") as f:
-                return json.load(f)
-        return {}
-
-    metadata = read_metadata("tokenizer_config.json")
-    special_tokens = read_metadata("special_tokens_map.json")
-    if "bos_token" in metadata or "bos_token" in special_tokens:
-        # An explicit role can be read even for a custom tokenizer class.
-        loader = PreTrainedTokenizerFast
-    elif metadata.get("tokenizer_class") or read_metadata("config.json").get(
-        "model_type"
-    ):
-        # Some Transformers classes supply a default BOS in their constructor.
-        loader = AutoTokenizer
-    elif metadata or special_tokens:
-        return None
-    else:
-        # Standalone NeoX vocabularies historically used this boundary at both ends.
-        return tokenizer.tokenizer.token_to_id(DEFAULT_EOD_TOKEN)
-
-    bos = loader.from_pretrained(
-        vocab_dir, tokenizer_file=tokenizer_args.vocab_file, local_files_only=True
-    ).bos_token
-    if bos is None:
-        return None
-    bos_id = tokenizer.tokenizer.token_to_id(bos)
-    if bos_id is None:
-        raise ValueError(
-            f"BOS token {bos!r} is missing from {tokenizer_args.vocab_file}."
-        )
-    return bos_id
-
-
-def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1):
+def create_config(
+    neox_config, architecture="neox", is_rm=False, pad_token_id=-1, bos_token_id=None
+):
     """take in a loaded yaml from NeoX and assign relevant values to HF config.
     Returns: GPTNeoXConfig() object
     """
@@ -389,7 +342,8 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
                     neox_config, "activation", default="silu"
                 ).replace("swiglu", "silu"),
                 "rms_norm_eps": get_key(neox_config, "rms-norm-epsilon", 1.0e-6),
-                "bos_token_id": _source_bos_id(tokenizer, tokenizer_args),
+                # Preserve the pre-override export convention independently of EOS.
+                "bos_token_id": tokenizer.default_eod,
                 "eos_token_id": tokenizer.eod,
                 "rope_theta": get_key(neox_config, "rotary-emb-base", 10000.0),
             }
@@ -436,6 +390,13 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
         if tokenizer_args.tokenizer_eod_token is not None:
             args["eos_token_id"] = tokenizer.eod
         hf_config = GPTNeoXConfig(**args)
+    if bos_token_id is not None:
+        if not 0 <= bos_token_id < tokenizer.vocab_size:
+            raise ValueError(
+                f"--bos-token-id {bos_token_id} is outside the tokenizer vocabulary "
+                f"of size {tokenizer.vocab_size}."
+            )
+        hf_config.bos_token_id = bos_token_id
     if is_rm:
         hf_config.num_labels = 1
         hf_config.pad_token_id = pad_token_id
@@ -533,6 +494,7 @@ def convert(
     architecture: Literal["neox", "llama", "mistral"] = "neox",
     is_rm: bool = False,
     pad_token_id: int = -1,
+    bos_token_id: Optional[int] = None,
 ):
     """convert a NeoX checkpoint to a HF model format.
     should perform model-parallel merging correctly
@@ -565,7 +527,11 @@ def convert(
         )
 
     hf_config = create_config(
-        loaded_config, architecture=architecture, is_rm=is_rm, pad_token_id=pad_token_id
+        loaded_config,
+        architecture=architecture,
+        is_rm=is_rm,
+        pad_token_id=pad_token_id,
+        bos_token_id=bos_token_id,
     )
 
     if not is_rm:
@@ -902,6 +868,12 @@ def main(input_args=None, overwrite_values=None):
         help="Pad token id to set in tokenizer. Required for RM style models.",
     )
     parser.add_argument(
+        "--bos-token-id",
+        type=int,
+        help="Vocabulary ID to use for the start of generation in the exported model "
+        "and as BOS in the saved tokenizer. Defaults to the legacy value for the architecture.",
+    )
+    parser.add_argument(
         "--architecture",
         type=str,
         default="neox",
@@ -956,6 +928,7 @@ def main(input_args=None, overwrite_values=None):
         architecture=args.architecture,
         is_rm=is_rm,
         pad_token_id=args.pad_token_id,
+        bos_token_id=args.bos_token_id,
     )
 
     tokenizer = None
@@ -978,13 +951,24 @@ def main(input_args=None, overwrite_values=None):
             tokenizer = PreTrainedTokenizerFast(
                 tokenizer_file=vocab_file, **tokenizer_kwargs
             )
-            if eod_token is not None and args.architecture in ("llama", "mistral"):
-                bos_id = hf_model.config.bos_token_id
-                if bos_id is not None:
-                    bos = tokenizer.added_tokens_decoder.get(bos_id)
-                    if bos is None:
-                        bos = tokenizer.convert_ids_to_tokens(bos_id)
-                    tokenizer.add_special_tokens({"bos_token": bos})
+
+        if tokenizer is not None and args.bos_token_id is not None:
+            bos_id = args.bos_token_id
+            bos = (
+                tokenizer.convert_ids_to_tokens(bos_id)
+                if bos_id < len(tokenizer)
+                else None
+            )
+            if bos is None or tokenizer.convert_tokens_to_ids(bos) != bos_id:
+                raise ValueError(
+                    f"--bos-token-id {bos_id} is missing from the export tokenizer."
+                )
+            tokenizer.add_special_tokens(
+                {"bos_token": tokenizer.added_tokens_decoder.get(bos_id, bos)}
+            )
+            # Some fast tokenizer classes build their template from the BOS and EOS roles.
+            if hasattr(tokenizer, "update_post_processor"):
+                tokenizer.update_post_processor()
 
         if tokenizer is not None and eod_token is not None:
             eos_id = tokenizer.eos_token_id
@@ -992,14 +976,6 @@ def main(input_args=None, overwrite_values=None):
                 raise ValueError(
                     f"Configured EOD token {eod_token!r} has ID {eos_id} "
                     f"in the export tokenizer, but the model expects {hf_model.config.eos_token_id}."
-                )
-            if (
-                args.architecture in ("llama", "mistral")
-                and tokenizer.bos_token_id != hf_model.config.bos_token_id
-            ):
-                raise ValueError(
-                    f"BOS token {tokenizer.bos_token!r} has ID {tokenizer.bos_token_id} "
-                    f"in the export tokenizer, but the model expects {hf_model.config.bos_token_id}."
                 )
             # An existing added token can still be ordinary in the tokenizer backend.
             added_token = tokenizer.added_tokens_decoder.get(eos_id)

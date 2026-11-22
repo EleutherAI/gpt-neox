@@ -19,7 +19,7 @@ from types import SimpleNamespace
 
 import pytest
 import sentencepiece as spm
-from tokenizers import AddedToken, Tokenizer, models, pre_tokenizers
+from tokenizers import AddedToken, Tokenizer, models, pre_tokenizers, processors
 
 from megatron.neox_arguments import NeoXArgs
 from megatron.tokenizer.tokenizer import (
@@ -393,7 +393,9 @@ def export_with_tokenizer(tmp_path, monkeypatch):
     # Exercise config creation and the CLI save paths with a tiny model.
     def convert_without_checkpoint(input_dir, config, output_dir, **kwargs):
         model_config = convert_neox_to_hf.create_config(
-            config, architecture=kwargs["architecture"]
+            config,
+            architecture=kwargs["architecture"],
+            bos_token_id=kwargs["bos_token_id"],
         )
         return AutoModelForCausalLM.from_config(model_config)
 
@@ -447,18 +449,8 @@ def test_saved_tokenizer_eos(
         assert tokenizer.decode([eos_id], skip_special_tokens=True) == ""
 
 
-@pytest.mark.parametrize(
-    ("architecture", "role", "model_id", "export_id"),
-    [("neox", "eos", 1, 4), ("llama", "bos", 2, 4)],
-)
-def test_export_rejects_different_boundary_ids(
-    hf_export_config,
-    tmp_path,
-    export_with_tokenizer,
-    architecture,
-    role,
-    model_id,
-    export_id,
+def test_export_rejects_different_eos_ids(
+    hf_export_config, tmp_path, export_with_tokenizer
 ):
     from transformers import PreTrainedTokenizerFast
 
@@ -466,30 +458,34 @@ def test_export_rejects_different_boundary_ids(
     training_vocab = (tmp_path / "tokenizer.json").rename(
         tmp_path / "training-vocab.json"
     )
-    hf_vocab = {**GEMMA_LIKE_VOCAB, f"<{role}>": export_id, "hello": model_id}
+    hf_vocab = {**GEMMA_LIKE_VOCAB, "<eos>": 4, "hello": 1}
     PreTrainedTokenizerFast(
-        tokenizer_object=Tokenizer(models.WordLevel(vocab=hf_vocab, unk_token="<unk>")),
-        bos_token="<bos>",
+        tokenizer_object=Tokenizer(models.WordLevel(vocab=hf_vocab, unk_token="<unk>"))
     ).save_pretrained(tmp_path)
     hf_export_config.update(
         {"vocab-file": str(training_vocab), "tokenizer_eod_token": "<eos>"}
     )
 
-    with pytest.raises(
-        ValueError, match=f"has ID {export_id} .*model expects {model_id}"
-    ):
-        export_with_tokenizer(
-            hf_export_config, "--architecture", architecture, "--vocab-is-hf-tokenizer"
-        )
+    with pytest.raises(ValueError, match="has ID 4 .*model expects 1"):
+        export_with_tokenizer(hf_export_config, "--vocab-is-hf-tokenizer")
     assert not (tmp_path / "export").exists()
 
 
-@pytest.mark.parametrize("architecture", ["llama", "mistral"])
 @pytest.mark.parametrize(
-    "flags", [[], ["--vocab-is-hf-tokenizer"], ["--no_save_tokenizer"]]
+    ("architecture", "default_bos", "default_eos"),
+    [("llama", None, None), ("mistral", None, None), ("neox", 0, 2)],
 )
-def test_export_preserves_source_bos(
-    hf_export_config, tmp_path, export_with_tokenizer, architecture, flags
+@pytest.mark.parametrize("pretrained", [False, True], ids=["raw-json", "pretrained"])
+@pytest.mark.parametrize("bos_id", [None, 2], ids=["default-bos", "explicit-bos"])
+def test_export_bos_is_independent_of_eod(
+    hf_export_config,
+    tmp_path,
+    export_with_tokenizer,
+    architecture,
+    default_bos,
+    default_eos,
+    pretrained,
+    bos_id,
 ):
     from transformers import (
         AutoConfig,
@@ -498,39 +494,65 @@ def test_export_preserves_source_bos(
         PreTrainedTokenizerFast,
     )
 
-    # Use unusual token names and BOS ID zero so neither can be inferred from a convention.
-    PreTrainedTokenizerFast(
-        tokenizer_file=hf_export_config["vocab-file"],
-        bos_token="<pad>",
-        eos_token="world",
-    ).save_pretrained(tmp_path)
-    hf_export_config["tokenizer_eod_token"] = "hello"
-    output = export_with_tokenizer(
-        hf_export_config, "--architecture", architecture, *flags
+    # NeoX encodes a Gemma-style prefix even if the HF metadata declares a different BOS.
+    vocab_file = hf_export_config["vocab-file"]
+    backend = Tokenizer.from_file(vocab_file)
+    backend.post_processor = processors.TemplateProcessing(
+        single="<bos> $A", special_tokens=[("<bos>", 2)]
     )
-    for config in (
-        AutoConfig.from_pretrained(output),
-        GenerationConfig.from_pretrained(output),
-    ):
-        assert (config.bos_token_id, config.eos_token_id) == (0, 4)
-    if "--no_save_tokenizer" not in flags:
+    PreTrainedTokenizerFast(
+        tokenizer_object=backend, bos_token="<pad>", eos_token="world"
+    ).save_pretrained(tmp_path)
+    assert HFTokenizer(vocab_file).tokenize("hello world") == [2, 4, 5]
+
+    flags = ["--architecture", architecture]
+    if pretrained:
+        flags.append("--vocab-is-hf-tokenizer")
+    expected_tokenizer_bos = 0 if pretrained else None
+    if bos_id is not None:
+        flags.extend(["--bos-token-id", str(bos_id)])
+        expected_tokenizer_bos = bos_id
+
+    expected_bos = default_bos if bos_id is None else bos_id
+    for eod_config, expected_eos in [
+        ({}, default_eos),
+        ({"tokenizer_eod_token": "<eos>"}, 1),
+    ]:
+        output = export_with_tokenizer({**hf_export_config, **eod_config}, *flags)
+        for config in (
+            AutoConfig.from_pretrained(output),
+            GenerationConfig.from_pretrained(output),
+        ):
+            assert (config.bos_token_id, config.eos_token_id) == (
+                expected_bos,
+                expected_eos,
+            )
         tokenizer = AutoTokenizer.from_pretrained(output)
-        assert (tokenizer.bos_token_id, tokenizer.eos_token_id) == (0, 4)
+        assert tokenizer.bos_token_id == expected_tokenizer_bos
+        assert tokenizer.encode("hello world") == [2, 4, 5]
+        if eod_config:
+            assert tokenizer.eos_token_id == expected_eos
 
 
 @pytest.mark.parametrize("architecture", ["llama", "mistral"])
-def test_spm_export_uses_native_bos(hf_export_config, spm_file, architecture):
+def test_spm_export_preserves_legacy_bos(hf_export_config, spm_file, architecture):
     from tools.ckpts.convert_neox_to_hf import create_config
 
     hf_export_config.update(
         {
             "tokenizer-type": "SPMTokenizer",
             "vocab-file": spm_file,
-            "tokenizer_eod_token": "</s>",
         }
     )
+    legacy = create_config(hf_export_config, architecture=architecture)
+    assert (legacy.bos_token_id, legacy.eos_token_id) == (0, 0)
+    hf_export_config["tokenizer_eod_token"] = "</s>"
     config = create_config(hf_export_config, architecture=architecture)
-    assert (config.bos_token_id, config.eos_token_id) == (1, 2)
+    assert (config.bos_token_id, config.eos_token_id) == (0, 2)
+    explicit = create_config(
+        hf_export_config, architecture=architecture, bos_token_id=1
+    )
+    assert (explicit.bos_token_id, explicit.eos_token_id) == (1, 2)
 
 
 def test_raw_export_preserves_legacy_bos(hf_export_config, neox_like_file):
@@ -544,42 +566,81 @@ def test_raw_export_preserves_legacy_bos(hf_export_config, neox_like_file):
     assert (custom.bos_token_id, custom.eos_token_id) == (0, 3)
 
 
-@pytest.mark.parametrize(
-    ("metadata", "expected_bos"),
-    [
-        (None, None),
-        ({"bos_token": None}, None),
-        ({"bos_token": {"content": "<bos>"}}, 2),
-    ],
-)
-def test_raw_export_bos_metadata(hf_export_config, tmp_path, metadata, expected_bos):
-    from tools.ckpts.convert_neox_to_hf import create_config
+@pytest.mark.parametrize("bos_id", [None, 0])
+def test_model_only_bos_ignores_custom_tokenizer_class(
+    hf_export_config, tmp_path, export_with_tokenizer, bos_id
+):
+    from transformers import AutoConfig, GenerationConfig
 
-    if metadata is not None:
-        (tmp_path / "special_tokens_map.json").write_text(json.dumps(metadata))
-        (tmp_path / "tokenizer_config.json").write_text(
-            json.dumps({"tokenizer_class": "CustomTokenizer"})
+    (tmp_path / "tokenizer_config.json").write_text(
+        json.dumps(
+            {
+                "tokenizer_class": "CustomTokenizer",
+                "auto_map": {
+                    "AutoTokenizer": ["tokenization_custom.CustomTokenizer", None]
+                },
+            }
         )
+    )
     hf_export_config["tokenizer_eod_token"] = "<eos>"
-    config = create_config(hf_export_config, architecture="llama")
-    assert (config.bos_token_id, config.eos_token_id) == (expected_bos, 1)
+    flags = ["--bos-token-id", str(bos_id)] if bos_id is not None else []
+    output = export_with_tokenizer(
+        hf_export_config, "--architecture", "llama", "--no_save_tokenizer", *flags
+    )
+    assert AutoConfig.from_pretrained(output).bos_token_id == bos_id
+    assert GenerationConfig.from_pretrained(output).bos_token_id == bos_id
+    assert not (output / "tokenizer.json").exists()
 
 
-def test_pretrained_tokenizer_class_defines_bos(
+def test_explicit_bos_updates_pretrained_tokenizer_template(
     hf_export_config, tmp_path, export_with_tokenizer
 ):
-    from transformers import AutoConfig, AutoTokenizer
+    from transformers import AutoConfig, AutoTokenizer, LlamaTokenizerFast
 
-    _hf_tokenizer_file(tmp_path, {"<unk>": 0, "<s>": 1, "</s>": 2, "<end>": 3})
-    (tmp_path / "tokenizer_config.json").write_text(
-        json.dumps({"tokenizer_class": "LlamaTokenizerFast"})
+    vocab_file = _hf_tokenizer_file(
+        tmp_path, {"<start>": 0, "<s>": 1, "</s>": 2, "<unk>": 3, "hello": 4}
     )
-    hf_export_config["tokenizer_eod_token"] = "<end>"
+    LlamaTokenizerFast(tokenizer_file=vocab_file).save_pretrained(tmp_path)
     output = export_with_tokenizer(
-        hf_export_config, "--architecture", "llama", "--vocab-is-hf-tokenizer"
+        hf_export_config,
+        "--architecture",
+        "mistral",
+        "--bos-token-id",
+        "0",
+        "--vocab-is-hf-tokenizer",
     )
-    for artifact in (
-        AutoConfig.from_pretrained(output),
-        AutoTokenizer.from_pretrained(output),
+    assert AutoConfig.from_pretrained(output).bos_token_id == 0
+    tokenizer = AutoTokenizer.from_pretrained(output)
+    assert tokenizer.bos_token == "<start>"
+    assert tokenizer.encode("hello") == [0, 4]
+    assert Tokenizer.from_file(str(output / "tokenizer.json")).encode("hello").ids == [
+        0,
+        4,
+    ]
+
+
+@pytest.mark.parametrize("bos_id", [-1, len(GEMMA_LIKE_VOCAB)])
+def test_invalid_explicit_bos(hf_export_config, export_with_tokenizer, bos_id):
+    hf_export_config["make-vocab-size-divisible-by"] = 128
+    with pytest.raises(ValueError, match="outside the tokenizer vocabulary"):
+        export_with_tokenizer(
+            hf_export_config, "--bos-token-id", str(bos_id), "--no_save_tokenizer"
+        )
+
+
+def test_explicit_bos_must_exist_in_saved_tokenizer(
+    hf_export_config, tmp_path, export_with_tokenizer
+):
+    from transformers import PreTrainedTokenizerFast
+
+    source = (tmp_path / "tokenizer.json").rename(tmp_path / "training-vocab.json")
+    hf_export_config["vocab-file"] = str(source)
+    small_vocab = _hf_tokenizer_file(tmp_path, {"<unk>": 0, "hello": 1})
+    PreTrainedTokenizerFast(tokenizer_file=small_vocab).save_pretrained(tmp_path)
+    with pytest.raises(
+        ValueError, match="--bos-token-id 5 is missing from the export tokenizer"
     ):
-        assert (artifact.bos_token_id, artifact.eos_token_id) == (1, 3)
+        export_with_tokenizer(
+            hf_export_config, "--bos-token-id", "5", "--vocab-is-hf-tokenizer"
+        )
+    assert not (tmp_path / "export").exists()

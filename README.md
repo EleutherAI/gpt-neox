@@ -583,6 +583,10 @@ To convert a GPT-NeoX library checkpoint to Hugging Face-loadable format, run:
 python ./tools/ckpts/convert_neox_to_hf.py --input_dir /path/to/model/global_stepXXX --config_file your_config.yml --output_dir hf_model/save/location --precision {auto,fp16,bf16,fp32} --architecture {neox,mistral,llama}
 ```
 
+Use `--bos-token-id 2` if vocabulary ID 2 should start generation without a prompt. The flag sets BOS in the model, generation config, and any tokenizer saved with the checkpoint. Input encoding still follows the tokenizer's post-processor.
+
+Without the flag, the saved tokenizer keeps its existing BOS role. Llama and Mistral model configs use the tokenizer's original NeoX EOD ID for BOS. If `<|endoftext|>` is absent, this is unset for `HFTokenizer` and is the unknown-piece ID for `SPMTokenizer`. GPT-NeoX uses its Transformers BOS default. Setting `tokenizer_eod_token` changes the exported EOS independently of BOS.
+
 Then to upload a model to [the Hugging Face Hub](https://huggingface.co/), run:
 ```bash
 huggingface-cli login
