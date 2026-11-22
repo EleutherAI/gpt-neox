@@ -240,23 +240,37 @@ def test_preprocessing_eod_token_flag(
     assert build_tokenizer(args).eod == 1
 
 
-def test_hf_export_uses_the_eod_token(gemma_like_file):
+@pytest.mark.parametrize(
+    ("architecture", "eod_config", "expected_eos_id"),
+    [
+        ("neox", {"tokenizer_eod_token": "<eos>"}, 1),
+        ("neox", {"tokenizer-eod-token": "<pad>"}, 0),
+        ("neox", {}, 2),
+        ("llama", {"tokenizer_eod_token": "<eos>"}, 1),
+    ],
+)
+def test_hf_export_eos_token_id(
+    gemma_like_file, tmp_path, architecture, eod_config, expected_eos_id
+):
+    from transformers import AutoConfig
+
     from tools.ckpts import convert_neox_to_hf
 
     hf_config = convert_neox_to_hf.create_config(
         {
             "tokenizer-type": "HFTokenizer",
             "vocab-file": gemma_like_file,
-            "tokenizer_eod_token": "<eos>",
+            **eod_config,
             "make-vocab-size-divisible-by": 1,
             "model-parallel-size": 1,
             "hidden-size": 8,
             "num-layers": 1,
             "num-attention-heads": 2,
             "max-position-embeddings": 16,
-            "norm": "rmsnorm",
+            "norm": "layernorm" if architecture == "neox" else "rmsnorm",
         },
-        architecture="llama",
+        architecture=architecture,
     )
 
-    assert hf_config.eos_token_id == 1
+    hf_config.save_pretrained(tmp_path)
+    assert AutoConfig.from_pretrained(tmp_path).eos_token_id == expected_eos_id

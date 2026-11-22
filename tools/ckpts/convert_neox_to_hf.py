@@ -289,8 +289,8 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
 
             self.rank = 0
 
-    args = TokenizerArgs(neox_config)
-    tokenizer = build_tokenizer(args)
+    tokenizer_args = TokenizerArgs(neox_config)
+    tokenizer = build_tokenizer(tokenizer_args)
     try:  # GPT2TokenizerFast raises NotImplementedError
         pad_token = tokenizer.pad
     except:
@@ -312,7 +312,7 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
 
     # shared config parameters.
     args = {
-        "vocab_size": args.padded_vocab_size,
+        "vocab_size": tokenizer_args.padded_vocab_size,
         "hidden_size": get_key(neox_config, "hidden-size"),
         "num_hidden_layers": get_key(neox_config, "num-layers"),
         "num_attention_heads": get_key(neox_config, "num-attention-heads"),
@@ -382,6 +382,8 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
                 ),
             }
         )
+        if tokenizer_args.tokenizer_eod_token is not None:
+            args["eos_token_id"] = tokenizer.eod
         hf_config = GPTNeoXConfig(**args)
     if is_rm:
         hf_config.num_labels = 1
