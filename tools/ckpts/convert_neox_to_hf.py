@@ -27,9 +27,11 @@ from transformers import (
     AutoModelForCausalLM,
     AutoConfig,
     AutoModelForSequenceClassification,
+    AutoTokenizer,
+    PreTrainedTokenizerFast,
 )
 
-from typing import List, Literal
+from typing import List, Literal, Optional
 
 sys.path.append(
     os.path.abspath(
@@ -258,10 +260,19 @@ def get_key(loaded_config, key, default=None):
             return default
 
 
-def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1):
-    """take in a loaded yaml from NeoX and assign relevant values to HF config.
-    Returns: GPTNeoXConfig() object
-    """
+def create_config(
+    neox_config, architecture="neox", is_rm=False, pad_token_id=-1, bos_token_id=None
+):
+    """Build the Hugging Face model config from a NeoX config."""
+    hf_config, _ = _create_config_and_tokenizer(
+        neox_config, architecture, is_rm, pad_token_id, bos_token_id
+    )
+    return hf_config
+
+
+def _create_config_and_tokenizer(
+    neox_config, architecture, is_rm, pad_token_id, bos_token_id
+):
 
     def gated_size(hidden_dim):
         # takes in a hidden dim and calculates intermediate dim of a LLaMAParallelMLP.
@@ -285,11 +296,12 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
             self.tokenizer_type = get_key(
                 neox_config, "tokenizer-type", default="GPT2BPETokenizer"
             )
+            self.tokenizer_eod_token = get_key(neox_config, "tokenizer-eod-token")
 
             self.rank = 0
 
-    args = TokenizerArgs(neox_config)
-    tokenizer = build_tokenizer(args)
+    tokenizer_args = TokenizerArgs(neox_config)
+    tokenizer = build_tokenizer(tokenizer_args)
     try:  # GPT2TokenizerFast raises NotImplementedError
         pad_token = tokenizer.pad
     except:
@@ -311,7 +323,7 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
 
     # shared config parameters.
     args = {
-        "vocab_size": args.padded_vocab_size,
+        "vocab_size": tokenizer_args.padded_vocab_size,
         "hidden_size": get_key(neox_config, "hidden-size"),
         "num_hidden_layers": get_key(neox_config, "num-layers"),
         "num_attention_heads": get_key(neox_config, "num-attention-heads"),
@@ -337,7 +349,8 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
                     neox_config, "activation", default="silu"
                 ).replace("swiglu", "silu"),
                 "rms_norm_eps": get_key(neox_config, "rms-norm-epsilon", 1.0e-6),
-                "bos_token_id": tokenizer.eod,
+                # Preserve the pre-override export convention independently of EOS.
+                "bos_token_id": tokenizer.default_eod,
                 "eos_token_id": tokenizer.eod,
                 "rope_theta": get_key(neox_config, "rotary-emb-base", 10000.0),
             }
@@ -381,12 +394,21 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
                 ),
             }
         )
+        if tokenizer.eod is not None:
+            args["eos_token_id"] = tokenizer.eod
         hf_config = GPTNeoXConfig(**args)
+    if bos_token_id is not None:
+        if not 0 <= bos_token_id < tokenizer.vocab_size:
+            raise ValueError(
+                f"--bos-token-id {bos_token_id} is outside the tokenizer vocabulary "
+                f"of size {tokenizer.vocab_size}."
+            )
+        hf_config.bos_token_id = bos_token_id
     if is_rm:
         hf_config.num_labels = 1
         hf_config.pad_token_id = pad_token_id
 
-    return hf_config
+    return hf_config, tokenizer
 
 
 def reshard_and_split_qkv(
@@ -479,6 +501,9 @@ def convert(
     architecture: Literal["neox", "llama", "mistral"] = "neox",
     is_rm: bool = False,
     pad_token_id: int = -1,
+    bos_token_id: Optional[int] = None,
+    *,
+    hf_config=None,
 ):
     """convert a NeoX checkpoint to a HF model format.
     should perform model-parallel merging correctly
@@ -510,9 +535,14 @@ def convert(
             " supported by these Huggingface model classes."
         )
 
-    hf_config = create_config(
-        loaded_config, architecture=architecture, is_rm=is_rm, pad_token_id=pad_token_id
-    )
+    if hf_config is None:
+        hf_config = create_config(
+            loaded_config,
+            architecture=architecture,
+            is_rm=is_rm,
+            pad_token_id=pad_token_id,
+            bos_token_id=bos_token_id,
+        )
 
     if not is_rm:
         hf_model = AutoModelForCausalLM.from_config(hf_config)
@@ -848,6 +878,12 @@ def main(input_args=None, overwrite_values=None):
         help="Pad token id to set in tokenizer. Required for RM style models.",
     )
     parser.add_argument(
+        "--bos-token-id",
+        type=int,
+        help="Vocabulary ID to use for the start of generation in the exported model "
+        "and as BOS in the saved tokenizer. Defaults to the legacy value for the architecture.",
+    )
+    parser.add_argument(
         "--architecture",
         type=str,
         default="neox",
@@ -893,7 +929,73 @@ def main(input_args=None, overwrite_values=None):
             f"Detected 'pipe-parallel-size' of {pipeline_world_size}, assuming model is saved as PipelineModule..."
         )
 
-    # convert the model to HF.
+    hf_config, training_tokenizer = _create_config_and_tokenizer(
+        loaded_config, args.architecture, is_rm, args.pad_token_id, args.bos_token_id
+    )
+
+    # Validate the export tokenizer before loading any checkpoint weights.
+    tokenizer = None
+    if not args.no_save_tokenizer:
+        tokenizer_type = get_key(
+            loaded_config, "tokenizer-type", default="GPT2BPETokenizer"
+        )
+        vocab_file = get_key(loaded_config, "vocab-file")
+        eod_id = training_tokenizer.eod
+        eod_token = None
+        if eod_id is not None:
+            if tokenizer_type.lower() == "hftokenizer":
+                eod_token = training_tokenizer.tokenizer.id_to_token(eod_id)
+            elif tokenizer_type.lower() == "spmtokenizer":
+                eod_token = training_tokenizer.tokenizer.id_to_piece(eod_id)
+        tokenizer_kwargs = {"eos_token": eod_token} if eod_token is not None else {}
+        if args.vocab_is_hf_tokenizer:
+            tokenizer = AutoTokenizer.from_pretrained(
+                os.path.dirname(vocab_file) or ".", **tokenizer_kwargs
+            )
+        elif tokenizer_type.lower() == "hftokenizer":
+            print(f"loading tokenizer from file {vocab_file}")
+            print(
+                "Warning: please check that your model config and tokenizer end with the correct special tokens (EOS, BOS)."
+            )
+            tokenizer = PreTrainedTokenizerFast(
+                tokenizer_file=vocab_file, **tokenizer_kwargs
+            )
+
+        if tokenizer is not None:
+            if eod_token is not None and tokenizer.eos_token_id != eod_id:
+                raise ValueError(
+                    f"EOD token {eod_token!r} has ID {tokenizer.eos_token_id} "
+                    f"in the export tokenizer, but the model expects {eod_id}."
+                )
+            special_tokens = {}
+            refresh_template = False
+            for role, token_id, label in (
+                ("eos_token", eod_id, "EOD ID"),
+                ("bos_token", args.bos_token_id, "--bos-token-id"),
+            ):
+                if token_id is None:
+                    continue
+                token = (
+                    tokenizer.convert_ids_to_tokens(token_id)
+                    if token_id < len(tokenizer)
+                    else None
+                )
+                if token is None or tokenizer.convert_tokens_to_ids(token) != token_id:
+                    raise ValueError(
+                        f"{label} {token_id} is missing from the export tokenizer."
+                    )
+                if getattr(tokenizer, role + "_id") != token_id:
+                    refresh_template = True
+                special_tokens[role] = tokenizer.added_tokens_decoder.get(
+                    token_id, token
+                )
+            if special_tokens:
+                tokenizer.add_special_tokens(special_tokens)
+                if refresh_template and hasattr(tokenizer, "update_post_processor"):
+                    tokenizer.update_post_processor()
+            if args.pad_token_id != -1:
+                tokenizer.pad_token_id = args.pad_token_id
+
     hf_model = convert(
         args.input_dir,
         loaded_config,
@@ -901,43 +1003,13 @@ def main(input_args=None, overwrite_values=None):
         sequential=sequential,
         architecture=args.architecture,
         is_rm=is_rm,
-        pad_token_id=args.pad_token_id,
+        hf_config=hf_config,
     )
-
-    # Save to disk.
     hf_model.save_pretrained(args.output_dir)
-
-    if not args.no_save_tokenizer:
-        # save tokenizer to directory as well, for easy loading of model as a HF model.
-        tokenizer_type = get_key(
-            loaded_config, "tokenizer-type", default="GPT2BPETokenizer"
-        )
-        if args.vocab_is_hf_tokenizer:
-            from transformers import AutoTokenizer
-
-            tokenizer = AutoTokenizer.from_pretrained(
-                os.path.dirname(get_key(loaded_config, "vocab-file"))
-            )
-            if args.pad_token_id != -1:
-                tokenizer.pad_token_id = args.pad_token_id
-            print("loaded tokenizer: ", tokenizer)
-            tokenizer.save_pretrained(args.output_dir)
-            print("tokenizer saved!")
-        elif tokenizer_type == "HFTokenizer":  # TODO: handle sentencepiece tokenizers?
-            print(f"saving tokenizer from file {get_key(loaded_config, 'vocab-file')}")
-            print(
-                "Warning: please check that your model config and tokenizer end with the correct special tokens (EOS, BOS)."
-            )
-            from transformers import PreTrainedTokenizerFast
-
-            tokenizer = PreTrainedTokenizerFast(
-                tokenizer_file=get_key(loaded_config, "vocab-file")
-            )
-            if args.pad_token_id != -1:
-                tokenizer.pad_token_id = args.pad_token_id
-            print("loaded tokenizer: ", tokenizer)
-            tokenizer.save_pretrained(args.output_dir)
-            print("tokenizer saved!")
+    if tokenizer is not None:
+        print("loaded tokenizer: ", tokenizer)
+        tokenizer.save_pretrained(args.output_dir)
+        print("tokenizer saved!")
 
 
 if __name__ == "__main__":

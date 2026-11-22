@@ -1235,7 +1235,7 @@ Tokenizer Arguments
 
     End-of-document token for HFTokenizer and SPMTokenizer, e.g. "<eos>" for Gemma or "<|end_of_text|>" for Llama 3.
     It must be in the tokenizer's vocabulary. If unset, these tokenizers use "<|endoftext|>", and warn when it is missing.
-    It is used by eod_mask_loss and as the stop and padding token in text generation.
+    It is used by eod_mask_loss, as the stop and padding token in text generation, and in HF export.
     Preprocess data with the matching --eod-token so --append-eod adds the same token.
 
 - **padded_vocab_size**: int
