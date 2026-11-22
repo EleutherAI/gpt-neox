@@ -288,7 +288,9 @@ def export_with_tokenizer(tmp_path, monkeypatch):
 
     # Exercise config creation and the CLI save paths with a tiny model.
     def convert_without_checkpoint(input_dir, config, output_dir, **kwargs):
-        model_config = convert_neox_to_hf.create_config(config)
+        model_config = convert_neox_to_hf.create_config(
+            config, architecture=kwargs["architecture"]
+        )
         return AutoModelForCausalLM.from_config(model_config)
 
     monkeypatch.setattr(convert_neox_to_hf, "convert", convert_without_checkpoint)
@@ -341,8 +343,18 @@ def test_saved_tokenizer_eos(
         assert tokenizer.decode([eos_id], skip_special_tokens=True) == ""
 
 
-def test_export_rejects_different_eos_ids(
-    hf_export_config, tmp_path, export_with_tokenizer
+@pytest.mark.parametrize(
+    ("architecture", "role", "model_id", "export_id"),
+    [("neox", "eos", 1, 4), ("llama", "bos", 2, 4)],
+)
+def test_export_rejects_different_boundary_ids(
+    hf_export_config,
+    tmp_path,
+    export_with_tokenizer,
+    architecture,
+    role,
+    model_id,
+    export_id,
 ):
     from transformers import PreTrainedTokenizerFast
 
@@ -350,14 +362,120 @@ def test_export_rejects_different_eos_ids(
     training_vocab = (tmp_path / "tokenizer.json").rename(
         tmp_path / "training-vocab.json"
     )
-    hf_vocab = {**GEMMA_LIKE_VOCAB, "<eos>": 4, "hello": 1}
+    hf_vocab = {**GEMMA_LIKE_VOCAB, f"<{role}>": export_id, "hello": model_id}
     PreTrainedTokenizerFast(
-        tokenizer_object=Tokenizer(models.WordLevel(vocab=hf_vocab, unk_token="<unk>"))
+        tokenizer_object=Tokenizer(models.WordLevel(vocab=hf_vocab, unk_token="<unk>")),
+        bos_token="<bos>",
     ).save_pretrained(tmp_path)
     hf_export_config.update(
         {"vocab-file": str(training_vocab), "tokenizer_eod_token": "<eos>"}
     )
 
-    with pytest.raises(ValueError, match="has ID 4 .*model expects 1"):
-        export_with_tokenizer(hf_export_config, "--vocab-is-hf-tokenizer")
+    with pytest.raises(
+        ValueError, match=f"has ID {export_id} .*model expects {model_id}"
+    ):
+        export_with_tokenizer(
+            hf_export_config, "--architecture", architecture, "--vocab-is-hf-tokenizer"
+        )
     assert not (tmp_path / "export").exists()
+
+
+@pytest.mark.parametrize("architecture", ["llama", "mistral"])
+@pytest.mark.parametrize(
+    "flags", [[], ["--vocab-is-hf-tokenizer"], ["--no_save_tokenizer"]]
+)
+def test_export_preserves_source_bos(
+    hf_export_config, tmp_path, export_with_tokenizer, architecture, flags
+):
+    from transformers import (
+        AutoConfig,
+        AutoTokenizer,
+        GenerationConfig,
+        PreTrainedTokenizerFast,
+    )
+
+    # Use unusual token names and BOS ID zero so neither can be inferred from a convention.
+    PreTrainedTokenizerFast(
+        tokenizer_file=hf_export_config["vocab-file"],
+        bos_token="<pad>",
+        eos_token="world",
+    ).save_pretrained(tmp_path)
+    hf_export_config["tokenizer_eod_token"] = "hello"
+    output = export_with_tokenizer(
+        hf_export_config, "--architecture", architecture, *flags
+    )
+    for config in (
+        AutoConfig.from_pretrained(output),
+        GenerationConfig.from_pretrained(output),
+    ):
+        assert (config.bos_token_id, config.eos_token_id) == (0, 4)
+    if "--no_save_tokenizer" not in flags:
+        tokenizer = AutoTokenizer.from_pretrained(output)
+        assert (tokenizer.bos_token_id, tokenizer.eos_token_id) == (0, 4)
+
+
+@pytest.mark.parametrize("architecture", ["llama", "mistral"])
+def test_spm_export_uses_native_bos(hf_export_config, spm_file, architecture):
+    from tools.ckpts.convert_neox_to_hf import create_config
+
+    hf_export_config.update(
+        {
+            "tokenizer-type": "SPMTokenizer",
+            "vocab-file": spm_file,
+            "tokenizer_eod_token": "</s>",
+        }
+    )
+    config = create_config(hf_export_config, architecture=architecture)
+    assert (config.bos_token_id, config.eos_token_id) == (1, 2)
+
+
+def test_raw_export_preserves_legacy_bos(hf_export_config, neox_like_file):
+    from tools.ckpts.convert_neox_to_hf import create_config
+
+    hf_export_config["vocab-file"] = neox_like_file
+    legacy = create_config(hf_export_config, architecture="llama")
+    assert (legacy.bos_token_id, legacy.eos_token_id) == (0, 0)
+    hf_export_config["tokenizer_eod_token"] = "world"
+    custom = create_config(hf_export_config, architecture="llama")
+    assert (custom.bos_token_id, custom.eos_token_id) == (0, 3)
+
+
+@pytest.mark.parametrize(
+    ("metadata", "expected_bos"),
+    [
+        (None, None),
+        ({"bos_token": None}, None),
+        ({"bos_token": {"content": "<bos>"}}, 2),
+    ],
+)
+def test_raw_export_bos_metadata(hf_export_config, tmp_path, metadata, expected_bos):
+    from tools.ckpts.convert_neox_to_hf import create_config
+
+    if metadata is not None:
+        (tmp_path / "special_tokens_map.json").write_text(json.dumps(metadata))
+        (tmp_path / "tokenizer_config.json").write_text(
+            json.dumps({"tokenizer_class": "CustomTokenizer"})
+        )
+    hf_export_config["tokenizer_eod_token"] = "<eos>"
+    config = create_config(hf_export_config, architecture="llama")
+    assert (config.bos_token_id, config.eos_token_id) == (expected_bos, 1)
+
+
+def test_pretrained_tokenizer_class_defines_bos(
+    hf_export_config, tmp_path, export_with_tokenizer
+):
+    from transformers import AutoConfig, AutoTokenizer
+
+    _hf_tokenizer_file(tmp_path, {"<unk>": 0, "<s>": 1, "</s>": 2, "<end>": 3})
+    (tmp_path / "tokenizer_config.json").write_text(
+        json.dumps({"tokenizer_class": "LlamaTokenizerFast"})
+    )
+    hf_export_config["tokenizer_eod_token"] = "<end>"
+    output = export_with_tokenizer(
+        hf_export_config, "--architecture", "llama", "--vocab-is-hf-tokenizer"
+    )
+    for artifact in (
+        AutoConfig.from_pretrained(output),
+        AutoTokenizer.from_pretrained(output),
+    ):
+        assert (artifact.bos_token_id, artifact.eos_token_id) == (1, 3)
