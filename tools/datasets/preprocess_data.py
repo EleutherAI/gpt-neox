@@ -46,7 +46,7 @@ class Encoder(object):
 
     def initializer(self):
         # Use Encoder class as a container for global data
-        Encoder.tokenizer = build_tokenizer(self.args)
+        Encoder.tokenizer = build_tokenizer(self.args, warn_missing_eod=False)
 
     def encode(self, text):
         if self.args.ftfy:
@@ -113,6 +113,14 @@ def get_args(input_args=None):
         "--append-eod",
         action="store_true",
         help="Append an <eod> token to the end of a document.",
+    )
+    group.add_argument(
+        "--eod-token",
+        dest="tokenizer_eod_token",
+        type=str,
+        default=None,
+        help="End-of-document token for HFTokenizer and SPMTokenizer, e.g. <eos> for Gemma. "
+        "Defaults to <|endoftext|>. Use the same value as tokenizer_eod_token in the training config.",
     )
     group.add_argument("--ftfy", action="store_true", help="Use ftfy to clean text")
     group = parser.add_argument_group(title="output data")
@@ -188,7 +196,7 @@ def main(input_args=None):
         pool = multiprocessing.Pool(args.workers, initializer=encoder.initializer)
         encoded_docs = pool.imap(encoder.encode, fin, chunksize=25)
     else:
-        encoder.initializer()
+        Encoder.tokenizer = tokenizer
         encoded_docs = (encoder.encode(doc) for doc in fin)
 
     # make a dataset builder for each key in args.jsonl_keys

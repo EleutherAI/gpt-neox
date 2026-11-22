@@ -26,15 +26,32 @@ import numpy as np
 import sentencepiece as spm
 from typing import List, Union
 
+# The end-of-document token HFTokenizer and SPMTokenizer look for when
+# tokenizer_eod_token is not set.
+DEFAULT_EOD_TOKEN = "<|endoftext|>"
 
-def build_tokenizer(args):
-    """Initialize tokenizer."""
+
+def build_tokenizer(args, *, warn_missing_eod=True):
+    """Build the tokenizer and optionally report a missing default EOD on rank zero."""
     if args.rank == 0:
         print("> building {} tokenizer ...".format(args.tokenizer_type), flush=True)
 
     assert (
         args.tokenizer_type is not None
     ), "tokenizer_type must be specified in the .yml config"
+
+    # Not every caller passes a NeoXArgs (the preprocessing and conversion
+    # scripts build their own args), so read optional fields with getattr.
+    eod_token = getattr(args, "tokenizer_eod_token", None)
+    supports_eod_override = args.tokenizer_type.lower() in (
+        "hftokenizer",
+        "spmtokenizer",
+    )
+    if eod_token is not None and not supports_eod_override:
+        raise ValueError(
+            "tokenizer_eod_token is only supported with HFTokenizer and "
+            f"SPMTokenizer, not {args.tokenizer_type}"
+        )
 
     # Select and instantiate the tokenizer.
     if args.tokenizer_type.lower() == "GPT2BPETokenizer".lower():
@@ -43,10 +60,10 @@ def build_tokenizer(args):
         tokenizer = _GPT2BPETokenizer(args.vocab_file, args.merge_file)
     elif args.tokenizer_type.lower() == "SPMTokenizer".lower():
         assert args.vocab_file is not None
-        tokenizer = SentencePieceTokenizer(args.vocab_file)
+        tokenizer = SentencePieceTokenizer(args.vocab_file, eod_token=eod_token)
     elif args.tokenizer_type.lower() == "HFTokenizer".lower():
         assert args.vocab_file is not None
-        tokenizer = HFTokenizer(args.vocab_file)
+        tokenizer = HFTokenizer(args.vocab_file, eod_token=eod_token)
     elif args.tokenizer_type.lower() == "HFGPT2Tokenizer".lower():
         if args.vocab_file is None:
             print(
@@ -62,6 +79,32 @@ def build_tokenizer(args):
         raise NotImplementedError(
             "{} tokenizer is not " "implemented.".format(args.tokenizer_type)
         )
+
+    if warn_missing_eod and tokenizer.default_eod_missing and args.rank == 0:
+        fallback = "unset" if tokenizer.eod is None else "the unknown token"
+        print(
+            f"WARNING: {DEFAULT_EOD_TOKEN} is not in the {args.tokenizer_type} "
+            f"vocabulary, so the end-of-document token is {fallback}. Set "
+            "tokenizer_eod_token in the config (--eod-token in the preprocessing "
+            'scripts) to the tokenizer\'s end-of-document token, e.g. "<eos>" for Gemma.',
+            flush=True,
+        )
+    if tokenizer.eod is None:
+        if supports_eod_override:
+            hint = (
+                f"The vocabulary has no {DEFAULT_EOD_TOKEN}. Set tokenizer_eod_token "
+                "in the config (--eod-token in the preprocessing scripts)."
+            )
+        else:
+            hint = (
+                f"Set eos_token in the saved tokenizer loaded by {args.tokenizer_type}."
+            )
+        for flag, name in (
+            ("eod_mask_loss", "eod_mask_loss"),
+            ("append_eod", "--append-eod"),
+        ):
+            if getattr(args, flag, False):
+                raise ValueError(f"{name} needs an end-of-document token. {hint}")
 
     # Add vocab size.
     args.padded_vocab_size = _vocab_size_with_padding(tokenizer.vocab_size, args)
@@ -88,6 +131,10 @@ def _vocab_size_with_padding(orig_vocab_size, args):
 
 class AbstractTokenizer(ABC):
     """Abstract class for tokenizer."""
+
+    # True when no end-of-document token was configured and the tokenizer has
+    # no DEFAULT_EOD_TOKEN; build_tokenizer warns about it.
+    default_eod_missing = False
 
     def __init__(self, name):
         self.name = name
@@ -188,12 +235,25 @@ class _GPT2BPETokenizer(AbstractTokenizer):
 class SentencePieceTokenizer(AbstractTokenizer):
     """Designed to Integrate SP's Tokenizer."""
 
-    def __init__(self, vocab_file):
+    def __init__(self, vocab_file, eod_token=None):
         name = "SPM"
         super().__init__(name)
 
         self.tokenizer = spm.SentencePieceProcessor(model_file=vocab_file)
-        self.eod_id = self.tokenizer.piece_to_id("<|endoftext|>")
+        if eod_token is None:
+            # piece_to_id returns the unknown token's id for a missing piece.
+            # Keep that as before, but let build_tokenizer warn about it.
+            self.eod_id = self.tokenizer.piece_to_id(DEFAULT_EOD_TOKEN)
+            self.default_eod_missing = not self._has_piece(DEFAULT_EOD_TOKEN)
+        elif self._has_piece(eod_token):
+            self.eod_id = self.tokenizer.piece_to_id(eod_token)
+        else:
+            raise ValueError(
+                f"tokenizer_eod_token {eod_token!r} is not in the vocabulary of {vocab_file}"
+            )
+
+    def _has_piece(self, piece):
+        return self.tokenizer.id_to_piece(self.tokenizer.piece_to_id(piece)) == piece
 
     @property
     def vocab_size(self):
@@ -227,11 +287,20 @@ class SentencePieceTokenizer(AbstractTokenizer):
 class HFTokenizer(AbstractTokenizer):
     """Designed to Integrate HF's Tokenizer library."""
 
-    def __init__(self, vocab_file):
+    def __init__(self, vocab_file, eod_token=None):
         name = "HFTokenizer"
         super().__init__(name)
         self.tokenizer = Tokenizer.from_file(vocab_file)
-        self.eod_id = self.tokenizer.token_to_id("<|endoftext|>")
+        # token_to_id returns None for a token that is not in the vocabulary
+        if eod_token is None:
+            self.eod_id = self.tokenizer.token_to_id(DEFAULT_EOD_TOKEN)
+            self.default_eod_missing = self.eod_id is None
+        else:
+            self.eod_id = self.tokenizer.token_to_id(eod_token)
+            if self.eod_id is None:
+                raise ValueError(
+                    f"tokenizer_eod_token {eod_token!r} is not in the vocabulary of {vocab_file}"
+                )
         self.pad_id = self.tokenizer.token_to_id("<|padding|>")
 
     @property

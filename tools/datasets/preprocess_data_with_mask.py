@@ -20,25 +20,12 @@ A script for processing a dataset such that corresponding labels are also produc
 (for example, finetuning a model to only output the text following some delimiter in the finetuning dataset such as "Answer: "
 rather than generating the entire "Question: ... Answer: " turns of conversation.
 
-To run this script, first edit `tools/datasets/corpora.py` such that the command to call `tools/datasets/preprocess_data.py` is as follows:
+To use this script with a registered dataset, change the script name in
+`DataDownloader.tokenize()` in `tools/datasets/corpora.py` from `preprocess_data.py`
+to `preprocess_data_with_mask.py`. Add the delimiter to the argument list before running the command.
 
 ```
-cmd = f"python tools/datasets/preprocess_data_with_mask.py \
-    --input {jsonl_filepath} \
-    --output-prefix {parent_folder}/{self.name} \
-    --vocab {self.vocab_file} \
-    --dataset-impl mmap \
-    --tokenizer-type {self.tokenizer_type} \
-    --merge-file {self.merge_file} \
-    --append-eod \
-    --mask-before-token X,Y,Z \
-    --workers {self.num_workers} "
-
-if self.num_docs is not None:
-    cmd += f"--num-docs {self.num_docs} "
-
-if self.ftfy:
-    cmd += f"--ftfy "
+cmd.extend(["--mask-before-token", "X,Y,Z"])
 ```
 where --mask-before-token must be the (comma-separated) list of tokens produced by encoding your delimiter string.
 Up to and including the first occurrence of this token sequence in a document, all tokens will have their loss mask zeroed out when the label dataset is provided to NeoX.
@@ -133,7 +120,7 @@ class Encoder(object):
 
     def initializer(self):
         # Use Encoder class as a container for global data
-        Encoder.tokenizer = build_tokenizer(self.args)
+        Encoder.tokenizer = build_tokenizer(self.args, warn_missing_eod=False)
 
     def encode(self, text):
         if self.args.ftfy:
@@ -190,6 +177,7 @@ def get_args():
             "HFTokenizer",
             "GPT2BPETokenizer",
             "CharLevelTokenizer",
+            "SPMTokenizer",
         ],
         help="What type of tokenizer to use.",
     )
@@ -206,6 +194,14 @@ def get_args():
         "--append-eod",
         action="store_true",
         help="Append an <eod> token to the end of a document.",
+    )
+    group.add_argument(
+        "--eod-token",
+        dest="tokenizer_eod_token",
+        type=str,
+        default=None,
+        help="End-of-document token for HFTokenizer and SPMTokenizer, e.g. <eos> for Gemma. "
+        "Defaults to <|endoftext|>. Use the same value as tokenizer_eod_token in the training config.",
     )
     group.add_argument("--ftfy", action="store_true", help="Use ftfy to clean text")
     group = parser.add_argument_group(title="output data")
@@ -292,7 +288,7 @@ def main():
         pool = multiprocessing.Pool(args.workers, initializer=encoder.initializer)
         encoded_docs = pool.imap(encoder.encode, fin, chunksize=25)
     else:
-        encoder.initializer()
+        Encoder.tokenizer = tokenizer
         encoded_docs = (encoder.encode(doc) for doc in fin)
 
     if args.mask_before_token is not None:
