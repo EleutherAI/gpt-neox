@@ -589,6 +589,8 @@ Without the flag, the saved tokenizer keeps its existing BOS role. Llama and Mis
 
 The exporter uses the training tokenizer's resolved EOD ID for EOS in the model, generation config, and any saved tokenizer. An explicit token that resolves to the default ID produces the same export. For example, the 20B tokenizer uses `<|endoftext|>` (ID 0), and a SentencePiece tokenizer without that piece uses its unknown-piece ID unless another boundary is configured. If the training tokenizer has no EOD ID, GPT-NeoX keeps its Transformers EOS default and the saved tokenizer keeps its existing EOS role.
 
+The exporter loads and checks the tokenizer it will save before reading checkpoint weights. Use `--no_save_tokenizer` for a model-only export.
+
 Then to upload a model to [the Hugging Face Hub](https://huggingface.co/), run:
 ```bash
 huggingface-cli login

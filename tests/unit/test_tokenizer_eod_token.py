@@ -394,16 +394,8 @@ def test_neox_export_uses_architecture_default_when_training_eod_is_unset(
 
 
 @pytest.fixture
-def export_with_tokenizer(tmp_path, monkeypatch):
-    from transformers import AutoModelForCausalLM
-
+def run_export(tmp_path):
     from tools.ckpts import convert_neox_to_hf
-
-    # Exercise config creation and the CLI save paths with a tiny model.
-    def convert_without_checkpoint(input_dir, config, output_dir, **kwargs):
-        return AutoModelForCausalLM.from_config(kwargs["hf_config"])
-
-    monkeypatch.setattr(convert_neox_to_hf, "convert", convert_without_checkpoint)
 
     def export(config, *flags):
         config_file = tmp_path / "neox.json"
@@ -415,6 +407,30 @@ def export_with_tokenizer(tmp_path, monkeypatch):
         return output
 
     return export
+
+
+@pytest.fixture
+def export_with_tokenizer(run_export, monkeypatch):
+    from transformers import AutoModelForCausalLM
+
+    def convert_without_checkpoint(input_dir, config, output_dir, **kwargs):
+        return AutoModelForCausalLM.from_config(kwargs["hf_config"])
+
+    monkeypatch.setattr(
+        "tools.ckpts.convert_neox_to_hf.convert", convert_without_checkpoint
+    )
+    return run_export
+
+
+@pytest.fixture
+def export_with_invalid_tokenizer(run_export, monkeypatch):
+    def unexpected_conversion(*args, **kwargs):
+        pytest.fail(
+            "Checkpoint conversion started before the export tokenizer was validated"
+        )
+
+    monkeypatch.setattr("tools.ckpts.convert_neox_to_hf.convert", unexpected_conversion)
+    return run_export
 
 
 @pytest.mark.parametrize("pretrained", [False, True], ids=["raw-json", "pretrained"])
@@ -519,7 +535,7 @@ def test_export_of_explicit_default_matches_implicit_eod(
 
 @pytest.mark.parametrize("explicit", [False, True])
 def test_export_rejects_different_eos_ids(
-    hf_export_config, tmp_path, export_with_tokenizer, explicit
+    hf_export_config, tmp_path, export_with_invalid_tokenizer, explicit
 ):
     from transformers import PreTrainedTokenizerFast
 
@@ -538,7 +554,16 @@ def test_export_rejects_different_eos_ids(
         hf_export_config["tokenizer_eod_token"] = DEFAULT_EOD_TOKEN
 
     with pytest.raises(ValueError, match="has ID 2 .*model expects 0"):
-        export_with_tokenizer(hf_export_config, "--vocab-is-hf-tokenizer")
+        export_with_invalid_tokenizer(hf_export_config, "--vocab-is-hf-tokenizer")
+    assert not (tmp_path / "export").exists()
+
+
+def test_unreadable_pretrained_tokenizer_fails_before_conversion(
+    hf_export_config, tmp_path, export_with_invalid_tokenizer
+):
+    (tmp_path / "tokenizer_config.json").write_text("{")
+    with pytest.raises(json.JSONDecodeError):
+        export_with_invalid_tokenizer(hf_export_config, "--vocab-is-hf-tokenizer")
     assert not (tmp_path / "export").exists()
 
 
@@ -656,7 +681,12 @@ def test_model_only_bos_ignores_custom_tokenizer_class(
     hf_export_config["tokenizer_eod_token"] = "<eos>"
     flags = ["--bos-token-id", str(bos_id)] if bos_id is not None else []
     output = export_with_tokenizer(
-        hf_export_config, "--architecture", "llama", "--no_save_tokenizer", *flags
+        hf_export_config,
+        "--architecture",
+        "llama",
+        "--vocab-is-hf-tokenizer",
+        "--no_save_tokenizer",
+        *flags,
     )
     assert AutoConfig.from_pretrained(output).bos_token_id == bos_id
     assert GenerationConfig.from_pretrained(output).bos_token_id == bos_id
@@ -700,7 +730,7 @@ def test_invalid_explicit_bos(hf_export_config, export_with_tokenizer, bos_id):
 
 
 def test_explicit_bos_must_exist_in_saved_tokenizer(
-    hf_export_config, tmp_path, export_with_tokenizer
+    hf_export_config, tmp_path, export_with_invalid_tokenizer
 ):
     from transformers import PreTrainedTokenizerFast
 
@@ -711,7 +741,7 @@ def test_explicit_bos_must_exist_in_saved_tokenizer(
     with pytest.raises(
         ValueError, match="--bos-token-id 5 is missing from the export tokenizer"
     ):
-        export_with_tokenizer(
+        export_with_invalid_tokenizer(
             hf_export_config, "--bos-token-id", "5", "--vocab-is-hf-tokenizer"
         )
     assert not (tmp_path / "export").exists()

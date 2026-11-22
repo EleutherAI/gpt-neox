@@ -929,20 +929,11 @@ def main(input_args=None, overwrite_values=None):
             f"Detected 'pipe-parallel-size' of {pipeline_world_size}, assuming model is saved as PipelineModule..."
         )
 
-    # convert the model to HF.
     hf_config, training_tokenizer = _create_config_and_tokenizer(
         loaded_config, args.architecture, is_rm, args.pad_token_id, args.bos_token_id
     )
-    hf_model = convert(
-        args.input_dir,
-        loaded_config,
-        args.output_dir,
-        sequential=sequential,
-        architecture=args.architecture,
-        is_rm=is_rm,
-        hf_config=hf_config,
-    )
 
+    # Validate the export tokenizer before loading any checkpoint weights.
     tokenizer = None
     if not args.no_save_tokenizer:
         tokenizer_type = get_key(
@@ -962,7 +953,7 @@ def main(input_args=None, overwrite_values=None):
                 os.path.dirname(vocab_file) or ".", **tokenizer_kwargs
             )
         elif tokenizer_type.lower() == "hftokenizer":
-            print(f"saving tokenizer from file {vocab_file}")
+            print(f"loading tokenizer from file {vocab_file}")
             print(
                 "Warning: please check that your model config and tokenizer end with the correct special tokens (EOS, BOS)."
             )
@@ -1002,11 +993,20 @@ def main(input_args=None, overwrite_values=None):
                 tokenizer.add_special_tokens(special_tokens)
                 if refresh_template and hasattr(tokenizer, "update_post_processor"):
                     tokenizer.update_post_processor()
+            if args.pad_token_id != -1:
+                tokenizer.pad_token_id = args.pad_token_id
 
+    hf_model = convert(
+        args.input_dir,
+        loaded_config,
+        args.output_dir,
+        sequential=sequential,
+        architecture=args.architecture,
+        is_rm=is_rm,
+        hf_config=hf_config,
+    )
     hf_model.save_pretrained(args.output_dir)
     if tokenizer is not None:
-        if args.pad_token_id != -1:
-            tokenizer.pad_token_id = args.pad_token_id
         print("loaded tokenizer: ", tokenizer)
         tokenizer.save_pretrained(args.output_dir)
         print("tokenizer saved!")
