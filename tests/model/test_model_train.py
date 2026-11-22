@@ -120,9 +120,19 @@ def test_gpt_j_attention_bias(
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
 @pytest.mark.parametrize(
-    "backend, mode", [("te_rowparallel", "qkv"), ("te_mha", "none"), ("te_mha", "all")]
+    "backend, mode, mlp_config",
+    [
+        ("te_rowparallel", "qkv", {}),
+        ("te_mha", "none", {}),
+        ("te_mha", "all", {}),
+        (
+            "te_columnparallel",
+            "none",
+            {"use_bias_in_mlp": False, "activation": "swiglu", "intermediate_size": 96},
+        ),
+    ],
 )
-def test_te_attention_bias(make_attention_layer, monkeypatch, backend, mode):
+def test_te_attention_bias(make_attention_layer, monkeypatch, backend, mode, mlp_config):
     pytest.importorskip("transformer_engine")
     from megatron.model import transformer_engine
 
@@ -131,7 +141,10 @@ def test_te_attention_bias(make_attention_layer, monkeypatch, backend, mode):
     )
     monkeypatch.setattr(transformer_engine, "get_cuda_rng_tracker", None)
     layer = make_attention_layer(
-        use_bias_in_attn_linear=mode, precision="fp16", **{backend: True}
+        use_bias_in_attn_linear=mode,
+        precision="fp16",
+        **{backend: True},
+        **mlp_config,
     )
     layer.to(device="cuda", dtype=torch.float16)
     x = torch.randn(16, 1, 32, device="cuda", dtype=torch.float16, requires_grad=True)

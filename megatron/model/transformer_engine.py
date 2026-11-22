@@ -306,17 +306,16 @@ class TEColumnParallelLinear(te.pytorch.Linear):
             tp_group=self.tp_group,
             tp_size=self.world_size,
             parallel_mode=self.parallel_mode,
-            return_bias=self.skip_bias_add,
+            return_bias=self.skip_bias_add and self.use_bias,
             params_dtype=self.params_dtype,
         )
 
     # Copied from Mup
     def forward(self, inp, **kwargs):
         output = super(TEColumnParallelLinear, self).forward(inp, **kwargs)
-        if self.skip_bias_add:
+        if self.return_bias:
             return output
-        else:
-            return output, None
+        return output, None
 
 
 class TERowParallelLinear(te.pytorch.Linear):
