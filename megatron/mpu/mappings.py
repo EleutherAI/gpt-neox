@@ -211,9 +211,10 @@ def _reduce_scatter_along_seq_dim(input_, seq_dim):
             output, input_.contiguous(), group=get_model_parallel_group()
         )
     else:
-        tensor_list = list(
-            torch.split(input_, input_.shape[seq_dim] // world_size, seq_dim)
-        )
+        tensor_list = [
+            t.contiguous()
+            for t in torch.split(input_, input_.shape[seq_dim] // world_size, seq_dim)
+        ]
         output = torch.empty_like(tensor_list[0])
         torch.distributed.reduce_scatter(
             output, tensor_list, group=get_model_parallel_group()
