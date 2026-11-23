@@ -591,17 +591,16 @@ def convert(
     ), f"ERROR: calculated vocab size {hf_config.vocab_size} != embed param size {embed_in.shape[0]}"
     ### End Embedding Layer ###
 
-    # grab from 3rd layer to pass embeddings
-    mlp_naming = get_mlp_naming_convention(
-        load_partitions(
+    if not sequential:
+        # load the first transformer block (layer idx 2, after the embed layer and a dummy
+        # _pre_transformer_block) to detect the naming convention; reused for layer_i == 0 below
+        loaded_tp_ranks = load_partitions(
             input_checkpoint_path,
             mp_partitions,
-            layer_idx=3,
+            layer_idx=2,
             sequential=sequential,
-        ),
-        0,
-        sequential,
-    )
+        )
+    mlp_naming = get_mlp_naming_convention(loaded_tp_ranks, 0, sequential)
     print(f"Detected MLP naming convention: {mlp_naming}")
     ARCH = ARCH[mlp_naming]
 
@@ -610,7 +609,7 @@ def convert(
         # get layer from hf model
         hf_layer = hf_transformer.layers[layer_i]  # TODO: model module names
 
-        if not sequential:
+        if not sequential and layer_i > 0:
             # in the non-sequential case, must load from each layer individually.
             # use layer index + 2 bc of embed layer and a dummy _pre_transformer_block, which are "layers 0 and 1"
             loaded_tp_ranks = load_partitions(
