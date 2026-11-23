@@ -133,6 +133,7 @@ def _validate_qk_norm_args(
     num_kv_heads,
     model_parallel_size,
     te_mha=False,
+    head_dim=None,
 ):
     """Validate QK normalization options before model construction."""
     if use_qk_norm and te_mha:
@@ -194,7 +195,9 @@ def _validate_qk_norm_args(
         and effective_num_kv_heads != num_attention_heads
         and not qk_norm_separate
     ):
-        head_size = hidden_size // num_attention_heads
+        head_size = (
+            head_dim if head_dim is not None else hidden_size // num_attention_heads
+        )
         q_norm_size = num_attention_heads // model_parallel_size * head_size
         k_norm_size = effective_num_kv_heads // model_parallel_size * head_size
         raise ValueError(
@@ -1515,18 +1518,75 @@ class NeoXArgs(*BASE_CLASSES):
         if self.parameterization != "sp":
             self._validate_parameterization()
 
-        # Checks.
-        if self.hidden_size % self.num_attention_heads != 0 and not (
-            "mamba" in self.attention_config
+        # Only a Mamba-only model gets the exemption. A hybrid must still
+        # validate the dimensions used by its other layers.
+        uses_attention_head_dimensions = any(
+            kind != "mamba" for kind in self.attention_config
+        )
+
+        if self.head_dim is not None and self.head_dim <= 0:
+            error_message = (
+                f"{FAIL}"
+                + self.__class__.__name__
+                + ".validate_values() head_dim must be greater than 0"
+            )
+            logging.error(error_message)
+            raise ValueError(error_message)
+
+        if (
+            uses_attention_head_dimensions
+            and self.num_attention_heads % self.model_parallel_size != 0
         ):
             error_message = (
                 f"{FAIL}"
                 + self.__class__.__name__
-                + ".validate_values() hidden_size must be divisible by num_attention_heads"
+                + ".validate_values() num_attention_heads must be divisible by model_parallel_size"
             )
             logging.error(error_message)
             raise ValueError(error_message)
-            return False
+
+        if (
+            uses_attention_head_dimensions
+            and self.head_dim is None
+            and self.hidden_size % self.num_attention_heads != 0
+        ):
+            error_message = (
+                f"{FAIL}"
+                + self.__class__.__name__
+                + ".validate_values() hidden_size must be divisible by num_attention_heads when head_dim is not set"
+            )
+            logging.error(error_message)
+            raise ValueError(error_message)
+
+        if uses_attention_head_dimensions and self.pos_emb == "rotary":
+            if not 0 < self.rotary_pct <= 1:
+                error_message = (
+                    f"{FAIL}"
+                    + self.__class__.__name__
+                    + ".validate_values() rotary_pct must be greater than 0 and less than or equal to 1"
+                )
+                logging.error(error_message)
+                raise ValueError(error_message)
+
+            effective_head_dim = (
+                self.head_dim
+                if self.head_dim is not None
+                else self.hidden_size // self.num_attention_heads
+            )
+            rotary_ndims = (
+                effective_head_dim
+                if self.rotary_pct == 1
+                else int(effective_head_dim * self.rotary_pct)
+            )
+            if rotary_ndims <= 0 or rotary_ndims % 2 != 0:
+                error_message = (
+                    f"{FAIL}"
+                    + self.__class__.__name__
+                    + ".validate_values() rotary attention dimensions must be a positive even number, "
+                    + f"got {rotary_ndims} from head_dim={effective_head_dim} and rotary_pct={self.rotary_pct}"
+                )
+                logging.error(error_message)
+                raise ValueError(error_message)
 
         _validate_qk_norm_args(
             use_qk_norm=self.use_qk_norm,
@@ -1542,6 +1602,7 @@ class NeoXArgs(*BASE_CLASSES):
             num_kv_heads=self.num_kv_heads,
             model_parallel_size=self.model_parallel_size,
             te_mha=self.te_mha or self.te_fp8_mha,
+            head_dim=self.head_dim,
         )
 
         if self.seq_length is not None:

@@ -78,6 +78,14 @@ def exists(x):
     return x is not None
 
 
+def get_attention_head_dim(neox_args):
+    """Return the configured attention head width or its legacy default."""
+    head_dim = getattr(neox_args, "head_dim", None)
+    if head_dim is not None:
+        return head_dim
+    return mpu.divide(neox_args.hidden_size, neox_args.num_attention_heads)
+
+
 class Lambda(torch.nn.Module):
     def __init__(self, func):
         super().__init__()
