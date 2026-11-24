@@ -285,6 +285,8 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
             self.tokenizer_type = get_key(
                 neox_config, "tokenizer-type", default="GPT2BPETokenizer"
             )
+            self.tokenizer_eod_token = get_key(neox_config, "tokenizer-eod-token")
+            self.tokenizer_pad_token = get_key(neox_config, "tokenizer-pad-token")
 
             self.rank = 0
 

@@ -207,6 +207,20 @@ def get_args():
         action="store_true",
         help="Append an <eod> token to the end of a document.",
     )
+    group.add_argument(
+        "--eod-token",
+        type=str,
+        default=None,
+        dest="tokenizer_eod_token",
+        help="Name of the end-of-document token in the tokenizer vocab, e.g. '<eos>' for Gemma. Defaults to '<|endoftext|>'.",
+    )
+    group.add_argument(
+        "--pad-token",
+        type=str,
+        default=None,
+        dest="tokenizer_pad_token",
+        help="Name of the padding token in the tokenizer vocab, e.g. '<pad>' for Gemma. Defaults to '<|padding|>' (HFTokenizer only).",
+    )
     group.add_argument("--ftfy", action="store_true", help="Use ftfy to clean text")
     group = parser.add_argument_group(title="output data")
     group.add_argument(
@@ -278,6 +292,13 @@ def main():
     args = get_args()
     encoder = Encoder(args)
     tokenizer = build_tokenizer(args)
+    if args.append_eod and tokenizer.eod is None:
+        raise ValueError(
+            "--append-eod was requested but the tokenizer has no "
+            "end-of-document token ('<|endoftext|>' is not in the vocab). "
+            "Set --eod-token to the name of the end-of-document token "
+            "(e.g. '<eos>' for Gemma) or drop --append-eod."
+        )
     print(f"Vocab size: {tokenizer.vocab_size}")
     print(f"Output prefix: {args.output_prefix}")
 

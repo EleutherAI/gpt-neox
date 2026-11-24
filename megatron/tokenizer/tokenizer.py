@@ -36,6 +36,23 @@ def build_tokenizer(args):
         args.tokenizer_type is not None
     ), "tokenizer_type must be specified in the .yml config"
 
+    # The end-of-document / padding token names are only meaningful for
+    # tokenizers that look them up in the vocab (HFTokenizer, SPMTokenizer).
+    # Silently ignoring them for any other tokenizer type would hide a
+    # misconfiguration, so fail loudly instead.
+    eod_token = getattr(args, "tokenizer_eod_token", None)
+    pad_token = getattr(args, "tokenizer_pad_token", None)
+    if (
+        eod_token is not None or pad_token is not None
+    ) and args.tokenizer_type.lower() not in (
+        "hftokenizer",
+        "spmtokenizer",
+    ):
+        raise ValueError(
+            "tokenizer_eod_token and tokenizer_pad_token are only supported "
+            "with HFTokenizer and SPMTokenizer, not with {}".format(args.tokenizer_type)
+        )
+
     # Select and instantiate the tokenizer.
     if args.tokenizer_type.lower() == "GPT2BPETokenizer".lower():
         assert args.vocab_file is not None
@@ -43,10 +60,14 @@ def build_tokenizer(args):
         tokenizer = _GPT2BPETokenizer(args.vocab_file, args.merge_file)
     elif args.tokenizer_type.lower() == "SPMTokenizer".lower():
         assert args.vocab_file is not None
-        tokenizer = SentencePieceTokenizer(args.vocab_file)
+        tokenizer = SentencePieceTokenizer(
+            args.vocab_file, eod_token=eod_token, pad_token=pad_token
+        )
     elif args.tokenizer_type.lower() == "HFTokenizer".lower():
         assert args.vocab_file is not None
-        tokenizer = HFTokenizer(args.vocab_file)
+        tokenizer = HFTokenizer(
+            args.vocab_file, eod_token=eod_token, pad_token=pad_token
+        )
     elif args.tokenizer_type.lower() == "HFGPT2Tokenizer".lower():
         if args.vocab_file is None:
             print(
@@ -62,6 +83,40 @@ def build_tokenizer(args):
         raise NotImplementedError(
             "{} tokenizer is not " "implemented.".format(args.tokenizer_type)
         )
+
+    # Warn (on rank 0) when the default end-of-document / padding token is
+    # not in the vocab and no explicit token was configured. The tokenizer
+    # itself keeps its previous behaviour in that case (None for HFTokenizer,
+    # <unk> for SPMTokenizer), so existing configs don't change.
+    if args.rank == 0 and args.tokenizer_type.lower() in (
+        "hftokenizer",
+        "spmtokenizer",
+    ):
+        if eod_token is None:
+            eod_missing = tokenizer.eod is None or getattr(
+                tokenizer, "_eod_is_unk_fallback", False
+            )
+            if eod_missing:
+                print(
+                    "WARNING: '<|endoftext|>' is not in the tokenizer vocab, "
+                    "so the end-of-document token is {}. Set "
+                    "'tokenizer_eod_token' (e.g. '<eos>' for Gemma or "
+                    "'<|end_of_text|>' for Llama 3) to name it explicitly.".format(
+                        "None" if tokenizer.eod is None else "the <unk> token"
+                    ),
+                    flush=True,
+                )
+        if (
+            pad_token is None
+            and args.tokenizer_type.lower() == "hftokenizer"
+            and tokenizer.pad_id is None
+        ):
+            print(
+                "WARNING: '<|padding|>' is not in the tokenizer vocab, so "
+                "the padding token is None. Set 'tokenizer_pad_token' (e.g. "
+                "'<pad>' for Gemma) to name it explicitly.",
+                flush=True,
+            )
 
     # Add vocab size.
     args.padded_vocab_size = _vocab_size_with_padding(tokenizer.vocab_size, args)
@@ -188,12 +243,42 @@ class _GPT2BPETokenizer(AbstractTokenizer):
 class SentencePieceTokenizer(AbstractTokenizer):
     """Designed to Integrate SP's Tokenizer."""
 
-    def __init__(self, vocab_file):
+    def __init__(self, vocab_file, eod_token=None, pad_token=None):
         name = "SPM"
         super().__init__(name)
 
         self.tokenizer = spm.SentencePieceProcessor(model_file=vocab_file)
-        self.eod_id = self.tokenizer.piece_to_id("<|endoftext|>")
+        # piece_to_id() returns 0 (<unk>) for a piece that is not in the
+        # vocab, so an explicit token name must be checked with a round-trip
+        # through id_to_piece() instead of trusting the returned id.
+        self.eod_id, self._eod_is_unk_fallback = self._resolve_token_id(
+            eod_token, "<|endoftext|>", "tokenizer_eod_token"
+        )
+        self.pad_id = None
+        if pad_token is not None:
+            self.pad_id, _ = self._resolve_token_id(
+                pad_token, None, "tokenizer_pad_token"
+            )
+
+    def _resolve_token_id(self, token_name, default_name, arg_name):
+        """Look up a special token by name, returning (token_id, is_fallback).
+
+        An explicitly configured name that is not in the vocab raises an
+        error. When no name is configured, the default name is used; if it
+        is not in the vocab either, the previous behaviour is kept (the
+        <unk> id, i.e. 0) and the caller is told via is_fallback so it can
+        warn about it.
+        """
+        explicit = token_name is not None
+        name = token_name if explicit else default_name
+        token_id = self.tokenizer.piece_to_id(name)
+        found = self.tokenizer.id_to_piece(token_id) == name
+        if not found and explicit:
+            raise ValueError(
+                "tokenizer token '{}' set via '{}' is not in the "
+                "SentencePiece vocab.".format(name, arg_name)
+            )
+        return token_id, (not found)
 
     @property
     def vocab_size(self):
@@ -223,16 +308,47 @@ class SentencePieceTokenizer(AbstractTokenizer):
     def eod(self):
         return self.eod_id
 
+    @property
+    def pad(self):
+        if self.pad_id is None:
+            raise NotImplementedError(
+                "PAD is not provided for {} tokenizer".format(self.name)
+            )
+        return self.pad_id
+
 
 class HFTokenizer(AbstractTokenizer):
     """Designed to Integrate HF's Tokenizer library."""
 
-    def __init__(self, vocab_file):
+    def __init__(self, vocab_file, eod_token=None, pad_token=None):
         name = "HFTokenizer"
         super().__init__(name)
         self.tokenizer = Tokenizer.from_file(vocab_file)
-        self.eod_id = self.tokenizer.token_to_id("<|endoftext|>")
-        self.pad_id = self.tokenizer.token_to_id("<|padding|>")
+        # token_to_id() returns None for a token that is not in the vocab.
+        self.eod_id = self._resolve_token_id(
+            eod_token, "<|endoftext|>", "tokenizer_eod_token"
+        )
+        self.pad_id = self._resolve_token_id(
+            pad_token, "<|padding|>", "tokenizer_pad_token"
+        )
+
+    def _resolve_token_id(self, token_name, default_name, arg_name):
+        """Look up a special token by name, returning its id or None.
+
+        An explicitly configured name that is not in the vocab raises an
+        error. When no name is configured, the default name is used; if it
+        is not in the vocab either, None is returned (the previous
+        behaviour) and build_tokenizer() warns about it.
+        """
+        explicit = token_name is not None
+        name = token_name if explicit else default_name
+        token_id = self.tokenizer.token_to_id(name)
+        if token_id is None and explicit:
+            raise ValueError(
+                "tokenizer token '{}' set via '{}' is not in the "
+                "vocab.".format(name, arg_name)
+            )
+        return token_id
 
     @property
     def vocab_size(self):
@@ -258,6 +374,14 @@ class HFTokenizer(AbstractTokenizer):
     @property
     def eod(self):
         return self.eod_id
+
+    @property
+    def pad(self):
+        if self.pad_id is None:
+            raise NotImplementedError(
+                "PAD is not provided for {} tokenizer".format(self.name)
+            )
+        return self.pad_id
 
 
 class HFGPT2Tokenizer(AbstractTokenizer):
