@@ -153,7 +153,9 @@ MODEL_KEYS = {
                 "attention.dense.weight": "self_attn.o_proj.weight",
                 "mlp.linear2.weight": "mlp.down_proj.weight",
             },
-            "ROW_PARALLEL_BIAS_KEYS": {},  # No biases in RowParallelLinear layers
+            "ROW_PARALLEL_BIAS_KEYS": {
+                "attention.dense.bias": "self_attn.o_proj.bias",
+            },
             "NORM_KEYS": {
                 "input_layernorm.scale": "input_layernorm.weight",
                 "post_attention_layernorm.scale": "post_attention_layernorm.weight",
@@ -167,6 +169,11 @@ MODEL_KEYS = {
                     "self_attn.k_proj.weight",
                     "self_attn.v_proj.weight",
                 ],
+                "attention.query_key_value.bias": [
+                    "self_attn.q_proj.bias",
+                    "self_attn.k_proj.bias",
+                    "self_attn.v_proj.bias",
+                ],
             },
         },
         "legacy": {
@@ -178,7 +185,9 @@ MODEL_KEYS = {
                 "attention.dense.weight": "self_attn.o_proj.weight",
                 "mlp.w2.weight": "mlp.down_proj.weight",
             },
-            "ROW_PARALLEL_BIAS_KEYS": {},  # No biases in RowParallelLinear layers
+            "ROW_PARALLEL_BIAS_KEYS": {
+                "attention.dense.bias": "self_attn.o_proj.bias",
+            },
             "NORM_KEYS": {
                 "input_layernorm.scale": "input_layernorm.weight",
                 "post_attention_layernorm.scale": "post_attention_layernorm.weight",
@@ -191,6 +200,11 @@ MODEL_KEYS = {
                     "self_attn.q_proj.weight",
                     "self_attn.k_proj.weight",
                     "self_attn.v_proj.weight",
+                ],
+                "attention.query_key_value.bias": [
+                    "self_attn.q_proj.bias",
+                    "self_attn.k_proj.bias",
+                    "self_attn.v_proj.bias",
                 ],
             },
         },
@@ -241,6 +255,22 @@ def get_state(
         key = key
 
         return [state_dict[key] for state_dict in state_dicts]
+
+
+def has_state(
+    state_dicts: List[torch.Tensor], key: str, layer_idx: int, sequential: bool
+) -> bool:
+    """Helper that checks if a given weight's state exists across all MP partitions for a given layer."""
+    if not state_dicts:
+        return False
+    if sequential:
+        seq_key = f"sequential.{layer_idx}.{key}"
+        return all(
+            isinstance(d, dict) and "module" in d and seq_key in d["module"]
+            for d in state_dicts
+        )
+    else:
+        return all(isinstance(d, dict) and key in d for d in state_dicts)
 
 
 def get_key(loaded_config, key, default=None):
@@ -355,12 +385,15 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
             hf_config = MistralConfig(**args)
         elif architecture == "llama":
             # llama-specific options
+            raw_attn_bias = get_key(neox_config, "use_bias_in_attn_linear", default=True)
+            if isinstance(raw_attn_bias, str):
+                attn_bias = raw_attn_bias.lower() not in ("none", "false", "0")
+            else:
+                attn_bias = bool(raw_attn_bias)
             args.update(
                 {
                     # NeoX library defaults to using bias in attention
-                    "attention_bias": get_key(
-                        neox_config, "use_bias_in_attn_linear", True
-                    ),
+                    "attention_bias": attn_bias,
                 }
             )
             hf_config = LlamaConfig(**args)
@@ -405,15 +438,19 @@ def reshard_and_split_qkv(
             isinstance(hf_keys, list) and len(hf_keys) == 3
         ), "Must map QKV to precisely 3 resulting weight matrices."
 
+    state_dict = {}
     for key, hf_keys in param_mapping.items():
+        if not has_state(loaded_tp_ranks, key, layer_idx, sequential):
+            continue
+
         # We first merge the QKV proj. across TP ranks
         tp_sharded_qkv = torch.stack(
             get_state(loaded_tp_ranks, key, layer_idx, sequential), dim=0
         )
-        # We should now have shape [TP_SIZE, (hidden_size + 2 * kv_hidden_size) / TP_SIZE, hidden_size].
-        # At this point, for each TP rank, q, k, and v are concatenated
+        # We should now have shape [TP_SIZE, (hidden_size + 2 * kv_hidden_size) / TP_SIZE, hidden_size] for weights
+        # or [TP_SIZE, (hidden_size + 2 * kv_hidden_size) / TP_SIZE] for biases.
 
-        # Next, we split tp_harded_qkv into q, k, v along dim 1
+        # Next, we split tp_sharded_qkv into q, k, v along dim 1
         hidden_size_per_attention_head = (
             hf_config.hidden_size // hf_config.num_attention_heads
         )
@@ -421,6 +458,8 @@ def reshard_and_split_qkv(
             hidden_size_per_attention_head * hf_config.num_key_value_heads
         )
         tensor_parallel_size = len(loaded_tp_ranks)
+
+        is_bias = tp_sharded_qkv.dim() == 2
 
         q, k, v = torch.split(
             tp_sharded_qkv,
@@ -430,23 +469,26 @@ def reshard_and_split_qkv(
                 kv_hidden_size // tensor_parallel_size,
             ],
             dim=1,
-        )  # New shapes:
-        # q-->[TP_SIZE, hidden_size/TP_SIZE, hidden_size]
-        # k-->[TP_SIZE, kv_hidden_size/TP_SIZE, hidden_size]
-        # v-->[TP_SIZE, kv_hidden_size/TP_SIZE, hidden_size]
-
-        # Finally, we flatten the first two dimensions merging the TP partitions
-        q, k, v = (
-            q.reshape(-1, q.shape[2]),
-            k.reshape(-1, k.shape[2]),
-            v.reshape(-1, k.shape[2]),
         )
 
-        # return these
-        state_dict = {}
+        # Finally, flatten to match HF shapes
+        if is_bias:
+            q, k, v = (
+                q.reshape(-1),
+                k.reshape(-1),
+                v.reshape(-1),
+            )
+        else:
+            q, k, v = (
+                q.reshape(-1, q.shape[2]),
+                k.reshape(-1, k.shape[2]),
+                v.reshape(-1, k.shape[2]),
+            )
+
         for hf_key, proj in zip(hf_keys, [q, k, v]):
             state_dict[hf_key] = proj.clone()
-        return state_dict
+
+    return state_dict
 
 
 def get_mlp_naming_convention(loaded_tp_ranks, layer_idx, sequential):
@@ -464,7 +506,14 @@ def get_mlp_naming_convention(loaded_tp_ranks, layer_idx, sequential):
         return "transformer_engine"
     elif any(["mlp.linear1.weight" in key for key in key_list]):
         return "new"
-    elif any(["mlp.dense_h_to_4h.weight" in key for key in key_list]):
+    elif any(
+        [
+            "mlp.dense_h_to_4h.weight" in key
+            or "mlp.w1.weight" in key
+            or "mlp.w1" in key
+            for key in key_list
+        ]
+    ):
         return "legacy"
     else:
         raise ValueError("Unable to determine MLP naming convention in checkpoint")
@@ -654,6 +703,10 @@ def convert(
 
         # LinearWithTPMerge
         for key, hf_key in ARCH["COLUMN_PARALLEL_LINEAR_KEYS"].items():
+            if not has_state(
+                loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential
+            ):
+                continue
             if type(hf_key) == list:
                 # Llama magic - split the weight into two parts for the gate and up proj
                 states = [
@@ -682,6 +735,10 @@ def convert(
 
         # LinearWithTPSplitBias
         for key, hf_key in ARCH["ROW_PARALLEL_BIAS_KEYS"].items():
+            if not has_state(
+                loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential
+            ):
+                continue
             state_dict[hf_key] = sum(
                 get_state(
                     loaded_tp_ranks, key, layer_idx=layer_i + 2, sequential=sequential
