@@ -452,22 +452,28 @@ def reshard_and_split_qkv(
         )
         tensor_parallel_size = len(loaded_tp_ranks)
 
-        q, k, v = torch.split(
-            tp_sharded_qkv,
-            [
-                hf_config.hidden_size // tensor_parallel_size,
-                kv_hidden_size // tensor_parallel_size,
-                kv_hidden_size // tensor_parallel_size,
-            ],
-            dim=1,
-        )  # New shapes:
-        # q-->[TP_SIZE, hidden_size/TP_SIZE, hidden_size]
-        # k-->[TP_SIZE, kv_hidden_size/TP_SIZE, hidden_size]
-        # v-->[TP_SIZE, kv_hidden_size/TP_SIZE, hidden_size]
+        if hf_config.num_key_value_heads == hf_config.num_attention_heads:
+            # Without GQA, NeoX interleaves Q, K and V per attention head
+            qkv = tp_sharded_qkv.reshape(
+                -1, 3, hidden_size_per_attention_head, *tp_sharded_qkv.shape[2:]
+            )
+            q, k, v = (t.flatten(0, 1) for t in qkv.unbind(1))
+        else:
+            q, k, v = (
+                t.flatten(0, 1)
+                for t in torch.split(
+                    tp_sharded_qkv,
+                    [
+                        hf_config.hidden_size // tensor_parallel_size,
+                        kv_hidden_size // tensor_parallel_size,
+                        kv_hidden_size // tensor_parallel_size,
+                    ],
+                    dim=1,
+                )
+            )
 
-        # Finally, we flatten the first two dimensions merging the TP partitions
         for hf_key, proj in zip(hf_keys, [q, k, v]):
-            state_dict[hf_key] = proj.flatten(0, 1).clone()
+            state_dict[hf_key] = proj.clone()
     return state_dict
 
 
