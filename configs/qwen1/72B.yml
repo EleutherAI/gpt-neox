@@ -1,0 +1,68 @@
+# Based on https://huggingface.co/Qwen/Qwen-72B/blob/main/config.json
+#
+# Qwen has a bias on the Q/K/V projections but not on the attention output
+# projection or the MLP (no_bias is true in config.json; see modeling_qwen.py).
+
+{
+  "pipe_parallel_size": 1,
+  # model_parallel_size must evenly divide num_attention_heads (64)
+  "model_parallel_size": 1,
+  # Pad the embedding to 152,064 rows so it has the same shape as the HF
+  # checkpoint (vocab_size in the config.json linked at the top).
+  #
+  # Why HF uses 152,064: the Qwen tokenizer has 151,851 tokens (151,643 BPE
+  # tokens, then <|endoftext|>, <|im_start|>, <|im_end|> and 205 reserved
+  # <|extra_N|> tokens). Qwen pads the embedding of its larger models further
+  # for distributed training; 152,064 is the next multiple of 256 above 151,851.
+  # The padded rows are never used.
+  #   https://huggingface.co/Qwen/Qwen-7B/blob/main/tokenization_qwen.py
+  #   https://huggingface.co/Qwen/Qwen1.5-72B-Chat/discussions/1
+  #   https://huggingface.co/Qwen/Qwen-7B-Chat/discussions/41
+  #
+  # Why 432: NeoX rounds the tokenizer size up to a multiple of
+  # make_vocab_size_divisible_by * model_parallel_size (_vocab_size_with_padding
+  # in megatron/tokenizer/tokenizer.py).
+  # 152,064 = 352 * 432, and the multiple below it, 351 * 432 = 151,632, is
+  # smaller than both 151,646 (the tokenizer.json below) and 151,851 (the full
+  # Qwen tokenizer), so either rounds up to exactly 152,064. This also holds for
+  # model_parallel_size 2, 4, 8, 16 and 32. 152,064 is itself a multiple of 128,
+  # so the output layer stays tensor-core friendly.
+  "make_vocab_size_divisible_by": 432,
+
+  # model settings
+  "num_layers": 80,
+  "hidden_size": 8192,
+  # HF's intermediate_size (49152) counts w1 and w2 together; each is 24576
+  "intermediate_size": 73728, # 24576*3 as 3x needed for swiglu with neox
+  "num_attention_heads": 64,
+  "seq_length": 32768,
+  "max_position_embeddings": 32768,
+  "pos_emb": "rotary",
+  "rotary_pct": 1,
+  "rotary_emb_base": 1000000,
+  "no_weight_tying": true,
+  "gpt_j_residual": false,
+  "output_layer_parallelism": "column",
+  "norm": "rmsnorm",
+  "rms_norm_epsilon": 1.0e-6,
+  "attention_config": [[["flash"], 80]],
+
+  "scaled_upper_triang_masked_softmax_fusion": true,
+  "bias_gelu_fusion": false,
+  "use_bias_in_norms": false,
+  "use_bias_in_attn_linear": "qkv",
+  "use_bias_in_mlp": false,
+  "activation": "swiglu",
+  "mlp_multiple_of": 256,
+
+  # Qwen's own repos ship the tokenizer only as qwen.tiktoken, which NeoX can't
+  # load: TiktokenTokenizer only takes tiktoken's built-in encoding names.
+  # Qwen2 uses the identical tokenizer and ships it as tokenizer.json, with the
+  # 151,643 BPE tokens and 3 control tokens but not the 205 <|extra_N|> tokens
+  # (Qwen2 Technical Report, section 2.1).
+  #   https://arxiv.org/abs/2407.10671
+  "tokenizer_type": "HFTokenizer",
+  # "vocab-file": "/path/to/Qwen2-7B/tokenizer.json",
+
+  "init_method_std": 0.02
+}
