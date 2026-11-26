@@ -1,30 +1,10 @@
 # Based on https://huggingface.co/Qwen/Qwen-7B/blob/main/config.json
-#
-# Qwen has a bias on the Q/K/V projections but not on the attention output
-# projection or the MLP (no_bias is true in config.json; see modeling_qwen.py).
 
 {
   "pipe_parallel_size": 1,
   # model_parallel_size must evenly divide num_attention_heads (32)
   "model_parallel_size": 1,
-  # Pad the embedding to 151,936 rows so it has the same shape as the HF
-  # checkpoint (vocab_size in the config.json linked at the top).
-  #
-  # Why HF uses 151,936: the Qwen tokenizer has 151,851 tokens (151,643 BPE
-  # tokens, then <|endoftext|>, <|im_start|>, <|im_end|> and 205 reserved
-  # <|extra_N|> tokens), and the embedding was padded to the next multiple of
-  # 128 for tensor-core efficiency. The padded rows are never used.
-  #   https://huggingface.co/Qwen/Qwen-7B/blob/main/tokenization_qwen.py
-  #   https://huggingface.co/Qwen/Qwen-7B-Chat/discussions/41
-  #
-  # Why 1187: NeoX rounds the tokenizer size up to a multiple of
-  # make_vocab_size_divisible_by * model_parallel_size (_vocab_size_with_padding
-  # in megatron/tokenizer/tokenizer.py).
-  # 151,936 = 128 * 1187, and the multiple below it, 127 * 1187 = 150,749, is
-  # smaller than both 151,646 (the tokenizer.json below) and 151,851 (the full
-  # Qwen tokenizer), so either rounds up to exactly 151,936. This also holds for
-  # model_parallel_size 2, 4, ..., 128. 151,936 is itself a multiple of 128, so
-  # the output layer stays tensor-core friendly.
+  # Pads the vocab to 151,936 rows, the HF embedding size (see #1396)
   "make_vocab_size_divisible_by": 1187,
 
   # model settings
@@ -33,10 +13,7 @@
   # HF's intermediate_size (22016) counts w1 and w2 together; each is 11008
   "intermediate_size": 33024, # 11008*3 as 3x needed for swiglu with neox
   "num_attention_heads": 32,
-  # seq_length matches seq_length in config.json. Past it, HF uses dynamic NTK
-  # RoPE scaling and logN attention scaling (use_dynamic_ntk and use_logn_attn
-  # in config.json; see modeling_qwen.py). Both apply only at inference, and
-  # NeoX implements neither.
+  # HF's dynamic NTK RoPE and logN scaling past seq_length are not implemented
   "seq_length": 8192,
   "max_position_embeddings": 32768,
   "pos_emb": "rotary",
@@ -57,12 +34,7 @@
   "activation": "swiglu",
   "mlp_multiple_of": 256,
 
-  # Qwen's own repos ship the tokenizer only as qwen.tiktoken, which NeoX can't
-  # load: TiktokenTokenizer only takes tiktoken's built-in encoding names.
-  # Qwen2 uses the identical tokenizer and ships it as tokenizer.json, with the
-  # 151,643 BPE tokens and 3 control tokens but not the 205 <|extra_N|> tokens
-  # (Qwen2 Technical Report, section 2.1).
-  #   https://arxiv.org/abs/2407.10671
+  # NeoX can't load qwen.tiktoken; Qwen2's tokenizer.json has the same BPE tokens
   "tokenizer_type": "HFTokenizer",
   # "vocab-file": "/path/to/Qwen2-7B/tokenizer.json",
 

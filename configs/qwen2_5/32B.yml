@@ -1,35 +1,10 @@
 # Based on https://huggingface.co/Qwen/Qwen2.5-32B/blob/main/config.json
-#
-# Qwen2.5 has a bias on the Q/K/V projections but not on the attention
-# output projection.
 
 {
   "pipe_parallel_size": 1,
   # model_parallel_size must evenly divide num_kv_heads (8)
   "model_parallel_size": 1,
-  # Pad the embedding to 152,064 rows so it has the same shape as the HF
-  # checkpoint (vocab_size in the config.json linked at the top).
-  #
-  # Why HF uses 152,064: the first-generation Qwen tokenizer had 151,851
-  # tokens (151,643 BPE tokens, then <|endoftext|>, <|im_start|>, <|im_end|> and 205
-  # reserved <|extra_N|> tokens). Qwen padded the embedding of its larger models
-  # further for distributed training; 152,064 is the next multiple of 256 above
-  # 151,851. The padded rows are never used.
-  #   https://huggingface.co/Qwen/Qwen-7B/blob/main/tokenization_qwen.py
-  #   https://huggingface.co/Qwen/Qwen1.5-72B-Chat/discussions/1
-  #   https://huggingface.co/Qwen/Qwen-7B-Chat/discussions/41
-  # Qwen2.5 uses this embedding size. Its tokenizer has the same 151,643 BPE
-  # tokens plus 22 control tokens, so it has 151,665 tokens (151,643 + 22).
-  #   https://huggingface.co/Qwen/Qwen2.5-32B/blob/main/tokenizer_config.json
-  #   https://arxiv.org/abs/2412.15115 (Section 2)
-  #
-  # Why 432: NeoX rounds the tokenizer size up to a multiple of
-  # make_vocab_size_divisible_by * model_parallel_size (_vocab_size_with_padding
-  # in megatron/tokenizer/tokenizer.py). 152,064 = 352 * 432, and the multiple
-  # below it, 351 * 432 = 151,632, is smaller than 151,665, so 151,665 rounds
-  # up to exactly 152,064. This also holds for model_parallel_size 2, 4, 8, 16
-  # and 32. 152,064 is itself a multiple of 128, so the output layer stays
-  # tensor-core friendly.
+  # Pads the vocab to 152,064 rows, the HF embedding size (see #1396)
   "make_vocab_size_divisible_by": 432,
 
   # model settings
@@ -38,9 +13,7 @@
   "intermediate_size": 82944, # 27648*3 as 3x needed for swiglu with neox
   "num_attention_heads": 40,
   "num_kv_heads": 8,
-  # Qwen2.5 is pretrained at 4,096 tokens (RoPE base 10,000), then extended to
-  # 32,768 tokens (RoPE base 1,000,000) in the final pretraining stage.
-  # This config matches the final stage.
+  # Final pretraining stage: 32,768 tokens, RoPE base 1,000,000
   "seq_length": 32768,
   "max_position_embeddings": 131072,
   "pos_emb": "rotary",
