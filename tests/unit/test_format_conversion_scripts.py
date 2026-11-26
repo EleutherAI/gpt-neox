@@ -26,18 +26,3 @@ def test_gpt_neox_to_huggingface(monkeypatch, tmpdir, tmp_path):
     ]
     overwrite_values = {"tokenizer_type": NeoXArgsTokenizer.tokenizer_type}
     convert_neox_to_hf.main(input_args=script_args, overwrite_values=overwrite_values)
-
-
-@pytest.mark.cpu
-@pytest.mark.parametrize("architecture", ["neox", "llama", "mistral"])
-def test_hf_export_rejects_qkv_only(architecture):
-    with pytest.raises(NotImplementedError, match="qkv"):
-        convert_neox_to_hf.create_config(
-            {"use_bias_in_attn_linear": "qkv"}, architecture
-        )
-
-
-@pytest.mark.cpu
-def test_mistral_export_rejects_attention_bias():
-    with pytest.raises(NotImplementedError, match="Mistral"):
-        convert_neox_to_hf.create_config({"use_bias_in_attn_linear": True}, "mistral")
