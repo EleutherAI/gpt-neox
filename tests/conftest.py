@@ -85,3 +85,14 @@ def pytest_fixture_setup(fixturedef, request):
     if getattr(fixturedef.func, "is_dist_fixture", False):
         dist_fixture_class = fixturedef.func()
         dist_fixture_class(request)
+
+
+# Bypass pytest-forked for tests marked with @pytest.mark.unforked (such as
+# single-process CUDA tests) to prevent "RuntimeError: Cannot re-initialize CUDA in forked subprocess"
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtest_protocol(item, nextitem):
+    if item.get_closest_marker("unforked"):
+        from _pytest.runner import runtestprotocol
+
+        runtestprotocol(item, nextitem=nextitem)
+        return True

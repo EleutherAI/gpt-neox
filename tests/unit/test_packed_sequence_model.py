@@ -95,6 +95,13 @@ def _make_flash_attention(mode, num_heads=2, head_dim=16):
     return attention
 
 
+pytestmark = [
+    pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA"),
+    pytest.mark.unforked,
+]
+
+
+@pytest.mark.unforked
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
 @pytest.mark.parametrize(
     "mode", ["none", "rotary-full", "rotary-partial", "alibi", "sliding-window"]
@@ -109,6 +116,7 @@ def test_flash_packed_attention_matches_per_document(mode):
     )
 
 
+@pytest.mark.unforked
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
 @pytest.mark.parametrize(
     "rotary_dim", [8, 4, None], ids=["rotary-full", "rotary-partial", "none"]
