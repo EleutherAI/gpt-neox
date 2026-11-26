@@ -50,6 +50,7 @@ from .neox_args import (
     NeoXArgsOptimizer,
     NeoXArgsLRScheduler,
     ATTENTION_TYPE_CHOICES,
+    normalize_attention_bias,
 )
 
 ### ANSI escape codes ###
@@ -1239,6 +1240,11 @@ class NeoXArgs(*BASE_CLASSES):
                     "Use moe_router_type 'sinkhorn' for training."
                 )
 
+        self.update_value(
+            "use_bias_in_attn_linear",
+            normalize_attention_bias(self.use_bias_in_attn_linear),
+        )
+
         # Attention config
         if self.attention_config is None:
             self.update_value("attention_config", [[["global"], self.num_layers]])
@@ -1528,6 +1534,13 @@ class NeoXArgs(*BASE_CLASSES):
             raise ValueError(error_message)
             return False
 
+        if self.use_bias_in_attn_linear == "qkv" and (self.te_mha or self.te_fp8_mha):
+            raise ValueError(
+                "`use_bias_in_attn_linear='qkv'` is not supported with `te_mha`/"
+                "`te_fp8_mha`: Transformer Engine's MultiheadAttention has a single "
+                "`bias` flag for both the Q/K/V and output projections."
+            )
+
         _validate_qk_norm_args(
             use_qk_norm=self.use_qk_norm,
             qk_norm=self.qk_norm,
@@ -1696,6 +1709,16 @@ class NeoXArgs(*BASE_CLASSES):
                     "eval_loss_logging='separate' or 'blended_and_separate' requires "
                     "explicit validation dataset paths."
                 )
+
+        if (
+            self.activation == "gelu"
+            and self.bias_gelu_fusion
+            and not self.use_bias_in_mlp
+        ):
+            raise ValueError(
+                "bias_gelu_fusion=True requires use_bias_in_mlp=True for GELU. "
+                "Set bias_gelu_fusion=False to use GELU without an MLP bias."
+            )
 
         norms = {self.norm}
         if self.use_qk_norm:

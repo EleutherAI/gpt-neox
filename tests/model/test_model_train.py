@@ -20,9 +20,14 @@ Performs testing using a linear grid search over important parameter values, so 
 Potentially use fuzzing to test parameters in combination.
 """
 import pytest
+import torch
 import train
+from contextlib import nullcontext
 from copy import deepcopy
 from unittest.mock import patch
+from megatron import mpu
+from megatron.model.gpt2_model import gpt2_attention_mask_func
+from megatron.model.transformer import ParallelTransformerLayer
 from megatron.neox_arguments import NeoXArgs
 from tests.common import simulate_deepy_env, BASE_CONFIG
 
@@ -41,12 +46,77 @@ PARAMS_TO_TEST = {
     ],
     "hidden_dropout": [0, 0.1],
     "weight_decay": [0, 0.1],
-    "use_bias_in_attn_linear": [True, False],
+    "use_bias_in_attn_linear": ["all", "none", "qkv"],
     "use_bias_in_norms": [True, False],
     "precision": ["fp16", "fp32", "bfloat16"],
 }
 
 keys_to_test = PARAMS_TO_TEST.keys()
+
+
+@pytest.fixture
+def make_attention_layer(monkeypatch):
+    monkeypatch.setattr(mpu.initialize, "_MPU_WORLD_SIZE", 1)
+    monkeypatch.setattr(mpu.initialize, "_MPU_RANK", 0)
+    monkeypatch.setattr(mpu.get_cuda_rng_tracker(), "fork", nullcontext)
+
+    def build(**overrides):
+        config = deepcopy(BASE_CONFIG)
+        config.update(
+            global_num_gpus=1,
+            use_cpu_initialization=True,
+            hidden_size=32,
+            seq_length=16,
+            pos_emb="none",
+            precision="fp32",
+        )
+        config.update(overrides)
+        init = torch.nn.init.xavier_normal_
+        return ParallelTransformerLayer(
+            NeoXArgs.from_dict(config),
+            gpt2_attention_mask_func,
+            init,
+            init,
+            layer_number=0,
+        )
+
+    return build
+
+
+@pytest.mark.cpu
+@pytest.mark.parametrize(
+    "mode, kv_heads, qkv_bias, output_bias",
+    [
+        ("all", 4, True, True),
+        ("none", 4, False, False),
+        ("qkv", 4, True, False),
+        ("qkv", 2, True, False),
+    ],
+)
+def test_gpt_j_attention_bias(
+    make_attention_layer, mode, kv_heads, qkv_bias, output_bias
+):
+    layer = make_attention_layer(
+        use_bias_in_attn_linear=mode,
+        num_kv_heads=kv_heads,
+        gpt_j_residual=True,
+        hidden_dropout=1.0,
+    )
+    assert (layer.attention.query_key_value.bias is not None) == qkv_bias
+    assert (layer.attention.dense.bias is not None) == output_bias
+
+    # Isolate the attention contribution to the parallel residual.
+    with torch.no_grad():
+        layer.mlp.linear2.weight.zero_()
+    x = torch.randn(4, 1, layer.neox_args.hidden_size)
+    mask = torch.ones(4, 4, dtype=torch.bool).triu(1)
+    torch.testing.assert_close(layer(x, mask), x)
+    layer.eval()
+    attention, bias = layer.attention(layer.input_layernorm(x), mask)
+    if bias is not None:
+        attention = attention + bias
+    torch.testing.assert_close(layer(x, mask), x + attention)
+
 
 # TODO: fix model training tests
 @pytest.mark.skip(
@@ -71,8 +141,7 @@ def test_model_training_options(monkeypatch, key, value):
 
 def run_train_test(monkeypatch, overwrite_values: dict):
     max_train_iters = 32
-    checkpoint_args = {"train_iters": max_train_iters}
-    overwrite_values = checkpoint_args
+    overwrite_values = {**overwrite_values, "train_iters": max_train_iters}
     input_args = ["train.py", "tests/config/test_setup.yml"]
     deepspeed_main_args = simulate_deepy_env(monkeypatch, input_args)
 

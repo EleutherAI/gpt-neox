@@ -964,6 +964,10 @@ def get_optimizer(model, neox_args, dummy=False):
         dummy = True
         neox_args.optimizer = {"params": {"lr": 0.0}}
         neox_args.optimizer_type = "sgd"
+        neox_args.deepspeed_extra_args = {
+            **(neox_args.deepspeed_extra_args or {}),
+            "zero_allow_untested_optimizer": True,
+        }
     elif neox_args.no_load_optim:
         return None, None
 
@@ -1438,7 +1442,7 @@ def train(
     report_memory_flag = True
 
     # get noise scale logger (if neox_args.log_gradient_noise_scale is True)
-    noise_scale_logger = get_noise_scale_logger(neox_args)
+    noise_scale_logger = get_noise_scale_logger(neox_args, model)
 
     # to monitor if we've skipped many iterations in a row and trigger an early exit
     overflow_monitor = OverflowMonitor(optimizer)

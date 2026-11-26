@@ -114,7 +114,8 @@ def test_flash_packed_attention_matches_per_document(mode):
     "rotary_dim", [8, 4, None], ids=["rotary-full", "rotary-partial", "none"]
 )
 @pytest.mark.parametrize("num_gqa_groups", [None, 2], ids=["mha", "gqa"])
-def test_te_packed_attention_matches_per_document(rotary_dim, num_gqa_groups):
+@pytest.mark.parametrize("bias", [True, False], ids=["bias", "no-bias"])
+def test_te_packed_attention_matches_per_document(rotary_dim, num_gqa_groups, bias):
     pytest.importorskip("transformer_engine")
     from megatron.model.transformer_engine import TEMultiheadAttention, te
 
@@ -130,7 +131,8 @@ def test_te_packed_attention_matches_per_document(rotary_dim, num_gqa_groups):
         device="cuda",
         qkv_format="sbhd",
         fuse_qkv_params=True,
-        return_bias=True,
+        bias=bias,
+        return_bias=bias,
     )
     attention.rope_emb = (
         rotary_dim

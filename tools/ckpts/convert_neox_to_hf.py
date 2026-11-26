@@ -36,6 +36,7 @@ sys.path.append(
         os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir)
     )
 )
+from megatron.neox_arguments.neox_args import normalize_attention_bias
 from megatron.tokenizer import build_tokenizer
 
 
@@ -153,7 +154,9 @@ MODEL_KEYS = {
                 "attention.dense.weight": "self_attn.o_proj.weight",
                 "mlp.linear2.weight": "mlp.down_proj.weight",
             },
-            "ROW_PARALLEL_BIAS_KEYS": {},  # No biases in RowParallelLinear layers
+            "ROW_PARALLEL_BIAS_KEYS": {
+                "attention.dense.bias": "self_attn.o_proj.bias",
+            },
             "NORM_KEYS": {
                 "input_layernorm.scale": "input_layernorm.weight",
                 "post_attention_layernorm.scale": "post_attention_layernorm.weight",
@@ -166,6 +169,11 @@ MODEL_KEYS = {
                     "self_attn.q_proj.weight",
                     "self_attn.k_proj.weight",
                     "self_attn.v_proj.weight",
+                ],
+                "attention.query_key_value.bias": [
+                    "self_attn.q_proj.bias",
+                    "self_attn.k_proj.bias",
+                    "self_attn.v_proj.bias",
                 ],
             },
         },
@@ -178,7 +186,9 @@ MODEL_KEYS = {
                 "attention.dense.weight": "self_attn.o_proj.weight",
                 "mlp.w2.weight": "mlp.down_proj.weight",
             },
-            "ROW_PARALLEL_BIAS_KEYS": {},  # No biases in RowParallelLinear layers
+            "ROW_PARALLEL_BIAS_KEYS": {
+                "attention.dense.bias": "self_attn.o_proj.bias",
+            },
             "NORM_KEYS": {
                 "input_layernorm.scale": "input_layernorm.weight",
                 "post_attention_layernorm.scale": "post_attention_layernorm.weight",
@@ -192,12 +202,25 @@ MODEL_KEYS = {
                     "self_attn.k_proj.weight",
                     "self_attn.v_proj.weight",
                 ],
+                "attention.query_key_value.bias": [
+                    "self_attn.q_proj.bias",
+                    "self_attn.k_proj.bias",
+                    "self_attn.v_proj.bias",
+                ],
             },
         },
     },
 }
 
 MODEL_KEYS["mistral"] = MODEL_KEYS["llama"]
+
+
+ATTENTION_BIAS_KEYS = {
+    "attention.query_key_value.bias",
+    "attention.dense.bias",
+    "attention.qkv.bias",
+    "attention.proj.bias",
+}
 
 
 def load_partitions(
@@ -262,6 +285,21 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
     """take in a loaded yaml from NeoX and assign relevant values to HF config.
     Returns: GPTNeoXConfig() object
     """
+
+    bias_mode = normalize_attention_bias(
+        get_key(neox_config, "use_bias_in_attn_linear", "all")
+    )
+    if architecture == "mistral" and bias_mode != "none":
+        raise NotImplementedError(
+            f"use_bias_in_attn_linear={bias_mode!r} cannot be exported to Mistral: "
+            "its Hugging Face attention projections have no biases."
+        )
+    if bias_mode == "qkv":
+        raise NotImplementedError(
+            "use_bias_in_attn_linear='qkv' is not supported by the "
+            f"'{architecture}' export: its HF model class uses the same bias "
+            "setting for the Q/K/V and attention output projections."
+        )
 
     def gated_size(hidden_dim):
         # takes in a hidden dim and calculates intermediate dim of a LLaMAParallelMLP.
@@ -354,16 +392,7 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
             )
             hf_config = MistralConfig(**args)
         elif architecture == "llama":
-            # llama-specific options
-            args.update(
-                {
-                    # NeoX library defaults to using bias in attention
-                    "attention_bias": get_key(
-                        neox_config, "use_bias_in_attn_linear", True
-                    ),
-                }
-            )
-            hf_config = LlamaConfig(**args)
+            hf_config = LlamaConfig(attention_bias=bias_mode == "all", **args)
     else:
         # GPT-NeoX HF model class-specific options
         args.update(
@@ -381,7 +410,7 @@ def create_config(neox_config, architecture="neox", is_rm=False, pad_token_id=-1
                 ),
             }
         )
-        hf_config = GPTNeoXConfig(**args)
+        hf_config = GPTNeoXConfig(attention_bias=bias_mode == "all", **args)
     if is_rm:
         hf_config.num_labels = 1
         hf_config.pad_token_id = pad_token_id
@@ -405,6 +434,7 @@ def reshard_and_split_qkv(
             isinstance(hf_keys, list) and len(hf_keys) == 3
         ), "Must map QKV to precisely 3 resulting weight matrices."
 
+    state_dict = {}
     for key, hf_keys in param_mapping.items():
         # We first merge the QKV proj. across TP ranks
         tp_sharded_qkv = torch.stack(
@@ -422,31 +452,29 @@ def reshard_and_split_qkv(
         )
         tensor_parallel_size = len(loaded_tp_ranks)
 
-        q, k, v = torch.split(
-            tp_sharded_qkv,
-            [
-                hf_config.hidden_size // tensor_parallel_size,
-                kv_hidden_size // tensor_parallel_size,
-                kv_hidden_size // tensor_parallel_size,
-            ],
-            dim=1,
-        )  # New shapes:
-        # q-->[TP_SIZE, hidden_size/TP_SIZE, hidden_size]
-        # k-->[TP_SIZE, kv_hidden_size/TP_SIZE, hidden_size]
-        # v-->[TP_SIZE, kv_hidden_size/TP_SIZE, hidden_size]
+        if hf_config.num_key_value_heads == hf_config.num_attention_heads:
+            # Without GQA, NeoX interleaves Q, K and V per attention head
+            qkv = tp_sharded_qkv.reshape(
+                -1, 3, hidden_size_per_attention_head, *tp_sharded_qkv.shape[2:]
+            )
+            q, k, v = (t.flatten(0, 1) for t in qkv.unbind(1))
+        else:
+            q, k, v = (
+                t.flatten(0, 1)
+                for t in torch.split(
+                    tp_sharded_qkv,
+                    [
+                        hf_config.hidden_size // tensor_parallel_size,
+                        kv_hidden_size // tensor_parallel_size,
+                        kv_hidden_size // tensor_parallel_size,
+                    ],
+                    dim=1,
+                )
+            )
 
-        # Finally, we flatten the first two dimensions merging the TP partitions
-        q, k, v = (
-            q.reshape(-1, q.shape[2]),
-            k.reshape(-1, k.shape[2]),
-            v.reshape(-1, k.shape[2]),
-        )
-
-        # return these
-        state_dict = {}
         for hf_key, proj in zip(hf_keys, [q, k, v]):
             state_dict[hf_key] = proj.clone()
-        return state_dict
+    return state_dict
 
 
 def get_mlp_naming_convention(loaded_tp_ranks, layer_idx, sequential):
@@ -464,7 +492,9 @@ def get_mlp_naming_convention(loaded_tp_ranks, layer_idx, sequential):
         return "transformer_engine"
     elif any(["mlp.linear1.weight" in key for key in key_list]):
         return "new"
-    elif any(["mlp.dense_h_to_4h.weight" in key for key in key_list]):
+    elif any(
+        "mlp.dense_h_to_4h.weight" in key or "mlp.w1.weight" in key for key in key_list
+    ):
         return "legacy"
     else:
         raise ValueError("Unable to determine MLP naming convention in checkpoint")
@@ -591,26 +621,34 @@ def convert(
     ), f"ERROR: calculated vocab size {hf_config.vocab_size} != embed param size {embed_in.shape[0]}"
     ### End Embedding Layer ###
 
-    # grab from 3rd layer to pass embeddings
-    mlp_naming = get_mlp_naming_convention(
-        load_partitions(
+    if not sequential:
+        # load the first transformer block (layer idx 2, after the embed layer and a dummy
+        # _pre_transformer_block) to detect the naming convention; reused for layer_i == 0 below
+        loaded_tp_ranks = load_partitions(
             input_checkpoint_path,
             mp_partitions,
-            layer_idx=3,
+            layer_idx=2,
             sequential=sequential,
-        ),
-        0,
-        sequential,
-    )
+        )
+    mlp_naming = get_mlp_naming_convention(loaded_tp_ranks, 0, sequential)
     print(f"Detected MLP naming convention: {mlp_naming}")
     ARCH = ARCH[mlp_naming]
+    if not getattr(hf_config, "attention_bias", False):
+        ARCH = {
+            group: (
+                {k: v for k, v in keys.items() if k not in ATTENTION_BIAS_KEYS}
+                if isinstance(keys, dict)
+                else keys
+            )
+            for group, keys in ARCH.items()
+        }
 
     for layer_i in tqdm(range(get_key(loaded_config, "num-layers"))):
 
         # get layer from hf model
         hf_layer = hf_transformer.layers[layer_i]  # TODO: model module names
 
-        if not sequential:
+        if not sequential and layer_i > 0:
             # in the non-sequential case, must load from each layer individually.
             # use layer index + 2 bc of embed layer and a dummy _pre_transformer_block, which are "layers 0 and 1"
             loaded_tp_ranks = load_partitions(

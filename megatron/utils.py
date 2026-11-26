@@ -16,6 +16,7 @@
 # limitations under the License.
 
 """General utilities."""
+import importlib.util
 import os
 import sys
 import re
@@ -380,8 +381,10 @@ class OverflowMonitor:
             )
 
 
-def get_noise_scale_logger(neox_args):
+def get_noise_scale_logger(neox_args, model):
     if neox_args.log_gradient_noise_scale:
+        from megatron.gradient_noise_scale import GradientNoiseScale
+
         if neox_args.zero_stage >= 1:
             raise NotImplementedError(
                 "Gradient Noise Scale logging does not work with zero stage 2+, as the "

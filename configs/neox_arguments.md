@@ -595,7 +595,7 @@ Model Arguments
 
     Default = False
 
-    Enable bias and gelu fusion.
+    Fuse the MLP bias addition with GELU. Requires ``use_bias_in_mlp=True``.
 
 - **bias_dropout_fusion**: bool
 
@@ -754,11 +754,15 @@ Model Arguments
 
     If false, norms (e.g. LayerNorm) will not have bias terms
 
-- **use_bias_in_attn_linear**: bool
+- **use_bias_in_attn_linear**: typing.Literal['all', 'none', 'qkv']
 
-    Default = True
+    Default = all
 
-    If false, attn_linear (e.g. QKVO) will not have bias terms
+    Which attention linear layers have bias terms:
+    "all": the fused Q/K/V projection and the attention output projection;
+    "none": neither;
+    "qkv": the Q/K/V projection only (e.g. Qwen 1 through Qwen 2.5).
+    For backward compatibility, true and false are accepted and mean "all" and "none".
 
 - **use_bias_in_mlp**: bool
 

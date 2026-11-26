@@ -41,6 +41,16 @@ ATTENTION_TYPE_CHOICES = [
 ]
 
 
+def normalize_attention_bias(value):
+    if isinstance(value, bool):
+        return "all" if value else "none"
+    if isinstance(value, str) and value.lower() in ("all", "none", "qkv"):
+        return value.lower()
+    raise ValueError(
+        f"Invalid use_bias_in_attn_linear={value!r}. Expected 'all', 'none', 'qkv', or a boolean."
+    )
+
+
 def get_git_commit_hash():
     """Gets the git commit hash of your current repo (if it exists)"""
     try:
@@ -377,7 +387,7 @@ class NeoXArgsModel(NeoXArgsTemplate):
 
     bias_gelu_fusion: bool = False
     """
-    Enable bias and gelu fusion.
+    Fuse the MLP bias addition with GELU. Requires ``use_bias_in_mlp=True``.
     """
 
     bias_dropout_fusion: bool = False
@@ -538,9 +548,13 @@ class NeoXArgsModel(NeoXArgsTemplate):
     """
     If false, norms (e.g. LayerNorm) will not have bias terms
     """
-    use_bias_in_attn_linear: bool = True
+    use_bias_in_attn_linear: Literal["all", "none", "qkv"] = "all"
     """
-    If false, attn_linear (e.g. QKVO) will not have bias terms
+    Which attention linear layers have bias terms:
+    "all": the fused Q/K/V projection and the attention output projection;
+    "none": neither;
+    "qkv": the Q/K/V projection only (e.g. Qwen 1 through Qwen 2.5).
+    For backward compatibility, true and false are accepted and mean "all" and "none".
     """
     use_bias_in_mlp: bool = True
     """
