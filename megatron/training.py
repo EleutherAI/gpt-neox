@@ -964,6 +964,10 @@ def get_optimizer(model, neox_args, dummy=False):
         dummy = True
         neox_args.optimizer = {"params": {"lr": 0.0}}
         neox_args.optimizer_type = "sgd"
+        neox_args.deepspeed_extra_args = {
+            **(neox_args.deepspeed_extra_args or {}),
+            "zero_allow_untested_optimizer": True,
+        }
     elif neox_args.no_load_optim:
         return None, None
 
