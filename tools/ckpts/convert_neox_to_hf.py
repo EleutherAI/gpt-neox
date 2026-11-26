@@ -154,7 +154,9 @@ MODEL_KEYS = {
                 "attention.dense.weight": "self_attn.o_proj.weight",
                 "mlp.linear2.weight": "mlp.down_proj.weight",
             },
-            "ROW_PARALLEL_BIAS_KEYS": {},  # No biases in RowParallelLinear layers
+            "ROW_PARALLEL_BIAS_KEYS": {
+                "attention.dense.bias": "self_attn.o_proj.bias",
+            },
             "NORM_KEYS": {
                 "input_layernorm.scale": "input_layernorm.weight",
                 "post_attention_layernorm.scale": "post_attention_layernorm.weight",
@@ -167,6 +169,11 @@ MODEL_KEYS = {
                     "self_attn.q_proj.weight",
                     "self_attn.k_proj.weight",
                     "self_attn.v_proj.weight",
+                ],
+                "attention.query_key_value.bias": [
+                    "self_attn.q_proj.bias",
+                    "self_attn.k_proj.bias",
+                    "self_attn.v_proj.bias",
                 ],
             },
         },
@@ -179,7 +186,9 @@ MODEL_KEYS = {
                 "attention.dense.weight": "self_attn.o_proj.weight",
                 "mlp.w2.weight": "mlp.down_proj.weight",
             },
-            "ROW_PARALLEL_BIAS_KEYS": {},  # No biases in RowParallelLinear layers
+            "ROW_PARALLEL_BIAS_KEYS": {
+                "attention.dense.bias": "self_attn.o_proj.bias",
+            },
             "NORM_KEYS": {
                 "input_layernorm.scale": "input_layernorm.weight",
                 "post_attention_layernorm.scale": "post_attention_layernorm.weight",
@@ -193,12 +202,25 @@ MODEL_KEYS = {
                     "self_attn.k_proj.weight",
                     "self_attn.v_proj.weight",
                 ],
+                "attention.query_key_value.bias": [
+                    "self_attn.q_proj.bias",
+                    "self_attn.k_proj.bias",
+                    "self_attn.v_proj.bias",
+                ],
             },
         },
     },
 }
 
 MODEL_KEYS["mistral"] = MODEL_KEYS["llama"]
+
+
+ATTENTION_BIAS_KEYS = {
+    "attention.query_key_value.bias",
+    "attention.dense.bias",
+    "attention.qkv.bias",
+    "attention.proj.bias",
+}
 
 
 def load_partitions(
@@ -412,6 +434,7 @@ def reshard_and_split_qkv(
             isinstance(hf_keys, list) and len(hf_keys) == 3
         ), "Must map QKV to precisely 3 resulting weight matrices."
 
+    state_dict = {}
     for key, hf_keys in param_mapping.items():
         # We first merge the QKV proj. across TP ranks
         tp_sharded_qkv = torch.stack(
@@ -443,17 +466,9 @@ def reshard_and_split_qkv(
         # v-->[TP_SIZE, kv_hidden_size/TP_SIZE, hidden_size]
 
         # Finally, we flatten the first two dimensions merging the TP partitions
-        q, k, v = (
-            q.reshape(-1, q.shape[2]),
-            k.reshape(-1, k.shape[2]),
-            v.reshape(-1, k.shape[2]),
-        )
-
-        # return these
-        state_dict = {}
         for hf_key, proj in zip(hf_keys, [q, k, v]):
-            state_dict[hf_key] = proj.clone()
-        return state_dict
+            state_dict[hf_key] = proj.flatten(0, 1).clone()
+    return state_dict
 
 
 def get_mlp_naming_convention(loaded_tp_ranks, layer_idx, sequential):
@@ -472,12 +487,7 @@ def get_mlp_naming_convention(loaded_tp_ranks, layer_idx, sequential):
     elif any(["mlp.linear1.weight" in key for key in key_list]):
         return "new"
     elif any(
-        [
-            "mlp.dense_h_to_4h.weight" in key
-            or "mlp.w1.weight" in key
-            or "mlp.w1" in key
-            for key in key_list
-        ]
+        "mlp.dense_h_to_4h.weight" in key or "mlp.w1.weight" in key for key in key_list
     ):
         return "legacy"
     else:
@@ -617,6 +627,15 @@ def convert(
     mlp_naming = get_mlp_naming_convention(loaded_tp_ranks, 0, sequential)
     print(f"Detected MLP naming convention: {mlp_naming}")
     ARCH = ARCH[mlp_naming]
+    if not getattr(hf_config, "attention_bias", False):
+        ARCH = {
+            group: (
+                {k: v for k, v in keys.items() if k not in ATTENTION_BIAS_KEYS}
+                if isinstance(keys, dict)
+                else keys
+            )
+            for group, keys in ARCH.items()
+        }
 
     for layer_i in tqdm(range(get_key(loaded_config, "num-layers"))):
 
