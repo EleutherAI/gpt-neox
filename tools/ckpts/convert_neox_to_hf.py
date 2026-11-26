@@ -464,7 +464,14 @@ def get_mlp_naming_convention(loaded_tp_ranks, layer_idx, sequential):
         return "transformer_engine"
     elif any(["mlp.linear1.weight" in key for key in key_list]):
         return "new"
-    elif any(["mlp.dense_h_to_4h.weight" in key for key in key_list]):
+    elif any(
+        [
+            "mlp.dense_h_to_4h.weight" in key
+            or "mlp.w1.weight" in key
+            or "mlp.w1" in key
+            for key in key_list
+        ]
+    ):
         return "legacy"
     else:
         raise ValueError("Unable to determine MLP naming convention in checkpoint")
