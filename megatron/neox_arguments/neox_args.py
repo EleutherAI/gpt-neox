@@ -407,7 +407,8 @@ class NeoXArgsModel(NeoXArgsTemplate):
 
     fp16_lm_cross_entropy: bool = False
     """
-    Compute per-token LM cross entropy in FP16. When LM Z-loss is enabled, the combined loss uses FP32.
+    Compute per-token LM cross entropy in FP16. During training, a nonzero `z_loss`
+    promotes the combined loss to FP32. Validation and test skip Z-loss and use FP16 cross entropy.
     """
 
     cross_entropy_fusion: bool = False
@@ -1329,9 +1330,11 @@ class NeoXArgsTraining(NeoXArgsTemplate):
 
     z_loss: float = 0.0
     """
-    Z-loss coefficient for normal LLM and RM training. Evaluation uses the unregularized loss.
-    Training always logs lm_loss. When enabled, it also logs z_loss (the raw penalty)
-    and lm_loss_with_z_loss (lm_loss + this coefficient * z_loss).
+    Z-loss coefficient for language-model and reward-model training. A value of 0.0 disables it.
+    Evaluation, including validation and test, skips the Z-loss calculation and reports the base
+    loss even when this coefficient is nonzero.
+    Training always logs `train/lm_loss`. A nonzero coefficient also enables `train/z_loss`
+    (the raw penalty) and `train/lm_loss_with_z_loss` (base loss + coefficient * raw penalty).
     https://arxiv.org/pdf/2204.02311
     https://arxiv.org/pdf/2309.10305
     """
