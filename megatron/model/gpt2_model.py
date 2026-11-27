@@ -158,9 +158,11 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                 _fused=self.neox_args.cross_entropy_fusion,
             ),
             topology=topology,
-            activation_checkpoint_interval=self.neox_args.checkpoint_num_layers
-            if self.neox_args.checkpoint_activations
-            else 0,
+            activation_checkpoint_interval=(
+                self.neox_args.checkpoint_num_layers
+                if self.neox_args.checkpoint_activations
+                else 0
+            ),
             partition_method=neox_args.pipe_partition_method,
             checkpointable_layers=[
                 "GMLPBlock",
@@ -168,6 +170,19 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                 "ParallelMambaResidualLayerPipe",
             ],
         )
+
+    @property
+    def activation_checkpoint_func(self):
+        return self._activation_checkpoint_func
+
+    @activation_checkpoint_func.setter
+    def activation_checkpoint_func(self, checkpoint_func):
+        # PipelineEngine can select a different checkpointer after model creation.
+        if self.neox_args.te_fp8_mha:
+            from megatron.model.transformer_engine import fp8_activation_checkpoint
+
+            checkpoint_func = partial(fp8_activation_checkpoint, checkpoint_func)
+        self._activation_checkpoint_func = checkpoint_func
 
     def insert_layers(
         self, layers: Union[nn.Module, nn.ModuleList, nn.Sequential, List], idx

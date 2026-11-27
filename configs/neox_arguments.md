@@ -913,7 +913,9 @@ Model Arguments
 
     Default = False
 
-    When set to True, use the FP8 implementation of Multi Head Attention.
+    Use TE attention and enable delayed-scaling FP8 autocast for the whole transformer
+    block. Eligible TE MLP and linear operations in the block also use FP8.
+    With te_mha alone, TE attention runs in the configured model precision.
 
 - **dim_att**: int
 

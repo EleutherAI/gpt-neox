@@ -14,13 +14,12 @@
 
 import math
 import os
-from dataclasses import replace
-from io import BytesIO
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 import torch
 import torch.nn.functional as F
 import torch.nn.init as init
-from packaging.version import Version
 from torch.nn.parameter import Parameter
 
 from megatron.model.transformer import Gated_Activation
@@ -555,6 +554,63 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
         return output, bias
 
 
+_fp8_recompute_state = ContextVar("fp8_recompute_state", default=None)
+
+
+def fp8_activation_checkpoint(checkpoint_func, function, *args):
+    """Let DeeperSpeed manage activations and RNG, and identify each FP8 replay."""
+    if not torch.is_grad_enabled():
+        return function(*args)
+
+    forward_scales = []
+    replay = False
+
+    def run(*inputs):
+        nonlocal replay
+        scales = iter(forward_scales) if replay else forward_scales
+        token = _fp8_recompute_state.set((scales, replay))
+        replay = True
+        try:
+            return function(*inputs)
+        finally:
+            _fp8_recompute_state.reset(token)
+
+    return checkpoint_func(run, *args)
+
+
+@contextmanager
+def _checkpoint_autocast(autocast, block, forward_scales, replay):
+    from transformer_engine.pytorch.module.base import TransformerEngineBaseModule
+
+    live_states = {}
+    grad_enabled = torch.is_grad_enabled()
+    try:
+        if replay:
+            for module, scales in next(forward_scales):
+                live = module.get_fp8_meta_tensors()
+                live_states[module] = live
+                module.reset_fp8_meta_tensors({**live, "scaling_fwd": scales})
+
+        # TE advances forward amax on grad-enabled autocast exit. Advance it on
+        # the first pass only. The block itself inherits DeeperSpeed's grad mode.
+        with torch.set_grad_enabled(not replay), autocast:
+            with torch.set_grad_enabled(grad_enabled):
+                yield
+            if not replay:
+                # TE initializes scales lazily. They still have the values used
+                # for this forward until autocast exits.
+                block_scales = []
+                for module in block.modules():
+                    if isinstance(module, TransformerEngineBaseModule) and module.fp8:
+                        state = module.get_fp8_meta_tensors()
+                        if state is not None:
+                            block_scales.append((module, state["scaling_fwd"]))
+                forward_scales.append(block_scales)
+    finally:
+        for module, state in live_states.items():
+            module.reset_fp8_meta_tensors(state)
+
+
 class TEDelayedScaling:
     """Configure the TE delayed-scaling recipe used for a NeoX block."""
 
@@ -588,52 +644,18 @@ class TEDelayedScaling:
             **precision_kwargs,
         )
 
-    def get_context(self):
+    def get_context(self, block=None):
         # Keep process groups out of the recipe serialized by TE checkpoints.
         group = get_tensor_model_parallel_group()
         if hasattr(te.pytorch, "autocast"):
-            return te.pytorch.autocast(
+            autocast = te.pytorch.autocast(
                 enabled=True, recipe=self.recipe, amax_reduction_group=group
             )
-        return te.pytorch.fp8_autocast(
-            enabled=True, fp8_recipe=self.recipe, fp8_group=group
-        )
-
-    def register_checkpoint_hook(self, layer):
-        if Version(te.__version__) < Version("2.21"):
-            return
-        if hasattr(layer, "register_load_state_dict_pre_hook"):
-            layer.register_load_state_dict_pre_hook(self._restore_legacy_recipe)
-        else:  # Older PyTorch exposes the same hook through its private API.
-            layer._register_load_state_dict_pre_hook(
-                self._restore_legacy_recipe, with_module=True
+        else:
+            autocast = te.pytorch.fp8_autocast(
+                enabled=True, fp8_recipe=self.recipe, fp8_group=group
             )
-
-    def _restore_legacy_recipe(self, layer, state_dict, prefix, *_):
-        # Leave TE's default handling of untrusted extra state in effect.
-        if os.getenv("NVTE_ALLOW_UNSAFE_PICKLE_EXTRA_STATE") != "1":
-            return
-        from transformer_engine.pytorch.module.base import TransformerEngineBaseModule
-
-        for name, module in layer.named_modules():
-            if not isinstance(module, TransformerEngineBaseModule):
-                continue
-            key = f"{prefix}{name}._extra_state"
-            buffer = state_dict.get(key)
-            if not isinstance(buffer, BytesIO):
-                continue
-            state = torch.load(
-                BytesIO(buffer.getbuffer()), map_location="cpu", weights_only=True
-            )
-            if state is None or "recipe" in state:
-                continue
-            # 1.12 saved the scaling tensors without a recipe. TE 2.21 would
-            # allocate a default 1024-row window before copying these tensors.
-            length = state["amax_history_fwd"].size(0)
-            if length != state["amax_history_bwd"].size(0):
-                raise ValueError(f"Inconsistent FP8 amax history lengths in {key}")
-            state["recipe"] = replace(self.recipe, amax_history_len=length)
-            restored = BytesIO()
-            torch.save(state, restored)
-            restored.seek(0)
-            state_dict[key] = restored
+        checkpoint = _fp8_recompute_state.get()
+        if checkpoint is None or block is None:
+            return autocast
+        return _checkpoint_autocast(autocast, block, *checkpoint)

@@ -1290,7 +1290,6 @@ class ParallelTransformerLayer(nn.Module):
             from megatron.model.transformer_engine import TEDelayedScaling
 
             self.fp8_recipe = TEDelayedScaling(neox_args)
-            self.fp8_recipe.register_checkpoint_hook(self)
 
         norm, eps = get_norm(neox_args)
 
@@ -1420,7 +1419,9 @@ class ParallelTransformerLayer(nn.Module):
         layer_past = layer_past if layer_past is not None else self.layer_past
         bias_dropout_fn = self._get_bias_dropout()
 
-        fp8_context = self.fp8_recipe.get_context() if self.fp8_recipe else nullcontext()
+        fp8_context = (
+            self.fp8_recipe.get_context(self) if self.fp8_recipe else nullcontext()
+        )
         with fp8_context:
             if self.gpt_j_residual:
                 # pseudocode:
@@ -1461,13 +1462,12 @@ class ParallelTransformerLayer(nn.Module):
                 )
 
                 if attention_bias is not None:
-                    with torch.enable_grad() if not self.eval else nullcontext():
-                        attention_output = bias_dropout_fn(
-                            attention_output,
-                            bias=attention_bias.expand_as(attention_output),
-                            residual=None,
-                            prob=self.hidden_dropout,
-                        )
+                    attention_output = bias_dropout_fn(
+                        attention_output,
+                        bias=attention_bias.expand_as(attention_output),
+                        residual=None,
+                        prob=self.hidden_dropout,
+                    )
                 else:
                     attention_output = F.dropout(
                         attention_output, p=self.hidden_dropout, training=self.training
@@ -1479,13 +1479,12 @@ class ParallelTransformerLayer(nn.Module):
                     mlp_output, mlp_bias, self.residual_multiplier
                 )
                 if mlp_bias is not None:
-                    with torch.enable_grad() if not self.eval else nullcontext():
-                        output = bias_dropout_fn(
-                            mlp_output,
-                            bias=mlp_bias.expand_as(mlp_output),
-                            residual=attention_output,
-                            prob=self.hidden_dropout,
-                        )
+                    output = bias_dropout_fn(
+                        mlp_output,
+                        bias=mlp_bias.expand_as(mlp_output),
+                        residual=attention_output,
+                        prob=self.hidden_dropout,
+                    )
                 else:
                     output = attention_output + F.dropout(
                         mlp_output, p=self.hidden_dropout, training=self.training
@@ -1516,25 +1515,24 @@ class ParallelTransformerLayer(nn.Module):
                 attention_output, attention_bias = _scale_branch(
                     attention_output, attention_bias, self.residual_multiplier
                 )
-                with torch.enable_grad() if not self.eval else nullcontext():
-                    if attention_bias is not None:
-                        # Use special bias_dropout_fn if we have a bias term from the above attention layer
-                        attention_output = bias_dropout_fn(
+                if attention_bias is not None:
+                    # Use special bias_dropout_fn if we have a bias term from the above attention layer
+                    attention_output = bias_dropout_fn(
+                        attention_output,
+                        bias=attention_bias.expand_as(residual),
+                        residual=residual,
+                        prob=self.hidden_dropout,
+                    )
+                else:
+                    # Otherwise just apply dropout + residual
+                    attention_output = (
+                        torch.nn.functional.dropout(
                             attention_output,
-                            bias=attention_bias.expand_as(residual),
-                            residual=residual,
-                            prob=self.hidden_dropout,
+                            p=self.hidden_dropout,
+                            training=self.training,
                         )
-                    else:
-                        # Otherwise just apply dropout + residual
-                        attention_output = (
-                            torch.nn.functional.dropout(
-                                attention_output,
-                                p=self.hidden_dropout,
-                                training=self.training,
-                            )
-                            + residual
-                        )
+                        + residual
+                    )
 
                 # output = x + mlp(ln2(x))
                 if self.neox_args.te_layernorm_mlp:
@@ -1551,18 +1549,17 @@ class ParallelTransformerLayer(nn.Module):
                     mlp_output, mlp_bias, self.residual_multiplier
                 )
 
-                with torch.enable_grad() if not self.eval else nullcontext():
-                    if mlp_bias == None or (self.num_experts > 1):
-                        # No dropout either
-                        assert mlp_bias is None
-                        output = mlp_output + attention_output
-                    else:
-                        output = bias_dropout_fn(
-                            mlp_output,
-                            bias=mlp_bias.expand_as(attention_output),
-                            residual=attention_output,
-                            prob=self.hidden_dropout,
-                        )
+                if mlp_bias == None or (self.num_experts > 1):
+                    # No dropout either
+                    assert mlp_bias is None
+                    output = mlp_output + attention_output
+                else:
+                    output = bias_dropout_fn(
+                        mlp_output,
+                        bias=mlp_bias.expand_as(attention_output),
+                        residual=attention_output,
+                        prob=self.hidden_dropout,
+                    )
 
             return output
 
