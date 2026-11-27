@@ -13,10 +13,14 @@
 # limitations under the License.
 
 import math
+import os
+from dataclasses import replace
+from io import BytesIO
 
 import torch
 import torch.nn.functional as F
 import torch.nn.init as init
+from packaging.version import Version
 from torch.nn.parameter import Parameter
 
 from megatron.model.transformer import Gated_Activation
@@ -41,8 +45,6 @@ from megatron.model.positional_embeddings import RotaryEmbedding
 from megatron import mpu
 
 # https://github.com/NVIDIA/TransformerEngine/issues/405
-import os
-
 os.environ["NVTE_TORCH_COMPILE"] = str(0)
 
 try:
@@ -553,17 +555,10 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
         return output, bias
 
 
-class TEDelayedScaling(te.common.recipe.DelayedScaling):
-    """
-    Wrapper for the Transformer-Engine's `DelayedScaling` layer.
-    """
+class TEDelayedScaling:
+    """Configure the TE delayed-scaling recipe used for a NeoX block."""
 
-    ##TODO Test with H100
     def __init__(self, neox_args):
-
-        self.neox_args = neox_args
-        self.tp_group = get_tensor_model_parallel_group()
-
         if neox_args.te_fp8_format == "e4m3":
             fp8_format = te.common.recipe.Format.E4M3
         elif neox_args.te_fp8_format == "hybrid":
@@ -571,23 +566,74 @@ class TEDelayedScaling(te.common.recipe.DelayedScaling):
         else:
             raise ValueError("E4M3 and HYBRID are the only supported FP8 formats.")
 
-        override_linear_precision = (False, False, not neox_args.te_fp8_wgrad)
+        precision_kwargs = {}
+        if not neox_args.te_fp8_wgrad:
+            if not hasattr(
+                te.common.recipe.DelayedScaling, "override_linear_precision"
+            ):
+                raise ValueError(
+                    "te_fp8_wgrad=False requires Transformer Engine support for "
+                    "high-precision weight gradients with delayed scaling. "
+                    "Set te_fp8_wgrad=True or use the TE 1.12 image."
+                )
+            precision_kwargs["override_linear_precision"] = (False, False, True)
 
-        super().__init__(
+        self.recipe = te.common.recipe.DelayedScaling(
             margin=neox_args.te_fp8_margin,
             fp8_format=fp8_format,
             amax_compute_algo=neox_args.te_fp8_amax_compute_algo,
             amax_history_len=neox_args.te_fp8_amax_history_len,
-            override_linear_precision=override_linear_precision,
+            fp8_dpa=neox_args.te_fp8_mha,
             fp8_mha=neox_args.te_fp8_mha,
+            **precision_kwargs,
         )
 
     def get_context(self):
-        fp8_group = None
-        if self.tp_group:
-            fp8_group = self.tp_group
-        fp8_context = te.pytorch.fp8_autocast(
-            enabled=True, fp8_recipe=self, fp8_group=fp8_group
+        # Keep process groups out of the recipe serialized by TE checkpoints.
+        group = get_tensor_model_parallel_group()
+        if hasattr(te.pytorch, "autocast"):
+            return te.pytorch.autocast(
+                enabled=True, recipe=self.recipe, amax_reduction_group=group
+            )
+        return te.pytorch.fp8_autocast(
+            enabled=True, fp8_recipe=self.recipe, fp8_group=group
         )
 
-        return fp8_context
+    def register_checkpoint_hook(self, layer):
+        if Version(te.__version__) < Version("2.21"):
+            return
+        if hasattr(layer, "register_load_state_dict_pre_hook"):
+            layer.register_load_state_dict_pre_hook(self._restore_legacy_recipe)
+        else:  # Older PyTorch exposes the same hook through its private API.
+            layer._register_load_state_dict_pre_hook(
+                self._restore_legacy_recipe, with_module=True
+            )
+
+    def _restore_legacy_recipe(self, layer, state_dict, prefix, *_):
+        # Leave TE's default handling of untrusted extra state in effect.
+        if os.getenv("NVTE_ALLOW_UNSAFE_PICKLE_EXTRA_STATE") != "1":
+            return
+        from transformer_engine.pytorch.module.base import TransformerEngineBaseModule
+
+        for name, module in layer.named_modules():
+            if not isinstance(module, TransformerEngineBaseModule):
+                continue
+            key = f"{prefix}{name}._extra_state"
+            buffer = state_dict.get(key)
+            if not isinstance(buffer, BytesIO):
+                continue
+            state = torch.load(
+                BytesIO(buffer.getbuffer()), map_location="cpu", weights_only=True
+            )
+            if state is None or "recipe" in state:
+                continue
+            # 1.12 saved the scaling tensors without a recipe. TE 2.21 would
+            # allocate a default 1024-row window before copying these tensors.
+            length = state["amax_history_fwd"].size(0)
+            if length != state["amax_history_bwd"].size(0):
+                raise ValueError(f"Inconsistent FP8 amax history lengths in {key}")
+            state["recipe"] = replace(self.recipe, amax_history_len=length)
+            restored = BytesIO()
+            torch.save(state, restored)
+            restored.seek(0)
+            state_dict[key] = restored

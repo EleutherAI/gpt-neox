@@ -886,8 +886,8 @@ Model Arguments
 
     Default = True
 
-    When set to False, override FP8 config options and do the wgrad computation
-    in higher precision.
+    Set to False to compute weight gradients in higher precision with TE 1.12.
+    TE 2.21 requires True when te_fp8_mha enables delayed scaling.
 
 - **te_fp8_amax_history_len**: int
 

@@ -1285,6 +1285,13 @@ class ParallelTransformerLayer(nn.Module):
         self.layer_number = layer_number
         self.neox_args = neox_args
 
+        self.fp8_recipe = None
+        if neox_args.te_fp8_mha:
+            from megatron.model.transformer_engine import TEDelayedScaling
+
+            self.fp8_recipe = TEDelayedScaling(neox_args)
+            self.fp8_recipe.register_checkpoint_hook(self)
+
         norm, eps = get_norm(neox_args)
 
         # Layernorm on the input data.
@@ -1413,19 +1420,7 @@ class ParallelTransformerLayer(nn.Module):
         layer_past = layer_past if layer_past is not None else self.layer_past
         bias_dropout_fn = self._get_bias_dropout()
 
-        # x: [b, s, h]
-
-        # Enable delayedscaling if TransformerEngine's FP8 is used for MHA layer.
-        if self.neox_args.te_fp8_mha:
-            from megatron.model.transformer_engine import TEDelayedScaling
-
-            fp8_recipe = TEDelayedScaling(neox_args=self.neox_args)
-            fp8_context = fp8_recipe.get_context()
-        else:
-            from contextlib import nullcontext
-
-            fp8_context = nullcontext()
-
+        fp8_context = self.fp8_recipe.get_context() if self.fp8_recipe else nullcontext()
         with fp8_context:
             if self.gpt_j_residual:
                 # pseudocode:
