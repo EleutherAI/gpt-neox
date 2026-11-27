@@ -37,14 +37,13 @@ Rebuild when those kernel sources or the installed requirements change.
 docker build -f containers/docker/Dockerfile.TE-2.21 -t gpt-neox:te-2.21-test .
 ```
 
-Mount the checkout to test each revision. This smoke test exercises packed TE
-attention with rotary embeddings and checks outputs and input gradients.
+Mount the checkout to test each revision. The packed-attention suite compares
+outputs and input gradients with per-document runs for TE and FlashAttention.
 
 ```bash
 docker run --rm --gpus all --ipc=host \
   -v "$PWD:/workspace/gpt-neox:ro" gpt-neox:te-2.21-test \
-  python -m pytest -q -p no:cacheprovider \
-  'tests/unit/test_packed_sequence_model.py::test_te_packed_attention_matches_per_document[bias-mha-rotary-full]'
+  python -m pytest -q -p no:cacheprovider tests/unit/test_packed_sequence_model.py
 ```
 
 On hosts using NVIDIA's Container Device Interface (CDI), use
@@ -52,11 +51,9 @@ On hosts using NVIDIA's Container Device Interface (CDI), use
 For training, mount a writable checkout so NeoX can build its dataset helper.
 Set `fused_kernels_build_path` to a fresh directory when switching torch/CUDA
 versions with JIT kernel fusion enabled.
-Use `gpt-neox:te` for TE 1.12 reference runs. To reproduce the migration
-baseline, pass the entire `tests/unit/test_packed_sequence_model.py` file to
-pytest. On H100 the original NeoX wrapper passes 15 cases. The two plain MHA
-cases without rotary embeddings pass a five-dimensional QKV tensor to TE,
-which requires four dimensions for its packed `thd` format.
+Use `gpt-neox:te` for TE 1.12 reference runs and set the working directory to
+the mounted checkout with `-w /workspace/gpt-neox`. All 17 packed-attention
+cases pass on H100 with both TE versions.
 
 ## TE Image
 

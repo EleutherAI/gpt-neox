@@ -533,7 +533,7 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
             self.qkv_format = "thd"
             try:
                 result = super(TEMultiheadAttention, self).forward(
-                    hidden_states,
+                    hidden_states.squeeze(1),  # Packed TE input is [tokens, hidden].
                     None,
                     rotary_pos_emb=self.rope_emb,
                     attn_mask_type="padding_causal",
