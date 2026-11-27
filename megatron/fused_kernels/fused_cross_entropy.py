@@ -21,10 +21,11 @@ This implementation combines the target-logit and exponential-sum payloads so
 that tensor-parallel execution needs two all-reduces instead of three.
 """
 
-from typing import Tuple
+from typing import Optional, Tuple
 
 import torch
 
+from megatron.mpu.cross_entropy import calculate_gradients, calculate_loss
 from megatron.mpu.utils import VocabUtility
 
 
@@ -82,41 +83,23 @@ def calculate_predicted_logits(
 def calculate_cross_entropy_loss(
     exp_logits: torch.Tensor,
     predicted_logits_sum_exp_logits: torch.Tensor,
-) -> Tuple[torch.Tensor, torch.Tensor]:
+    logits_max: torch.Tensor,
+    compute_z_loss: bool,
+) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]]:
     """Normalize probabilities and calculate the per-token loss."""
     split_at = predicted_logits_sum_exp_logits.size(0) // 2
     predicted_logits = predicted_logits_sum_exp_logits[:split_at]
     sum_exp_logits = predicted_logits_sum_exp_logits[split_at:]
-    loss = torch.log(sum_exp_logits) - predicted_logits
     exp_logits.div_(sum_exp_logits.unsqueeze(dim=-1))
-    return exp_logits, loss
+    return calculate_loss(predicted_logits, sum_exp_logits, logits_max, compute_z_loss)
 
 
-@torch.jit.script
-def calculate_gradients(
-    softmax: torch.Tensor,
-    grad_output: torch.Tensor,
-    target_mask: torch.Tensor,
-    masked_target_1d: torch.Tensor,
-    logits_dtype: torch.dtype,
-) -> torch.Tensor:
-    """Calculate logits gradients and restore the input logits dtype."""
-    grad_input = softmax
-    partition_vocab_size = softmax.size(-1)
-    grad_2d = grad_input.view(-1, partition_vocab_size)
-    arange_1d = torch.arange(grad_2d.size(0), device=grad_2d.device)
-    softmax_update = 1.0 - target_mask.view(-1).float()
-    grad_2d[arange_1d, masked_target_1d] -= softmax_update
-    grad_input.mul_(grad_output.unsqueeze(dim=-1))
-
-    # Avoid an extra full-logits cast inserted by autograd when the forward
-    # logits were upcast to fp32 internally.
-    return grad_input.to(logits_dtype)
+fused_calculate_gradients = torch.jit.script(calculate_gradients)
 
 
 class _VocabParallelCrossEntropy(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, vocab_parallel_logits, target, tp_group):
+    def forward(ctx, vocab_parallel_logits, target, tp_group, compute_z_loss):
         ctx.logits_dtype = vocab_parallel_logits.dtype
         vocab_parallel_logits, logits_max = calculate_logits_max(vocab_parallel_logits)
         torch.distributed.all_reduce(
@@ -152,25 +135,34 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
             group=tp_group,
         )
 
-        exp_logits, loss = calculate_cross_entropy_loss(
-            exp_logits, predicted_logits_sum_exp_logits
+        loss, penalty, z_loss_grad = calculate_cross_entropy_loss(
+            exp_logits, predicted_logits_sum_exp_logits, logits_max, compute_z_loss
         )
-        ctx.save_for_backward(exp_logits, target_mask, masked_target_1d)
-        return loss
+        ctx.save_for_backward(exp_logits, target_mask, masked_target_1d, z_loss_grad)
+        return loss, penalty
 
     @staticmethod
-    def backward(ctx, grad_output):
-        softmax, target_mask, masked_target_1d = ctx.saved_tensors
-        grad_input = calculate_gradients(
+    def backward(ctx, grad_output, grad_penalty):
+        softmax, target_mask, masked_target_1d, z_loss_grad = ctx.saved_tensors
+        grad_input = fused_calculate_gradients(
             softmax,
             grad_output,
             target_mask,
             masked_target_1d,
             ctx.logits_dtype,
+            z_loss_grad,
+            grad_penalty,
         )
-        return grad_input, None, None
+        return grad_input, None, None, None
 
 
-def fused_vocab_parallel_cross_entropy(vocab_parallel_logits, target, tp_group):
-    """Calculate per-token CE for logits partitioned over ``tp_group``."""
-    return _VocabParallelCrossEntropy.apply(vocab_parallel_logits, target, tp_group)
+def fused_vocab_parallel_cross_entropy(
+    vocab_parallel_logits, target, tp_group, z_loss=0.0, return_components=False
+):
+    """Return the per-token objective or the separate CE and raw Z-loss over ``tp_group``."""
+    loss, penalty = _VocabParallelCrossEntropy.apply(
+        vocab_parallel_logits, target, tp_group, z_loss != 0.0
+    )
+    if return_components:
+        return loss, penalty
+    return loss if penalty is None else loss + z_loss * penalty

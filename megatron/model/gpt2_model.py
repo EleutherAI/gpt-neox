@@ -22,7 +22,6 @@ import torch
 import torch.nn as nn
 from collections import defaultdict
 
-from functools import partial
 from megatron.model.utils import Lambda, SequentialWrapper, recursive_setattr
 from megatron.model.norms import get_norm
 from megatron.model.parameterization import (
@@ -60,81 +59,60 @@ def gpt2_attention_mask_func(attention_scores, ltor_mask):
     return attention_scores
 
 
-class _VocabParallelZLoss(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, vocab_parallel_logits):
-        logits = vocab_parallel_logits.float()
-        logits_max = torch.max(logits, dim=-1)[0]
-        torch.distributed.all_reduce(
-            logits_max,
-            op=torch.distributed.ReduceOp.MAX,
-            group=mpu.get_model_parallel_group(),
-        )
-
-        exp_logits = torch.exp(logits - logits_max.unsqueeze(dim=-1))
-        sum_exp_logits = exp_logits.sum(dim=-1)
-        torch.distributed.all_reduce(
-            sum_exp_logits,
-            op=torch.distributed.ReduceOp.SUM,
-            group=mpu.get_model_parallel_group(),
-        )
-
-        softmax = exp_logits.div(sum_exp_logits.unsqueeze(dim=-1))
-        log_z = torch.log(sum_exp_logits) + logits_max
-        ctx.input_dtype = vocab_parallel_logits.dtype
-        ctx.save_for_backward(softmax, log_z)
-        return log_z.square()
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        softmax, log_z = ctx.saved_tensors
-        grad_input = 2 * log_z.unsqueeze(dim=-1) * softmax
-        grad_input.mul_(grad_output.unsqueeze(dim=-1))
-        return grad_input.to(ctx.input_dtype)
+def add_z_loss(loss, penalty, coefficient, metrics):
+    """Log the raw penalty and apply its coefficient to the training objective."""
+    if metrics is not None:
+        metrics["lm_loss"] = loss.detach()
+        metrics["z_loss"] = penalty.detach()
+    return loss + coefficient * penalty
 
 
-def vocab_parallel_z_loss(vocab_parallel_logits, loss_mask):
-    """Masked mean squared log-partition penalty for vocab-parallel logits."""
-    z_losses = _VocabParallelZLoss.apply(vocab_parallel_logits)
-    loss_mask = loss_mask.view(-1)
-    return torch.sum(z_losses.view(-1) * loss_mask) / loss_mask.sum()
-
-
-def cross_entropy(output, labels, _fp16=False, _fused=False, z_loss=0.0):
-    """From pretrain_gpt2:forward_step()"""
-    """
-    if self.fp16_lm_cross_entropy:
-        assert output.dtype == torch.half
-        loss = mpu.vocab_parallel_cross_entropy(output, labels)
-    else:
-        loss = mpu.vocab_parallel_cross_entropy(output.float(), labels)
-        return loss
-    """
+def cross_entropy(
+    output,
+    labels,
+    _fp16=False,
+    _fused=False,
+    z_loss=0.0,
+    metrics=None,
+    preserve_logits=False,
+):
+    """Masked mean of the vocabulary-parallel LM loss."""
     labels, loss_mask = labels[0], labels[1]
-    z_loss_value = None
-    if z_loss != 0:
-        z_loss_value = z_loss * vocab_parallel_z_loss(output, loss_mask)
     if _fp16:
-        assert output.dtype == torch.half and loss_mask.dtype == torch.half
+        assert output.dtype == torch.half
+    if preserve_logits and (
+        (_fp16 and z_loss == 0.0) or (_fused and output.dtype == torch.float32)
+    ):
+        # These kernels can reuse the caller's storage. Evaluation may return the original logits.
+        output = output.clone(memory_format=torch.contiguous_format)
     if _fused:
         from megatron.fused_kernels.fused_cross_entropy import (
             fused_vocab_parallel_cross_entropy,
         )
 
-        losses = fused_vocab_parallel_cross_entropy(
-            output.contiguous(), labels, mpu.get_model_parallel_group()
+        losses, penalties = fused_vocab_parallel_cross_entropy(
+            output.contiguous(),
+            labels,
+            mpu.get_model_parallel_group(),
+            z_loss=z_loss,
+            return_components=True,
         )
-    elif _fp16:
-        losses = mpu.vocab_parallel_cross_entropy(output.contiguous(), labels)
     else:
-        # vocab_parallel_cross_entropy overwrites its input, so fp32 logits need a copy
-        losses = mpu.vocab_parallel_cross_entropy(
-            output.to(torch.float32, copy=True).contiguous(), labels
+        if not _fp16:
+            # Standard CE overwrites its input, so FP32 logits need a copy.
+            output = output.to(torch.float32, copy=True)
+        losses, penalties = mpu.vocab_parallel_cross_entropy(
+            output.contiguous(), labels, z_loss=z_loss, return_components=True
         )
     loss_mask = loss_mask.view(-1)
-    loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
-    if z_loss_value is not None:
-        loss = loss + z_loss_value
+    masked_losses = losses.view(-1) * loss_mask
+    # Native FP16 CE can have more valid tokens than an FP16 sum can represent.
+    sum_dtype = torch.promote_types(masked_losses.dtype, torch.float32)
+    weight = loss_mask.sum(dtype=sum_dtype)
+    loss = (masked_losses.sum(dtype=sum_dtype) / weight).to(masked_losses.dtype)
+    if penalties is not None:
+        penalty = (penalties.view(-1) * loss_mask).sum() / weight
+        loss = add_z_loss(loss, penalty, z_loss, metrics)
     return loss
 
 
@@ -194,15 +172,12 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
 
         self.specs = []
         self.init_specs()  # initializes the layer specs (basically a fancy nn.Sequential)
+        # Earlier pipeline stages need the same metric keys to receive the engine's broadcast.
+        self._loss_metrics = dict.fromkeys(("lm_loss", "z_loss"))
 
         super().__init__(
             layers=self.specs,
-            loss_fn=partial(
-                cross_entropy,
-                _fp16=self.neox_args.fp16_lm_cross_entropy,
-                _fused=self.neox_args.cross_entropy_fusion,
-                z_loss=self.neox_args.z_loss,
-            ),
+            loss_fn=self._pipeline_loss,
             topology=topology,
             activation_checkpoint_interval=self.neox_args.checkpoint_num_layers
             if self.neox_args.checkpoint_activations
@@ -214,6 +189,23 @@ class GPT2ModelPipe(PipelineModule, torch.nn.Module):
                 "ParallelMambaResidualLayerPipe",
             ],
         )
+
+    def _pipeline_loss(self, output, labels):
+        return cross_entropy(
+            output,
+            labels,
+            _fp16=self.neox_args.fp16_lm_cross_entropy,
+            _fused=self.neox_args.cross_entropy_fusion,
+            z_loss=self.neox_args.z_loss if self.training else 0.0,
+            metrics=self.get_additional_losses(),
+            preserve_logits=not self.training,
+        )
+
+    def get_additional_losses(self):
+        """Microbatch metrics aggregated by the DeepSpeed pipeline engine."""
+        if self.training and self.neox_args.z_loss != 0.0:
+            return self._loss_metrics
+        return None
 
     def insert_layers(
         self, layers: Union[nn.Module, nn.ModuleList, nn.Sequential, List], idx

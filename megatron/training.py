@@ -69,7 +69,7 @@ from megatron.utils import (
     CharCounter,
 )
 from megatron.model.weight_server import start_server
-from megatron.model.gpt2_model import cross_entropy
+from megatron.model.gpt2_model import add_z_loss, cross_entropy
 from megatron.mpu import vocab_parallel_cross_entropy
 
 from pickle import dump
@@ -624,7 +624,9 @@ def forward_step(
             (labels, loss_mask),
             _fp16=neox_args.fp16_lm_cross_entropy,
             _fused=neox_args.cross_entropy_fusion,
-            z_loss=neox_args.z_loss,
+            z_loss=neox_args.z_loss if is_train else 0.0,
+            metrics=metrics,
+            preserve_logits=return_logits,
         )
     elif neox_args.train_impl == "rm":
         maybe_tuple = model((tokens, position_ids, attention_mask), neox_args=neox_args)
@@ -650,8 +652,9 @@ def forward_step(
             metrics["margin"] = (pos - neg).clone().detach().mean()
             metrics["accuracy"] = ((pos - neg) > 0).clone().detach().float().mean()
         loss = -F.logsigmoid(pos - neg).mean()
-        if neox_args.z_loss != 0:
-            loss = loss + (neox_args.z_loss * (pos**2 + neg**2)).mean()
+        if is_train and neox_args.z_loss != 0:
+            penalty = (pos.square() + neg.square()).mean()
+            loss = add_z_loss(loss, penalty, neox_args.z_loss, metrics)
     elif neox_args.train_impl == "dpo":
         # Based on https://github.com/eric-mitchell/direct-preference-optimization/blob/main/trainers.py#L90
         with torch.inference_mode():
@@ -1270,6 +1273,13 @@ def backward_step(neox_args, timers, optimizer, model, loss):
         raise ValueError("Must be using deepspeed to run neox")
 
 
+def _training_loss_metrics(loss, additional_metrics):
+    metrics = dict(additional_metrics or {})
+    loss_name = "lm_loss_with_z_loss" if "z_loss" in metrics else "lm_loss"
+    metrics[loss_name] = loss.detach()
+    return metrics
+
+
 def train_step(
     neox_args,
     timers,
@@ -1294,7 +1304,6 @@ def train_step(
         ):
             save_snapshot(neox_args)
     else:
-        losses = []
         metric_dicts = defaultdict(list)
         for _ in range(neox_args.gradient_accumulation_steps):
             # Forward model for one step.
@@ -1308,9 +1317,8 @@ def train_step(
                 reference_model=reference_model,
             )
             timers("forward").stop()
-            losses.append(loss)
-            for key in metric_dict.keys():
-                metric_dicts[key].append(metric_dict[key])
+            for key, value in _training_loss_metrics(loss, metric_dict).items():
+                metric_dicts[key].append(value)
             # Calculate gradients, reduce across processes, and clip.
             if (
                 neox_args.profile
@@ -1360,11 +1368,9 @@ def train_step(
                 and torch.distributed.get_rank() == 0
             ):
                 save_snapshot(neox_args)
-        # reduces metrics across machines for logging
-        reduce_metrics = {
-            key: reduce_losses(metric_dicts[key]).mean() for key in metric_dicts.keys()
-        }
-        reduce_metrics["lm_loss"] = reduce_losses(losses).mean()
+        # Average microbatches locally and reduce all scalar metrics in one collective.
+        means = [torch.stack(values).mean() for values in metric_dicts.values()]
+        reduce_metrics = dict(zip(metric_dicts, reduce_losses(means)))
 
     if neox_args.precision == "fp16" and model.optimizer.overflow:
         skipped_iter = 1
@@ -1380,7 +1386,8 @@ def train_step_pipe(neox_args, timers, model, data_iterator):
 
     assert neox_args.deepspeed
     loss = model.train_batch(data_iter=data_iterator)
-    loss_dict = {"lm_loss": loss}
+    additional = model.get_additional_losses() if neox_args.z_loss != 0.0 else None
+    loss_dict = _training_loss_metrics(loss, additional)
     # Don't break Megatron's timers because we changed code paths.
     for t in [
         "forward",
