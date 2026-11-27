@@ -1,0 +1,11 @@
+**
+!requirements/
+!requirements/requirements.txt
+!requirements/requirements-dev.txt
+!requirements/requirements-wandb.txt
+!megatron/
+!megatron/fused_kernels/
+!megatron/fused_kernels/setup.py
+!megatron/fused_kernels/*.h
+!megatron/fused_kernels/*.cpp
+!megatron/fused_kernels/*.cu

@@ -886,8 +886,8 @@ Model Arguments
 
     Default = True
 
-    When set to False, override FP8 config options and do the wgrad computation
-    in higher precision.
+    Set to False to compute weight gradients in higher precision with TE 1.12.
+    TE 2.21 requires True when te_fp8_mha enables delayed scaling.
 
 - **te_fp8_amax_history_len**: int
 
@@ -913,7 +913,9 @@ Model Arguments
 
     Default = False
 
-    When set to True, use the FP8 implementation of Multi Head Attention.
+    Use TE attention and enable delayed-scaling FP8 autocast for the whole transformer
+    block. Eligible TE MLP and linear operations in the block also use FP8.
+    With te_mha alone, TE attention runs in the configured model precision.
 
 - **dim_att**: int
 

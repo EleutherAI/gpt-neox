@@ -25,7 +25,7 @@ from megatron.neox_arguments import NeoXArgs
 pytestmark = pytest.mark.cpu
 
 
-def _make_block(monkeypatch, hidden_dropout):
+def _make_block(monkeypatch, hidden_dropout, gpt_j_residual=True, mlp_bias=False):
     monkeypatch.setattr(mpu.initialize, "_MPU_WORLD_SIZE", 1)
     monkeypatch.setattr(mpu.initialize, "_MPU_RANK", 0)
     # Attention dropout is disabled, so the CPU test needs no CUDA RNG stream.
@@ -41,8 +41,8 @@ def _make_block(monkeypatch, hidden_dropout):
         seq_length=4,
         max_position_embeddings=4,
         activation="swiglu",
-        gpt_j_residual=True,
-        use_bias_in_mlp=False,
+        gpt_j_residual=gpt_j_residual,
+        use_bias_in_mlp=mlp_bias,
         hidden_dropout=hidden_dropout,
         attention_dropout=0.0,
     )
@@ -83,3 +83,29 @@ def test_gpt_j_residual_applies_dropout_to_bias_free_mlp(monkeypatch):
     torch.testing.assert_close(layer(x, mask), x, rtol=0, atol=0)
     layer.eval()
     torch.testing.assert_close(layer(x, mask), x + mlp_output)
+
+
+@pytest.mark.parametrize("gpt_j_residual", [False, True])
+@pytest.mark.parametrize("training", [False, True])
+@pytest.mark.parametrize("enable_grad", [False, True])
+def test_residuals_respect_caller_grad_mode(
+    monkeypatch, gpt_j_residual, training, enable_grad
+):
+    layer, x, mask = _make_block(monkeypatch, 0.1, gpt_j_residual, mlp_bias=True)
+    layer.train(training)
+    grad_modes = []
+    bias_dropout = layer._get_bias_dropout()
+
+    def observe(*args, **kwargs):
+        grad_modes.append(torch.is_grad_enabled())
+        return bias_dropout(*args, **kwargs)
+
+    monkeypatch.setattr(layer, "_get_bias_dropout", lambda: observe)
+    x.requires_grad_()
+    with torch.set_grad_enabled(enable_grad):
+        output = layer(x, mask)
+    assert grad_modes == [enable_grad, enable_grad]
+    assert output.requires_grad == enable_grad
+    if enable_grad:
+        output.square().mean().backward()
+        assert x.grad is not None and x.grad.isfinite().all()

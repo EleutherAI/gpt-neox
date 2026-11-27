@@ -13,6 +13,9 @@
 # limitations under the License.
 
 import math
+import os
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 import torch
 import torch.nn.functional as F
@@ -41,8 +44,6 @@ from megatron.model.positional_embeddings import RotaryEmbedding
 from megatron import mpu
 
 # https://github.com/NVIDIA/TransformerEngine/issues/405
-import os
-
 os.environ["NVTE_TORCH_COMPILE"] = str(0)
 
 try:
@@ -533,7 +534,7 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
             self.qkv_format = "thd"
             try:
                 result = super(TEMultiheadAttention, self).forward(
-                    hidden_states,
+                    hidden_states.squeeze(1),  # Packed TE input is [tokens, hidden].
                     None,
                     rotary_pos_emb=self.rope_emb,
                     attn_mask_type="padding_causal",
@@ -553,17 +554,67 @@ class TEMultiheadAttention(te.pytorch.MultiheadAttention):
         return output, bias
 
 
-class TEDelayedScaling(te.common.recipe.DelayedScaling):
-    """
-    Wrapper for the Transformer-Engine's `DelayedScaling` layer.
-    """
+_fp8_recompute_state = ContextVar("fp8_recompute_state", default=None)
 
-    ##TODO Test with H100
+
+def fp8_activation_checkpoint(checkpoint_func, function, *args):
+    """Let DeeperSpeed manage activations and RNG, and identify each FP8 replay."""
+    if not torch.is_grad_enabled():
+        return function(*args)
+
+    forward_scales = []
+    replay = False
+
+    def run(*inputs):
+        nonlocal replay
+        scales = iter(forward_scales) if replay else forward_scales
+        token = _fp8_recompute_state.set((scales, replay))
+        replay = True
+        try:
+            return function(*inputs)
+        finally:
+            _fp8_recompute_state.reset(token)
+
+    return checkpoint_func(run, *args)
+
+
+@contextmanager
+def _checkpoint_autocast(autocast, block, forward_scales, replay):
+    from transformer_engine.pytorch.module.base import TransformerEngineBaseModule
+
+    live_states = {}
+    grad_enabled = torch.is_grad_enabled()
+    try:
+        if replay:
+            for module, scales in next(forward_scales):
+                live = module.get_fp8_meta_tensors()
+                live_states[module] = live
+                module.reset_fp8_meta_tensors({**live, "scaling_fwd": scales})
+
+        # TE advances forward amax on grad-enabled autocast exit. Advance it on
+        # the first pass only. The block itself inherits DeeperSpeed's grad mode.
+        with torch.set_grad_enabled(not replay), autocast:
+            with torch.set_grad_enabled(grad_enabled):
+                yield
+            if not replay:
+                # TE initializes scales lazily. They still have the values used
+                # for this forward until autocast exits.
+                block_scales = []
+                for module in block.modules():
+                    if isinstance(module, TransformerEngineBaseModule) and module.fp8:
+                        state = module.get_fp8_meta_tensors()
+                        if state is not None:
+                            block_scales.append((module, state["scaling_fwd"]))
+                forward_scales.append(block_scales)
+    finally:
+        for module, state in live_states.items():
+            module.reset_fp8_meta_tensors(state)
+
+
+class TEDelayedScaling:
+    """Configure the TE delayed-scaling recipe used for a NeoX block."""
+
     def __init__(self, neox_args):
-
-        self.neox_args = neox_args
-        self.tp_group = get_tensor_model_parallel_group()
-
         if neox_args.te_fp8_format == "e4m3":
             fp8_format = te.common.recipe.Format.E4M3
         elif neox_args.te_fp8_format == "hybrid":
@@ -571,23 +622,40 @@ class TEDelayedScaling(te.common.recipe.DelayedScaling):
         else:
             raise ValueError("E4M3 and HYBRID are the only supported FP8 formats.")
 
-        override_linear_precision = (False, False, not neox_args.te_fp8_wgrad)
+        precision_kwargs = {}
+        if not neox_args.te_fp8_wgrad:
+            if not hasattr(
+                te.common.recipe.DelayedScaling, "override_linear_precision"
+            ):
+                raise ValueError(
+                    "te_fp8_wgrad=False requires Transformer Engine support for "
+                    "high-precision weight gradients with delayed scaling. "
+                    "Set te_fp8_wgrad=True or use the TE 1.12 image."
+                )
+            precision_kwargs["override_linear_precision"] = (False, False, True)
 
-        super().__init__(
+        self.recipe = te.common.recipe.DelayedScaling(
             margin=neox_args.te_fp8_margin,
             fp8_format=fp8_format,
             amax_compute_algo=neox_args.te_fp8_amax_compute_algo,
             amax_history_len=neox_args.te_fp8_amax_history_len,
-            override_linear_precision=override_linear_precision,
+            fp8_dpa=neox_args.te_fp8_mha,
             fp8_mha=neox_args.te_fp8_mha,
+            **precision_kwargs,
         )
 
-    def get_context(self):
-        fp8_group = None
-        if self.tp_group:
-            fp8_group = self.tp_group
-        fp8_context = te.pytorch.fp8_autocast(
-            enabled=True, fp8_recipe=self, fp8_group=fp8_group
-        )
-
-        return fp8_context
+    def get_context(self, block=None):
+        # Keep process groups out of the recipe serialized by TE checkpoints.
+        group = get_tensor_model_parallel_group()
+        if hasattr(te.pytorch, "autocast"):
+            autocast = te.pytorch.autocast(
+                enabled=True, recipe=self.recipe, amax_reduction_group=group
+            )
+        else:
+            autocast = te.pytorch.fp8_autocast(
+                enabled=True, fp8_recipe=self.recipe, fp8_group=group
+            )
+        checkpoint = _fp8_recompute_state.get()
+        if checkpoint is None or block is None:
+            return autocast
+        return _checkpoint_autocast(autocast, block, *checkpoint)
