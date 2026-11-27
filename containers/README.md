@@ -23,7 +23,40 @@ variables such as `PIP_CONSTRAINT` remain active.
 | Image | Dockerfile | Base image | CUDA architecture | Use case |
 | --- | --- | --- | --- | --- |
 | `gpt-neox:te` | `containers/docker/Dockerfile.TE` | `nvcr.io/nvidia/pytorch:24.02-py3` | `9.0` | Transformer Engine and FlashAttention on Hopper-class GPUs such as H100. |
+| `gpt-neox:te-2.21-test` | `containers/docker/Dockerfile.TE-2.21` | `nvcr.io/nvidia/pytorch:26.11-py3` | `8.0;9.0;10.0` | Shared test environment for the TE 2.21 migration. |
 | `gpt-neox:b200` | `containers/docker/Dockerfile.B200` | `nvcr.io/nvidia/pytorch:25.04-py3` | `10.0` | B200 systems that require the newer PyTorch and CUDA stack from NGC 25.04. |
+
+## Transformer Engine 2.21 migration tests
+
+Build once from the repository root with Docker BuildKit. The Dockerfile pins
+the NVIDIA base by digest and uses its PyTorch, TE and FlashAttention 2
+binaries. It compiles the NeoX softmax and rotary kernels during the build.
+Rebuild when those kernel sources or the installed requirements change.
+
+```bash
+docker build -f containers/docker/Dockerfile.TE-2.21 -t gpt-neox:te-2.21-test .
+```
+
+Mount the checkout to test each revision. This smoke test exercises packed TE
+attention with rotary embeddings and checks outputs and input gradients.
+
+```bash
+docker run --rm --gpus all --ipc=host \
+  -v "$PWD:/workspace/gpt-neox:ro" gpt-neox:te-2.21-test \
+  python -m pytest -q -p no:cacheprovider \
+  'tests/unit/test_packed_sequence_model.py::test_te_packed_attention_matches_per_document[bias-mha-rotary-full]'
+```
+
+On hosts using NVIDIA's Container Device Interface (CDI), use
+`--device=nvidia.com/gpu=0` in place of `--gpus all` to select one GPU.
+For training, mount a writable checkout so NeoX can build its dataset helper.
+Set `fused_kernels_build_path` to a fresh directory when switching torch/CUDA
+versions with JIT kernel fusion enabled.
+Use `gpt-neox:te` for TE 1.12 reference runs. To reproduce the migration
+baseline, pass the entire `tests/unit/test_packed_sequence_model.py` file to
+pytest. On H100 the original NeoX wrapper passes 15 cases. The two plain MHA
+cases without rotary embeddings pass a five-dimensional QKV tensor to TE,
+which requires four dimensions for its packed `thd` format.
 
 ## TE Image
 

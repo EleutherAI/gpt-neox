@@ -25,23 +25,23 @@ import sys
 import torch
 from torch.utils import cpp_extension
 
-# Setting this param to a list has a problem of generating different
-# compilation commands (with different order of architectures) and
-# leading to recompilation of fused kernels. Set it to empty string
-# to avoid recompilation and assign arch flags explicitly in
-# extra_cuda_cflags below
-os.environ["TORCH_CUDA_ARCH_LIST"] = ""
+# Older toolkits use the explicit targets below. CUDA 13+ uses PyTorch's
+# target list for both packaged and JIT builds.
+if torch.version.cuda is None or int(torch.version.cuda.split(".", 1)[0]) < 13:
+    os.environ["TORCH_CUDA_ARCH_LIST"] = ""
 
 
 def load(neox_args=None):
 
-    # Check if cuda 11 is installed for compute capability 8.0
     cc_flag = []
     if torch.version.hip is None:
         _, bare_metal_major, bare_metal_minor = _get_cuda_bare_metal_version(
             cpp_extension.CUDA_HOME
         )
-        if int(bare_metal_major) >= 11:
+        # CUDA 13+ uses PyTorch's architecture selection, as in setup.py.
+        if int(bare_metal_major) < 13:
+            cc_flag.extend(["-gencode", "arch=compute_70,code=sm_70"])
+        if 11 <= int(bare_metal_major) < 13:
             cc_flag.append("-gencode")
             cc_flag.append("arch=compute_80,code=sm_80")
             if int(bare_metal_minor) >= 1:
@@ -53,7 +53,7 @@ def load(neox_args=None):
             elif int(bare_metal_minor) >= 8:
                 cc_flag.append("-gencode")
                 cc_flag.append("arch=compute_89,code=sm_89")
-        if int(bare_metal_major) >= 12:
+        if int(bare_metal_major) == 12:
             cc_flag.append("-gencode")
             cc_flag.append("arch=compute_90,code=sm_90")
 
@@ -72,11 +72,7 @@ def load(neox_args=None):
         if torch.version.hip is not None:
             extra_cuda_cflags = ["-O3"] + extra_cuda_flags + cc_flag
         else:
-            extra_cuda_cflags = (
-                ["-O3", "-gencode", "arch=compute_70,code=sm_70", "--use_fast_math"]
-                + extra_cuda_flags
-                + cc_flag
-            )
+            extra_cuda_cflags = ["-O3", "--use_fast_math"] + extra_cuda_flags + cc_flag
 
         module = cpp_extension.load(
             name=name,

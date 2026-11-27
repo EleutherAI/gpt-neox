@@ -35,14 +35,15 @@ def _get_cuda_bare_metal_version(cuda_dir):
 srcpath = Path(__file__).parent.absolute()
 cc_flag = []
 _, bare_metal_major, _ = _get_cuda_bare_metal_version(cpp_extension.CUDA_HOME)
-if int(bare_metal_major) >= 11:
-    cc_flag.append("-gencode")
-    cc_flag.append("arch=compute_80,code=sm_80")
+# CUDA 13 dropped sm_70. Let PyTorch select targets from TORCH_CUDA_ARCH_LIST
+# (or the visible GPUs) on that toolkit.
+if int(bare_metal_major) < 13:
+    cc_flag.extend(["-gencode", "arch=compute_70,code=sm_70"])
+    if int(bare_metal_major) >= 11:
+        cc_flag.extend(["-gencode", "arch=compute_80,code=sm_80"])
 
 nvcc_flags = [
     "-O3",
-    "-gencode",
-    "arch=compute_70,code=sm_70",
     "--use_fast_math",
     "-U__CUDA_NO_HALF_OPERATORS__",
     "-U__CUDA_NO_HALF_CONVERSIONS__",

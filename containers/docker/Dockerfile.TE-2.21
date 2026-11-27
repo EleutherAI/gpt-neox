@@ -1,0 +1,50 @@
+# GPT-NeoX test environment for the Transformer Engine 2.21 migration.
+# Build from the repository root and mount the checkout at /workspace/gpt-neox.
+FROM nvcr.io/nvidia/pytorch:26.11-py3@sha256:0d31ce7e80cda1b1f07357004530a2f41d6754a6ddae28af508134c63c59fe0b
+
+ENV PIP_CONFIG_FILE=/dev/null \
+    PIP_INDEX_URL=https://pypi.org/simple \
+    PIP_EXTRA_INDEX_URL="" \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /opt/neox-build
+
+# Supply the distributed launcher and headers for DeepSpeed's AIO op.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libaio-dev pdsh && \
+    rm -rf /var/lib/apt/lists/*
+
+# TorchTitan requires datasets 3+, and NVIDIA Resiliency's gRPC tools require
+# protobuf 6+. NeoX pins datasets 2.x and protobuf 5.x. Install the FA4/QuACK
+# pair compatible with NGC's CUTLASS 4.8 alongside the vendor FA2 package.
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m pip uninstall -y torchtitan nvidia-resiliency-ext grpcio-tools && \
+    PIP_CONSTRAINT=/dev/null python -m pip install \
+        'flash-attn-4==4.0.0b33' 'quack-kernels==0.6.5' 'nvidia-cuda-cupti==13.5.25'
+
+# Keep the vendor's torch and TE binaries. Install the NeoX dependency pins in
+# their own environment because they differ from NGC's application packages.
+RUN python -m venv --system-site-packages /opt/neox-venv
+ENV VIRTUAL_ENV=/opt/neox-venv \
+    PATH=/opt/neox-venv/bin:${PATH} \
+    PIP_CONSTRAINT=/opt/neox-build/constraints.txt
+RUN python -c "from importlib.metadata import version; from packaging.version import Version; assert Version(version('transformer-engine').split('+')[0]) == Version('2.21.0')" && \
+    python -c "from importlib.metadata import version; print(*(p + '==' + version(p) for p in ('torch', 'transformer-engine')), sep='\n')" > "$PIP_CONSTRAINT" && \
+    echo 'pytest<9' >> "$PIP_CONSTRAINT" && \
+    printf '#!/bin/sh\nexec /opt/neox-venv/bin/python -m torch.distributed.run "$@"\n' > "$VIRTUAL_ENV/bin/torchrun" && \
+    chmod +x "$VIRTUAL_ENV/bin/torchrun"
+COPY requirements/requirements.txt requirements/requirements-dev.txt requirements/requirements-wandb.txt ./
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m pip install --no-build-isolation \
+        -r requirements.txt -r requirements-dev.txt -r requirements-wandb.txt \
+        'ml-dtypes==0.5.4' 'contourpy==1.3.3' 'googleapis-common-protos==1.72.0' && \
+    python -m pip check
+
+ARG TORCH_CUDA_ARCH_LIST="8.0;9.0;10.0"
+ENV TORCH_CUDA_ARCH_LIST=${TORCH_CUDA_ARCH_LIST}
+COPY megatron/fused_kernels/ ./fused_kernels/
+RUN --mount=type=cache,target=/root/.cache/pip \
+    MAX_JOBS=4 python -m pip install --no-build-isolation ./fused_kernels && \
+    rm -rf ./fused_kernels
+
+WORKDIR /workspace/gpt-neox
