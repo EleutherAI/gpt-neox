@@ -71,6 +71,8 @@ def create_config(neox_config):
             self.vocab_file = get_key(neox_config, "vocab-file")
             self.merge_file = get_key(neox_config, "merge-file")
             self.tokenizer_type = get_key(neox_config, "tokenizer-type")
+            self.tokenizer_eod_token = get_key(neox_config, "tokenizer-eod-token")
+            self.tokenizer_pad_token = get_key(neox_config, "tokenizer-pad-token")
 
             self.rank = 0
 

@@ -1086,6 +1086,16 @@ class NeoXArgsTokenizer(NeoXArgsTemplate):
     Type of tokenizer to use - should be one of ["GPT2BPETokenizer", "HFTokenizer", "HFGPT2Tokenizer", "SPMTokenizer", "CharLevelTokenizer", "TiktokenTokenizer"]
     """
 
+    tokenizer_eod_token: str = None
+    """
+    Name of the end-of-document token in the tokenizer vocab, e.g. "<eos>" for Gemma or "<|end_of_text|>" for Llama 3. Defaults to "<|endoftext|>". A name that is not in the vocab raises an error; if the default is not in the vocab either, a warning is printed and the end-of-document token keeps its previous value (None for HFTokenizer, <unk> for SPMTokenizer). Only used with HFTokenizer and SPMTokenizer.
+    """
+
+    tokenizer_pad_token: str = None
+    """
+    Name of the padding token in the tokenizer vocab, e.g. "<pad>" for Gemma. Defaults to "<|padding|>" for HFTokenizer; SPMTokenizer has no padding token unless this is set. A name that is not in the vocab raises an error; if the default is not in the vocab either, a warning is printed and the padding token is None. Only used with HFTokenizer and SPMTokenizer.
+    """
+
     padded_vocab_size: int = None
     """
     Total (padded) vocabulary size of tokenizer. Configured after launching of training,

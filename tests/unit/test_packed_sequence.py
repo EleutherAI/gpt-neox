@@ -89,3 +89,20 @@ def test_normalize_packed_sequence_batch(case):
     assert result.num_documents.item() == case["expected_num_documents"]
     assert result.max_seqlen.item() == case["expected_max_seqlen"]
     assert result.cu_seqlens.dtype == torch.int32
+
+
+@pytest.mark.cpu
+def test_normalize_packed_sequence_batch_eod_mask_loss_without_eod_token():
+    """eod_mask_loss with no end-of-document token must fail loudly instead
+    of silently masking nothing (GPT-NeoX #1498)."""
+    tokens = torch.tensor([[10, 11, 12, 13]], dtype=torch.int64)
+    with pytest.raises(ValueError, match="no end-of-document token"):
+        normalize_packed_sequence_batch(
+            tokens=tokens,
+            labels=tokens + 100,
+            label_mask=torch.tensor([[True, True, True, True]], dtype=torch.bool),
+            cu_seqlens=torch.tensor([[0, 2, 4, 4, 4]], dtype=torch.int32),
+            max_seqlen=torch.tensor([2], dtype=torch.int32),
+            eod_token=None,
+            eod_mask_loss=True,
+        )
