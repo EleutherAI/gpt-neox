@@ -67,13 +67,6 @@ def normalize_packed_sequence_batch(
     ) - torch.repeat_interleave(starts[:-1].long(), lengths, output_size=num_tokens)
     loss_mask = label_mask.float()
     if eod_mask_loss:
-        if eod_token is None:
-            raise ValueError(
-                "eod_mask_loss is True but the tokenizer has no "
-                "end-of-document token ('<|endoftext|>' is not in the "
-                "vocab). Set 'tokenizer_eod_token' to the name of the "
-                "end-of-document token or disable eod_mask_loss."
-            )
         loss_mask = loss_mask * (tokens != eod_token)
     return PackedSequenceBatch(
         tokens=tokens.reshape(1, -1),

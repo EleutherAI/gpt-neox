@@ -101,13 +101,6 @@ def get_ltor_masks_and_position_ids(
     # Loss mask.
     loss_mask = torch.ones(data.size(), dtype=torch.float, device=data.device)
     if eod_mask_loss:
-        if eod_token is None:
-            raise ValueError(
-                "eod_mask_loss is True but the tokenizer has no "
-                "end-of-document token ('<|endoftext|>' is not in the "
-                "vocab). Set 'tokenizer_eod_token' to the name of the "
-                "end-of-document token or disable eod_mask_loss."
-            )
         loss_mask[data == eod_token] = 0.0
 
     # Position ids.
