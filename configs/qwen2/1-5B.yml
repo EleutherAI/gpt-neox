@@ -1,0 +1,41 @@
+# Based on https://huggingface.co/Qwen/Qwen2-1.5B/blob/main/config.json
+
+{
+  "pipe_parallel_size": 1,
+  # model_parallel_size must evenly divide num_kv_heads (2)
+  "model_parallel_size": 1,
+  # Pads the vocab to 151,936 rows, the HF embedding size (see #1396)
+  "make_vocab_size_divisible_by": 1187,
+
+  # model settings
+  "num_layers": 28,
+  "hidden_size": 1536,
+  "intermediate_size": 26880, # 8960*3 as 3x needed for swiglu with neox
+  "num_attention_heads": 12,
+  "num_kv_heads": 2,
+  # Final pretraining stage: 32,768 tokens, RoPE base 1,000,000
+  "seq_length": 32768,
+  "max_position_embeddings": 131072,
+  "pos_emb": "rotary",
+  "rotary_pct": 1,
+  "rotary_emb_base": 1000000,
+  "no_weight_tying": false,
+  "gpt_j_residual": false,
+  "output_layer_parallelism": "column",
+  "norm": "rmsnorm",
+  "rms_norm_epsilon": 1.0e-6,
+  "attention_config": [[["flash"], 28]],
+
+  "scaled_upper_triang_masked_softmax_fusion": true,
+  "bias_gelu_fusion": false,
+  "use_bias_in_norms": false,
+  "use_bias_in_attn_linear": "qkv",
+  "use_bias_in_mlp": false,
+  "activation": "swiglu", # Mentioned here - https://huggingface.co/Qwen/Qwen2-72B#model-details
+  "mlp_multiple_of": 256,
+
+  "tokenizer_type": "HFTokenizer",
+  # "vocab-file": "/path/to/Qwen2-1.5B/tokenizer.json",
+
+  "init_method_std": 0.02
+}
