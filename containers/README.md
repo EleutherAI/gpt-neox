@@ -1,27 +1,30 @@
 # GPT-NeoX Container Image Guide
 
-This guide covers the custom Docker images in `containers/docker/` and the
-matching Apptainer conversion workflow. Build these images from the
-`gpt-neox` repository root, not from `containers/docker`, because the
-Dockerfiles copy `requirements/*` and `megatron/fused_kernels/` from the build
-context.
+This guide covers the Docker images and the native Apptainer definition, plus
+conversion from Docker to Apptainer. Run the build commands from the
+`gpt-neox` repository root so the recipes can access the requirements and
+fused kernel sources.
 
 ```bash
 cd gpt-neox
 ```
 
-All Docker and Apptainer definitions use public PyPI exclusively by setting
-`PIP_CONFIG_FILE=/dev/null`, `PIP_INDEX_URL=https://pypi.org/simple`, and an empty
-`PIP_EXTRA_INDEX_URL` before installing Python packages. These settings are
-retained in the finished image. Disabling inherited pip configuration files
-avoids DNS retries against the legacy `pypi.ngc.nvidia.com` extra index from
-NGC base images. Other file-based pip settings are also disabled; environment
-variables such as `PIP_CONSTRAINT` remain active.
+The recipes use uv to install packages from public PyPI into the base image's
+system Python environment. They pass the NGC package constraint file to uv
+when the base image provides one.
+
+Build the standard Docker or Apptainer image from the repository root.
+
+```bash
+docker build -f containers/docker/Dockerfile -t gpt-neox:latest .
+apptainer build gpt-neox.sif containers/apptainer/gpt-neox.def
+```
 
 ## Image Matrix
 
 | Image | Dockerfile | Base image | CUDA architecture | Use case |
 | --- | --- | --- | --- | --- |
+| `gpt-neox:latest` | `containers/docker/Dockerfile` | `nvcr.io/nvidia/pytorch:24.02-py3` | Base defaults | Standard GPT-NeoX image. |
 | `gpt-neox:te` | `containers/docker/Dockerfile.TE` | `nvcr.io/nvidia/pytorch:24.02-py3` | `9.0` | Transformer Engine and FlashAttention on Hopper-class GPUs such as H100. |
 | `gpt-neox:b200` | `containers/docker/Dockerfile.B200` | `nvcr.io/nvidia/pytorch:25.04-py3` | `10.0` | B200 systems that require the newer PyTorch and CUDA stack from NGC 25.04. |
 
@@ -33,16 +36,16 @@ the NGC PyTorch 24.02 base.
 The image:
 
 - installs `requirements.txt` and `requirements-onebitadam.txt`
-- installs `wandb==0.16.6`
+- installs W&B from `requirements-wandb.txt`, shared by all images
 - installs `transformer-engine[pytorch]==1.12`
-- builds `flash-attn==2.5.6` from source
+- installs `flash-attn==2.5.6`
 - pins `protobuf==4.25.8` to satisfy the cuDF requirement in NGC 24.02
 - sets `TORCH_CUDA_ARCH_LIST=9.0`
 - builds the GPT-NeoX fused kernels from `megatron/fused_kernels/`
 
-FlashAttention is built from source instead of installed from the wheel path in
-`requirements-transformerengine.txt`, because prebuilt wheels are more likely
-to hit ABI mismatches on the older NGC 24.02 PyTorch base.
+In the TE image, the FlashAttention setup script tries to
+download a matching upstream wheel. If none is available, it compiles against
+the PyTorch in the base image.
 
 Build the image:
 
@@ -64,6 +67,11 @@ Use `containers/docker/Dockerfile.B200` for B200 systems. B200 support requires
 a newer PyTorch and CUDA stack, so this image moves to the NGC PyTorch 25.04
 base.
 
+The B200 image runs as `mchorse`. It uses UID 1000 when it is free and
+allocates an available UID when the base image already has a user at 1000.
+For bind-mount permissions, check the resulting UID with
+`docker run --rm gpt-neox:b200 id -u`.
+
 The image:
 
 - installs `requirements.txt` and `requirements-onebitadam.txt`
@@ -71,7 +79,7 @@ The image:
 - sets `TORCH_CUDA_ARCH_LIST=10.0`
 - relies on the NGC 25.04 base image for Transformer Engine
 - rewrites `jinja2==3.1.4` to `jinja2==3.1.6` during the build to match the
-  NGC base-image pip constraint
+  NGC base image's package constraint
 - updates the base image's Protobuf constraint to match `requirements-wandb.txt`
 - pins `fsspec==2024.6.1` and `dill==0.3.8` for compatibility with Datasets 2.x
 - removes `chardet` after installation to avoid the `requests` dependency
@@ -91,6 +99,30 @@ docker run --rm --gpus all --ipc=host gpt-neox:b200 nvidia-smi
 docker run --rm --gpus all --ipc=host gpt-neox:b200 \
   python -c "import torch, wandb, transformer_engine; print(torch.__version__)"
 ```
+
+## Skipping the GPT-NeoX Fused Kernel Build
+
+The Docker and Apptainer images build the GPT-NeoX
+fused kernels by default. Pass `--build-arg BUILD_FUSED_KERNELS=false` to skip
+this step.
+
+```bash
+docker build --build-arg BUILD_FUSED_KERNELS=false \
+  -f containers/docker/Dockerfile -t gpt-neox:no-fused-kernels .
+```
+
+With Apptainer 1.2 or later, the definition copies its build inputs from
+the checkout.
+
+```bash
+apptainer build --build-arg BUILD_FUSED_KERNELS=false \
+  gpt-neox-no-fused-kernels.sif containers/apptainer/gpt-neox.def
+```
+
+The flag controls GPT-NeoX's own extensions. The Transformer Engine image
+installs FlashAttention with either setting. To avoid compiling the GPT-NeoX
+extensions at runtime, set `scaled_upper_triang_masked_softmax_fusion`,
+`scaled_masked_softmax_fusion`, and `rope_fusion` to `false` in the model config.
 
 ## Running a Container
 

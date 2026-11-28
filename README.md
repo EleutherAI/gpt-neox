@@ -234,9 +234,13 @@ You can then kick off a training run with `sbatch my_sbatch_script.sh`
 
 ### Containerized Setup
 
-We provide containers for [Apptainer](#apptainer) (formerly Singularity) and [Docker](#docker) under [containers](https://github.com/EleutherAI/gpt-neox/blob/main/containers/).
+We provide containers for [Apptainer](#apptainer) (formerly Singularity) and
+[Docker](#docker) under [containers](containers/).
 
-For the custom Transformer Engine and B200 image build workflow, see the [container image guide](containers/README.md).
+The Docker and Apptainer recipes use uv to install Python packages. The
+[container image guide](containers/README.md) covers the standard, Transformer
+Engine, and B200 images and explains how to
+[skip the fused kernel build](containers/README.md#skipping-the-gpt-neox-fused-kernel-build).
 
 #### Docker
 
@@ -255,10 +259,11 @@ export NEOX_DATA_PATH=/mnt/sda/data/enwiki8 #or wherever your data is stored on 
 export NEOX_CHECKPOINT_PATH=/mnt/sda/checkpoints
 ```
 
-And then, from the `gpt-neox/containers/docker` directory, you can build the image and run a shell in a container with
+From the repository root, build the standard image and open a shell with Compose.
 
-```
-docker compose run gpt-neox bash
+```bash
+docker build -f containers/docker/Dockerfile -t gpt-neox .
+docker compose --project-directory . -f containers/docker/docker-compose.yml run gpt-neox bash
 ```
 
 After the build, you should be able to do this:
@@ -283,13 +288,13 @@ drwxr-xr-x 11 mchorse mchorse 4096 Jan  8 03:52 gpt-neox
 For a long-running job, you should run
 
 ```
-docker compose up -d
+docker compose --project-directory . -f containers/docker/docker-compose.yml up -d --no-build
 ```
 
 to run the container in detached mode, and then, in a separate terminal session, run
 
 ```
-docker compose exec gpt-neox bash
+docker compose --project-directory . -f containers/docker/docker-compose.yml exec gpt-neox bash
 ```
 
 You can then run any job you want from inside the container.
@@ -302,18 +307,19 @@ Concerns when running for a long time or in detached mode include
 If you prefer to run the prebuilt container image from dockerhub, you can run the docker compose commands with ```-f docker-compose-dockerhub.yml``` instead, e.g.,
 
 ```
-docker compose run -f containers/docker/docker-compose-dockerhub.yml gpt-neox bash
+docker compose --project-directory . -f containers/docker/docker-compose-dockerhub.yml run gpt-neox bash
 ```
 
-#### Singularity/Apptainer
+#### Apptainer
 
 We also support Apptainer (formerly Singularity) deployments. Some users find Apptainer useeful for systems that don't provide root-access, such as shared HPC systems at national labs and universities.
 
-Requirements to run the container are to have appropriate GPU drivers and an up-to-date installation of Apptainer. You can build an image from our Apptainer file by running:
+Use Apptainer 1.2 or later and appropriate GPU drivers. From the repository
+root, build the image. The definition copies the requirements and fused
+kernel sources from the checkout.
 
-```
-cd containers/apptainer/
-apptainer build gpt-neox.sif gpt-neox.def
+```bash
+apptainer build gpt-neox.sif containers/apptainer/gpt-neox.def
 ```
 
 You can use your new image in a few ways:
@@ -330,15 +336,9 @@ Use the --nv flag to enable NVIDIA GPU support.
 apptainer exec --nv gpt-neox.sif python your_script.py
 ```
 
-For this method, you'll need to make the requirements files and fused_kernels directory available during the build process, either by:
-
-- Using the `--bind` option during build
-- Adding them to the definition file using the `%files` section
-- Copying them into specific locations during build
-
 Apptainer/Singularity containers run with the user's own UID/GID by default, so some of the user creation parts may be redundant.
 By default, your home directory is automatically mounted in Apptainer/Singularity containers, which differs from Docker behavior.
-For more info on Apptainer deployment, we suggest consulting [their userguide](https://apptainer.org/docs/user/1.0/index.html)
+For more on Apptainer deployment, see the [Apptainer user guide](https://apptainer.org/docs/user/latest/).
 
 ## Usage
 

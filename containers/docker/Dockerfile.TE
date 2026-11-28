@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM nvcr.io/nvidia/pytorch:24.02-py3
+ARG PYTORCH_IMAGE=nvcr.io/nvidia/pytorch:24.02-py3
+FROM ${PYTORCH_IMAGE}
+ARG PYTORCH_IMAGE
 
 # The NGC base image adds https://pypi.ngc.nvidia.com as an extra package
 # index. That endpoint is no longer resolvable on some clusters, causing pip
@@ -23,26 +25,34 @@ ENV PIP_CONFIG_FILE=/dev/null \
     PIP_EXTRA_INDEX_URL="" \
     DEBIAN_FRONTEND=noninteractive
 
-# metainformation
-LABEL org.opencontainers.image.version = "2.0"
-LABEL org.opencontainers.image.authors = "contact@eleuther.ai"
-LABEL org.opencontainers.image.source = "https://www.github.com/eleutherai/gpt-neox"
-LABEL org.opencontainers.image.licenses = " Apache-2.0"
-LABEL org.opencontainers.image.base.name="nvcr.io/nvidia/pytorch:24.02-py3"
+LABEL org.opencontainers.image.version="2.0" \
+      org.opencontainers.image.authors="contact@eleuther.ai" \
+      org.opencontainers.image.source="https://www.github.com/eleutherai/gpt-neox" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.base.name="${PYTORCH_IMAGE}"
+
+# Carry the NGC pip constraint file over to uv.
+ARG PIP_CONSTRAINT
+ENV UV_DEFAULT_INDEX=https://pypi.org/simple \
+    UV_NO_CONFIG=true \
+    UV_NO_CACHE=true \
+    UV_BREAK_SYSTEM_PACKAGES=true \
+    UV_CONSTRAINT=${PIP_CONSTRAINT:-}
+
+COPY --from=ghcr.io/astral-sh/uv:0.13.9 /uv /usr/local/bin/uv
 
 #### System package (uses default Python 3 version in Ubuntu 20.04)
 RUN apt-get update -y && \
     apt-get install -y \
-    python3-pip sudo pdsh \
+    sudo pdsh \
     htop tmux zstd software-properties-common \
     nfs-common pdsh cmake iftop iotop ssh openssh-server \
     iputils-ping net-tools git ninja-build build-essential libaio-dev \
     libcupti-dev libmlx4-1 infiniband-diags ibutils \
     rdmacm-utils perftest rdma-core && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3 1 && \
-    update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1 && \
-    python -m pip install --upgrade pip setuptools wheel packaging ninja && \
-    python -m pip install gpustat
+    uv pip install --system --upgrade setuptools wheel packaging ninja && \
+    uv pip install --system gpustat
 
 ### SSH
 RUN mkdir /var/run/sshd && \
@@ -64,15 +74,13 @@ ENV PATH=/usr/local/mpi/bin:${PATH} \
 RUN mv /usr/local/mpi/bin/mpirun /usr/local/mpi/bin/mpirun.real && \
     echo '#!/bin/bash' > /usr/local/mpi/bin/mpirun && \
     echo 'mpirun.real --allow-run-as-root --prefix /usr/local/mpi "$@"' >> /usr/local/mpi/bin/mpirun && \
-    chmod a+x /usr/local/mpi/bin/mpirun
-
-#### User account
-RUN useradd --create-home --uid 1000 --shell /bin/bash mchorse && \
+    chmod a+x /usr/local/mpi/bin/mpirun && \
+    # Create and configure the user account
+    useradd --create-home --uid 1000 --shell /bin/bash mchorse && \
     usermod -aG sudo mchorse && \
-    echo "mchorse ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-
-## SSH config and bashrc
-RUN mkdir -p /home/mchorse/.ssh /job && \
+    echo "mchorse ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && \
+    # Set up SSH and the login shell
+    mkdir -p /home/mchorse/.ssh /job && \
     echo 'Host *' > /home/mchorse/.ssh/config && \
     echo '    StrictHostKeyChecking no' >> /home/mchorse/.ssh/config && \
     echo 'export PDSH_RCMD_TYPE=ssh' >> /home/mchorse/.bashrc && \
@@ -84,19 +92,23 @@ RUN mkdir -p /home/mchorse/.ssh /job && \
 COPY requirements/* ./
 ENV TORCH_CUDA_ARCH_LIST=9.0
 
-# cuDF in NGC 24.02 requires protobuf <5.
-RUN python -m pip install --no-cache-dir -r requirements.txt && \
-    python -m pip install --no-cache-dir -r requirements-onebitadam.txt && \
-    python -m pip install --no-cache-dir wandb==0.16.6 protobuf==4.25.8 && \
-    python -m pip install --no-cache-dir --no-build-isolation transformer-engine[pytorch]==1.12 && \
-    python -m pip install --no-cache-dir --no-build-isolation --no-binary flash-attn flash-attn==2.5.6
+RUN uv pip install --system -r requirements.txt && \
+    uv pip install --system -r requirements-onebitadam.txt && \
+    uv pip install --system -r requirements-wandb.txt && \
+    uv pip install --system --no-build-isolation 'transformer-engine[pytorch]==1.12'
+
+RUN uv pip install --system --no-build-isolation \
+        --no-binary flash-attn flash-attn==2.5.6
 
 COPY megatron/fused_kernels/ /megatron/fused_kernels
-RUN pip install --no-cache-dir --no-build-isolation /megatron/fused_kernels && \
-    rm -rf /megatron/fused_kernels
-
-# Clear staging
-RUN mkdir -p /tmp && chmod 0777 /tmp
+ARG BUILD_FUSED_KERNELS=true
+RUN case "$BUILD_FUSED_KERNELS" in \
+        true) uv pip install --system --no-build-isolation /megatron/fused_kernels ;; \
+        false) ;; \
+        *) echo "BUILD_FUSED_KERNELS must be true or false" >&2; exit 1 ;; \
+    esac && \
+    rm -rf /megatron/fused_kernels && \
+    mkdir -p /tmp && chmod 0777 /tmp
 
 #### SWITCH TO mchorse USER
 USER mchorse
