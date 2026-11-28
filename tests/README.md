@@ -37,6 +37,8 @@ The test cases for cpu can be run with:
 pytest tests -m cpu
 ```
 
+Single-process CUDA tests that cannot execute in a forked subprocess (e.g. `tests/unit/test_packed_sequence_model.py`) are marked with `@pytest.mark.unforked`. These tests run in-process without forking, allowing them to pass even when `--forked` is passed to pytest.
+
 If a html coverage report has been created a simple http server can be run to serve static files.
 
 ```bash
