@@ -1,0 +1,43 @@
+# Based on https://huggingface.co/Qwen/Qwen-1_8B/blob/main/config.json
+
+{
+  "pipe_parallel_size": 1,
+  # model_parallel_size must evenly divide num_attention_heads (16)
+  "model_parallel_size": 1,
+  # Pads the vocab to 151,936 rows, the HF embedding size (see #1396)
+  "make_vocab_size_divisible_by": 1187,
+
+  # model settings
+  "num_layers": 24,
+  "hidden_size": 2048,
+  # HF's intermediate_size (11008) counts w1 and w2 together; each is 5504
+  "intermediate_size": 16512, # 5504*3 as 3x needed for swiglu with neox
+  "num_attention_heads": 16,
+  # HF's dynamic NTK RoPE and logN scaling past seq_length are not implemented
+  "seq_length": 8192,
+  "max_position_embeddings": 8192,
+  "pos_emb": "rotary",
+  "rotary_pct": 1,
+  "rotary_emb_base": 10000,
+  "no_weight_tying": true,
+  "gpt_j_residual": false,
+  "output_layer_parallelism": "column",
+  "norm": "rmsnorm",
+  "rms_norm_epsilon": 1.0e-6,
+  "attention_config": [[["flash"], 24]],
+
+  "scaled_upper_triang_masked_softmax_fusion": true,
+  "bias_gelu_fusion": false,
+  "use_bias_in_norms": false,
+  "use_bias_in_attn_linear": "qkv",
+  "use_bias_in_mlp": false,
+  "activation": "swiglu",
+  # 5504 is a multiple of 128 but not 256; 256 would round the FFN up to 5632
+  "mlp_multiple_of": 128,
+
+  # NeoX can't load qwen.tiktoken; Qwen2's tokenizer.json has the same BPE tokens
+  "tokenizer_type": "HFTokenizer",
+  # "vocab-file": "/path/to/Qwen2-7B/tokenizer.json",
+
+  "init_method_std": 0.02
+}
